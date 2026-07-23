@@ -1,18 +1,27 @@
 # 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
 
-Status: **Primitives 1 + 2 shipped (engines + declarative config surface);
-flagship validation remains.** The caret + selection track is implemented —
-see `docs/101-caret-selection-track.md` — the frame-sequence compressor's v1
-engine is implemented — see "Shipped engine (v1)" under Primitive 1 below —
-and the declarative config surface is shipped: the `states: [...]` run block
+Status: **Shipped end to end — primitives, config surface, and the flagship
+validation.** The caret + selection track is implemented
+(`docs/101-caret-selection-track.md`); the frame-sequence compressor's v1
+engine is implemented ("Shipped engine (v1)" under Primitive 1 below); the
+declarative config surface is shipped: the `states: [...]` run block
 (+ `caret` auto-caret) and the `textTracks: [...]` caret/selection tracks in
 the animate config, docs/43 §11–12, with the committed golden example
-`examples/animate/compressed-run/`. The fold-ins shipped earlier. This is the
-requirements +
-design reference for making editor-style typing/editing sequences (an IDE window
-typed into and edited, with syntax coloring, selection, mid-line inserts that
-reflow trailing text) first-class in the animate pipeline. Plain text is the
-trivial case, so this covers "animate text being typed and edited" generally.
+`examples/animate/compressed-run/`. The fold-ins shipped earlier. The stage-5
+flagship validation is complete: the kerf getting-started EDITOR phases are
+rebuilt on the new primitives as the committed golden
+`examples/animate/editor-session/` with a rasterized-SVG proof suite
+(`tests/editor-session.e2e.test.ts`) and measured numbers — see "Flagship
+validation results" below — and the authoring recipe is written up as
+`docs/102-editing-page-rig-cookbook.md`. Remaining items are the filed
+follow-ups (locally tracked): automatic run detection, cross-line identity,
+behind-glyph selection, chrome-variant reopen, the multi-frame `compress:
+true` form, and the caret-track addressing limits (docs/101 v1 limits).
+This is the requirements + design reference for making editor-style
+typing/editing sequences (an IDE window typed into and edited, with syntax
+coloring, selection, mid-line inserts that reflow trailing text) first-class
+in the animate pipeline. Plain text is the trivial case, so this covers
+"animate text being typed and edited" generally.
 
 **Design history.** The first draft of this doc specified a synthetic rich-text
 primitive: a styled document model in config JSON plus an operation timeline
@@ -309,9 +318,9 @@ vanish. Capture cost stays O(N·page) at authoring time: ~30 ms/state measured o
 the probe page (~100–200 ms for a kerf-scale desktop scene) — minutes for a
 whole per-keystroke session, acceptable. Append-only typed lines can stay as
 typing overlays (with `holdToFrameEnd` below), so per-keystroke states are only
-needed where reflow actually happens. A documented page-rig recipe (a small
-reusable snippet the `S`/`ins`/`rep` helpers could have been copied from) ships
-with the flagship validation.
+needed where reflow actually happens. The documented page-rig recipe (a small
+reusable snippet the `S`/`ins`/`rep` helpers could have been copied from) is
+`docs/102-editing-page-rig-cookbook.md`, written from the rebuilt flagship.
 
 ## Fold-ins: two small, independent typing-overlay improvements
 
@@ -364,11 +373,69 @@ regardless of (and before) everything above:
    and the committed golden example `examples/animate/compressed-run/` (a
    mid-line insert + colorize run with the auto-caret riding it, then a
    declarative caret park/move + selection sweep).
-5. **Flagship validation** — rebuild the kerf getting-started editor phases on
-   runs + caret/selection; compare size and frame-by-frame visual parity against
-   the shipped SVG (rasterize the actual output, per the verify-the-SVG rule);
-   write the page-rig cookbook from the rebuilt flagship; fold findings back
-   here and flip this doc's status.
+5. **Flagship validation** — **Shipped** — see "Flagship validation results"
+   below: the rebuilt editor phases (`examples/animate/editor-session/`), the
+   rasterized proof suite (`tests/editor-session.e2e.test.ts`), the measured
+   size/DOM/granularity numbers, and the page-rig cookbook
+   (`docs/102-editing-page-rig-cookbook.md`).
+
+## Flagship validation results (stage 5)
+
+The kerf getting-started EDITOR phases, rebuilt on the primitives above as the
+committed golden `examples/animate/editor-session/` (11 config frames): five
+lines typed via `holdToFrameEnd` + `anchor.baseline` overlays handing off to
+real page text at cuts, the ` computed,` mid-line insert as a 12-state
+compressed run, the `"btn"` selection as a declarative `textTracks` sweep, the
+`"btn"` → `{cls}` replacement as a 7-state run, and colorize-on-completion as
+a paired recolor state inside each run. The entire old workaround stack —
+cover rects, per-line reveal animations, the hand-tuned `BASELINE_DY ≈ 11.5`,
+page-side caret spans, page-side selection markup — is gone from the page,
+which now carries only the ~20-line state-stepping rig documented in doc 102.
+
+**Rasterized proof** (`tests/editor-session.e2e.test.ts`, 11 assertions over
+the composed SVG): the typed-line handoff at a `holdToFrameEnd` cut is
+ink-bbox-continuous; the trailing text shifts by exactly one advance per
+keystroke while the prefix stays byte-stable across states; the colorize and
+`{cls}` recolors land in place (amber appears, glyph bbox unchanged); the
+selection sweeps per painted character edge and clears at the cut; the track
+caret and both runs' auto-carets sit on the captured glyph edges; and both
+run exits are seamless against the following frame's page text (the
+zero-net-shift replace exit is pixel-identical; the insert exit differs only
+in subpixel antialiasing where the tail rides the composed `translateX`).
+
+**Measured** (vs the same phases built the old way as a throwaway config;
+full table + reading in doc 102): the runs themselves compress 121.1 → 22.8
+KB and 88.5 → 19.4 KB (5.3× / 4.6×, pairing 99.4% / 99.6%) — the predicted
+~5×. Whole-file at matched per-keystroke granularity: 184.1 KB vs 336.9 KB
+raw (1.8×), 2,284 vs 5,236 live DOM elements (2.3×), gzip ~1× (30.0 vs 31.4
+KB) — the whole-file ratio is diluted here because the scene is one small
+window and the typed-line phase costs the same on both stacks; the shipped
+kerf file's 91%-redundant 37-frame desktop payload is where the ~5.2×/~9×
+projection above applies. Per-keystroke granularity came out CHEAPER than the
+old per-2-char compromise (184.1 vs 257.7 KB raw). Authoring cost: ~4.9 s to
+compose the 11-frame config including all 19 state captures (~5.1 s and
+~7.8 s for the old-way variants).
+
+**Fixed during the rebuild** (both invisible until a states run sat at
+t > 0 / carried a re-tokenization):
+
+- The run's auto-caret free-ran on its local clock: the caret/selection track
+  declares its animations INLINE on its rects/groups, and the embed-timeline
+  re-anchor pass only rewrote `<style>` contents — correct only when the host
+  frame started at t = 0. `offsetEmbeddedAnimatedSvgTimeline` now retimes
+  inline `style="animation:…"` declarations too (all modes).
+- A recolor-only state (the colorize) derived an "edit point" from its
+  whitespace churn — spaces re-segmenting across the new token spans — and
+  yanked the caret to the recolor site. The edit-point derivation now skips
+  states whose only births/deaths are whitespace while glyphs recolored, so
+  the auto-caret holds at the previous edit (a tokenizer catching up does not
+  move a real editor's caret). Typing a literal space still derives an edit.
+
+**Authoring caveats found** (recorded in doc 102): a `textTracks` caret and
+selection hold their final state through the loop and layer above every
+frame — always end a track with `clearSelection` + `hide` at the frame's cut;
+and track addressing covers the element's OWN text runs only, so a selection
+over a token targets the token span (`[data-line='6'] .str`), not the line.
 
 ## The superseded alternative — the synthetic document model + op timeline
 
@@ -389,6 +456,9 @@ of to a bespoke renderer, if config-only authoring is ever wanted.
 
 ## Related
 
+- `docs/102-editing-page-rig-cookbook.md` — the authoring recipe written from
+  the rebuilt flagship: the two blessed patterns (typed reveal, per-state
+  editing pages), the reusable page rig, and the measured comparison table.
 - `docs/101-caret-selection-track.md` — the SHIPPED caret + selection track
   (Primitive 2 above): addressing engine, event vocabulary, emission model,
   z-order contract, and v1 limits.

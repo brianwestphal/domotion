@@ -470,6 +470,46 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
+  {
+    // docs/100 stage 5 (the flagship validation): the kerf getting-started
+    // EDITOR phases rebuilt on the new primitives. Five lines typed via
+    // `holdToFrameEnd` + `anchor.baseline` overlays handing off to real page
+    // text at cuts (no cover rects, no reveal animations, no ascent
+    // constants); the ` computed,` mid-line insert and the "btn" → {cls}
+    // replacement as per-keystroke `states` compressed runs with the
+    // auto-caret; the "btn" selection as a declarative `textTracks` sweep;
+    // colorize-on-completion as a paired-recolor state inside each run.
+    // The page uses the reusable editing-page rig from docs/102.
+    name: "editor-session",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 640 360"`)) f.push("missing viewBox 640x360");
+      if (count(svg, /class="f f-\d+"/g) !== 11) f.push("expected 11 frame groups");
+      // Six typed lines ride typing overlays (5 v1 lines + the cls line),
+      // each with a caret; `holdToFrameEnd` means NO fade-out ramp on the
+      // typed text (the hold drops with the frame's own cut).
+      const typed = [...svg.matchAll(/class="t[\d_]+-text"/g)];
+      if (typed.length !== 6) f.push(`expected 6 typing overlays, got ${typed.length}`);
+      const carets = [...svg.matchAll(/class="t[\d_]+-caret"/g)];
+      if (carets.length !== 6) f.push(`expected 6 typing carets, got ${carets.length}`);
+      // The two editing phases nest as compressed runs (frames 6 and 9),
+      // namespaced cr6_ / cr9_, with glyph identity groups on step-end tracks
+      // and the auto-caret riding each run.
+      for (const tok of ["cr6_", "cr9_"]) {
+        if (!svg.includes(tok)) f.push(`missing the ${tok} compressed-run namespace token`);
+      }
+      if (!/cr6_anim-cr6g\d+/.test(svg)) f.push("missing insert-run glyph identity groups (cr6_anim-cr6g…)");
+      if (!/cr9_anim-cr9g\d+/.test(svg)) f.push("missing replace-run glyph identity groups (cr9_anim-cr9g…)");
+      if (!/step-end/.test(svg)) f.push("missing step-end tracks (runs snap at state boundaries)");
+      if (!/class="cr6_text-track"/.test(svg)) f.push("missing the insert run's auto-caret (cr6_text-track)");
+      if (!/class="cr9_text-track"/.test(svg)) f.push("missing the replace run's auto-caret (cr9_text-track)");
+      // Frame 8's declarative selection track: a top-level text-track group
+      // with the sweep rect (the "btn" selection — no page-side markup).
+      if (!/class="text-track"/.test(svg)) f.push("missing the frame-8 textTracks group (top-level text-track)");
+      if (!/class="tt-sel"/.test(svg)) f.push("missing the selection sweep rect (tt-sel)");
+      return f;
+    },
+  },
 ];
 
 /**

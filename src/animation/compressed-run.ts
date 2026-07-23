@@ -489,6 +489,7 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
     const nextBuckets = bucket(perState[s] ?? []);
     const nextLive = new Map<string, ThreadedGlyph[]>();
     const lineChanges = new Map<string, { births: GlyphRec[]; deaths: ThreadedGlyph[] }>();
+    let stateRecolors = 0;
     const keys = new Set([...live.keys(), ...nextBuckets.keys()]);
     for (const key of keys) {
       const prevList = (live.get(key) ?? []).slice().sort((a, b) => a.xs[a.xs.length - 1] - b.xs[b.xs.length - 1]);
@@ -506,7 +507,7 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
         t.fills.push(g.fill);
         survivors.push(t);
         paired++;
-        if (p.recolored) recolored++;
+        if (p.recolored) { recolored++; stateRecolors++; }
       }
       const changes = { births: [] as GlyphRec[], deaths: [] as ThreadedGlyph[] };
       for (const idx of align.unpairedPrev) {
@@ -529,6 +530,12 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
 
     // Edit point: the line with the most changes; caret lands after the
     // rightmost born glyph, or at the close-up point of a pure deletion.
+    // Recolor states are exempt: a state whose only births/deaths are
+    // WHITESPACE churn while glyphs recolored is a re-tokenization (the
+    // colorize-on-completion pattern — spaces re-segment across the new
+    // spans while every inked glyph pairs or recolors in place). A real
+    // editor's caret does not move when the tokenizer catches up, so no edit
+    // point is derived and the auto-caret holds at the previous edit.
     let bestKey: string | null = null;
     let bestCount = 0;
     for (const [key, c] of lineChanges) {
@@ -537,15 +544,24 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
     }
     if (bestKey != null) {
       const c = lineChanges.get(bestKey)!;
-      if (c.births.length > 0) {
-        let last = c.births[0];
-        for (const g of c.births) if (g.x > last.x) last = g;
-        edits.push({ state: s, x: last.x + last.advance, lineTop: last.segY, ascent: last.ascent, descent: last.descent, fontSize: last.fontSize, cellWidth: last.advance });
-      } else {
-        let first = c.deaths[0];
-        for (const t of c.deaths) if (t.xs[t.xs.length - 1] < first.xs[first.xs.length - 1]) first = t;
-        const r = first.rec;
-        edits.push({ state: s, x: first.xs[first.xs.length - 1], lineTop: r.segY, ascent: r.ascent, descent: r.descent, fontSize: r.fontSize, cellWidth: r.advance });
+      const inkBirths = c.births.filter((g) => g.ch.trim() !== "");
+      const inkDeaths = c.deaths.filter((t) => t.rec.ch.trim() !== "");
+      const whitespaceOnly = inkBirths.length === 0 && inkDeaths.length === 0;
+      if (!(whitespaceOnly && stateRecolors > 0)) {
+        // Prefer inked glyphs for placement (the caret should sit against a
+        // visible edge); pure-whitespace edits (typing a space) still count.
+        const placeBirths = inkBirths.length > 0 ? inkBirths : c.births;
+        const placeDeaths = inkDeaths.length > 0 ? inkDeaths : c.deaths;
+        if (placeBirths.length > 0) {
+          let last = placeBirths[0];
+          for (const g of placeBirths) if (g.x > last.x) last = g;
+          edits.push({ state: s, x: last.x + last.advance, lineTop: last.segY, ascent: last.ascent, descent: last.descent, fontSize: last.fontSize, cellWidth: last.advance });
+        } else {
+          let first = placeDeaths[0];
+          for (const t of placeDeaths) if (t.xs[t.xs.length - 1] < first.xs[first.xs.length - 1]) first = t;
+          const r = first.rec;
+          edits.push({ state: s, x: first.xs[first.xs.length - 1], lineTop: r.segY, ascent: r.ascent, descent: r.descent, fontSize: r.fontSize, cellWidth: r.advance });
+        }
       }
     }
   }

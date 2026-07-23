@@ -35,7 +35,12 @@
  *
  * The vocabulary is fully controlled (domotion's own animator emits it), so the
  * CSS rewrite is precise. This runs AFTER {@link namespaceEmbeddedAnimatedSvg}
- * (so names are already per-frame unique) and only touches `<style>` contents.
+ * (so names are already per-frame unique) and touches both `<style>` contents
+ * and inline `style="…animation:…"` attributes — the caret/selection track
+ * (docs/101) declares its animations inline on its rects/groups, and a
+ * compressed run's auto-caret embeds that markup inside the nested SVG; leaving
+ * inline declarations untouched left the caret free-running on its local clock
+ * (correct only when the host frame started at t = 0).
  */
 
 import { fmt, clampPct } from "./svg-meta.js";
@@ -184,8 +189,8 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
   // for the rest of the master loop. No keyframe remap.
   if (mode === "loop") {
     if (startMs <= 0) return svg; // already starts at the origin and loops
-    return svg.replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => {
-      const out = css.replace(/animation:\s*([^;}]+)/g, (full: string, value: string) => {
+    const delayCss = (css: string): string =>
+      css.replace(/animation:\s*([^;}"]+)/g, (full: string, value: string) => {
         const isPeriodMatch = splitTopLevel(value).some((entry) =>
           tokenizeEntry(entry).some((t) => {
             const sec = parseTimeSec(t);
@@ -194,19 +199,22 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
         );
         return isPeriodMatch ? `${full};animation-delay:${fmt(startSec)}s;animation-fill-mode:backwards` : full;
       });
-      return `<style>${out}</style>`;
-    });
+    return svg
+      .replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => `<style>${delayCss(css)}</style>`)
+      .replace(/style="([^"]*animation:[^"]*)"/g, (_full, css: string) => `style="${delayCss(css)}"`);
   }
 
   // Nothing to do: content already starts at the origin and fills the loop.
   if (offsetPct <= 1e-6 && Math.abs(scale - 1) <= 1e-6) return svg;
 
-  return svg.replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => {
-    const retimed = new Set<string>();
-    // Pass 1: retime matching animations + collect the keyframe names they drive.
-    // Untouched declarations (e.g. a fixed-period cursor blink) are returned
-    // byte-for-byte so only the retimed lines change.
-    let out = css.replace(/animation:\s*([^;}]+)/g, (full: string, value: string) => {
+  // Pass 1: retime matching animations + collect the keyframe names they drive.
+  // Untouched declarations (e.g. a fixed-period cursor blink) are returned
+  // byte-for-byte so only the retimed lines change. The set is shared across
+  // every `<style>` block AND inline `style` attribute — the caret track's
+  // shorthands live inline while its `@keyframes` live in its local `<style>`.
+  const retimed = new Set<string>();
+  const retimeCss = (css: string): string =>
+    css.replace(/animation:\s*([^;}"]+)/g, (full: string, value: string) => {
       let changed = false;
       const entries = splitTopLevel(value).map((entry) => {
         const tokens = tokenizeEntry(entry);
@@ -227,14 +235,16 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
       });
       return changed ? `animation:${entries.join(",")}` : full;
     });
-    // Pass 2: remap the keyframes those animations drive.
-    out = out.replace(
-      /@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g,
-      (full: string, name: string, inner: string) =>
-        retimed.has(name) ? `@keyframes ${name} { ${remapKeyframeBody(inner, offsetPct, scale)} }` : full,
-    );
-    return `<style>${out}</style>`;
-  });
+  let out = svg
+    .replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => `<style>${retimeCss(css)}</style>`)
+    .replace(/style="([^"]*animation:[^"]*)"/g, (_full, css: string) => `style="${retimeCss(css)}"`);
+  // Pass 2: remap the keyframes those animations drive.
+  out = out.replace(
+    /@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g,
+    (full: string, name: string, inner: string) =>
+      retimed.has(name) ? `@keyframes ${name} { ${remapKeyframeBody(inner, offsetPct, scale)} }` : full,
+  );
+  return out;
 }
 
 /** Animation-shorthand keywords that are never the `animation-name`. */

@@ -181,6 +181,32 @@ describe("buildCompressedRunPlan — identity threading", () => {
     expect(plan.edits).toEqual([]);
   });
 
+  it("a re-tokenization state (recolors + whitespace churn) derives NO edit point — the caret holds", () => {
+    // The flagship colorize-on-completion shape: every inked glyph pairs or
+    // recolors in place while a SPACE re-segments across the new spans (its
+    // style key changes with the segment structure, so it dies + re-births at
+    // the same x). The auto-caret must NOT jump to the whitespace churn — a
+    // real editor's caret stays put when the tokenizer catches up.
+    const s0 = [box([lineEl([{ text: "let" }, { text: " x = 1;" }])])];
+    const s1 = [box([lineEl([
+      { text: "let", color: "rgb(147, 197, 253)" },
+      { text: " ", color: "rgb(251, 191, 36)" }, // recolored space segment…
+      { text: "x = 1;" },
+    ])])];
+    const plan = buildCompressedRunPlan([state(s0), state(s1)]);
+    expect(plan.thread.recolored).toBeGreaterThan(0);
+    expect(plan.edits).toEqual([]);
+  });
+
+  it("typing a space (no recolors) still derives an edit point after the typed space", () => {
+    const s0 = [box([lineEl("abxy")])];
+    const s1 = [box([lineEl("a bxy")])];
+    const plan = buildCompressedRunPlan([state(s0), state(s1)]);
+    expect(plan.edits).toHaveLength(1);
+    // The space is born at index 1 (x0 + ADV); the caret lands after it.
+    expect(plan.edits[0].x).toBeCloseTo(60 + 2 * ADV, 6);
+  });
+
   it("backspace kills the glyph and closes the tail up; the edit point is the close-up x", () => {
     const s0 = [box([lineEl("let xy = 1;")])];
     const s1 = [box([lineEl("let x = 1;")])];

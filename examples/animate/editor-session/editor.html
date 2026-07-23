@@ -1,0 +1,117 @@
+<!doctype html>
+<!-- Editor-session flagship example (docs/100 stage 5): a code editor window
+     typed into and edited, rebuilt on the new primitives instead of the
+     cover-rect / page-side-caret workaround stack:
+
+       - the line-by-line typing rides `typing` overlays with
+         `holdToFrameEnd: true` + `anchor.baseline: true` (NO cover rects, NO
+         per-line reveal animations, NO hand-tuned ascent constants) handing
+         off to real page text at the cuts;
+       - the mid-line ` computed,` insert and the "btn" -> {cls} replacement
+         are per-keystroke page states composed by `states:` compressed runs
+         with the auto-caret riding the derived edit points;
+       - the "btn" selection is a declarative `textTracks` sweep (docs/101) —
+         no page-side selection markup, no page-side caret spans;
+       - colorize-on-completion is a paired-recolor state INSIDE each run.
+
+     The page uses the reusable editing-page rig documented in
+     docs/102-editing-page-rig-cookbook.md: the page owns the document model
+     (rows of pre-tokenized HTML), a tiny render helper draws any state, and
+     the config steps `state(i)` per captured state. -->
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 640px; height: 360px; overflow: hidden;
+    font-family: system-ui, sans-serif; background: #e8eaee; position: relative; }
+  .window { position: absolute; top: 16px; left: 16px; width: 608px; height: 328px;
+    border-radius: 10px; overflow: hidden; background: #1e293b; display: flex; flex-direction: column;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35); }
+  .titlebar { height: 28px; flex: none; background: #0f172a; display: flex; align-items: center;
+    gap: 8px; padding: 0 12px; font-size: 12px; color: #94a3b8; }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; }
+  .dots i:nth-child(1) { background: #ff5f57; } .dots i:nth-child(2) { background: #febc2e; } .dots i:nth-child(3) { background: #28c840; }
+  .tabbar { height: 26px; flex: none; background: #0f172a; display: flex; align-items: flex-end; padding: 0 10px; }
+  .tab { background: #1e293b; color: #e2e8f0; font-size: 11.5px; border-radius: 6px 6px 0 0;
+    padding: 5px 14px; font-family: Menlo, ui-monospace, monospace; }
+  .codearea { flex: 1; padding: 10px 0; font-family: Menlo, ui-monospace, monospace;
+    font-size: 12.5px; line-height: 19px; color: #e2e8f0; overflow: hidden; }
+  .ln { display: flex; white-space: pre; height: 19px; }
+  .ln .no { width: 36px; flex: none; text-align: right; padding-right: 12px; color: #475569; }
+  .ln .src { flex: 1; }
+  .kw { color: #93c5fd; } .str { color: #86efac; } .num { color: #fbbf24; }
+  .tag { color: #f9a8d4; } .attr { color: #7dd3fc; } .hole { color: #fbbf24; }
+</style></head><body>
+  <div class="window">
+    <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span>my-app — editor</div>
+    <div class="tabbar"><span class="tab">app.tsx</span></div>
+    <div class="codearea" id="code"></div>
+  </div>
+<script>
+  /* ---- the reusable editing-page rig (docs/102) -------------------------- */
+  // Rows are pre-tokenized HTML strings; the page IS the document model.
+  const tok = (c, s) => '<span class="' + c + '">' + s + '</span>';
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function renderRows(rows) {
+    document.getElementById('code').innerHTML = rows
+      .map((html, i) => '<div class="ln"><span class="no">' + (i + 1) +
+        '</span><span class="src" data-line="' + (i + 1) + '">' + (html ?? '') + '</span></div>')
+      .join('');
+  }
+  // withRow(rows, n, html): rows with 1-based row n replaced.
+  const withRow = (rows, n, html) => rows.map((r, i) => (i === n - 1 ? html : r));
+  // keystrokes(before, text, after): rows-per-keystroke for `text` landing
+  // between two fixed halves — the row's HTML at k of text.length chars typed.
+  const keystrokes = (before, text, after) => (k) => before + esc(text.slice(0, k)) + after;
+  const STATES = [];
+  window.state = (i) => renderRows(STATES[i]);
+
+  /* ---- this page's document states --------------------------------------- */
+  const K = (s) => tok('kw', s), S = (s) => tok('str', s), T = (s) => tok('tag', s),
+        A = (s) => tok('attr', s), N = (s) => tok('num', s), H = (s) => tok('hole', s);
+
+  // The v1 program, colored. (Overlays type the PLAIN text; the page swaps the
+  // colored form in at each cut — the tokenizer catching up.)
+  const R1 = K('import') + " { signal, mount } " + K('from') + " " + S("'kerfjs'") + ";";
+  const R3 = K('const') + " count = signal(" + N('0') + ");";
+  const R5 = "mount(root, () " + K('=>') + " (";
+  const R6 = "  &lt;" + T('button') + " " + A('class') + "=" + S('"btn"') + "&gt;Clicked " + H('{count}') + " times&lt;/" + T('button') + "&gt;";
+  const R7 = "));";
+  const V1 = [R1, '', R3, '', R5, R6, R7];
+
+  // States 0..5: the typing phase — rows appear as each line is typed, the
+  // previous line colorizing at the cut (state i opens row for line i+1).
+  STATES.push(['']);                                    // 0: row 1 open, empty
+  STATES.push([R1, '', '']);                            // 1: L1 colored, row 3 open
+  STATES.push([R1, '', R3, '', '']);                    // 2: + L3, row 5 open
+  STATES.push([R1, '', R3, '', R5, '']);                // 3: + L5, row 6 open
+  STATES.push([R1, '', R3, '', R5, R6, '']);            // 4: + L6, row 7 open
+  STATES.push(V1);                                      // 5: settled v1
+
+  // States 6..16: the ` computed,` mid-line insert (one keystroke per state)
+  // then the colorize-on-completion recolor at unchanged glyph positions.
+  const insRow = keystrokes(K('import') + " { signal,", " computed,",
+    " mount } " + K('from') + " " + S("'kerfjs'") + ";");
+  for (let k = 1; k <= 10; k++) STATES.push(withRow(V1, 1, insRow(k)));
+  const R1v2 = K('import') + " " + H('{') + " signal, computed, mount " + H('}') + " " +
+    K('from') + " " + S("'kerfjs'") + ";";
+  const V2 = withRow(V1, 1, R1v2);
+  STATES.push(V2);                                      // 16: import recolored
+
+  // State 17: the typed cls line colorizes into row 4 (handoff at the cut).
+  const R4 = K('const') + " cls = computed(() " + K('=>') + " count.value &gt;= " +
+    N('5') + " ? " + S("'btn hot'") + " : " + S("'btn'") + ");";
+  const V3 = withRow(V2, 4, R4);
+  STATES.push(V3);                                      // 17: cls line colored
+
+  // States 18..22: `{cls}` replacing the "btn" selection (the row snaps left
+  // as the selection is consumed, then pushes right per keystroke), then the
+  // recolor of the landed hole. 23: {cls} recolored amber.
+  const repRow = keystrokes("  &lt;" + T('button') + " " + A('class') + "=", "{cls}",
+    "&gt;Clicked " + H('{count}') + " times&lt;/" + T('button') + "&gt;");
+  for (let k = 1; k <= 5; k++) STATES.push(withRow(V3, 6, repRow(k)));
+  const R6v2 = "  &lt;" + T('button') + " " + A('class') + "=" + H('{cls}') +
+    "&gt;Clicked " + H('{count}') + " times&lt;/" + T('button') + "&gt;";
+  STATES.push(withRow(V3, 6, R6v2));                    // 23: settled v2
+
+  window.state(0);
+</script></body></html>

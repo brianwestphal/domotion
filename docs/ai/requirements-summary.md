@@ -61,11 +61,26 @@ they describe (see `CLAUDE.md` "Documentation"):
   arrives with the compressor's merged emission. Verified by a rasterized-SVG
   e2e (caret ink at resolved x ±1.5px, sweep growth, hide).
 
-- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Primitives 1 + 2
-  shipped (engines + the declarative config surface, DM-1747: the
+- **Doc 102 (`docs/102-editing-page-rig-cookbook.md`, DM-1748)** —
+  **Shipped.** The authoring cookbook written from the rebuilt flagship
+  (`examples/animate/editor-session/`): the two blessed patterns —
+  (a) **typed reveal** (real page text + `holdToFrameEnd` +
+  `anchor.baseline`, no cover rects / reveal choreography / ascent
+  constants) and (b) **per-state editing pages** (a ~20-line reusable
+  `window.state(i)` page rig + the `states:`/`caret`/`textTracks` config
+  side) — plus the honest guidance: what stays page-side (the page is the
+  document model), reading the pairing-ratio log, when to stay with plain
+  flipbook frames, and the measured new-vs-old comparison table (runs
+  compress 5.3×/4.6×; whole-file 1.8× raw / 2.3× fewer live-DOM elements at
+  matched per-keystroke granularity, gzip ~1×).
+
+- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Shipped end to
+  end (engines + the declarative config surface, DM-1747: the
   `states: [...]` run block with `caret` auto-caret, docs/43 §11, golden
-  `examples/animate/compressed-run/`); the flagship validation is the
-  remaining stage**. Editor-style typing/editing sequences, redesigned (7/23) around
+  `examples/animate/compressed-run/`; and the DM-1748 flagship validation:
+  `examples/animate/editor-session/` + the rasterized proof suite
+  `tests/editor-session.e2e.test.ts` + doc 102 — remaining items are the
+  filed follow-up tickets)**. Editor-style typing/editing sequences, redesigned (7/23) around
   captured states rather than a synthetic document model: the capture page stays
   the document model (per-state continue+cut frames — real reflow, real syntax
   coloring), and two primitives fix that model's measured costs: (1) the

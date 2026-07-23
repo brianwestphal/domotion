@@ -116,6 +116,21 @@ pattern:
 All motion is CSS opacity / transform / width — **no SMIL** (docs/84), no
 animated filter.
 
+The shorthands are declared INLINE on the track's rects/groups (the
+keyframes in the track's local `<style>`). When track markup is embedded
+inside a nested animated SVG (the compressed run's auto-caret, doc 100), the
+embed re-anchor pass (`offsetEmbeddedAnimatedSvgTimeline`,
+`src/animation/embed-timeline.ts`) retimes inline `style="animation:…"`
+declarations along with `<style>` contents — position/visibility/selection
+tracks remap into the host frame's window; only the fixed-period blink stays
+free-running.
+
+A track's caret and selection **hold their final state through the loop** and
+the track layers above every frame group — so a track that should not outlive
+its frame must end with explicit `clearSelection` + `hide` events at the
+frame's cut (see the docs/102 cookbook; the editor-session flagship's
+selection frame is the reference).
+
 ### Z-order (documented contract)
 
 As a standalone overlay the selection rect paints **above** the captured text —

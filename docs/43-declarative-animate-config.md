@@ -357,7 +357,7 @@ A frame may capture **N editing states of the live page inside one frame** and c
 - `states` is mutually exclusive with the other content-producing kinds (`scroll` / `cast` / `template` / `typeResample` / `jsReveal`). It drives the live page, so it works on a `continue` frame or a fresh `input` load. Like those kinds, a `states` frame has no single captured tree: magic-move to/from it falls back to crossfade, and cursor events can't address the states *inside* the run (editing runs have no pointer).
 - A `compress: true` form stamped across a run of ordinary consecutive `continue`+`cut` frames is **not** part of v1 — collapsing config frames would re-index every frame-addressed feature (cursor events, transitions, magic-move); `states:` keeps the 1 config-frame ↔ 1 animation-frame invariant instead.
 
-Example: `examples/animate/compressed-run/`. Engine + measured behavior: `docs/100-rich-text-editing.md` ("Shipped engine (v1)").
+Examples: `examples/animate/compressed-run/` (minimal), `examples/animate/editor-session/` (the flagship editor rebuild). Engine + measured behavior: `docs/100-rich-text-editing.md` ("Shipped engine (v1)"); authoring recipe: `docs/102-editing-page-rig-cookbook.md`.
 
 ## 12. Caret + selection tracks — `textTracks` (docs/101)
 
@@ -386,7 +386,7 @@ A frame may declare **caret / selection tracks** anchored to its captured text: 
 - Unresolvable **events** (out-of-range offsets) are skipped with a warning (the cursor-overlay soft-fail convention) — only the selector itself is a hard error.
 - `textTracks` requires this frame's single captured tree, so it can't be combined with `scroll` / `cast` / `template` / `typeResample` / `jsReveal` / `states`. Z-order: selection rects paint **above** the captured text (a highlight-marker look — true behind-the-glyphs selection is the compressed run's merged emission), and the whole track layers above frame content but **below the cursor overlay**.
 
-Example: frame 1 of `examples/animate/compressed-run/`.
+Examples: frame 1 of `examples/animate/compressed-run/`; the selection frame of `examples/animate/editor-session/` (park → move → sweep → `clearSelection` + `hide` at the cut — a track's caret/selection HOLD their final state through the loop and layer above every frame, so always end a track explicitly at its frame's cut).
 
 ---
 

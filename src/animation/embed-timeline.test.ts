@@ -52,6 +52,41 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
     expect(out).toContain("width:90%");
   });
 
+  it("retimes inline style=\"animation:…\" declarations and remaps their <style>-block keyframes", () => {
+    // The caret/selection track (docs/101) declares its animations INLINE on
+    // its rects/groups while its @keyframes live in a local <style> — the
+    // compressed run's auto-caret embeds exactly this shape. Both halves must
+    // be rewritten or the caret free-runs on its local clock (correct only
+    // when the host frame starts at t = 0).
+    const doc = [
+      "<svg><style>",
+      "@keyframes tt-pos-x{0%{transform:translate(10px,0px)}50%{transform:translate(20px,0px)}100%{transform:translate(20px,0px)}}",
+      "@keyframes tt-blink-x{0%{opacity:1}50%{opacity:0}100%{opacity:1}}",
+      "</style>",
+      `<g class="tt-pos" style="animation:tt-pos-x 4.00s step-end infinite"><rect style="animation:tt-blink-x 1.06s step-end infinite"/></g>`,
+      "</svg>",
+    ].join("");
+    const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 4000, startMs: 2000, masterMs: 10000 });
+    // The inline period-matched shorthand now runs on the master clock…
+    expect(out).toContain(`style="animation:tt-pos-x 10s step-end infinite"`);
+    // …its keyframes are remapped into the [20%, 60%] window with holds…
+    const pos = /@keyframes tt-pos-x \{[^@]*\}/.exec(out)?.[0] ?? "";
+    expect(pos).toContain("20%");
+    expect(pos).toContain("40%");
+    expect(pos).toContain("60%");
+    expect(pos).toMatch(/^@keyframes tt-pos-x \{ 0% \{ transform:translate\(10px,0px\) \}/);
+    // …and the fixed-period inline blink stays free-running, byte-for-byte.
+    expect(out).toContain(`style="animation:tt-blink-x 1.06s step-end infinite"`);
+    const blink = /@keyframes tt-blink-x\s*\{[^@]*\}/.exec(out)?.[0] ?? "";
+    expect(blink).toContain("50%{opacity:0}");
+  });
+
+  it("loop mode also delays inline style=\"animation:…\" declarations", () => {
+    const doc = `<svg><style>@keyframes w{0%{opacity:0}100%{opacity:1}}</style><g style="animation:w 4.00s linear infinite"/></svg>`;
+    const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 4000, startMs: 2000, masterMs: 10000, mode: "loop" });
+    expect(out).toContain(`style="animation:w 4.00s linear infinite;animation-delay:2s;animation-fill-mode:backwards"`);
+  });
+
   it("is a no-op when the content already starts at the origin and fills the loop", () => {
     const doc = castDoc(10);
     const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 10000, startMs: 0, masterMs: 10000 });

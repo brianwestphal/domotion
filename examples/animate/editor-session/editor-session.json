@@ -1,0 +1,143 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 640,
+  "height": 360,
+  "frames": [
+    {
+      "input": "./editor.html",
+      "waitFor": "#code",
+      "duration": 1600,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "import { signal, mount } from 'kerfjs';",
+          "anchor": { "selector": "[data-line='1']", "at": "top-left", "baseline": true },
+          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
+          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 1250,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "state(1)" }],
+      "overlays": [
+        { "kind": "typing", "text": "const count = signal(0);",
+          "anchor": { "selector": "[data-line='3']", "at": "top-left", "baseline": true },
+          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
+          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 1150,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "state(2)" }],
+      "overlays": [
+        { "kind": "typing", "text": "mount(root, () => (",
+          "anchor": { "selector": "[data-line='5']", "at": "top-left", "baseline": true },
+          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
+          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 1950,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "state(3)" }],
+      "overlays": [
+        { "kind": "typing", "text": "  <button class=\"btn\">Clicked {count} times</button>",
+          "anchor": { "selector": "[data-line='6']", "at": "top-left", "baseline": true },
+          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
+          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 750,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "state(4)" }],
+      "overlays": [
+        { "kind": "typing", "text": "));",
+          "anchor": { "selector": "[data-line='7']", "at": "top-left", "baseline": true },
+          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
+          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 800,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "state(5)" }]
+    },
+    {
+      "continue": true,
+      "duration": 2300,
+      "transition": { "type": "cut", "duration": 0 },
+      "caret": { "color": "#e2e8f0" },
+      "states": [
+        { "duration": 300 },
+        { "actions": [{ "type": "evaluate", "script": "state(6)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(7)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(8)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(9)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(10)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(11)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(12)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(13)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(14)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(15)" }], "duration": 120 },
+        { "actions": [{ "type": "evaluate", "script": "state(16)" }], "duration": 800 }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 2250,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "const cls = computed(() => count.value >= 5 ? 'btn hot' : 'btn');",
+          "anchor": { "selector": "[data-line='4']", "at": "top-left", "baseline": true },
+          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
+          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 2400,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "state(17)" }],
+      "textTracks": [
+        {
+          "selector": "[data-line='6'] .str",
+          "color": "#e2e8f0",
+          "events": [
+            { "type": "park", "at": 250, "charOffset": 5 },
+            { "type": "move", "at": 700, "charOffset": 0 },
+            { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 },
+            { "type": "clearSelection", "at": 2400 },
+            { "type": "hide", "at": 2400 }
+          ]
+        }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 1590,
+      "transition": { "type": "cut", "duration": 0 },
+      "caret": { "color": "#e2e8f0" },
+      "states": [
+        { "duration": 140 },
+        { "actions": [{ "type": "evaluate", "script": "state(18)" }], "duration": 130 },
+        { "actions": [{ "type": "evaluate", "script": "state(19)" }], "duration": 130 },
+        { "actions": [{ "type": "evaluate", "script": "state(20)" }], "duration": 130 },
+        { "actions": [{ "type": "evaluate", "script": "state(21)" }], "duration": 130 },
+        { "actions": [{ "type": "evaluate", "script": "state(22)" }], "duration": 130 },
+        { "actions": [{ "type": "evaluate", "script": "state(23)" }], "duration": 800 }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 1200,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}
