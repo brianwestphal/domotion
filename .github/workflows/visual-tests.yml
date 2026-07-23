@@ -2,7 +2,7 @@ name: Visual tests (sharded)
 
 # DM-1662: encode suite + os in the run title so the review tool can find the
 # latest completed run for a given suite via `gh run list --json displayTitle`.
-run-name: Visual tests · ${{ inputs.suite }} · os=${{ inputs.os }}
+run-name: Visual tests · ${{ inputs.suite }} · os=${{ inputs.os }}${{ inputs.only != '' && format(' · only={0}', inputs.only) || '' }}
 
 # DM-1216: fan the html-test / html-test-unicode visual-regression suites out
 # across many free public-repo runners so an ~1h throttled local run becomes a

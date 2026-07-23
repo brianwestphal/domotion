@@ -390,7 +390,14 @@ async function resolveLatestRun(ciSuite: string): Promise<string | null> {
         "--json", "databaseId,displayTitle,conclusion"], { ...GH_OPTS, encoding: "utf8" });
       const runs = JSON.parse(stdout) as Array<{ databaseId: number; displayTitle?: string }>;
       // Runs come newest-first; take the first whose title names this suite.
-      const hit = runs.find((r) => (r.displayTitle ?? "").includes(`· ${ciSuite} ·`));
+      // DM-1734: skip PARTIAL (--only) debug dispatches — they share the suite
+      // title but carry a handful of fixtures, and adopting one as "the latest
+      // run" clobbers a full sweep's metadata (the review grid then shows a
+      // near-empty list). Marked in the workflow run-name since DM-1734.
+      const hit = runs.find((r) => {
+        const t = r.displayTitle ?? "";
+        return t.includes(`· ${ciSuite} ·`) && !t.includes("· only=");
+      });
       if (hit != null) runId = String(hit.databaseId);
     } catch { /* gh unavailable — leave null */ }
     runResolveCache.set(ciSuite, { runId, at: Date.now() });
@@ -423,9 +430,27 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
       const src = existsSync(sub) ? sub : tmp;
       const slim = resolve(src, `results-${os}.slim.json`);
       if (existsSync(slim)) {
-        mkdirSync(dest, { recursive: true });
-        copyFileSync(slim, resolve(dest, "results.json"));
-        writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite }));
+        // DM-1734: guard against adopting a PARTIAL run's metadata over a full
+        // sweep's (pre-run-name-marker dispatches aren't detectable upstream).
+        // A legit newer sweep has a comparable fixture count; a --only debug
+        // run has a tiny one — keep the staged set and say so.
+        const existingResults = resolve(dest, "results.json");
+        let skipAdopt = false;
+        try {
+          const newCount = (JSON.parse(readFileSync(slim, "utf8")) as unknown[]).length;
+          if (existsSync(existingResults)) {
+            const oldCount = (JSON.parse(readFileSync(existingResults, "utf8")) as unknown[]).length;
+            if (newCount < oldCount * 0.5) {
+              skipAdopt = true;
+              console.log(`  · keeping staged ${os} ${ciSuite} metadata (${oldCount} fixtures) — latest run ${runId} looks partial (${newCount})`);
+            }
+          }
+        } catch { /* unreadable — adopt as before */ }
+        if (!skipAdopt) {
+          mkdirSync(dest, { recursive: true });
+          copyFileSync(slim, resolve(dest, "results.json"));
+          writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite }));
+        }
       }
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -434,6 +459,41 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
   })();
   inflightMetaFetches.set(key, task);
   return task;
+}
+
+// DM-1734: background prefetch. On first page-serve of a CI source, walk both
+// suites' staged results and fetch every shard sequentially (concurrency 1 —
+// shard artifacts are huge and gh downloads saturate the link anyway), so
+// images pop in progressively instead of each first view paying minutes of
+// on-demand download. Once per (runId, suite) per process; the per-shard
+// inflight map keeps on-demand requests coalesced with this walk.
+const prefetchStarted = new Set<string>();
+function startShardPrefetch(sourceId: string): void {
+  if (!sourceId.startsWith("ci-")) return;
+  const root = sourceById(sourceId).root;
+  void (async () => {
+    for (const suite of ["html-test", "html-test-unicode"] as SuiteName[]) {
+      const meta = readCiSourceMeta(root, suite);
+      if (meta == null) continue;
+      const key = `${meta.runId}:${meta.os}:${suite}`;
+      if (prefetchStarted.has(key)) continue;
+      prefetchStarted.add(key);
+      const rp = resolve(suiteDir(root, suite), "results.json");
+      if (!existsSync(rp)) continue;
+      let shards: number[] = [];
+      try {
+        const arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ shard?: number }>;
+        shards = [...new Set(arr.map((r) => r.shard).filter((n): n is number => typeof n === "number"))].sort((a, b) => a - b);
+      } catch { continue; }
+      if (shards.length === 0) continue;
+      console.log(`  ↓ prefetching ${shards.length} ${meta.os} ${meta.suite} shard(s) in the background…`);
+      for (const shard of shards) {
+        try { await fetchShard(root, suite, meta, shard); }
+        catch (e) { console.warn(`  prefetch of shard ${shard} failed: ${e instanceof Error ? e.message : String(e)}`); }
+      }
+      console.log(`  ✓ ${meta.os} ${meta.suite} shards cached — images now serve instantly`);
+    }
+  })();
 }
 
 // Refresh a CI source's metadata (both suites) from the latest completed run.
@@ -775,6 +835,9 @@ async function main(): Promise<void> {
         // takes ~13s for metadata, longer for image shards). A CI source with no
         // cached metadata is flagged `sourceFetchNeeded`; the client then shows a
         // loading banner and POSTs /api/refresh-source (below) before reloading.
+        // DM-1734: viewing a CI source also kicks the background shard prefetch
+        // so images arrive progressively rather than per-first-view.
+        startShardPrefetch(src);
         send(res, 200, "text/html; charset=utf-8", renderReviewPage(loadManifest(src)));
         return;
       }
@@ -795,15 +858,27 @@ async function main(): Promise<void> {
         }
         const root = sourceById(sourceId).root;
         const filePath = resolve(suiteDir(root, suite as SuiteName), decodeURIComponent(fname));
-        // DM-1661: cache miss on a lazy CI source → fetch the containing shard, then retry.
+        // DM-1661: cache miss on a lazy CI source → fetch the containing shard.
+        // DM-1734: DON'T block the request on the download — a shard artifact
+        // with keep_passing PNGs is hundreds of MB (measured 5m21s for one
+        // image), and an awaited fetch left the browser staring at hung <img>
+        // requests ("images don't load"). Kick the fetch, give quick fetches a
+        // short fast path, then 503 + Retry-After so the client retries while
+        // the download continues in the background (inflight-deduped).
         if (!existsSync(filePath) && fname.endsWith(".png")) {
           const meta = readCiSourceMeta(root, suite as SuiteName);
           if (meta != null) {
             const fixtureBase = decodeURIComponent(fname).replace(/-(expected|actual|diff)\.png$/, "");
             const shard = shardForFixture(root, suite as SuiteName, fixtureBase);
             if (shard != null) {
-              try { await fetchShard(root, suite as SuiteName, meta, shard); }
-              catch (e) { console.warn(`  lazy fetch failed: ${e instanceof Error ? e.message : String(e)}`); }
+              const fetchP = fetchShard(root, suite as SuiteName, meta, shard)
+                .catch((e) => console.warn(`  lazy fetch failed: ${e instanceof Error ? e.message : String(e)}`));
+              await Promise.race([fetchP, new Promise((r) => setTimeout(r, 2_500))]);
+              if (!existsSync(filePath)) {
+                res.setHeader("Retry-After", "10");
+                send(res, 503, "text/plain", "shard download in progress — retry shortly");
+                return;
+              }
             }
           }
         }

@@ -122,9 +122,45 @@ document.addEventListener("load", (e) => {
   const t = e.target as HTMLElement;
   if (t?.tagName === "IMG") t.closest("figure")?.classList.add("img-loaded");
 }, true);
+// DM-1734: on a CI source, a failed image usually means "shard download still
+// in progress" (the server answers 503 + Retry-After while it pulls the
+// artifact in the background — hundreds of MB with keep_passing PNGs). Retry
+// each failed CI image on a timer instead of leaving a permanently-broken
+// tile, with a figcaption hint while waiting. Caps out after ~15 min.
+const CI_IMG_RETRY_MS = 10_000;
+const CI_IMG_RETRY_MAX = 90;
+const ciRetryCounts = new WeakMap<HTMLImageElement, number>();
+function scheduleCiImgRetry(img: HTMLImageElement): void {
+  if (!MANIFEST.activeSource.startsWith("ci-")) return;
+  const n = (ciRetryCounts.get(img) ?? 0) + 1;
+  if (n > CI_IMG_RETRY_MAX) return;
+  ciRetryCounts.set(img, n);
+  const fig = img.closest("figure");
+  const cap = fig?.querySelector("figcaption");
+  if (cap != null && !cap.textContent!.includes("downloading")) cap.textContent += " (downloading shard…)";
+  setTimeout(() => {
+    if (!img.isConnected) return;
+    const base = (img.getAttribute("src") ?? "").split("?")[0];
+    if (base !== "") img.src = `${base}?r=${n}`;
+  }, CI_IMG_RETRY_MS);
+}
 document.addEventListener("error", (e) => {
   const t = e.target as HTMLElement;
-  if (t?.tagName === "IMG") t.closest("figure")?.classList.add("img-failed");
+  if (t?.tagName === "IMG") {
+    t.closest("figure")?.classList.add("img-failed");
+    scheduleCiImgRetry(t as HTMLImageElement);
+  }
+}, true);
+document.addEventListener("load", (e) => {
+  const t = e.target as HTMLElement;
+  if (t?.tagName !== "IMG") return;
+  // A retried CI image finally arrived — clear the failure state + hint.
+  const fig = t.closest("figure");
+  fig?.classList.remove("img-failed");
+  const cap = fig?.querySelector("figcaption");
+  if (cap?.textContent?.includes(" (downloading shard…)")) {
+    cap.textContent = cap.textContent.replace(" (downloading shard…)", "");
+  }
 }, true);
 
 async function refreshSource(force: boolean): Promise<void> {
