@@ -88,8 +88,9 @@ import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { alignLineGlyphs, type AlignGlyph } from "./glyph-align.js";
-import { textTrackMarkup, CARET_BLINK_MS, type ResolvedTextTrack } from "./caret-track.js";
+import { textTrackMarkup, CARET_BLINK_MS, DEFAULT_SELECTION_COLOR, type ResolvedTextTrack, type ResolvedSelection } from "./caret-track.js";
 import { DEFAULT_CARET_WIDTH_PX, type CaretShape } from "./caret-metrics.js";
+import { resolveRangeRects, type TextAddressTarget } from "./text-address.js";
 
 // ── Public surface ──────────────────────────────────────────────────────────
 
@@ -110,6 +111,13 @@ export interface CompressedRunOptions {
    *  (docs/101 machinery). Default false — the config surface decides
    *  defaults later. */
   caret?: boolean | { shape?: CaretShape; color?: string };
+  /** Emit docs/101 selection rects INTO the chrome↔glyph layer gap — TRUE
+   *  behind-glyph editor selection (the run owns the layers, so a selection
+   *  rect interleaves below the glyphs; contrast the standalone-overlay
+   *  z-order in docs/101 where a selection rect paints ABOVE text). Each
+   *  selection is resolved against its appear-state's captured tree, so its
+   *  geometry sits on Chromium's painted glyph edges. One spec or a list. */
+  selection?: CompressedRunSelection | CompressedRunSelection[];
   /** Namespace token for ids / classes / keyframes inside the run (callers
    *  embedding several runs in one animation pass distinct prefixes; the
    *  embed-namespace pass adds its own outer namespacing too). Default "cr". */
@@ -119,6 +127,26 @@ export interface CompressedRunOptions {
    *  `manageFonts: false`. Default true — self-contained SVG. */
   manageFonts?: boolean;
   log?: (msg: string) => void;
+}
+
+/** One behind-glyph selection to interleave into the chrome↔glyph gap. The
+ *  range is resolved against the appear-state's captured tree via the docs/101
+ *  addressing engine (`resolveRangeRects`), so its rects land on Chromium's
+ *  painted glyph edges. */
+export interface CompressedRunSelection {
+  /** The addressed element (stamped `animId` or a `match` predicate). */
+  target: TextAddressTarget;
+  /** Selection range, code-point offsets within the target element. */
+  charStart: number;
+  charEnd: number;
+  /** State index the selection appears at (its boundary time). Default 0. */
+  state?: number;
+  /** State index the selection clears at. Omit to hold to the run's end. */
+  clearState?: number;
+  /** Sweep the selection over this many ms (0 = appears fully at once). */
+  sweepMs?: number;
+  /** Fill (default the docs/101 translucent blue). */
+  color?: string;
 }
 
 export interface CompressedRunPairingStats {
@@ -1004,6 +1032,41 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   const chromeInner = elementTreeToSvgInner(chromeTree, width, height, `${uid}c-`, true, 2, false);
   const glyphInner = glyphEls.length > 0 ? elementTreeToSvgInner(glyphEls, width, height, `${uid}g-`, true, 2, false) : "";
 
+  // Behind-glyph selection: docs/101 selection rects resolved against each
+  // selection's appear-state captured tree, emitted into the chrome↔glyph gap
+  // (below `glyphInner`), so the highlight paints BEHIND the glyph ink — true
+  // editor selection z-order, which only the run's merged emission can give.
+  let selectionMarkup = "";
+  if (opts.selection != null) {
+    const specs = Array.isArray(opts.selection) ? opts.selection : [opts.selection];
+    const parts: string[] = [];
+    for (let i = 0; i < specs.length; i++) {
+      const spec = specs[i];
+      const at = Math.max(0, Math.min(stateCount - 1, spec.state ?? 0));
+      const range = resolveRangeRects(states[at].tree, spec.target, spec.charStart, spec.charEnd);
+      if (range == null) {
+        log(`compress: selection ${i} [${spec.charStart}, ${spec.charEnd}) at state ${at} did not resolve; skipping`);
+        continue;
+      }
+      const sel: ResolvedSelection = {
+        t: boundaries[at],
+        sweepMs: Math.max(0, spec.sweepMs ?? 0),
+        color: spec.color ?? DEFAULT_SELECTION_COLOR,
+        rects: range.rects,
+        charCount: range.charCount,
+        ...(spec.clearState != null
+          ? { clearT: boundaries[Math.max(0, Math.min(stateCount - 1, spec.clearState))] }
+          : {}),
+      };
+      const track: ResolvedTextTrack = {
+        shape: "bar", color: "#111111", barWidthPx: DEFAULT_CARET_WIDTH_PX,
+        blinkMs: CARET_BLINK_MS, waypoints: [], hides: [], selections: [sel],
+      };
+      parts.push(textTrackMarkup(track, totalMs, 100 + i));
+    }
+    selectionMarkup = parts.join("");
+  }
+
   // Auto-caret from the per-state edit points (docs/101 machinery).
   let caretMarkup = "";
   if (opts.caret != null && opts.caret !== false && plan.edits.length > 0) {
@@ -1034,7 +1097,7 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${trackCss}`;
   const bgRect = opts.background != null ? `<rect width="${width}" height="${height}" fill="${esc(opts.background)}"/>` : "";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${styleCss}</style>${bgRect}${chromeInner}${glyphInner}${caretMarkup}</svg>`;
+    + `<style>${styleCss}</style>${bgRect}${chromeInner}${selectionMarkup}${glyphInner}${caretMarkup}</svg>`;
 
   const pairingStats: CompressedRunPairingStats = {
     states: stateCount,

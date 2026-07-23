@@ -468,6 +468,48 @@ describe("composeCompressedRun — composed output", () => {
     expect(withCaret.edits[0].state).toBe(1);
   });
 
+  it("selection: off by default; opt-in emits docs/101 rects BEHIND the glyph layer", () => {
+    const noSel = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "s0" });
+    expect(noSel.svg).not.toContain("tt-sel");
+
+    // Select "let" (chars 0..3) on the import line, appearing at state 0.
+    const withSel = composeCompressedRun(seq(), {
+      width: 640, height: 240, idPrefix: "s1",
+      selection: { target: { match: (el) => el.text === "let x = 1;" }, charStart: 0, charEnd: 3, color: "rgb(59, 130, 246)" },
+    });
+    expect(withSel.svg).toContain('class="text-track"');
+    expect(withSel.svg).toContain('class="tt-sel"');
+    expect(withSel.svg).toContain('fill="rgb(59, 130, 246)"');
+    // z-order: the selection rect must precede the glyph layer's <text> — the
+    // whole point of behind-glyph selection (chrome has no text; the eligible
+    // line's glyphs are the only <text> in the run).
+    expect(withSel.svg.indexOf("tt-sel")).toBeGreaterThan(0);
+    expect(withSel.svg.indexOf("tt-sel")).toBeLessThan(withSel.svg.indexOf("<text"));
+  });
+
+  it("selection: a list of specs each resolve against their appear-state tree; clearState maps to a boundary", () => {
+    const res = composeCompressedRun(seq(), {
+      width: 640, height: 240, idPrefix: "s2",
+      selection: [
+        { target: { match: (el) => el.text === "let x = 1;" }, charStart: 0, charEnd: 3, state: 0, clearState: 1, sweepMs: 60 },
+      ],
+    });
+    // Two selection stops on either side of the clear (grows then snaps to 0).
+    expect(res.svg).toContain("tt-sel");
+    // clearState 1 = 150ms of 1000ms = 15%; the rect snaps to the hidden width.
+    expect(res.svg).toMatch(/15%\{width:0\.01px\}/);
+  });
+
+  it("selection: an unresolvable target is skipped (logged), not thrown", () => {
+    const logs: string[] = [];
+    const res = composeCompressedRun(seq(), {
+      width: 640, height: 240, idPrefix: "s3", log: (m) => logs.push(m),
+      selection: { target: { match: () => false }, charStart: 0, charEnd: 3 },
+    });
+    expect(res.svg).not.toContain("tt-sel");
+    expect(logs.some((l) => /selection 0 .* did not resolve/.test(l))).toBe(true);
+  });
+
   it("a single-state run degenerates to a static frame (no tracks)", () => {
     const res = composeCompressedRun([state([box([lineEl("abc")])], 500)], { width: 640, height: 240, idPrefix: "t6" });
     expect(res.durationMs).toBe(500);

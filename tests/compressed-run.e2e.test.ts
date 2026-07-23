@@ -336,4 +336,74 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       await ctx.close();
     }
   }, 300_000);
+
+  it("behind-glyph selection: the selection rect paints BEHIND the glyph ink (docs/101 true editor z-order)", async () => {
+    // A minimal white-on-dark monospace line, selected over the middle chars
+    // with an OPAQUE red selection. Behind-glyph z-order is decisive: the glyph
+    // ink must still show through (white pixels survive inside the rect) AND the
+    // red rect must be present in the gaps. If the rect painted ABOVE (the
+    // standalone-overlay z-order), the opaque red would cover the glyphs and no
+    // white pixel would survive.
+    const { browser } = env!;
+    const SW = 320, SH = 120;
+    const SELPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; width: ${SW}px; height: ${SH}px; background: #101820; }
+      #line { position: absolute; left: 20px; top: 40px; color: #ffffff;
+        font-family: Menlo, ui-monospace, monospace; font-size: 24px; white-space: pre; }
+    </style></head><body><div id="line">ABCDEFGHIJ</div></body></html>`;
+    const ctx = await browser.newContext({ viewport: { width: SW, height: SH }, deviceScaleFactor: 1 });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(SELPAGE, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: SW, height: SH });
+
+      // Select chars 3..6 ("DEF") with an opaque red, over a one-state run.
+      const run = composeCompressedRun([{ tree, holdMs: 500 }], {
+        width: SW, height: SH, idPrefix: "sel0", background: "rgb(16, 24, 32)",
+        selection: { target: { match: (el) => el.text === "ABCDEFGHIJ" }, charStart: 3, charEnd: 6, color: "rgb(220, 0, 0)" },
+      });
+      expect(run.svg).toContain('class="tt-sel"');
+      // Structural z-order: the rect precedes the glyph <text>.
+      expect(run.svg.indexOf("tt-sel")).toBeLessThan(run.svg.indexOf("<text"));
+
+      const embedded = namespaceEmbeddedAnimatedSvg(run.svg, "selcmp");
+      const outerSvg = generateAnimatedSvg({
+        width: SW, height: SH,
+        frames: [{ svgContent: embedded, duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        fontFaceCss: "",
+      });
+      const view = await ctx.newPage();
+      await view.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await view.evaluate(() => document.fonts.ready);
+      await seekTo(view, 250);
+      const png = await view.screenshot({ clip: { x: 0, y: 0, width: SW, height: SH } });
+
+      // Scan the selection rect band (row ~40..75, x ~ the D..F cells) for
+      // white glyph ink and opaque-red selection pixels.
+      const dataUri = `data:image/png;base64,${png.toString("base64")}`;
+      const counts = await view.evaluate(async (uri: string) => {
+        const img = new Image();
+        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("decode")); img.src = uri; });
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        const cx = canvas.getContext("2d")!;
+        cx.drawImage(img, 0, 0);
+        // The 24px Menlo cell is ~14.4px wide; "DEF" starts ~char 3 → x ≈ 20 + 3·14.4.
+        const d = cx.getImageData(60, 40, 50, 34).data;
+        let white = 0, red = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          if (r > 200 && g > 200 && b > 200) white++;
+          else if (r > 150 && g < 90 && b < 90) red++;
+        }
+        return { white, red };
+      }, dataUri);
+      // Both present → the glyphs show through a rect painted behind them.
+      expect(counts.red, "no selection-red pixels found in the rect band").toBeGreaterThan(20);
+      expect(counts.white, "no glyph ink survived — the selection painted OVER the glyphs, not behind").toBeGreaterThan(20);
+    } finally {
+      await ctx.close();
+    }
+  }, 120_000);
 });

@@ -63,9 +63,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   `caretShapeRect` geometry (bar/block/underscore, docs/97), the standard
   ~1.06 s blink on a nested group, and per-run selection rects swept by
   width keyframes through the exact per-char painted edges (cleared on
-  command; translucent-blue default). Standalone z-order contract: selection
-  paints ABOVE the text (highlight-marker look); behind-glyph editor selection
-  arrives with the compressor's merged emission. Opt-in block-caret **glyph
+  command; translucent-blue default). Two z-order modes: a standalone
+  `textTracks` selection paints ABOVE the text (highlight-marker look);
+  behind-glyph editor selection is shipped via the compressor's merged
+  emission (the `selection` option on `composeCompressedRun`, DM-1758,
+  rasterized-proven the glyph ink shows through). Opt-in block-caret **glyph
   inversion** (`invert`, DM-1755): a solid block with the covered character
   re-emitted on top in the inverse ink (`invertTextColor`, default white) via
   `renderTextAsPath` in paths mode, per-waypoint layers that swap the covered

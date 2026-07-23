@@ -14,12 +14,13 @@ rebuilt on the new primitives as the committed golden
 (`tests/editor-session.e2e.test.ts`) and measured numbers — see "Flagship
 validation results" below — and the authoring recipe is written up as
 `docs/102-editing-page-rig-cookbook.md`. Automatic run detection is now shipped
-behind the opt-in `autoCompress` flag (below). Remaining items are the filed
-follow-ups (locally tracked): the complex-interaction cases auto-detection
-excludes (per-frame overlays/cursor/magic-move crossing a run), cross-line
-identity, behind-glyph selection, chrome-variant reopen, the multi-frame
-`compress: true` form, and the caret-track addressing limits (docs/101 v1
-limits).
+behind the opt-in `autoCompress` flag (below). Behind-glyph selection is also
+shipped (the `selection` option on `composeCompressedRun`; see Primitive 1
+below). Remaining items are the filed follow-ups (locally tracked): the
+complex-interaction cases auto-detection excludes (per-frame
+overlays/cursor/magic-move crossing a run), cross-line identity,
+chrome-variant reopen, the multi-frame `compress: true` form, and the
+caret-track addressing limits (docs/101 v1 limits).
 Since then, **automatic run detection has shipped behind an opt-in flag**
 (`autoCompress`, DM-1757 — see "Placement" below and docs/43 §13): the pre-pass
 collapses maximal `continue` + `cut` runs into `states` runs automatically,
@@ -263,9 +264,20 @@ declarative run-block sugar is the config-surface stage below.
    the pairing pass knows each state's edit point (after the rightmost typed
    glyph; at the close-up x of a deletion), emitted through the docs/101
    caret-track machinery. The detected `edits` are also returned.
+4. **Behind-glyph selection** (opt-in `selection: CompressedRunSelection |
+   CompressedRunSelection[]`, default off) — docs/101 selection rects
+   (`resolveRangeRects`) resolved against each selection's appear-state
+   captured tree and emitted **into the chrome↔glyph layer gap**, so the
+   highlight paints BEHIND the glyph ink — true editor selection z-order,
+   which only the run's merged emission can give (a standalone `textTracks`
+   selection paints ABOVE the text; docs/101 documents both modes). Each spec
+   is `{ target, charStart, charEnd, state?, clearState?, sweepMs?, color? }`;
+   the range resolves on Chromium's painted glyph edges. Config-surface
+   exposure of this option is tracked separately.
 
-The glyph layer paints above the merged chrome. That yields true editor
-z-order (selection-style box paint lands *behind* the glyphs), guarded by an
+The glyph layer paints above the merged chrome (with selection rects, when
+requested, interleaved just below it). That yields true editor z-order
+(selection-style box paint lands *behind* the glyphs), guarded by an
 occlusion check: text only joins the glyph layer when no box-painting element
 that paints after it (document order, or any non-auto z-index) intersects its
 rects — otherwise the text stays in chrome and flipbooks. Further eligibility

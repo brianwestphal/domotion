@@ -207,16 +207,26 @@ emission (doc 100, Primitive 1), which owns the glyph layers and can recolor
 them in place — remains future work; this standalone repaint is the
 overlay-only path.
 
-### Z-order (documented contract)
+### Z-order (documented contract) — two modes
 
-As a standalone overlay the selection rect paints **above** the captured text —
-a translucent highlight-marker look, which is the right reading for walkthrough
-highlighting. True editor selection paints *behind* the glyphs; that arrives
-with the frame-sequence compressor's merged emission (doc 100, Primitive 1),
-which owns the glyph layers and can interleave. The track group itself layers
-above every frame group and **below the cursor overlay** (the demo's pointer
-stays the topmost paint). Within a track, selection rects paint before the
-caret.
+There are two selection z-orders, and which one you get depends on where the
+selection is emitted:
+
+1. **Standalone overlay (above the text)** — a `textTracks` selection resolved
+   through `resolveTextTrack` and layered by `generateAnimatedSvg` paints
+   **above** the captured text: a translucent highlight-marker look, the right
+   reading for walkthrough highlighting. The track group layers above every
+   frame group and **below the cursor overlay** (the demo's pointer stays the
+   topmost paint). Within a track, selection rects paint before the caret.
+2. **Behind-glyph (true editor selection)** — inside a **compressed run**
+   (doc 100, Primitive 1) the run owns the glyph layers (chrome below, glyphs
+   above), so a selection can interleave into the chrome↔glyph gap and paint
+   **behind** the glyph ink — exactly how a real text editor highlights a
+   selection. This is the `selection` option on `composeCompressedRun`
+   (**shipped**): it resolves the same docs/101 rects (`resolveRangeRects`) and
+   emits them below the run's glyph layer. The glyph ink shows through the
+   highlight rather than blending over it. See doc 100, Primitive 1 for the
+   option shape (`CompressedRunSelection`).
 
 ## Wiring
 

@@ -73,6 +73,7 @@ export {
   type CompressedRunResult,
   type CompressedRunPairingStats,
   type CompressedRunEdit,
+  type CompressedRunSelection,
 } from "./compressed-run.js";
 export { alignLineGlyphs, type AlignGlyph, type AlignedPair, type LineAlignment } from "./glyph-align.js";
 
