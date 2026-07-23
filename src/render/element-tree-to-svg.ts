@@ -3448,6 +3448,23 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement): string 
 }
 
 
+/**
+ * True when an intra-frame animation targeting this element's `animId`
+ * animates `opacity` (per the `annotateAnimatedProperties` tree-ops pass run
+ * between capture and render). The animation then OWNS the opacity channel:
+ * the captured opacity must not be baked onto the wrapper `<g>` (SVG group
+ * opacity composes multiplicatively, so a baked 0.2 would cap an animated
+ * 0.2→1 fade at 0.2 forever), and an `opacity: 0` element must still emit its
+ * markup (a dropped element leaves nothing in the SVG to fade in). The
+ * animation's keyframes carry the visible opacity instead — authors keep the
+ * rest state faithful to the capture by setting `from` to the captured value.
+ */
+function animationOwnsOpacity(el: CapturedElement): boolean {
+  return el.animId != null && el.animId !== ""
+    && el.animatedProperties != null && el.animatedProperties.includes("opacity");
+}
+
+
 function computeGroupWrapperAttrs(
   el: CapturedElement,
   clipPathUrlId: string | null,
@@ -3480,10 +3497,15 @@ function computeGroupWrapperAttrs(
   // even if none of the above attributes would otherwise have demanded one,
   // since that's where `style="display:none"` / `class="cull-*"` lives.
   const needsCullWrapper = el.displayNone === true || (el.cullClass != null && el.cullClass !== "");
-  const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
+  // When an intra-frame animation owns the opacity channel (see
+  // animationOwnsOpacity), the captured opacity is NOT baked onto the wrapper
+  // — the animation's keyframes are the single opacity source, so a fade can
+  // brighten past the captured value instead of multiplying against it.
+  const bakeOpacity = opacity < 1 && !animationOwnsOpacity(el);
+  const needsGroup = bakeOpacity || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
   const groupAttrs: string[] = [];
   if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
-  if (opacity < 1) groupAttrs.push(`opacity="${r(opacity)}"`);
+  if (bakeOpacity) groupAttrs.push(`opacity="${r(opacity)}"`);
   if (clipPathUrlId != null) groupAttrs.push(`clip-path="url(#${clipPathUrlId})"`);
   if (maskUrlId != null) groupAttrs.push(`mask="url(#${maskUrlId})"`);
   // animId (DM-209): elements tagged with `data-domotion-anim="<id>"` in the
@@ -3929,7 +3951,12 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
   const opacity = parseFloat(el.styles.opacity);
 
-  if (opacity === 0) return;
+  // `opacity: 0` elements normally emit nothing (a real size win — an
+  // invisible subtree is dead markup). EXCEPT when an intra-frame animation
+  // owns the opacity channel: a fade-in needs the markup to exist, with the
+  // animation's keyframes (holding `from`, typically the captured 0) keeping
+  // it invisible at rest instead of a baked zero-opacity wrapper pinning it.
+  if (opacity === 0 && !animationOwnsOpacity(el)) return;
   // empty-cells: hide — suppress bg + border on empty <td>/<th>.
   const suppressEmptyCell = el.styles.emptyCellsHidden === true;
   // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3

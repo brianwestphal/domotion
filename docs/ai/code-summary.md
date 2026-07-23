@@ -136,8 +136,10 @@ shortest possible map:
   `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`tree-diff.ts`,
   `viewbox-culling.ts`, `resize-embedded-images.ts`, `prune-tree.ts`,
-  `for-each-element.ts`). (The old `frame-merge.ts` fast path was removed — see
-  doc 08.)
+  `for-each-element.ts`, `annotate-animated-properties.ts` — marks which CSS
+  properties intra-frame animations animate on each target element so the
+  renderer hands those channels to the animation, e.g. no baked wrapper
+  opacity). (The old `frame-merge.ts` fast path was removed — see doc 08.)
 - **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`.
 - **`src/utils/`** — small shared helpers.
 - **`src/test-support/`** — shared test helpers (`close-browser-safely.ts`).

@@ -4,6 +4,9 @@
 
 export { cullElementsOutsideViewBox } from "./viewbox-culling.js";
 
+export { annotateAnimatedProperties } from "./annotate-animated-properties.js";
+export type { AnimatedPropertySpec } from "./annotate-animated-properties.js";
+
 export { resizeEmbeddedImages } from "./resize-embedded-images.js";
 export type { ResizeEmbeddedImagesOptions } from "./resize-embedded-images.js";
 

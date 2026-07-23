@@ -852,6 +852,21 @@ export interface CapturedElement {
    */
   animId?: string;
   /**
+   * Tree-ops annotation (never set by the capture script): the CSS properties
+   * animated by the intra-frame animations that target this element's
+   * `animId` — the primary `property` plus any fused tracks' properties. Set
+   * by `annotateAnimatedProperties` (src/tree-ops) between capture and
+   * render, so the renderer knows which channels the animation owns. Today
+   * the renderer consumes only `"opacity"`: when present, the captured
+   * opacity is NOT baked onto the wrapper `<g>` (a baked wrapper would
+   * multiply with the animated value and cap the element at its captured
+   * opacity forever) and an `opacity: 0` element still emits markup instead
+   * of being dropped (so a fade-in has something to animate). The animation's
+   * keyframes then own the single opacity channel; authors keep the rest
+   * state faithful by setting `from` to the captured opacity.
+   */
+  animatedProperties?: string[];
+  /**
    * Author-supplied magic-move pairing key from `data-magic-key="…"` (DM-900).
    * When the same key appears on an element in two consecutive animation
    * frames, the magic-move transition force-pairs them (so the matched element

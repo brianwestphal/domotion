@@ -155,6 +155,19 @@ function rectChanged(
 }
 
 /**
+ * Retarget a (cloned) element's `animId` to a magic-move bridge id. Also
+ * clears any `animatedProperties` annotation the intra-frame-animation
+ * pre-pass left on the source tree: that annotation describes the ORIGINAL
+ * animId's animations, and keeping it under the new bridge id would make the
+ * renderer hand channels (e.g. the baked wrapper opacity) to an animation
+ * that no longer targets this copy.
+ */
+function assignBridgeAnimId(el: CapturedElement, id: string): void {
+  el.animId = id;
+  el.animatedProperties = undefined;
+}
+
+/**
  * Build the magic-move bridge layer between two captured trees. Returns `null`
  * when there is nothing worth animating (no moved / added / removed elements) —
  * the caller then falls back to `crossfade`.
@@ -242,7 +255,7 @@ export function buildMagicMove(
     const el = elementAtPath(compositeNext, m.nextPath);
     if (el == null) continue;
     const nextId = `${idPrefix}mv${n++}`;
-    el.animId = nextId;
+    assignBridgeAnimId(el, nextId);
     // Next-appearance copy: slide from the prev rect to its final next rect.
     slides.push({ cls: `anim-${nextId}`, from: rectMapTransform(m.prev, m.next), to: "none" });
 
@@ -257,7 +270,7 @@ export function buildMagicMove(
       fadeIn.push(`anim-${nextId}`);
       const prevClone = structuredClone(m.prev);
       const prevId = `${nextId}p`;
-      prevClone.animId = prevId;
+      assignBridgeAnimId(prevClone, prevId);
       extraRoots.push(prevClone);
       // Prev copy renders at its prev rect; map it FORWARD onto the next rect
       // (rectMapTransform with args swapped) so it traces the same path as the
@@ -273,7 +286,7 @@ export function buildMagicMove(
     const el = elementAtPath(compositeNext, e.nextPath);
     if (el == null) continue;
     const id = `${idPrefix}in${a++}`;
-    el.animId = id;
+    assignBridgeAnimId(el, id);
     fadeIn.push(`anim-${id}`);
   }
 
@@ -288,7 +301,7 @@ export function buildMagicMove(
     if (removedPaths.some((p) => isAncestorPath(p, e.prevPath!))) continue;
     const clone = structuredClone(e.prev);
     const id = `${idPrefix}out${o++}`;
-    clone.animId = id;
+    assignBridgeAnimId(clone, id);
     extraRoots.push(clone);
     fadeOut.push(`anim-${id}`);
   }

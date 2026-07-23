@@ -29,6 +29,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "THEMES",
   "TerminalEmulator",
   "acquireGlyphHelper",
+  "annotateAnimatedProperties",
   "applyBrandDefaults",
   "applyForcedPseudoStates",
   "applyFormatSize",

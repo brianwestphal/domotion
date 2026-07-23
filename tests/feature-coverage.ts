@@ -121,6 +121,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/tree-ops/viewbox-culling.test.ts"],
   },
   {
+    id: "animate.opacity-channel",
+    behavior: "An intra-frame opacity animation owns the element's opacity channel: the captured opacity is not baked onto the wrapper (no multiplicative cap) and opacity:0 elements it targets still emit markup so they can fade in.",
+    doc: "docs/08-animation-model.md",
+    exports: ["annotateAnimatedProperties"],
+    tests: ["src/tree-ops/annotate-animated-properties.test.ts", "src/render/anim-opacity-channel.test.ts", "tests/anim-opacity-fade-in.e2e.test.ts"],
+  },
+  {
     id: "render.transparent-bg",
     behavior: "A transparent page/root/canvas background yields a transparent SVG — no opaque backdrop rect painted.",
     doc: "docs/26-self-contained-svgs.md",

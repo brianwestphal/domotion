@@ -55,7 +55,7 @@ import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
-import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
+import { annotateAnimatedProperties, cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
@@ -1404,6 +1404,7 @@ async function buildCapturedFrame(
       log,
     });
     for (const seg of segments) {
+      annotateAnimatedProperties(seg.tree, resolvedAnimations);
       cullElementsOutsideViewBox(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
     }
     rootBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
@@ -1418,6 +1419,13 @@ async function buildCapturedFrame(
     const tree = await captureElementTree(page, fc.selector ?? "body", {
       x: 0, y: 0, width: cfg.width, height: cfg.height,
     });
+    // Record which CSS properties each animation animates on its target
+    // elements (`el.animatedProperties`) so the renderer can hand those
+    // channels over to the animation — e.g. not bake the captured opacity
+    // onto the wrapper (it would multiply with the animated value) and not
+    // drop `opacity: 0` elements a fade-in needs to exist. Must run BEFORE
+    // `elementTreeToSvg`, same as the cull pass.
+    annotateAnimatedProperties(tree, resolvedAnimations);
     // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
     // `cullClass` on elements that fall outside the viewBox during this
     // frame's segment of the scene cycle) and returns the keyframes CSS

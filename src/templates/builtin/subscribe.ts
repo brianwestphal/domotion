@@ -89,8 +89,10 @@ export function buildSubscribeHtml(p: SubscribeParams, safeInset?: SafeInset): s
   /* Both states share one grid cell so they overlay + cross-fade. */
   .sub-cta-slot, .sub-bell-slot { display: grid; flex: 0 0 auto; }
   .sub-state { grid-area: 1 / 1; display: flex; align-items: center; justify-content: center; }
-  /* The "done" states start hidden via their animation's from:0 (NOT a CSS
-     opacity:0, which the capture would cull as an invisible element). */
+  /* The "done" states start hidden via their animation's from:0. (A CSS
+     opacity:0 would also work now — the renderer keeps opacity:0 elements
+     that an opacity animation targets — but from:0 on a fully-opaque capture
+     stays the simpler form here.) */
   .sub-cta, .sub-done {
     border: 0; cursor: pointer; font-size: 21px; font-weight: 700;
     padding: 14px 26px; border-radius: 999px; font-family: inherit;
