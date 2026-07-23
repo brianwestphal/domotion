@@ -415,10 +415,31 @@ the shared `@font-face` block). `pairingStats` carries the full breakdown
 colorize-on-completion): **99.6% glyphs paired, 135.6 KB → 46.6 KB (34%)**,
 and the composed SVG — embedded through the real outer-frame
 `embeddedAnimationPeriodMs` path — rasterizes **pixel-identical to the
-uncompressed flipbook at every one of the 12 states** (`regionCount === 0`),
-with the tail verified to shift by exactly one advance per keystroke, the
-prefix pixels byte-stable across all typed states, and the recolor landing in
-place.
+uncompressed flipbook at every one of the 12 states**, with the tail verified
+to shift by exactly one advance per keystroke, the prefix pixels byte-stable
+across all typed states, and the recolor landing in place.
+
+**The compressor's pixel bar is shift-inclusive, and deliberately stricter than
+the fidelity sweeps'.** Every compressed-run e2e assertion site goes through one
+helper, `tests/flipbook-parity.ts`. The sweeps gate on `regionCount === 0`,
+which excludes connected components whose pixels are mostly *low severity* — the
+signature of glyph-shape drift when comparing our outlines against Chrome's
+grid-fitted raster. That suppression is load-bearing there, and wrong here:
+both images come out of our own renderer and depict the same captured layout,
+which SNAPS at state boundaries, so nothing may translate or swap paint order.
+A block-sized flip is large but low-severity, so it lands in the suppressed
+bucket. Measured on a build with the reopen position guard disabled: **3712
+differing pixels, `regionCount === 0`, verdict `clean`** — the default gate
+called a full paint-order flip clean. The bar therefore also reads
+`strictMaxRegionArea` / `strictRegionArea` (the same components with the
+severity gate lifted) and bounds them; see
+[`docs/12-diff-scoring.md`](./12-diff-scoring.md) for the metric definitions,
+the measured sizing of the caps, and why the bar is macOS-calibrated.
+
+The bar is mutant-tested rather than assumed: with the reopen position guard
+disabled it fails at 3712 px, and with an off-by-one in the chrome variants'
+visibility windows it fails at 2141 px and 8320 px on two different fixtures —
+all three of which the old `regionCount === 0` bar reported as `clean`.
 
 **v1 limitations** (each degrades to re-emission or is documented, never wrong
 pixels): states are captured

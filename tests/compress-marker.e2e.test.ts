@@ -9,6 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { expectFlipbookParity } from "./flipbook-parity.js";
 
 // DM-1761: the explicit per-frame `compress: true` marker — the surgical
 // counterpart to the whole-config `autoCompress` flag. Two claims are load-
@@ -133,7 +134,7 @@ describeBrowser("compress: true marker — pixel-identical, and only where marke
         writeFileSync(fPath, flipPng);
         writeFileSync(mPath, markPng);
         const cmp = await comparePngs(diffPage, fPath, mPath, dPath);
-        expect(cmp.regionCount, `state ${s} @ ${t}ms drifted from the flipbook (regions ${cmp.regionCount})`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s} @ ${t}ms drifted from the flipbook`);
       }
     } finally {
       await ctx.close();

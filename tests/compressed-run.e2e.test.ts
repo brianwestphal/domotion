@@ -10,6 +10,7 @@ import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { expectFlipbookParity } from "./flipbook-parity.js";
 
 // Frame-sequence compressor e2e (docs/100, Primitive 1) — the
 // verify-the-rendered-SVG rule: capture a real editor-like page one keystroke
@@ -307,7 +308,7 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         writeFileSync(expPath, flipShots[s]);
         writeFileSync(actPath, compShots[s]);
         const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `state-${s}-diff.png`));
-        expect(cmp.regionCount, `state ${s}: compressed render diverges from the uncompressed flipbook`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s}: compressed render diverges from the uncompressed flipbook`);
       }
 
       // ── Geometry from the pairing itself ─────────────────────────────────
@@ -450,7 +451,7 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         writeFileSync(expPath, await flipPage.screenshot({ clip: { x: 0, y: 0, width: LW, height: LH } }));
         writeFileSync(actPath, await compPage.screenshot({ clip: { x: 0, y: 0, width: LW, height: LH } }));
         const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `xline-${s}-diff.png`));
-        expect(cmp.regionCount, `state ${s}: cross-line compressed render diverges from the flipbook`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s}: cross-line compressed render diverges from the flipbook`);
       }
     } finally {
       await ctx.close();
@@ -534,7 +535,7 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         writeFileSync(expPath, await flipPage.screenshot({ clip: { x: 0, y: 0, width: RW, height: RH } }));
         writeFileSync(actPath, await compPage.screenshot({ clip: { x: 0, y: 0, width: RW, height: RH } }));
         const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `reopen-${s}-diff.png`));
-        expect(cmp.regionCount, `state ${s}: reopen render diverges from the flipbook`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s}: reopen render diverges from the flipbook`);
       }
     } finally {
       await ctx.close();
@@ -622,13 +623,16 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         writeFileSync(expPath, exp);
         writeFileSync(actPath, act);
         const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `outpos-${s}-diff.png`));
-        expect(cmp.regionCount, `state ${s}: out-of-position reopen render diverges from the flipbook`).toBe(0);
-        // `regionCount` alone is NOT a sufficient bar for a paint-order bug of
-        // this shape: two equal-sized solid blocks swapping z-order reads to
-        // the region detector as SHIFTED content, which it suppresses from
-        // `regionCount` by design. Measured on the guard-disabled mutant: 3712
-        // differing pixels, all filed under `shiftyRegionArea`, regionCount 0.
-        // `nonAaPixels` is the bar that actually catches it.
+        // The shared compressor bar carries the shift-inclusive region count,
+        // which is what catches a paint-order bug of this shape: two
+        // equal-sized solid blocks swapping z-order reads to the default
+        // region detector as SHIFTED content, which it suppresses by design.
+        // Measured on a guard-disabled build: 3712 differing pixels, all filed
+        // under `shiftyRegionArea`, `regionCount` 0, verdict "clean".
+        expectFlipbookParity(cmp, `state ${s}: out-of-position reopen render diverges from the flipbook`);
+        // This synthetic fixture is flat solid color, so it also holds the
+        // absolute per-pixel line the text-heavy fixtures can't (they carry a
+        // few scattered pixels of independent-rasterization noise).
         expect(cmp.nonAaPixels, `state ${s}: significant pixels differ from the flipbook`).toBe(0);
       }
 

@@ -9,6 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { expectFlipbookParity } from "./flipbook-parity.js";
 
 // DM-1757: automatic compressed-run detection. `autoCompress: true` collapses a
 // maximal run of consecutive continue+cut frames into ONE `states` compressed
@@ -121,7 +122,7 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
         writeFileSync(fPath, flipPng);
         writeFileSync(cPath, compPng);
         const cmp = await comparePngs(diffPage, fPath, cPath, dPath);
-        expect(cmp.regionCount, `state ${s} @ ${t}ms drifted from the flipbook (regions ${cmp.regionCount})`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s} @ ${t}ms drifted from the flipbook`);
       }
     } finally {
       await ctx.close();
@@ -191,7 +192,7 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
         writeFileSync(fPath, await render(flipPage, flipSvg, t));
         writeFileSync(cPath, await render(compPage, compSvg, t));
         const cmp = await comparePngs(diffPage, fPath, cPath, dPath);
-        expect(cmp.regionCount, `state ${s} @ ${t}ms drifted from the flipbook (regions ${cmp.regionCount})`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s} @ ${t}ms drifted from the flipbook`);
       }
     } finally {
       await ctx.close();

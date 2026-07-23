@@ -63,6 +63,80 @@ in this order, then counts what survives. (All constants are exported from
 `regionCount` is the number of components that pass layers 3 + 4. Pass requires it
 to be zero.
 
+## The no-motion bar (`passesStrict`)
+
+Layers 1 and 4 both forgive differences that *look like moved content*. That is
+correct for the fidelity sweeps, where the two images come from different
+rasterizers. It is wrong for a caller comparing two renders of the **same
+content at the same positions**, because a whole element can change place — or
+two elements can swap paint order — and still be scored away:
+
+- Layer 4 is severity-based, not size-based. Two solid blocks swapping z-order
+  differ by ~44% of max RGB distance, just under the 50% high-severity
+  threshold, so *every* pixel of the flip is "low severity" and the entire
+  component is filed under `shiftyRegionCount` / `shiftyRegionArea`. Measured on
+  a deliberately broken frame-sequence compressor: **3712 differing pixels,
+  `regionCount === 0`, `coveragePct` 0, verdict `clean`.**
+
+For those callers the comparator reports three additional aggregates, computed
+with layer 4 lifted (layers 1–3 still apply). They are **purely derived** from
+the same components — there is no second region pass — so they cannot drift from
+the primary numbers:
+
+| metric | meaning |
+|---|---|
+| `strictRegionCount` | components clearing `MIN_REGION_AREA`, severity gate ignored. Exactly `regionCount + shiftyRegionCount`. |
+| `strictRegionArea` | their total diff-pixel area. Exactly `totalChangedArea + shiftyRegionArea`. |
+| `strictMaxRegionArea` | area of the largest single one (0 when there are none). |
+
+`passesStrict(cmp, caps?)` is `passes(cmp)` plus `strictMaxRegionArea <=
+caps.maxRegionArea` and `strictRegionArea <= caps.totalRegionArea`. It is a
+**bounded** bar, not a zero bar. `caps` defaults to the host's, via
+`strictCapsFor(process.platform)`; on macOS that is `{ maxRegionArea: 256,
+totalRegionArea: 512 }`, sized from measurement rather than taste:
+
+- **Clean ceiling.** Across every state of every compressed-run fixture on a
+  correct build, the largest single strict region was 88 px and the largest
+  total was 215 px — all of it sparse glyph-edge drift on one text-heavy
+  fixture (max per-pixel severity 34.5%, zero high-severity pixels, ~5–11% fill
+  density inside each bounding box). Every other fixture scored a flat 0.
+- **Known break.** The z-order flip above is a single *dense* 3712-px component.
+
+So the caps sit ~3x above the clean ceiling and 5–15x below the known break.
+`strictMaxRegionArea` is the sharper of the two — glyph drift splits into many
+small edge-following components while a moved element produces one component the
+size of the element — and the total is the backstop for a bug that scatters
+mid-sized components instead of making one big one.
+
+### The no-motion bar is macOS-calibrated
+
+`strictCapsFor` returns `null` on non-darwin hosts, and `passesStrict` then
+degrades to plain `passes()`. That is deliberate, not an omission. Measured in
+the Linux container CI uses, the *same correct build* scores up to 749 px for
+the largest region and 3289 px in total: the host has no Menlo, so the fixtures
+fall back to a face whose outlines drift far more under the compressed run's
+transform groups. Those numbers overlap the 3712-px known break, so any Linux cap
+wide enough to pass a correct build would be too wide to catch the bug — an
+uncalibrated number pretending to be a gate. Callers on those hosts keep exactly
+the platform-agnostic `regionCount === 0` contract they had before this bar
+existed. Same reasoning as the per-platform hinting floor below. Calibrating the
+bar for Linux and Windows is open work.
+
+**Layer 1 is deliberately NOT lifted for strict callers**, and that is measured
+rather than assumed: a compressed run wraps paired content in transform groups,
+which rasterize a sub-pixel phase off the flipbook's direct placement, so clean
+fixtures carry real shift-absorbed pixel counts (99 on one fixture, ~5300 per
+state on the 12-state editor one) with zero real change. A pixel-level
+shift-inclusive bar fails on correct output.
+
+`passes()` remains the criterion for `tests/runner.tsx`,
+`tests/html-test-suite.tsx`, `tests/real-world.tsx` and `svg-review`; the strict
+aggregates are additive and change none of the existing values or verdicts.
+Today the only consumer of `passesStrict`'s caps is the frame-sequence
+compressor's flipbook-parity bar (`tests/flipbook-parity.ts`, applied at every
+compressed-run e2e assertion site) — see
+[`docs/100-rich-text-editing.md`](./100-rich-text-editing.md).
+
 ## What the AA detector does (recap)
 
 For each pixel `p` whose color differs between expected and actual:
@@ -92,6 +166,8 @@ AA-classified pixels contribute 0 to every metric. They are still drawn into
 | `diffPct` | diagnostic | average normalized color distance %, AA pixels excluded |
 | `sigPixelPct` | diagnostic | % of pixels with `dist > SIGNIFICANT_PIXEL_DIST (40)` and !AA |
 | `worstTilePct` / `worstTileSignificantPct` | diagnostic | per-`TILE_PX(64)`-tile avg / sig% for the worst tile |
+| `shiftyRegionCount` / `shiftyRegionArea` | diagnostic | components that cleared the area floor but were culled by layer 4 |
+| `strictRegionCount` / `strictRegionArea` / `strictMaxRegionArea` | **no-motion gate** | the same components with layer 4 lifted — see the no-motion bar above. Not consulted by `passes()`. |
 
 `classifyDiff(regionCount, coveragePct)` buckets a result into a one-word
 **verdict** reviewers can scan: `clean` (0 regions) → `trivial` (≤2 regions,

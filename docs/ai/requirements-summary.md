@@ -136,8 +136,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   edit points; unpaired/ineligible content re-emits — graceful degradation,
   never wrong pixels; one-line pairing-ratio log per run. Measured on the
   12-state editor e2e: 99.6% glyphs paired, 135.6 KB → 46.6 KB (34%), and
-  pixel parity (`regionCount === 0`) with the uncompressed flipbook at every
-  state; and (2) a **caret + selection track** — declarative
+  pixel parity with the uncompressed flipbook at every state. That parity bar
+  is **shift-inclusive and stricter than the fidelity sweeps'** (DM-1766, one
+  helper `tests/flipbook-parity.ts` behind every compressed-run e2e assertion
+  site): `regionCount === 0` alone suppresses large-but-low-severity components,
+  so a paint-order flip measured 3712 differing pixels and still scored
+  `clean` — the bar now also bounds the comparator's new `strictRegionCount` /
+  `strictRegionArea` / `strictMaxRegionArea` aggregates (doc 12; macOS-calibrated,
+  degrading to `regionCount === 0` elsewhere). And (2) a **caret + selection track** — declarative
   caret/selection anchored node-side to captured text (`selector` + char offset
   over segment `xOffsets`; `caretShapeRect` geometry; blink + sweep), standalone
   and useful beyond editing. The original document-model + op-timeline core is

@@ -9,6 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { expectFlipbookParity } from "./flipbook-parity.js";
 
 // DM-1764 — the size-regression guard. Compressing a run is pixel-identical but
 // NOT unconditionally smaller: a WHOLESALE-CHANGE run (a slideshow, where
@@ -129,7 +130,7 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
         writeFileSync(fPath, await render(flipPage, flipSvg, t));
         writeFileSync(cPath, await render(compPage, compSvg, t));
         const cmp = await comparePngs(diffPage, fPath, cPath, dPath);
-        expect(cmp.regionCount, `state ${s} @ ${t}ms drifted from the flipbook (regions ${cmp.regionCount})`).toBe(0);
+        expectFlipbookParity(cmp, `state ${s} @ ${t}ms drifted from the flipbook`);
       }
     } finally {
       await ctx.close();

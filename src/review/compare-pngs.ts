@@ -20,6 +20,16 @@ import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
  * worst-tile metrics, the raw `nonAaPixels` count) are still reported so
  * reviewers can see how much pre-region noise survived AA filtering.
  *
+ * A third layer sits on top of the region pass: the high-severity-fraction
+ * gate, which drops components whose pixels are mostly low-severity — the
+ * signature of glyph-shape / font-substitution drift. Those land in
+ * `shiftyRegionCount` / `shiftyRegionArea` instead of `regionCount`. That is
+ * deliberate for the fidelity sweeps, but it means a difference that merely
+ * LOOKS like moved content can score `regionCount === 0` with thousands of
+ * pixels changed. `strictRegionCount` reports the region count with that gate
+ * lifted, for callers that know content must not move — see the field docs
+ * and `passesStrict()`.
+ *
  * The work runs inside `page.evaluate(...)` because the canvas APIs needed
  * to decode and walk the PNGs only exist in a browser context.
  */
@@ -123,6 +133,43 @@ export interface CompareResult {
   shiftyRegionCount: number;
   /** Total area inside `shiftyRegionCount` regions. */
   shiftyRegionArea: number;
+
+  // Shift-inclusive ("strict") region scoring ----------------------------------
+
+  /** Region count with the high-severity-fraction gate LIFTED — every
+   *  connected component that cleared the `MIN_REGION_AREA` scatter floor,
+   *  whether or not its pixels read as moved/reshaped rather than recolored.
+   *  Exactly `regionCount + shiftyRegionCount`.
+   *
+   *  This is deliberately NOT the pass criterion for the fidelity sweeps. There
+   *  the two images come from different rasterizers (Chrome's grid-fitted
+   *  native text vs our unhinted outlines), so whole paragraphs land in the
+   *  low-severity bucket with nothing structurally wrong, and suppressing them
+   *  is load-bearing.
+   *
+   *  The trio exists for callers that know both images depict content at
+   *  IDENTICAL positions, where "it only moved" is itself the bug — e.g. the
+   *  frame-sequence compressor's flipbook-parity checks, since layout snaps at
+   *  state boundaries. Two equal-sized solid blocks swapping z-order scores 0
+   *  on `regionCount` and 1 here.
+   *
+   *  Note what is NOT lifted: the per-pixel sub-pixel-shift pre-filter still
+   *  runs, so differences confined to a ±2 px neighborhood never reach any
+   *  region count. That layer stays on even for strict callers because
+   *  transform-composed groups genuinely rasterize a sub-pixel phase off a
+   *  directly-placed one — measured, the CLEAN compressor fixtures carry
+   *  hundreds to thousands of such pixels with zero real change, so a
+   *  pixel-level shift-inclusive bar fails on correct output. */
+  strictRegionCount: number;
+  /** Total original-diff-pixel area inside the `strictRegionCount` regions.
+   *  Exactly `totalChangedArea + shiftyRegionArea`. */
+  strictRegionArea: number;
+  /** Area of the LARGEST single region counted by `strictRegionCount` (0 when
+   *  there are none). The sharpest of the three for "did a block move or swap
+   *  z-order": glyph-shape drift is inherently sparse and splits into many
+   *  small edge-following components, while a moved or reordered element
+   *  produces one dense component the size of the element. */
+  strictMaxRegionArea: number;
   /** `totalChangedArea` expressed as a percentage of the image's pixels.
    *  Use this rather than the raw count when summarizing — "0.28%" reads
    *  more intuitively than "2858 px" without needing to know the canvas
@@ -195,6 +242,9 @@ export async function comparePngs(
       shiftedPixels: 0,
       shiftyRegionCount: 0,
       shiftyRegionArea: 0,
+      strictRegionCount: 0,
+      strictRegionArea: 0,
+      strictMaxRegionArea: 0,
       coveragePct: 0,
       verdict: "clean",
       regions: [],
@@ -485,6 +535,13 @@ export async function comparePngs(
           shiftyRegionCount++;
         }
       }
+      // Shift-inclusive aggregates: the same components, scored with the
+      // high-severity-fraction gate lifted. Purely derived — no second region
+      // pass — so they cannot drift from the primary numbers.
+      let strictMaxRegionArea = 0;
+      for (const r of regions) {
+        if (r.area >= MIN_AREA && r.area > strictMaxRegionArea) strictMaxRegionArea = r.area;
+      }
       surviving.sort((a, b) => b.area - a.area);
       let totalChangedArea = 0;
       let maxRegionSeverity = 0;
@@ -565,6 +622,9 @@ export async function comparePngs(
         shiftedPixels: totalShifted,
         shiftyRegionCount,
         shiftyRegionArea,
+        strictRegionCount: surviving.length + shiftyRegionCount,
+        strictRegionArea: totalChangedArea + shiftyRegionArea,
+        strictMaxRegionArea,
         coveragePct: (totalChangedArea / totalPixels) * 100,
         regions: trimmedRegions,
         diffDataUrl: diffCanvas.toDataURL("image/png"),
@@ -589,4 +649,68 @@ export const PASS_THRESHOLD_NON_AA_PIXELS = 0;
  *  dilation merge). Scatter is allowed; structural change is not. */
 export function passes(cmp: CompareResult): boolean {
   return cmp.regionCount === 0;
+}
+
+/** Caps for the no-motion bar (`passesStrict`), or `null` on a host the bar has
+ *  not been calibrated for.
+ *
+ *  Sized from measurement, not taste. Across every state of every
+ *  compressed-run fixture on a correct macOS build, the shift-inclusive regions
+ *  are entirely sparse glyph-edge drift (max per-pixel severity 34.5%, zero
+ *  pixels above the high-severity threshold, ~5–11% fill density inside each
+ *  bounding box); most fixtures score a flat 0. Ceiling: 88 px for the largest
+ *  single region, 215 px total. The paint-order bug the caps exist to catch —
+ *  two equal-sized solid blocks swapping z-order — is instead a single DENSE
+ *  component of 3712 px. The caps sit ~3x above the clean ceiling and 5–15x
+ *  below the known break, the widest separation the two populations allow.
+ *
+ *  `maxRegionArea` is the sharper of the two: glyph drift splits into many
+ *  small edge-following components, while a moved or reordered element produces
+ *  one component the size of the element. `totalRegionArea` is the backstop for
+ *  a bug that scatters mid-sized components instead of making one big one.
+ *
+ *  Non-darwin hosts return `null` — the bar is macOS-calibrated, and deliberately
+ *  so rather than by omission. Measured in the Linux container CI uses, the same
+ *  correct build scores up to 749 px for the largest region and 3289 px in total,
+ *  because the host has no Menlo and the fixtures fall back to a face whose
+ *  outlines drift far more under the compressed run's transform groups. That
+ *  overlaps the 3712-px break, so any Linux cap wide enough to pass a correct
+ *  build would be too wide to catch the bug — an uncalibrated number pretending
+ *  to be a gate. Callers fall back to the platform-agnostic `regionCount === 0`
+ *  there, which is exactly what they enforced before this bar existed, so the
+ *  non-darwin contract is unchanged. Same reasoning as the visual gate's
+ *  per-platform hinting floor — see "Per-platform coverage floor" in
+ *  docs/12-diff-scoring.md. */
+export interface StrictCaps {
+  maxRegionArea: number;
+  totalRegionArea: number;
+}
+export function strictCapsFor(platform: NodeJS.Platform | string): StrictCaps | null {
+  if (platform === "darwin") return { maxRegionArea: 256, totalRegionArea: 512 };
+  return null;
+}
+/** The host's caps, or `null` when the no-motion bar isn't calibrated here. */
+export const STRICT_CAPS = strictCapsFor(process.platform);
+
+/** The no-motion pass criterion: `passes()` PLUS "nothing block-sized moved or
+ *  swapped paint order". Lifts the high-severity-fraction gate that keeps
+ *  low-severity components out of `regionCount`, then bounds what is left by
+ *  area (see `strictCapsFor` for the measured sizing).
+ *
+ *  Use this ONLY where both images are known to depict the same content at the
+ *  same positions — e.g. the frame-sequence compressor's flipbook-parity
+ *  checks, where both PNGs come out of our own renderer and layout snaps at
+ *  state boundaries. The fidelity sweeps must keep using `passes()`: there the
+ *  two images come from different rasterizers, low-severity suppression is what
+ *  keeps every paragraph of text from reading as structural change, and these
+ *  caps would fail essentially every text-bearing fixture.
+ *
+ *  `caps` defaults to the host's. Where it is `null` the bar degrades to
+ *  `passes()` — see `strictCapsFor` for why that is deliberate rather than a
+ *  silent hole. Pass caps explicitly to score a result for another platform. */
+export function passesStrict(cmp: CompareResult, caps: StrictCaps | null = STRICT_CAPS): boolean {
+  if (!passes(cmp)) return false;
+  if (caps == null) return true;
+  return cmp.strictMaxRegionArea <= caps.maxRegionArea
+    && cmp.strictRegionArea <= caps.totalRegionArea;
 }
