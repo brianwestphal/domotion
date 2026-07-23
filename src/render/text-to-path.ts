@@ -21,7 +21,7 @@ import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
-import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont, OBLIQUE_SHEAR } from "./embolden-outline.js";
+import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont, OBLIQUE_SHEAR, resolveFakeBoldTextStroke } from "./embolden-outline.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
@@ -1200,6 +1200,21 @@ function splitTextIntoFontRuns(
 }
 
 /**
+ * True when a CSS/SVG fill string is fully transparent — `transparent`, or an
+ * `rgba()`/`hsla()` with a 0 alpha channel (the shape `colorStr()` and the
+ * capture layer emit for `color: transparent`). Gradient/pattern refs
+ * (`url(#…)`) and every opaque color form return false. Used to pick the
+ * synthetic-bold stroke model for outline-only text (see
+ * `resolveFakeBoldTextStroke`).
+ */
+function isFullyTransparentColor(fill: string): boolean {
+  const f = fill.trim().toLowerCase();
+  if (f === "transparent" || f === "none") return true;
+  const m = /^(?:rgba|hsla)\(\s*[^)]*[,/]\s*(0|0?\.0+)\s*\)$/.exec(f);
+  return m != null;
+}
+
+/**
  * DM-655: emit text as `<text>` elements backed by custom-built TTFs that
  * contain just the shaped glyphs the run uses. Mirrors textToPathMarkup's
  * per-codepoint run splitting, then for each run runs fontkit's
@@ -1436,25 +1451,33 @@ function renderTextAsEmbedded(
     // the weight (a real bold sibling / a baked wght axis) resolve to that face,
     // so their natural weight ≈ requested → delta small → no embolden.
     //
-    // Gated OFF for `-webkit-text-stroke` runs: Chrome emboldens in device space
-    // (post-hinting, at render size), we bake in font-design space; the strengths
-    // match (verified: baked embolden reproduces Chrome's +51% stroke coverage
-    // within ±9%), but a ~1px edge-alignment residual remains, and a high-contrast
-    // stroke traces that residual around every glyph — magnifying it into a net
-    // pixel-diff regression even though total coverage is closer to Chrome. So we
-    // apply faux-bold only where the sub-pixel edge residual stays invisible
-    // (unstroked fills), and leave stroked heavy text at its thin baseline until
-    // the device-space edge-alignment is closed (tracked on DM-1681/DM-1693).
-    let emboldenStrengthFU = 0;
+    // Stroked runs used to be gated OFF entirely (design-space vs device-space
+    // edge residual traced by the stroke). Chrome-on-Linux, however, implements
+    // synthetic bold as a STROKE-frame inflation (Skia `useStrokeForFakeBold`,
+    // SkScalerContext.cpp:1019-1041) — both the fill pass and the
+    // `-webkit-text-stroke` pass grow by `extra = fontSize/24…/32`, so leaving
+    // the stroke at its CSS width painted a hairline where Chrome paints a
+    // `w + extra` band. `resolveFakeBoldTextStroke` (embolden-outline.ts) maps
+    // Chrome's two emboldened passes onto our flat SVG emit: on Linux the
+    // emitted stroke widens to `w + extra` (default paint order / transparent
+    // fill) or the fill emboldens with the stroke kept at `w` (stroke-first +
+    // opaque fill, where the fill covers the stroke's inner half). Other
+    // platforms keep the previous behavior (embolden only unstroked runs).
     const faceNaturalWeight = run.font.naturalWeight;
-    if (
-      !(textStrokeWidth != null && textStrokeWidth > 0) &&
-      run.font.hasWeightAxis !== true &&
+    const faceLacksWeight = run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
-      weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA
-    ) {
-      emboldenStrengthFU = emboldenStrengthForFont(run.font.unitsPerEm);
-    }
+      weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA;
+    const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
+    const fakeBoldStroke = resolveFakeBoldTextStroke({
+      strokeWidthPx: (textStrokeWidth != null && textStrokeWidth > 0
+        && textStrokeColor != null && textStrokeColor !== "") ? textStrokeWidth : 0,
+      strokeFirst: runStrokeFirst,
+      fillIsTransparent: isFullyTransparentColor(fill),
+      faceLacksWeight,
+      fontSizePx: fontSize,
+    });
+    const emboldenStrengthFU = fakeBoldStroke.emboldenFill
+      ? emboldenStrengthForFont(run.font.unitsPerEm) : 0;
 
     // DM-1722: for a STATIC-weight source on the hinted path (no wght axis,
     // no faux-bold bake), the glyph outlines are identical at every requested
@@ -1720,9 +1743,12 @@ function renderTextAsEmbedded(
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
     let strokeAttr = "";
-    if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
-      strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(textStrokeWidth)}"`;
-      if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
+    if (fakeBoldStroke.strokeWidthPx > 0 && textStrokeColor != null && textStrokeColor !== "") {
+      // `fakeBoldStroke.strokeWidthPx` is the CSS width plus Chrome-on-Linux's
+      // synthetic-bold inflation when this run's face lacks the weight (see the
+      // faux-bold block above); elsewhere it's the CSS width unchanged.
+      strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(fakeBoldStroke.strokeWidthPx)}"`;
+      if (runStrokeFirst) {
         strokeAttr += ` paint-order="stroke fill"`;
       }
     }

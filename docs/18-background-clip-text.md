@@ -88,7 +88,7 @@ Two simpler-looking approaches were tried and don't work:
 
 - **`url(...)` background-image clipped to text** — the current code path emits the bg layer as a pattern referencing the image, which would work as a mask source; not exhaustively tested.
 - **`text` clip combined with `bg-color` non-transparent** — bg-color paints under all bg-image layers per CSS spec, and CSS doesn't apply bg-clip to bg-color independently. We currently still paint the bg-color rect normally, which is technically wrong if the author wants the bg-color clipped to text too. In practice the bg-clip:text idiom always pairs with `background-color: transparent` (default), so this hasn't surfaced.
-- **`-webkit-text-stroke` over a bg-clipped fill** — author often pairs a stroke with the gradient fill; we don't render the stroke. Out of scope for this iteration.
+- ~~**`-webkit-text-stroke` over a bg-clipped fill**~~ — now supported. The gradient is the element's BACKGROUND (clipped to the text ink); the stroke is the text's foreground paint, which Chrome always draws on top of it — with `-webkit-text-fill-color: transparent` the `paint-order` property has nothing to reorder (it only sequences the text's own fill vs stroke). `paintText`'s mask path renders the glyph mask WITHOUT the stroke (a stroke in a luminance mask was a useless dark ring) and emits a separate transparent-fill stroke pass after the masked gradient rect(s). On Linux the stroke width picks up the synthetic-bold inflation when the face lacks the requested weight (see `docs/42`, "Skia's stroke-frame fake bold"). Visual gate: the `20-deep-text-stroke` html-test fixture's "GRADIENT INK" row; unit gate: `src/render/text-stroke-synthesis.test.ts`.
 
 ## Test fixture
 

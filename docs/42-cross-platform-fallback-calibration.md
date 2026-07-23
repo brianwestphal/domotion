@@ -468,28 +468,39 @@ embedded mode: entries that must stay on svg2ttf (synthetic faux-bold/italic
 bakes, per-glyph helper outlines, `hvgl`-only faces, webfonts) and the `paths`
 mode suites.
 
-### `-webkit-text-stroke` + faux-bold: an amplified hinting-floor case (DM-1694)
+### `-webkit-text-stroke` + faux-bold: Skia's stroke-frame fake bold (DM-1694 → DM-1736)
 
-The same unhinted-outline-vs-native-hinting gap has one **accepted, documented
-residual** worth calling out because it reads larger than the table above: the
-html-test fixture `20-deep-text-stroke` on Linux. Its display text is
-`system-ui` at `font-weight: 800`, which resolves to a single-weight face
-(WenQuanYi Zen Hei, usWeightClass 500), so Chrome synthesizes faux-bold. Domotion
-CAN bake that faux-bold into the embedded outline (DM-1693, `emboldenPathCommands`)
-and doing so matches Chrome's stroke *coverage* (91→94% of Chrome's stroke ink),
-but Chrome emboldens in **device space** (post-hinting, at render size) while we
-bake in **design space** — leaving a ~1px edge-position residual. On an unstroked
-fill that residual is invisible AA (so faux-bold ships there); on this fixture's
-high-contrast `-webkit-text-stroke` the stroke traces the outline and magnifies
-the 1px over every glyph, so emboldening *raises* the pixel diff (1.55%→2.46%).
+An earlier note here accepted the `20-deep-text-stroke` fixture's Linux
+residual as an amplified hinting-floor case. That diagnosis was wrong — the
+real mechanism is that Chrome-on-Linux implements synthetic bold as a **stroke
+inflation**, and Domotion now mirrors it:
 
-**Decision (DM-1694, option c):** faux-bold stays gated OFF for
-`-webkit-text-stroke` runs (`renderTextAsEmbedded`), and this fixture's stroked
-display text is accepted as a native-hinting-floor residual — the font is
-correct, the residual is the hinting of the stroked outline raster, irreducible
-without matching Chrome's device-space hinting (disproportionate for one
-fixture). Not a fallback/positioning/weight bug; the same class as the table
-above, just amplified by the stroke.
+- Blink requests synthetic bold when the CSS weight exceeds the resolved
+  typeface's weight by more than 200
+  (`third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc:333-339`).
+  The fixture's `system-ui` at `font-weight: 800` resolves to single-weight
+  WenQuanYi Zen Hei (usWeightClass 500) in the CI container, so 800 > 700
+  triggers it (measured: weight 700 paints clean, 701 emboldens).
+- On FreeType typefaces Skia converts the embolden flag into a stroke frame:
+  `SkTypeface_FreeType::onFilterRec` (src/ports/SkFontHost_FreeType.cpp:821-824)
+  calls `SkScalerContextRec::useStrokeForFakeBold` (src/core/SkScalerContext.cpp:
+  1019-1041). With `extra = textSize·(1/24 at ≤9px … 1/32 at ≥36px)`
+  (src/core/SkTextFormatParams.h): a fill pass dilates by `extra/2` per side,
+  and a `-webkit-text-stroke` pass paints `cssWidth + extra` thick — a 1px
+  stroke at 72px paints as a ~3.25px band (measured in the container:
+  weight 400 → band = cssWidth exactly; weight 800 → band = cssWidth + 2.25).
+- Domotion's embedded-font mode reproduces this via
+  `resolveFakeBoldTextStroke` / `skiaFakeBoldStrokeExtraPx`
+  (`src/render/embolden-outline.ts`), Linux-gated: default paint order and
+  outline-only text emit `w + extra` strokes on the natural outline (the
+  widened band fully covers Chrome's fill dilation); `paint-order: stroke
+  fill` with an opaque fill emboldens the fill and keeps the stroke at `w`
+  (the fill on top hides the stroke's inner half). macOS/Windows paint the CSS
+  width verbatim (CoreText/DirectWrite synthesize bold without touching the
+  stroke) and are unchanged.
+
+With the model in place the fixture's Linux diff drops from 1.60% / 54 regions
+to ~0.02% coverage / a handful of sub-region AA nits; macOS stays pixel-clean.
 
 ## Acceptance criteria
 

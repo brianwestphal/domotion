@@ -13,28 +13,35 @@
 //
 // When Chrome paints text in a system font that has NO face at (or near) the
 // requested weight, it does not leave the glyphs thin — it ALGORITHMICALLY
-// emboldens the resolved face's outline. On Linux this is Skia's SkScalerContext
-// synthetic bold (an `FT_Outline_Embolden` on the FreeType outline); on macOS /
-// Windows the CoreText / DirectWrite equivalents. The emboldening is applied at
-// a strength proportional to the pixel size, so the equivalent dilation in
-// FONT-DESIGN units is a CONSTANT (independent of render size) — see
-// `emboldenStrengthForFont` for the calibrated value. So we bake the embolden
-// straight into the embedded glyph outline once and it reproduces Chrome's paint
-// at every font-size, with no reliance on the consumer browser's own synthesis
-// (whose fixed `@font-face`-descriptor threshold cannot mirror fontconfig's
-// face-specific one — the reason the descriptor-only approach was reverted).
+// emboldens the resolved face. On Linux Chrome's Skia does this as a STROKE
+// frame, not an outline dilation: `SkTypeface_FreeType::onFilterRec` (Skia
+// src/ports/SkFontHost_FreeType.cpp:821-824; Chromium doesn't define
+// `SK_USE_FREETYPE_EMBOLDEN`) calls `SkScalerContextRec::useStrokeForFakeBold`
+// (src/core/SkScalerContext.cpp:1019-1041), which frame-and-fills the glyph
+// with an extra `textSize·(1/24…1/32)` stroke — see `skiaFakeBoldStrokeExtraPx`
+// for the size interpolation. On macOS / Windows the CoreText / DirectWrite
+// equivalents apply. The net fill dilation is proportional to the pixel size,
+// so the equivalent growth in FONT-DESIGN units is a CONSTANT (independent of
+// render size) — see `emboldenStrengthForFont` for the calibrated value. So we
+// bake the embolden straight into the embedded glyph outline once and it
+// reproduces Chrome's paint at every font-size, with no reliance on the
+// consumer browser's own synthesis (whose fixed `@font-face`-descriptor
+// threshold cannot mirror fontconfig's face-specific one — the reason the
+// descriptor-only approach was reverted).
 //
 // The dilation is a faithful float port of FreeType's `FT_Outline_EmboldenXY`
-// (ftoutln.c — the exact routine Skia runs): see `ftEmboldenContour`. Porting
-// the exact algorithm (not an approximation) keeps the emboldened outline
-// corner-for-corner with Chrome's, which matters when the glyph is also
-// `-webkit-text-stroke`d and the stroke traces that outline.
+// (ftoutln.c): see `ftEmboldenContour`. Its painted coverage matches Skia's
+// stroke-based dilation within ±2% at the calibrated 0.73× strength.
 //
-// NOTE: applied to UNSTROKED runs only (gated in `renderTextAsEmbedded`). Chrome
-// emboldens in device space (post-hinting); we bake in design space. The
-// strengths match (verified: reproduces Chrome's +51% stroke coverage within
-// ±9%), but a ~1px edge residual survives that a high-contrast stroke would
-// magnify — so stroked heavy text stays at its thin baseline for now.
+// `-webkit-text-stroke` runs: Chrome-on-Linux inflates the stroke pass itself
+// by the same fake-bold extra (`fFrameWidth += extra`), so stroked runs are
+// handled by `resolveFakeBoldTextStroke` below — the emitted stroke widens to
+// `w + extra` (default paint order / transparent fill, where the widened band
+// fully covers the fill's dilation) or the fill emboldens with the stroke kept
+// at `w` (`paint-order: stroke fill` + opaque fill, where the fill on top
+// hides the stroke's inner half). Chrome emboldens in device space
+// (post-hinting); we bake in design space — a ~1px edge residual remains
+// (verified: reproduces Chrome's +51% stroke coverage within ±9%).
 
 import type { PathCommand } from "./embedded-font-builder.js";
 
@@ -82,6 +89,99 @@ export function shearPathCommands(cmds: PathCommand[], factor: number): PathComm
  */
 export function emboldenStrengthForFont(unitsPerEm: number): number {
   return (unitsPerEm / 24) * 0.73;
+}
+
+/**
+ * Chrome-on-Linux's synthetic-bold STROKE inflation, in CSS px at a given
+ * font-size.
+ *
+ * On FreeType platforms Skia implements fake bold as a stroke frame, not an
+ * outline dilation: `SkTypeface_FreeType::onFilterRec` (Skia
+ * src/ports/SkFontHost_FreeType.cpp:821-824) calls
+ * `SkScalerContextRec::useStrokeForFakeBold()` (src/core/SkScalerContext.cpp:
+ * 1019-1041) whenever the embolden flag is set (Chromium does not define
+ * `SK_USE_FREETYPE_EMBOLDEN`). That routine computes
+ * `extra = textSize * fakeBoldScale` and:
+ *   - for a FILL paint (no stroke frame): switches to frame-and-fill with
+ *     `fFrameWidth = extra` → the glyph fill dilates by `extra/2` per side;
+ *   - for a STROKE paint (a `-webkit-text-stroke` pass already carries
+ *     `fFrameWidth = cssStrokeWidth`): `fFrameWidth += extra` → the painted
+ *     stroke is `cssStrokeWidth + extra` thick.
+ * `fakeBoldScale` interpolates over text size per Skia
+ * src/core/SkTextFormatParams.h: 1/24 at ≤9px through 1/32 at ≥36px.
+ *
+ * Blink turns the embolden flag on when the requested CSS weight exceeds the
+ * resolved typeface's weight by more than 200 (font_cache_skia.cc:333-339,
+ * `font_description.Weight() > FontSelectionValue(200) + typeface weight`) —
+ * the same `FAUX_BOLD_WEIGHT_DELTA` gate above. Verified empirically in the
+ * Playwright noble container (system-ui → WenQuanYi Zen Hei, usWeightClass
+ * 500): weight ≤700 paints a 2px stroke as 2px; weight ≥701 paints it as
+ * ~4.25px = 2 + 72/32 at 72px.
+ */
+export function skiaFakeBoldStrokeExtraPx(fontSizePx: number): number {
+  const lo = 1 / 24, hi = 1 / 32;
+  const scale = fontSizePx <= 9 ? lo
+    : fontSizePx >= 36 ? hi
+    : lo + ((fontSizePx - 9) / (36 - 9)) * (hi - lo);
+  return fontSizePx * scale;
+}
+
+/**
+ * Decide how to emit an embedded-font run that Chrome-on-Linux paints with
+ * BOTH synthetic bold and `-webkit-text-stroke`. Returns the fill-embolden
+ * flag and the stroke width to emit, chosen so the flat SVG paint is
+ * net-equivalent to Chrome's two emboldened passes (see
+ * `skiaFakeBoldStrokeExtraPx` for the underlying Skia model):
+ *
+ *  - Default paint order (fill, then stroke on top): Chrome's dilated fill
+ *    (`extra/2` per side) is entirely covered by the stroke band
+ *    (`(w+extra)/2` per side ≥ `extra/2`), so an UNemboldened fill under a
+ *    `w + extra` stroke reproduces the paint exactly.
+ *  - `paint-order: stroke fill` with an opaque fill: the fill on top hides
+ *    the stroke's inner half. Emboldening the fill (dilated edge at
+ *    `extra/2`) and stroking THAT outline at width `w` puts the visible
+ *    ring at `extra/2 … extra/2 + w/2 = (w+extra)/2` — Chrome's exact
+ *    outer edge and ring thickness.
+ *  - Transparent fill (outline-only text): the full stroke band is visible
+ *    regardless of paint order → unemboldened outline, `w + extra` stroke.
+ *
+ * Only applies on Linux (FreeType typefaces). CoreText (macOS) and
+ * DirectWrite (Windows) synthesize bold without touching the stroke width —
+ * macOS Chrome paints a 1px `-webkit-text-stroke` as a true 1px hairline —
+ * so every other platform keeps the unmodified width and the existing
+ * unstroked-only fill embolden.
+ */
+export function resolveFakeBoldTextStroke(opts: {
+  /** CSS `-webkit-text-stroke-width` in px (0 = no stroke). */
+  strokeWidthPx: number;
+  /** True when `paint-order` puts the stroke under the fill. */
+  strokeFirst: boolean;
+  /** True when the run's fill is fully transparent (outline-only text). */
+  fillIsTransparent: boolean;
+  /** True when the resolved face needs synthetic bold (requested weight
+   *  exceeds the face's natural weight by > `FAUX_BOLD_WEIGHT_DELTA` and no
+   *  `wght` axis covers it). */
+  faceLacksWeight: boolean;
+  fontSizePx: number;
+  platform?: NodeJS.Platform;
+}): { emboldenFill: boolean; strokeWidthPx: number } {
+  const platform = opts.platform ?? process.platform;
+  const strokeActive = opts.strokeWidthPx > 0;
+  // Unstroked runs keep the existing DM-1693 behavior: bake the embolden
+  // whenever the face lacks the weight (all platforms).
+  if (!strokeActive) {
+    return { emboldenFill: opts.faceLacksWeight, strokeWidthPx: 0 };
+  }
+  // Stroked runs: only Linux inflates (Skia's stroke-based fake bold); other
+  // platforms keep the pre-existing thin-fill + exact-width stroke.
+  if (!opts.faceLacksWeight || platform !== "linux") {
+    return { emboldenFill: false, strokeWidthPx: opts.strokeWidthPx };
+  }
+  const extra = skiaFakeBoldStrokeExtraPx(opts.fontSizePx);
+  if (opts.strokeFirst && !opts.fillIsTransparent) {
+    return { emboldenFill: true, strokeWidthPx: opts.strokeWidthPx };
+  }
+  return { emboldenFill: false, strokeWidthPx: opts.strokeWidthPx + extra };
 }
 
 interface Pt {

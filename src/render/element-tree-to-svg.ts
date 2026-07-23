@@ -1045,12 +1045,33 @@ function paintText(
       // scaled glyph group, compressing the gradient to ~6 px wide.
       // The mask-with-rect approach keeps the gradient in document
       // coordinates on a straight rect.
-      const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)" } };
+      // The mask must be the pure FILL silhouette: strip the element's
+      // `-webkit-text-stroke` from the mask copy. Keeping it painted a dark
+      // (luminance-0) stroke ring into the mask, and — worse — no stroke was
+      // ever painted VISIBLY: Chrome paints the text stroke in its own color
+      // around the gradient-filled glyphs (under the fill for `paint-order:
+      // stroke fill`, over it otherwise). The stroke pass is emitted below,
+      // ordered by paint-order, with a transparent fill so only the stroke
+      // paints.
+      const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)", webkitTextStrokeWidth: "0px" } };
       const maskBody = renderOneText(ctx, { el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip }, emit);
       const mid = ctx.nextClipId("tbgm");
       ctx.defsParts.push(
         `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}">${maskBody}</mask>`,
       );
+      // Visible `-webkit-text-stroke` pass for gradient-filled (bg-clip:text)
+      // glyphs: render the SAME text with a fully transparent fill so only the
+      // stroke ink is emitted. The gradient is the element's BACKGROUND
+      // (clipped to the text ink); the stroke belongs to the text's foreground
+      // paint, which Chrome always draws on top of the background — and with a
+      // transparent text fill, `paint-order` has nothing to reorder (it only
+      // sequences the text's own fill vs stroke). So the stroke pass paints
+      // AFTER the masked gradient rects unconditionally.
+      const bgClipStrokeW = parseFloat(el.styles.webkitTextStrokeWidth ?? "0") || 0;
+      let bgClipStrokeBody = "";
+      if (bgClipStrokeW > 0) {
+        bgClipStrokeBody = renderOneText(ctx, { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgba(0,0,0,0)", overflowClip: textOverflowClip }, emit);
+      }
       // Emit one masked rect per text-clipped layer, walking from BOTTOM
       // (highest li) to TOP (li = 0) so the topmost CSS layer paints last.
       // All rects share the same glyph mask; later rects paint over earlier
@@ -1077,6 +1098,9 @@ function paintText(
             `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${f}" mask="url(#${mid})" />`,
           );
         }
+      }
+      if (bgClipStrokeBody !== "") {
+        ctx.svgParts.push(`${indent}${bgClipStrokeBody}`);
       }
     } else {
       ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
