@@ -369,22 +369,79 @@ describe("buildCompressedRunPlan — chrome union", () => {
   });
 
   it("a reopen never reorders paint: a variant that reappears out of position re-emits instead", () => {
-    // The 'x' line reappears at state 2 but AFTER a sibling that did not exist
-    // when it was last active, so reopening in place would be a paint-order
-    // change — it must fall back to a fresh variant.
+    // The 'xxx' line reappears at state 2 with BYTE-IDENTICAL geometry (y=100,
+    // so its captured record still deep-matches the inactive variant — the
+    // reopen candidate genuinely exists) but now sits AFTER 'yyy' in document
+    // order, while its inactive variant sits BEFORE 'yyy' in the union list.
+    // Reopening in place would paint it under 'yyy' instead of over it, so the
+    // position guard must refuse and fall back to a fresh variant.
+    //
+    // Geometry-preserving is the whole point of the fixture: an IN-FLOW row
+    // that returns at a different sibling index also returns at a different
+    // painted y, which makes its record unequal and kills the reopen candidate
+    // before the position guard is ever consulted (pinned by the sibling test
+    // below). Only out-of-flow-style, index-independent geometry reaches here.
     const L = (t: string, y: number) => lineEl(t, { y, styles: { backgroundColor: "rgb(1, 2, 3)" } });
     const plan = buildCompressedRunPlan([
       state([box([L("xxx", 100)])]),
-      state([box([L("yyy", 100)])]),
-      state([box([L("yyy", 100), L("xxx", 120)])]),
+      state([box([L("yyy", 120)])]),
+      state([box([L("yyy", 120), L("xxx", 100)])]),
     ]);
-    // Pixels stay correct either way; assert the windows partition the states
-    // so nothing is visible twice at once.
-    for (const v of plan.chromeRoots[0].children) {
+    const variants = plan.chromeRoots[0].children;
+    // Three emissions: the original 'xxx', 'yyy', and a FRESH 'xxx' variant —
+    // the reopen was refused rather than reordering paint.
+    expect(variants).toHaveLength(3);
+    expect(variants.map((v) => [v.el.y, v.windows])).toEqual([
+      [100, [{ start: 0, end: 1 }]],
+      [120, [{ start: 1, end: 3 }]],
+      [100, [{ start: 2, end: 3 }]],
+    ]);
+    // The invariant that actually matters: at EVERY state, the union's paint
+    // order restricted to the nodes visible then equals that state's document
+    // order. This is the direct "no observable reorder" proof — strictly
+    // stronger than asserting the windows merely don't overlap.
+    const geom = (el: { x: number; y: number; width: number; height: number }) => `${el.x},${el.y},${el.width},${el.height}`;
+    const docOrder = [
+      [[60, 100]],
+      [[60, 120]],
+      [[60, 120], [60, 100]],
+    ];
+    for (let s = 0; s < 3; s++) {
+      const visible = variants.filter((v) => v.windows.some((w) => s >= w.start && s < w.end)).map((v) => geom(v.el));
+      expect(visible, `state ${s}: union paint order must match document order`)
+        .toEqual(docOrder[s].map(([x, y]) => `${x},${y},${3 * 7.5},19`));
+    }
+    // ...and the windows still partition the states (nothing visible twice).
+    for (const v of variants) {
       for (let i = 1; i < v.windows.length; i++) {
         expect(v.windows[i].start).toBeGreaterThanOrEqual(v.windows[i - 1].end);
       }
     }
+  });
+
+  it("an in-flow row that returns at a different index is not a reopen candidate at all (its geometry moved)", () => {
+    // Companion to the guard test: the reopen search matches on the captured
+    // record, which carries ABSOLUTE geometry. An in-flow row that leaves and
+    // returns below a newly inserted sibling returns at a different painted y,
+    // so no byte-equal inactive variant exists and the position guard is never
+    // consulted. Relaxing that guard could not recover this case; only a
+    // geometry-independent identity could.
+    const L = (t: string, y: number) => lineEl(t, { y, styles: { backgroundColor: "rgb(1, 2, 3)" } });
+    const plan = buildCompressedRunPlan([
+      state([box([L("alpha", 100), L("beta", 120)])]),
+      state([box([L("alpha", 100)])]),
+      state([box([L("alpha", 100), L("new", 120), L("beta", 140)])]),
+    ]);
+    // 'beta' comes back at y=140, not the y=120 its inactive variant holds — a
+    // separate emission, with the old variant left closed. (Chrome-layer text
+    // is stripped into the glyph layer, so variants are identified by the
+    // captured box geometry rather than by text.)
+    expect(plan.chromeRoots[0].children.map((v) => [v.el.y, v.el.width, v.windows])).toEqual([
+      [100, 5 * 7.5, [{ start: 0, end: 3 }]],   // alpha, held throughout
+      [120, 4 * 7.5, [{ start: 0, end: 1 }]],   // beta's original emission, closed for good
+      [120, 3 * 7.5, [{ start: 2, end: 3 }]],   // the inserted 'new' row
+      [140, 4 * 7.5, [{ start: 2, end: 3 }]],   // beta re-emitted at its NEW position
+    ]);
   });
 
   it("chrome subtree replacement inserts the variant in paint order", () => {

@@ -366,6 +366,35 @@ already sits inside the insertion range the reappearing element would occupy,
 so a reopen can never reorder paint — otherwise it re-emits (re-emit on any
 doubt).
 
+**That positional hold-back is settled, not a pending gap.** It was measured
+rather than assumed, and relaxing it does not pay:
+
+- *It almost never binds.* A reopen candidate needs the whole captured subtree
+  byte-equal, and captured records carry **absolute** geometry — so an in-flow
+  sibling that returns at a different index also returns at a different painted
+  position, its record differs, and no candidate exists at any position. Only
+  out-of-flow (absolutely positioned) siblings, whose geometry is independent
+  of DOM index, can reach the guard at all. Across both shipped compressed-run
+  examples and a real 11-state keystroke capture, **zero** candidates were
+  refused by it. The often-cited motivating case — a list row removed and
+  returned below a newly inserted sibling — is *not* blocked by this guard; it
+  fails the byte-equality match one step earlier, so neither relaxing the guard
+  nor a per-window-position mechanism would recover it.
+- *When it does bind, relaxing it usually costs bytes.* The union is one
+  ordered list and the merge's LCS is order-preserving over (union order) ×
+  (document order), so an inverted pair can never both be matched at a later
+  state: the next state drops one and re-emits it in the right place. An
+  out-of-position reopen therefore only saves an emission when its state is the
+  run's last, or the element blinks away again immediately; otherwise the saved
+  emission is repaid at once plus an extra visibility window. On a 5-state
+  fixture built to exercise exactly this, dropping the guard grew the run
+  2545 → 2693 bytes. On the favorable (terminal) shapes it saved 91–322 bytes.
+
+Both branches are pinned by tests: a plan-level pair covering the
+geometry-preserving refusal and the in-flow non-candidate, and a rasterized e2e
+where the returning row **overlaps** a sibling inserted while it was gone, so a
+reopened-in-place variant would visibly flip the overlap.
+
 ### Why not magic-move (the obvious-looking tool)
 
 Three structural mismatches, from `src/animation/magic-move.ts` / `tree-diff.ts`:

@@ -1001,6 +1001,29 @@ function mergeLevel(unionList: UnionNode[], nextEls: CapturedElement[], s: numbe
       // already sits within the insertion range this element would occupy, so
       // reopening can never reorder paint; otherwise fall through to a fresh
       // variant (re-emit on any doubt).
+      //
+      // The `k >= cursor && k <= target` window is deliberately kept even
+      // though a bbox-overlap test could sometimes prove an out-of-position
+      // reopen unobservable. Measured, the relaxation does not pay:
+      //
+      //  * It almost never fires. A reopen candidate needs the whole captured
+      //    subtree byte-equal, and captured records carry ABSOLUTE geometry —
+      //    so for in-flow siblings a different sibling index means a different
+      //    painted position, the deep keys differ, and no candidate exists at
+      //    any position. Only out-of-flow (absolutely positioned) siblings,
+      //    whose geometry is independent of DOM index, can reach this guard at
+      //    all. Across the shipped compressed-run examples and a real
+      //    11-state keystroke capture, zero candidates were rejected here.
+      //  * When it does fire it is usually a LOSS. The union list is one
+      //    ordered list and the LCS above is order-preserving over (active
+      //    union order) × (document order), so an inverted pair can never both
+      //    be matched at a later state: the very next state drops one of them
+      //    and re-emits it in the right place. An out-of-position reopen
+      //    therefore only saves an emission when its state is the run's last
+      //    or the element blinks away again immediately; otherwise the saved
+      //    emission is paid back at once, plus an extra visibility window on
+      //    the display track. On a 5-state fixture built to exercise exactly
+      //    this, dropping the guard grew the run 2545 → 2693 bytes.
       let reopenAt = -1;
       for (let k = 0; k < unionList.length; k++) {
         const n = unionList[k];

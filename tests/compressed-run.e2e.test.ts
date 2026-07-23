@@ -119,6 +119,38 @@ async function scanRegion(
   }, { dataUri, rect, mode });
 }
 
+/** Count red-dominant vs green-dominant pixels in a screenshot region — the
+ *  paint-order probe for two overlapping solid-colored boxes. */
+async function countHues(
+  page: Page,
+  png: Buffer,
+  rect: { x: number; y: number; w: number; h: number },
+): Promise<{ red: number; green: number }> {
+  const dataUri = `data:image/png;base64,${png.toString("base64")}`;
+  return page.evaluate(async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
+    const img = new Image();
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("png decode failed"));
+      img.src = args.dataUri;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    const { x, y, w, h } = args.rect;
+    const d = ctx.getImageData(x, y, w, h).data;
+    let red = 0, green = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (r > 120 && g < 80 && b < 80) red++;
+      else if (g > 90 && r < 90 && b < 110) green++;
+    }
+    return { red, green };
+  }, { dataUri, rect });
+}
+
 /** Raw RGBA bytes of a screenshot region (prefix byte-stability checks). */
 async function regionPixels(page: Page, png: Buffer, rect: { x: number; y: number; w: number; h: number }): Promise<string> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
@@ -504,6 +536,112 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `reopen-${s}-diff.png`));
         expect(cmp.regionCount, `state ${s}: reopen render diverges from the flipbook`).toBe(0);
       }
+    } finally {
+      await ctx.close();
+    }
+  }, 180_000);
+
+  it("out-of-position reopen: a byte-identical variant that returns at a LATER sibling index re-emits, keeping paint order exact", async () => {
+    // The one shape that can reach the reopen's position guard: absolutely
+    // positioned siblings, whose geometry does NOT depend on DOM index, so a
+    // row can leave and return byte-identical at a different sibling index.
+    // Here the returning row OVERLAPS a sibling inserted while it was gone and
+    // must paint OVER it (it is last in document order) — while its inactive
+    // union variant sits BEFORE that sibling. Reopening in place would flip the
+    // overlap; the conservative re-emit keeps the pixels exact.
+    const { browser } = env!;
+    const OW = 320, OH = 180;
+    const OPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; width: ${OW}px; height: ${OH}px; background: #101820; }
+      #ov { position: absolute; left: 0; top: 0; width: ${OW}px; height: ${OH}px; }
+      .p { position: absolute; left: 20px; width: 200px; height: 40px; color: #ffffff;
+        font-family: Menlo, ui-monospace, monospace; font-size: 13px; line-height: 40px;
+        white-space: pre; padding-left: 8px; }
+    </style></head><body><div id="ov"></div>
+    <script>
+      var A = ['alpha', 10, '#1d4ed8'], B = ['beta', 70, '#b91c1c'], NEW = ['new', 92, '#15803d'];
+      window.render = function(rows){ document.getElementById('ov').innerHTML = rows.map(function(r){
+        return '<div class="p" style="top:' + r[1] + 'px;background:' + r[2] + '">' + r[0] + '</div>'; }).join(''); };
+      window.s0 = function(){ render([A, B]); };
+      window.s1 = function(){ render([A]); };
+      window.s2 = function(){ render([A, NEW, B]); };
+      window.s0();
+    </script></body></html>`;
+    const ctx = await browser.newContext({ viewport: { width: OW, height: OH }, deviceScaleFactor: 1 });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(OPAGE, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const trees: CapturedElement[][] = [];
+      const cap = async (): Promise<void> => { trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: OW, height: OH })); };
+      await cap();                                                                       // A, B
+      await page.evaluate(() => (window as unknown as { s1: () => void }).s1());
+      await cap();                                                                       // A
+      await page.evaluate(() => (window as unknown as { s2: () => void }).s2());
+      await cap();                                                                       // A, NEW, B — B last, over NEW
+
+      const holds = [300, 300, 400];
+      const boundaries = [0, 300, 600];
+      const rootBg = "rgb(16, 24, 32)";
+      const run = composeCompressedRun(trees.map((tree, i) => ({ tree, holdMs: holds[i] })), {
+        width: OW, height: OH, idPrefix: "oo0", background: rootBg,
+      });
+
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      const frames = trees.map((tree, i) => ({
+        svgContent: elementTreeToSvgInner(structuredClone(tree), OW, OH, `of${i}-`, true, 2, false),
+        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+      }));
+      const flipbookSvg = generateAnimatedSvg({ width: OW, height: OH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const outerSvg = generateAnimatedSvg({
+        width: OW, height: OH,
+        frames: [{ svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "oocmp"), duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        fontFaceCss: "",
+      });
+      const flipPage = await ctx.newPage();
+      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await flipPage.evaluate(() => document.fonts.ready);
+      const compPage = await ctx.newPage();
+      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await compPage.evaluate(() => document.fonts.ready);
+      const comparePage = await ctx.newPage();
+      mkdirSync(OUT_DIR, { recursive: true });
+      const compShots: Buffer[] = [];
+      const flipShots: Buffer[] = [];
+      for (let s = 0; s < trees.length; s++) {
+        const t = boundaries[s] + holds[s] / 2;
+        await seekTo(flipPage, t);
+        await seekTo(compPage, t);
+        const expPath = join(OUT_DIR, `outpos-${s}-flipbook.png`);
+        const actPath = join(OUT_DIR, `outpos-${s}-compressed.png`);
+        const exp = await flipPage.screenshot({ clip: { x: 0, y: 0, width: OW, height: OH } });
+        const act = await compPage.screenshot({ clip: { x: 0, y: 0, width: OW, height: OH } });
+        flipShots.push(exp);
+        compShots.push(act);
+        writeFileSync(expPath, exp);
+        writeFileSync(actPath, act);
+        const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `outpos-${s}-diff.png`));
+        expect(cmp.regionCount, `state ${s}: out-of-position reopen render diverges from the flipbook`).toBe(0);
+        // `regionCount` alone is NOT a sufficient bar for a paint-order bug of
+        // this shape: two equal-sized solid blocks swapping z-order reads to
+        // the region detector as SHIFTED content, which it suppresses from
+        // `regionCount` by design. Measured on the guard-disabled mutant: 3712
+        // differing pixels, all filed under `shiftyRegionArea`, regionCount 0.
+        // `nonAaPixels` is the bar that actually catches it.
+        expect(cmp.nonAaPixels, `state ${s}: significant pixels differ from the flipbook`).toBe(0);
+      }
+
+      // Decisive z-order probe: in the 92..110 overlap band the LAST-in-document
+      // row (beta, #b91c1c) must win. A reopened-in-place beta would have sat
+      // BEFORE the inserted row in the union list and this band would read
+      // green (#15803d) instead — a pixel-visible reorder, not a subtlety.
+      const band = { x: 40, y: 96, w: 120, h: 10 };
+      const hues = await countHues(compPage, compShots[2], band);
+      expect(hues.red, "beta's red must own the overlap band (it paints last)").toBeGreaterThan(900);
+      expect(hues.green, "no inserted-row green may show through — that would be a paint-order flip").toBe(0);
+      // ...byte-identical to the flipbook over the same band.
+      expect(await regionPixels(compPage, compShots[2], band)).toBe(await regionPixels(compPage, flipShots[2], band));
     } finally {
       await ctx.close();
     }
