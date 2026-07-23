@@ -789,6 +789,30 @@ interface AppliedDecorationRunCtx {
  * Skip-ink intercepts always shape with the run's own font — the ink IS the
  * run's glyphs.
  */
+/**
+ * DM-1732: the baseline a PROPAGATED decoration paints at. Blink positions an
+ * inherited decoration at the DECORATING box's line, not the decorated text's
+ * own baseline (`text_decoration_info.cc` `offset_from_decorating_box`) — so
+ * `<u>x<sub>2</sub></u>` paints ONE continuous underline at the parent's
+ * position instead of a stepped one under the sub. The propagated entry
+ * carries the decorating element's own measured baselines; pick the one on
+ * the run's line (nearest), and use it only when it differs from the run's
+ * own baseline by MORE than 1px (a real `vertical-align` shift — sub/sup are
+ * ≥2px at body sizes) and by no more than the decorating font size (beyond
+ * that it's a different line). Same-baseline children keep their own rounded
+ * baseline, byte-identical to before. Exported for unit testing (not in the
+ * package barrel).
+ */
+export function pickPropagatedBaseline(baselines: number[] | undefined, runBaselineY: number, decoFontSize: number): number {
+  if (baselines == null || baselines.length === 0) return runBaselineY;
+  let best = baselines[0];
+  for (const b of baselines) {
+    if (Math.abs(b - runBaselineY) < Math.abs(best - runBaselineY)) best = b;
+  }
+  const d = Math.abs(best - runBaselineY);
+  return d > 1 && d <= decoFontSize ? best : runBaselineY;
+}
+
 function renderAppliedTextDecorations(
   el: CapturedElement,
   fallbackColor: string,
@@ -798,7 +822,7 @@ function renderAppliedTextDecorations(
   for (const pd of el.propagatedDecorations ?? []) {
     parts.push(renderTextDecoration({
       textDecorationLine: pd.line, decorationColor: pd.color ?? fallbackColor, style: pd.style,
-      segX: run.segX, baselineY: run.baselineY, segWidth: run.segWidth,
+      segX: run.segX, baselineY: pickPropagatedBaseline(pd.baselines, run.baselineY, pd.fontSize), segWidth: run.segWidth,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       thicknessOverride: pd.thickness, underlineOffset: pd.underlineOffset,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,

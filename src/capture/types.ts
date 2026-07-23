@@ -819,6 +819,16 @@ export interface PropagatedDecoration {
   fontSize: number;
   fontWeight: string;
   fontStyle?: string;
+  /** DM-1732: the decorating element's OWN text baselines (rounded viewport
+   *  px, one per its text segment/line). Blink paints a propagated decoration
+   *  at the DECORATING box's line position (`offset_from_decorating_box` in
+   *  text_decoration_info.cc), so a `vertical-align`-shifted child (sub/sup)
+   *  must anchor the inherited line at the ancestor's baseline, not its own
+   *  shifted one. The renderer picks the entry nearest the child's baseline —
+   *  and only uses it when they differ by >1px (a real shift), keeping
+   *  same-baseline children byte-identical. Absent when the decorating
+   *  element has no text of its own. */
+  baselines?: number[];
 }
 
 export interface CapturedElement {

@@ -99,7 +99,19 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
     if (hasDecoration(s.textDecorationLine)) {
       // This element is a decorating box — append its entry for descendants
       // (outermost-first accumulation, matching Blink's applied order).
+      // DM-1732: record the decorating element's OWN text baselines so a
+      // vertical-align-shifted child can anchor the inherited line at the
+      // ancestor's position (Blink's offset_from_decorating_box) instead of
+      // its own shifted baseline.
+      const ascent = el.fontAscent ?? (parseFloat(s.fontSize) || 14);
+      let baselines: number[] | undefined;
+      if (el.textSegments != null && el.textSegments.length > 0) {
+        baselines = [...new Set(el.textSegments.map((seg) => Math.round(seg.y + (seg.fontAscent ?? ascent))))];
+      } else if (el.textTop != null && el.text !== "") {
+        baselines = [Math.round(el.textTop + ascent)];
+      }
       next = [...(next ?? []), {
+        baselines,
         line: s.textDecorationLine,
         style: s.textDecorationStyle,
         color: (s.textDecorationColor != null && s.textDecorationColor !== "" && s.textDecorationColor !== "currentcolor")

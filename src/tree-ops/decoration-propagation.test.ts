@@ -216,3 +216,39 @@ describe("propagateTextDecorations: idempotence + re-run transitions", () => {
     expect(c2.propagatedDecorations).toBeUndefined();
   });
 });
+
+// ── DM-1732: decorating-box baselines for vertical-align-shifted children ───
+
+describe("propagateTextDecorations: decorating-box baselines (DM-1732)", () => {
+  it("records the decorating element's own segment baselines (deduped, rounded)", () => {
+    const child = el({ tag: "sub", text: "2", styles: { textDecorationLine: "none" } });
+    const u = el({ text: "H O", styles: decoStyles(), children: [child] });
+    u.fontAscent = 22.3;
+    u.textSegments = [
+      { text: "H ", x: 10, y: 100.2, width: 20, height: 30 },
+      { text: " O", x: 50, y: 100.2, width: 20, height: 30 },
+      { text: "wrap", x: 10, y: 140.2, width: 40, height: 30 },
+    ] as NonNullable<CapturedElement["textSegments"]>;
+    propagateTextDecorations([u]);
+    // 100.2+22.3=122.5 → 123 (deduped across the two same-line segs); 140.2+22.3=162.5 → 163
+    expect(child.propagatedDecorations?.[0]?.baselines).toEqual([123, 163]);
+  });
+
+  it("uses per-segment fontAscent overrides when present", () => {
+    const child = el({ text: "x", styles: { textDecorationLine: "none" } });
+    const u = el({ text: "big", styles: decoStyles(), children: [child] });
+    u.fontAscent = 20;
+    u.textSegments = [
+      { text: "big", x: 0, y: 100, width: 30, height: 40, fontAscent: 30 } as NonNullable<CapturedElement["textSegments"]>[number],
+    ];
+    propagateTextDecorations([u]);
+    expect(child.propagatedDecorations?.[0]?.baselines).toEqual([130]);
+  });
+
+  it("textless decorating element records no baselines", () => {
+    const child = el({ text: "only", styles: { textDecorationLine: "none" } });
+    const u = el({ styles: decoStyles(), children: [child] });
+    propagateTextDecorations([u]);
+    expect(child.propagatedDecorations?.[0]?.baselines).toBeUndefined();
+  });
+});
