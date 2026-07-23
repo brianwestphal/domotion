@@ -98,6 +98,16 @@ existing platform-agnostic `resolveSystemFallbackFonts` drives it unchanged.
 keeps its own last-resort) — mirroring the macOS LastResort handling and the
 Linux fc-list guard.
 
+**Resolved axes (DM-1721)**: when the mapped face is a variable-font instance,
+the `fallback` entry (and the win32 `family`-query result — see doc 41) also
+carries `axes` — the axis location DirectWrite resolved the face to
+(`IDWriteFontFace5::GetFontAxisValues`). `resolveSystemFallbackKeyForCp` /
+`resolveInstalledFont` store it on the dynamic `sysfb:` spec (`FontPath.
+resolvedAxes`), and the hinted-embedded-subset pin adopts it for the axes CSS
+can't derive (notably `opsz`, which DirectWrite pins per named optical
+subfamily at every font size — doc 99). macOS/Linux backends report no axes;
+their behavior is unchanged.
+
 `resolveSystemFallbackKeyForCp` registers the substitute under a `sysfb:` key
 with the native (helper) extractor, like darwin. **Default-on as of DM-1424** (set
 `DOMOTION_SYSTEM_FALLBACK=0` to force off — e.g. to reproduce the pre-flip

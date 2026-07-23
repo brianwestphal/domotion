@@ -741,6 +741,51 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   return out.str();
 }
 
+// DM-1721: the RESOLVED variation-axis values of a matched font face, as JSON
+// (`{"wght":400,"opsz":10.5}`), or "" when the face is not a variable-font
+// instance. DirectWrite pins named optical subfamilies at fixed axis values
+// ("Segoe UI Variable Text" → opsz 10.5, "Display" → opsz 36, at EVERY font
+// size — it does not re-vary opsz per size), so the axis location the matcher
+// resolved to is authoritative for reproducing Chrome's paint and cannot be
+// derived from CSS values Node-side. Read via IDWriteFontFace5::
+// GetFontAxisValues; gated on HasVariations() so static faces report nothing.
+static std::string faceResolvedAxesJson(IDWriteFontFace* face) {
+  if (!face) return "";
+  IDWriteFontFace5* face5 = nullptr;
+  if (FAILED(face->QueryInterface(__uuidof(IDWriteFontFace5), reinterpret_cast<void**>(&face5))) || !face5) {
+    return "";
+  }
+  std::string out;
+  if (face5->HasVariations()) {
+    UINT32 count = face5->GetFontAxisValueCount();
+    if (count > 0 && count <= 64) {
+      std::vector<DWRITE_FONT_AXIS_VALUE> values(count);
+      if (SUCCEEDED(face5->GetFontAxisValues(values.data(), count))) {
+        std::ostringstream ss;
+        ss << "{";
+        bool first = true;
+        for (const DWRITE_FONT_AXIS_VALUE& v : values) {
+          // DWRITE_MAKE_FONT_AXIS_TAG packs the 4 tag chars low-byte-first.
+          char tag[5] = {
+            static_cast<char>(v.axisTag & 0xFF),
+            static_cast<char>((v.axisTag >> 8) & 0xFF),
+            static_cast<char>((v.axisTag >> 16) & 0xFF),
+            static_cast<char>((v.axisTag >> 24) & 0xFF),
+            '\0',
+          };
+          if (!first) ss << ",";
+          first = false;
+          ss << "\"" << jsonEscape(tag) << "\":" << formatNumber(static_cast<double>(v.value));
+        }
+        ss << "}";
+        if (!first) out = ss.str();  // at least one axis emitted
+      }
+    }
+  }
+  safeRelease(face5);
+  return out;
+}
+
 // DM-1403: per-codepoint live system-fallback resolution via DirectWrite's
 // IDWriteFontFallback::MapCharacters — the same API Chrome-on-Windows
 // (FontFallback::MapCharacters in font_fallback_win.cc) uses to pick the
@@ -753,6 +798,13 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
 // mapped font actually covers the cp (HasCharacter) so a non-covering result is
 // reported found:false — the renderer then keeps its own last-resort, matching
 // the macOS LastResort handling and the Linux coverage guard.
+//
+// DM-1721: when the mapped face is a variable-font instance, each found entry
+// additionally carries `"axes":{...}` — the axis location DirectWrite resolved
+// the face to (see faceResolvedAxesJson). Node uses it to pin the
+// hinting-preserving embedded subset at the SAME instance DirectWrite renders,
+// instead of deriving opsz from the font size (wrong for named optical
+// subfamilies, which DirectWrite pins at a fixed opsz at every size).
 static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* factory) {
   std::ostringstream out;
   out << "{\"type\":\"fallback\",\"fonts\":[";
@@ -772,7 +824,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
     uint32_t cp = static_cast<uint32_t>(cps[i].asNumber());
 
     bool found = false;
-    std::string psName, familyName, path;
+    std::string psName, familyName, path, axesJson;
     if (fallback && systemFonts) {
       std::wstring s = cpToUtf16(cp);
       SingleStringAnalysisSource* source = new SingleStringAnalysisSource(s);
@@ -793,6 +845,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
             psName = facePostScriptName(face);
             path = fontFacePath(face);
             familyName = fontFamilyDisplayName(mappedFont);
+            axesJson = faceResolvedAxesJson(face);  // DM-1721: variable-instance axis pin
             if (!psName.empty() && !path.empty()) found = true;
             safeRelease(face);
           }
@@ -806,7 +859,9 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
       out << "{\"cp\":" << static_cast<int>(cp) << ",\"found\":true"
           << ",\"postscriptName\":\"" << jsonEscape(psName) << "\""
           << ",\"familyName\":\"" << jsonEscape(familyName) << "\""
-          << ",\"path\":\"" << jsonEscape(path) << "\"}";
+          << ",\"path\":\"" << jsonEscape(path) << "\"";
+      if (!axesJson.empty()) out << ",\"axes\":" << axesJson;  // DM-1721
+      out << "}";
     } else {
       out << "{\"cp\":" << static_cast<int>(cp) << ",\"found\":false}";
     }
@@ -816,6 +871,69 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
   safeRelease(fallback);
   safeRelease(factory2);
   out << "]}";
+  return out.str();
+}
+
+// DM-1721: CSS-family-name → installed-font resolution via the system font
+// collection — the win32 implementation of the `family` query the macOS
+// CoreText helper has had since DM-1018 (`CTFontCreateWithName` + name guard).
+// Protocol shape matches the macOS helper:
+//   in : { type:"family", name:"Segoe UI Variable Text" }
+//   out: { type:"family", found:true, postscriptName, familyName, path[, axes] }
+//        | { type:"family", found:false }
+// DirectWrite's FindFamilyName is an exact family-name lookup (no fuzzy
+// substitution), so no name-match guard is needed — a miss reports
+// found:false and the renderer keeps walking the CSS family stack, matching
+// Blink's FontFallbackList behavior. `axes` carries the resolved axis values
+// when the matched face is a variable-font instance (see faceResolvedAxesJson)
+// — for named optical subfamilies ("Segoe UI Variable Text"/"Display") this is
+// the ONLY correct source of the `opsz` pin, since DirectWrite pins it at the
+// subfamily's fixed value at every font size.
+static std::string runFamilyQuery(const JsonValue& query, IDWriteFactory* factory) {
+  std::string name = query.at("name").asString();
+  IDWriteFontCollection* systemFonts = nullptr;
+  if (factory) factory->GetSystemFontCollection(&systemFonts, FALSE);
+
+  bool found = false;
+  std::string psName, familyName, path, axesJson;
+  if (systemFonts && !name.empty()) {
+    std::wstring wname = toWide(name);
+    UINT32 index = 0;
+    BOOL exists = FALSE;
+    if (SUCCEEDED(systemFonts->FindFamilyName(wname.c_str(), &index, &exists)) && exists) {
+      IDWriteFontFamily* family = nullptr;
+      if (SUCCEEDED(systemFonts->GetFontFamily(index, &family)) && family) {
+        IDWriteFont* font = nullptr;
+        if (SUCCEEDED(family->GetFirstMatchingFont(DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+                                                   DWRITE_FONT_STYLE_NORMAL, &font)) && font) {
+          IDWriteFontFace* face = nullptr;
+          if (SUCCEEDED(font->CreateFontFace(&face)) && face) {
+            psName = facePostScriptName(face);
+            path = fontFacePath(face);
+            familyName = fontFamilyDisplayName(font);
+            axesJson = faceResolvedAxesJson(face);
+            if (!psName.empty() && !path.empty()) found = true;
+            safeRelease(face);
+          }
+          safeRelease(font);
+        }
+        safeRelease(family);
+      }
+    }
+  }
+  safeRelease(systemFonts);
+
+  std::ostringstream out;
+  if (found) {
+    out << "{\"type\":\"family\",\"found\":true"
+        << ",\"postscriptName\":\"" << jsonEscape(psName) << "\""
+        << ",\"familyName\":\"" << jsonEscape(familyName) << "\""
+        << ",\"path\":\"" << jsonEscape(path) << "\"";
+    if (!axesJson.empty()) out << ",\"axes\":" << axesJson;
+    out << "}";
+  } else {
+    out << "{\"type\":\"family\",\"found\":false}";
+  }
   return out.str();
 }
 
@@ -898,6 +1016,8 @@ static std::string handleEnvelope(IDWriteFactory* factory, const JsonValue& enve
       response << runMetaQuery(queries[i], fonts);
     } else if (type == "fallback") {
       response << runFallbackQuery(queries[i], factory);  // DM-1403: DirectWrite MapCharacters
+    } else if (type == "family") {
+      response << runFamilyQuery(queries[i], factory);    // DM-1721: system-collection family lookup
     } else {
       response << "{\"type\":\"" << jsonEscape(type) << "\",\"error\":\"unknown query type\"}";
     }
@@ -921,7 +1041,7 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.1.0\n";
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.2.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {

@@ -510,7 +510,18 @@ function firstWebfontFamilyInStack(fontFamily: string): string | null {
  * so italic and upright glyphs dedupe separately. See SK-1105.
  */
 export const ITALIC_SLNT = -9.99;
-interface FontPath { path: string; postscriptName?: string; extractor?: "fontkit" | "native" }
+interface FontPath {
+  path: string;
+  postscriptName?: string;
+  extractor?: "fontkit" | "native";
+  /** DM-1721: axis location the platform font matcher resolved a VARIABLE face
+   *  to (win32 DirectWrite reports this for live-resolver `sysfb:` picks — e.g.
+   *  "Segoe UI Variable Text" is pinned at opsz 10.5 at every font size).
+   *  When present, the hinted-subset pin adopts these values for the axes CSS
+   *  can't derive (opsz etc.) instead of computing them from font size. Absent
+   *  for static tables, macOS/Linux resolutions, and older win32 helpers. */
+  resolvedAxes?: Record<string, number>;
+}
 
 // DM-1014: pick the LastResort font Chrome actually paints with on this
 // platform. On macOS Chrome's CoreText cascade bottoms out at the on-disk
@@ -1198,9 +1209,10 @@ const dynamicSystemFontPaths = new Map<string, FontPath>();
 function registerDynamicSystemFont(
   key: string, path: string, postscriptName: string,
   extractor: "fontkit" | "native" = "native",
+  resolvedAxes?: Record<string, number>,
 ): void {
   if (dynamicSystemFontPaths.has(key)) return;
-  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor });
+  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor, resolvedAxes });
   resolvedSpecCache.delete(key); // in case a prior null was cached
 }
 
@@ -1326,7 +1338,9 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
       const resolved = resolveSystemFallbackFonts([cp]).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
-        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+        // DM-1721: carry DirectWrite's resolved axis values (variable faces
+        // only) into the dynamic spec so the hinted-subset pin can adopt them.
+        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName, "native", resolved.resolvedAxes);
       }
     }
   } catch { key = null; }
@@ -2491,7 +2505,21 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   //      unrecoverable v8 OOM (try/catch can't rescue). Routing through the
   //      helper before fontkit even sees the codepoint avoids the crash.
   if (helperEligible && isGlyphHelperAvailable()) {
-    const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
+    // DM-1721: on Windows, DirectWrite opening a variable FILE by path yields
+    // the DEFAULT fvar instance — unlike CoreText, it does not apply axes
+    // internally. Resolve the axis location up front (CSS-derived + the
+    // matcher's resolved values — see resolveAxisLocationForFile) and pass it
+    // to the helper as `variations`, so its outlines and advances come from
+    // the SAME instance the embedded subset pins (e.g. "Segoe UI Variable
+    // Display" at opsz 36, not the file default). macOS stays untouched: no
+    // variations are sent there (CoreText named faces already resolve the
+    // optical instance; validated pixel-exact by the full macOS sweeps).
+    const helperFaceInfo = (hintedSubsetEnabled() || process.platform === "win32")
+      ? resolveFaceInfoForFile(spec.path, spec.postscriptName) : null;
+    const helperAxes = (process.platform === "win32" && helperFaceInfo?.fileAxes != null)
+      ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes)
+      : undefined;
+    const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
       // DM-1714: even when outlines come from the native helper (macOS CoreText /
@@ -2505,16 +2533,18 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       // fontkit open on the default (svg2ttf) path.
       //
       // DM-1716: when the file is VARIABLE (Segoe UI Variable on Windows 11),
-      // also record the axis location this instance resolved to — the native
-      // helper applies the weight/optical-size axes internally, and the
+      // also record the axis location this instance resolved to — the
       // embedded subset must pin the same location or it would embed the
       // default master's outlines.
-      if (hintedSubsetEnabled()) {
-        const { faceIndex, fileAxes } = resolveFaceInfoForFile(spec.path, spec.postscriptName);
+      if (hintedSubsetEnabled() && helperFaceInfo != null) {
+        const { faceIndex, fileAxes } = helperFaceInfo;
         fontSourceMap.set(instance as unknown as object, {
           path: spec.path, postscriptName: spec.postscriptName, faceIndex,
+          // DM-1721: `spec.resolvedAxes` (DirectWrite's resolved axis values
+          // for live-resolver / family-lookup picks) overrides the CSS-derived
+          // opsz pin — named optical subfamilies don't re-vary opsz per size.
           variationAxes: fileAxes != null
-            ? resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings)
+            ? (helperAxes ?? resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes))
             : null,
         });
       }
@@ -2701,15 +2731,40 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): { faceIn
  *  outlines came from the NATIVE helper (CoreText / DirectWrite). Mirrors
  *  applyVariationAxes' resolution — CSS weight → `wght`, font-size → `opsz`
  *  (Chromium's automatic optical sizing), slant → `slnt`, author
- *  `font-variation-settings` on top — restricted to axes the file exposes. */
-function resolveAxisLocationForFile(
+ *  `font-variation-settings` on top — restricted to axes the file exposes.
+ *
+ *  DM-1721 (`resolvedAxes`): on Windows, DirectWrite does NOT re-vary `opsz`
+ *  per font size — named optical subfamilies are pinned at a fixed value at
+ *  EVERY size ("Segoe UI Variable Text" → 10.5, "Display" → 36; width-matched
+ *  to sub-0.01px on the Win11 VM) and the typographic family resolves through
+ *  DirectWrite's own instance mapping. No CSS-derived pin reproduces that, so
+ *  when the win32 helper reported the matcher's RESOLVED axis values for the
+ *  face (`FontPath.resolvedAxes`), those win for every axis EXCEPT:
+ *  - `wght`: the fallback query maps at weight 400 only, so the resolved
+ *    `wght` is authoritative just for weight-400 runs; other weights keep the
+ *    CSS-derived pin (DirectWrite re-matches weight per run, tracking CSS).
+ *  - `slnt`: same reasoning — CSS italic drives it per run.
+ *  Author `font-variation-settings` still override on top, matching CSS
+ *  cascade order. macOS is untouched: the darwin helper reports no axes and
+ *  CoreText genuinely applies automatic optical sizing (the opsz=fontSize pin
+ *  there is validated pixel-exact by the full macOS sweeps). */
+export function resolveAxisLocationForFile( // exported for unit testing (not in the package barrel)
   fileAxes: Record<string, unknown>, weight: number, fontSize: number, slant: number,
   variationSettings?: Record<string, number>,
+  resolvedAxes?: Record<string, number>,
 ): Record<string, number> {
   const axes: Record<string, number> = {};
   if (fileAxes.wght != null) axes.wght = weight;
   if (fileAxes.opsz != null) axes.opsz = fontSize;
   if (slant !== 0 && fileAxes.slnt != null) axes.slnt = slant;
+  if (resolvedAxes != null) {
+    for (const tag of Object.keys(resolvedAxes)) {
+      if (fileAxes[tag] == null) continue;
+      if (tag === "slnt") continue;                 // CSS italic drives slant per run
+      if (tag === "wght" && weight !== 400) continue; // mapped at 400; CSS weight wins elsewhere
+      axes[tag] = resolvedAxes[tag];
+    }
+  }
   if (variationSettings != null) {
     for (const tag of Object.keys(variationSettings)) {
       if (fileAxes[tag] != null) axes[tag] = variationSettings[tag];
@@ -3151,7 +3206,10 @@ function matchFamilyNameToKey(name: string): string | null {
     const installed = resolveInstalledFont(name);
     if (installed != null) {
       const key = `sysfb:${installed.postscriptName}`;
-      registerDynamicSystemFont(key, installed.path, installed.postscriptName);
+      // DM-1721: `resolvedAxes` carries DirectWrite's pinned axis values for
+      // variable-face matches (e.g. "Segoe UI Variable Text" → opsz 10.5 at
+      // every size) so the hinted-subset pin embeds the instance Chrome paints.
+      registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes);
       return key;
     }
     // DM-1690: on Linux the `resolveInstalledFont` native helper is always null,

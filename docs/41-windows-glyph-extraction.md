@@ -241,6 +241,25 @@ a cert is provisioned.
 
 ## Status
 
+- ✅ **`family` query + resolved-axes reporting** (DM-1721): the helper answers
+  the cross-platform `family` query (`{type:"family", name}` →
+  `{found, postscriptName, familyName, path[, axes]}`) via the system font
+  collection's exact `FindFamilyName` lookup +
+  `GetFirstMatchingFont(NORMAL, NORMAL, NORMAL)` — the win32 counterpart of the
+  macOS CoreText `CTFontCreateWithName` family query, powering
+  `resolveInstalledFont` on Windows. Both `family` and `fallback` results carry
+  an `axes` object (`{"wght":400,"opsz":10.5,...}`, from
+  `IDWriteFontFace5::GetFontAxisValues`, gated on `HasVariations()`) when the
+  matched face is a variable-font instance. Rationale: DirectWrite does NOT
+  auto-vary `opsz` — named optical subfamilies ("Segoe UI Variable Text" →
+  opsz 10.5, "Display" → 36) are pinned at every font size, so the resolved
+  values are the only correct source for the hinted-embedded-subset axis pin
+  (doc 99) and cannot be derived from CSS. The renderer also passes the
+  resolved location back as the font spec's `variations` when opening the
+  helper font, since `CreateFontFace` from a file path yields the default
+  `fvar` instance. Verified on the Win11 VM: Text/Display resolve to
+  `SEGUIVAR.TTF` with the measured axis pins at sizes 8–32px, and the two
+  subfamilies produce distinct advances.
 - ✅ **Helper written + CI wired** (DM-837): `tools/win32-glyph-extractor/`
   (`src/main.cpp` + `CMakeLists.txt` + `build.ps1` + `README.md`; the JSON
   parser/serializer is shared verbatim with the Linux helper). The release asset

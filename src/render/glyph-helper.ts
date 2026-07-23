@@ -134,7 +134,7 @@ function parseSvgPath(d: string): PathCommand[] {
 
 // Spawn the helper once, request meta + a batch of glyphs in one envelope.
 interface HelperRequest {
-  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; size: number }>;
+  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; size: number; variations?: Record<string, number> }>;
   queries: Array<
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
@@ -163,6 +163,12 @@ interface FallbackResponseEntry {
   postscriptName?: string;
   familyName?: string;
   path?: string;
+  /** DM-1721 (win32 helper ≥0.2.0): when the mapped face is a variable-font
+   *  instance, the axis location DirectWrite resolved it to (e.g.
+   *  `{wght: 400, opsz: 10.5}` for "Segoe UI Variable Text" — DirectWrite pins
+   *  named optical subfamilies at a fixed opsz at every font size). Absent for
+   *  static faces, the macOS/Linux helpers, and older win32 binaries. */
+  axes?: Record<string, number>;
 }
 interface FamilyResponse {
   type: "family";
@@ -170,6 +176,8 @@ interface FamilyResponse {
   postscriptName?: string;
   familyName?: string;
   path?: string;
+  /** DM-1721: resolved axis values of a variable-face match (win32 ≥0.2.0). */
+  axes?: Record<string, number>;
 }
 interface HelperResponse {
   results: Array<
@@ -387,6 +395,12 @@ export interface GlyphHelperFontInstance {
 export function createGlyphHelperFont(spec: {
   postscriptName?: string;
   fontPath?: string;
+  /** DM-1721: axis location to open a VARIABLE file at. DirectWrite opening a
+   *  variable file by path yields the DEFAULT fvar instance (it does not apply
+   *  axes internally the way CoreText named faces do), so Windows callers pass
+   *  the resolved location here; the helper applies it via
+   *  IDWriteFontResource::CreateFontFace. Omitted on macOS. */
+  variations?: Record<string, number>;
 }): GlyphHelperFontInstance | null {
   if (!isGlyphHelperAvailable()) return null;
 
@@ -397,7 +411,7 @@ export function createGlyphHelperFont(spec: {
   let metaResp: MetaResponse;
   try {
     const probe = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: 1000 }],
+      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 }],
       queries: [{ type: "meta", fontRef: "f" }]
     });
     const r = probe.results[0];
@@ -453,7 +467,7 @@ export function createGlyphHelperFont(spec: {
     const need = cps.filter((cp) => !cpToGlyph.has(cp) && !missingCp.has(cp));
     if (need.length === 0) return;
     const resp = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
       queries: [{ type: "glyphs", fontRef: "f", glyphs: need.map((cp) => ({ cp })) }]
     });
     const r = resp.results[0];
@@ -465,7 +479,7 @@ export function createGlyphHelperFont(spec: {
     const cached = idToGlyph.get(id);
     if (cached != null) return cached;
     const resp = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
       queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ id }] }]
     });
     const r = resp.results[0];
@@ -498,7 +512,7 @@ export function createGlyphHelperFont(spec: {
     let shaped: ShapeResponseGlyph[] | null = null;
     try {
       const resp = callHelper({
-        fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+        fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
         queries: [{ type: "shape", fontRef: "f", text }]
       });
       const r = resp.results[0];
@@ -553,7 +567,7 @@ export function createGlyphHelperFont(spec: {
       let resp: HelperResponse;
       try {
         resp = callHelper({
-          fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+          fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
           queries: need.map((t) => ({ type: "shape" as const, fontRef: "f", text: t }))
         });
       } catch {
@@ -673,6 +687,11 @@ export interface SystemFallbackFont {
   postscriptName: string;
   familyName: string;
   path: string;
+  /** DM-1721: the axis location the platform matcher resolved the face to,
+   *  when it is a variable-font instance (win32 DirectWrite helper ≥0.2.0
+   *  reports this; macOS/Linux resolvers don't). See
+   *  `FallbackResponseEntry.axes`. */
+  resolvedAxes?: Record<string, number>;
 }
 
 const _systemFallbackCache = new Map<number, SystemFallbackFont | null>();
@@ -721,7 +740,7 @@ export function resolveSystemFallbackFonts(
   }
   for (const e of r.fonts) {
     const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
-      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path }
+      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes }
       : null;
     _systemFallbackCache.set(e.cp, resolved);
     out.set(e.cp, resolved);
@@ -729,11 +748,16 @@ export function resolveSystemFallbackFonts(
   return out;
 }
 
-/** A real installed font resolved by name via CoreText. */
+/** A real installed font resolved by name via CoreText (macOS) or the
+ *  DirectWrite system font collection (Windows, DM-1721). */
 export interface InstalledFont {
   postscriptName: string;
   familyName: string;
   path: string;
+  /** DM-1721: axis location the matcher resolved a VARIABLE face to (win32
+   *  helper ≥0.2.0). For named optical subfamilies ("Segoe UI Variable Text")
+   *  this carries the fixed opsz DirectWrite pins at every font size. */
+  resolvedAxes?: Record<string, number>;
 }
 
 const _installedFontCache = new Map<string, InstalledFont | null>();
@@ -741,11 +765,14 @@ const _installedFontCache = new Map<string, InstalledFont | null>();
 /** Resolve a CSS font-family NAME to a real installed font, the way Blink's
  *  FontFallbackList picks `first_candidate_` — the first family in the stack
  *  that actually loads (font_fallback_iterator.cc). Backed by
- *  `CTFontCreateWithName` with a name-match guard so a substituted default
- *  doesn't masquerade as the requested family. Returns null when the name
- *  isn't a real installed font (caller keeps walking the stack), or when the
- *  helper binary isn't available (non-macOS / unbuilt). Memoized process-wide.
- *  darwin-only. */
+ *  `CTFontCreateWithName` on macOS (with a name-match guard so a substituted
+ *  default doesn't masquerade as the requested family) and, since DM-1721, by
+ *  the DirectWrite system font collection's exact `FindFamilyName` lookup on
+ *  Windows (win32 helper ≥0.2.0; older binaries answer the query with an
+ *  error → null, preserving the previous fall-through). Returns null when the
+ *  name isn't a real installed font (caller keeps walking the stack), or when
+ *  the helper binary isn't available (Linux / unbuilt). Memoized
+ *  process-wide. */
 export function resolveInstalledFont(name: string): InstalledFont | null {
   const key = name.toLowerCase();
   if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
@@ -755,7 +782,7 @@ export function resolveInstalledFont(name: string): InstalledFont | null {
       const resp = callHelper({ fonts: [], queries: [{ type: "family", name }] });
       const r = resp.results[0];
       if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
-        resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path };
+        resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path, resolvedAxes: r.axes };
       }
     } catch { resolved = null; }
   }

@@ -128,6 +128,10 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 >   family to a `sysfb:` key) uses the native helper, which returns null on Linux —
 >   so on Linux an uncurated named family falls through to the `times` default
 >   instead of resolving via fontconfig like Chrome would. Tracked in **DM-1690**.
+>   (On Windows the `family` query is implemented since DM-1721 — an exact
+>   `FindFamilyName` lookup against the system collection, carrying the matched
+>   face's resolved axis values for variable instances, e.g. "Segoe UI Variable
+>   Text" → `SEGUIVAR.TTF` at `opsz` 10.5.)
 >
 > `docs/03-font-family-chain.md` frames the same mappings as "matching Chrome on
 > macOS"; doc [40](40-cross-platform-font-paths.md) L62 notes the keys are
@@ -568,7 +572,13 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    from `getFontSourceInfo`; pin-all-defaults + per-tag pins, dropping
    `fvar`/`gvar` so the consumer can't re-vary axes we resolved) — hinting
    survives hb's instancer. This closes the embedded-mode share of the
-   Windows/Linux hinting floor (doc 42).
+   Windows/Linux hinting floor (doc 42). On Windows the location adopts the
+   matcher's RESOLVED axis values when the helper reported them
+   (`FontPath.resolvedAxes` → `resolveAxisLocationForFile`; DM-1721 — named
+   optical subfamilies pin `opsz` at a fixed value at every font size, so a
+   fontSize-derived `opsz` would embed the wrong instance), and the helper
+   font itself is opened at the same location via the font spec's
+   `variations` (DirectWrite yields the default `fvar` instance otherwise).
 2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the

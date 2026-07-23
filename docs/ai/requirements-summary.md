@@ -51,7 +51,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   run's resolved axis location, dropping `fvar`/`gvar`. Removes the dominant
   (embedded-mode) share of the Windows/Linux hinting floor (~93% diff
   reduction on Windows text fixtures); synthetic/`hvgl`/webfont/mixed entries
-  keep the unhinted svg2ttf rebuild. `src/render/hb-subset.ts` (wasm binding),
+  keep the unhinted svg2ttf rebuild. Windows axis pinning adopts DirectWrite's
+  RESOLVED axis values (DM-1721): the win32 helper's `family`/`fallback`
+  queries report `IDWriteFontFace5::GetFontAxisValues` for variable-face
+  matches (named optical subfamilies pin `opsz` at a fixed value at every
+  size — Text 10.5 / Display 36), the helper font opens at that location via
+  the spec's `variations`, and the win32 helper now implements the `family`
+  query so `resolveInstalledFont` works on Windows. `src/render/hb-subset.ts` (wasm binding),
   `embedded-font-builder.ts` (branch), `synth-test-fonts.ts` (deterministic
   test fonts).
 
