@@ -1333,7 +1333,9 @@ describe("size-regression guard (DM-1764)", () => {
   const cut = { type: "cut", duration: 0 } as const;
   const cfgOf = (frames: unknown[], extra: Record<string, unknown> = {}) =>
     validateAnimateConfig({ ...B, ...extra, frames });
-  const eligible3 = () => [
+  // Typed loosely on purpose: these fixtures get a `compress` marker patched in
+  // per case, and `validateAnimateConfig` is the thing under test for shape.
+  const eligible3 = (): Record<string, unknown>[] => [
     { input: "a.html", duration: 100, transition: cut },
     { continue: true, duration: 100, transition: cut },
     { continue: true, duration: 100, transition: cut },
