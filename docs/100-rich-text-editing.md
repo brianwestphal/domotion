@@ -210,11 +210,24 @@ operating on the rewritten config; explicit cursor events are remapped onto the
 collapsed indices). Output is pixel-identical to the flipbook (verified in
 `tests/auto-compress.e2e.test.ts`). It **defaults OFF** because flipping it on
 changes the output shape of every config with such a run; the default-flip is a
-separate, deliberate decision (see "Default-flip recommendation" below). v1
-compresses only the safe simple case (pure continue+cut runs with no
-overlays/animations/textTracks/forceState/cursor-in-run/magic-move-entry
-crossing them); everything else is left uncompressed with a logged reason, and
-the complex-interaction cases are a tracked follow-up.
+separate, deliberate decision (see "Default-flip recommendation" below). It
+compresses pure continue+cut runs with no
+overlays/animations/textTracks/forceState crossing them; everything else is
+left uncompressed with a logged reason.
+
+**Sub-run splitting (DM-1764).** The pass no longer drops a whole run over one
+frame. The three interaction exclusions — an explicit cursor event addressing a
+member, an interaction action a `cursor: "auto"` pointer would be derived from,
+and a magic-move landing on the anchor — are single-*frame* reasons, so that
+frame splits the candidate window and the eligible sub-runs on either side
+collapse anyway (subject to the two-frame minimum). The split frame stays a
+plain sibling frame, so its pointer / its magic-move morph behaves exactly as it
+did uncompressed; frame-level blockers (overlays, animations, a readiness wait)
+already split the same way. One bad frame therefore costs one frame rather than
+the whole run — which is also what makes the remaining exclusions cheap enough
+to live with. Verified pixel-identical to the flipbook across a split window in
+`tests/auto-compress.e2e.test.ts`. Under the explicit `compress: true` marker a
+split point is still a hard error: the author asked for that exact run.
 
 **Default-flip recommendation (DM-1757).** Flip `autoCompress` to default-ON
 only after: (1) the excluded complex-interaction cases (per-frame overlays,

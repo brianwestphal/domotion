@@ -1182,6 +1182,132 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     expect(out.cursor).toBe("auto");
   });
 
+  // DM-1764: a single-frame reason (a cursor event, an auto-cursor interaction,
+  // a magic-move landing) splits the candidate window instead of dropping it.
+  describe("sub-run splitting around a single ineligible frame (DM-1764)", () => {
+    it("splits a run around a cursor-addressed member and collapses both sides", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },   // ← cursor event here
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ], {
+        autoCompress: true,
+        cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#btn" }] },
+      });
+      const out = autoCompressRuns(cfg);
+      // [0,1] → one run, frame 2 stays plain, [3,4] → one run. 5 → 3.
+      expect(out.frames).toHaveLength(3);
+      expect(out.frames[0].states).toHaveLength(2);
+      expect(out.frames[1].states).toBeUndefined();
+      expect(out.frames[2].states).toHaveLength(2);
+      // The cursor event still addresses the (reindexed) plain frame.
+      if (out.cursor == null || out.cursor === "auto") throw new Error("expected an explicit cursor event list");
+      expect(out.cursor.events[0].frame).toBe(1);
+    });
+
+    it("splits under cursor:auto around the member carrying the interaction action", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ], { autoCompress: true, cursor: "auto" });
+      const out = autoCompressRuns(cfg);
+      expect(out.frames).toHaveLength(3);
+      expect(out.frames[0].states).toHaveLength(2);
+      expect(out.frames[1].actions).toEqual([{ type: "click", selector: "#b" }]);
+      expect(out.frames[1].states).toBeUndefined();
+      expect(out.frames[2].states).toHaveLength(2);
+    });
+
+    it("splits off a magic-move-entered anchor and still collapses the rest", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
+        { continue: true, duration: 100, transition: cut },  // anchor — entered via magic-move
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ], { autoCompress: true });
+      const out = autoCompressRuns(cfg);
+      // Frame 0 keeps its magic-move INTO frame 1, which stays a plain captured
+      // frame (so the transition still has a tree to morph into); [2,3] collapse.
+      expect(out.frames).toHaveLength(3);
+      expect(out.frames[0].transition).toEqual({ type: "magic-move", duration: 300 });
+      expect(out.frames[1].states).toBeUndefined();
+      expect(out.frames[2].states).toHaveLength(2);
+      expect(out.frames[2].duration).toBe(200);
+    });
+
+    it("splits around MULTIPLE ineligible frames in one window", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },   // ← cursor
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },   // ← cursor
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ], {
+        autoCompress: true,
+        cursor: { events: [
+          { frame: 2, at: 0, type: "click", selector: "#a" },
+          { frame: 5, at: 0, type: "click", selector: "#b" },
+        ] },
+      });
+      const out = autoCompressRuns(cfg);
+      // [0,1] run · 2 plain · [3,4] run · 5 plain · [6,7] run → 5 frames.
+      expect(out.frames.map((f) => f.states?.length ?? 0)).toEqual([2, 0, 2, 0, 2]);
+      expect(out.cursor === "auto" ? [] : (out.cursor?.events ?? []).map((e) => e.frame)).toEqual([1, 3]);
+    });
+
+    it("leaves a 1-frame remnant plain (a compressed run needs >= 2 states)", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },   // ← cursor: remnant [0] is 1 frame
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ], {
+        autoCompress: true,
+        cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#a" }] },
+      });
+      const out = autoCompressRuns(cfg);
+      expect(out.frames.map((f) => f.states?.length ?? 0)).toEqual([0, 0, 2]);
+    });
+
+    it("logs the split frame with its reason, and the surviving sub-runs", () => {
+      const logs: string[] = [];
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ], {
+        autoCompress: true,
+        cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#btn" }] },
+      });
+      autoCompressRuns(cfg, (m) => logs.push(m));
+      expect(logs.some((l) => /auto-compress: leaving frame 2 uncompressed — an explicit cursor event addresses frame 2/.test(l))).toBe(true);
+      expect(logs.some((l) => /auto-compress: collapsed frames 0–1 into a states run/.test(l))).toBe(true);
+      expect(logs.some((l) => /auto-compress: collapsed frames 3–4 into a states run/.test(l))).toBe(true);
+    });
+
+    it("keeps the marker mode's hard error for a run containing a split point", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },   // ← cursor
+        { continue: true, duration: 100, transition: cut },
+      ], { cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#a" }] } });
+      // The author asked for THIS run; compressing a shorter piece of it would
+      // hide the mismatch, so the marker still fails loudly.
+      expect(() => compressMarkedRuns(cfg)).toThrow(/an explicit cursor event addresses frame 2 inside it/);
+    });
+  });
+
   it("remaps explicit cursor-event frame indices across collapsed runs", () => {
     const cfg = cfgOf([
       { input: "a.html", duration: 100, transition: cut },  // run A member

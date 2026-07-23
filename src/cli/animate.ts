@@ -1875,16 +1875,26 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
  * cross-reference into original indices — explicit `cursor.events[].frame` — is
  * remapped here via `newIndexForOld` (the `expandHoverReveal` precedent).
  *
- * v1 SAFE SCOPE: a run is collapsed only when every member is a plain captured
+ * SAFE SCOPE: a run is collapsed only when every member is a plain captured
  * frame with a `cut` transition and NONE of it carries overlays / animations /
- * textTracks / forceState / a non-`body` selector, non-anchor members are pure
- * `continue` frames with no readiness waits / scrollTo, no explicit `cursor`
- * event addresses a member, the run is not entered via a `magic-move`
- * transition, and — under `cursor:"auto"` — no member runs an interaction action
- * (click/hover/fill, which auto-cursor would otherwise derive a pointer event
- * from). Output stays pixel-identical to the flipbook (the compressor re-emits
- * anything that fails to pair, never wrong pixels); the collapse only ever
- * trades frame count for a nested run.
+ * textTracks / forceState / a non-`body` selector, and non-anchor members are
+ * pure `continue` frames with no readiness waits / scrollTo. Output stays
+ * pixel-identical to the flipbook (the compressor re-emits anything that fails
+ * to pair, never wrong pixels); the collapse only ever trades frame count for a
+ * nested run.
+ *
+ * SUB-RUN SPLITTING (DM-1764): the three remaining exclusions are single-FRAME
+ * reasons — an explicit `cursor` event addressing a member, an interaction
+ * action `cursor:"auto"` would derive a pointer from, and a `magic-move`
+ * landing on the anchor. Those frames SPLIT the candidate window instead of
+ * disqualifying it: each stays a plain sibling frame (so its pointer / its
+ * magic-move behaves exactly as it did uncollapsed) and the eligible sub-runs
+ * on either side collapse normally, subject to the 2-frame minimum. One bad
+ * frame therefore costs one frame, not the whole run. Frame-level blockers
+ * (overlays, animations, a readiness wait, …) already split the same way — the
+ * member scan simply ends there and the next eligible frame anchors a new run.
+ * In marker mode a split point is still a HARD ERROR: the author asked for that
+ * exact run, so compressing a shorter piece of it would hide the mismatch.
  *
  * A frame may also set `compress: false` to opt OUT entirely — it then neither
  * anchors nor joins a run in either mode (the escape hatch for a run that pairs
@@ -1975,6 +1985,44 @@ function collapseCompressibleRuns(
   // maps every member index to the single states frame's index).
   const newIndexForOld: number[] = new Array(n);
 
+  /** Emit frame `idx` unchanged, recording its new index. */
+  const passThrough = (idx: number): void => {
+    newIndexForOld[idx] = newFrames.length;
+    newFrames.push(frames[idx]);
+  };
+  /** Collapse frames [start..end] (≥ 2, all eligible) into ONE `states` frame:
+   *  the anchor's own frame-level setup is preserved, state 0 is the anchor's
+   *  post-actions capture, and each later member contributes its actions + hold. */
+  const collapseInto = (start: number, end: number): void => {
+    const runAnchor = frames[start];
+    const runFrames = frames.slice(start, end + 1);
+    const totalDuration = runFrames.reduce((sum, f) => sum + f.duration, 0);
+    const states: RunStateInput[] = [
+      { duration: runAnchor.duration }, // state 0 = the anchor's own post-actions capture
+      ...runFrames.slice(1).map((f) => ({
+        ...(f.actions != null ? { actions: f.actions } : {}),
+        duration: f.duration,
+      })),
+    ];
+    const collapsed: AnimateFrameCfg = {
+      ...(runAnchor.input != null ? { input: runAnchor.input } : { continue: true }),
+      ...(runAnchor.wait != null ? { wait: runAnchor.wait } : {}),
+      ...(runAnchor.waitFor != null ? { waitFor: runAnchor.waitFor } : {}),
+      ...(runAnchor.waitForText != null ? { waitForText: runAnchor.waitForText } : {}),
+      ...(runAnchor.waitForGone != null ? { waitForGone: runAnchor.waitForGone } : {}),
+      ...(runAnchor.waitForCount != null ? { waitForCount: runAnchor.waitForCount } : {}),
+      ...(runAnchor.scrollTo != null ? { scrollTo: runAnchor.scrollTo } : {}),
+      ...(runAnchor.actions != null ? { actions: runAnchor.actions } : {}),
+      transition: { type: "cut", duration: 0 },
+      duration: totalDuration,
+      states,
+    };
+    const collapsedIdx = newFrames.length;
+    newFrames.push(collapsed);
+    for (let k = start; k <= end; k++) newIndexForOld[k] = collapsedIdx;
+    log(`  ${tag}: collapsed frames ${start}–${end} into a states run (${states.length} states, ${totalDuration}ms)`);
+  };
+
   let i = 0;
   while (i < n) {
     const anchor = frames[i];
@@ -1996,53 +2044,56 @@ function collapseCompressibleRuns(
           : "it is the last frame in the config (a compressed run needs at least 2 frames)");
       }
       if (b > i) {
-        // A maximal candidate run [i..b] (≥ 2 frames). Reject as a whole (leave
-        // uncompressed) for any run-wide reason that would drop an interaction.
-        let reject: string | null = null;
+        // A maximal candidate run [i..b] (≥ 2 frames). The remaining exclusions
+        // are single-FRAME reasons, not run-wide ones: a cursor event addressing
+        // one member, an interaction action auto-cursor would derive a pointer
+        // from, or a magic-move landing on the anchor. DM-1764: rather than
+        // dropping the whole window (v1's behavior, which made one bad frame
+        // cost every frame around it), split the window AT those frames and
+        // collapse the eligible sub-runs on either side. Each split frame stays
+        // a plain sibling frame, so whatever it carries — the pointer, the
+        // magic-move landing — behaves exactly as it did uncollapsed.
+        const splits: Array<{ idx: number; why: string; strictWhy: string }> = [];
+        const addSplit = (idx: number, why: string, strictWhy: string = why): void => {
+          if (!splits.some((s) => s.idx === idx)) splits.push({ idx, why, strictWhy });
+        };
         if (i > 0 && frames[i - 1].transition?.type === "magic-move") {
-          reject = "it is entered via a magic-move transition (would degrade to crossfade)";
+          // Only the run's ENTRY is affected: keeping the anchor a plain frame
+          // preserves the magic-move, and the sub-run after it still collapses.
+          addSplit(i, "it is entered via a magic-move transition (would degrade to crossfade)");
         }
-        for (let k = i; k <= b && reject == null; k++) {
-          if (explicitCursorFrames.has(k)) reject = `an explicit cursor event addresses frame ${k} inside it`;
-          else if (cursorAuto && hasInteractionAction(frames[k])) reject = `cursor:"auto" derives a pointer from an interaction action in frame ${k}`;
+        for (let k = i; k <= b; k++) {
+          if (explicitCursorFrames.has(k)) {
+            addSplit(k, `an explicit cursor event addresses frame ${k}`, `an explicit cursor event addresses frame ${k} inside it`);
+          } else if (cursorAuto && hasInteractionAction(frames[k])) {
+            addSplit(k, `cursor:"auto" derives a pointer from an interaction action in frame ${k}`);
+          }
         }
-        if (strict && reject != null) failMarked(i, reject);
-        if (reject == null) {
-          const runFrames = frames.slice(i, b + 1);
-          const totalDuration = runFrames.reduce((sum, f) => sum + f.duration, 0);
-          const states: RunStateInput[] = [
-            { duration: anchor.duration }, // state 0 = the anchor's own post-actions capture
-            ...runFrames.slice(1).map((f) => ({
-              ...(f.actions != null ? { actions: f.actions } : {}),
-              duration: f.duration,
-            })),
-          ];
-          const collapsed: AnimateFrameCfg = {
-            ...(anchor.input != null ? { input: anchor.input } : { continue: true }),
-            ...(anchor.wait != null ? { wait: anchor.wait } : {}),
-            ...(anchor.waitFor != null ? { waitFor: anchor.waitFor } : {}),
-            ...(anchor.waitForText != null ? { waitForText: anchor.waitForText } : {}),
-            ...(anchor.waitForGone != null ? { waitForGone: anchor.waitForGone } : {}),
-            ...(anchor.waitForCount != null ? { waitForCount: anchor.waitForCount } : {}),
-            ...(anchor.scrollTo != null ? { scrollTo: anchor.scrollTo } : {}),
-            ...(anchor.actions != null ? { actions: anchor.actions } : {}),
-            transition: { type: "cut", duration: 0 },
-            duration: totalDuration,
-            states,
-          };
-          const collapsedIdx = newFrames.length;
-          newFrames.push(collapsed);
-          for (let k = i; k <= b; k++) newIndexForOld[k] = collapsedIdx;
-          log(`  ${tag}: collapsed frames ${i}–${b} into a states run (${states.length} states, ${totalDuration}ms)`);
-          i = b + 1;
-          continue;
+        // Marker mode keeps the loud failure: the author asked for THIS run, so
+        // silently compressing a shorter piece of it would hide the mismatch
+        // between what they wrote and what they got.
+        if (strict && splits.length > 0) failMarked(i, splits[0].strictWhy);
+        const splitAt = new Map(splits.map((s) => [s.idx, s.why]));
+        // Walk the window; every split frame closes the current sub-run and is
+        // emitted plain. A sub-run of a single frame is emitted plain too (a
+        // compressed run needs ≥ 2 states).
+        let segStart = i;
+        for (let k = i; k <= b + 1; k++) {
+          if (k <= b && !splitAt.has(k)) continue;
+          if (k - 1 > segStart) collapseInto(segStart, k - 1);
+          else for (let m = segStart; m <= k - 1; m++) passThrough(m);
+          if (k <= b) {
+            log(`  ${tag}: leaving frame ${k} uncompressed — ${splitAt.get(k)}`);
+            passThrough(k);
+          }
+          segStart = k + 1;
         }
-        log(`  ${tag}: leaving frames ${i}–${b} uncompressed — ${reject}`);
+        i = b + 1;
+        continue;
       }
     }
-    // Not a run head, or the maximal run was rejected: keep frame i as-is.
-    newIndexForOld[i] = newFrames.length;
-    newFrames.push(anchor);
+    // Not a run head (or a run of one): keep frame i as-is.
+    passThrough(i);
     i++;
   }
 

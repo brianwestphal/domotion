@@ -127,4 +127,74 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
       await ctx.close();
     }
   }, 240_000);
+
+  // DM-1764: a single ineligible frame (here: the one an explicit cursor event
+  // addresses) SPLITS the run instead of disqualifying it — the sub-runs on
+  // either side still collapse, and that frame stays a plain sibling frame so
+  // its pointer behaves exactly as it did uncompressed. Same load-bearing
+  // claim as above: pixel-identical to the flipbook at every state.
+  it("splits the run around a cursor-addressed frame and stays pixel-identical", async () => {
+    const { browser, dir } = env!;
+
+    const durations = [300, 150, 150, 200, 150, 150, 300];
+    const scripts = ["ins(2)", "ins(4)", "ins(6)", "ins(7)", "ins(8)", "ins(10)"];
+    const splitFrames = [
+      { input: "./editor.html", duration: durations[0], transition: { type: "cut", duration: 0 } },
+      ...scripts.map((script, k) => ({
+        continue: true, duration: durations[k + 1], transition: { type: "cut", duration: 0 },
+        actions: [{ type: "evaluate", script }],
+      })),
+    ];
+    // The cursor event lands on frame 3 — the middle of the eligible window.
+    const cursor = { events: [{ frame: 3, at: 0, type: "click", selector: "#line" }] };
+
+    const flipCfg = validateAnimateConfig({ width: W, height: H, cursor, frames: splitFrames });
+    const compCfg = validateAnimateConfig({ width: W, height: H, cursor, autoCompress: true, frames: splitFrames });
+
+    const compLogs: string[] = [];
+    const flip = await composeAnimateFrames(browser, flipCfg, { configDir: dir });
+    const comp = await composeAnimateFrames(browser, compCfg, { configDir: dir, log: (m) => compLogs.push(m) });
+
+    // [0,1,2] → one run · frame 3 plain · [4,5,6] → one run.
+    expect(flip.frames).toHaveLength(7);
+    expect(comp.frames).toHaveLength(3);
+    expect(comp.frames[0].embeddedAnimationPeriodMs).toBe(durations[0] + durations[1] + durations[2]);
+    expect(comp.frames[1].embeddedAnimationPeriodMs).toBeUndefined(); // plain captured frame
+    expect(comp.frames[2].embeddedAnimationPeriodMs).toBe(durations[4] + durations[5] + durations[6]);
+    expect(compLogs.some((l) => /auto-compress: leaving frame 3 uncompressed — an explicit cursor event addresses frame 3/.test(l))).toBe(true);
+    expect(compLogs.some((l) => /auto-compress: collapsed frames 0–2 into a states run/.test(l))).toBe(true);
+    expect(compLogs.some((l) => /auto-compress: collapsed frames 4–6 into a states run/.test(l))).toBe(true);
+
+    const flipSvg = generateAnimatedSvg(flip);
+    const compSvg = generateAnimatedSvg(comp);
+
+    const starts = durations.map((_, i) => durations.slice(0, i).reduce((a, b) => a + b, 0));
+    const sampleTimes = durations.map((d, i) => starts[i] + d / 2);
+
+    const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      const render = async (page: Page, svg: string, tMs: number): Promise<Buffer> => {
+        await page.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
+        await page.evaluate(() => document.fonts.ready);
+        await seekTo(page, tMs);
+        return page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
+      };
+      const flipPage = await ctx.newPage();
+      const compPage = await ctx.newPage();
+      const diffPage = await ctx.newPage();
+
+      for (let s = 0; s < sampleTimes.length; s++) {
+        const t = sampleTimes[s];
+        const fPath = join(dir, `split-flip-${s}.png`);
+        const cPath = join(dir, `split-comp-${s}.png`);
+        const dPath = join(dir, `split-diff-${s}.png`);
+        writeFileSync(fPath, await render(flipPage, flipSvg, t));
+        writeFileSync(cPath, await render(compPage, compSvg, t));
+        const cmp = await comparePngs(diffPage, fPath, cPath, dPath);
+        expect(cmp.regionCount, `state ${s} @ ${t}ms drifted from the flipbook (regions ${cmp.regionCount})`).toBe(0);
+      }
+    } finally {
+      await ctx.close();
+    }
+  }, 240_000);
 });
