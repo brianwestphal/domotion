@@ -345,9 +345,25 @@ function readCiSourceMeta(root: string, suite: SuiteName): CiSourceMeta | null {
   if (!existsSync(p)) return null;
   try {
     const m = JSON.parse(readFileSync(p, "utf8")) as Partial<CiSourceMeta>;
-    if (typeof m.runId === "string" && typeof m.os === "string") return { runId: m.runId, os: m.os, suite: suite };
+    if (typeof m.runId === "string" && typeof m.os === "string") {
+      // DM-1741: preserve the images-repo commit sha — /img uses it to decide
+      // per-file CDN fetch vs the whole-shard artifact fallback.
+      return { runId: m.runId, os: m.os, suite: suite, sha: typeof m.sha === "string" ? m.sha : undefined };
+    }
   } catch { /* malformed — treat as no lazy source */ }
   return null;
+}
+
+/** DM-1741: cached PNGs are fixture-named with no run identity, so adopting a
+ *  NEW run's metadata over an old cache would silently serve stale images.
+ *  Wipe the cached PNGs whenever the run/sha changes (they lazily re-fetch). */
+function wipeCachedPngs(dest: string): void {
+  if (!existsSync(dest)) return;
+  let n = 0;
+  for (const f of readdirSync(dest)) {
+    if (f.endsWith(".png")) { rmSync(resolve(dest, f), { force: true }); n++; }
+  }
+  if (n > 0) console.log(`  · cleared ${n} cached PNGs (new run adopted)`);
 }
 
 function shardForFixture(root: string, suite: SuiteName, fixtureBase: string): number | null {
@@ -457,6 +473,7 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
     if (results != null) {
       let runId = sha.slice(0, 12);
       try { runId = String((JSON.parse(metaBuf?.toString("utf8") ?? "{}") as { runId?: string }).runId ?? runId); } catch { /* keep sha tag */ }
+      if (existing != null && existing.sha !== sha) wipeCachedPngs(dest);
       mkdirSync(dest, { recursive: true });
       writeFileSync(resolve(dest, "results.json"), results);
       writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite, sha }));
@@ -499,6 +516,7 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
           }
         } catch { /* unreadable — adopt as before */ }
         if (!skipAdopt) {
+          if (existing != null && existing.runId !== runId) wipeCachedPngs(dest);
           mkdirSync(dest, { recursive: true });
           copyFileSync(slim, resolve(dest, "results.json"));
           writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite }));
@@ -731,7 +749,7 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
   return (
     <html lang="en">
       <head>
-        <meta charset="utf-8" />
+        <meta charSet="utf-8" />
         <title>SVG Demo Test Review</title>
         {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
         <style>{raw(REVIEW_CSS)}</style>
