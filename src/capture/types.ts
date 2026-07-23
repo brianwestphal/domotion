@@ -790,6 +790,9 @@ export interface CapturedStyles {
  * Filled in by `propagateTextDecorations()` (a render-side pre-pass over the
  * captured tree — see `src/tree-ops/decoration-propagation.ts`), never by
  * CAPTURE_SCRIPT, so previously-captured/cached trees pick it up too.
+ * DM-1725: elements carry the FULL ancestor chain's entries (outermost
+ * first), mirroring Blink's `ComputedStyle::AppliedTextDecorations` — each
+ * entry paints independently with its own line/style/color/thickness.
  *
  * The font fields identify the DECORATING box's font: Blink computes the
  * decoration's position and auto thickness from the decorating box's used
@@ -851,12 +854,15 @@ export interface CapturedElement {
    */
   cursor?: string;
   /**
-   * DM-1723: decoration propagated from an ancestor decorating box — see
-   * {@link PropagatedDecoration}. Set by the render-side pre-pass
-   * `propagateTextDecorations()`; only consulted when this element's own
-   * `styles.textDecorationLine` is `none`/absent.
+   * DM-1723/DM-1725: decorations propagated from ancestor decorating boxes —
+   * see {@link PropagatedDecoration}. Outermost-first, mirroring Blink's
+   * `AppliedTextDecorations` accumulation: EVERY decorating ancestor
+   * contributes an entry (a parent underline and grandparent overline both
+   * paint), and an element with its own decoration still receives its
+   * ancestors' entries (the renderer paints the ancestors' lines plus its
+   * own). Set by the render-side pre-pass `propagateTextDecorations()`.
    */
-  propagatedDecoration?: PropagatedDecoration;
+  propagatedDecorations?: PropagatedDecoration[];
   /**
    * DM-603 viewBox culling. Set to `true` by `cullElementsOutsideViewBox()` (or a single-frame
    * static cull) when this element's bbox never intersects the viewBox during
