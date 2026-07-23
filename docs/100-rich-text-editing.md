@@ -247,12 +247,18 @@ declarative run-block sugar is the config-surface stage below.
    affects only bytes, never pixels). Identities sharing a lifetime, line,
    style, shift timeline, and fill timeline coalesce into one **group**: a
    synthetic text-only element (box paint neutralized) holding the group's
-   characters at their birth-state captured `xOffsets` — the mid-segment
+   characters at their FINAL-state captured `xOffsets` — the mid-segment
    split is exact by construction. Groups ride up to three `step-end` tracks:
    opacity (birth/death), `translateX` (per-state waypoints), and `fill`
    (applied to the group's descendants, where a CSS animation outranks the
-   `fill` presentation attribute). Keyframe bodies and animation lists are
-   content-deduped across groups.
+   `fill` presentation attribute). The `translateX` track is anchored at the
+   final state and runs BACKWARD for earlier states, so **rest = identity at
+   the run's end**: the held final state — the only one a following frame cuts
+   against at the run's exit — carries no composed transform, so the exit is
+   byte-identical to the same DOM painted directly (the "animations rest at
+   identity" house rule; the transform-composed AA moves onto the transient
+   earlier states, which nothing compares against). Keyframe bodies and
+   animation lists are content-deduped across groups.
 3. **Auto-caret** (opt-in `caret: true | { shape, color }`, default off) —
    the pairing pass knows each state's edit point (after the rightmost typed
    glyph; at the close-up x of a deletion), emitted through the docs/101
@@ -437,9 +443,11 @@ keystroke while the prefix stays byte-stable across states; the colorize and
 `{cls}` recolors land in place (amber appears, glyph bbox unchanged); the
 selection sweeps per painted character edge and clears at the cut; the track
 caret and both runs' auto-carets sit on the captured glyph edges; and both
-run exits are seamless against the following frame's page text (the
-zero-net-shift replace exit is pixel-identical; the insert exit differs only
-in subpixel antialiasing where the tail rides the composed `translateX`).
+run exits are byte-identical against the following frame's page text (both
+the zero-net-shift replace exit and the insert exit — the latter now that
+groups rest at identity at the run's end, so the held final state has no
+composed transform; zero pixels differ beyond the independent-rasterization
+AA floor at both exits).
 
 **Measured** (vs the same phases built the old way as a throwaway config;
 full table + reading in doc 102): the runs themselves compress 121.1 → 22.8

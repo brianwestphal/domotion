@@ -425,7 +425,11 @@ describe("composeCompressedRun — composed output", () => {
     expect(res.svg).toContain("step-end infinite");
     // Birth track (the typed 'y'), shift track (the tail), fill track (recolor).
     expect(res.svg).toMatch(/@keyframes t1k\d+\{0%\{opacity:0\}/);
-    expect(res.svg).toMatch(/\{transform:translateX\(7\.5px\)\}/);
+    // Groups are anchored at their FINAL x and shift BACKWARD (DM-1762 rest =
+    // identity), so the tail's step-end transform starts at translateX(-7.5px)
+    // and resolves to translateX(0px) at the held final state.
+    expect(res.svg).toMatch(/\{0%\{transform:translateX\(-7\.5px\)\}/);
+    expect(res.svg).toMatch(/100%\{transform:translateX\(0px\)\}/);
     expect(res.svg).toMatch(/@keyframes t1k\d+\{0%\{fill:rgb\(226, 232, 240\)\}/);
     // Groups carry anim classes; the fill track targets descendants.
     expect(res.svg).toMatch(/class="anim-t1g\d+"/);

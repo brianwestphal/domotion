@@ -42,8 +42,13 @@
  *    line, style, shift timeline, and fill timeline coalesce into one
  *    **group**, emitted once as a synthetic text-only element (the source
  *    element with box paint neutralized and a single segment holding the
- *    group's characters at their birth-state absolute `xOffsets` — the
+ *    group's characters at their FINAL-state absolute `xOffsets` — the
  *    mid-segment split is exact because every glyph's painted x is captured).
+ *    Groups are anchored at their final captured x and the `translateX` track
+ *    runs BACKWARD for earlier states, so rest = identity at the run's end and
+ *    the exit cut against a following frame is byte-identical (the
+ *    "animations rest at identity" house rule; earlier states carry the
+ *    transform-composed AA, but nothing cuts against a transient state).
  *    Groups are driven by up to three tracks: `step-end` opacity
  *    (birth/death), `step-end` `translateX` (waypoints per state), and a
  *    `step-end` `fill` keyframe applied to the group's descendants (a CSS
@@ -638,17 +643,24 @@ function buildGlyphGroups(threaded: ThreadedGlyph[], uid: string): GlyphGroup[] 
   return groups;
 }
 
-/** The synthetic captured element for one glyph group (birth-state geometry;
- *  the tracks move/recolor it from there). */
+/** The synthetic captured element for one glyph group. Anchored at the group's
+ *  FINAL-state captured geometry (the rest-at-identity house rule): the group
+ *  is emitted where it ends and the translateX track runs BACKWARD for earlier
+ *  states, so the held final state — the only one a following frame cuts
+ *  against at the run's exit — has NO composed transform and paints
+ *  byte-identically to the same DOM painted directly. Every group member shares
+ *  a birth, death, and shift timeline, so `xs.length` is uniform across the
+ *  group and its final index is the last entry of each member's `xs`. */
 function groupElement(group: GlyphGroup): CapturedElement {
   const first = group.glyphs[0];
   const last = group.glyphs[group.glyphs.length - 1];
-  const minX = first.xs[0];
-  const right = last.xs[0] + last.rec.advance;
+  const minX = first.xs[first.xs.length - 1];
+  const right = last.xs[last.xs.length - 1] + last.rec.advance;
   const text = group.glyphs.map((t) => t.rec.ch).join("");
   const xOffsets: number[] = [];
   for (const t of group.glyphs) {
-    for (let k = 0; k < t.rec.ch.length; k++) xOffsets.push(t.xs[0]);
+    const fx = t.xs[t.xs.length - 1];
+    for (let k = 0; k < t.rec.ch.length; k++) xOffsets.push(fx);
   }
   const src = first.rec.srcSeg;
   const seg: TextSegment = {
@@ -960,10 +972,14 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
       if (a != null) anims.push(a);
     }
     {
+      // Anchor at the final captured x (groupElement above): the offset is
+      // measured BACKWARD from the last state, so the resting 100% waypoint is
+      // translateX(0) — the run exits at identity and cuts byte-identically.
+      const anchor = first.xs[first.xs.length - 1];
       const dxs: string[] = [];
       for (let s = 0; s < stateCount; s++) {
         const idx = Math.max(0, Math.min(first.xs.length - 1, s - group.birth));
-        dxs.push(`translateX(${round2(first.xs[idx] - first.xs[0])}px)`);
+        dxs.push(`translateX(${round2(first.xs[idx] - anchor)}px)`);
       }
       const a = css.track("transform", dxs, boundaries);
       if (a != null) anims.push(a);

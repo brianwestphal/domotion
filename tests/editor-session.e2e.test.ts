@@ -267,16 +267,20 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     expect(Math.abs(inkAfter.maxX - inkBefore.maxX)).toBeLessThanOrEqual(1);
   }, 60_000);
 
-  it("exits the insert run seamlessly against the following frame's page text", async () => {
+  it("exits the insert run byte-identically against the following frame's page text", async () => {
     // F6's colorize state at a blink-off moment (t=9500 hides the auto-caret)
     // vs F7's captured page before its overlay starts typing (t=9850) — the
-    // same DOM through the same renderer. The tail glyphs ride the run's
-    // composed translateX, so a handful of pixels carry subpixel-AA deltas vs
-    // the direct paint; the strip must otherwise be pixel-identical (no
-    // visible jump at the cut).
+    // same DOM through the same renderer. Since DM-1762 anchors every glyph
+    // group at its FINAL captured x (translateX runs backward, resting at
+    // identity), the held final state carries NO composed transform, so the
+    // exit cut is byte-identical — not merely seamless-with-AA. Tolerance 0.
     const runSide = await shot(9500);
     const pageSide = await shot(9850);
-    expect(await diffCount(runSide, pageSide, rowStrip(1), 32)).toBeLessThanOrEqual(60);
+    // Zero pixels differ beyond the independent-rasterization AA floor (the
+    // same threshold-8 bar the zero-net-shift replace exit meets) — the
+    // transform-composed AA that made the insert exit differ by up to 76 is
+    // gone now that the held final state rests at identity.
+    expect(await diffCount(runSide, pageSide, rowStrip(1), 8)).toBe(0);
     // And the amber/green/blue token inks agree exactly in coverage.
     const a = await scan(runSide, "ink", rowStrip(1));
     const b = await scan(pageSide, "ink", rowStrip(1));
