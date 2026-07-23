@@ -112,6 +112,23 @@ they describe (see `CLAUDE.md` "Documentation"):
   compressed run). Includes two small independent fold-ins on the existing
   `typing` overlay: `holdToFrameEnd` (opt out of the forced 150 ms end-of-frame
   fade) and a baseline anchor mode (`anchor.baseline: true`).
+  **Automatic run detection (DM-1757) — shipped behind an opt-in flag,
+  default OFF.** `autoCompress: true` (or `--auto-compress`; docs/43 §13) runs a
+  config pre-pass in `composeAnimateFrames` that collapses maximal consecutive
+  `continue` + `cut` runs into `states` frames — reusing the block machinery
+  verbatim, so the 1 config-frame ↔ 1 animation-frame reindexing (frameStartsMs,
+  cursor `events[].frame` remap) falls out of operating on the rewritten config.
+  Output is pixel-identical to the flipbook (`tests/auto-compress.e2e.test.ts`);
+  the win is raw size + live-DOM weight. v1 compresses only the safe simple case
+  (no overlays/animations/textTracks/forceState/cursor-in-run/magic-move-entry
+  crossing a run — those are left uncompressed with a logged reason, a tracked
+  follow-up). The default-flip to ON is a separate decision (needs the excluded
+  cases handled + a size-regression guard + a golden regen pass — see doc 100
+  "Default-flip recommendation").
+  **Ergonomics (DM-1763):** a `textTracks` track now auto-ends at its frame's cut
+  by default (the CLI synthesizes the trailing `clearSelection`/`hide` at the
+  frame duration; `persist: true` opts out) so a parked caret/selection no longer
+  haunts later frames — docs/43 §12.
 
 - **Doc 99 (`docs/99-hinted-embedded-subset.md`, DM-1714/DM-1716)** —
   **Shipped.** Embedded-font subsets preserve TrueType hinting: when an

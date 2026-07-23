@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -1018,5 +1018,186 @@ describe("config `brand` key (DM-1544)", () => {
 
   it("resolveConfigBrand returns undefined for an absent brand", () => {
     expect(resolveConfigBrand(undefined, dir)).toBeUndefined();
+  });
+});
+
+describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () => {
+  const B = { width: 200, height: 120 };
+  const cut = { type: "cut", duration: 0 } as const;
+  const cfgOf = (frames: unknown[], extra: Record<string, unknown> = {}) =>
+    validateAnimateConfig({ ...B, ...extra, frames });
+
+  it("is a no-op when autoCompress is off (frames unchanged)", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },
+    ]);
+    expect(autoCompressRuns(cfg)).toBe(cfg);
+  });
+
+  it("collapses a maximal continue+cut run into ONE states frame", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut, actions: [{ type: "evaluate", script: "s(0)" }] },
+      { continue: true, duration: 120, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
+      { continue: true, duration: 140, transition: cut, actions: [{ type: "evaluate", script: "s(2)" }] },
+    ], { autoCompress: true });
+    const out = autoCompressRuns(cfg);
+    expect(out.frames).toHaveLength(1);
+    const f = out.frames[0];
+    expect(f.input).toBe("a.html");
+    expect(f.duration).toBe(360); // 100 + 120 + 140
+    expect(f.transition).toEqual(cut);
+    // Anchor's own actions stay frame-level; state 0 has none (it's the
+    // post-actions capture). Later states carry their frames' actions.
+    expect(f.actions).toEqual([{ type: "evaluate", script: "s(0)" }]);
+    expect(f.states).toEqual([
+      { duration: 100 },
+      { actions: [{ type: "evaluate", script: "s(1)" }], duration: 120 },
+      { actions: [{ type: "evaluate", script: "s(2)" }], duration: 140 },
+    ]);
+  });
+
+  it("uses `continue: true` on the collapsed frame when the anchor is a continue frame", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: { type: "crossfade", duration: 200 } }, // standalone (crossfade)
+      { continue: true, duration: 100, transition: cut }, // anchor of the run
+      { continue: true, duration: 100, transition: cut },
+    ], { autoCompress: true });
+    const out = autoCompressRuns(cfg);
+    expect(out.frames).toHaveLength(2);
+    expect(out.frames[0].transition).toEqual({ type: "crossfade", duration: 200 });
+    expect(out.frames[1].continue).toBe(true);
+    expect(out.frames[1].input).toBeUndefined();
+    expect(out.frames[1].states).toHaveLength(2);
+  });
+
+  it("does not collapse a single continue+cut frame (needs >= 2)", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: { type: "crossfade", duration: 100 } },
+      { continue: true, duration: 100, transition: cut },
+    ], { autoCompress: true });
+    // Frame 0 alone (frame 1 is crossfade → not a member) is length-1 → not collapsed.
+    // Frame 2 alone is length-1 → not collapsed. Nothing collapses.
+    expect(autoCompressRuns(cfg)).toBe(cfg);
+  });
+
+  it("stops the run at a non-cut (crossfade) transition and collapses two separate runs", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },     // run A ends here (out-transition cut into f2)
+      { continue: true, duration: 100, transition: { type: "crossfade", duration: 150 } }, // standalone (crossfade out)
+      { continue: true, duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },     // run B
+    ], { autoCompress: true });
+    const out = autoCompressRuns(cfg);
+    // run A = [0,1] → 1 frame; f2 standalone; run B = [3,4] → 1 frame. 5 → 3.
+    expect(out.frames).toHaveLength(3);
+    expect(out.frames[0].states).toHaveLength(2);
+    expect(out.frames[1].transition).toEqual({ type: "crossfade", duration: 150 });
+    expect(out.frames[1].states).toBeUndefined();
+    expect(out.frames[2].states).toHaveLength(2);
+  });
+
+  it("excludes frames carrying overlays / animations / forceState from a run", () => {
+    for (const feature of [
+      { overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }] },
+      { animations: [{ selector: "#a", property: "opacity", from: "0", to: "1", duration: 100 }] },
+      { forceState: [{ selector: "#a", states: ["hover"] }] },
+    ]) {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, ...feature },
+        { continue: true, duration: 100, transition: cut },
+      ], { autoCompress: true });
+      const out = autoCompressRuns(cfg);
+      // The feature frame breaks the run: frame 0 (len 1) and frame 2 (len 1) → nothing collapses.
+      expect(out.frames, JSON.stringify(feature)).toHaveLength(3);
+    }
+  });
+
+  it("ends a run at a non-anchor readiness wait, but that frame can anchor the NEXT run", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut, waitFor: ".ready" }, // ends run [0,1]; anchors run [2,3]
+      { continue: true, duration: 100, transition: cut },
+    ], { autoCompress: true });
+    const out = autoCompressRuns(cfg);
+    // A waitFor disqualifies a frame as a NON-anchor member (state runs have no
+    // per-state readiness wait), so it ends run [0,1]. But an anchor MAY carry a
+    // readiness wait (preserved on the collapsed frame), so frame 2 seeds run
+    // [2,3]. Result: two collapsed frames, the second preserving waitFor.
+    expect(out.frames).toHaveLength(2);
+    expect(out.frames[0].states).toHaveLength(2);
+    expect(out.frames[1].waitFor).toBe(".ready");
+    expect(out.frames[1].continue).toBe(true);
+    expect(out.frames[1].states).toHaveLength(2);
+  });
+
+  it("leaves a run uncompressed when an explicit cursor event addresses a member", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut },
+    ], {
+      autoCompress: true,
+      cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#btn" }] },
+    });
+    // The run [0,1,2] is rejected (cursor addresses frame 1). Unchanged.
+    expect(autoCompressRuns(cfg).frames).toHaveLength(3);
+  });
+
+  it("leaves a run uncompressed when it is entered via a magic-move transition", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
+      { continue: true, duration: 100, transition: cut }, // anchor — entered via magic-move
+      { continue: true, duration: 100, transition: cut },
+    ], { autoCompress: true });
+    const out = autoCompressRuns(cfg);
+    // Run [1,2] rejected (magic-move entry). Frame 0 standalone. 3 frames unchanged.
+    expect(out.frames).toHaveLength(3);
+    expect(out.frames[1].states).toBeUndefined();
+  });
+
+  it("under cursor:auto, leaves a run with an interaction action uncompressed", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
+      { continue: true, duration: 100, transition: cut },
+    ], { autoCompress: true, cursor: "auto" });
+    expect(autoCompressRuns(cfg).frames).toHaveLength(3);
+  });
+
+  it("under cursor:auto, still collapses a run whose actions are non-interaction (evaluate/DOM)", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
+      { continue: true, duration: 100, transition: cut, actions: [{ type: "setText", selector: "#x", value: "y" }] },
+    ], { autoCompress: true, cursor: "auto" });
+    const out = autoCompressRuns(cfg);
+    expect(out.frames).toHaveLength(1);
+    expect(out.frames[0].states).toHaveLength(3);
+    expect(out.cursor).toBe("auto");
+  });
+
+  it("remaps explicit cursor-event frame indices across collapsed runs", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },  // run A member
+      { continue: true, duration: 100, transition: cut },   // run A member
+      { continue: true, duration: 100, transition: { type: "crossfade", duration: 150 } }, // standalone (idx 2 → 1)
+      { continue: true, duration: 100, transition: cut },   // run B member
+      { continue: true, duration: 100, transition: cut },   // run B member
+    ], {
+      autoCompress: true,
+      cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#c" }] },
+    });
+    const out = autoCompressRuns(cfg);
+    expect(out.frames).toHaveLength(3); // [0,1]→0, 2→1, [3,4]→2
+    expect(out.cursor).not.toBe("auto");
+    if (out.cursor != null && out.cursor !== "auto") {
+      expect(out.cursor.events[0].frame).toBe(1); // original frame 2 → new index 1
+    }
   });
 });

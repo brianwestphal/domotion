@@ -391,6 +391,26 @@ Examples: frame 1 of `examples/animate/compressed-run/`; the selection frame of 
 
 ---
 
+## 13. Automatic compressed-run detection — `autoCompress` (DM-1757)
+
+The `states` block (§11) is the **explicit** way to compress an editing run: the author lists the states inside one frame. `autoCompress` is the **automatic** counterpart — a top-level opt-in that finds compressible runs in an *ordinary* multi-frame config and collapses each without the author restructuring anything.
+
+**Surface.** A top-level boolean (also `--auto-compress` on the CLI, which forces it on regardless of the config key):
+
+```jsonc
+{ "width": 640, "height": 360, "autoCompress": true, "frames": [ /* ordinary continue+cut frames */ ] }
+```
+
+**What it does.** Before capture, a pre-pass detects **maximal runs of consecutive plain `continue` + `cut` frames** and rewrites each into a single `states` compressed run (§11) — reusing the exact same machinery, so the composed output is a nested compressed run just as if you had authored the `states` block by hand. Per doc 100, the result is **pixel-identical to the uncompressed flipbook** at every time; the win is **raw size + live-DOM weight** (shared content emitted once), never fidelity. The pairing-ratio log line (`compress: run of N states, …`) surfaces for each collapsed run.
+
+**Default OFF — and why.** Turning it on changes the **output shape** of any config that contains such a run (those frames now nest as one run instead of N sibling frame groups). That is a deliberate, global decision, so it is opt-in; a config without the flag is byte-identical to before. This mirrors doc 100's staged rollout ("behind a flag first, then default").
+
+**v1 safe scope.** A run is collapsed only when it is safe to do so with zero interaction loss; anything else is **left uncompressed with a logged reason** (never a hard error). A run's members must all be plain captured frames with a `cut` transition and **none** of: `overlays`, `animations`, `textTracks`, `forceState`, a non-default (`body`) `selector`, or a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`). Non-anchor members must be pure `continue` frames with no readiness waits or `scrollTo` (a `states` run has no per-state readiness wait; a frame carrying one instead becomes the anchor of the *next* run). A run is skipped when an explicit `cursor` event addresses one of its frames, when it is entered via a `magic-move` transition (which would degrade to crossfade), or — under `cursor: "auto"` — when a member runs an interaction action (`click`/`hover`/`fill`) the auto-cursor would otherwise derive a pointer from. Frame-addressed features that survive (explicit `cursor.events[].frame` on frames *outside* the runs) are **remapped** onto the collapsed indices automatically. Handling those excluded cases *inside* a run (per-frame overlays/cursor/magic-move crossing a collapsed run) is a tracked follow-up.
+
+See **`docs/100-rich-text-editing.md`** (Primitive 1) for the compressor design, the measured size/DOM savings, and the pairing model; the automatic detection is the "automatic pass over all continue+cut runs" that doc anticipated, now shipped behind this flag.
+
+---
+
 ## Nested animation: preserved vs snapshotted (DM-1322)
 
 Composition primitives differ in whether a **nested animation** survives. This is the single most surprising thing about composing animated pieces, so the contract is spelled out:

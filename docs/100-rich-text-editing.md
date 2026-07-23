@@ -13,14 +13,20 @@ rebuilt on the new primitives as the committed golden
 `examples/animate/editor-session/` with a rasterized-SVG proof suite
 (`tests/editor-session.e2e.test.ts`) and measured numbers — see "Flagship
 validation results" below — and the authoring recipe is written up as
-`docs/102-editing-page-rig-cookbook.md`. Remaining items are the filed
-follow-ups (locally tracked): automatic run detection, cross-line identity,
-behind-glyph selection, chrome-variant reopen, the multi-frame `compress:
-true` form, and the caret-track addressing limits (docs/101 v1 limits).
-This is the requirements + design reference for making editor-style
-typing/editing sequences (an IDE window typed into and edited, with syntax
-coloring, selection, mid-line inserts that reflow trailing text) first-class
-in the animate pipeline. Plain text is the trivial case, so this covers
+`docs/102-editing-page-rig-cookbook.md`. Automatic run detection is now shipped
+behind the opt-in `autoCompress` flag (below). Remaining items are the filed
+follow-ups (locally tracked): the complex-interaction cases auto-detection
+excludes (per-frame overlays/cursor/magic-move crossing a run), cross-line
+identity, behind-glyph selection, chrome-variant reopen, the multi-frame
+`compress: true` form, and the caret-track addressing limits (docs/101 v1
+limits).
+Since then, **automatic run detection has shipped behind an opt-in flag**
+(`autoCompress`, DM-1757 — see "Placement" below and docs/43 §13): the pre-pass
+collapses maximal `continue` + `cut` runs into `states` runs automatically,
+default OFF, pending a decision to flip the default. This is the requirements +
+design reference for making editor-style typing/editing sequences (an IDE window
+typed into and edited, with syntax coloring, selection, mid-line inserts that
+reflow trailing text) first-class in the animate pipeline. Plain text is the trivial case, so this covers
 "animate text being typed and edited" generally.
 
 **Design history.** The first draft of this doc specified a synthetic rich-text
@@ -163,10 +169,42 @@ block form preserves for free. It remains a candidate follow-up on top of the
 same machinery (tracked locally).
 
 Rejected placements, for the record: a *transition type* (compression is
-run-scoped identity tracking, not a pairwise A→B effect), and an *automatic pass
-over all continue+cut runs* (right long-term, but it would change every existing
-config's output shape and requires shared-content groups spanning frame windows;
-promote to automatic later, once the machinery is proven behind the opt-in).
+run-scoped identity tracking, not a pairwise A→B effect), and — originally — an
+*automatic pass over all continue+cut runs* (right long-term, but it changes
+every existing config's output shape; deferred until the machinery was proven
+behind the opt-in).
+
+**Automatic pass — shipped behind `autoCompress` (DM-1757).** Now that the
+`states` machinery is proven, the automatic pass is implemented as an opt-in
+top-level flag (`autoCompress: true`, or `--auto-compress`; docs/43 §13). It
+does NOT need "shared-content groups spanning frame windows": rather than
+collapsing at the animator level, it is a **config pre-pass** that rewrites each
+maximal `continue` + `cut` run into a single `states` frame *before* the capture
+loop — so it reuses the block form's machinery verbatim and keeps the 1
+config-frame ↔ 1 animation-frame invariant that the block form preserves for
+free (the reindexing of `frameStartsMs` / cursor `events[].frame` falls out of
+operating on the rewritten config; explicit cursor events are remapped onto the
+collapsed indices). Output is pixel-identical to the flipbook (verified in
+`tests/auto-compress.e2e.test.ts`). It **defaults OFF** because flipping it on
+changes the output shape of every config with such a run; the default-flip is a
+separate, deliberate decision (see "Default-flip recommendation" below). v1
+compresses only the safe simple case (pure continue+cut runs with no
+overlays/animations/textTracks/forceState/cursor-in-run/magic-move-entry
+crossing them); everything else is left uncompressed with a logged reason, and
+the complex-interaction cases are a tracked follow-up.
+
+**Default-flip recommendation (DM-1757).** Flip `autoCompress` to default-ON
+only after: (1) the excluded complex-interaction cases (per-frame overlays,
+cursor events, and magic-move transitions *inside* a run) are either handled or
+the exclusion set is proven complete against the real config corpus; (2) a
+size-regression guard confirms no config's raw output GROWS (a wholesale-change
+run pairs poorly and re-emits from chrome — correct pixels, but ≈ flipbook +
+nesting overhead, so a slideshow-shaped run could get marginally larger); and
+(3) every committed golden is regenerated in one reviewed pass (the flip shifts
+the output shape of any golden that contains a compressible run — expected, not a
+regression). The risk surface is exactly "changes every existing config's
+output": frame-count, nesting, and any frame-addressed feature crossing a run.
+Until then it stays opt-in.
 
 Interactions (all inherited from the nested-block precedent): outer transitions
 compose normally around the run (the run holds its final state until the cut);

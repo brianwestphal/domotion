@@ -217,6 +217,9 @@
         }
       ]
     },
+    "autoCompress": {
+      "type": "boolean"
+    },
     "frames": {
       "minItems": 1,
       "type": "array",

@@ -476,6 +476,7 @@ const runStateSchema = z.object({
   /** How long this state holds (ms) before snapping to the next. */
   duration: z.number().positive("must be a positive number (ms)"),
 });
+type RunStateInput = z.infer<typeof runStateSchema>;
 
 // The run's opt-in auto-caret (docs/101 machinery): the compressor derives the
 // per-state edit points, so the caret rides the run with zero addressing.
@@ -789,6 +790,20 @@ export const animateConfigSchema = z
     brand: z.union([z.string(), brandSchema]).optional(),
     /** DM-851 §6 — config-level cursor overlay. */
     cursor: cursorSchema.optional(),
+    /**
+     * DM-1757 (docs/100 Primitive 1): opt into AUTOMATIC compressed-run
+     * detection. When `true`, a pre-pass detects maximal runs of consecutive
+     * plain `continue` + `cut` frames with no per-frame interactions crossing
+     * them (no overlays / animations / textTracks / forceState / cursor events /
+     * magic-move entry) and collapses each into ONE `states` compressed run —
+     * shared content emitted once, later frames contributing only their changes
+     * (docs/100). Output is pixel-identical to the uncompressed flipbook; the
+     * win is raw size + live-DOM weight. DEFAULTS OFF: turning it on changes the
+     * output shape of any config that has such a run (frames nest as a run), so
+     * it is a deliberate opt-in (also `--auto-compress` on the CLI). Runs it
+     * can't safely collapse are left untouched with a logged reason.
+     */
+    autoCompress: z.boolean().optional(),
     frames: z.array(frameSchema).min(1, "must be a non-empty array"),
   })
   .superRefine((cfg, ctx) => {
@@ -947,6 +962,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       height:        { type: "string" },
       optimize:      { type: "boolean" },
       "no-optimize": { type: "boolean" },
+      "auto-compress": { type: "boolean" },
       brand:         { type: "string" },
       quiet:         { type: "boolean" },
       help:          { type: "boolean", short: "h" },
@@ -965,6 +981,10 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const cfgRaw: unknown = JSON.parse(readFileSync(configPath, "utf8"));
   const cfg = validateAnimateConfig(cfgRaw);
   const configDir = dirname(configPath);
+  // DM-1757: `--auto-compress` forces the opt-in automatic compressed-run
+  // detection on regardless of the config's own `autoCompress` key (the config
+  // key stays the persistent form). Defaults off either way.
+  if (values["auto-compress"] === true) cfg.autoCompress = true;
 
   // DM-1538: `--format <name|WxH>` re-targets the config's canvas (the animate
   // viewport). Precedence: explicit `--width`/`--height` > format > the config's
@@ -1819,6 +1839,145 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
   };
 }
 
+/**
+ * DM-1757 (docs/100 Primitive 1): automatic compressed-run detection. A pure
+ * config pre-pass (no page access) that, when `cfg.autoCompress` is set, detects
+ * maximal runs of consecutive plain `continue` + `cut` frames and rewrites each
+ * into a single `states` frame — reusing the whole shipped `states` machinery
+ * (`buildStatesRunContent` → `composeCompressedRun`) rather than adding a
+ * parallel path. Because the collapse happens BEFORE `frameStartsMs` / the
+ * capture loop / cursor validation are computed, the 1 config-frame ↔ 1
+ * animation-frame reindexing is handled for free downstream; the only
+ * cross-reference into original indices — explicit `cursor.events[].frame` — is
+ * remapped here via `newIndexForOld` (the `expandHoverReveal` precedent).
+ *
+ * v1 SAFE SCOPE (the rest are left untouched with a logged reason; complex-
+ * interaction handling is a tracked follow-up): a run is collapsed only when
+ * every member is a plain captured frame with a `cut` transition and NONE of it
+ * carries overlays / animations / textTracks / forceState / a non-`body`
+ * selector, non-anchor members are pure `continue` frames with no readiness
+ * waits / scrollTo, no explicit `cursor` event addresses a member, the run is
+ * not entered via a `magic-move` transition, and — under `cursor:"auto"` — no
+ * member runs an interaction action (click/hover/fill, which auto-cursor would
+ * otherwise derive a pointer event from). Output stays pixel-identical to the
+ * flipbook (the compressor re-emits anything that fails to pair, never wrong
+ * pixels); the collapse only ever trades frame count for a nested run.
+ *
+ * Exported for unit tests. Returns `cfg` unchanged when `autoCompress` is off.
+ */
+export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (cfg.autoCompress !== true) return cfg;
+  const frames = cfg.frames;
+  const n = frames.length;
+
+  const isCut = (f: AnimateFrameCfg): boolean => f.transition?.type === "cut";
+  // A frame that carries content or interactions the simple-case run can't
+  // absorb into a `states` run. Any of these on a member disqualifies the run.
+  const hasBlockingFeature = (f: AnimateFrameCfg): boolean =>
+    f.cast != null || f.template != null || f.scroll != null || f.states != null ||
+    f.typeResample != null || f.jsReveal != null || f.hoverReveal != null || f.hoverDetect != null ||
+    (f.overlays != null && f.overlays.length > 0) ||
+    (f.animations != null && f.animations.length > 0) ||
+    (f.textTracks != null && f.textTracks.length > 0) ||
+    (f.forceState != null && f.forceState.length > 0);
+  const hasInteractionAction = (f: AnimateFrameCfg): boolean =>
+    f.actions != null && f.actions.some((a) => a.type === "click" || a.type === "hover" || a.type === "fill");
+  const hasReadinessWaitOrScroll = (f: AnimateFrameCfg): boolean =>
+    f.waitFor != null || f.waitForText != null || f.waitForGone != null || f.waitForCount != null ||
+    f.wait != null || f.scrollTo != null;
+
+  const cursorAuto = cfg.cursor === "auto";
+  const explicitCursorFrames = new Set<number>(
+    cfg.cursor != null && cfg.cursor !== "auto" ? cfg.cursor.events.map((e) => e.frame) : [],
+  );
+
+  const newFrames: AnimateFrameCfg[] = [];
+  // Old frame index → its index in the rewritten frames array (a collapsed run
+  // maps every member index to the single states frame's index).
+  const newIndexForOld: number[] = new Array(n);
+
+  let i = 0;
+  while (i < n) {
+    const anchor = frames[i];
+    // The anchor may load an `input` or `continue`; either kind of plain,
+    // cut-transition, feature-free frame can seed a run.
+    const anchorEligible =
+      isCut(anchor) && !hasBlockingFeature(anchor) && anchor.selector == null;
+    if (anchorEligible) {
+      // Extend the run over following pure `continue` + `cut` members.
+      let j = i + 1;
+      while (
+        j < n &&
+        frames[j].input == null && frames[j].cast == null && frames[j].template == null &&
+        isCut(frames[j]) && !hasBlockingFeature(frames[j]) &&
+        frames[j].selector == null && !hasReadinessWaitOrScroll(frames[j])
+      ) {
+        j++;
+      }
+      const b = j - 1; // inclusive run end
+      if (b > i) {
+        // A maximal candidate run [i..b] (≥ 2 frames). Reject as a whole (leave
+        // uncompressed) for any run-wide reason that would drop an interaction.
+        let reject: string | null = null;
+        if (i > 0 && frames[i - 1].transition?.type === "magic-move") {
+          reject = "it is entered via a magic-move transition (would degrade to crossfade)";
+        }
+        for (let k = i; k <= b && reject == null; k++) {
+          if (explicitCursorFrames.has(k)) reject = `an explicit cursor event addresses frame ${k} inside it`;
+          else if (cursorAuto && hasInteractionAction(frames[k])) reject = `cursor:"auto" derives a pointer from an interaction action in frame ${k}`;
+        }
+        if (reject == null) {
+          const runFrames = frames.slice(i, b + 1);
+          const totalDuration = runFrames.reduce((sum, f) => sum + f.duration, 0);
+          const states: RunStateInput[] = [
+            { duration: anchor.duration }, // state 0 = the anchor's own post-actions capture
+            ...runFrames.slice(1).map((f) => ({
+              ...(f.actions != null ? { actions: f.actions } : {}),
+              duration: f.duration,
+            })),
+          ];
+          const collapsed: AnimateFrameCfg = {
+            ...(anchor.input != null ? { input: anchor.input } : { continue: true }),
+            ...(anchor.wait != null ? { wait: anchor.wait } : {}),
+            ...(anchor.waitFor != null ? { waitFor: anchor.waitFor } : {}),
+            ...(anchor.waitForText != null ? { waitForText: anchor.waitForText } : {}),
+            ...(anchor.waitForGone != null ? { waitForGone: anchor.waitForGone } : {}),
+            ...(anchor.waitForCount != null ? { waitForCount: anchor.waitForCount } : {}),
+            ...(anchor.scrollTo != null ? { scrollTo: anchor.scrollTo } : {}),
+            ...(anchor.actions != null ? { actions: anchor.actions } : {}),
+            transition: { type: "cut", duration: 0 },
+            duration: totalDuration,
+            states,
+          };
+          const collapsedIdx = newFrames.length;
+          newFrames.push(collapsed);
+          for (let k = i; k <= b; k++) newIndexForOld[k] = collapsedIdx;
+          log(`  auto-compress: collapsed frames ${i}–${b} into a states run (${states.length} states, ${totalDuration}ms)`);
+          i = b + 1;
+          continue;
+        }
+        log(`  auto-compress: leaving frames ${i}–${b} uncompressed — ${reject}`);
+      }
+    }
+    // Not a run head, or the maximal run was rejected: keep frame i as-is.
+    newIndexForOld[i] = newFrames.length;
+    newFrames.push(anchor);
+    i++;
+  }
+
+  if (newFrames.length === frames.length) return cfg; // nothing collapsed
+
+  // Remap explicit cursor events onto the rewritten frame indices (auto-cursor
+  // is re-derived from the rewritten frames, so it needs no remap). Rejected
+  // runs mean no cursor event points inside a collapsed run.
+  let cursor = cfg.cursor;
+  if (cursor != null && cursor !== "auto") {
+    cursor = { ...cursor, events: cursor.events.map((e) => ({ ...e, frame: newIndexForOld[e.frame] ?? e.frame })) };
+  }
+  log(`  auto-compress: ${frames.length} config frames → ${newFrames.length} after run collapse`);
+  return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
 export async function composeAnimateFrames(
   browser: Browser,
   cfg: AnimateConfig,
@@ -1834,6 +1993,11 @@ export async function composeAnimateFrames(
   // and synthesize the transition. A browser pre-pass (its own throwaway context)
   // that rewrites the frame(s) before the main capture loop runs.
   cfg = await expandHoverDetect(cfg, browser, configDir, log);
+  // DM-1757 (docs/100 Primitive 1): opt-in automatic compressed-run detection.
+  // Collapses maximal continue+cut runs into `states` frames BEFORE frameStartsMs
+  // / the capture loop / cursor validation, so the reindexing is handled for free
+  // downstream. A no-op unless `cfg.autoCompress` is set (default off).
+  cfg = autoCompressRuns(cfg, log);
   // DM-1544: an explicit `--brand` (passed in `opts.brand`) wins over the config's
   // own `brand` key; when the flag is absent, fall back to the config-inline brand
   // (a path relative to `configDir`, or a validated inline object). One brand then
