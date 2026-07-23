@@ -2,8 +2,8 @@
   "meta": {
     "suite": "unicode",
     "os": "macos",
-    "image": null,
-    "commit": "913be89bd72cea8717799ffb37c8e26c17bde53a",
+    "image": "macos26-arm64",
+    "commit": "4f2006b8f0ed44a0bd2effb03276b1f776dfd2ad",
     "capturedAt": null,
     "counts": {
       "passed": 782,
@@ -1829,8 +1829,8 @@
     "1D80-1DBF-phonetic-extensions-supplement": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.02654310175586534,
-      "worstTilePct": 0.7126991421568627,
+      "diffPct": 0.023677341600891886,
+      "worstTilePct": 0.3690831801470587,
       "regionCount": 1
     },
     "1D800-1DAAF-sutton-signwriting.0": {
@@ -1941,7 +1941,7 @@
     "1E900-1E95F-adlam": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03795548793413533,
+      "diffPct": 0.03793903237730323,
       "worstTilePct": 0.10636871936274507,
       "regionCount": 0
     },
@@ -1997,9 +1997,9 @@
     "1F100-1F1FF-enclosed-alphanumeric-supplement": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04986412007902898,
-      "worstTilePct": 0.44653799019607804,
-      "regionCount": 7
+      "diffPct": 0.11381223659215854,
+      "worstTilePct": 1.0629212622549022,
+      "regionCount": 16
     },
     "1F200-1F2FF-enclosed-ideographic-supplement": {
       "pass": true,
@@ -2011,22 +2011,22 @@
     "1F300-1F5FF-miscellaneous-symbols-and-pictographs.0": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04728898050398596,
-      "worstTilePct": 0.10387944240196076,
+      "diffPct": 0.06128058126560449,
+      "worstTilePct": 1.0295925336510137,
       "regionCount": 0
     },
     "1F300-1F5FF-miscellaneous-symbols-and-pictographs.1": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03967574311344785,
-      "worstTilePct": 0.08903952205882354,
+      "diffPct": 0.04088713779983432,
+      "worstTilePct": 0.4404105392156863,
       "regionCount": 0
     },
     "1F300-1F5FF-miscellaneous-symbols-and-pictographs.2": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.039906269574018896,
-      "worstTilePct": 0.08080575980392156,
+      "diffPct": 0.15419012275281696,
+      "worstTilePct": 0.3559688509530116,
       "regionCount": 0
     },
     "1F600-1F64F-emoticons": {
@@ -2039,15 +2039,15 @@
     "1F650-1F67F-ornamental-dingbats": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.015557592414295825,
-      "worstTilePct": 0.06826363357843138,
+      "diffPct": 0.13231425601723723,
+      "worstTilePct": 0.535290287990196,
       "regionCount": 0
     },
     "1F680-1F6FF-transport-and-map-symbols": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03555299610153021,
-      "worstTilePct": 0.07745481004901962,
+      "diffPct": 0.057988957578512024,
+      "worstTilePct": 0.4794730392156861,
       "regionCount": 0
     },
     "1F700-1F77F-alchemical-symbols": {
@@ -2060,29 +2060,29 @@
     "1F780-1F7FF-geometric-shapes-extended": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04052933342624238,
-      "worstTilePct": 0.0840609681372549,
+      "diffPct": 0.22893823806814845,
+      "worstTilePct": 0.4860791973039214,
       "regionCount": 0
     },
     "1F800-1F8FF-supplemental-arrows-c": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.036644397301401226,
-      "worstTilePct": 0.08970971200980393,
+      "diffPct": 0.2993468904080422,
+      "worstTilePct": 0.5567363664215684,
       "regionCount": 0
     },
     "1F900-1F9FF-supplemental-symbols-and-pictographs": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.043983043566223644,
-      "worstTilePct": 0.09947533700980392,
+      "diffPct": 0.0570281493726311,
+      "worstTilePct": 0.4653033088235293,
       "regionCount": 0
     },
     "1FA00-1FA6F-chess-symbols": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03480117266811769,
-      "worstTilePct": 0.09219898897058824,
+      "diffPct": 0.27317936085747996,
+      "worstTilePct": 0.5592256433823527,
       "regionCount": 0
     },
     "1FA70-1FAFF-symbols-and-pictographs-extended-a": {
@@ -3369,8 +3369,8 @@
     "2700-27BF-dingbats": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0442853292101008,
-      "worstTilePct": 0.19502527573529413,
+      "diffPct": 0.04499805030347176,
+      "worstTilePct": 0.2818529551978062,
       "regionCount": 0
     },
     "27C0-27EF-miscellaneous-mathematical-symbols-a": {
@@ -5686,8 +5686,8 @@
     "FE00-FE0F-variation-selectors": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.02716494539931572,
-      "worstTilePct": 4.116115196078438,
+      "diffPct": 0.011572557321037475,
+      "worstTilePct": 1.122376685049021,
       "regionCount": 1
     },
     "FE10-FE1F-vertical-forms": {
