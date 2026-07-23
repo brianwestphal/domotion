@@ -761,6 +761,68 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   return lines.join("");
 }
 
+/** Geometry + run context shared by every applied decoration of one run. */
+interface AppliedDecorationRunCtx {
+  segX: number;
+  baselineY: number;
+  segWidth: number;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: string | number;
+  runText?: string;
+  features?: string[];
+  runXOffsets?: number[];
+}
+
+/**
+ * DM-1723/DM-1725: emit every decoration that applies to one text run —
+ * mirroring Blink's `ComputedStyle::AppliedTextDecorations` accumulation.
+ * Ancestor decorating boxes' propagated entries (outermost-first, from the
+ * `propagateTextDecorations` pre-pass) each paint independently with their
+ * own line/style/color/thickness and with the DECORATING box's font as the
+ * metrics basis (`text_decoration_info.cc`: `decoration.used_font =
+ * decorating_box->GetUsedFont()`); the element's own decoration (from its
+ * computed styles, with the run's own font as metrics basis) paints last —
+ * innermost, matching applied order. `currentcolor` resolves against the
+ * decorating element's color for propagated entries (resolved at pre-pass
+ * time) and against `fallbackColor` (the run's fill) for the element's own.
+ * Skip-ink intercepts always shape with the run's own font — the ink IS the
+ * run's glyphs.
+ */
+function renderAppliedTextDecorations(
+  el: CapturedElement,
+  fallbackColor: string,
+  run: AppliedDecorationRunCtx,
+): string {
+  const parts: string[] = [];
+  for (const pd of el.propagatedDecorations ?? []) {
+    parts.push(renderTextDecoration({
+      textDecorationLine: pd.line, decorationColor: pd.color ?? fallbackColor, style: pd.style,
+      segX: run.segX, baselineY: run.baselineY, segWidth: run.segWidth,
+      fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
+      thicknessOverride: pd.thickness, underlineOffset: pd.underlineOffset,
+      runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
+      runXOffsets: run.runXOffsets,
+      metricsFontFamily: pd.fontFamily, metricsFontSize: pd.fontSize,
+      metricsFontWeight: pd.fontWeight, metricsFontStyle: pd.fontStyle,
+    }));
+  }
+  const ownLine = el.styles.textDecorationLine;
+  if (ownLine != null && ownLine !== "" && ownLine !== "none") {
+    const ownColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
+      ? el.styles.textDecorationColor : fallbackColor;
+    parts.push(renderTextDecoration({
+      textDecorationLine: ownLine, decorationColor: ownColor, style: el.styles.textDecorationStyle,
+      segX: run.segX, baselineY: run.baselineY, segWidth: run.segWidth,
+      fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
+      thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
+      runXOffsets: run.runXOffsets,
+    }));
+  }
+  return parts.join("");
+}
+
 const _bidi = bidiFactory();
 // Quick test for any RTL code point (Hebrew + Arabic + Syriac + Thaana etc.).
 const _RTL_RE = /[֐-ࣿיִ-ﻼ]/;
@@ -1211,34 +1273,19 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   }
   const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder, singleSeg?.dottedCircleMarks);
   if (result != null) {
-    // DM-1723: when this element has no decoration of its own but an
-    // ancestor decorating box propagates one (CSS Text Decoration 3 §2 —
-    // e.g. a <strong> inside an underlined span), paint the ancestor's
-    // decoration with the ancestor's font as the metrics basis. `pd` is
-    // undefined whenever the element carries its own decoration.
-    const pd = (el.styles.textDecorationLine == null || el.styles.textDecorationLine === "" || el.styles.textDecorationLine === "none")
-      ? el.propagatedDecoration : undefined;
-    const decoColor = pd != null
-      ? (pd.color ?? segColor)
-      : (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-        ? el.styles.textDecorationColor : segColor;
     // baselineY = textTop + fontAscent. Using fontSize here would put the
     // underline ~1px too low (fontSize includes descent; baseline sits at
     // ascent above textTop, not at the line-bottom). DM-265.
     // Round to integer px so Chrome's pixel-aligned decoration paint
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
     const decoBaselineY = Math.round(tt + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration({
-      textDecorationLine: pd?.line ?? el.styles.textDecorationLine, decorationColor: decoColor,
-      style: pd != null ? pd.style : el.styles.textDecorationStyle,
+    // DM-1723/DM-1725: the element's own decoration plus every ancestor
+    // decorating box's propagated entry paint independently (Blink's
+    // AppliedTextDecorations accumulation).
+    const decoMarkup = renderAppliedTextDecorations(el, segColor, {
       segX: tl, baselineY: decoBaselineY, segWidth: el.textWidth ?? 0,
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
-      thicknessOverride: pd != null ? pd.thickness : el.styles.textDecorationThickness,
-      underlineOffset: pd != null ? pd.underlineOffset : el.styles.textUnderlineOffset,
-      runText: pathText, skipInk: el.styles.textDecorationSkipInk, features,
-      runXOffsets: xOffsetsRel ?? undefined,
-      metricsFontFamily: pd?.fontFamily, metricsFontSize: pd?.fontSize,
-      metricsFontWeight: pd?.fontWeight, metricsFontStyle: pd?.fontStyle,
+      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
+      runText: pathText, features, runXOffsets: xOffsetsRel ?? undefined,
     });
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
@@ -1378,19 +1425,6 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const _segBidiNeeded = dir === "rtl" || _RTL_RE.test(el.text);
   const _segFullLevels = _segBidiNeeded ? _bidi.getEmbeddingLevels(el.text, dir).levels : null;
   let _segBidiOffset = 0;
-  // DM-1723: fall back to an ancestor decorating box's propagated decoration
-  // (CSS Text Decoration 3 §2) when this element carries none of its own —
-  // the ancestor's font becomes the decoration-metrics basis below.
-  const pd = (el.styles.textDecorationLine == null || el.styles.textDecorationLine === "" || el.styles.textDecorationLine === "none")
-    ? el.propagatedDecoration : undefined;
-  const decoLine = pd?.line ?? el.styles.textDecorationLine;
-  const decoColor = pd != null
-    ? (pd.color ?? fillColor)
-    : (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-      ? el.styles.textDecorationColor : fillColor;
-  const decoStyle = pd != null ? pd.style : el.styles.textDecorationStyle;
-  const decoThickness = pd != null ? pd.thickness : el.styles.textDecorationThickness;
-  const decoUnderlineOffset = pd != null ? pd.underlineOffset : el.styles.textUnderlineOffset;
   const elVariationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
   for (const seg of segments) {
     // Color-bitmap glyph fallback (SK-1058): CAPTURE_SCRIPT marked this
@@ -1511,15 +1545,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       }
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration({
-      textDecorationLine: decoLine, decorationColor: decoColor, style: decoStyle,
+    // DM-1723/DM-1725: the element's own decoration plus every ancestor
+    // decorating box's propagated entry paint independently (Blink's
+    // AppliedTextDecorations accumulation).
+    const decoMarkup = renderAppliedTextDecorations(el, fillColor, {
       segX: seg.x, baselineY: segDecoBaselineY, segWidth: seg.width,
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
-      thicknessOverride: decoThickness, underlineOffset: decoUnderlineOffset,
-      runText: reordered.text, skipInk: el.styles.textDecorationSkipInk, features: segFeatures,
-      runXOffsets: segXOffsets ?? undefined,
-      metricsFontFamily: pd?.fontFamily, metricsFontSize: pd?.fontSize,
-      metricsFontWeight: pd?.fontWeight, metricsFontStyle: pd?.fontStyle,
+      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
+      runText: reordered.text, features: segFeatures, runXOffsets: segXOffsets ?? undefined,
     });
     if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered

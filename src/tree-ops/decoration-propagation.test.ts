@@ -49,7 +49,7 @@ describe("propagateTextDecorations: basics", () => {
     const strong = el({ tag: "strong", text: "bold", styles: { fontWeight: "700", textDecorationLine: "none" } });
     const span = el({ text: "regular ", styles: decoStyles(), children: [strong] });
     propagateTextDecorations([span]);
-    expect(strong.propagatedDecoration).toEqual({
+    expect(strong.propagatedDecorations).toEqual([{
       line: "underline",
       style: "wavy",
       color: "rgb(220, 38, 38)",
@@ -59,9 +59,9 @@ describe("propagateTextDecorations: basics", () => {
       fontSize: 24,
       fontWeight: "400",
       fontStyle: undefined,
-    });
+    }]);
     // The decorating element itself is not annotated.
-    expect(span.propagatedDecoration).toBeUndefined();
+    expect(span.propagatedDecorations).toBeUndefined();
   });
 
   it("propagates through undecorated intermediate inlines to deeper text", () => {
@@ -69,9 +69,9 @@ describe("propagateTextDecorations: basics", () => {
     const b = el({ tag: "b", styles: { textDecorationLine: "none" }, children: [em] });
     const span = el({ text: "top ", styles: decoStyles(), children: [b] });
     propagateTextDecorations([span]);
-    expect(em.propagatedDecoration?.line).toBe("underline");
+    expect(em.propagatedDecorations?.[0]?.line).toBe("underline");
     // The textless intermediate still forwards but is not annotated itself.
-    expect(b.propagatedDecoration).toBeUndefined();
+    expect(b.propagatedDecorations).toBeUndefined();
   });
 
   it("annotates elements with textSegments but empty text", () => {
@@ -79,7 +79,7 @@ describe("propagateTextDecorations: basics", () => {
     child.textSegments = [{ text: "seg", x: 0, y: 0, width: 10, height: 10 } as NonNullable<CapturedElement["textSegments"]>[number]];
     const span = el({ styles: decoStyles(), children: [child] });
     propagateTextDecorations([span]);
-    expect(child.propagatedDecoration?.line).toBe("underline");
+    expect(child.propagatedDecorations?.[0]?.line).toBe("underline");
   });
 
   it("resolves currentcolor decoration color against the DECORATING element's color", () => {
@@ -90,32 +90,43 @@ describe("propagateTextDecorations: basics", () => {
       children: [strong],
     });
     propagateTextDecorations([span]);
-    expect(strong.propagatedDecoration?.color).toBe("rgb(1, 2, 3)");
+    expect(strong.propagatedDecorations?.[0]?.color).toBe("rgb(1, 2, 3)");
   });
 
-  it("nearest decorating ancestor wins", () => {
+  it("accumulates the whole ancestor chain, outermost first (DM-1725)", () => {
+    // Blink's AppliedTextDecorations: <u><span style="overline">x</span></u>
+    // paints BOTH lines over "x" — both entries reach the leaf, applied order.
     const leaf = el({ text: "leaf", styles: { textDecorationLine: "none" } });
-    const inner = el({ styles: decoStyles({ textDecorationStyle: "dotted", textDecorationColor: "rgb(0, 0, 255)" }), children: [leaf] });
+    const inner = el({ text: "mid", styles: decoStyles({ textDecorationLine: "overline", textDecorationStyle: "dotted", textDecorationColor: "rgb(0, 0, 255)" }), children: [leaf] });
     const outer = el({ styles: decoStyles(), children: [inner] });
     propagateTextDecorations([outer]);
-    expect(leaf.propagatedDecoration?.style).toBe("dotted");
-    expect(leaf.propagatedDecoration?.color).toBe("rgb(0, 0, 255)");
+    expect(leaf.propagatedDecorations).toHaveLength(2);
+    expect(leaf.propagatedDecorations?.[0]?.line).toBe("underline"); // outermost first
+    expect(leaf.propagatedDecorations?.[0]?.style).toBe("wavy");
+    expect(leaf.propagatedDecorations?.[1]?.line).toBe("overline");
+    expect(leaf.propagatedDecorations?.[1]?.style).toBe("dotted");
+    expect(leaf.propagatedDecorations?.[1]?.color).toBe("rgb(0, 0, 255)");
+    // The intermediate decorating element receives only ITS ancestors' entry
+    // (its own decoration is emitted from its styles, not the annotation).
+    expect(inner.propagatedDecorations).toHaveLength(1);
+    expect(inner.propagatedDecorations?.[0]?.line).toBe("underline");
   });
 
-  it("does not annotate a child that carries its own decoration", () => {
+  it("a child with its OWN decoration still receives the ancestors' entries (DM-1725)", () => {
+    // Chrome paints the parent underline AND the child's line-through.
     const child = el({ text: "struck", styles: { textDecorationLine: "line-through" } });
     const span = el({ styles: decoStyles(), children: [child] });
     propagateTextDecorations([span]);
-    // Own decoration wins; the (unmodeled) Chrome behavior would paint both.
-    expect(child.propagatedDecoration).toBeUndefined();
+    expect(child.propagatedDecorations).toHaveLength(1);
+    expect(child.propagatedDecorations?.[0]?.line).toBe("underline");
   });
 
   it("no decorating ancestor → nothing annotated", () => {
     const child = el({ text: "plain", styles: { textDecorationLine: "none" } });
     const parent = el({ text: "plain", styles: { textDecorationLine: "none" }, children: [child] });
     propagateTextDecorations([parent]);
-    expect(parent.propagatedDecoration).toBeUndefined();
-    expect(child.propagatedDecoration).toBeUndefined();
+    expect(parent.propagatedDecorations).toBeUndefined();
+    expect(child.propagatedDecorations).toBeUndefined();
   });
 });
 
@@ -136,8 +147,8 @@ describe("propagateTextDecorations: blockers", () => {
       const blocked = el({ text: "blocked", styles: { textDecorationLine: "none", ...styles }, children: [grandchild] });
       const span = el({ styles: decoStyles(), children: [blocked] });
       propagateTextDecorations([span]);
-      expect(blocked.propagatedDecoration).toBeUndefined();
-      expect(grandchild.propagatedDecoration).toBeUndefined();
+      expect(blocked.propagatedDecorations).toBeUndefined();
+      expect(grandchild.propagatedDecorations).toBeUndefined();
     });
   }
 
@@ -151,23 +162,23 @@ describe("propagateTextDecorations: blockers", () => {
     const span = el({ styles: decoStyles(), children: [blocked] });
     propagateTextDecorations([span]);
     // Doesn't receive the outer wavy…
-    expect(blocked.propagatedDecoration).toBeUndefined();
+    expect(blocked.propagatedDecorations).toBeUndefined();
     // …but its own solid underline propagates inward.
-    expect(inner.propagatedDecoration?.style).toBe("solid");
+    expect(inner.propagatedDecorations?.[0]?.style).toBe("solid");
   });
 
   it("relative / static positioning does NOT block", () => {
     const child = el({ text: "rel", styles: { textDecorationLine: "none", position: "relative" } });
     const span = el({ styles: decoStyles(), children: [child] });
     propagateTextDecorations([span]);
-    expect(child.propagatedDecoration?.line).toBe("underline");
+    expect(child.propagatedDecorations?.[0]?.line).toBe("underline");
   });
 
   it("plain block display does NOT block (block containers receive propagation)", () => {
     const p = el({ tag: "p", text: "para", styles: { textDecorationLine: "none", display: "block" } });
     const div = el({ tag: "div", styles: decoStyles({ display: "block" }), children: [p] });
     propagateTextDecorations([div]);
-    expect(p.propagatedDecoration?.line).toBe("underline");
+    expect(p.propagatedDecorations?.[0]?.line).toBe("underline");
   });
 });
 
@@ -178,21 +189,21 @@ describe("propagateTextDecorations: idempotence + re-run transitions", () => {
     const strong = el({ tag: "strong", text: "bold", styles: { textDecorationLine: "none" } });
     const span = el({ styles: decoStyles(), children: [strong] });
     propagateTextDecorations([span]);
-    const first = JSON.parse(JSON.stringify(strong.propagatedDecoration));
+    const first = JSON.parse(JSON.stringify(strong.propagatedDecorations));
     propagateTextDecorations([span]);
-    expect(strong.propagatedDecoration).toEqual(first);
+    expect(strong.propagatedDecorations).toEqual(first);
   });
 
   it("clears stale annotations when the decoration is removed between runs", () => {
     const strong = el({ tag: "strong", text: "bold", styles: { textDecorationLine: "none" } });
     const span = el({ styles: decoStyles(), children: [strong] });
     propagateTextDecorations([span]);
-    expect(strong.propagatedDecoration).toBeDefined();
+    expect(strong.propagatedDecorations).toBeDefined();
     // Frame 2 of an animation might drop the decoration — stale annotations
     // must not survive the re-run.
     span.styles.textDecorationLine = "none";
     propagateTextDecorations([span]);
-    expect(strong.propagatedDecoration).toBeUndefined();
+    expect(strong.propagatedDecorations).toBeUndefined();
   });
 
   it("handles multiple top-level roots independently", () => {
@@ -201,7 +212,7 @@ describe("propagateTextDecorations: idempotence + re-run transitions", () => {
     const c2 = el({ text: "b", styles: { textDecorationLine: "none" } });
     const r2 = el({ styles: { textDecorationLine: "none" }, children: [c2] });
     propagateTextDecorations([r1, r2]);
-    expect(c1.propagatedDecoration?.line).toBe("underline");
-    expect(c2.propagatedDecoration).toBeUndefined();
+    expect(c1.propagatedDecorations?.[0]?.line).toBe("underline");
+    expect(c2.propagatedDecorations).toBeUndefined();
   });
 });
