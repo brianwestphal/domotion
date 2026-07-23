@@ -253,12 +253,20 @@ const actionSchema = z.discriminatedUnion("type", [
 // DM-850 §5 — anchor an overlay to an element's bounding box (resolved at
 // capture time), replacing hardcoded x/y. `at` picks the box corner/edge;
 // `dx`/`dy` offset from it.
-const anchorSchema = z.object({
+const anchorFields = {
   selector: z.string(),
   at: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
   dx: z.number().optional(),
   dy: z.number().optional(),
-});
+};
+// Strict so an anchor key that isn't supported on this overlay kind — e.g.
+// `baseline` on anything but a typing overlay (DM-1750) — fails validation at
+// its config path instead of being silently stripped.
+const anchorSchema = z.strictObject(anchorFields);
+// DM-1750: typing overlays additionally take `baseline: true` — resolve the
+// overlay's `y` (its text baseline) to the anchored element's measured
+// first-line text baseline, killing the hand-tuned ascent `dy`.
+const typingAnchorSchema = z.strictObject({ ...anchorFields, baseline: z.boolean().optional() });
 
 // DM-1131: overlay *authoring* shapes derive from the runtime base schemas in
 // `../animation/overlay-schema.ts`. Each adds the config-only conveniences —
@@ -275,8 +283,10 @@ export const overlaySchema = z.discriminatedUnion("kind", [
     x: z.number().default(0),
     y: z.number().default(0),
     // DM-850 §5: anchor to an element bbox; maxWidth wraps to the anchored
-    // element's content width ("anchor") or a fixed px.
-    anchor: anchorSchema.optional(),
+    // element's content width ("anchor") or a fixed px. DM-1750: the typing
+    // anchor additionally accepts `baseline: true` (y → the element's
+    // first-line text baseline).
+    anchor: typingAnchorSchema.optional(),
     maxWidth: z.union([z.literal("anchor"), z.number()]).optional(),
   }),
   tapOverlaySchema.extend({

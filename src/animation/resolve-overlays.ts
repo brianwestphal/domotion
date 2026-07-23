@@ -21,6 +21,7 @@
 
 import type { Page } from "@playwright/test";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
+import { firstLineBaseline } from "./caret-metrics.js";
 import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, AnimationOverlay } from "./overlay-schema.js";
 
 /** Anchor an overlay to an element's box — same vocabulary as the declarative config's `anchor`. */
@@ -33,6 +34,16 @@ export interface OverlayAnchor {
   dx?: number;
   /** Vertical nudge from the anchor point (px). */
   dy?: number;
+  /**
+   * DM-1750 (typing overlays only): resolve the overlay's `y` to the anchored
+   * element's FIRST-LINE text baseline instead of a border-box point. A typing
+   * overlay's `y` IS its typed text's baseline, so with this the overlay glyphs
+   * land exactly on the element's own text — no hand-tuned ascent `dy`. `x`
+   * still comes from `at`'s horizontal component (+ `dx`); `dy` remains an
+   * additional nudge from the measured baseline (default 0). Errors on any
+   * other overlay kind.
+   */
+  baseline?: boolean;
 }
 
 /**
@@ -55,8 +66,15 @@ export type AnchoredOverlay =
  * context. `borderRadius` is the element's computed top-left `border-radius` in
  * px, used to auto-round a `shine` overlay's clip (DM-1549/DM-1551) or an
  * `interact` overlay's fill/ring (DM-1565) to the anchored element's corners.
+ * `lineBox` (only measured when the anchor asks for `baseline`, DM-1750) carries
+ * the raw first-line metrics — canvas `measureText("Hg")` font box + content-box
+ * placement — from which `firstLineBaseline` derives the text baseline
+ * node-side (the same math as the `typeResample` caret).
  */
-interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily: string; fontSize: number }
+interface AnchorBox {
+  x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily: string; fontSize: number;
+  lineBox?: { lineHeightPx: number; fontAscentPx: number; fontDescentPx: number; contentTop: number; contentHeight: number; centerInContentBox: boolean };
+}
 
 /**
  * Structural shape the shared engine resolves over. Both the public
@@ -110,27 +128,70 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       continue;
     }
 
+    // DM-1750: `anchor.baseline` is a typing-only refinement — a typing
+    // overlay's `y` is a text baseline, other kinds' `y` is a box corner, so a
+    // baseline anchor on them is an authoring error, not a silent no-op.
+    const wantBaseline = anchor?.baseline === true;
+    if (wantBaseline && ov.kind !== "typing") {
+      throw new Error(`${label(ov.kind)} anchor.baseline is only supported on typing overlays (a typing overlay's y is its text baseline; a ${ov.kind} overlay's y is a box corner)`);
+    }
+
     let box: AnchorBox | null = null;
     if (anchor != null) {
-      box = await page.evaluate((sel: string): AnchorBox | null => {
+      box = await page.evaluate(({ sel, wantBaseline }: { sel: string; wantBaseline: boolean }): AnchorBox | null => {
+        // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+        // stack traces; that helper isn't in page.evaluate's serialized scope, so
+        // polyfill it before the first named const below constructs (the same
+        // footgun the webfont-discovery evaluate documents in capture/index.ts).
+        if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
+          (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+        }
         const el = document.querySelector(sel);
         if (el == null) return null;
         const r = el.getBoundingClientRect();
         const cs = getComputedStyle(el);
-        const padL = parseFloat(cs.paddingLeft) || 0;
-        const padR = parseFloat(cs.paddingRight) || 0;
-        return {
+        const num = (v: string): number => {
+          const n = parseFloat(v);
+          return Number.isFinite(n) ? n : 0;
+        };
+        const padL = num(cs.paddingLeft);
+        const padR = num(cs.paddingRight);
+        const box: {
+          x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily: string; fontSize: number;
+          lineBox?: { lineHeightPx: number; fontAscentPx: number; fontDescentPx: number; contentTop: number; contentHeight: number; centerInContentBox: boolean };
+        } = {
           x: r.x, y: r.y, width: r.width, height: r.height,
           contentWidth: Math.max(0, el.clientWidth - padL - padR),
           // The computed top-left border-radius (px), to auto-round a `shine`
           // overlay's clip (DM-1549/DM-1551) or `interact` fill/ring (DM-1565).
-          borderRadius: parseFloat(cs.borderTopLeftRadius) || 0,
+          borderRadius: num(cs.borderTopLeftRadius),
           // The field's own font (DM-1579) — a typing overlay's `fontFamily:
           // "anchor"` adopts it so the typed text matches the real field.
           fontFamily: cs.fontFamily,
-          fontSize: parseFloat(cs.fontSize) || 16,
+          fontSize: num(cs.fontSize) || 16,
         };
-      }, anchor.selector);
+        if (wantBaseline) {
+          // DM-1750: raw first-line metrics for the baseline anchor — the
+          // element's computed font measured on a canvas (Chromium's own font
+          // metrics) + the content-box placement inputs. The placement math
+          // itself runs node-side (`firstLineBaseline`), shared with the
+          // `typeResample` caret so the two surfaces cannot disagree.
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          const fm = ctx != null ? ((ctx.font = cs.font), ctx.measureText("Hg")) : null;
+          box.lineBox = {
+            lineHeightPx: num(cs.lineHeight),
+            fontAscentPx: fm?.fontBoundingBoxAscent ?? 0,
+            fontDescentPx: fm?.fontBoundingBoxDescent ?? 0,
+            contentTop: r.top + num(cs.borderTopWidth) + num(cs.paddingTop),
+            contentHeight: r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom),
+            // A single-line <input> centers its one line box in the content
+            // box; <textarea> / block content lays line boxes from the top.
+            centerInContentBox: el instanceof HTMLInputElement,
+          };
+        }
+        return box;
+      }, { sel: anchor.selector, wantBaseline });
       if (box == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no element`);
     }
 
@@ -144,6 +205,15 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       const [ax, ay] = boxAnchorPoint(box, anchor.at ?? "top-left", anchor.dx ?? 0, anchor.dy ?? 0);
       resolved.x = ax;
       resolved.y = ay;
+      if (wantBaseline) {
+        // DM-1750: the typing overlay's `y` is its text baseline — land it on
+        // the anchored element's measured first-line baseline. `x` keeps the
+        // `at` horizontal component (+ dx) resolved above; `dy` nudges from the
+        // baseline (default 0). The math is `firstLineBaseline` (shared with
+        // the `typeResample` caret) over the raw page-side line-box metrics.
+        if (box.lineBox == null) throw new Error(`${label(ov.kind)} anchor.baseline measurement failed for selector "${anchor.selector}" (no canvas 2d context in the page)`);
+        resolved.y = firstLineBaseline({ fontSize: box.fontSize, ...box.lineBox }).baselineY + (anchor.dy ?? 0);
+      }
       // A `shine` (DM-1549/1551) or `interact` (DM-1565) overlay auto-SIZES to the
       // box it's anchored to (an explicit positive width/height still wins) and
       // auto-rounds its clip / fill-ring to the element's computed border-radius

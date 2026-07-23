@@ -13,7 +13,7 @@ import { resolveOverlays } from "./resolve-overlays.js";
 // A stub Page whose `evaluate` returns a fixed anchor box (border box 50,60
 // 200×100, content width 176, border-radius 12), standing in for the
 // page.evaluate measurement.
-const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily?: string; fontSize?: number } | null): Page =>
+const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily?: string; fontSize?: number; lineBox?: { lineHeightPx: number; fontAscentPx: number; fontDescentPx: number; contentTop: number; contentHeight: number; centerInContentBox: boolean } } | null): Page =>
   ({ evaluate: async () => box }) as unknown as Page;
 
 const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176, borderRadius: 12, fontFamily: "Georgia, serif", fontSize: 22 };
@@ -99,6 +99,58 @@ describe("resolveOverlays (DM-1132)", () => {
     await expect(
       resolveOverlays(stubPage(null), [{ kind: "typing", text: "x", fontFamily: "anchor" } as never]),
     ).rejects.toThrow(/fontFamily:"anchor" requires an anchor/);
+  });
+
+  // DM-1750: `anchor.baseline` resolves a typing overlay's y to the anchored
+  // element's measured first-line text baseline (via the shared
+  // `firstLineBaseline` math), instead of a border-box point.
+  describe("anchor.baseline (DM-1750)", () => {
+    // Raw line-box metrics as the extended AnchorBox evaluate returns them:
+    // lineH 20 over content top 62, text box round(15 + 5) = 20 → boxTop = 62,
+    // baseline = 62 + 15 = 77 (a block element: lines lay from the top).
+    const BASELINE_BOX = {
+      ...BOX,
+      lineBox: { lineHeightPx: 20, fontAscentPx: 15, fontDescentPx: 5, contentTop: 62, contentHeight: 40, centerInContentBox: false },
+    };
+
+    it("sets y to the measured first-line baseline; x keeps the anchor's horizontal + dx", async () => {
+      const [ov] = await resolveOverlays(stubPage(BASELINE_BOX), [
+        { kind: "typing", text: "hi", x: 0, y: 0, anchor: { selector: "#code", at: "top-left", dx: 4, baseline: true } },
+      ]);
+      expect(ov).toMatchObject({ kind: "typing", x: 54, y: 77 });
+      expect("anchor" in ov).toBe(false);
+    });
+
+    it("dy nudges from the measured baseline (default 0)", async () => {
+      const [ov] = await resolveOverlays(stubPage(BASELINE_BOX), [
+        { kind: "typing", text: "hi", x: 0, y: 0, anchor: { selector: "#code", baseline: true, dy: -2 } },
+      ]);
+      expect(ov).toMatchObject({ y: 75 });
+    });
+
+    it("centers the line box in the content box for a single-line input", async () => {
+      const box = { ...BASELINE_BOX, lineBox: { ...BASELINE_BOX.lineBox, contentHeight: 30, centerInContentBox: true } };
+      // lineTop = 62 + (30 − 20)/2 = 67 → baseline = 67 + 15 = 82.
+      const [ov] = await resolveOverlays(stubPage(box), [
+        { kind: "typing", text: "hi", x: 0, y: 0, anchor: { selector: "#field", baseline: true } },
+      ]);
+      expect(ov).toMatchObject({ y: 82 });
+    });
+
+    it("composes with fontFamily:'anchor' (font + baseline from the same measurement)", async () => {
+      const [ov] = await resolveOverlays(stubPage(BASELINE_BOX), [
+        { kind: "typing", text: "hi", x: 0, y: 0, fontFamily: "anchor", anchor: { selector: "#code", baseline: true } } as never,
+      ]);
+      expect(ov).toMatchObject({ fontFamily: "Georgia, serif", fontSize: 22, y: 77 });
+    });
+
+    it("rejects baseline on a non-typing overlay kind with a path-specific error", async () => {
+      await expect(
+        resolveOverlays(stubPage(BASELINE_BOX), [
+          { kind: "tap", x: 0, y: 0, anchor: { selector: "#btn", baseline: true } },
+        ]),
+      ).rejects.toThrow(/tap overlay anchor\.baseline is only supported on typing overlays/);
+    });
   });
 
   it("DM-1574: the return type includes shine + interact overlays (kind-narrowing compiles)", async () => {

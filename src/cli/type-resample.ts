@@ -28,7 +28,7 @@ import type { Page } from "@playwright/test";
 import type { AnimationFrame, AnimationOverlay } from "../animation/index.js";
 import type { BlinkOverlay } from "../animation/overlay-schema.js";
 import { generateAnimatedSvg } from "../animation/index.js";
-import { caretShapeRect, type CaretShape } from "../animation/caret-metrics.js";
+import { caretShapeRect, firstLineBaseline, type CaretShape } from "../animation/caret-metrics.js";
 import { captureElementTree } from "../capture/index.js";
 import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
@@ -144,7 +144,16 @@ interface CaretMeasurement {
  * measurement can't be taken (best-effort; the caller then omits the caret).
  */
 async function measureCaret(page: Page, selector: string, shapeOverride: CaretShape | "auto"): Promise<CaretMeasurement | null> {
-  return page.evaluate(({ sel, shapeOverride }: { sel: string; shapeOverride: string }) => {
+  const raw = await page.evaluate(({ sel, shapeOverride }: { sel: string; shapeOverride: string }) => {
+    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+    // stack traces; that helper isn't in page.evaluate's serialized scope, so
+    // polyfill it before the named consts below construct. (Previously this
+    // evaluate only worked under tsx because the webfont-discovery evaluate had
+    // already polyfilled `window.__name` on the same page — standalone callers
+    // of buildTypeResampleAnimation hit "__name is not defined".)
+    if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
+      (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+    }
     const el = document.querySelector(sel);
     if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
     const cs = getComputedStyle(el);
@@ -190,23 +199,14 @@ async function measureCaret(page: Page, selector: string, shapeOverride: CaretSh
     //    same way `captureInputValue` places the value text — a single-line <input>
     //    centers its line in the content box; a <textarea> lays lines from the top —
     //    so the caret and the captured text share one line box and can't diverge.
+    // The placement math itself runs node-side (`firstLineBaseline` in
+    // `caret-metrics.ts`, shared with the typing overlay's baseline anchor); this
+    // evaluate only collects the raw measurements.
     const fm = ctx.measureText("Hg");
     const fmAsc = fm.fontBoundingBoxAscent || 0;
     const fmDesc = fm.fontBoundingBoxDescent || 0;
-    const fontBox = fmAsc + fmDesc;
-    // Exact ascent/descent when the canvas exposes them, else the 1.15×em split.
-    const ascentPx = fontBox > 0 ? fmAsc : fontSize * 0.9;
-    const descentPx = fontBox > 0 ? fmDesc : fontSize * 0.25;
-    const caretHeight = Math.round(ascentPx + descentPx);
-    const lineH = num(cs.lineHeight) || fontBox || fontSize * 1.2;
     const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
     const contentHeight = r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
-    const lineTop = el instanceof HTMLTextAreaElement
-      ? contentTop
-      : contentTop + Math.max(0, (contentHeight - lineH) / 2);
-    // Caret box centered in the line box; baseline sits `ascent` below the box top.
-    const boxTop = lineTop + (lineH - caretHeight) / 2;
-    const baselineY = boxTop + ascentPx;
     // Insertion cell = a space at end-of-text (the block/underscore width).
     const cellWidthPx = ctx.measureText(" ").width || fontSize * 0.5;
     const caretColor = cs.caretColor && cs.caretColor !== "auto" ? cs.caretColor : cs.color;
@@ -218,8 +218,15 @@ async function measureCaret(page: Page, selector: string, shapeOverride: CaretSh
     const shape = (shapeOverride !== "auto" && valid.includes(shapeOverride))
       ? shapeOverride
       : (computed != null && valid.includes(computed)) ? computed : "bar";
-    return { x, baselineY, ascentPx, descentPx, cellWidthPx, fontSize, shape: shape as "bar" | "block" | "underscore", color: caretColor };
+    return {
+      x, fontSize, cellWidthPx, shape: shape as "bar" | "block" | "underscore", color: caretColor,
+      lineHeightPx: num(cs.lineHeight), fontAscentPx: fmAsc, fontDescentPx: fmDesc,
+      contentTop, contentHeight, centerInContentBox: !(el instanceof HTMLTextAreaElement),
+    };
   }, { sel: selector, shapeOverride });
+  if (raw == null) return null;
+  const { baselineY, ascentPx, descentPx } = firstLineBaseline(raw);
+  return { x: raw.x, baselineY, ascentPx, descentPx, cellWidthPx: raw.cellWidthPx, fontSize: raw.fontSize, shape: raw.shape, color: raw.color };
 }
 
 /** Build the blinking-caret overlay for one re-sampled state, or `undefined`.

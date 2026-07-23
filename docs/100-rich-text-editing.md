@@ -325,11 +325,15 @@ regardless of (and before) everything above:
    `src/cli/type-resample.ts` already implements) so the overlay's `y` — which IS
    the typed text's baseline in `renderTypingOverlay` — lands exactly on the
    page text's baseline. Kills the hand-tuned `dy ≈ 11.5` ascent constant.
+   **Shipped** — see "Baseline anchor" in
+   [93-realistic-typing.md](93-realistic-typing.md) and docs/43 §5; the shared
+   placement math is `firstLineBaseline` in `src/animation/caret-metrics.ts`.
 
 ## Staged implementation plan
 
 1. **Fold-ins** — `holdToFrameEnd`; baseline anchor. Small, independent,
-   landable immediately. (days)
+   landable immediately. (days) **Both shipped** — see the Fold-ins section
+   above.
 2. **Caret + selection track** — standalone primitive per the section above.
    **Shipped** — `docs/101-caret-selection-track.md`: node-side addressing
    over captured `xOffsets` (`src/animation/text-address.ts`), the caret /

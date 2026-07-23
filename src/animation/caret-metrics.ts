@@ -115,3 +115,52 @@ export function caretShapeRect(inp: CaretRectInput): CaretShapeRect {
       return { x: inp.x, y: boxTop, width: inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX, height: boxHeight, opacity: 1 };
   }
 }
+
+/**
+ * Raw page-side measurements from which {@link firstLineBaseline} derives an
+ * element's first-line text baseline. Collected in page context (canvas
+ * `measureText("Hg").fontBoundingBox{Ascent,Descent}` + computed style /
+ * `getBoundingClientRect`), computed node-side so the math lives in ONE tested
+ * place — shared by the `typeResample` caret and the typing overlay's
+ * `anchor.baseline` resolution (DM-1750), which must agree.
+ */
+export interface LineBoxMeasurement {
+  fontSize: number;
+  /** Computed `line-height` in px; pass 0 when it is `normal` (the font box,
+   *  then 1.2 em, stand in). */
+  lineHeightPx: number;
+  /** `fontBoundingBoxAscent` / `fontBoundingBoxDescent` from canvas
+   *  `measureText("Hg")` with the element's computed font; pass 0 when the
+   *  engine doesn't expose them (falls back to the 1.15-em split: 0.9 em
+   *  ascent + 0.25 em descent). */
+  fontAscentPx: number;
+  fontDescentPx: number;
+  /** Content-box top (page coords) and height (border + padding excluded). */
+  contentTop: number;
+  contentHeight: number;
+  /** True for a single-line `<input>`, which centers its one line box in the
+   *  content box; a `<textarea>` / block content lays line boxes from the top. */
+  centerInContentBox: boolean;
+}
+
+/**
+ * First-line text baseline (page coords) plus the effective ascent/descent, from
+ * raw page measurements. Mirrors how Blink places the line: the line box sits at
+ * the content-box top (or centered in it for a single-line input), and the text
+ * box — the font's ascent + descent — is centered in the line box under CSS
+ * half-leading, with the baseline `ascent` below the text-box top. This is the
+ * math the `typeResample` caret measurement has always used; extracted so the
+ * typing overlay's `anchor.baseline` resolution (DM-1750) shares it verbatim.
+ */
+export function firstLineBaseline(m: LineBoxMeasurement): { baselineY: number; ascentPx: number; descentPx: number } {
+  const fontBox = m.fontAscentPx + m.fontDescentPx;
+  const ascentPx = fontBox > 0 ? m.fontAscentPx : m.fontSize * 0.9;
+  const descentPx = fontBox > 0 ? m.fontDescentPx : m.fontSize * 0.25;
+  const textBoxHeight = Math.round(ascentPx + descentPx);
+  const lineH = m.lineHeightPx || fontBox || m.fontSize * 1.2;
+  const lineTop = m.centerInContentBox
+    ? m.contentTop + Math.max(0, (m.contentHeight - lineH) / 2)
+    : m.contentTop;
+  const boxTop = lineTop + (lineH - textBoxHeight) / 2;
+  return { baselineY: boxTop + ascentPx, ascentPx, descentPx };
+}

@@ -227,6 +227,36 @@ restating it. It reuses the same anchor-resolution path as `anchor` / `maxWidth:
 "anchor"` (`resolveAnchoredOverlays`, which now also measures the element's
 `font-family`/`font-size`) and requires an `anchor`.
 
+## Baseline anchor (`anchor.baseline: true`, DM-1750)
+
+A typing overlay's `y` IS the typed text's baseline, but a plain `anchor` only
+offers border-box points — so landing overlay glyphs on an anchored element's
+OWN text used to require a hand-tuned ascent nudge (`dy ≈ 11.5` for Menlo
+12.5px). `anchor.baseline: true` (typing overlays only) resolves `y` to the
+anchored element's **first-line text baseline**, measured in page context
+inside the same `resolveAnchoredOverlays` round-trip: the element's computed
+font on a canvas (`measureText("Hg").fontBoundingBox{Ascent,Descent}` —
+Chromium's own font metrics) plus the line-box placement math shared with the
+`typeResample` caret (`firstLineBaseline` in
+`src/animation/caret-metrics.ts`): a single-line `<input>` centers its one
+line box in the content box, `<textarea>`/block content lays line boxes from
+the top, and the text box (ascent + descent) centers in the line box under CSS
+half-leading; when the canvas metrics are unavailable a 1.15-em split (0.9 em
+ascent + 0.25 em descent) stands in. `x` still comes from `anchor.at`'s
+horizontal component (+ `dx`); `dy` remains an additional nudge from the
+measured baseline (default 0). Composes with `fontFamily: "anchor"` (font AND
+baseline from the same measurement). `baseline` on a non-typing overlay kind is
+an error — schema-level in the declarative config, a path-specific runtime
+error in the imperative `resolveOverlays` API.
+
+Verified in the rasterized SVG (`tests/typing-baseline-anchor.e2e.test.ts`,
+the kerf getting-started case): over a Menlo 12.5px page line, an overlay
+typing the same text anchored `baseline: true, dy: 0` paints its glyphs
+pixel-on — the ink bounding box of the rasterized overlay coincides exactly
+with Chromium's own paint of the page text (measured offset from the border-box
+top: 14px at `line-height: 19px`, automated instead of hand-tuned) — while a
+border-box anchor without `baseline` stays unchanged, landing an ascent higher.
+
 ## v2 — per-keystroke real-site re-sampling (shipped, DM-1556)
 
 The `typing` overlay above SYNTHESIZES the field's text: it paints a monospace

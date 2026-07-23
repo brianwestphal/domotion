@@ -391,6 +391,27 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       // x/y default to 0 when omitted (the anchor overrides them at capture time).
       expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "typing", x: 0, y: 0 });
     });
+
+    // DM-1750: `anchor.baseline` resolves a typing overlay's y to the anchored
+    // element's first-line text baseline. Typing-only, enforced at the schema.
+    it("DM-1750: accepts anchor.baseline on a typing overlay, rejects it on other kinds", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, overlays: [
+          { kind: "typing", text: "hi", anchor: { selector: ".f", baseline: true } },
+        ] }],
+      });
+      expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "typing", anchor: { selector: ".f", baseline: true } });
+      // Any non-typing anchor is strict: `baseline` fails at its config path
+      // instead of being silently stripped (a tap's y is a box corner, not a
+      // text baseline).
+      expect(() => validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, overlays: [
+          { kind: "tap", anchor: { selector: ".c", baseline: true } },
+        ] }],
+      })).toThrow(/frames\[0\].overlays\[0\].anchor/);
+    });
   });
 });
 
