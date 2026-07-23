@@ -408,6 +408,15 @@ function SuiteSummary() {
   );
 }
 
+// DM-1731: opt-in kerf dev diagnostics — `?kerfdev` turns on the 2.0
+// warnings (value-only re-renders that could be fully bound; stale bindings)
+// during development. Query-gated: production review sessions stay silent.
+if (location.search.includes("kerfdev")) {
+  (globalThis as unknown as Record<string, unknown>).KERF_DEV = true;
+  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_VALUE_ONLY_RERENDER = true;
+  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_STALE_BINDING = true;
+}
+
 // ── Mounts ──
 
 mount(cardsEl, () => <>{each(visible.value, (r) => <Card r={r} data-key={`${r.suite}/${r.name}`} />, (r) => `${r.suite}/${r.name}`)}</>);
