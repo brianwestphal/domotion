@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -1325,6 +1325,83 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     if (out.cursor != null && out.cursor !== "auto") {
       expect(out.cursor.events[0].frame).toBe(1); // original frame 2 → new index 1
     }
+  });
+});
+
+describe("size-regression guard (DM-1764)", () => {
+  const B = { width: 200, height: 120 };
+  const cut = { type: "cut", duration: 0 } as const;
+  const cfgOf = (frames: unknown[], extra: Record<string, unknown> = {}) =>
+    validateAnimateConfig({ ...B, ...extra, frames });
+  const eligible3 = () => [
+    { input: "a.html", duration: 100, transition: cut },
+    { continue: true, duration: 100, transition: cut },
+    { continue: true, duration: 100, transition: cut },
+  ];
+
+  describe("guard eligibility — only the automatic pass's runs revert", () => {
+    it("flags a run the automatic pass collapsed", () => {
+      const out = autoCompressRuns(cfgOf(eligible3(), { autoCompress: true }));
+      expect(out.frames).toHaveLength(1);
+      expect(wasAutoCollapsed(out.frames[0])).toBe(true);
+    });
+
+    it("does NOT flag a run the author marked with `compress: true`", () => {
+      const frames = eligible3();
+      frames[0] = { ...frames[0], compress: true };
+      const out = compressMarkedRuns(cfgOf(frames));
+      // The author asked for this one, so the guard warns rather than silently
+      // rewriting what they wrote — the same contract as the marker's hard error.
+      expect(out.frames).toHaveLength(1);
+      expect(wasAutoCollapsed(out.frames[0])).toBe(false);
+    });
+
+    it("does NOT flag a hand-authored `states:` frame", () => {
+      const cfg = cfgOf([{ input: "a.html", duration: 200, transition: cut, states: [{ duration: 100 }, { duration: 100 }] }]);
+      expect(wasAutoCollapsed(cfg.frames[0])).toBe(false);
+    });
+  });
+
+  // The uncompressed alternative the guard falls back to: the same N states,
+  // still nested in ONE frame, each gated by a step-end display track.
+  describe("composeStatesFlipbook", () => {
+    const holds = [100, 200, 300];
+    const trees = [[], [], []];
+
+    it("spans the run's total duration", () => {
+      expect(composeStatesFlipbook(trees, holds, 200, 120, "cr").durationMs).toBe(600);
+    });
+
+    it("gates each state's group on a step-end display window", () => {
+      const { svg } = composeStatesFlipbook(trees, holds, 200, 120, "cr");
+      // State 0 holds 0–100ms of 600 (0–16.6667%), state 1 to 300ms (50%),
+      // state 2 to the end. Exactly one group is `inline` at any instant.
+      expect(svg).toContain("@keyframes crfb0{0%{display:inline}16.6667%{display:none}100%{display:none}}");
+      expect(svg).toContain("@keyframes crfb1{0%{display:none}16.6667%{display:inline}50%{display:none}100%{display:none}}");
+      expect(svg).toContain("@keyframes crfb2{0%{display:none}50%{display:inline}100%{display:inline}}");
+      expect(svg).toContain("#crfb0{animation:crfb0 0.600s step-end infinite}");
+      expect(svg).toContain("#crfb2{animation:crfb2 0.600s step-end infinite}");
+      for (const id of ["crfb0", "crfb1", "crfb2"]) expect(svg).toContain(`<g id="${id}">`);
+    });
+
+    it("paints the captured root background when there is one", () => {
+      expect(composeStatesFlipbook(trees, holds, 200, 120, "cr", "rgb(30, 41, 59)").svg)
+        .toContain(`<rect width="200" height="120" fill="rgb(30, 41, 59)"/>`);
+      expect(composeStatesFlipbook(trees, holds, 200, 120, "cr").svg).not.toContain("<rect");
+    });
+
+    it("namespaces every state's ids under the run's prefix", () => {
+      const { svg } = composeStatesFlipbook(trees, holds, 200, 120, "run7");
+      expect(svg).toContain("@keyframes run7fb0");
+      expect(svg).toContain(`<g id="run7fb2">`);
+    });
+
+    it("handles a two-state run (the minimum a collapse can produce)", () => {
+      const { svg, durationMs } = composeStatesFlipbook([[], []], [250, 250], 200, 120, "cr");
+      expect(durationMs).toBe(500);
+      expect(svg).toContain("@keyframes crfb0{0%{display:inline}50%{display:none}100%{display:none}}");
+      expect(svg).toContain("@keyframes crfb1{0%{display:none}50%{display:inline}100%{display:inline}}");
+    });
   });
 });
 

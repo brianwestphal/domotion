@@ -229,18 +229,58 @@ to live with. Verified pixel-identical to the flipbook across a split window in
 `tests/auto-compress.e2e.test.ts`. Under the explicit `compress: true` marker a
 split point is still a hard error: the author asked for that exact run.
 
+**Size-regression guard — shipped (DM-1764).** Compression is pixel-identical
+but not unconditionally smaller, and the original estimate here ("≈ flipbook +
+nesting overhead, so a slideshow-shaped run could get marginally larger") was
+too kind. Measured across three run shapes at 640×360, comparing the composed
+run against the same states rendered independently (`rawBytes`, which the
+compressor already reports):
+
+| Run shape | Glyphs paired | Uncompressed | Compressed | Ratio |
+| --- | --- | --- | --- | --- |
+| Per-character typing (8 states) | 97.0% | 17.6 KB | 10.7 KB | **0.61×** |
+| Row-at-a-time append (7 states) | 80.1% | 14.2 KB | 7.1 KB | **0.50×** |
+| Wholesale-change slideshow (6 states) | 12.7% | 13.6 KB | 32.0 KB | **2.36×** |
+
+A wholesale-change run is not "marginally larger" — it more than doubles,
+because nothing pairs, everything re-emits as births + deaths, and the union
+and track machinery is paid on top. So the guard is now in the pipeline: after
+composing a run **the automatic pass created**, `compressedBytes / rawBytes`
+above 1.02 builds the uncompressed alternative and keeps whichever is actually
+smaller. Both figures come out of the compose that already ran, so the trigger
+is free; the alternative costs ~5 ms to build (plus a ~1 ms state snapshot on
+every guarded run) and only when the trigger fires.
+
+The alternative is `composeStatesFlipbook` in `src/cli/animate.ts`: the same N
+captured states, still nested in ONE frame, each gated by a `step-end` `display`
+window over the run's period rather than by identity tracks. Same pixels, same
+frame shape — so the 1 config-frame ↔ 1 animation-frame invariant the whole
+pre-pass rests on is untouched, and the guard needs no second capture, no second
+pass over the config, and no un-collapse. End to end on the slideshow config,
+`autoCompress: true` yields **43.2 KB against the flipbook's 44.3 KB (0.976×)**,
+where without the guard the same run composed at 2.1× its payload. The flag can
+therefore never make output worse, which is the property that makes it safe to
+enable blindly. Verified in `tests/compress-size-guard.e2e.test.ts` (reverts,
+does not grow, still pixel-identical, and does NOT fire on a well-pairing run).
+
+A run the AUTHOR asked for — a hand-written `states:` block or a `compress:
+true` marker — is never silently rewritten; it gets a `note:` line reporting the
+measured growth and pointing at `compress: false`. Same contract as the marker's
+hard error: don't quietly turn what they wrote into something else.
+
 **Default-flip recommendation (DM-1757).** Flip `autoCompress` to default-ON
 only after: (1) the excluded complex-interaction cases (per-frame overlays,
 cursor events, and magic-move transitions *inside* a run) are either handled or
-the exclusion set is proven complete against the real config corpus; (2) a
-size-regression guard confirms no config's raw output GROWS (a wholesale-change
-run pairs poorly and re-emits from chrome — correct pixels, but ≈ flipbook +
-nesting overhead, so a slideshow-shaped run could get marginally larger); and
-(3) every committed golden is regenerated in one reviewed pass (the flip shifts
-the output shape of any golden that contains a compressible run — expected, not a
-regression). The risk surface is exactly "changes every existing config's
-output": frame-count, nesting, and any frame-addressed feature crossing a run.
-Until then it stays opt-in.
+the exclusion set is proven complete against the real config corpus —
+**partially met**: sub-run splitting (above) reduces every remaining exclusion
+to a per-frame cost instead of a per-run one, and overlays are the one case
+still open; (2) a size-regression guard confirms no config's raw output GROWS —
+**met** (above); and (3) every committed golden is regenerated in one reviewed
+pass (the flip shifts the output shape of any golden that contains a
+compressible run — expected, not a regression) — **not started**, and it stays
+last because it is only worth doing once (1) is settled. The risk surface is
+exactly "changes every existing config's output": frame-count, nesting, and any
+frame-addressed feature crossing a run. Until then it stays opt-in.
 
 Interactions (all inherited from the nested-block precedent): outer transitions
 compose normally around the run (the run holds its final state until the cut);

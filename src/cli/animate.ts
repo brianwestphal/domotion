@@ -67,6 +67,7 @@ import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { prefixSvgIds, prefixSvgClasses } from "../render/svg-inline.js";
+import { escapeAttr } from "../utils/escapeHtml.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
@@ -1751,6 +1752,12 @@ async function buildStatesRunContent(
     states.push({ tree, holdMs: st.duration });
   }
   const rootBg = states[0].tree[0]?.styles?.rootBgComputed;
+  // The size-regression guard (below) can only fall back to the uncompressed
+  // form for a run the automatic pass created, and the compressor renders from
+  // the trees, so snapshot them first — but ONLY for those runs, so a
+  // hand-authored `states:` block pays nothing.
+  const guarded = wasAutoCollapsed(fc);
+  const snapshots = guarded ? states.map((s) => structuredClone(s.tree)) : null;
   const run = composeCompressedRun(states, {
     width: cfg.width,
     height: cfg.height,
@@ -1762,16 +1769,110 @@ async function buildStatesRunContent(
     manageFonts: false,
     log: (m) => log(`  ${m}`),
   });
+  // DM-1764 size-regression guard (docs/100 "Default-flip recommendation"
+  // prerequisite 2). Compression is pixel-identical but NOT unconditionally
+  // smaller: a wholesale-change run (a slideshow, where consecutive states
+  // share almost nothing) pairs badly, re-emits nearly everything as
+  // births/deaths, and pays the union + track overhead on top — measured at
+  // 2.36x the uncompressed payload. The compressor already reports both sides
+  // of that comparison (`rawBytes` = the same states rendered independently,
+  // `compressedBytes` = what it just produced), so the guard is free: no second
+  // compose, no second capture. When the run the AUTOMATIC pass created comes
+  // out bigger, emit the uncompressed states instead — same nesting, same
+  // pixels, flipbook payload — so `autoCompress` can never make output worse.
+  const { rawBytes, compressedBytes } = run.pairingStats;
+  const ratio = rawBytes > 0 ? compressedBytes / rawBytes : 1;
+  let svg = run.svg;
+  let periodMs = run.durationMs;
+  if (ratio > COMPRESS_SIZE_GUARD_RATIO) {
+    const pct = `${((ratio - 1) * 100).toFixed(0)}%`;
+    if (snapshots != null) {
+      // The ratio is only the trigger — it compares against the raw payload,
+      // which the nested flipbook has to carry a wrapper on top of (measured at
+      // ~6% of the payload: one <svg>, N <g>s, one display track each). So
+      // build the actual fallback and pick on real bytes, which costs ~5 ms and
+      // cannot be talked out of the right answer near the threshold.
+      const fallback = composeStatesFlipbook(snapshots, states.map((s) => s.holdMs), cfg.width, cfg.height, `cr${i}`, rootBg);
+      if (fallback.svg.length < run.svg.length) {
+        log(`  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${(rawBytes / 1024).toFixed(1)} KB → ${(compressedBytes / 1024).toFixed(1)} KB, only ${(run.pairingStats.pairedPct * 100).toFixed(1)}% of glyphs paired); uncompressed is ${(fallback.svg.length / 1024).toFixed(1)} KB`);
+        svg = fallback.svg;
+        periodMs = fallback.durationMs;
+      }
+    } else {
+      // A run the AUTHOR asked for (a hand-written `states:` block, or a
+      // `compress: true` marker). Same contract as the marker's hard error:
+      // don't silently rewrite what they wrote — say it, and point at the
+      // opt-out.
+      log(`  note: this compressed run is ${pct} LARGER than the same states rendered uncompressed (${(rawBytes / 1024).toFixed(1)} KB → ${(compressedBytes / 1024).toFixed(1)} KB, only ${(run.pairingStats.pairedPct * 100).toFixed(1)}% of glyphs paired) — its states share too little to pair; drop the run or set \`compress: false\``);
+    }
+  }
   // Namespace the run's document-global names (ids, classes, @keyframes) so
   // it can't collide with the outer animation or sibling nested frames — but
   // NOT font-family refs (they point at the shared builder's already-unique
   // dmfN names), same as a `cast` frame.
-  const namespaced = namespaceEmbeddedAnimatedSvg(run.svg, `cr${i}_`, { namespaceFonts: false });
+  const namespaced = namespaceEmbeddedAnimatedSvg(svg, `cr${i}_`, { namespaceFonts: false });
   return {
     svgContent: namespaced.replace(/^<\?xml[^>]*\?>\s*/, ""),
-    periodMs: run.durationMs,
+    periodMs,
     rootBg,
   };
+}
+
+/**
+ * DM-1764: the size-regression guard's TRIGGER — `compressedBytes / rawBytes`
+ * above this builds the uncompressed alternative and picks on real bytes.
+ * Measured shapes fall either side by a wide margin (a per-char typing run
+ * lands at 0.61x, a row-append run at 0.50x, a wholesale-change slideshow at
+ * 2.36x), so the exact threshold is not load-bearing; the 2% cushion just means
+ * a run that ties on bytes skips the extra work and keeps the compressed form,
+ * which still wins on live-DOM node count.
+ */
+const COMPRESS_SIZE_GUARD_RATIO = 1.02;
+
+/**
+ * DM-1764: the uncompressed counterpart to `composeCompressedRun` — the same N
+ * captured states, nested in the same one frame, but each rendered whole and
+ * gated by a `step-end` `display` track over the run's period (the compressor's
+ * own track idiom). This is what the size-regression guard falls back to when
+ * compressing a run would make the output bigger: identical pixels at every
+ * time, a flipbook-sized payload, and — because it stays ONE nested frame — the
+ * 1 config-frame ↔ 1 animation-frame invariant the whole collapse pre-pass
+ * rests on is untouched.
+ *
+ * Pure; exported for unit tests.
+ */
+export function composeStatesFlipbook(
+  trees: CapturedElement[][],
+  holdMs: number[],
+  width: number,
+  height: number,
+  idPrefix: string,
+  background?: string,
+): { svg: string; durationMs: number } {
+  const totalMs = holdMs.reduce((a, b) => a + b, 0);
+  const starts: number[] = [];
+  {
+    let acc = 0;
+    for (const ms of holdMs) { starts.push(acc); acc += ms; }
+  }
+  const pct = (ms: number): string => `${Number(Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(4))}%`;
+  const kf: string[] = [];
+  const rules: string[] = [];
+  const groups: string[] = [];
+  const last = trees.length - 1;
+  for (let j = 0; j <= last; j++) {
+    const stops = [`0%{display:${j === 0 ? "inline" : "none"}}`];
+    if (j > 0) stops.push(`${pct(starts[j])}{display:inline}`);
+    if (j < last) stops.push(`${pct(starts[j] + holdMs[j])}{display:none}`);
+    stops.push(`100%{display:${j === last ? "inline" : "none"}}`);
+    kf.push(`@keyframes ${idPrefix}fb${j}{${stops.join("")}}`);
+    rules.push(`#${idPrefix}fb${j}{animation:${idPrefix}fb${j} ${(totalMs / 1000).toFixed(3)}s step-end infinite}`);
+    groups.push(`<g id="${idPrefix}fb${j}">${elementTreeToSvgInner(trees[j], width, height, `${idPrefix}s${j}-`, true, 2, false)}</g>`);
+  }
+  const bgRect = background != null ? `<rect width="${width}" height="${height}" fill="${escapeAttr(background)}"/>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
+    + `<style>${kf.join("")}${rules.join("")}</style>${bgRect}${groups.join("")}</svg>`;
+  return { svg, durationMs: totalMs };
 }
 
 /**
@@ -1900,6 +2001,26 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
  * anchors nor joins a run in either mode (the escape hatch for a run that pairs
  * poorly, whose compressed form would be no smaller than the flipbook).
  */
+/**
+ * DM-1764: the `states` frames the AUTOMATIC pass synthesized, by object
+ * identity. Only these are subject to the size-regression guard in
+ * `buildStatesRunContent`: nobody asked for them, so silently reverting one to
+ * its uncompressed states is exactly the right call, whereas a hand-authored
+ * `states:` block or a `compress: true` marker is a decision the author made
+ * and gets a warning instead. Not a config field, because it is provenance
+ * (which pass produced this frame), not authored input — a `WeakSet` keeps it
+ * off the schema, off the published JSON Schema, and out of any config a caller
+ * might round-trip. Frame objects survive from the pre-pass into the capture
+ * loop unchanged, which is what makes identity a valid key.
+ */
+const AUTO_COLLAPSED_RUNS = new WeakSet<AnimateFrameCfg>();
+
+/** Whether this `states` frame was synthesized by the automatic collapse pass
+ *  (rather than authored). Exported for unit tests. */
+export function wasAutoCollapsed(frame: AnimateFrameCfg): boolean {
+  return AUTO_COLLAPSED_RUNS.has(frame);
+}
+
 function collapseCompressibleRuns(
   cfg: AnimateConfig,
   log: (msg: string) => void,
@@ -2017,6 +2138,8 @@ function collapseCompressibleRuns(
       duration: totalDuration,
       states,
     };
+    // Only the automatic pass's runs are guard-eligible (see AUTO_COLLAPSED_RUNS).
+    if (!strict) AUTO_COLLAPSED_RUNS.add(collapsed);
     const collapsedIdx = newFrames.length;
     newFrames.push(collapsed);
     for (let k = start; k <= end; k++) newIndexForOld[k] = collapsedIdx;

@@ -429,6 +429,21 @@ The `states` block (§11) is the **explicit** way to compress an editing run: th
 
 Under the `compress: true` marker a split point is still a **hard error** (§13.2): the author asked for that exact run, so quietly compressing a shorter piece of it would hide the mismatch between what they wrote and what they got.
 
+**Size-regression guard — `autoCompress` can never make output bigger.** Compression is pixel-identical but not unconditionally *smaller*: a wholesale-change run (a slideshow, where consecutive frames share almost nothing) pairs badly, re-emits nearly everything as births/deaths, and pays the union + track overhead on top. Measured on a five-slide run: **9.3 KB of uncompressed payload composed to 19.2 KB compressed — 2.1×**, at 10% of glyphs paired. So after composing a run *the automatic pass created*, the collapse is checked against the alternative and reverted when it lost:
+
+```
+  compress: run of 5 states, 10.2% glyphs paired, 9.3 KB → 19.2 KB
+  auto-compress: reverting frame 0's run to uncompressed states — compressing it
+    grew the payload 107% (9.3 KB → 19.2 KB, only 10.2% of glyphs paired);
+    uncompressed is 10.1 KB
+```
+
+The reverted run keeps the same shape — one nested frame holding the N captured states, each gated by a `step-end` `display` window instead of the compressor's identity tracks — so it stays **pixel-identical** and the collapse's one config frame ↔ one animation frame invariant is untouched. End to end on that config, `autoCompress: true` produces **43.2 KB against the flipbook's 44.3 KB** (0.976×): the flag cannot make output worse, which is what makes it safe to enable blindly.
+
+The comparison is free of extra capture and near-free of extra compose: the compressor already reports both sides (`rawBytes` = the same states rendered independently, `compressedBytes` = what it produced), which triggers the check, and the uncompressed alternative is built only when that trigger fires (~5 ms; the state snapshot it needs costs ~1 ms).
+
+A run **you** asked for is not silently rewritten — a hand-authored `states:` block (§11) or a `compress: true` marker (§13.2) that regresses gets a `note:` line reporting the measured growth and pointing at the opt-out, exactly like the marker's hard-error contract. Only the automatic pass reverts.
+
 See **`docs/100-rich-text-editing.md`** (Primitive 1) for the compressor design, the measured size/DOM savings, and the pairing model; the automatic detection is the "automatic pass over all continue+cut runs" that doc anticipated, now shipped behind this flag.
 
 ### 13.2 Explicit per-run marker — `compress` (DM-1761)
