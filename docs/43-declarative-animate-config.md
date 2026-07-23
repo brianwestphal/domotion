@@ -429,6 +429,13 @@ The `states` block (§11) is the **explicit** way to compress an editing run: th
 
 Under the `compress: true` marker a split point is still a **hard error** (§13.2): the author asked for that exact run, so quietly compressing a shorter piece of it would hide the mismatch between what they wrote and what they got.
 
+**Why per-frame `overlays` split rather than ride along.** An overlay looks like it should just move onto the collapsed frame with its `delay` shifted by the state's offset into the run. Two things stop that from being a remap:
+
+- **Overlay lifetime is frame-scoped.** Every kind is emitted against its frame's window, and `typing` / `blink` / `interact` explicitly HOLD until the frame ends (§5). An overlay authored on the third of five members currently disappears at that member's cut; moved onto the collapsed frame it would hold to the end of the *whole run*. Only `tap` is fully described by its own `delay` + `duration`. Preserving the authored behavior needs a per-overlay end — a new concept in the overlay model, not a config rewrite.
+- **Anchors resolve against the live page, once per frame.** A `selector`-anchored overlay (or `maxWidth: "anchor"`) is resolved after the frame's actions have run. A collapsed run leaves the page at its LAST state, so a state-3 overlay would anchor against state 5's layout — and layout moving between states is precisely why the run compresses at all. Preserving it needs anchor resolution interleaved into the run's per-state capture.
+
+Both are changes to the overlay contract itself rather than to the collapse pass, so overlays remain a split point: the frame carrying one stays a plain sibling frame and the run compresses around it, which since sub-run splitting costs exactly that one frame.
+
 **Size-regression guard — `autoCompress` can never make output bigger.** Compression is pixel-identical but not unconditionally *smaller*: a wholesale-change run (a slideshow, where consecutive frames share almost nothing) pairs badly, re-emits nearly everything as births/deaths, and pays the union + track overhead on top. Measured on a five-slide run: **9.3 KB of uncompressed payload composed to 19.2 KB compressed — 2.1×**, at 10% of glyphs paired. So after composing a run *the automatic pass created*, the collapse is checked against the alternative and reverted when it lost:
 
 ```

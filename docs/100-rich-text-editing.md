@@ -229,6 +229,24 @@ to live with. Verified pixel-identical to the flipbook across a split window in
 `tests/auto-compress.e2e.test.ts`. Under the explicit `compress: true` marker a
 split point is still a hard error: the author asked for that exact run.
 
+**Per-frame overlays inside a run — evaluated, left as a split (DM-1764).**
+Attaching a member's overlay to the collapsed frame at its state offset is not
+the remap it looks like. Overlay lifetime is *frame*-scoped — every kind is
+emitted against its frame's window and `typing` / `blink` / `interact` hold
+until the frame ends — so an overlay authored on the third of five members
+would stop disappearing at that member's cut and hold to the end of the whole
+run; only `tap` is fully described by its own `delay` + `duration`. And
+`selector`-anchored overlays (and `maxWidth: "anchor"`) resolve against the live
+page once per frame, after that frame's actions have run, which for a collapsed
+run means the LAST state — so a state-3 overlay would anchor against state 5's
+layout, and layout moving between states is exactly why the run compresses.
+Preserving authored behavior therefore needs two changes to the OVERLAY model,
+not the collapse pass: an explicit per-overlay end (docs/43 §5's contract today
+has none), and anchor resolution interleaved into the run's per-state capture
+loop. Since sub-run splitting already reduces the cost to one frame, overlays
+stay a split point until that overlay-model change is worth making on its own
+terms.
+
 **Size-regression guard — shipped (DM-1764).** Compression is pixel-identical
 but not unconditionally smaller, and the original estimate here ("≈ flipbook +
 nesting overhead, so a slideshow-shaped run could get marginally larger") was

@@ -152,12 +152,28 @@ they describe (see `CLAUDE.md` "Documentation"):
   verbatim, so the 1 config-frame ↔ 1 animation-frame reindexing (frameStartsMs,
   cursor `events[].frame` remap) falls out of operating on the rewritten config.
   Output is pixel-identical to the flipbook (`tests/auto-compress.e2e.test.ts`);
-  the win is raw size + live-DOM weight. v1 compresses only the safe simple case
-  (no overlays/animations/textTracks/forceState/cursor-in-run/magic-move-entry
-  crossing a run — those are left uncompressed with a logged reason, a tracked
-  follow-up). The default-flip to ON is a separate decision (needs the excluded
-  cases handled + a size-regression guard + a golden regen pass — see doc 100
-  "Default-flip recommendation").
+  the win is raw size + live-DOM weight. It compresses runs with no
+  overlays/animations/textTracks/forceState crossing them; anything else is left
+  uncompressed with a logged reason.
+  **Sub-run splitting + size-regression guard (DM-1764) — shipped.** The three
+  interaction exclusions (an explicit cursor event addressing a member, an
+  interaction action a `cursor: "auto"` pointer would come from, a magic-move
+  landing on the anchor) now SPLIT the candidate window instead of dropping it:
+  that frame stays a plain sibling frame and the eligible sub-runs on either side
+  collapse, so one bad frame costs one frame. And because compression is
+  pixel-identical but NOT unconditionally smaller (measured: a per-char typing
+  run composes at 0.61× its uncompressed payload, a wholesale-change slideshow at
+  2.36×), a run the AUTOMATIC pass created is compared against the same states
+  rendered uncompressed and reverted when it lost — `composeStatesFlipbook` in
+  `src/cli/animate.ts`, same nesting + same pixels, so `autoCompress` can never
+  make output bigger (`tests/compress-size-guard.e2e.test.ts`). A run the AUTHOR
+  asked for is warned about, never rewritten. Per-frame overlays inside a run
+  stay a split point by evaluation, not omission: overlay lifetime is
+  frame-scoped and anchors resolve against the run's LAST state, so preserving
+  them needs an explicit per-overlay window + per-state anchor resolution in the
+  overlay model (doc 43 §13.1). The default-flip to ON is still a separate
+  decision — prerequisite 2 (size guard) is now met, 1 is partly met, and the
+  golden regen pass is untouched (doc 100 "Default-flip recommendation").
   **Per-run marker (DM-1761) — shipped.** `compress: true` on a run's anchor
   frame (docs/43 §13.2) collapses that ONE run through the same pre-pass, leaving
   every other frame alone — the surgical counterpart to the whole-config flag,
