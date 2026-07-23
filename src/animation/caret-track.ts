@@ -40,14 +40,23 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
-import { caretShapeRect, DEFAULT_CARET_WIDTH_PX, type CaretShape } from "./caret-metrics.js";
-import { resolveCaretPoint, resolveRangeRects, type CaretPoint, type SelectionRectPlan, type TextAddressTarget } from "./text-address.js";
+import { caretShapeRect, BLOCK_CARET_ALPHA, DEFAULT_CARET_WIDTH_PX, type CaretShape } from "./caret-metrics.js";
+import { resolveCaretPoint, resolveRangeRects, findAddressedElement, type CaretPoint, type SelectionRectPlan, type TextAddressTarget } from "./text-address.js";
+import { renderTextAsPath } from "../render/text-to-path.js";
+import { withRenderTextMode } from "../render/font-resolution.js";
 
 /** The standard caret blink period (ms) — the terminal cursor's 1.06 s cycle. */
 export const CARET_BLINK_MS = 1060;
 
 /** Default selection fill — a translucent blue (#3b82f6 at ~2/3 alpha). */
 export const DEFAULT_SELECTION_COLOR = "#3b82f6aa";
+
+/** Default color of the inverted glyph a block caret repaints over itself when
+ *  `invert` is on (docs/101): a light "background" ink so the covered character
+ *  reads against the solid block, matching a terminal/editor block cursor.
+ *  White suits the common light page; override per track with
+ *  `TextTrackSpec.invertTextColor`. */
+export const DEFAULT_INVERT_GLYPH_COLOR = "#ffffff";
 
 /** Above this many covered characters a selection sweep interpolates linearly
  *  between its endpoints instead of stepping per character — same bounded-CSS
@@ -92,14 +101,44 @@ export interface TextTrackSpec {
   blinkMs?: number;
   /** Default selection fill (per-event `color` overrides). */
   selectionColor?: string;
+  /**
+   * Block-caret glyph inversion (docs/101; `shape: "block"` only). Off by
+   * default (a block caret paints the docs/97 translucent 0.5-alpha cell over
+   * the glyph — Blink's auto-caret-color look). When on, the block paints
+   * SOLID in `color` and the covered character is re-emitted on top in
+   * `invertTextColor`, inverting the glyph the way a real terminal/editor block
+   * cursor does. As a standalone overlay this track doesn't own the page's
+   * glyph paint, so it repaints the covered glyph itself (via `renderTextAsPath`
+   * for the addressed char at each waypoint); the block+glyph blink together.
+   * A no-op for non-block shapes.
+   */
+  invert?: boolean;
+  /** Inverted-glyph ink for `invert` (default {@link DEFAULT_INVERT_GLYPH_COLOR},
+   *  white). The block itself paints in the track `color`. */
+  invertTextColor?: string;
   events: TextTrackSpecEvent[];
 }
 
 // ── Resolved track (concrete geometry; what the animator consumes) ──────────
 
+/** The character a block-invert caret covers at a waypoint, plus the font it
+ *  was captured in — everything `renderTextAsPath` needs to repaint it in the
+ *  inverse color. Resolved from the captured tree at resolve time (only when
+ *  `invert` is on); `null`/absent for a non-invert track or an end-of-text
+ *  waypoint (an empty cell has no glyph to invert). */
+export interface CoveredGlyph {
+  char: string;
+  fontFamily: string;
+  fontWeight: string;
+  fontStyle?: string;
+  fontSize: number;
+}
+
 export interface ResolvedCaretWaypoint {
   t: number;
   point: CaretPoint;
+  /** The covered glyph to repaint inverted (block-invert tracks only). */
+  glyph?: CoveredGlyph;
 }
 
 export interface ResolvedSelection {
@@ -117,6 +156,12 @@ export interface ResolvedTextTrack {
   color: string;
   barWidthPx: number;
   blinkMs: number;
+  /** Block-invert on (see {@link TextTrackSpec.invert}); only affects a
+   *  `block`-shape caret. Absent/false → the default translucent-block path. */
+  invert?: boolean;
+  /** Inverted-glyph ink when `invert` is on (default
+   *  {@link DEFAULT_INVERT_GLYPH_COLOR}). */
+  invertTextColor?: string;
   /** Caret position waypoints in time order. Empty → no caret is drawn
    *  (selection-only track). */
   waypoints: ResolvedCaretWaypoint[];
@@ -135,15 +180,20 @@ export function resolveTextTrack(roots: CapturedElement[], spec: TextTrackSpec):
   const waypoints: ResolvedCaretWaypoint[] = [];
   const hides: number[] = [];
   const selections: ResolvedSelection[] = [];
+  // Block-invert repaints the covered glyph; resolve it per waypoint. A no-op
+  // for non-block shapes (nothing to invert over a bar/underscore).
+  const wantGlyph = spec.invert === true && (spec.shape ?? "bar") === "block";
   const events = [...spec.events].sort((a, b) => a.t - b.t);
   for (const ev of events) {
     if (ev.type === "park" || ev.type === "move") {
-      const point = resolveCaretPoint(roots, ev.target ?? spec.target, ev.charOffset);
+      const target = ev.target ?? spec.target;
+      const point = resolveCaretPoint(roots, target, ev.charOffset);
       if (point == null) {
         console.warn(`caret-track: ${ev.type} at t=${ev.t} charOffset=${ev.charOffset} did not resolve; skipping`);
         continue;
       }
-      waypoints.push({ t: ev.t, point });
+      const glyph = wantGlyph ? resolveCoveredGlyph(roots, target, ev.charOffset) : null;
+      waypoints.push(glyph != null ? { t: ev.t, point, glyph } : { t: ev.t, point });
     } else if (ev.type === "hide") {
       hides.push(ev.t);
     } else if (ev.type === "select") {
@@ -174,10 +224,63 @@ export function resolveTextTrack(roots: CapturedElement[], spec: TextTrackSpec):
     color: spec.color ?? "#111111",
     barWidthPx: spec.barWidthPx ?? DEFAULT_CARET_WIDTH_PX,
     blinkMs: spec.blinkMs ?? CARET_BLINK_MS,
+    invert: spec.invert === true,
+    invertTextColor: spec.invertTextColor ?? DEFAULT_INVERT_GLYPH_COLOR,
     waypoints,
     hides,
     selections,
   };
+}
+
+/**
+ * The covered character (and its captured font) at code-point `charOffset`
+ * within the addressed element — the glyph a block-invert caret repaints in the
+ * inverse color. Resolved node-side from the captured tree via the exported
+ * {@link findAddressedElement}, walking the element's horizontal text runs in
+ * captured order (mirroring `text-address.ts`'s `elementTextRuns`: skip
+ * vertical-writing segments, fall back to the input-value run). Kept LOCAL — a
+ * focused read rather than an addressing-engine change — so `text-address.ts`
+ * stays untouched. Returns null for an unresolved target, an out-of-range
+ * offset, or `charOffset === length` (the after-last-char slot: an empty cell
+ * with no glyph to invert).
+ */
+function resolveCoveredGlyph(roots: CapturedElement[], target: TextAddressTarget, charOffset: number): CoveredGlyph | null {
+  if (charOffset < 0) return null;
+  const el = findAddressedElement(roots, target);
+  if (el == null) return null;
+  const elFamily = el.styles.fontFamily;
+  const elWeight = el.styles.fontWeight;
+  const elStyle = el.styles.fontStyle;
+  const elSize = parseFloat(el.styles.fontSize) || 14;
+
+  interface CoveredRun { text: string; fontFamily: string; fontWeight: string; fontStyle?: string; fontSize: number; }
+  const runs: CoveredRun[] = [];
+  if (el.textSegments != null && el.textSegments.length > 0) {
+    for (const seg of el.textSegments) {
+      if (seg.verticalWritingMode != null || seg.text.length === 0) continue;
+      runs.push({
+        text: seg.text,
+        fontFamily: seg.fontFamily ?? elFamily,
+        fontWeight: seg.fontWeight ?? elWeight,
+        fontStyle: seg.fontStyle ?? elStyle,
+        fontSize: seg.fontSize ?? elSize,
+      });
+    }
+  } else if (el.text !== "" && (el.inputXOffsets != null || el.textLeft != null)) {
+    runs.push({ text: el.text, fontFamily: elFamily, fontWeight: elWeight, fontStyle: elStyle, fontSize: elSize });
+  }
+  if (runs.length === 0) return null;
+
+  let remaining = charOffset;
+  for (const run of runs) {
+    for (const ch of run.text) {
+      if (remaining === 0) {
+        return { char: ch, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: run.fontStyle, fontSize: run.fontSize };
+      }
+      remaining--;
+    }
+  }
+  return null;
 }
 
 // ── Emission ────────────────────────────────────────────────────────────────
@@ -222,7 +325,12 @@ export function textTrackMarkup(track: ResolvedTextTrack, totalDurationMs: numbe
     parts.push(selectionMarkup(track.selections[si], si, uid, kf, totalDurationMs, totalSec));
   }
   if (track.waypoints.length > 0) {
-    parts.push(caretMarkup(track, uid, kf, totalDurationMs, totalSec));
+    const inverting = track.invert && track.shape === "block";
+    parts.push(
+      inverting
+        ? invertedCaretMarkup(track, uid, kf, totalDurationMs, totalSec)
+        : caretMarkup(track, uid, kf, totalDurationMs, totalSec),
+    );
   }
   return `  <g class="text-track" pointer-events="none">
     <style>${kf.join("")}</style>
@@ -276,6 +384,87 @@ function caretMarkup(track: ResolvedTextTrack, uid: string, kf: string[], totalD
 
   const fillOpacity = base.opacity < 1 ? ` fill-opacity="${base.opacity}"` : "";
   return `    <g class="tt-vis" opacity="0" style="animation:${visName} ${totalSec.toFixed(2)}s step-end infinite"><g class="tt-pos" style="animation:${posName} ${totalSec.toFixed(2)}s step-end infinite"><rect class="tt-caret" width="${num(base.width)}" height="${num(base.height)}" fill="${track.color}"${fillOpacity} style="animation:${blinkName} ${blinkSec}s step-end infinite"/></g></g>`;
+}
+
+/**
+ * Block-caret WITH glyph inversion (docs/101). A standalone overlay can't
+ * recolor the page's own glyph paint, so it repaints the covered character
+ * itself: a SOLID block in the track color with the addressed glyph re-emitted
+ * on top in `invertTextColor` — the terminal/editor block-cursor look.
+ *
+ * Emission (the cursor-overlay multi-layer swap pattern, not the moving-rect +
+ * `scale()` track the plain block caret uses): ONE layer per waypoint, each
+ * absolutely positioned at that waypoint's cell with its own glyph rendered at
+ * that waypoint's exact font/size (so differing sizes need no rect-scale
+ * distortion of the outline). A `step-end` per-layer opacity window shows only
+ * the active waypoint's layer — its window runs from the waypoint's time until
+ * the next position change or the next hide, so the covered glyph SWAPS as the
+ * caret moves. All layers sit inside one nested blink group, so the block and
+ * its inverted glyph blink together while parked (matching a real block cursor,
+ * whose glyph reappears normally in the blink-off phase from the page paint
+ * beneath). The inverted glyph renders in PATHS mode so it emits
+ * `<use href="#gN">`, whose defs the animator collects (`getGlyphDefsSince`)
+ * into the document `<defs>` — self-contained, deterministic across repeat
+ * calls.
+ */
+function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[], totalDurationMs: number, totalSec: number): string {
+  const wps = track.waypoints;
+  const hides = [...track.hides].sort((a, b) => a - b);
+  const blinkName = `tt-blink-${uid}`;
+  kf.push(`@keyframes ${blinkName}{0%{opacity:1}50%{opacity:0}100%{opacity:1}}`);
+  const blinkSec = track.blinkMs / 1000;
+  const glyphInk = track.invertTextColor ?? DEFAULT_INVERT_GLYPH_COLOR;
+
+  const layers: string[] = [];
+  for (let i = 0; i < wps.length; i++) {
+    const wp = wps[i];
+    const g = caretGeom(track, wp.point);
+    // Active window: from this waypoint until the next position change OR the
+    // next hide after it (whichever is first), else the loop end.
+    const start = wp.t;
+    let end = totalDurationMs;
+    if (i + 1 < wps.length) end = Math.min(end, wps[i + 1].t);
+    const nextHide = hides.find((h) => h > start);
+    if (nextHide != null) end = Math.min(end, nextHide);
+
+    const visName = `tt-ivis-${uid}-${i}`;
+    const onAtZero = start <= 0;
+    const vis: string[] = [`0%{opacity:${onAtZero ? 1 : 0}}`];
+    if (!onAtZero) vis.push(`${pct(start, totalDurationMs)}{opacity:1}`);
+    if (end < totalDurationMs) {
+      vis.push(`${pct(end, totalDurationMs)}{opacity:0}`);
+      vis.push(`100%{opacity:0}`);
+    } else {
+      vis.push(`100%{opacity:1}`);
+    }
+    kf.push(`@keyframes ${visName}{${vis.join("")}}`);
+
+    // The inverted glyph, repainted at this waypoint's cell in the inverse ink.
+    let glyphMarkup = "";
+    const cg = wp.glyph;
+    if (cg != null) {
+      const gm = withRenderTextMode("paths", () =>
+        renderTextAsPath(
+          cg.char, wp.point.x, g.y, cg.fontSize, cg.fontFamily, cg.fontWeight,
+          glyphInk, undefined, undefined, undefined, cg.fontStyle, wp.point.ascentPx,
+        ),
+      );
+      if (gm != null) glyphMarkup = gm;
+    }
+    // Solid block behind the glyph. If a covered glyph was requested but its
+    // outline couldn't be produced on this host (font unresolvable in paths
+    // mode), degrade to the translucent 0.5-alpha block so the page's own glyph
+    // still shows through — never cover a character with an opaque block we
+    // can't re-ink.
+    const degraded = cg != null && glyphMarkup === "";
+    const blockOpacity = degraded ? ` fill-opacity="${BLOCK_CARET_ALPHA}"` : "";
+    const block = `<rect class="tt-caret" x="${num(g.x)}" y="${num(g.y)}" width="${num(g.width)}" height="${num(g.height)}" fill="${track.color}"${blockOpacity}/>`;
+    layers.push(`      <g class="tt-ivis" opacity="${onAtZero ? 1 : 0}" style="animation:${visName} ${totalSec.toFixed(2)}s step-end infinite">${block}${glyphMarkup}</g>`);
+  }
+
+  return `    <g class="tt-blink" style="animation:${blinkName} ${blinkSec}s step-end infinite">
+${layers.join("\n")}
+    </g>`;
 }
 
 /** The shape rect for a caret point under this track's shape settings. */

@@ -107,8 +107,10 @@ element trees, consumed by the animator as concrete geometry):
    - `clearSelection` `{ t }` — clear the most recent selection.
    Track-level options: `shape` (`bar` default / `block` / `underscore`),
    `color` (default `#111111`), `barWidthPx` (2), `blinkMs` (1060),
-   `selectionColor` (default `#3b82f6aa`, a translucent blue). Unresolvable
-   events are skipped with a console warning (the cursor-overlay convention).
+   `selectionColor` (default `#3b82f6aa`, a translucent blue), `invert`
+   (block-caret glyph inversion, off by default — see below) + `invertTextColor`
+   (the inverted-glyph ink, default `#ffffff`). Unresolvable events are skipped
+   with a console warning (the cursor-overlay convention).
 2. **`textTrackMarkup(track, totalDurationMs, index)`** — pure emission: a
    self-contained `<g class="text-track">` with a local `<style>`, keyframe
    names namespaced by a content hash (composited SVGs can't collide).
@@ -156,6 +158,54 @@ the track layers above every frame group — so a track that should not outlive
 its frame must end with explicit `clearSelection` + `hide` events at the
 frame's cut (see the docs/102 cookbook; the editor-session flagship's
 selection frame is the reference).
+
+### Block-caret inversion (`invert`)
+
+By default a `block` caret paints the docs/97 translucent 0.5-alpha cell over
+the glyph (Blink's auto-caret-color look). A true terminal/editor block cursor
+instead **inverts** the covered glyph — the character repaints in the
+background color over a solid block. As a standalone overlay the track doesn't
+own the page's glyph paint, so `invert: true` (block shape only) makes the
+track **repaint the covered glyph itself** in the inverse color:
+
+- **The block** paints SOLID (opacity 1) in the track `color` — no longer the
+  0.5-alpha translucency.
+- **The covered glyph** is re-emitted on top in `invertTextColor` (default
+  `#ffffff`, a light "background" ink). Which character is covered comes from
+  the same captured-tree resolution the caret geometry uses — resolved node-side
+  from the addressed element's text runs at each waypoint — and its outline is
+  produced by `renderTextAsPath` (the addressed char at that offset, in the
+  captured font/size), forced into **paths mode** so it emits `<use href="#gN">`
+  whose glyph defs the animator collects into the document `<defs>`
+  (self-contained, deterministic across repeat calls).
+- **Per-waypoint layers.** Rather than the plain block caret's moving-rect +
+  `scale()` position track, the inverted caret emits ONE layer per waypoint
+  (solid block + its inverted glyph, absolutely positioned at that waypoint's
+  cell, each glyph at its own exact font/size so a size change needs no
+  outline-distorting rect scale). A `step-end` per-layer opacity window shows
+  only the active waypoint's layer — running from the waypoint's time until the
+  next position change or the next `hide` — so the covered glyph **swaps** as
+  the caret moves between addressed offsets. All layers sit inside one nested
+  blink group, so the block and its inverted glyph blink together while parked
+  (in the blink-off phase the page's own glyph shows through beneath — matching
+  a real block cursor).
+- **End-of-text / graceful degrade.** A caret parked after the last character
+  covers an empty cell (a space) with no glyph to invert — a solid block, no
+  repaint. If the covered glyph's outline can't be produced on the host (font
+  unresolvable in paths mode, e.g. a system font on a non-macOS `paths` run),
+  the layer degrades to the translucent 0.5-alpha block so the page's own glyph
+  still shows through — the overlay never covers a character with an opaque
+  block it can't re-ink.
+
+`invert` is **opt-in and additive**: with it off (or on a non-block shape) the
+emission is byte-identical to before. Like docs/97's caret geometry, the
+inverted glyph is spec-faithful (author-driven), not pixel-compared against a
+Chrome caret.
+
+The other route to true inversion — the frame-sequence compressor's merged
+emission (doc 100, Primitive 1), which owns the glyph layers and can recolor
+them in place — remains future work; this standalone repaint is the
+overlay-only path.
 
 ### Z-order (documented contract)
 
@@ -219,9 +269,12 @@ golden `examples/animate/compressed-run/`.
   visual x, not logical order — the same visual-order limitation the
   single-element bidi path already carries (logical-order addressing over bidi
   is future work).
-- A block caret does not invert the glyph color beneath it (Blink paints the
-  caret-covered glyph in the background color; the translucent 0.5-alpha block
-  from docs/97 is used instead).
+- Block-caret glyph inversion IS supported standalone via glyph repaint (the
+  `invert` option — see "Block-caret inversion" above; the track re-emits the
+  covered glyph in the inverse color over a solid block). Default block carets
+  still use the docs/97 translucent 0.5-alpha cell. The compressor-merged
+  emission (doc 100) that recolors the page's own glyph layers in place remains
+  the other, future route.
 - Addresses resolve against ONE captured tree; a caret that must track text
   across frame boundaries needs per-frame tracks (or the compressor's merged
   runs, doc 100).
@@ -246,13 +299,18 @@ golden `examples/animate/compressed-run/`.
   per-event target override), caret waypoint/visibility/blink CSS, shape
   geometry (bar/block/underscore, metric scaling), selection sweep keyframes,
   clear snapping, multi-line sweep, animator wiring + byte-identity without
-  tracks.
+  tracks. Block-invert: solid block + inverse-colored glyph path per covered
+  char, per-waypoint glyph swap, opt-in byte-identity vs the default block
+  caret, and no-op on non-block shapes.
 - `tests/caret-track.e2e.test.ts` — captures a real page (heading + form
   field), resolves addresses, composes via `generateAnimatedSvg`, rasterizes
   the actual SVG at chosen times (pause + seek every animation), and asserts
   the caret INK lands at the resolved x (±1.5px), the field caret parks after
   the value, the selection sweep rect grows mid-sweep → full, and `hide`
-  removes the caret ink.
+  removes the caret ink. A second case rasterizes a block-`invert` caret: the
+  block reads as SOLID (pure red — a translucent blend would fail the pixel
+  test), the covered glyph repaints in the inverse ink (blue) on top, and both
+  swap to the next covered character when the caret moves.
 
 ## Related
 

@@ -164,6 +164,72 @@ describe("textTrackMarkup — caret emission", () => {
     expect(m).toContain("scale(1,2)");
   });
 
+  it("block-invert: solid block + an inverse-colored glyph path per covered char, swapped at waypoints", () => {
+    const track = resolveTextTrack(tree(), {
+      target: { animId: "line" },
+      shape: "block",
+      invert: true,
+      color: "#ff0000", // block ink
+      invertTextColor: "#0000ff", // inverse glyph ink
+      events: [
+        { type: "park", t: 0, charOffset: 0 }, // covers 'a'
+        { type: "move", t: 1000, charOffset: 1 }, // covers 'b'
+      ],
+    });
+    // Each waypoint carries the covered glyph.
+    expect(track.invert).toBe(true);
+    expect(track.waypoints[0].glyph?.char).toBe("a");
+    expect(track.waypoints[1].glyph?.char).toBe("b");
+
+    const m = textTrackMarkup(track, TOTAL);
+    // A shared blink group wraps per-waypoint layers.
+    expect(m).toContain('class="tt-blink"');
+    expect(m).toMatch(/@keyframes tt-blink-\w+\{0%\{opacity:1\}50%\{opacity:0\}100%\{opacity:1\}\}/);
+    // Two per-waypoint layers, each its own step-end visibility window.
+    const layers = m.match(/class="tt-ivis"/g);
+    expect(layers).toHaveLength(2);
+    expect(m).toMatch(/@keyframes tt-ivis-\w+-0\{0%\{opacity:1\}50%\{opacity:0\}100%\{opacity:0\}\}/);
+    expect(m).toMatch(/@keyframes tt-ivis-\w+-1\{0%\{opacity:0\}50%\{opacity:1\}100%\{opacity:1\}\}/);
+    // The block is SOLID (no fill-opacity) in the track color, one cell wide.
+    expect(m).toContain('<rect class="tt-caret" x="10" y="100" width="10" height="16" fill="#ff0000"/>');
+    expect(m).not.toContain("fill-opacity");
+    // The inverse glyph path is emitted in the inverse ink (renderTextAsPath
+    // wraps the glyph <use>s in a group with fill = invertTextColor).
+    expect(m).toContain('fill="#0000ff"');
+    expect(m).toMatch(/<use href="#g\d+"/);
+    // Glyph swap: 'a' aria-label at waypoint 0's cell, 'b' at waypoint 1's.
+    expect(m).toContain('aria-label="a"');
+    expect(m).toContain('aria-label="b"');
+  });
+
+  it("block-invert is opt-in: default block caret stays byte-identical", () => {
+    const events = [{ type: "park" as const, t: 0, charOffset: 1 }];
+    const plain = textTrackMarkup(resolveTextTrack(tree(), { target: { animId: "line" }, shape: "block", events }), TOTAL);
+    const withInvertFalse = textTrackMarkup(resolveTextTrack(tree(), { target: { animId: "line" }, shape: "block", invert: false, events }), TOTAL);
+    expect(withInvertFalse).toBe(plain);
+    // Default block caret is still the translucent 0.5-alpha cell.
+    expect(plain).toContain('fill-opacity="0.5"');
+    // The default path is the moving-rect caret, not the per-waypoint invert
+    // layers (the plain caret keeps its own `tt-blink-<uid>` keyframe, so key
+    // off the invert-only group classes).
+    expect(plain).not.toContain('class="tt-blink"');
+    expect(plain).not.toContain("tt-ivis");
+  });
+
+  it("block-invert over a non-block shape is a no-op (no inversion, no glyph)", () => {
+    const track = resolveTextTrack(tree(), {
+      target: { animId: "line" },
+      shape: "bar",
+      invert: true,
+      events: [{ type: "park", t: 0, charOffset: 0 }],
+    });
+    // No covered glyph resolved for a bar caret.
+    expect(track.waypoints[0].glyph).toBeUndefined();
+    const m = textTrackMarkup(track, TOTAL);
+    expect(m).not.toContain("tt-ivis");
+    expect(m).toContain('<rect class="tt-caret" width="2"');
+  });
+
   it("returns empty markup for an empty track or zero duration", () => {
     const track = resolveTextTrack(tree(), { target: { animId: "line" }, events: [] });
     expect(textTrackMarkup(track, TOTAL)).toBe("");

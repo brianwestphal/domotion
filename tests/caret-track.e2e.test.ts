@@ -31,7 +31,7 @@ const PAGE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 async function scanInk(
   page: Page,
   png: Buffer,
-  mode: "red" | "magenta" | "selection",
+  mode: "red" | "magenta" | "selection" | "blue",
 ): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
   return page.evaluate(async (args: { dataUri: string; mode: string }) => {
@@ -54,6 +54,7 @@ async function scanInk(
         const r = d[i], g = d[i + 1], b = d[i + 2];
         let hit = false;
         if (args.mode === "red") hit = r > 180 && g < 100 && b < 100;
+        else if (args.mode === "blue") hit = b > 180 && r < 100 && g < 100;
         else if (args.mode === "magenta") hit = r > 180 && b > 180 && g < 100;
         // #3b82f6 at ~2/3 alpha over white ≈ rgb(134, 176, 250): strongly
         // blue-dominant, clearly bluer than the near-neutral text/borders.
@@ -187,6 +188,100 @@ describeBrowser("caret + selection track e2e (docs/101)", () => {
       expect(red3800.count).toBe(0);
       const sel3800 = await scanInk(viewer, at3800png, "selection");
       expect(sel3800.count).toBeGreaterThan(20);
+    } finally {
+      await ctx.close();
+    }
+  }, 120_000);
+
+  it("block-invert: paints a SOLID block and repaints the covered glyph in the inverse color, swapping at each waypoint (docs/101, DM-1755)", async () => {
+    const { browser } = env!;
+    const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(PAGE_HTML, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const frameSvg = elementTreeToSvgInner(tree, W, H);
+
+      const p0 = resolveCaretPoint(tree, { animId: "line" }, 0)!; // covers 'H'
+      const p6 = resolveCaretPoint(tree, { animId: "line" }, 6)!; // covers 'w'
+      expect(p6.x).toBeGreaterThan(p0.x);
+
+      // Block caret in RED with glyph inversion to BLUE. A SOLID block reads as
+      // pure red (translucent 0.5-red over white would read pink → fails the
+      // "red" pixel test), and the inverted glyph reads as blue ink ON TOP of
+      // the block.
+      const track = resolveTextTrack(tree, {
+        target: { animId: "line" },
+        shape: "block",
+        invert: true,
+        color: "#ff0000",
+        invertTextColor: "#0000ff",
+        events: [
+          { type: "park", t: 200, charOffset: 0 }, // 'H'
+          { type: "move", t: 1200, charOffset: 6 }, // 'w'
+        ],
+      });
+      // The covered glyphs were resolved from the captured tree.
+      expect(track.waypoints[0].glyph?.char).toBe("H");
+      expect(track.waypoints[1].glyph?.char).toBe("w");
+
+      const svg = generateAnimatedSvg({
+        width: W, height: H,
+        background: "#ffffff",
+        frames: [{ svgContent: frameSvg, duration: 4000 }],
+        textTracks: [track],
+      });
+
+      const viewer = await ctx.newPage();
+      await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await viewer.evaluate(() => document.fonts.ready);
+      const shot = async (tMs: number): Promise<Buffer> => {
+        await seekTo(viewer, tMs);
+        return viewer.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
+      };
+
+      // t=400 (blink-on, parked on 'H').
+      const at400 = await shot(400);
+      const red400 = await scanInk(viewer, at400, "red");
+      const blue400 = await scanInk(viewer, at400, "blue");
+      // SOLID red block present (pure red survives; a translucent blend would
+      // not) and one cell wide, not a 2px bar.
+      expect(red400.count).toBeGreaterThan(30);
+      expect(Math.abs(red400.minX - p0.x)).toBeLessThanOrEqual(2);
+      expect(red400.maxX - red400.minX).toBeGreaterThan(6);
+      // The inverted glyph ('H') is repainted in BLUE on top of the block.
+      expect(blue400.count).toBeGreaterThan(10);
+      expect(blue400.minX).toBeGreaterThanOrEqual(red400.minX - 1);
+      expect(blue400.maxX).toBeLessThanOrEqual(red400.maxX + 1);
+      // The cell center reads inverse-blue (glyph shows through) or red (block),
+      // never the page's own near-black glyph — the block covers it.
+      const cx = Math.round(p0.x + (red400.maxX - red400.minX) / 2);
+      const cy = Math.round(p0.baselineY - p0.ascentPx / 2);
+      const center = await viewer.evaluate(async (args: { dataUri: string; x: number; y: number }) => {
+        const img = new Image();
+        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("decode")); img.src = args.dataUri; });
+        const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+        const g2 = c.getContext("2d")!; g2.drawImage(img, 0, 0);
+        const d = g2.getImageData(args.x, args.y, 1, 1).data;
+        return { r: d[0], g: d[1], b: d[2] };
+      }, { dataUri: `data:image/png;base64,${at400.toString("base64")}`, x: cx, y: cy });
+      // Not the page's dark glyph (that would be low on all channels): the cell
+      // is dominated by red (block) or blue (inverted ink).
+      expect(center.r > 150 || center.b > 150).toBe(true);
+
+      // t=1300: the block + inverted glyph SWAPPED to 'w' at p6 — red and blue
+      // both moved right with the waypoint.
+      const at1300 = await shot(1300);
+      const red1300 = await scanInk(viewer, at1300, "red");
+      const blue1300 = await scanInk(viewer, at1300, "blue");
+      expect(red1300.count).toBeGreaterThan(30);
+      expect(Math.abs(red1300.minX - p6.x)).toBeLessThanOrEqual(2);
+      expect(red1300.minX).toBeGreaterThan(red400.minX + 10);
+      expect(blue1300.count).toBeGreaterThan(10);
+      expect(blue1300.minX).toBeGreaterThan(blue400.minX + 10);
     } finally {
       await ctx.close();
     }

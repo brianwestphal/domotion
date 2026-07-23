@@ -65,8 +65,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   width keyframes through the exact per-char painted edges (cleared on
   command; translucent-blue default). Standalone z-order contract: selection
   paints ABOVE the text (highlight-marker look); behind-glyph editor selection
-  arrives with the compressor's merged emission. Verified by a rasterized-SVG
-  e2e (caret ink at resolved x ±1.5px, sweep growth, hide).
+  arrives with the compressor's merged emission. Opt-in block-caret **glyph
+  inversion** (`invert`, DM-1755): a solid block with the covered character
+  re-emitted on top in the inverse ink (`invertTextColor`, default white) via
+  `renderTextAsPath` in paths mode, per-waypoint layers that swap the covered
+  glyph as the caret moves and blink together — the terminal/editor block-cursor
+  look; additive/byte-identical when off. Verified by a rasterized-SVG e2e
+  (caret ink at resolved x ±1.5px, sweep growth, hide; block-invert solid-block
+  + inverse-glyph + waypoint swap).
 
 - **Doc 102 (`docs/102-editing-page-rig-cookbook.md`, DM-1748)** —
   **Shipped.** The authoring cookbook written from the rebuilt flagship
