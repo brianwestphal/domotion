@@ -1,6 +1,8 @@
 # 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
 
-Status: **Design** (nothing in this doc is implemented). This is the requirements +
+Status: **Design; Primitive 2 shipped** (the caret + selection track is
+implemented — see `docs/101-caret-selection-track.md`; the compressor, the
+fold-ins, and the config surface remain design). This is the requirements +
 design reference for making editor-style typing/editing sequences (an IDE window
 typed into and edited, with syntax coloring, selection, mid-line inserts that
 reflow trailing text) first-class in the animate pipeline. Plain text is the
@@ -244,7 +246,11 @@ regardless of (and before) everything above:
 1. **Fold-ins** — `holdToFrameEnd`; baseline anchor. Small, independent,
    landable immediately. (days)
 2. **Caret + selection track** — standalone primitive per the section above.
-   (~2–4 days)
+   **Shipped** — `docs/101-caret-selection-track.md`: node-side addressing
+   over captured `xOffsets` (`src/animation/text-address.ts`), the caret /
+   selection emission (`src/animation/caret-track.ts`), and the
+   `AnimationConfig.textTracks` wiring, verified by rasterized-SVG e2e. Its
+   declarative config sugar lands with stage 4.
 3. **Compressor v1** — the opt-in run block: maximal marked continue+cut runs →
    per-line order-preserving glyph alignment (LCS on (char, fill), tight position
    tolerance, re-emit on any doubt) → union emission at birth positions +
@@ -278,6 +284,9 @@ of to a bespoke renderer, if config-only authoring is ever wanted.
 
 ## Related
 
+- `docs/101-caret-selection-track.md` — the SHIPPED caret + selection track
+  (Primitive 2 above): addressing engine, event vocabulary, emission model,
+  z-order contract, and v1 limits.
 - `docs/93-realistic-typing.md` — the typing overlay (measured advances, shared
   reveal plan, glyph paths, `typeResample`); the fold-ins land there.
 - `docs/97-caret-shapes.md` / `src/animation/caret-metrics.ts` — shared caret

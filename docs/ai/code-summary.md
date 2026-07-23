@@ -62,6 +62,11 @@ shortest possible map:
   nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96) — crisp at
   any zoom instead of a rasterized `<image data:image/svg+xml>`.
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
+  the **caret + selection track** (doc 101): `text-address.ts` (node-side
+  `{ target, charOffset }` / range resolution against the captured tree —
+  code-point offsets over segment `xOffsets`) and `caret-track.ts`
+  (`resolveTextTrack` / `textTrackMarkup` — blinking caret + selection sweep
+  as global-timeline CSS, consumed via `AnimationConfig.textTracks`) +
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
   (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed
   layers), `embed-namespace.ts` (per-layer name namespacing), `embed-timeline.ts`

@@ -42,8 +42,25 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Design only** (not
-  shipped). Editor-style typing/editing sequences, redesigned (7/23) around
+- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744)** — **Shipped**
+  (engine + programmatic wiring; the declarative config surface is a follow-up
+  stage). The caret + selection track from doc 100's "Primitive 2", standalone
+  (not gated on the compressor): node-side addressing of `{ target,
+  charOffset }` / ranges against the captured tree (code-point offsets over
+  per-code-unit segment `xOffsets` — Chromium's painted x; baseline from
+  captured `fontAscent`; input-value synthesis for form fields; fontkit
+  advance fallback), resolved caller-side into `AnimationConfig.textTracks`
+  and emitted as global-timeline CSS: step-end caret waypoints with
+  `caretShapeRect` geometry (bar/block/underscore, docs/97), the standard
+  ~1.06 s blink on a nested group, and per-run selection rects swept by
+  width keyframes through the exact per-char painted edges (cleared on
+  command; translucent-blue default). Standalone z-order contract: selection
+  paints ABOVE the text (highlight-marker look); behind-glyph editor selection
+  arrives with the compressor's merged emission. Verified by a rasterized-SVG
+  e2e (caret ink at resolved x ±1.5px, sweep growth, hide).
+
+- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Design; Primitive
+  2 shipped** (doc 101). Editor-style typing/editing sequences, redesigned (7/23) around
   captured states rather than a synthetic document model: the capture page stays
   the document model (per-state continue+cut frames — real reflow, real syntax
   coloring), and two primitives fix that model's measured costs: (1) a

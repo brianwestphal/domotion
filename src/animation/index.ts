@@ -36,6 +36,31 @@ export {
   type IntraFrameAnimation,
 } from "./animator.js";
 
+// Caret + selection track (docs/101): node-side captured-text addressing plus
+// the declarative caret / selection track `generateAnimatedSvg` layers above
+// frame content via `AnimationConfig.textTracks`.
+export {
+  resolveCaretPoint,
+  resolveRangeRects,
+  findAddressedElement,
+  addressableLength,
+  type TextAddressTarget,
+  type CaretPoint,
+  type SelectionRectPlan,
+  type RangeRects,
+} from "./text-address.js";
+export {
+  resolveTextTrack,
+  textTrackMarkup,
+  CARET_BLINK_MS,
+  DEFAULT_SELECTION_COLOR,
+  type TextTrackSpec,
+  type TextTrackSpecEvent,
+  type ResolvedTextTrack,
+  type ResolvedCaretWaypoint,
+  type ResolvedSelection,
+} from "./caret-track.js";
+
 export {
   cursorOverlayMarkup,
   resolveCursorScript,

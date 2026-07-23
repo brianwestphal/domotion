@@ -268,6 +268,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/animation/cursor-overlay.test.ts"],
   },
   {
+    id: "animate.text-track",
+    behavior: "Caret + selection track: node-side captured-text addressing (code-point offsets over segment xOffsets) → blinking caret (bar/block/underscore) + sweeping selection rects as global-timeline CSS, layered via AnimationConfig.textTracks.",
+    doc: "docs/101-caret-selection-track.md",
+    exports: ["resolveCaretPoint", "resolveRangeRects", "findAddressedElement", "addressableLength", "resolveTextTrack", "textTrackMarkup"],
+    tests: ["src/animation/text-address.test.ts", "src/animation/caret-track.test.ts", "tests/caret-track.e2e.test.ts"],
+  },
+  {
     id: "animate.interaction-state",
     behavior: "Force real CSS pseudo-state (:hover / :active / :focus) on selectors via CDP CSS.forcePseudoState before capture, so a frame paints the page's OWN interaction styling — the animate config's per-frame `forceState` and the imperative `applyForcedPseudoStates` primitive.",
     doc: "docs/94-interaction-state-capture.md",

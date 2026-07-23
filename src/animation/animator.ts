@@ -24,6 +24,7 @@ import { interpolateCssValue, resolveEasing } from "./easing.js";
 import { resolveEasingPreset } from "./motion-presets.js";
 import { buildShineSweep } from "./shine.js";
 import { barCaretHeightPx, caretShapeRect, type CaretShape } from "./caret-metrics.js";
+import { textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -180,6 +181,15 @@ export interface AnimationConfig {
    * when omitted, the overlay paints the single arrow.
    */
   resolveCursorAt?: CursorAtResolver;
+  /**
+   * Caret + selection tracks (docs/101): declarative caret / selection
+   * rendering anchored to captured text, resolved caller-side against the
+   * frame's captured tree via `resolveTextTrack` (the magic-move precedent —
+   * built from the element trees, consumed here as resolved geometry). Layered
+   * above every frame group and below the cursor overlay. Times inside each
+   * track are ms on the animation's global timeline.
+   */
+  textTracks?: ResolvedTextTrack[];
   /**
    * Canvas background color painted behind every frame (a full-viewport
    * `<rect>`). Mirrors the single-frame path's `transparentRootBgRect`
@@ -1441,6 +1451,15 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     );
     overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration, resolved.cursorTimeline);
   }
+  // Caret + selection tracks (docs/101): above every frame group, below the
+  // cursor overlay (a demo's pointer stays the topmost paint).
+  let textTrackMarkupStr = "";
+  if (config.textTracks != null && config.textTracks.length > 0) {
+    const rendered = config.textTracks
+      .map((t, i) => textTrackMarkup(t, totalDuration, i))
+      .filter((s) => s !== "");
+    if (rendered.length > 0) textTrackMarkupStr = "\n" + rendered.join("\n");
+  }
   // Canvas background rect — only when a non-transparent background is given.
   // Default (none / transparent) emits nothing so the SVG composites over the
   // host page, matching the single-frame `transparentRootBgRect` path (DM-554).
@@ -1466,7 +1485,7 @@ ${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss +
     ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
-${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n" + shineTransitionGroups.join("\n") : ""}${overlayMarkup}
+${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n" + shineTransitionGroups.join("\n") : ""}${textTrackMarkupStr}${overlayMarkup}
   </g>
 </svg>`;
   return out;
