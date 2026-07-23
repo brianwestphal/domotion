@@ -307,7 +307,38 @@ function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" |
 // fetched on demand: when the browser requests one that isn't cached yet, we
 // download just the containing shard's artifact and extract its PNGs.
 
-interface CiSourceMeta { runId: string; os: string; suite: string }
+interface CiSourceMeta {
+  runId: string;
+  os: string;
+  suite: string;
+  /** DM-1741: when set, images + metadata come from the public
+   *  `domotion-ci-images` repo at this immutable commit sha (per-file
+   *  raw.githubusercontent fetches, CDN-backed) instead of whole-shard
+   *  Actions-artifact downloads. */
+  sha?: string;
+}
+
+// DM-1741: the disposable public repo CI pushes each full run's images to —
+// one single-commit orphan branch per `<suite>-<os>` (see visual-tests.yml's
+// "Push images to domotion-ci-images" step). Branch tips are resolved to a
+// COMMIT SHA once per refresh so every file fetch is immutable (perfect CDN
+// caching, no force-push staleness).
+const CI_IMAGES_REPO = "brianwestphal/domotion-ci-images";
+async function resolveImagesRepoSha(ciSuite: string, os: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("gh", ["api", `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${os}`,
+      "--jq", ".object.sha"], { ...GH_OPTS, encoding: "utf8" });
+    const sha = stdout.trim();
+    return /^[0-9a-f]{40}$/.test(sha) ? sha : null;
+  } catch { return null; } // branch absent (no full run pushed yet) / gh unavailable
+}
+async function fetchImagesRepoFile(sha: string, fname: string): Promise<Buffer | null> {
+  try {
+    const r = await fetch(`https://raw.githubusercontent.com/${CI_IMAGES_REPO}/${sha}/${fname}`);
+    if (!r.ok) return null;
+    return Buffer.from(await r.arrayBuffer());
+  } catch { return null; }
+}
 
 function readCiSourceMeta(root: string, suite: SuiteName): CiSourceMeta | null {
   const p = resolve(suiteDir(root, suite), ".ci-source.json");
@@ -412,6 +443,27 @@ const inflightMetaFetches = new Map<string, Promise<void>>();
 async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Promise<void> {
   const ciSuite = ciSuiteName(suite);
   if (ciSuite == null) return; // features/showcase/real-world aren't CI-swept
+  // DM-1741: prefer the images repo — always a FULL run (partial dispatches
+  // never push), per-file access, and immutable once resolved to a sha.
+  const sha = await resolveImagesRepoSha(ciSuite, os);
+  if (sha != null) {
+    const dest = suiteDir(root, suite);
+    const existing = readCiSourceMeta(root, suite);
+    if (existing?.sha === sha && existsSync(resolve(dest, "results.json"))) return;
+    const [results, metaBuf] = await Promise.all([
+      fetchImagesRepoFile(sha, "results.json"),
+      fetchImagesRepoFile(sha, "meta.json"),
+    ]);
+    if (results != null) {
+      let runId = sha.slice(0, 12);
+      try { runId = String((JSON.parse(metaBuf?.toString("utf8") ?? "{}") as { runId?: string }).runId ?? runId); } catch { /* keep sha tag */ }
+      mkdirSync(dest, { recursive: true });
+      writeFileSync(resolve(dest, "results.json"), results);
+      writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite, sha }));
+      console.log(`  ✓ ${os} ${ciSuite} metadata from ${CI_IMAGES_REPO}@${sha.slice(0, 8)} (run ${runId})`);
+      return;
+    }
+  }
   const runId = await resolveLatestRun(ciSuite);
   if (runId == null) return;
   const dest = suiteDir(root, suite);
@@ -475,6 +527,7 @@ function startShardPrefetch(sourceId: string): void {
     for (const suite of ["html-test", "html-test-unicode"] as SuiteName[]) {
       const meta = readCiSourceMeta(root, suite);
       if (meta == null) continue;
+      if (meta.sha != null) continue; // DM-1741: images-repo — per-file fetches are fast, no bulk prefetch needed
       const key = `${meta.runId}:${meta.os}:${suite}`;
       if (prefetchStarted.has(key)) continue;
       prefetchStarted.add(key);
@@ -867,7 +920,16 @@ async function main(): Promise<void> {
         // the download continues in the background (inflight-deduped).
         if (!existsSync(filePath) && fname.endsWith(".png")) {
           const meta = readCiSourceMeta(root, suite as SuiteName);
-          if (meta != null) {
+          // DM-1741: images-repo transport — fetch just this file (CDN,
+          // immutable sha) and cache it. Orders of magnitude lighter than the
+          // shard-artifact path below.
+          if (meta?.sha != null) {
+            const buf = await fetchImagesRepoFile(meta.sha, decodeURIComponent(fname));
+            if (buf != null) {
+              mkdirSync(suiteDir(root, suite as SuiteName), { recursive: true });
+              writeFileSync(filePath, buf);
+            }
+          } else if (meta != null) {
             const fixtureBase = decodeURIComponent(fname).replace(/-(expected|actual|diff)\.png$/, "");
             const shard = shardForFixture(root, suite as SuiteName, fixtureBase);
             if (shard != null) {

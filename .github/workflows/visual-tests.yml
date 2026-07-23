@@ -269,3 +269,47 @@ jobs:
             shard-artifacts/baseline-*.json
             shard-artifacts/**/*-diff.png
           if-no-files-found: warn
+      # DM-1741: push each OS's full image set (expected/actual/diff PNGs +
+      # slim results + provenance meta) to the disposable public
+      # `domotion-ci-images` repo — one single-commit orphan branch per
+      # `<suite>-<os>`, force-pushed, latest-run-only. The local review tool
+      # fetches INDIVIDUAL files from raw.githubusercontent.com (CDN, per-file)
+      # instead of downloading whole multi-hundred-MB shard artifacts.
+      # Gated on a full run: partial `--only` debug dispatches never push, so
+      # the branches always hold a complete sweep.
+      - name: Push images to domotion-ci-images
+        if: ${{ inputs.only == '' }}
+        env:
+          CI_IMAGES_DEPLOY_KEY: ${{ secrets.CI_IMAGES_DEPLOY_KEY }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_SHA: ${{ github.sha }}
+          SUITE: ${{ inputs.suite }}
+        run: |
+          if [ -z "$CI_IMAGES_DEPLOY_KEY" ]; then
+            echo "CI_IMAGES_DEPLOY_KEY secret not set — skipping image push"; exit 0
+          fi
+          mkdir -p ~/.ssh
+          printf %s "$CI_IMAGES_DEPLOY_KEY" > ~/.ssh/ci_images_key
+          printf "\n" >> ~/.ssh/ci_images_key
+          chmod 600 ~/.ssh/ci_images_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/ci_images_key -o IdentitiesOnly=yes"
+          for os in macos linux windows; do
+            slim="shard-artifacts/results-$os.slim.json"
+            [ -f "$slim" ] || continue
+            stage=$(mktemp -d)
+            # Every shard dir for this OS contributes its PNGs (flat layout —
+            # fixture filenames are unique per suite).
+            find shard-artifacts -type d -name "results-$os-shard*" | while read -r d; do
+              find "$d" -name "*.png" -exec cp {} "$stage/" ";"
+            done
+            cp "$slim" "$stage/results.json"
+            node -e "require(\"fs\").writeFileSync(process.argv[1] + \"/meta.json\", JSON.stringify({ runId: process.env.GH_RUN_ID, commit: process.env.GH_SHA, suite: process.env.SUITE, os: process.argv[2], pushedAt: new Date().toISOString() }))" "$stage" "$os"
+            branch="$SUITE-$os"
+            git -C "$stage" init -q -b "$branch"
+            git -C "$stage" -c user.name="domotion-ci" -c user.email="ci@invalid" add -A
+            git -C "$stage" -c user.name="domotion-ci" -c user.email="ci@invalid" commit -qm "run $GH_RUN_ID @ $GH_SHA"
+            git -C "$stage" push -q --force git@github.com:brianwestphal/domotion-ci-images.git "HEAD:refs/heads/$branch"
+            echo "pushed $(find "$stage" -name "*.png" | wc -l) PNGs to $branch"
+            rm -rf "$stage"
+          done
