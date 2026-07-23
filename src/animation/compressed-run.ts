@@ -74,9 +74,14 @@
  * ancestor, LTR only, and text rects fully inside every overflow-clipping
  * ancestor. Everything else stays in the chrome layer and re-emits per state.
  *
+ * A whole line that MOVES vertically (insertLine pushing later lines down, a
+ * wrap point moving) is paired across the move by `pairBuckets` and rides a
+ * `translateY` waypoint instead of dying and re-birthing — see that function
+ * for the two-phase, order-preserving matching.
+ *
  * v1 limitations (documented in docs/100): states are captured statics
  * (intra-frame animations / cursor-overlay addressing inside a run are
- * unsupported); a line that moves vertically re-emits (no cross-line identity);
+ * unsupported);
  * coding-ligature fonts may unligate across a split boundary; the run is
  * emitted whole (no viewBox culling inside the run — the outer animator can
  * still cull the frame as one unit); the default embedded-font render mode is
@@ -478,6 +483,10 @@ interface ThreadedGlyph {
   death: number;
   /** Painted x per state from birth (always from captures, never accumulated). */
   xs: number[];
+  /** Line-box top y per state from birth (cross-line identity: a whole line
+   *  that moves vertically is paired across the move and its groups ride a
+   *  `translateY` waypoint instead of dying + re-birthing). */
+  ys: number[];
   fills: string[];
 }
 
@@ -489,6 +498,108 @@ interface ThreadResult {
   recolored: number;
   births: number;
   deaths: number;
+}
+
+/** Numeric line-box top of a live bucket (its glyphs share a current y). */
+function liveBucketY(glyphs: ThreadedGlyph[]): number {
+  const g = glyphs[0];
+  return g.ys[g.ys.length - 1];
+}
+
+/** Content signature of a line: (char, styleKey, x-relative-to-line-start) per
+ *  glyph in visual order — position-invariant in y, so a line that moved only
+ *  vertically matches its former self, while a line with different content or
+ *  indentation does not. */
+function lineSignature(items: Array<{ ch: string; styleKey: string; x: number }>): string {
+  if (items.length === 0) return "";
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  const minX = sorted[0].x;
+  return sorted.map((g) => `${g.ch} ${g.styleKey} ${round2(g.x - minX)}`).join("");
+}
+
+interface BucketPairing {
+  prev: ThreadedGlyph[];
+  next: GlyphRec[];
+  /** The destination (next-state) line key survivors are re-bucketed under. */
+  key: string;
+}
+
+interface LiveBucket { k: string; glyphs: ThreadedGlyph[]; y: number; sig: string }
+interface NextBucket { k: string; recs: GlyphRec[]; y: number; sig: string }
+
+/**
+ * Pair live line buckets to the next state's line buckets, allowing a whole
+ * line to have moved vertically (insertLine pushing later lines down; a wrap
+ * point moving). Two phases, order-preserving so identical lines can't mispair:
+ *
+ *  A. **Exact-content match, nearest |Δy| (prefer Δ=0)** — each live bucket
+ *     claims the unused next bucket with EQUAL signature (char + styleKey +
+ *     x-relative-to-line-start; fill and absolute position excluded) at the
+ *     smallest vertical shift. An unmoved line matches at Δ=0; a moved line
+ *     matches at its shift; two identical lines each prefer their own y, so no
+ *     spurious crossing is invented. A mid-file insert (some lines Δ=0, the
+ *     rest Δ=+lineHeight) is handled per-line, no single global scroll needed.
+ *     The set of non-zero Δ's seen here is the block's move deltas.
+ *  B. **Edited lines** — a live bucket whose content changed has no exact
+ *     match; pair it with the unused next bucket at the SAME y (an in-place
+ *     edit, the v1 path), else at `y + Δ` for a phase-A move delta (a line that
+ *     moved AND was edited in the same state — its siblings established Δ; the
+ *     per-glyph LCS then sorts out the edit).
+ * Anything still unpaired dies (leftover live) or is born (leftover next).
+ */
+function pairBuckets(live: Map<string, ThreadedGlyph[]>, next: Map<string, GlyphRec[]>): BucketPairing[] {
+  const result: BucketPairing[] = [];
+  const liveArr: LiveBucket[] = [...live.entries()]
+    .map(([k, glyphs]) => ({ k, glyphs, y: liveBucketY(glyphs), sig: lineSignature(glyphs.map((t) => ({ ch: t.rec.ch, styleKey: t.rec.styleKey, x: t.xs[t.xs.length - 1] }))) }))
+    .sort((a, b) => a.y - b.y);
+  const nextArr: NextBucket[] = [...next.entries()]
+    .map(([k, recs]) => ({ k, recs, y: recs[0].segY, sig: lineSignature(recs.map((g) => ({ ch: g.ch, styleKey: g.styleKey, x: g.x }))) }))
+    .sort((a, b) => a.y - b.y);
+  const usedLive = new Set<string>();
+  const usedNext = new Set<string>();
+  const deltas = new Set<number>();
+
+  // Phase A: exact-content match at the nearest vertical shift (prefer Δ=0).
+  for (const L of liveArr) {
+    if (L.sig === "") continue;
+    let best: NextBucket | null = null;
+    let bestAbs = Infinity;
+    for (const Nn of nextArr) {
+      if (usedNext.has(Nn.k) || Nn.sig !== L.sig) continue;
+      const ad = Math.abs(round2(Nn.y - L.y));
+      if (ad < bestAbs || (ad === bestAbs && best != null && Nn.y < best.y)) { bestAbs = ad; best = Nn; }
+    }
+    if (best != null) {
+      result.push({ prev: L.glyphs, next: best.recs, key: best.k });
+      usedLive.add(L.k);
+      usedNext.add(best.k);
+      const d = round2(best.y - L.y);
+      if (d !== 0) deltas.add(d);
+    }
+  }
+
+  // Phase B: edited lines — same y, else a phase-A move delta.
+  const sortedDeltas = [...deltas].sort((a, b) => Math.abs(a) - Math.abs(b));
+  for (const L of liveArr) {
+    if (usedLive.has(L.k)) continue;
+    let cand = nextArr.find((Nn) => !usedNext.has(Nn.k) && round2(Nn.y) === round2(L.y));
+    if (cand == null) {
+      for (const d of sortedDeltas) {
+        const c = nextArr.find((Nn) => !usedNext.has(Nn.k) && round2(Nn.y) === round2(L.y + d));
+        if (c != null) { cand = c; break; }
+      }
+    }
+    if (cand != null) {
+      result.push({ prev: L.glyphs, next: cand.recs, key: cand.k });
+      usedLive.add(L.k);
+      usedNext.add(cand.k);
+    }
+  }
+
+  // Remainders: leftover live dies, leftover next is born.
+  for (const L of liveArr) if (!usedLive.has(L.k)) result.push({ prev: L.glyphs, next: [], key: L.k });
+  for (const Nn of nextArr) if (!usedNext.has(Nn.k)) result.push({ prev: [], next: Nn.recs, key: Nn.k });
+  return result;
 }
 
 function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult {
@@ -507,7 +618,7 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
 
   for (const g of bucket(perState[0] ?? []).values()) {
     for (const rec of g) {
-      const t: ThreadedGlyph = { rec, birth: 0, death: stateCount, xs: [rec.x], fills: [rec.fill] };
+      const t: ThreadedGlyph = { rec, birth: 0, death: stateCount, xs: [rec.x], ys: [rec.segY], fills: [rec.fill] };
       all.push(t);
       const arr = live.get(rec.lineKey);
       if (arr != null) arr.push(t);
@@ -523,10 +634,10 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
     const nextLive = new Map<string, ThreadedGlyph[]>();
     const lineChanges = new Map<string, { births: GlyphRec[]; deaths: ThreadedGlyph[] }>();
     let stateRecolors = 0;
-    const keys = new Set([...live.keys(), ...nextBuckets.keys()]);
-    for (const key of keys) {
-      const prevList = (live.get(key) ?? []).slice().sort((a, b) => a.xs[a.xs.length - 1] - b.xs[b.xs.length - 1]);
-      const nextList = nextBuckets.get(key) ?? [];
+    for (const pairing of pairBuckets(live, nextBuckets)) {
+      const key = pairing.key;
+      const prevList = pairing.prev.slice().sort((a, b) => a.xs[a.xs.length - 1] - b.xs[b.xs.length - 1]);
+      const nextList = pairing.next;
       totalNext += nextList.length;
       const prevSeq: AlignGlyph[] = prevList.map((t) => ({ ch: t.rec.ch, x: t.xs[t.xs.length - 1], fill: t.fills[t.fills.length - 1], styleKey: t.rec.styleKey }));
       const nextSeq: AlignGlyph[] = nextList.map((g) => ({ ch: g.ch, x: g.x, fill: g.fill, styleKey: g.styleKey }));
@@ -537,6 +648,7 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
         const t = prevList[p.prevIndex];
         const g = nextList[p.nextIndex];
         t.xs.push(g.x);
+        t.ys.push(g.segY);
         t.fills.push(g.fill);
         survivors.push(t);
         paired++;
@@ -550,7 +662,7 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
       }
       for (const idx of align.unpairedNext) {
         const rec = nextList[idx];
-        const t: ThreadedGlyph = { rec, birth: s, death: stateCount, xs: [rec.x], fills: [rec.fill] };
+        const t: ThreadedGlyph = { rec, birth: s, death: stateCount, xs: [rec.x], ys: [rec.segY], fills: [rec.fill] };
         all.push(t);
         survivors.push(t);
         changes.births.push(rec);
@@ -652,8 +764,9 @@ function buildGlyphGroups(threaded: ThreadedGlyph[], uid: string): GlyphGroup[] 
   for (const t of threaded) {
     if (t.rec.isWs) continue; // whitespace pairs (alignment quality) but paints nothing
     const dxTl = t.xs.map((x) => round2(x - t.xs[0])).join(",");
+    const dyTl = t.ys.map((y) => round2(y - t.ys[0])).join(",");
     const fillTl = t.fills.join("~");
-    const key = [t.birth, t.death, t.rec.lineKey, t.rec.styleKey, round2(t.rec.segY), round2(t.rec.segHeight), round2(t.rec.ascent), dxTl, fillTl].join("§");
+    const key = [t.birth, t.death, t.rec.lineKey, t.rec.styleKey, round2(t.rec.segY), round2(t.rec.segHeight), round2(t.rec.ascent), dxTl, dyTl, fillTl].join("§");
     const arr = byKey.get(key);
     if (arr != null) arr.push(t);
     else byKey.set(key, [t]);
@@ -684,6 +797,11 @@ function groupElement(group: GlyphGroup): CapturedElement {
   const last = group.glyphs[group.glyphs.length - 1];
   const minX = first.xs[first.xs.length - 1];
   const right = last.xs[last.xs.length - 1] + last.rec.advance;
+  // Final-state line-box top (cross-line moves anchor at their end position,
+  // same rest-at-identity rule as the x anchor; a static line's final y equals
+  // its birth segY, so non-moving output is unchanged).
+  const finalY = first.ys[first.ys.length - 1];
+  const dyTotal = finalY - first.ys[0];
   const text = group.glyphs.map((t) => t.rec.ch).join("");
   const xOffsets: number[] = [];
   for (const t of group.glyphs) {
@@ -694,7 +812,7 @@ function groupElement(group: GlyphGroup): CapturedElement {
   const seg: TextSegment = {
     text,
     x: minX,
-    y: first.rec.segY,
+    y: finalY,
     width: right - minX,
     height: first.rec.segHeight,
     xOffsets,
@@ -708,12 +826,19 @@ function groupElement(group: GlyphGroup): CapturedElement {
   };
   const el = glyphBase(first.rec.srcEl);
   el.x = minX;
-  el.y = first.rec.segY;
+  el.y = finalY;
   el.width = right - minX;
   el.height = first.rec.segHeight;
   el.text = text;
   el.animId = group.id;
   el.textSegments = [seg];
+  // The single-line render path anchors the baseline at `textTop` (a capture
+  // artifact carried from the birth-state source element), NOT at el.y/seg.y —
+  // so a cross-line-moved group must shift its textTop by the group's total
+  // vertical move to rest at its FINAL y. dyTotal ≡ 0 for a static line, so
+  // non-moving output is byte-identical. textLeft is unaffected: horizontal
+  // shifts ride the absolute xOffsets, which land independent of textLeft.
+  if (el.textTop != null) el.textTop += dyTotal;
   return el;
 }
 
@@ -1000,14 +1125,24 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
       if (a != null) anims.push(a);
     }
     {
-      // Anchor at the final captured x (groupElement above): the offset is
+      // Anchor at the final captured x/y (groupElement above): the offset is
       // measured BACKWARD from the last state, so the resting 100% waypoint is
-      // translateX(0) — the run exits at identity and cuts byte-identically.
-      const anchor = first.xs[first.xs.length - 1];
+      // identity — the run exits at identity and cuts byte-identically. A line
+      // that moved vertically also rides a translateY; a static line never does
+      // (dy ≡ 0), so its transform stays the exact `translateX(...)` v1 emitted.
+      const anchorX = first.xs[first.xs.length - 1];
+      const anchorY = first.ys[first.ys.length - 1];
+      const moves = first.ys.some((y) => round2(y - anchorY) !== 0);
       const dxs: string[] = [];
       for (let s = 0; s < stateCount; s++) {
         const idx = Math.max(0, Math.min(first.xs.length - 1, s - group.birth));
-        dxs.push(`translateX(${round2(first.xs[idx] - anchor)}px)`);
+        const dx = round2(first.xs[idx] - anchorX);
+        if (moves) {
+          const dy = round2(first.ys[idx] - anchorY);
+          dxs.push(`translate(${dx}px,${dy}px)`);
+        } else {
+          dxs.push(`translateX(${dx}px)`);
+        }
       }
       const a = css.track("transform", dxs, boundaries);
       if (a != null) anims.push(a);

@@ -337,6 +337,94 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     }
   }, 300_000);
 
+  it("cross-line identity: an insertLine pushes N lines down and they PAIR across the move (translateY), matching the flipbook", async () => {
+    const { browser } = env!;
+    const LW = 420, LH = 220;
+    const LINEPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; width: ${LW}px; height: ${LH}px; background: #101820; }
+      #code { position: absolute; left: 16px; top: 16px; color: #e2e8f0;
+        font-family: Menlo, ui-monospace, monospace; font-size: 13px; line-height: 19px; }
+      .ln { white-space: pre; height: 19px; }
+    </style></head><body><div id="code"></div>
+    <script>
+      var BASE = ['const alpha = 1;','const beta = 2;','const gamma = 3;','const delta = 4;','const eps = 5;'];
+      window.render = function(rows){ document.getElementById('code').innerHTML = rows.map(function(r){ return '<div class="ln">'+r+'</div>'; }).join(''); };
+      window.s0 = function(){ render(BASE); };
+      window.s1 = function(){ render(['const NEW = 0;'].concat(BASE)); };
+      window.s0();
+    </script></body></html>`;
+    const ctx = await browser.newContext({ viewport: { width: LW, height: LH }, deviceScaleFactor: 1 });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(LINEPAGE, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const trees: CapturedElement[][] = [];
+      trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: LW, height: LH }));
+      await page.evaluate(() => (window as unknown as { s1: () => void }).s1());
+      trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: LW, height: LH }));
+
+      const holds = [400, 600];
+      const boundaries = [0, holds[0]];
+      const rootBg = "rgb(16, 24, 32)";
+      const logs: string[] = [];
+      const run = composeCompressedRun(
+        trees.map((tree, i) => ({ tree, holdMs: holds[i] })),
+        { width: LW, height: LH, idPrefix: "xl0", background: rootBg, log: (m) => logs.push(m) },
+      );
+      const stats = run.pairingStats;
+      // eslint-disable-next-line no-console
+      console.log(`[cross-line e2e] ${logs[0]} | paired=${(stats.pairedPct * 100).toFixed(1)}% births=${stats.births} deaths=${stats.deaths} groups=${stats.groupCount} | rawBytes=${stats.rawBytes} compressedBytes=${stats.compressedBytes} (${(stats.compressedBytes / stats.rawBytes).toFixed(2)}× of raw)`);
+
+      // Cross-line identity: the five BASE lines pair across the +19 move, so
+      // NOTHING dies; only the NEW line's inked glyphs are born. Without
+      // cross-line pairing every moved line's glyph would die+rebirth (paired ≈
+      // 0); here the only unpaired glyphs are the genuinely-new inserted line.
+      expect(stats.deaths).toBe(0);
+      expect(stats.pairedPct).toBeGreaterThan(0.8);
+      // The run carries a translateY (the moved lines) — proof the move rode a
+      // transform rather than a death+birth re-emission.
+      expect(run.svg).toMatch(/translate\([-\d.]+px,[-\d.]+px\)/);
+      // Real compression: births are a fraction of the moved+held glyph mass.
+      expect(stats.compressedBytes).toBeLessThan(0.85 * stats.rawBytes);
+
+      // Rasterize both states vs the uncompressed flipbook — pixel parity.
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      const frames = trees.map((tree, i) => ({
+        svgContent: elementTreeToSvgInner(structuredClone(tree), LW, LH, `xf${i}-`, true, 2, false),
+        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+      }));
+      const flipbookSvg = generateAnimatedSvg({ width: LW, height: LH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const embedded = namespaceEmbeddedAnimatedSvg(run.svg, "xlcmp");
+      const outerSvg = generateAnimatedSvg({
+        width: LW, height: LH,
+        frames: [{ svgContent: embedded, duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        fontFaceCss: "",
+      });
+      const flipPage = await ctx.newPage();
+      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await flipPage.evaluate(() => document.fonts.ready);
+      const compPage = await ctx.newPage();
+      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await compPage.evaluate(() => document.fonts.ready);
+      const comparePage = await ctx.newPage();
+      mkdirSync(OUT_DIR, { recursive: true });
+      for (let s = 0; s < trees.length; s++) {
+        const t = boundaries[s] + holds[s] / 2;
+        await seekTo(flipPage, t);
+        await seekTo(compPage, t);
+        const expPath = join(OUT_DIR, `xline-${s}-flipbook.png`);
+        const actPath = join(OUT_DIR, `xline-${s}-compressed.png`);
+        writeFileSync(expPath, await flipPage.screenshot({ clip: { x: 0, y: 0, width: LW, height: LH } }));
+        writeFileSync(actPath, await compPage.screenshot({ clip: { x: 0, y: 0, width: LW, height: LH } }));
+        const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `xline-${s}-diff.png`));
+        expect(cmp.regionCount, `state ${s}: cross-line compressed render diverges from the flipbook`).toBe(0);
+      }
+    } finally {
+      await ctx.close();
+    }
+  }, 180_000);
+
   it("behind-glyph selection: the selection rect paints BEHIND the glyph ink (docs/101 true editor z-order)", async () => {
     // A minimal white-on-dark monospace line, selected over the middle chars
     // with an OPAQUE red selection. Behind-glyph z-order is decisive: the glyph

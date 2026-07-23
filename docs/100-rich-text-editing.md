@@ -14,11 +14,11 @@ rebuilt on the new primitives as the committed golden
 (`tests/editor-session.e2e.test.ts`) and measured numbers — see "Flagship
 validation results" below — and the authoring recipe is written up as
 `docs/102-editing-page-rig-cookbook.md`. Automatic run detection is now shipped
-behind the opt-in `autoCompress` flag (below). Behind-glyph selection is also
-shipped (the `selection` option on `composeCompressedRun`; see Primitive 1
-below). Remaining items are the filed follow-ups (locally tracked): the
-complex-interaction cases auto-detection excludes (per-frame
-overlays/cursor/magic-move crossing a run), cross-line identity,
+behind the opt-in `autoCompress` flag (below). Behind-glyph selection (the
+`selection` option on `composeCompressedRun`) and cross-line identity for
+vertically-moved lines are also shipped — see Primitive 1 below. Remaining
+items are the filed follow-ups (locally tracked): the complex-interaction cases
+auto-detection excludes (per-frame overlays/cursor/magic-move crossing a run),
 chrome-variant reopen, the multi-frame `compress: true` form, and the
 caret-track addressing limits (docs/101 v1 limits).
 Since then, **automatic run detection has shipped behind an opt-in flag**
@@ -239,7 +239,22 @@ declarative run-block sugar is the config-surface stage below.
    a `step-end` `display` track (the cull pass's `display: inline ↔ none`
    mechanism — chosen over opacity so the track can't fight a baked
    captured-opacity wrapper). z-order inside chrome is exact.
-2. **Glyph layer** — per-line glyph identities threaded across all N states
+2. **Cross-line identity** — line buckets are paired across states even when a
+   whole line MOVED vertically (an insertLine pushing later lines down, a wrap
+   point moving), so a moved line rides a `translateY` waypoint instead of
+   dying and re-birthing. Two order-preserving phases: each live line claims
+   the next-state line with EQUAL content signature (char + style key +
+   x-relative-to-line-start) at the nearest |Δy|, preferring Δ=0 — so unmoved
+   lines stay put, moved lines match at their shift, two identical lines each
+   prefer their own y (no invented crossing), and a mid-file insert with mixed
+   Δ=0 / Δ=+lineHeight needs no global scroll detection; then a line whose
+   content CHANGED pairs at the same y (in-place edit) or at a Δ established by
+   its moved siblings (a line that moved AND was edited in the same state),
+   with the per-glyph LCS sorting out the edit. Measured on a 5-line insertLine
+   fixture: pairing 53.8% → **84.6%**, deaths 28 → **0**, emitted groups 20 →
+   **6**, run bytes 7,490 → **3,054** (2.45× smaller; the run goes from 1.93×
+   LARGER than the raw flipbook body to 0.79× of it).
+3. **Glyph layer** — per-line glyph identities threaded across all N states
    (the terminal composer's TrackedLine model one level down). Adjacent states
    align per line via order-preserving LCS on (char, style-key) — fill is
    ignored for pairing and diffed into a recolor track; exact painted
@@ -260,11 +275,11 @@ declarative run-block sugar is the config-surface stage below.
    identity" house rule; the transform-composed AA moves onto the transient
    earlier states, which nothing compares against). Keyframe bodies and
    animation lists are content-deduped across groups.
-3. **Auto-caret** (opt-in `caret: true | { shape, color }`, default off) —
+4. **Auto-caret** (opt-in `caret: true | { shape, color }`, default off) —
    the pairing pass knows each state's edit point (after the rightmost typed
    glyph; at the close-up x of a deletion), emitted through the docs/101
    caret-track machinery. The detected `edits` are also returned.
-4. **Behind-glyph selection** (opt-in `selection: CompressedRunSelection |
+5. **Behind-glyph selection** (opt-in `selection: CompressedRunSelection |
    CompressedRunSelection[]`, default off) — docs/101 selection rects
    (`resolveRangeRects`) resolved against each selection's appear-state
    captured tree and emitted **into the chrome↔glyph layer gap**, so the
@@ -305,8 +320,7 @@ prefix pixels byte-stable across all typed states, and the recolor landing in
 place.
 
 **v1 limitations** (each degrades to re-emission or is documented, never wrong
-pixels): no cross-line identity (a vertically-moved line re-emits — automatic
-run detection and line-move tracking are follow-ups); states are captured
+pixels): states are captured
 statics (intra-frame animations / per-state cursor-overlay addressing inside a
 run are unsupported — editing runs have no pointer); coding-ligature fonts may
 unligate across a split boundary (positions stay exact; the glyph shape at the

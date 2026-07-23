@@ -241,14 +241,82 @@ describe("buildCompressedRunPlan — identity threading", () => {
     expect(plan.edits[1].lineTop).toBe(119);
   });
 
-  it("a vertically-moved line re-emits (no cross-line identity in v1)", () => {
+  it("a vertically-moved line pairs across the move and rides a translateY (cross-line identity)", () => {
     const plan = buildCompressedRunPlan([
       state([box([lineEl("hello", { y: 100 })])]),
       state([box([lineEl("hello", { y: 119 })])]),
     ]);
-    // Different line buckets → all 5 die + 5 born.
-    expect(plan.thread.deaths).toBe(5);
-    expect(plan.thread.births).toBe(5);
+    // The whole line pairs across the +19 move: no death, no birth.
+    expect(plan.thread.deaths).toBe(0);
+    expect(plan.thread.births).toBe(0);
+    expect(plan.thread.paired).toBe(5);
+    // Every glyph's y timeline records the move; x is unchanged.
+    const h = ident(plan, "h")[0];
+    expect(h.ys).toEqual([100, 119]);
+    expect(h.xs[1] - h.xs[0]).toBeCloseTo(0, 6);
+    // One group carries the whole moved line.
+    expect(plan.groups.length).toBe(1);
+  });
+});
+
+describe("buildCompressedRunPlan — cross-line identity (vertical line moves)", () => {
+  it("insertLine: a new top line births and pushes N lines down, each paired via one uniform delta", () => {
+    const three = (a: string, b: string, c: string, ys: [number, number, number]) =>
+      [box([lineEl(a, { y: ys[0] }), lineEl(b, { y: ys[1] }), lineEl(c, { y: ys[2] })])];
+    const plan = buildCompressedRunPlan([
+      state(three("alpha;", "beta;", "gamma;", [100, 119, 138])),
+      // A new line inserted at top pushes all three down by +19.
+      state([box([
+        lineEl("NEW();", { y: 100 }),
+        lineEl("alpha;", { y: 119 }),
+        lineEl("beta;", { y: 138 }),
+        lineEl("gamma;", { y: 157 }),
+      ])]),
+    ]);
+    // The three existing lines pair across the +19 move (no deaths); only the
+    // new line's glyphs are born.
+    expect(plan.thread.deaths).toBe(0);
+    expect(plan.thread.births).toBe("NEW();".length);
+    const a = ident(plan, "a").find((t) => t.rec.ch === "a" && t.ys[0] === 100)!;
+    expect(a.ys).toEqual([100, 119]);
+    const g = ident(plan, "g")[0];
+    expect(g.ys).toEqual([138, 157]);
+  });
+
+  it("two identical lines swapping positions do NOT invent a cross-line move (order-preserving)", () => {
+    // Both y's hold the same content in both states, so both are same-key
+    // matches — no leftover buckets, no spurious translateY, no death/birth.
+    const two = () => [box([lineEl("same;", { y: 100 }), lineEl("same;", { y: 119 })])];
+    const plan = buildCompressedRunPlan([state(two()), state(two())]);
+    expect(plan.thread.deaths).toBe(0);
+    expect(plan.thread.births).toBe(0);
+    for (const t of plan.thread.all) {
+      expect(t.ys[0]).toBe(t.ys[t.ys.length - 1]); // no y move
+    }
+  });
+
+  it("a line that moves AND is edited in the same state pairs via the block's shared delta", () => {
+    const plan = buildCompressedRunPlan([
+      state([box([lineEl("keep;", { y: 100 }), lineEl("edit;", { y: 119 }), lineEl("tail;", { y: 138 })])]),
+      // Insert a top line: keep/edit/tail all shift +19, and `edit;`→`edXit;`
+      // (a char typed) in the SAME state. keep + tail establish delta +19; the
+      // edited line rides it (LCS handles the inserted glyph).
+      state([box([
+        lineEl("TOP();", { y: 100 }),
+        lineEl("keep;", { y: 119 }),
+        lineEl("edXit;", { y: 138 }),
+        lineEl("tail;", { y: 157 }),
+      ])]),
+    ]);
+    // `keep;` and `tail;` pair exactly across +19; `edit;` pairs across +19 with
+    // one born glyph ('X'). Only 'X' and the new TOP line are births; no deaths.
+    expect(plan.thread.deaths).toBe(0);
+    const X = ident(plan, "X");
+    expect(X).toHaveLength(1);
+    expect(X[0].birth).toBe(1);
+    expect(X[0].rec.segY).toBe(138); // born on the moved line's new y
+    const k = ident(plan, "k").find((t) => t.rec.ch === "k")!;
+    expect(k.ys).toEqual([100, 119]); // moved, paired, not re-emitted
   });
 });
 
