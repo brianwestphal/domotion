@@ -446,7 +446,6 @@ interface DecorationLineCtx {
   decorationColor: string;
   computeGapsAt: (yRel: number, thick: number) => Array<[number, number]>;
   subSegments: (gaps: Array<[number, number]>) => Array<{ x0: number; x1: number }>;
-  dash: (thick: number) => string;
 }
 
 /**
@@ -458,7 +457,7 @@ interface DecorationLineCtx {
  * stay bound to the run's geometry. Body unchanged, so output is byte-identical.
  */
 function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: DecorationLineCtx): string {
-  const { style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments, dash } = ctx;
+  const { style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments } = ctx;
   if (style === "wavy") {
     // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
     //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
@@ -604,9 +603,88 @@ function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: Dec
   const wantSkip = isUnderline && (style == null || style === "solid" || style === "");
   const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
   const subs = subSegments(solidGaps);
+  if (style === "dashed" || style === "dotted") {
+    // Dashed / dotted use Chromium's real dash geometry (see
+    // decorationDashPattern) instead of the old fixed `2t 2t` / `t t`
+    // dasharrays, which painted visibly shorter, denser dashes than Chrome.
+    return subs.map(({ x0, x1 }) => {
+      const pat = decorationDashPattern(style, t, x1 - x0);
+      const px0 = x0 + pat.inset;
+      const px1 = x1 - pat.inset;
+      return `<line x1="${r(px0)}" y1="${r(y)}" x2="${r(px1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${pat.attrs}/>`;
+    }).join("");
+  }
   return subs.map(({ x0, x1 }) =>
-    `<line x1="${r(x0)}" y1="${r(y)}" x2="${r(x1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`
+    `<line x1="${r(x0)}" y1="${r(y)}" x2="${r(x1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"/>`
   ).join("");
+}
+
+/**
+ * DM-1724: Chromium's dashed / dotted decoration-line dash geometry, ported
+ * from `styled_stroke_data.cc` (`DashEffectFromStrokeStyle` +
+ * `SelectBestDashGap`) and `decoration_line_painter.cc` (`DrawLineAsStroke`).
+ * The old fixed `stroke-dasharray="2t 2t"` (dashed) / `"t t"` (dotted)
+ * painted ~10-11 short dashes where Chrome paints ~8 longer ones:
+ *
+ * - Dash geometry is driven by the ROUNDED integer thickness
+ *   (`DrawLineAsStroke`: `dash_thickness = roundf(thickness)`; falls back to
+ *   the float thickness when it rounds to 0), while the painted stroke width
+ *   stays the unrounded value.
+ * - Dashed: dash = ti×(ti≥3 ? 2 : 3), gap = ti×(ti≥3 ? 1 : 2) — thin lines
+ *   get LONGER dashes so they don't read as dots — then the gap is re-fitted
+ *   (`SelectBestDashGap`) so a whole number of dashes spans the run, choosing
+ *   the dash count whose fitted gap deviates least from the ideal.
+ * - A run too short for 2 dashes paints SOLID; a run shorter than
+ *   2·dash + gap paints exactly two proportionally-scaled dashes.
+ * - Dotted with ti ≤ 3 (`StrokeIsDashed`): square dots, intervals {ti, ti},
+ *   no gap fitting. Dotted with ti > 3: ROUND dots — zero-length dashes with
+ *   round caps, gap fitted, pattern `0 (gap + ti − ε)` — and the endpoints
+ *   move IN by ti/2 (`inset`) because the round caps extend past them. The
+ *   dash intervals are computed from the UN-inset length (Blink computes
+ *   `path_length` before the inset).
+ * - Dash phase 0 — the pattern starts at the run's left edge (MakeDash offset
+ *   0), which per-fragment emit already provides.
+ *
+ * Returns SVG attrs to append to the `<line>` plus the per-end `inset`.
+ * Exported for unit testing (not in the package barrel).
+ */
+export function decorationDashPattern(style: "dashed" | "dotted", thickness: number, length: number): { attrs: string; inset: number } {
+  const ti = Math.round(thickness) || thickness;   // dash geometry basis
+  // `SelectBestDashGap` (open path): pick the dash count whose fitted gap is
+  // closest to the ideal gap; a two-dash minimum keeps `minNumGaps ≥ 1`.
+  const selectBestDashGap = (strokeLength: number, dashLength: number, gapLength: number): number => {
+    const available = strokeLength + gapLength;
+    const minNumDashes = Math.floor(available / (dashLength + gapLength));
+    const maxNumDashes = minNumDashes + 1;
+    const minGap = (strokeLength - minNumDashes * dashLength) / (minNumDashes - 1);
+    const maxGap = (strokeLength - maxNumDashes * dashLength) / (maxNumDashes - 1);
+    return (maxGap <= 0) || (Math.abs(minGap - gapLength) < Math.abs(maxGap - gapLength)) ? minGap : maxGap;
+  };
+  const dashed = style === "dashed";
+  if (dashed || ti <= 3) {
+    // `StrokeIsDashed`: dashed at any thickness, dotted only when thin.
+    let dashLen = ti;
+    let gapLen = ti;
+    if (dashed) {
+      dashLen *= ti >= 3 ? 2 : 3;
+      gapLen *= ti >= 3 ? 1 : 2;
+    }
+    if (length <= dashLen * 2) return { attrs: "", inset: 0 };   // no space for dashes → solid
+    const twoDashesWithGap = 2 * dashLen + gapLen;
+    if (length <= twoDashesWithGap) {
+      const m = length / twoDashesWithGap;
+      return { attrs: ` stroke-dasharray="${r(dashLen * m)} ${r(gapLen * m)}"`, inset: 0 };
+    }
+    const gap = dashed ? selectBestDashGap(length, dashLen, gapLen) : gapLen;
+    return { attrs: ` stroke-dasharray="${r(dashLen)} ${r(gap)}"`, inset: 0 };
+  }
+  // Thick dotted: round dots (zero-length round-cap dashes), endpoint inset.
+  const perDot = ti * 2;
+  if (length < perDot) {
+    return { attrs: ` stroke-dasharray="0 ${r(perDot)}" stroke-linecap="round"`, inset: ti / 2 };
+  }
+  const gap = selectBestDashGap(length, ti, ti);
+  return { attrs: ` stroke-dasharray="0 ${r(gap + ti - 0.01)}" stroke-linecap="round"`, inset: ti / 2 };
 }
 
 function renderTextDecoration(opts: TextDecorationOptions): string {
@@ -627,8 +705,6 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const m = getDecorationMetrics(mFontFamily, mFontSize, mFontWeight, mFontStyle, thicknessOverride, underlineOffset);
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
-  const dash = (thick: number) => style === "dashed" ? ` stroke-dasharray="${thick * 2} ${thick * 2}"`
-    : style === "dotted" ? ` stroke-dasharray="${thick} ${thick}"` : "";
   // Skip-ink applies to solid + double + wavy underlines per Chromium's
   // current behaviour (`decoration_line_painter.cc::Paint`; verified against
   // Chrome's painted output for the 20-deep-wavy-underline-descenders
@@ -671,7 +747,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const decorationLineCtx: DecorationLineCtx = {
     // `fontSize` feeds the wavy auto-thickness rule (`max(1, fontSize/10)`)
     // — a decoration-metrics quantity, so the decorating box's size (DM-1723).
-    style, explicitThickness, fontSize: mFontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments, dash,
+    style, explicitThickness, fontSize: mFontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments,
   };
   if (has("underline")) {
     lines.push(emitDecorationLine(baselineY + m.underlineOffsetY, m.underlineThickness, true, decorationLineCtx));
