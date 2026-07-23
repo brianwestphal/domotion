@@ -391,7 +391,19 @@ Examples: frame 1 of `examples/animate/compressed-run/`; the selection frame of 
 
 ---
 
-## 13. Automatic compressed-run detection — `autoCompress` (DM-1757)
+## 13. Compressed-run detection — `autoCompress` (whole config) and `compress` (per run)
+
+There are three ways to get a compressed run, from most explicit to least:
+
+| Surface | Scope | You restructure frames? | Ineligible run |
+| --- | --- | --- | --- |
+| `states: [...]` (§11) | one frame you author | yes — states live inside one frame | n/a (you wrote the states) |
+| `compress: true` (§13.2) | one run you mark | no | **hard error** naming the frame + reason |
+| `autoCompress: true` (§13.1) | every run in the config | no | left uncompressed, logged reason |
+
+All three end up at the **same** machinery and the same output shape: `autoCompress` and `compress` are pure config pre-passes that rewrite the run into a `states` frame before capture, so the composed result is exactly what hand-authoring the `states` block would have produced. Per doc 100 the result is **pixel-identical to the uncompressed flipbook** at every time; the win is **raw size + live-DOM weight** (shared content emitted once), never fidelity.
+
+### 13.1 Automatic detection — `autoCompress` (DM-1757)
 
 The `states` block (§11) is the **explicit** way to compress an editing run: the author lists the states inside one frame. `autoCompress` is the **automatic** counterpart — a top-level opt-in that finds compressible runs in an *ordinary* multi-frame config and collapses each without the author restructuring anything.
 
@@ -408,6 +420,49 @@ The `states` block (§11) is the **explicit** way to compress an editing run: th
 **v1 safe scope.** A run is collapsed only when it is safe to do so with zero interaction loss; anything else is **left uncompressed with a logged reason** (never a hard error). A run's members must all be plain captured frames with a `cut` transition and **none** of: `overlays`, `animations`, `textTracks`, `forceState`, a non-default (`body`) `selector`, or a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`). Non-anchor members must be pure `continue` frames with no readiness waits or `scrollTo` (a `states` run has no per-state readiness wait; a frame carrying one instead becomes the anchor of the *next* run). A run is skipped when an explicit `cursor` event addresses one of its frames, when it is entered via a `magic-move` transition (which would degrade to crossfade), or — under `cursor: "auto"` — when a member runs an interaction action (`click`/`hover`/`fill`) the auto-cursor would otherwise derive a pointer from. Frame-addressed features that survive (explicit `cursor.events[].frame` on frames *outside* the runs) are **remapped** onto the collapsed indices automatically. Handling those excluded cases *inside* a run (per-frame overlays/cursor/magic-move crossing a collapsed run) is a tracked follow-up.
 
 See **`docs/100-rich-text-editing.md`** (Primitive 1) for the compressor design, the measured size/DOM savings, and the pairing model; the automatic detection is the "automatic pass over all continue+cut runs" that doc anticipated, now shipped behind this flag.
+
+### 13.2 Explicit per-run marker — `compress` (DM-1761)
+
+`autoCompress` is all-or-nothing: every eligible run in the config collapses. `compress: true` is the **surgical** form of the same thing — a per-frame boolean that collapses **one** run, on the author's terms, leaving every other frame exactly as it was.
+
+**Surface.** `compress: true` on the **first frame of the run** (the anchor — the frame that loads the `input` or starts the `continue`). It takes the maximal eligible run *starting there*:
+
+```jsonc
+{
+  "width": 640, "height": 360,
+  "frames": [
+    { "input": "editor.html", "duration": 400, "transition": { "type": "cut", "duration": 0 } },
+    { "continue": true, "duration": 300, "transition": { "type": "cut", "duration": 0 },
+      "compress": true,                                    // ← anchors the run
+      "actions": [{ "type": "evaluate", "script": "ins(3)" }] },
+    { "continue": true, "duration": 150, "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "ins(6)" }] },
+    { "continue": true, "duration": 300, "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "colorize()" }] }
+  ]
+}
+```
+
+Frame 0 stays a sibling frame even though it is just as eligible; frames 1–3 become one compressed run. Under `autoCompress: true` the same config would collapse **all four**.
+
+**Anchor-only, greedy left-to-right.** The marker means "start a compressed run here." A marker on a *later member of the same run* is a redundant no-op — the scan has already consumed that frame — so marking only the anchor and marking every member produce byte-identical output, and two markers can never yield overlapping runs. There is no marker on the *end* of a run: a run always extends to the last frame that can join it (same eligibility rules as §13.1). To split one long eligible stretch into two runs, mark the anchor of the first and make the second anchor ineligible as a *member* (e.g. give it a readiness wait), or use two `states:` blocks.
+
+**Ineligible marker ⇒ hard error.** This is the one behavioral difference from `autoCompress`, and it is deliberate. An automatic pass that skips a run is doing its job; a marker the author *typed* that silently emitted a flipbook would hide the bug. So `compress: true` on a frame that cannot anchor a valid run throws, naming the frame index and the reason:
+
+```
+animate: frames[2] sets `compress: true` but the run cannot be collapsed —
+  no following frame can join it — frames[3] carries `animations`, which has no
+  per-state equivalent inside a compressed run — author that run as a `states:`
+  block instead, which can carry frame-level `animations` (docs/43 §11)
+```
+
+Every §13.1 exclusion becomes such an error under the marker: a non-`cut` transition, a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`/`hoverReveal`/`hoverDetect`), a `selector` subtree capture, per-frame `overlays`/`animations`/`textTracks`/`forceState`, a member that reloads an `input` or carries a readiness wait/`scrollTo`, an explicit `cursor` event addressing a member, `magic-move` entry into the run, a member interaction action under `cursor: "auto"`, or a marked frame with nothing after it to join. The per-frame decorations point at the `states:` block (§11), which *can* carry them at frame level.
+
+**`compress: false` — the opt-out.** The complement, and the reason the marker is a boolean rather than a bare flag: a frame set to `compress: false` can neither anchor nor join a run, under *either* surface. Use it to hold one run out of a whole-config `autoCompress: true` — doc 100 notes a *wholesale-change* run (a slideshow, where consecutive frames share almost nothing) pairs poorly and can come out marginally **larger** compressed, since the compressor re-emits from chrome and pays the nesting overhead on top.
+
+**Both at once.** `compress` markers are resolved **first**, then `autoCompress` sweeps the rest. There is no double-collapse: a collapsed frame carries `states`, which disqualifies it as both anchor and member of the automatic pass. So `autoCompress: true` plus markers means "compress everything, and fail loudly if these particular runs ever stop being compressible" — a useful regression guard on a config whose compression you care about.
+
+**Log lines.** Marker collapses log under the `compress:` tag, automatic ones under `auto-compress:`; both are followed by the compressor's own `compress: run of N states, …` pairing-ratio line.
 
 ---
 

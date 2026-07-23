@@ -17,11 +17,13 @@ validation results" below — and the authoring recipe is written up as
 behind the opt-in `autoCompress` flag (below). Behind-glyph selection (the
 `selection` option on `composeCompressedRun`), cross-line identity for
 vertically-moved lines, paint-order-accurate occlusion demotion, and
-chrome-variant reopen are also shipped — see Primitive 1 below. Remaining
-items are the filed follow-ups (locally tracked): the complex-interaction cases
-auto-detection excludes (per-frame overlays/cursor/magic-move crossing a run),
-the multi-frame `compress: true` form, and the caret-track addressing limits
-(docs/101 v1 limits).
+chrome-variant reopen are also shipped — see Primitive 1 below. The multi-frame
+`compress: true` marker shipped alongside it (docs/43 §13.2), so all three
+authoring surfaces now exist: the hand-authored `states:` block, the per-run
+`compress` marker, and the whole-config `autoCompress` flag. Remaining items are
+the filed follow-ups (locally tracked): the complex-interaction cases run
+detection excludes (per-frame overlays/cursor/magic-move crossing a run) and the
+caret-track addressing limits (docs/101 v1 limits).
 Since then, **automatic run detection has shipped behind an opt-in flag**
 (`autoCompress`, DM-1757 — see "Placement" below and docs/43 §13): the pre-pass
 collapses maximal `continue` + `cut` runs into `states` runs automatically,
@@ -154,7 +156,7 @@ pairing ratio so authors can see when compression collapsed.
   near-identical scene, 334 KB payload) contains only 7.7 KB of real change.
   Any hold-heavy continue+cut run compresses as hard as an editing run.
 
-### Placement: an explicit opt-in run block (v1)
+### Placement: three opt-in surfaces onto one machinery
 
 The compressor composes its run as one nested animated SVG re-anchored into its
 config frame's window (`embeddedAnimationPeriodMs`) — **exactly the
@@ -164,11 +166,30 @@ invariant. Authoring (decided at build time): the **`states: [...]` block**
 inside one config frame — per-state actions + hold durations, state 0 being
 the frame's own post-actions state — shipped as the surface (docs/43 §11).
 The alternative `compress: true` form stamped across a run of ordinary
-consecutive continue+cut frames was NOT built: collapsing N config frames into
-one animation frame re-indexes every frame-addressed feature (cursor events,
-transitions, magic-move bridges, frame trees), which breaks the invariant the
-block form preserves for free. It remains a candidate follow-up on top of the
-same machinery (tracked locally).
+consecutive continue+cut frames was NOT built at that point: collapsing N config
+frames into one animation frame re-indexes every frame-addressed feature (cursor
+events, transitions, magic-move bridges, frame trees), which breaks the invariant
+the block form preserves for free.
+
+**Per-run marker — shipped as `compress: true` (DM-1761).** The reindexing
+objection above dissolved once the automatic pass (below) proved that collapsing
+at *config* level rather than animator level handles it for free. The marker is
+therefore the same pre-pass with a different trigger and a different failure
+mode: `compress: true` on a run's **anchor** frame (greedy left-to-right, so a
+marker on a later member of the same run is a redundant no-op) collapses that one
+run and leaves every other frame alone; `compress: false` opts a frame out of a
+run entirely, under either surface. Its one real behavioral difference from the
+automatic pass is that an ineligible marker is a **hard error** naming the frame
+and the reason, where the automatic pass logs and skips — an automatic pass that
+skips is doing its job, but a marker the author typed that silently emitted a
+flipbook would hide the bug. Markers resolve before the automatic pass, and a
+collapsed frame carries `states`, so the two compose without double-collapsing.
+What the marker buys over `autoCompress` is **selectivity**: compressing the one
+run that pays for it without flipping the output shape of the whole config, which
+matters because a wholesale-change run can come out marginally larger compressed
+(see the size-regression caveat under "Default-flip recommendation" below).
+Verified pixel-identical to the flipbook in `tests/compress-marker.e2e.test.ts`.
+Authoring reference: docs/43 §13.2.
 
 Rejected placements, for the record: a *transition type* (compression is
 run-scoped identity tracking, not a pairwise A→B effect), and — originally — an

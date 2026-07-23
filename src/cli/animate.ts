@@ -725,6 +725,19 @@ const frameSchema = z.object({
    * jsReveal/states, which have no single captured tree).
    */
   textTracks: z.array(textTrackSchema).optional(),
+  /**
+   * DM-1761 (docs/100 Primitive 1, docs/43 §13.2): PER-RUN compressed-run opt-in —
+   * the explicit marker counterpart to the whole-config `autoCompress` flag.
+   * `true` on the first frame of a run of consecutive plain `continue` + `cut`
+   * frames collapses that maximal run into ONE `states` compressed run (§11),
+   * exactly as `autoCompress` would, but only where the author asked. Because
+   * the author asked, an ineligible marker is a HARD ERROR naming the frame and
+   * the reason (`autoCompress` silently logs and skips instead — no intent to
+   * betray). Markers on later members of the same run are accepted as redundant.
+   * `false` opts the frame OUT entirely: it can neither anchor nor join a run,
+   * which is the escape hatch for a run that pairs poorly under `autoCompress`.
+   */
+  compress: z.boolean().optional(),
   overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations: z.array(frameAnimationSchema).optional(),
@@ -1840,10 +1853,21 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
 }
 
 /**
- * DM-1757 (docs/100 Primitive 1): automatic compressed-run detection. A pure
- * config pre-pass (no page access) that, when `cfg.autoCompress` is set, detects
- * maximal runs of consecutive plain `continue` + `cut` frames and rewrites each
- * into a single `states` frame — reusing the whole shipped `states` machinery
+ * The compressed-run collapse pre-pass shared by the two opt-in surfaces:
+ *
+ *   - `"auto"`  — the whole-config `autoCompress: true` flag (docs/43 §13.1):
+ *                 EVERY eligible maximal run collapses; an ineligible candidate
+ *                 is left untouched with a logged reason.
+ *   - `"marker"`— the per-frame `compress: true` marker (docs/43 §13.2): only
+ *                 the runs the author marked collapse, and an ineligible marker
+ *                 is a HARD ERROR naming the frame + the reason. The asymmetry
+ *                 is deliberate: an automatic pass that skips is doing its job,
+ *                 whereas a marker the author typed that silently did nothing
+ *                 would hide a bug.
+ *
+ * Either way this is a pure config rewrite (no page access) that detects maximal
+ * runs of consecutive plain `continue` + `cut` frames and rewrites each into a
+ * single `states` frame — reusing the whole shipped `states` machinery
  * (`buildStatesRunContent` → `composeCompressedRun`) rather than adding a
  * parallel path. Because the collapse happens BEFORE `frameStartsMs` / the
  * capture loop / cursor validation are computed, the 1 config-frame ↔ 1
@@ -1851,40 +1875,95 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
  * cross-reference into original indices — explicit `cursor.events[].frame` — is
  * remapped here via `newIndexForOld` (the `expandHoverReveal` precedent).
  *
- * v1 SAFE SCOPE (the rest are left untouched with a logged reason; complex-
- * interaction handling is a tracked follow-up): a run is collapsed only when
- * every member is a plain captured frame with a `cut` transition and NONE of it
- * carries overlays / animations / textTracks / forceState / a non-`body`
- * selector, non-anchor members are pure `continue` frames with no readiness
- * waits / scrollTo, no explicit `cursor` event addresses a member, the run is
- * not entered via a `magic-move` transition, and — under `cursor:"auto"` — no
- * member runs an interaction action (click/hover/fill, which auto-cursor would
- * otherwise derive a pointer event from). Output stays pixel-identical to the
- * flipbook (the compressor re-emits anything that fails to pair, never wrong
- * pixels); the collapse only ever trades frame count for a nested run.
+ * v1 SAFE SCOPE: a run is collapsed only when every member is a plain captured
+ * frame with a `cut` transition and NONE of it carries overlays / animations /
+ * textTracks / forceState / a non-`body` selector, non-anchor members are pure
+ * `continue` frames with no readiness waits / scrollTo, no explicit `cursor`
+ * event addresses a member, the run is not entered via a `magic-move`
+ * transition, and — under `cursor:"auto"` — no member runs an interaction action
+ * (click/hover/fill, which auto-cursor would otherwise derive a pointer event
+ * from). Output stays pixel-identical to the flipbook (the compressor re-emits
+ * anything that fails to pair, never wrong pixels); the collapse only ever
+ * trades frame count for a nested run.
  *
- * Exported for unit tests. Returns `cfg` unchanged when `autoCompress` is off.
+ * A frame may also set `compress: false` to opt OUT entirely — it then neither
+ * anchors nor joins a run in either mode (the escape hatch for a run that pairs
+ * poorly, whose compressed form would be no smaller than the flipbook).
  */
-export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
-  if (cfg.autoCompress !== true) return cfg;
+function collapseCompressibleRuns(
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+  mode: "auto" | "marker",
+): AnimateConfig {
   const frames = cfg.frames;
   const n = frames.length;
+  const strict = mode === "marker";
+  const tag = strict ? "compress" : "auto-compress";
+  // In marker mode an ineligible run is an author error, not a skip.
+  const failMarked = (idx: number, reason: string): never => {
+    throw new Error(`animate: frames[${idx}] sets \`compress: true\` but the run cannot be collapsed — ${reason}`);
+  };
 
   const isCut = (f: AnimateFrameCfg): boolean => f.transition?.type === "cut";
   // A frame that carries content or interactions the simple-case run can't
   // absorb into a `states` run. Any of these on a member disqualifies the run.
-  const hasBlockingFeature = (f: AnimateFrameCfg): boolean =>
-    f.cast != null || f.template != null || f.scroll != null || f.states != null ||
-    f.typeResample != null || f.jsReveal != null || f.hoverReveal != null || f.hoverDetect != null ||
-    (f.overlays != null && f.overlays.length > 0) ||
-    (f.animations != null && f.animations.length > 0) ||
-    (f.textTracks != null && f.textTracks.length > 0) ||
-    (f.forceState != null && f.forceState.length > 0);
+  // Named (not just detected) so the marker mode's hard error can say which.
+  const blockingFeature = (f: AnimateFrameCfg): string | null => {
+    if (f.cast != null) return "cast";
+    if (f.template != null) return "template";
+    if (f.scroll != null) return "scroll";
+    if (f.states != null) return "states";
+    if (f.typeResample != null) return "typeResample";
+    if (f.jsReveal != null) return "jsReveal";
+    if (f.hoverReveal != null) return "hoverReveal";
+    if (f.hoverDetect != null) return "hoverDetect";
+    if (f.overlays != null && f.overlays.length > 0) return "overlays";
+    if (f.animations != null && f.animations.length > 0) return "animations";
+    if (f.textTracks != null && f.textTracks.length > 0) return "textTracks";
+    if (f.forceState != null && f.forceState.length > 0) return "forceState";
+    return null;
+  };
+  // A content-producing frame kind is its own nested composition — it can't be a
+  // state of someone else's run. Everything else in `blockingFeature` is a
+  // per-frame decoration with no per-state equivalent, for which the hand-
+  // authored `states:` block (which CAN carry frame-level overlays) is the way.
+  const contentKinds = new Set(["cast", "template", "scroll", "states", "typeResample", "jsReveal", "hoverReveal", "hoverDetect"]);
+  const blockingFeatureReason = (idx: number, feature: string): string =>
+    feature === "states"
+      ? `frames[${idx}] already IS a compressed run (it carries a \`states\` block) — drop the \`compress\` marker`
+      : contentKinds.has(feature)
+      ? `frames[${idx}] is a \`${feature}\` frame, which produces its own nested content and cannot be a state of a compressed run`
+      : `frames[${idx}] carries \`${feature}\`, which has no per-state equivalent inside a compressed run — author that run as a \`states:\` block instead, which can carry frame-level \`${feature}\` (docs/43 §11)`;
   const hasInteractionAction = (f: AnimateFrameCfg): boolean =>
     f.actions != null && f.actions.some((a) => a.type === "click" || a.type === "hover" || a.type === "fill");
   const hasReadinessWaitOrScroll = (f: AnimateFrameCfg): boolean =>
     f.waitFor != null || f.waitForText != null || f.waitForGone != null || f.waitForCount != null ||
     f.wait != null || f.scrollTo != null;
+
+  // Why frame `idx` cannot SEED a run (null when it can), and why frame `idx`
+  // cannot JOIN one. Shared by both modes: auto uses them as predicates, marker
+  // turns the string into the hard error's reason.
+  const anchorBlocker = (idx: number): string | null => {
+    const f = frames[idx];
+    if (f.compress === false) return `frames[${idx}] sets \`compress: false\``;
+    if (!isCut(f)) return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\` (a compressed run holds its states with cuts)`;
+    const feature = blockingFeature(f);
+    if (feature != null) return blockingFeatureReason(idx, feature);
+    if (f.selector != null) return `frames[${idx}] captures a \`selector\` subtree rather than the whole page`;
+    return null;
+  };
+  const memberBlocker = (idx: number): string | null => {
+    const f = frames[idx];
+    if (f.compress === false) return `frames[${idx}] sets \`compress: false\``;
+    if (f.input != null) return `frames[${idx}] loads an \`input\` (a compressed run holds ONE continuous page)`;
+    if (f.cast != null || f.template != null) return `frames[${idx}] is a \`${f.cast != null ? "cast" : "template"}\` frame (a compressed run holds ONE continuous page)`;
+    if (!isCut(f)) return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\``;
+    const feature = blockingFeature(f);
+    if (feature != null) return blockingFeatureReason(idx, feature);
+    if (f.selector != null) return `frames[${idx}] captures a \`selector\` subtree rather than the whole page`;
+    if (hasReadinessWaitOrScroll(f)) return `frames[${idx}] carries a readiness wait / \`scrollTo\` (a compressed run has no per-state wait)`;
+    return null;
+  };
 
   const cursorAuto = cfg.cursor === "auto";
   const explicitCursorFrames = new Set<number>(
@@ -1900,21 +1979,22 @@ export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void 
   while (i < n) {
     const anchor = frames[i];
     // The anchor may load an `input` or `continue`; either kind of plain,
-    // cut-transition, feature-free frame can seed a run.
-    const anchorEligible =
-      isCut(anchor) && !hasBlockingFeature(anchor) && anchor.selector == null;
-    if (anchorEligible) {
+    // cut-transition, feature-free frame can seed a run. In marker mode only a
+    // frame the author stamped `compress: true` seeds one — every other frame
+    // passes straight through even when it would have been eligible.
+    const marked = anchor.compress === true;
+    const anchorWhyNot = anchorBlocker(i);
+    if (strict && marked && anchorWhyNot != null) failMarked(i, anchorWhyNot);
+    if ((strict ? marked : true) && anchorWhyNot == null) {
       // Extend the run over following pure `continue` + `cut` members.
       let j = i + 1;
-      while (
-        j < n &&
-        frames[j].input == null && frames[j].cast == null && frames[j].template == null &&
-        isCut(frames[j]) && !hasBlockingFeature(frames[j]) &&
-        frames[j].selector == null && !hasReadinessWaitOrScroll(frames[j])
-      ) {
-        j++;
-      }
+      while (j < n && memberBlocker(j) == null) j++;
       const b = j - 1; // inclusive run end
+      if (strict && b === i) {
+        failMarked(i, j < n
+          ? `no following frame can join it — ${memberBlocker(j)}`
+          : "it is the last frame in the config (a compressed run needs at least 2 frames)");
+      }
       if (b > i) {
         // A maximal candidate run [i..b] (≥ 2 frames). Reject as a whole (leave
         // uncompressed) for any run-wide reason that would drop an interaction.
@@ -1926,6 +2006,7 @@ export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void 
           if (explicitCursorFrames.has(k)) reject = `an explicit cursor event addresses frame ${k} inside it`;
           else if (cursorAuto && hasInteractionAction(frames[k])) reject = `cursor:"auto" derives a pointer from an interaction action in frame ${k}`;
         }
+        if (strict && reject != null) failMarked(i, reject);
         if (reject == null) {
           const runFrames = frames.slice(i, b + 1);
           const totalDuration = runFrames.reduce((sum, f) => sum + f.duration, 0);
@@ -1952,11 +2033,11 @@ export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void 
           const collapsedIdx = newFrames.length;
           newFrames.push(collapsed);
           for (let k = i; k <= b; k++) newIndexForOld[k] = collapsedIdx;
-          log(`  auto-compress: collapsed frames ${i}–${b} into a states run (${states.length} states, ${totalDuration}ms)`);
+          log(`  ${tag}: collapsed frames ${i}–${b} into a states run (${states.length} states, ${totalDuration}ms)`);
           i = b + 1;
           continue;
         }
-        log(`  auto-compress: leaving frames ${i}–${b} uncompressed — ${reject}`);
+        log(`  ${tag}: leaving frames ${i}–${b} uncompressed — ${reject}`);
       }
     }
     // Not a run head, or the maximal run was rejected: keep frame i as-is.
@@ -1974,8 +2055,49 @@ export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void 
   if (cursor != null && cursor !== "auto") {
     cursor = { ...cursor, events: cursor.events.map((e) => ({ ...e, frame: newIndexForOld[e.frame] ?? e.frame })) };
   }
-  log(`  auto-compress: ${frames.length} config frames → ${newFrames.length} after run collapse`);
+  log(`  ${tag}: ${frames.length} config frames → ${newFrames.length} after run collapse`);
   return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
+/**
+ * DM-1757 (docs/43 §13.1): the whole-config `autoCompress: true` opt-in — collapse
+ * EVERY eligible maximal `continue` + `cut` run into a `states` compressed run,
+ * skipping (with a logged reason) anything the v1 safe scope excludes.
+ *
+ * Exported for unit tests. Returns `cfg` unchanged when `autoCompress` is off.
+ */
+export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (cfg.autoCompress !== true) return cfg;
+  return collapseCompressibleRuns(cfg, log, "auto");
+}
+
+/**
+ * DM-1761 (docs/43 §13.2): the per-frame `compress: true` marker — the surgical
+ * counterpart to `autoCompress`. Only the runs whose FIRST frame carries the
+ * marker collapse; every other frame passes through untouched, so an author can
+ * compress the one run that pays for it (docs/100 notes a wholesale-change run
+ * can pair poorly and end up marginally LARGER compressed) without flipping the
+ * output shape of the whole config.
+ *
+ * Anchor-only semantics, with a greedy left-to-right scan: the marker means
+ * "start a compressed run HERE and take the maximal eligible run". A marker on a
+ * later member of that same run is therefore absorbed as a redundant no-op — the
+ * scan already consumed the frame — so both the anchor-only and the mark-every-
+ * member styles do the same thing, and neither can produce overlapping runs.
+ *
+ * Unlike `autoCompress`, an ineligible marker is a HARD ERROR naming the frame
+ * and the reason: the author explicitly asked for this run, so silently emitting
+ * a flipbook would hide the bug rather than surface it.
+ *
+ * Runs BEFORE `autoCompressRuns` when both are on. There is no double-collapse:
+ * a collapsed frame carries `states`, which disqualifies it as an anchor and as
+ * a member of the automatic pass.
+ *
+ * Exported for unit tests. Returns `cfg` unchanged when no frame is marked.
+ */
+export function compressMarkedRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (!cfg.frames.some((f) => f.compress === true)) return cfg;
+  return collapseCompressibleRuns(cfg, log, "marker");
 }
 
 export async function composeAnimateFrames(
@@ -1993,6 +2115,11 @@ export async function composeAnimateFrames(
   // and synthesize the transition. A browser pre-pass (its own throwaway context)
   // that rewrites the frame(s) before the main capture loop runs.
   cfg = await expandHoverDetect(cfg, browser, configDir, log);
+  // DM-1761 (docs/100 Primitive 1): the explicit per-run `compress: true` marker.
+  // Runs before the automatic pass so a marked run collapses on the author's
+  // terms (hard error if it can't) and the automatic pass then sees a `states`
+  // frame it will not touch again.
+  cfg = compressMarkedRuns(cfg, log);
   // DM-1757 (docs/100 Primitive 1): opt-in automatic compressed-run detection.
   // Collapses maximal continue+cut runs into `states` frames BEFORE frameStartsMs
   // / the capture loop / cursor validation, so the reindexing is handled for free

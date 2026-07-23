@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -1199,5 +1199,257 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     if (out.cursor != null && out.cursor !== "auto") {
       expect(out.cursor.events[0].frame).toBe(1); // original frame 2 → new index 1
     }
+  });
+});
+
+describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` marker", () => {
+  const B = { width: 200, height: 120 };
+  const cut = { type: "cut", duration: 0 } as const;
+  const cross = { type: "crossfade", duration: 150 } as const;
+  const cfgOf = (frames: unknown[], extra: Record<string, unknown> = {}) =>
+    validateAnimateConfig({ ...B, ...extra, frames });
+  /** Four frames that would ALL collapse under `autoCompress` — the contrast set. */
+  const eligible4 = () => [
+    { input: "a.html", duration: 100, transition: cut },
+    { continue: true, duration: 100, transition: cut },
+    { continue: true, duration: 100, transition: cut },
+    { continue: true, duration: 100, transition: cut },
+  ];
+
+  it("is a no-op when no frame carries the marker (same object back)", () => {
+    const cfg = cfgOf(eligible4());
+    expect(compressMarkedRuns(cfg)).toBe(cfg);
+  });
+
+  it("collapses ONLY the marked run, leaving equally-eligible frames alone", () => {
+    const frames = eligible4();
+    frames[2] = { ...frames[2], compress: true };
+    const cfg = cfgOf(frames);
+    const out = compressMarkedRuns(cfg);
+    // Frames 0 and 1 are just as eligible, but unmarked → untouched. Run [2,3]
+    // collapses. This selectivity is the marker's whole reason to exist:
+    // `autoCompress` on the SAME config would collapse all four into one.
+    expect(out.frames).toHaveLength(3);
+    expect(out.frames[0].states).toBeUndefined();
+    expect(out.frames[1].states).toBeUndefined();
+    expect(out.frames[2].states).toHaveLength(2);
+    expect(out.frames[2].duration).toBe(200);
+    expect(autoCompressRuns(cfgOf(eligible4(), { autoCompress: true })).frames).toHaveLength(1);
+  });
+
+  it("anchor-only: the marker takes the maximal run STARTING at that frame", () => {
+    const frames = eligible4();
+    frames[1] = { ...frames[1], compress: true };
+    const out = compressMarkedRuns(cfgOf(frames));
+    expect(out.frames).toHaveLength(2);
+    expect(out.frames[0].input).toBe("a.html");
+    expect(out.frames[1].continue).toBe(true);
+    expect(out.frames[1].states).toHaveLength(3);
+    expect(out.frames[1].duration).toBe(300);
+  });
+
+  it("markers on later members of the same run are redundant no-ops", () => {
+    const anchorOnly = eligible4();
+    anchorOnly[1] = { ...anchorOnly[1], compress: true };
+    const everyMember = eligible4().map((f, i) => (i >= 1 ? { ...f, compress: true } : f));
+    // Both styles must produce the identical rewrite — the greedy left-to-right
+    // scan consumes 2 and 3 into the run seeded at 1, so their markers can never
+    // seed a second, overlapping run.
+    expect(compressMarkedRuns(cfgOf(everyMember)).frames).toEqual(compressMarkedRuns(cfgOf(anchorOnly)).frames);
+  });
+
+  it("carries the anchor's actions / readiness wait onto the collapsed frame", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut, waitFor: ".ready", compress: true, actions: [{ type: "evaluate", script: "s(0)" }] },
+      { continue: true, duration: 120, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
+    ]);
+    const out = compressMarkedRuns(cfg);
+    expect(out.frames).toHaveLength(1);
+    expect(out.frames[0].waitFor).toBe(".ready");
+    expect(out.frames[0].actions).toEqual([{ type: "evaluate", script: "s(0)" }]);
+    expect(out.frames[0].states).toEqual([
+      { duration: 100 },
+      { actions: [{ type: "evaluate", script: "s(1)" }], duration: 120 },
+    ]);
+  });
+
+  // The hard-error contract: an explicit marker that cannot be honored FAILS,
+  // where `autoCompress` would silently log and skip. One case per reason.
+  const errorCases: Array<{ name: string; frames: unknown[]; extra?: Record<string, unknown>; match: RegExp }> = [
+    {
+      name: "the anchor leaves via a non-cut transition",
+      frames: [
+        { input: "a.html", duration: 100, transition: cross, compress: true },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      match: /frames\[0\].*`crossfade` transition, not a `cut`/,
+    },
+    {
+      name: "the anchor carries overlays (points at the `states:` block)",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true, overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }] },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      match: /frames\[0\] carries `overlays`.*`states:` block/,
+    },
+    {
+      name: "a member carries animations",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut, animations: [{ selector: "#a", property: "opacity", from: "0", to: "1", duration: 100 }] },
+      ],
+      match: /no following frame can join it — frames\[1\] carries `animations`/,
+    },
+    {
+      name: "a member carries textTracks",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut, textTracks: [{ selector: "#a", events: [{ at: 0, type: "park", charOffset: 0 }] }] },
+      ],
+      match: /frames\[1\] carries `textTracks`/,
+    },
+    {
+      name: "the anchor is a content-producing frame kind",
+      frames: [
+        { cast: "a.cast", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      match: /frames\[0\] is a `cast` frame, which produces its own nested content/,
+    },
+    {
+      name: "the marker rides a frame that already IS a compressed run",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true, states: [{ duration: 50 }, { duration: 50 }] },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      match: /frames\[0\] already IS a compressed run.*drop the `compress` marker/,
+    },
+    {
+      name: "the anchor captures a selector subtree",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true, selector: "#card" },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      match: /frames\[0\] captures a `selector` subtree/,
+    },
+    {
+      name: "the marked frame is last",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, compress: true },
+      ],
+      match: /frames\[1\].*last frame in the config/,
+    },
+    {
+      name: "the next frame reloads an input",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { input: "b.html", duration: 100, transition: cut },
+      ],
+      match: /frames\[1\] loads an `input` \(a compressed run holds ONE continuous page\)/,
+    },
+    {
+      name: "a member carries a readiness wait",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut, waitFor: ".ready" },
+      ],
+      match: /frames\[1\] carries a readiness wait/,
+    },
+    {
+      name: "an explicit cursor event addresses a member",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      extra: { cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#b" }] } },
+      match: /an explicit cursor event addresses frame 1 inside it/,
+    },
+    {
+      name: "the run is entered via a magic-move transition",
+      frames: [
+        { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
+        { continue: true, duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      match: /frames\[1\].*entered via a magic-move transition/,
+    },
+    {
+      name: "cursor:auto would derive a pointer from a member's interaction action",
+      frames: [
+        { input: "a.html", duration: 100, transition: cut, compress: true },
+        { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
+      ],
+      extra: { cursor: "auto" },
+      match: /cursor:"auto" derives a pointer from an interaction action in frame 1/,
+    },
+  ];
+  for (const c of errorCases) {
+    it(`hard-errors when ${c.name}`, () => {
+      const cfg = cfgOf(c.frames, c.extra ?? {});
+      expect(() => compressMarkedRuns(cfg)).toThrow(c.match);
+      // The same config under `autoCompress` only logs and skips — the contrast
+      // that justifies the marker's stricter contract.
+      const logs: string[] = [];
+      expect(() => autoCompressRuns(validateAnimateConfig({ ...B, ...(c.extra ?? {}), autoCompress: true, frames: c.frames }), (m) => logs.push(m))).not.toThrow();
+    });
+  }
+
+  it("`compress: false` opts a frame out of an automatic run", () => {
+    const frames = eligible4();
+    frames[2] = { ...frames[2], compress: false };
+    const out = autoCompressRuns(cfgOf(frames, { autoCompress: true }));
+    // Run [0,1] collapses; frame 2 is excluded outright; frame 3 is alone. 4 → 3.
+    expect(out.frames).toHaveLength(3);
+    expect(out.frames[0].states).toHaveLength(2);
+    expect(out.frames[1].compress).toBe(false);
+    expect(out.frames[1].states).toBeUndefined();
+    expect(out.frames[2].states).toBeUndefined();
+  });
+
+  it("composes with autoCompress: the marked run collapses first, then the rest — no double-collapse", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },                    // auto run A
+      { continue: true, duration: 100, transition: cut },                     // auto run A
+      { continue: true, duration: 100, transition: cross },                   // standalone
+      { continue: true, duration: 100, transition: cut, compress: true },     // marked run B
+      { continue: true, duration: 100, transition: cut },                     // marked run B
+    ], { autoCompress: true });
+    const marked = compressMarkedRuns(cfg);
+    expect(marked.frames).toHaveLength(4);      // [3,4] → one states frame
+    expect(marked.frames[3].states).toHaveLength(2);
+    const both = autoCompressRuns(marked);
+    // Run A collapses on the automatic pass; the already-collapsed run B carries
+    // `states`, which disqualifies it as anchor AND member — collapsed once only.
+    expect(both.frames).toHaveLength(3);
+    expect(both.frames[0].states).toHaveLength(2);
+    expect(both.frames[1].states).toBeUndefined();
+    expect(both.frames[2].states).toHaveLength(2);
+    expect(both.frames[2].duration).toBe(200);
+  });
+
+  it("remaps explicit cursor-event frame indices across a marked collapse", () => {
+    const cfg = cfgOf([
+      { input: "a.html", duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cut, compress: true }, // run [1,2]
+      { continue: true, duration: 100, transition: cut },
+      { continue: true, duration: 100, transition: cross },
+    ], { cursor: { events: [{ frame: 3, at: 0, type: "click", selector: "#c" }] } });
+    const out = compressMarkedRuns(cfg);
+    expect(out.frames).toHaveLength(3); // 0→0, [1,2]→1, 3→2
+    if (out.cursor != null && out.cursor !== "auto") {
+      expect(out.cursor.events[0].frame).toBe(2);
+    } else {
+      throw new Error("expected an explicit cursor event list");
+    }
+  });
+
+  it("logs the collapse with the `compress:` tag (not `auto-compress:`)", () => {
+    const frames = eligible4();
+    frames[1] = { ...frames[1], compress: true };
+    const logs: string[] = [];
+    compressMarkedRuns(cfgOf(frames), (m) => logs.push(m));
+    expect(logs.some((l) => /^ {2}compress: collapsed frames 1–3 into a states run \(3 states, 300ms\)$/.test(l))).toBe(true);
+    expect(logs.some((l) => /auto-compress:/.test(l))).toBe(false);
   });
 });

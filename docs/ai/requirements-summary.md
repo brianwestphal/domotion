@@ -133,6 +133,19 @@ they describe (see `CLAUDE.md` "Documentation"):
   follow-up). The default-flip to ON is a separate decision (needs the excluded
   cases handled + a size-regression guard + a golden regen pass — see doc 100
   "Default-flip recommendation").
+  **Per-run marker (DM-1761) — shipped.** `compress: true` on a run's anchor
+  frame (docs/43 §13.2) collapses that ONE run through the same pre-pass, leaving
+  every other frame alone — the surgical counterpart to the whole-config flag,
+  for compressing the run that pays for it without changing the config's overall
+  output shape. Anchor-only + greedy left-to-right (a marker on a later member of
+  the same run is a redundant no-op); `compress: false` opts a frame out of a run
+  under either surface. Unlike `autoCompress`, an ineligible marker is a HARD
+  ERROR naming the frame + reason (an automatic pass that skips is doing its job;
+  a typed marker that silently did nothing would hide a bug). Markers resolve
+  before the automatic pass and a collapsed frame carries `states`, so the two
+  compose with no double-collapse. Pixel-identity + selectivity proven in
+  `tests/compress-marker.e2e.test.ts`. Doc 100's three authoring surfaces
+  (`states:` block / `compress` marker / `autoCompress` flag) now all exist.
   **Ergonomics (DM-1763):** a `textTracks` track now auto-ends at its frame's cut
   by default (the CLI synthesizes the trailing `clearSelection`/`hide` at the
   frame duration; `persist: true` opts out) so a parked caret/selection no longer
