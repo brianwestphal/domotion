@@ -59,7 +59,14 @@ describe("glyph-compare on real Chromium renders", () => {
     expect(r.confidence).toBe("high");
   });
 
-  it("flags Helvetica vs Arial 'R' (straight vs curved leg)", async () => {
+  // The cross-family identity cases need the named families to be DISTINCT
+  // real fonts, which only holds on macOS (Helvetica / Arial / Helvetica Neue
+  // are separate installed faces there). On Linux, fontconfig aliases
+  // Helvetica AND Arial to the same substitute (Liberation Sans on the CI
+  // image), so both sides render identical pixels and the comparator
+  // correctly reports "match" — the test premise, not the comparator, breaks.
+  // Same-family cases (phase / weight / size / italic) stay platform-neutral.
+  it.skipIf(process.platform !== "darwin")("flags Helvetica vs Arial 'R' (straight vs curved leg)", async () => {
     const a = await renderGlyph("Helvetica", "R");
     const b = await renderGlyph("Arial", "R");
     const r = await compareGlyphPngs(a, b);
@@ -67,7 +74,7 @@ describe("glyph-compare on real Chromium renders", () => {
     expect(r.confidence).toBe("high");
   });
 
-  it("flags the hardest lookalike: Helvetica vs Helvetica Neue 'e'", async () => {
+  it.skipIf(process.platform !== "darwin")("flags the hardest lookalike: Helvetica vs Helvetica Neue 'e'", async () => {
     const a = await renderGlyph("Helvetica", "e");
     const b = await renderGlyph("'Helvetica Neue'", "e");
     const r = await compareGlyphPngs(a, b);
@@ -99,7 +106,7 @@ describe("glyph-compare on real Chromium renders", () => {
     expect(r.confidence).toBe("high");
   });
 
-  it("matches a truly identical lookalike glyph (Helvetica vs Arial 'l') — shape equality IS correctness", async () => {
+  it.skipIf(process.platform !== "darwin")("matches a truly identical lookalike glyph (Helvetica vs Arial 'l') — shape equality IS correctness", async () => {
     const a = await renderGlyph("Helvetica", "l");
     const b = await renderGlyph("Arial", "l");
     const r = await compareGlyphPngs(a, b);
