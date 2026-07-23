@@ -231,6 +231,19 @@ export function usesDedicatedShaper(cp: number): boolean {
 export function complexShaperBaseMarkDecomposition(cp: number): string | null {
   if (!usesComplexShaperDottedCircle(cp)) return null;
   if (usesDedicatedShaper(cp)) return null;              // dedicated shaper — CoreText already matches Chrome
+  return nfdBaseMarkDecomposition(cp);
+}
+
+// A codepoint whose canonical NFD is a base followed by combining mark(s) —
+// script-agnostic (the complex-shaper variant above adds USE-block gating on
+// top of this). This is exactly the shape HarfBuzz's normalizer
+// (`hb-ot-shape-normalize.cc`, `decompose_current_character`) decomposes when
+// the current font lacks the PRECOMPOSED glyph but covers the pieces: e.g.
+// U+21AE ↮ → U+2194 ↔ + U+0338 COMBINING LONG SOLIDUS OVERLAY. Returns the NFD
+// string, or null when `cp` has no canonical decomposition, decomposes to a
+// singleton, or the last element isn't a combining mark (so Hangul base+jamo
+// LV/LVT decompositions — jamo are Lo, not M — stay excluded).
+export function nfdBaseMarkDecomposition(cp: number): string | null {
   const ch = String.fromCodePoint(cp);
   const nfd = ch.normalize("NFD");
   if (nfd === ch) return null;                           // no canonical decomposition

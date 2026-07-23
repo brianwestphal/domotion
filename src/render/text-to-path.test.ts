@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -340,6 +340,61 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
   it("is NULL for an atomic complex-script letter with no canonical decomposition", () => {
     expect(complexShaperBaseMarkDecomposition(0x110A5)).toBeNull(); // Kaithi BA (the base itself)
   });
+});
+
+// NFD-decomposed negated arrows: Chrome-on-Linux paints U+21AE ↮ / U+21CE ⇎ /
+// U+219A ↚ / U+219B ↛ as TWO Liberation Sans glyphs (CDP getPlatformFontsForNode:
+// glyphCount 2) — HarfBuzz's normalizer (hb-ot-shape-normalize.cc) decomposes a
+// codepoint the current font's cmap lacks and shapes the pieces in that same
+// font: base arrow + the zero-advance U+0338 combining long solidus placed
+// naively at the pen (Liberation has no GPOS mark anchors on arrow bases). It
+// never reaches the fontconfig per-char fallback that would find FreeSans's
+// PRECOMPOSED ↮ (slash centered — visibly different). `nfdBaseMarkDecomposition`
+// is the script-agnostic classifier behind the Linux-only resolver branch that
+// mirrors this.
+describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)", () => {
+  it("returns the base+mark NFD pair for the negated arrows", () => {
+    expect(nfdBaseMarkDecomposition(0x21AE)).toBe("\u2194\u0338"); // ↮ = ↔ + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x21CE)).toBe("\u21D4\u0338"); // ⇎ = ⇔ + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x219A)).toBe("\u2190\u0338"); // ↚ = ← + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x219B)).toBe("\u2192\u0338"); // ↛ = → + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x2260)).toBe("\u003D\u0338"); // ≠ = = + combining long solidus
+  });
+  it("returns base+mark pairs for Latin diacritics too (fired only when a font lacks the composed glyph)", () => {
+    expect(nfdBaseMarkDecomposition(0x00E9)).toBe("\u0065\u0301"); // é
+  });
+  it("is NULL for singletons, atomic codepoints, marks, and Hangul base+jamo", () => {
+    expect(nfdBaseMarkDecomposition(0x2F800)).toBeNull(); // CJK-compat singleton → U+4E3D (handled by the singleton step)
+    expect(nfdBaseMarkDecomposition(0x2190)).toBeNull();  // plain ← — no decomposition
+    expect(nfdBaseMarkDecomposition(0x0338)).toBeNull();  // the combining mark itself
+    expect(nfdBaseMarkDecomposition(0xAC00)).toBeNull();  // 가 — jamo pieces are Lo, not M
+  });
+  // The resolver branch itself is Linux-gated (`process.platform === "linux"`):
+  // Chrome-on-macOS CANNOT decompose these in Helvetica (macOS Helvetica lacks
+  // the U+2194 base piece — the misc arrows route to Hiragino per the darwin
+  // chain) and paints Apple Symbols' composed glyph instead, which the macOS
+  // pipeline already matches pixel-exactly.
+  if (process.platform === "linux") {
+    it("[linux] resolves the negated arrows to a DECOMPOSED run in the declared cascade, not the fc-match composed glyph", () => {
+      for (const cp of [0x21AE, 0x21CE, 0x219A, 0x219B]) {
+        const r = __resolveFontForCodepointForTest(cp, "sans-serif");
+        expect(r).not.toBeNull();
+        // Liberation Sans (the `sans-serif` primary) covers ↔/⇔/←/→ + U+0338,
+        // so the walk must stop there with a HarfBuzz-shaped decomposed run —
+        // NOT fall through to the fc-match system fallback (sysfb:FreeSans /
+        // sysfb:FreeSerif), whose precomposed glyph Chrome never paints.
+        expect(r!.covered).toBe(true);
+        expect(r!.decomposed).toBe(true);
+        expect(r!.key).toBe("helvetica");
+      }
+    });
+  } else {
+    it("[non-linux] keeps the negated arrows on the calibrated composed route (no decomposition)", () => {
+      const r = __resolveFontForCodepointForTest(0x21AE, "sans-serif");
+      expect(r).not.toBeNull();
+      expect(r!.decomposed).toBe(false);
+    });
+  }
 });
 
 // DM-1215: an ORPHANED complex-script combining mark must be shaped via real

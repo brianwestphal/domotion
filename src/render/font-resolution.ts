@@ -29,8 +29,8 @@ import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-f
 import { UNICODE_FONT_PATHS_NOTO_LINUX, UNICODE_FONT_RANGES_NOTO_LINUX } from "./unicode-font-routing.noto-linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
-export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 export interface FontInstance {
   layout(text: string, features?: string[]): {
@@ -3719,6 +3719,28 @@ export function resolveFontForCodepoint(
   const dcp0 = nfd.codePointAt(0);
   const singleton = (dcp0 != null && dcp0 !== cp && String.fromCodePoint(dcp0) === nfd) ? dcp0 : null;
 
+  // Canonical base+mark decomposition (e.g. U+21AE ↮ → U+2194 ↔ + U+0338
+  // COMBINING LONG SOLIDUS OVERLAY), Linux-only. Chrome shapes with HarfBuzz,
+  // whose normalizer (hb-ot-shape-normalize.cc, decompose_current_character)
+  // decomposes a codepoint the current font's cmap lacks and shapes the pieces
+  // IN THAT SAME FONT when it covers them — so Chrome-on-Linux paints the
+  // negated arrows (↮ ⇎ ↚ ↛) as TWO Liberation Sans glyphs (CDP
+  // getPlatformFontsForNode: "Liberation Sans", glyphCount 2): the base arrow
+  // plus the zero-advance combining slash drawn naively at the pen position
+  // (Liberation has no GPOS mark anchors on arrow bases), and never reaches the
+  // per-char fontconfig fallback that would have found FreeSans's PRECOMPOSED
+  // ↮ (slash centered through the arrow — a visibly different glyph). Mirror
+  // that here: when a declared family covers every NFD piece, route the run
+  // through real HarfBuzz (harfbuzzjs — the same engine Chrome embeds) so it
+  // decomposes and positions exactly like Chrome. Gated to Linux: on macOS the
+  // darwin chains route these blocks to Apple Symbols, whose literal composed
+  // coverage matches Chrome-on-macOS's paint (Chrome can't decompose them in
+  // Helvetica there — macOS Helvetica lacks the U+2194 base piece), and the
+  // macOS calibration is pixel-exact as-is; Windows likewise resolves them via
+  // its own calibrated chain (Segoe UI Symbol).
+  const baseMarkNfd = process.platform === "linux" && singleton == null ? nfdBaseMarkDecomposition(cp) : null;
+  const baseMarkCps = baseMarkNfd != null ? [...baseMarkNfd].map((c) => c.codePointAt(0)!) : null;
+
   // Materialize a chain key to an instance — webfont-partition-aware, and only
   // the primary carries the author's font-variation-settings.
   const instanceFor = (key: string): FontInstance | null => {
@@ -3739,6 +3761,18 @@ export function resolveFontForCodepoint(
     if (glyphIdForCp(inst, cp) !== 0) return cover(key, key === primaryFontKey ? null : inst);
     if (singleton != null && glyphIdForCp(inst, singleton) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, String.fromCodePoint(singleton), true);
+    }
+    // Base+mark NFD within this same font (Linux — see baseMarkNfd above). The
+    // run keeps the SOURCE char (HarfBuzz decomposes internally, like Chrome),
+    // so clusters / xOffsets stay aligned; `decomposed: true` routes the
+    // glyph-path emitter to its run-shaping branch. Falls through when the key
+    // has no on-disk file HarfBuzz can open.
+    if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(inst, d) !== 0)) {
+      const hbPath = resolveFontSpec(key)?.path;
+      if (hbPath != null && hbPath !== "") {
+        const hbInst = makeHarfbuzzShapingInstance(inst, hbPath);
+        if (hbInst !== inst) return cover(key, hbInst, ch, true);
+      }
     }
   }
 

@@ -362,7 +362,7 @@ flowchart TD
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F2
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
-  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?"]
+  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else (Linux) base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| F3["2a. kSystemFonts: fallbackFontChain(cp, primaryKey, lang)<br/>(§7 static per-block calibrated table, literal only)"]
   F3 -->|"first covering key (skip 'last-resort')"| F3H["cover(candidate)"]
@@ -382,6 +382,19 @@ Notes:
 - Step 1 confines NFD decomposition to the DECLARED cascade (so it never
   over-renders into deep fallback faces Chrome can't reach — the DM-1080 hazard;
   Arial Unicode MS covers +85 CJK-compat cells via in-font decomposition).
+- Step 1's third check (**Linux only**) mirrors HarfBuzz's normalizer
+  (`hb-ot-shape-normalize.cc`): a codepoint with a canonical **base+mark** NFD
+  (`nfdBaseMarkDecomposition` — e.g. U+21AE ↮ → U+2194 ↔ + U+0338 combining long
+  solidus) whose pieces a declared family covers is routed through a real-HarfBuzz
+  shaping instance of THAT family, exactly as Chrome shapes it — Chrome-on-Linux
+  paints the negated arrows (↮ ⇎ ↚ ↛) as two Liberation Sans glyphs (base arrow +
+  naively-placed zero-advance slash; no GPOS anchors on arrow bases) and never
+  reaches the fontconfig per-char fallback, whose FreeSans PRECOMPOSED ↮
+  (slash centered) is a visibly different glyph. Gated to Linux: on macOS Chrome
+  cannot decompose these in Helvetica (it lacks the U+2194 base — misc arrows
+  route to Hiragino) and paints Apple Symbols' composed glyph, which the darwin
+  chain already matches; Windows resolves them via its calibrated chain
+  (Segoe UI Symbol).
 - `codepointResolvesToNotdef(cp, …)` is the read-only predicate that runs the same
   chain (primary → webfont partition → `fallbackFontChain` → live resolver) to ask
   "does anything cover `cp`?" without emitting.
