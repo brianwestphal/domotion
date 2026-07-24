@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryh3661cke9czx8",
+          "message": {
+            "text": "Every caret / selection assertion in this file reduces to one model:\n`position = TEXT_X0 + n * ADV`, where **TEXT_X0 (52) is fixed by the layout**\n(36px line-number column + 12px padding + 4px window inset) and **only the\nper-character advance varies with the face**. The original assertions baked in\nMenlo's advance (7.52px at 12.5px) as pixel literals, so the Linux container —\nwhich has no Menlo and substitutes a narrower mono — missed every window low.\n\nCross-check that the model is right, not just convenient: the old literals divide\nback to whole character columns — (172.4−52)/7.52 = 16, (247.7−52)/7.52 = 26,\n(194.9−52)/7.52 = 19 — which is why `col(16)`, `col(26)`, `col(19)` reproduce\nthem exactly. `ADV` is measured from the example page itself in `setup()`, so the\nassertions now say what they mean (\"parks on the captured glyph edge\") and hold\non any host regardless of which mono the platform resolves.\n\nNOT pinned to a bundled face (the ticket's other suggestion): the fixture subset\nfont renders on macOS Chrome but not in the Linux container (measured 7.5 vs\n8.0 px/char, and it broke the overlay-vs-page bbox parity by 67px on Linux only)\n— so pinning was net-harmful here, and the measured advance makes it unnecessary.\n",
+            "markdown": "Every caret / selection assertion in this file reduces to one model:\n`position = TEXT_X0 + n * ADV`, where **TEXT_X0 (52) is fixed by the layout**\n(36px line-number column + 12px padding + 4px window inset) and **only the\nper-character advance varies with the face**. The original assertions baked in\nMenlo's advance (7.52px at 12.5px) as pixel literals, so the Linux container —\nwhich has no Menlo and substitutes a narrower mono — missed every window low.\n\nCross-check that the model is right, not just convenient: the old literals divide\nback to whole character columns — (172.4−52)/7.52 = 16, (247.7−52)/7.52 = 26,\n(194.9−52)/7.52 = 19 — which is why `col(16)`, `col(26)`, `col(19)` reproduce\nthem exactly. `ADV` is measured from the example page itself in `setup()`, so the\nassertions now say what they mean (\"parks on the captured glyph edge\") and hold\non any host regardless of which mono the platform resolves.\n\nNOT pinned to a bundled face (the ticket's other suggestion): the fixture subset\nfont renders on macOS Chrome but not in the Linux container (measured 7.5 vs\n8.0 px/char, and it broke the overlay-vs-page bbox parity by 67px on Linux only)\n— so pinning was net-harmful here, and the measured advance makes it unnecessary.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/editor-session.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 105,
+                  "endLine": 107,
+                  "snippet": {
+                    "text": "/** Left edge of character column `n` in the code area, in device px. */\nconst ADV = env?.advance ?? NaN;\nconst col = (n: number): number => TEXT_X0 + n * ADV;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1778"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b9614b426a87f5303fed0cf44b081162"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c069bfd4c7e301b9e1149ce195b1a7ab0d6107b0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
