@@ -96,15 +96,20 @@ caps.maxRegionArea` and `strictRegionArea <= caps.totalRegionArea`. It is a
 totalRegionArea: 512 }` on **every** platform — sized from measurement rather
 than taste:
 
-- **Clean ceiling.** Across all 54 parity checks of the compressor e2e suite on
-  a correct build: 71 px largest single strict region and 206 px total on macOS,
-  and a flat **0 px** on Linux. The macOS residual is sparse glyph-edge drift on
-  one text-heavy fixture (max per-pixel severity 34.5%, zero high-severity
-  pixels, ~5–11% fill density inside each bounding box), confined to the states
-  whose insertion lands off the pixel grid. Every other fixture scores 0.
+- **Clean ceiling.** Across the compressor e2e suite's parity checks on a
+  correct build: 71 px largest single strict region and 206 px total on macOS,
+  a flat **0 px** on Linux, and **58 px largest / 93 px total** on Windows
+  (`windows-latest`, win32, 68 checks — measured directly, not inferred). The
+  macOS residual is sparse glyph-edge drift on one text-heavy fixture (max
+  per-pixel severity 34.5%, zero high-severity pixels, ~5–11% fill density
+  inside each bounding box), confined to the states whose insertion lands off
+  the pixel grid; every other fixture scores 0. Windows lands inside the macOS
+  ceiling because the fixtures launch with `--disable-lcd-text`, the same
+  subpixel-text mechanism ClearType would otherwise trip.
 - **Known break.** The z-order flip above is a single *dense* component —
-  measured at 3712 px on macOS and 3718 px in the Linux container, with
-  `regionCount === 0` on both, so the caps are the only thing that catches it.
+  measured at 3712 px on macOS, 3718 px in the Linux container, and 3712 px on
+  Windows, with `regionCount === 0` on all three, so the caps are the only thing
+  that catches it.
 
 So the caps sit ~3.6x above the clean ceiling and ~7–14x below the known break.
 `strictMaxRegionArea` is the sharper of the two — glyph drift splits into many

@@ -688,12 +688,16 @@ export function passes(cmp: CompareResult): boolean {
  *  The fixtures now rasterize with it off on every host (`PARITY_LAUNCH_OPTS`
  *  in `tests/flipbook-parity.ts`) and additionally pin their own bundled faces
  *  (`tests/fixture-fonts.ts`) instead of asking for host-dependent families.
- *  Re-measured over all 54 parity checks of the compressor e2e suite: Linux
- *  scores a flat 0 px on every one, macOS keeps its 71 px / 206 px ceiling
- *  (residual half-pixel drift on the states whose insertion lands off the pixel
- *  grid). Windows is not measured directly, but its ClearType default is the
- *  same LCD-text mechanism the flag disables, so it lands with Linux rather
- *  than outside the pair that bracket it.
+ *  Re-measured over the compressor e2e suite's parity checks: Linux scores a
+ *  flat 0 px on every one, macOS keeps its 71 px / 206 px ceiling (residual
+ *  half-pixel drift on the states whose insertion lands off the pixel grid),
+ *  and Windows — now measured directly on `windows-latest`, not inferred —
+ *  lands at 58 px / 93 px over 68 checks (win32, real ClearType), inside the
+ *  macOS ceiling, because the fixtures launch with `--disable-lcd-text`, the
+ *  same subpixel-text mechanism ClearType would otherwise trip. All three keep
+ *  `regionCount === 0` on a correct build, and the out-of-position-reopen break
+ *  measures 3712 px with `regionCount === 0` on every host — so the caps, not
+ *  the default gate, are what catch it everywhere.
  *
  *  Unlike the visual gate's per-platform hinting floor ("Per-platform coverage
  *  floor" in docs/12-diff-scoring.md), this bar needs no per-platform relief:
