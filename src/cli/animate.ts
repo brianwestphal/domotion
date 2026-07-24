@@ -1899,6 +1899,58 @@ function outsideRegionsKey(tree: CapturedElement[], ids: ReadonlySet<string>): s
 }
 
 /**
+ * Assemble the run's per-state trees from the per-round captures: the
+ * non-region remainder from round 0, and each declared region's subtree from
+ * the round holding that region's own state.
+ *
+ * Pure over the captures (no browser), and the load-bearing correctness step of
+ * per-region timing — the assembled configuration is one the page was never
+ * actually driven into, so nothing downstream would notice if it were wrong.
+ * It therefore checks its own precondition rather than trusting it: the
+ * remainder outside the declared regions must be identical in every round (no
+ * region's content moved anything outside itself), and every declared region
+ * root must still be present in every round. Both failures throw, naming
+ * `framePath` and the round that diverged.
+ */
+export function assembleRegionStateTrees(
+  roundTrees: CapturedElement[][],
+  plan: RegionCapturePlan,
+  regionIdByName: ReadonlyMap<string, string>,
+  framePath: string,
+): CapturedElement[][] {
+  const ids = new Set(regionIdByName.values());
+  // Missing-root first, on purpose. A vanished root ALSO perturbs the
+  // outside-the-regions key below (its marker disappears from the mask), so
+  // checking that first would report the generic "something outside changed"
+  // for what is really "your region element is gone" — the less actionable of
+  // the two messages for the same fault.
+  const rootsByRound = roundTrees.map((t) => indexRegionRoots(t, ids));
+  for (let r = 0; r < rootsByRound.length; r++) {
+    for (const [name, id] of regionIdByName) {
+      if (!rootsByRound[r].has(id)) {
+        throw new Error(`animate: ${framePath}.regions.${name} — the region's element is missing from capture round ${r}; its subtree was replaced without keeping the element itself`);
+      }
+    }
+  }
+  const baseKey = outsideRegionsKey(roundTrees[0], ids);
+  for (let r = 1; r < roundTrees.length; r++) {
+    if (outsideRegionsKey(roundTrees[r], ids) !== baseKey) {
+      throw new Error(
+        `animate: ${framePath} declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared `
+        + `regions between capture round 0 and round ${r} — each state's tree is assembled from the round holding each `
+        + `region's own state, so anything that changes must live inside a declared region. Declare the changing element `
+        + `in \`regions\`, or drop \`advances\` to capture every state whole.`,
+      );
+    }
+  }
+  return plan.sourceRound.map((bySource) => {
+    const sources = new Map<string, CapturedElement>();
+    for (const [name, id] of regionIdByName) sources.set(id, rootsByRound[bySource[name]].get(id)!);
+    return spliceRegionSubtrees(roundTrees[0], sources);
+  });
+}
+
+/**
  * DM-1747 (docs/100 Primitive 1): build a `states` frame's content. Runs each
  * state's actions against the live page, captures the tree, and composes the N
  * captured states via `composeCompressedRun` into one nested animated SVG:
@@ -1952,6 +2004,25 @@ async function buildStatesRunContent(
       );
       if (!matched) throw new Error(`animate: frames[${i}].regions.${name} selector "${selector}" matched no element`);
     }
+    // Two regions whose selectors land on the SAME element would silently
+    // clobber each other's stamp, leaving one region with no root at all. Read
+    // the stamps back and name the colliding pair instead.
+    const stamps = await page.evaluate(
+      (args: { selectors: string[] }) => args.selectors.map((s) => {
+        const el = document.querySelector(s);
+        return el instanceof HTMLElement ? (el.dataset.domotionAnim ?? "") : "";
+      }),
+      { selectors: regionNames.map((n) => fc.regions![n]) },
+    );
+    for (let k = 0; k < regionNames.length; k++) {
+      if (stamps[k] === regionIdOf(regionNames[k])) continue;
+      const other = regionNames[regionIds.indexOf(stamps[k])] ?? "another region";
+      throw new Error(
+        `animate: frames[${i}].regions.${regionNames[k]} and .${other} resolve to the SAME element `
+        + `("${fc.regions![regionNames[k]]}" and "${fc.regions![other] ?? "?"}") — each region must name a distinct element, `
+        + `since a region is the unit a state advances independently.`,
+      );
+    }
   };
 
   // Per-region timing engages only once a state actually declares `advances`;
@@ -1981,40 +2052,13 @@ async function buildStatesRunContent(
       }
       roundTrees.push(await captureNow());
     }
-    // The splice takes each state's non-region remainder from round 0, so that
-    // remainder must be the same in every round — i.e. no region's content
-    // moved anything outside itself. Checked rather than assumed: a violation
-    // would compose plausible-looking but wrong pixels, and the author is the
-    // only one who can fix it (declare the moving element as a region, or drop
-    // `advances`).
-    const baseKey = outsideRegionsKey(roundTrees[0], regionIdSet);
-    for (let r = 1; r < roundTrees.length; r++) {
-      if (outsideRegionsKey(roundTrees[r], regionIdSet) !== baseKey) {
-        throw new Error(
-          `animate: frames[${i}] declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared regions `
-          + `between capture round 0 and round ${r} — each state's tree is assembled from the round holding each region's own `
-          + `state, so anything that changes must live inside a declared region. Declare the changing element in \`regions\`, `
-          + `or drop \`advances\` to capture every state whole.`,
-        );
-      }
-    }
-    for (let r = 0; r < roundTrees.length; r++) {
-      const roots = indexRegionRoots(roundTrees[r], regionIdSet);
-      for (const name of regionNames) {
-        if (!roots.has(regionIdOf(name))) {
-          throw new Error(`animate: frames[${i}].regions.${name} — the region's element is missing from capture round ${r} (its selector "${fc.regions![name]}" resolved earlier, so its subtree was replaced without keeping the element)`);
-        }
-      }
-    }
-    const rootsByRound = roundTrees.map((t) => indexRegionRoots(t, regionIdSet));
-    for (let s = 0; s < stateCfgs.length; s++) {
-      const sources = new Map<string, CapturedElement>();
-      for (const name of regionNames) {
-        const id = regionIdOf(name);
-        sources.set(id, rootsByRound[plan.sourceRound[s][name]].get(id)!);
-      }
-      states.push({ tree: spliceRegionSubtrees(roundTrees[0], sources), holdMs: stateCfgs[s].duration });
-    }
+    const assembled = assembleRegionStateTrees(
+      roundTrees,
+      plan,
+      new Map(regionNames.map((n) => [n, regionIdOf(n)])),
+      `frames[${i}]`,
+    );
+    for (let s = 0; s < stateCfgs.length; s++) states.push({ tree: assembled[s], holdMs: stateCfgs[s].duration });
   } else {
     log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);
     for (let j = 0; j < stateCfgs.length; j++) {

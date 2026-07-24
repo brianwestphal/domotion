@@ -9,8 +9,9 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, planRegionCaptureRounds, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, planRegionCaptureRounds, assembleRegionStateTrees, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
+import type { CapturedElement } from "../capture/types.js";
 
 const base = { width: 100, height: 100 };
 
@@ -1492,6 +1493,87 @@ describe("planRegionCaptureRounds (DM-1770): independent per-region timing", () 
 
   it("a single state needs exactly one capture", () => {
     expect(planRegionCaptureRounds([{}], ["a"]).rounds).toEqual([[]]);
+  });
+});
+
+describe("assembleRegionStateTrees (DM-1770): each state's tree from the round holding each region's state", () => {
+  // Minimal captured shapes — the assembly is pure structure, so only the
+  // region roots' `animId`s and the surrounding nodes matter.
+  const el = (over: Record<string, unknown>): CapturedElement =>
+    ({ tag: "div", text: "", x: 0, y: 0, width: 10, height: 10, children: [], styles: {}, ...over }) as unknown as CapturedElement;
+  /** One whole-page capture: a static shell wrapping two region roots holding
+   *  `a` / `b` as their content marker. */
+  const round = (a: string, b: string, shell = "chrome"): CapturedElement[] => [
+    el({ text: shell, children: [
+      el({ animId: "rgA", children: [el({ text: a })] }),
+      el({ animId: "rgB", children: [el({ text: b })] }),
+    ] }),
+  ];
+  const names = new Map([["editor", "rgA"], ["preview", "rgB"]]);
+  /** Read back what each region holds in each assembled state. */
+  const contents = (trees: CapturedElement[][]): string[] => trees.map((t) => {
+    const kids = t[0].children;
+    return `${kids[0].children[0].text}/${kids[1].children[0].text}`;
+  });
+
+  it("assembles the alternating two-region schedule from 4 rounds into 7 states", () => {
+    const plan = planRegionCaptureRounds(
+      [{}, { advances: ["editor"] }, { advances: ["preview"] }, { advances: ["editor"] },
+        { advances: ["preview"] }, { advances: ["editor"] }, { advances: ["preview"] }],
+      ["editor", "preview"],
+    );
+    const rounds = [round("A0", "B0"), round("A1", "B1"), round("A2", "B2"), round("A3", "B3")];
+    // Each state must show each region at ITS own step — the staircase the
+    // page was never actually driven through.
+    expect(contents(assembleRegionStateTrees(rounds, plan, names, "frames[0]"))).toEqual([
+      "A0/B0", "A1/B0", "A1/B1", "A2/B1", "A2/B2", "A3/B2", "A3/B3",
+    ]);
+  });
+
+  it("a region that never advances holds its round-0 subtree in every state", () => {
+    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }, { advances: ["editor"] }], ["editor", "preview"]);
+    const rounds = [round("A0", "B0"), round("A1", "B1"), round("A2", "B2")];
+    expect(contents(assembleRegionStateTrees(rounds, plan, names, "frames[0]"))).toEqual(["A0/B0", "A1/B0", "A2/B0"]);
+  });
+
+  it("the assembled trees never alias the round captures", () => {
+    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
+    const rounds = [round("A0", "B0"), round("A1", "B1")];
+    const out = assembleRegionStateTrees(rounds, plan, names, "frames[0]");
+    out[1][0].children[0].children[0].text = "mutated";
+    expect(rounds[1][0].children[0].children[0].text).toBe("A1");
+    expect(contents([out[0]])[0]).toBe("A0/B0");
+  });
+
+  it("hard-errors when the page changed OUTSIDE every declared region", () => {
+    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
+    const rounds = [round("A0", "B0"), round("A1", "B1", "chrome moved")];
+    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[2]"))
+      .toThrow(/frames\[2\] declares per-region timing \(`advances`\), but the page changed OUTSIDE the declared regions between capture round 0 and round 1/);
+  });
+
+  it("hard-errors when a region root vanished from a later round", () => {
+    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
+    const rounds = [round("A0", "B0"), [el({ text: "chrome", children: [el({ animId: "rgA", children: [el({ text: "A1" })] })] })]];
+    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[0]"))
+      .toThrow(/frames\[0\]\.regions\.preview — the region's element is missing from capture round 1/);
+  });
+
+  it("a region's OWN subtree may change freely between rounds — that is the point", () => {
+    // The guard masks region roots entirely, so a pane rebuilding its whole
+    // content (different children, different geometry) is fine; only the
+    // remainder has to hold still.
+    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
+    const rounds = [
+      round("A0", "B0"),
+      [el({ text: "chrome", children: [
+        el({ animId: "rgA", width: 999, children: [el({ text: "A1" }), el({ text: "extra" })] }),
+        el({ animId: "rgB", children: [el({ text: "B1" })] }),
+      ] })],
+    ];
+    const out = assembleRegionStateTrees(rounds, plan, names, "frames[0]");
+    expect(out[1][0].children[0].width).toBe(999);
+    expect(out[1][0].children[1].children[0].text).toBe("B0");
   });
 });
 

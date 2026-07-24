@@ -7,7 +7,7 @@ import { launchChromium, captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { generateAnimatedSvg } from "../src/animation/index.js";
-import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
+import { assembleRegionStateTrees, composeAnimateFrames, planRegionCaptureRounds, validateAnimateConfig } from "../src/cli/animate.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
@@ -151,7 +151,7 @@ const REGION_STATES = [
  * one at a time and capture it whole (the `Σnᵢ` schedule per-region timing
  * exists to avoid), then render them as a plain uncompressed flipbook.
  */
-async function sequentialFlipbook(ctx: BrowserContext): Promise<string> {
+async function sequentialTrees(ctx: BrowserContext, stampRegions = false): Promise<CapturedElement[][]> {
   const page = await ctx.newPage();
   await page.setContent(PAGE_HTML, { waitUntil: "domcontentloaded" });
   await page.evaluate(() => document.fonts.ready);
@@ -161,10 +161,23 @@ async function sequentialFlipbook(ctx: BrowserContext): Promise<string> {
       (window as unknown as { setLeft: (n: number) => void }).setLeft(a[0]);
       (window as unknown as { setRight: (n: number) => void }).setRight(a[1]);
     }, [k, off] as [number, number]);
+    if (stampRegions) await stampPanes(page);
     trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H }));
   }
   await page.close();
+  return trees;
+}
 
+/** Stamp the two panes exactly as the CLI's `regions` resolution does. */
+async function stampPanes(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (document.querySelector("#ed") as HTMLElement).dataset.domotionAnim = "f0rg0";
+    (document.querySelector("#pv") as HTMLElement).dataset.domotionAnim = "f0rg1";
+  });
+}
+
+async function sequentialFlipbook(ctx: BrowserContext): Promise<string> {
+  const trees = await sequentialTrees(ctx);
   const rootBg = (trees[0][0]?.styles as { rootBgComputed?: string } | undefined)?.rootBgComputed;
   clearEmbeddedFonts();
   clearGlyphDefs();
@@ -239,6 +252,51 @@ afterAll(async () => {
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("independent per-region timing in one compressed run (docs/100, docs/43 §11.1)", () => {
+  it("the 4-round assembly reproduces the 7 sequential captures EXACTLY, tree for tree", async () => {
+    // The decisive correctness claim, asserted where it can be exact rather
+    // than only where it can be seen: the assembled state trees — each built
+    // from the round holding each region's own state, a page configuration the
+    // browser was never driven into — must be byte-identical to capturing all
+    // seven configurations one at a time. Captures are deterministic (the same
+    // static page state captured twice is byte-identical), so this is a total
+    // statement about the splice, with no rasterization in the loop.
+    const { browser } = env!;
+    const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      const plan = planRegionCaptureRounds(REGION_STATES, ["editor", "preview"]);
+      expect(plan.rounds).toHaveLength(4);
+
+      // Drive the page in the FOUR batched rounds the schedule asks for.
+      const page = await ctx.newPage();
+      await page.setContent(PAGE_HTML, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const roundTrees: CapturedElement[][] = [];
+      for (const round of plan.rounds) {
+        for (const s of round) {
+          const script = (REGION_STATES[s].actions![0] as { script: string }).script;
+          // The states' actions are `evaluate` scripts; run them the same way
+          // the config's action runner does.
+          await page.evaluate((src: string) => { (0, eval)(src); }, script);
+        }
+        await stampPanes(page);
+        roundTrees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H }));
+      }
+      await page.close();
+
+      const assembled = assembleRegionStateTrees(
+        roundTrees, plan, new Map([["editor", "f0rg0"], ["preview", "f0rg1"]]), "frames[0]",
+      );
+      const truth = await sequentialTrees(ctx, true);
+      expect(assembled).toHaveLength(truth.length);
+      for (let s = 0; s < truth.length; s++) {
+        expect(JSON.stringify(assembled[s]), `state ${s} assembled from rounds differs from its sequential capture`)
+          .toBe(JSON.stringify(truth[s]));
+      }
+    } finally {
+      await ctx.close();
+    }
+  }, 240_000);
+
   it("two regions on their own schedules compose correctly, at 4 whole-page captures instead of 7", async () => {
     const { browser, dir } = env!;
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
@@ -340,5 +398,37 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
     });
     await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} }))
       .rejects.toThrow(/changed OUTSIDE the declared regions/);
+  }, 240_000);
+
+  it("rejects two regions that resolve to the same element", async () => {
+    // Their stamps would clobber each other, leaving one region with no root —
+    // and a region is the unit a state advances, so they must be distinct.
+    const { browser, dir } = env!;
+    const cfg = validateAnimateConfig({
+      width: W, height: H,
+      frames: [{
+        input: "./panes.html", duration: 400,
+        transition: { type: "cut", duration: 0 },
+        regions: { editor: "#ed", alsoEditor: ".editor" },
+        states: [{ duration: 200 }, { advances: ["editor"], duration: 200 }],
+      }],
+    });
+    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} }))
+      .rejects.toThrow(/resolve to the SAME element/);
+  }, 240_000);
+
+  it("rejects a region selector that matches nothing, naming the frame and the region", async () => {
+    const { browser, dir } = env!;
+    const cfg = validateAnimateConfig({
+      width: W, height: H,
+      frames: [{
+        input: "./panes.html", duration: 400,
+        transition: { type: "cut", duration: 0 },
+        regions: { editor: "#ed", ghost: "#nope" },
+        states: [{ duration: 200 }, { advances: ["editor"], duration: 200 }],
+      }],
+    });
+    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} }))
+      .rejects.toThrow(/frames\[0\]\.regions\.ghost selector "#nope" matched no element/);
   }, 240_000);
 });
