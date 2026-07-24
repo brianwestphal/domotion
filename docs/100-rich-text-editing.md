@@ -555,6 +555,152 @@ geometry-preserving refusal and the in-flow non-candidate, and a rasterized e2e
 where the returning row **overlaps** a sibling inserted while it was gone, so a
 reopened-in-place variant would visibly flip the overlap.
 
+### Design — independent per-region timing (designed, NOT built)
+
+Region *discrimination* ships (above): each pane gets its own line buckets and
+its own pairing. Region *timing* does not — a run is still N states on ONE
+grid, and every state is one whole-page capture. This section is the design for
+closing that, and the measurements that should decide how much of it is worth
+building. **Nothing here is implemented**; the authoring surface in particular
+is presented as options rather than a decision.
+
+**Already region-aware today.** Two of the three pieces people expect from
+"independent regions" are in the shipped engine: the chrome union pairs
+per-*element* subtrees on byte-equality, so an unchanged pane's subtree is
+emitted once no matter how hard its neighbor churns; and glyph identity is
+threaded per line bucket per region, so each pane pairs, moves, and recolors on
+its own. What remains global is the **state grid**, the **size guard**, and
+**run eligibility** (a per-frame overlay, cursor event, or magic-move landing
+anywhere in the scene disqualifies or splits the whole run).
+
+**Measured first: the global state grid is nearly free in bytes.** The worry
+that motivates per-region timing is that interleaving two schedules into their
+union grid makes every region carry a waypoint at every other region's
+boundary. It does not. Every track the compressor emits is `step-end` and the
+emitter only writes a stop where a value *changes*, so a state in which a region
+is unchanged contributes nothing to that region's keyframes. Measured on the
+two-pane fixture — identical visual content, grid granularity varied by
+inserting nothing-changed states:
+
+| grid | states | composed bytes | track CSS | groups | chrome tracks |
+| --- | --- | --- | --- | --- | --- |
+| natural | 6 | 24.2 KB | 42,497 B | 36 | 82 |
+| union (1 dup between each pair) | 11 | 24.3 KB | 42,562 B | 36 | 82 |
+| union (3 dups between each pair) | 21 | 24.3 KB | 42,562 B | 36 | 82 |
+
+A 3.5× finer grid costs **0.4%**. So per-region timing is *not* a payload
+optimization, and any design that justifies itself on output size is
+mis-motivated. What the global grid actually costs is:
+
+- **Captures.** k regions with n₁…n_k states need Σnᵢ whole-page captures
+  instead of max(nᵢ). Each is a Playwright round trip, and capture dominates run
+  wall-clock.
+- **Compose time.** The chrome union merge is O(states × tree); the 21-state
+  grid composed in 177 ms against the 6-state grid's 120 ms.
+- **Authoring.** The author must interleave the schedules by hand into one
+  `states:` list and make each state's `actions` drive whichever pane moves at
+  that moment. This is the real pain, and it is the thing a surface should fix.
+
+**Per-region size guard — measured, and it is not an extension of
+`composeStatesFlipbook`.** Today one badly-pairing pane reverts the whole scene.
+The natural per-region fallback is *not* the whole-run flipbook: it is
+**demoting that region's text into the chrome union**, which is the path
+ineligible text already takes (so it is pixel-safe by the same argument, and the
+occlusion guard that governs promotion is computed on the full tree and is
+unaffected by another region's demotion). Measured on a deliberately mixed
+scene — a well-pairing editor pane beside a wholesale-change slideshow pane, 6
+states, 97.3 KB of raw flipbook payload:
+
+| | composed bytes |
+| --- | --- |
+| compress both regions (today's compressed output) | 172.1 KB (1.77× raw) |
+| demote the wholesale-change region only | **83.2 KB** |
+| demote the well-pairing region only (the wrong choice) | 170.9 KB |
+| demote both | **81.8 KB** |
+| `composeStatesFlipbook` (today's whole-run fallback) | 97.8 KB |
+
+Two things fall out. First, per-region demotion beats today's outcome by 2×
+(the guard trips at 1.77× and reverts to the 97.8 KB flipbook; demoting just the
+bad pane gives 83.2 KB). Second — worth its own look — **the chrome union is a
+better whole-run fallback than `composeStatesFlipbook`**: demoting *everything*
+into the union gives 81.8 KB against the flipbook's 97.8 KB, because the union
+deduplicates subtrees shared across states while the flipbook re-emits each
+state whole.
+
+What blocks building it is the *decision procedure*, not the mechanism. The
+existing guard's stated principle is to decide on real bytes, never a ratio
+proxy ("the ratio is only the trigger… build the actual fallback and pick on
+real bytes"). Applied per region that means one trial compose per candidate
+region (~80–135 ms each on the two-pane fixture — cheap). But each compose walks
+the module-global embedded-font subset builder, which assigns PUA codepoints in
+order of first glyph use; a trial that renders text in a different layer order
+perturbs those assignments, and under `manageFonts: false` (the CLI path) that
+registry is shared with the whole outer animate run. Discarding a trial's effect
+needs a snapshot/restore on the font builder that does not exist today. So the
+options are:
+
+1. **Proxy metric** (per-region births-per-identity as the demotion trigger, no
+   trial compose). Buildable entirely inside the compressor, no font-state risk.
+   On the measured fixture it lands on 83.2 KB rather than the optimal 81.8 KB —
+   1.7% off — but it breaks the "decide on real bytes" principle the whole-run
+   guard was deliberately built around.
+2. **Trial composes + a font-builder generation snapshot.** Exact, matches the
+   existing guard's principle, and would also let the whole-run guard switch its
+   fallback from `composeStatesFlipbook` to full chrome demotion (97.8 → 81.8 KB
+   on the measured fixture). Costs a new save/restore API on the embedded-font
+   subset builder and the glyph-defs registry — a lifecycle change to shared
+   render state, which is the exact area a prior stale-registry bug came from.
+3. **Leave it.** The whole-run guard already guarantees output is never worse
+   than the flipbook; per-region only recovers the gap between "never worse" and
+   "as good as it could be".
+
+**How regions are declared.** Three shapes, in increasing author cost:
+
+- **A — auto-detected (no new surface).** Reuse the shipped discriminator: the
+  innermost clipping ancestor, else the innermost side-by-side column. Zero
+  authoring, and it already demonstrably separates real panes. Its limit is that
+  it detects *layout* regions, not *update* regions: two panes that always change
+  together are still two regions (harmless), and one pane containing two
+  independently-updating halves with no clip or column split between them is one
+  region (a missed opportunity, not a bug).
+- **B — explicit selectors in the `states:` block.** e.g. a `regions:` list of
+  selectors alongside `states:`, each state naming which region(s) it advances.
+  Precise, and it is the only form that can express "this state advances the
+  editor only" — which is what unlocks per-region capture counts. Costs a new
+  config surface, schema, validation, and per-state selector stamping at capture.
+- **C — hybrid.** Auto-detect by default; an optional `regions:` list overrides
+  the detection where the author knows better. Cheapest incremental path: ship A
+  (done), add B's override only when a real config needs it.
+
+**Overlapping and z-ordered regions.** The layering is global and stays that
+way: one chrome union below, selection rects in the gap, all glyph groups above,
+caret on top. Regions partition the *glyph layer's bucketing*, not the paint
+order, so two regions that overlap spatially are still painted in the scene's
+real paint order within each layer. The promotion rule already handles the
+dangerous case: text only joins the glyph layer when nothing that paints after
+it (in `paintOrderHitSequence` order, clipped to its own overflow) intersects
+it — so a region that sits *under* another region's opaque chrome never reaches
+the glyph layer at all and flipbooks in place. A per-region design must not
+weaken that check; it should stay whole-scene, because "paints after" is a
+property of the scene and not of any region. The one shape that needs a decision
+is a region whose glyphs must paint *below* another region's chrome — today
+that text is demoted, which is correct but costs compression, and recovering it
+would need per-region glyph sub-layers interleaved into the chrome union rather
+than one glyph layer on top.
+
+**Capture stays whole-page.** This is not negotiable and should be written into
+whatever surface lands: the browser paints the page, so every capture is a
+capture of the entire viewport. Per-region timing does not mean per-region
+capture; it means each whole-page capture is *assigned* to the region(s) that
+changed at that moment, and regions that did not change reuse their previous
+tree. That assignment is what would let a region's identity threading skip
+untouched boundaries — and, more usefully, would let a region be captured at its
+own rate rather than at the union rate, cutting the Σnᵢ capture count back
+toward max(nᵢ). The assignment can be authored (option B), or derived by
+diffing each fresh capture against the previous one per region (no new surface,
+but it pays a whole-page capture at every union boundary anyway, which is
+exactly the cost being removed).
+
 ### Why not magic-move (the obvious-looking tool)
 
 Three structural mismatches, from `src/animation/magic-move.ts` / `tree-diff.ts`:

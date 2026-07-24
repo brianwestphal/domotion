@@ -143,7 +143,24 @@ they describe (see `CLAUDE.md` "Documentation"):
   so a paint-order flip measured 3712 differing pixels and still scored
   `clean` — the bar now also bounds the comparator's new `strictRegionCount` /
   `strictRegionArea` / `strictMaxRegionArea` aggregates (doc 12; macOS-calibrated,
-  degrading to `regionCount === 0` elsewhere). And (2) a **caret + selection track** — declarative
+  degrading to `regionCount === 0` elsewhere).
+  **Independent regions (DM-1770) — region DISCRIMINATION shipped; per-region
+  TIMING is design-only.** Line buckets keyed on a segment's y alone merged two
+  side-by-side panes into one logical line, so an editor pane and a preview pane
+  at the same vertical position defeated each other's pairing (measured: 59.7%
+  paired / 62.7 KB against 96.5% / 28.3 KB once separated). Each glyph now
+  carries a **region** — the innermost clipping ancestor, else the innermost
+  side-by-side column taller than one line box — and bucketing plus both
+  bucket-pairing phases are scoped to it; inert on single-region scenes by
+  construction (all 25 animate goldens byte-identical). Rasterized coverage:
+  `tests/two-pane-regions.e2e.test.ts`. Still global and written up as a design
+  section in doc 100 (with the measurements that should decide it): the state
+  grid — measured **nearly free**, a 3.5× finer grid costs 0.4% of bytes, so
+  per-region timing is an authoring/capture-count question, not a payload one —
+  the whole-run size guard (per-region demotion into the chrome union measures
+  172.1 KB → 83.2 KB where today's guard reverts to a 97.8 KB flipbook, but
+  deciding it on real bytes needs a font-builder snapshot API that does not
+  exist), and per-run eligibility. And (2) a **caret + selection track** — declarative
   caret/selection anchored node-side to captured text (`selector` + char offset
   over segment `xOffsets`; `caretShapeRect` geometry; blink + sweep), standalone
   and useful beyond editing. The original document-model + op-timeline core is
