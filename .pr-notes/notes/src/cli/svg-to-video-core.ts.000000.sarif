@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryeckm0iwcgt6vf",
+          "message": {
+            "text": "Two deliberate choices here, both load-bearing:\n\n**Why the marker is on `documentElement`, not `window`.** A page reused via a\nfresh `setContent` gets a NEW document (and a new `documentElement`) but can keep\nthe same `window`. Marking `window` would make the second content load skip the\nsettle and silently regress to the unsettled path — the exact bug — on any\nfixture that reuses a page. `documentElement` resets naturally per document.\n\n**Why once per document, not per seek.** The video-export path calls `seekTo`\nonce per output frame; an unconditional double-`requestAnimationFrame` would add\ntwo frames of latency to every exported frame. The incomplete-enumeration hazard\nonly exists before the document's first style recalc, so settling once is\nsufficient and costs one frame per page rather than per seek.\n\nFixed here rather than in each e2e fixture so the production callers\n(svg-to-video, svg-scrubber, svg-to-image) get it too — the original workaround\nlived in one test file and every other caller was still exposed.\n",
+            "markdown": "Two deliberate choices here, both load-bearing:\n\n**Why the marker is on `documentElement`, not `window`.** A page reused via a\nfresh `setContent` gets a NEW document (and a new `documentElement`) but can keep\nthe same `window`. Marking `window` would make the second content load skip the\nsettle and silently regress to the unsettled path — the exact bug — on any\nfixture that reuses a page. `documentElement` resets naturally per document.\n\n**Why once per document, not per seek.** The video-export path calls `seekTo`\nonce per output frame; an unconditional double-`requestAnimationFrame` would add\ntwo frames of latency to every exported frame. The incomplete-enumeration hazard\nonly exists before the document's first style recalc, so settling once is\nsufficient and costs one frame per page rather than per seek.\n\nFixed here rather than in each e2e fixture so the production callers\n(svg-to-video, svg-scrubber, svg-to-image) get it too — the original workaround\nlived in one test file and every other caller was still exposed.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/svg-to-video-core.ts"
+                },
+                "region": {
+                  "startLine": 806,
+                  "endLine": 822,
+                  "snippet": {
+                    "text": "  await page.evaluate(async (tMs) => {\n    // DM-1781: a CSS animation only joins the document timeline at its first\n    // style recalc, so on a document seeked immediately after load\n    // `getAnimations()` can return an INCOMPLETE set — the animations it misses\n    // keep free-running at wall-clock time and the first sampled state is a\n    // frame off. That is exactly the observed failure shape: a parity flake at\n    // STATE 0 only (every later state is seeked on an already-rendered page).\n    // Let the document render one frame before enumerating.\n    //\n    // Once per DOCUMENT, not per seek: the video-export path seeks once per\n    // output frame and must not pay an extra frame every time. The marker lives\n    // on `documentElement` (not `window`) so a page reused via a fresh\n    // `setContent` — a new document, new element — correctly settles again.\n    const root = document.documentElement as unknown as { __domotionSeekSettled?: boolean };\n    if (root != null && root.__domotionSeekSettled !== true) {\n      if (root != null) root.__domotionSeekSettled = true;\n      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1781"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "07a383766f21f935a1cf52bd321c02e8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c69165dbbdce1b7c79618f858e306c055181afca",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

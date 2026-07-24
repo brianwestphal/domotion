@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryeckrgkgpbfihq",
+          "message": {
+            "text": "Mutant-tested to confirm these guards have teeth: disabling the settle in\n`seekTo` (forcing the branch false) makes the **once-per-document** test fail.\n\nThe first test (immediate seek after `setContent`) still PASSED while mutated —\nthe underlying race is intermittent, so it cannot be a deterministic guard. It is\nkept because it asserts the actual user-visible contract and will catch a\nregression whenever the race manifests; the marker test is the deterministic one.\n\nField evidence: 7 full runs of the 8-file compressor e2e set (34 tests) produced\nno DM-1781-signature failure (strict caps, 1-2 regions, few hundred px).\n",
+            "markdown": "Mutant-tested to confirm these guards have teeth: disabling the settle in\n`seekTo` (forcing the branch false) makes the **once-per-document** test fail.\n\nThe first test (immediate seek after `setContent`) still PASSED while mutated —\nthe underlying race is intermittent, so it cannot be a deterministic guard. It is\nkept because it asserts the actual user-visible contract and will catch a\nregression whenever the race manifests; the marker test is the deterministic one.\n\nField evidence: 7 full runs of the 8-file compressor e2e set (34 tests) produced\nno DM-1781-signature failure (strict caps, 1-2 regions, few hundred px).\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/seek-settle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 38,
+                  "endLine": 56,
+                  "snippet": {
+                    "text": "  it(\"pauses and seeks every animation even when seeked immediately after setContent\", async () => {\n    const page = await browser.newPage();\n    // Deliberately NO settle here — reproducing the flake's exact conditions is\n    // the whole point, so the guard must not paper over it from the test side.\n    await page.setContent(HTML, { waitUntil: \"domcontentloaded\" });\n    await seekTo(page, 500);\n\n    const states = await page.evaluate(() =>\n      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })));\n\n    expect(states.length).toBe(2);\n    for (const s of states) {\n      expect(s.playState).toBe(\"paused\");\n      expect(s.currentTime).toBe(500);\n    }\n    await page.close();\n  });\n\n  it(\"settles once per DOCUMENT — and a fresh document settles again\", async () => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "workItemUris": [
+            "DM-1781"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4e7ad8c0daf010017c9e8baa83d34247"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c69165dbbdce1b7c79618f858e306c055181afca",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
