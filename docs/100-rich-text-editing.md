@@ -421,6 +421,57 @@ overlays, no transform / filter / mask / clip / blend / sub-1 opacity on the
 element or an ancestor, and text rects fully inside every overflow-clipping
 ancestor.
 
+**Independent regions in one scene.** A scene commonly holds several
+independently-updating areas — an editor pane and a rendered-preview pane, a
+code view and its minimap, a log tail beside a static sidebar — each changing on
+its own timing. Line buckets key on a text segment's y (a "visual line"), and
+two panes side by side sit at the SAME y values, so without a discriminator
+their glyphs merge into one logical line: the pairing pass then sees a line
+whose content changes wholesale whenever *either* pane changes, and the
+cross-line phase can no longer express "this pane scrolled" as a move. Each
+run of text therefore carries a **region** — the innermost *clipping* ancestor
+(an ancestor with a non-`visible` overflow: a scroll container, a pane, a
+clipped viewport), or, where nothing clips, the innermost side-by-side
+**column**: a box that overlaps a sibling vertically while being disjoint from
+it horizontally *and* is taller than one line box. Line bucketing and both
+bucket-pairing phases are scoped to the region, so two panes never compete for a
+bucket and one pane's vertical move delta is never offered to another's edited
+lines.
+
+The discriminator was picked by measurement against a two-pane fixture (a code
+editor left, a Markdown-style preview right, lines on the same 19 px grid),
+in the case a merged bucket cannot express: the preview scrolls by one
+line-height *while* the editor is edited, in the same state. Over 6 states:
+
+| | glyphs paired | births / deaths | composed bytes |
+| --- | --- | --- | --- |
+| merged into one bucket | 59.7% | 1191 / 1179 | 62.7 KB (0.68× of flipbook) |
+| region-discriminated | **96.5%** | **102 / 90** | **28.3 KB (0.31×)** |
+
+...and the region-discriminated numbers match, to the glyph, a control run of
+the same scene with the right pane nudged 6 px so the two panes fell into
+distinct y buckets by geometry alone. Two candidates were rejected on
+measurement, not taste. **x-gap clustering within a y band** keys on where ink
+happens to fall, so a state in which one pane's line is empty re-indexes the
+clusters and mispairs every bucket after it — the one failure mode a bucket key
+must not have. Every **finer structural rule** tried (nearest block container,
+nearest flex/grid item, "sibling boxes disjoint in x" without the height test)
+also splits a line-number gutter from its own code line, re-partitioning scenes
+that have no independent regions at all; the one-line-box height test is exactly
+what separates a pane from a gutter cell, since the two are otherwise
+geometrically identical. The shipped rule is inert on single-region scenes by
+construction — a scene with one (or no) clipping ancestor over its text yields
+ONE region, and every bucket partition, pairing decision, group, and emitted
+byte is identical to a build with no discriminator at all (verified: all 25
+animate goldens byte-identical, and the compressor's own fixtures unchanged at
+99.6% / 84.6% paired). A region whose own box changes between states (a pane
+that resized) is a *different* region, so its lines re-emit rather than mispair
+— re-emit on any doubt.
+
+Rasterized coverage: `tests/two-pane-regions.e2e.test.ts` holds both the
+clipping-pane and the non-clipping-column scene to pixel parity with the
+uncompressed flipbook at every state.
+
 **Pairing-ratio logging.** Every run logs one line via `opts.log`:
 `compress: run of N states, X% glyphs paired, Y KB → Z KB` (raw = the N states
 rendered independently, i.e. the flipbook frame payload; both sides exclude

@@ -320,6 +320,115 @@ describe("buildCompressedRunPlan — cross-line identity (vertical line moves)",
   });
 });
 
+describe("buildCompressedRunPlan — region discrimination (independent panes)", () => {
+  // A scene commonly holds several independently-updating regions — an editor
+  // pane and a preview pane, both changing on their own timing. Line buckets
+  // key on a segment's y, so two panes at the SAME vertical position would
+  // merge into one logical line and the pairing pass would see a line whose
+  // content changes wholesale whenever either pane changes. These pin the
+  // discriminator that keeps them apart. The rasterized two-pane fixture lives
+  // in tests/two-pane-regions.e2e.test.ts.
+
+  /** A clipping pane (overflow: hidden) at `x`, holding the given lines. */
+  const pane = (x: number, lines: CapturedElement[]): CapturedElement =>
+    box(lines, { x, y: 0, width: 450, height: 420, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
+  /** A NON-clipping column: a tall box beside a sibling column, no overflow. */
+  const column = (x: number, lines: CapturedElement[]): CapturedElement =>
+    box(lines, { x, y: 0, width: 450, height: 420, styles: styles({ lineHeight: "19px" }) });
+
+  const leftLines = (typed: string) => [
+    lineEl(`let x = ${typed}1;`, { x: 20, y: 100 }),
+    lineEl("call(x);", { x: 20, y: 119 }),
+  ];
+  /** The preview column scrolled by `off` lines: content moves up one line. */
+  const rightLines = (off: number) =>
+    ["alpha row", "beta row", "gamma row", "delta row"]
+      .slice(off, off + 3)
+      .map((t, i) => lineEl(t, { x: 500, y: 100 + i * 19 }));
+
+  it("side-by-side clipping panes at the same y do not share a line bucket", () => {
+    const plan = buildCompressedRunPlan([
+      state([pane(0, leftLines("")), pane(450, rightLines(0))]),
+      // The LEFT pane is edited while the RIGHT pane scrolls by one line in the
+      // very same state — the case a shared bucket cannot express.
+      state([pane(0, leftLines("y")), pane(450, rightLines(1))]),
+    ]);
+    // Right pane: `beta row` / `gamma row` were already painted, one line down;
+    // they pair across the -19 move rather than dying and re-birthing.
+    const b = ident(plan, "b").find((t) => t.ys[0] === 119)!;
+    expect(b.ys).toEqual([119, 100]);
+    // Left pane: only the typed glyph is born, and it did NOT move vertically.
+    const y = ident(plan, "y");
+    expect(y).toHaveLength(1);
+    expect(y[0].birth).toBe(1);
+    expect(y[0].ys).toEqual([100]);
+    // `alpha row` scrolled off the top; nothing else dies.
+    expect(plan.thread.deaths).toBe("alpha row".length);
+  });
+
+  it("non-clipping side-by-side columns are regions too (taller than one line box)", () => {
+    const plan = buildCompressedRunPlan([
+      state([box([column(0, leftLines("")), column(450, rightLines(0))], { x: 0, y: 0, width: 900, height: 420 })]),
+      state([box([column(0, leftLines("y")), column(450, rightLines(1))], { x: 0, y: 0, width: 900, height: 420 })]),
+    ]);
+    const b = ident(plan, "b").find((t) => t.ys[0] === 119)!;
+    expect(b.ys).toEqual([119, 100]);
+    expect(plan.thread.deaths).toBe("alpha row".length);
+  });
+
+  it("a one-line-tall cell beside its own line (a gutter) is NOT a region", () => {
+    // The gutter number and its code line sit side by side and overlap
+    // vertically exactly as two panes do — only their one-line height tells
+    // them apart. They must stay ONE logical line, or every single-pane scene
+    // would re-partition.
+    const row = (n: string, code: string, y: number) =>
+      box([lineEl(n, { x: 10, y, height: 19 }), lineEl(code, { x: 60, y, height: 19 })],
+        { x: 0, y, width: 600, height: 19, styles: styles({ lineHeight: "19px" }) });
+    const plan = buildCompressedRunPlan([
+      state([box([row("1", "let x = 1;", 100), row("2", "call(x);", 119)])]),
+      state([box([row("1", "let xy = 1;", 100), row("2", "call(x);", 119)])]),
+    ]);
+    const lineKeys = new Set(plan.thread.all.map((t) => t.rec.lineKey));
+    expect(lineKeys.size).toBe(2); // one bucket per visual line, gutter included
+    // ...and the row still behaves like a plain mid-line insert.
+    expect(plan.thread.deaths).toBe(0);
+    expect(plan.thread.births).toBe(1);
+  });
+
+  it("a single-region scene is byte-identical to one with no discriminator at all", () => {
+    // The whole point of the coarse rule: a scene with one (or no) clipping
+    // ancestor over all its text yields ONE region, so nothing about the
+    // partition, the pairing, or the emitted bytes can move. Wrapping the very
+    // same content in a clipping pane must therefore change nothing.
+    const mk = (typed: string, wrap: boolean) => {
+      const lines = [lineEl(`let x = ${typed}1;`, { x: 20, y: 100 }), lineEl("call(x);", { x: 20, y: 119 })];
+      return wrap ? [pane(0, lines)] : [box(lines)];
+    };
+    const bare = composeCompressedRun([state(mk("", false)), state(mk("y", false))], { width: 900, height: 420, idPrefix: "cr" });
+    const wrapped = composeCompressedRun([state(mk("", true)), state(mk("y", true))], { width: 900, height: 420, idPrefix: "cr" });
+    expect(wrapped.pairingStats.glyphsPaired).toBe(bare.pairingStats.glyphsPaired);
+    expect(wrapped.pairingStats.births).toBe(bare.pairingStats.births);
+    expect(wrapped.pairingStats.deaths).toBe(bare.pairingStats.deaths);
+    expect(wrapped.pairingStats.groupCount).toBe(bare.pairingStats.groupCount);
+  });
+
+  it("a region whose own box changes between states re-emits rather than mispairing", () => {
+    // A pane that resized is a different region — re-emit on any doubt.
+    const plan = buildCompressedRunPlan([
+      state([pane(0, leftLines("")), pane(450, rightLines(0))]),
+      state([
+        pane(0, leftLines("")),
+        box(rightLines(0), { x: 450, y: 0, width: 400, height: 420, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) }),
+      ]),
+    ]);
+    // The left pane is untouched; the resized right pane's glyphs all die and
+    // re-birth (correct pixels, less compression).
+    const right = "alpha rowbeta rowgamma row".length;
+    expect(plan.thread.deaths).toBe(right);
+    expect(plan.thread.births).toBe(right);
+  });
+});
+
 describe("buildCompressedRunPlan — chrome union", () => {
   it("static chrome is emitted once with no visibility windows", () => {
     const mk = () => [box([lineEl("abc")])];
