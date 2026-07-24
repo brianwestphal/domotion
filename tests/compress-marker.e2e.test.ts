@@ -9,7 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 
 // DM-1761: the explicit per-frame `compress: true` marker — the surgical
 // counterpart to the whole-config `autoCompress` flag. Two claims are load-
@@ -115,8 +115,7 @@ describeBrowser("compress: true marker — pixel-identical, and only where marke
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       const render = async (page: Page, svg: string, tMs: number): Promise<Buffer> => {
-        await page.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-        await page.evaluate(() => document.fonts.ready);
+        await loadSeekableSvg(page, svg);
         await seekTo(page, tMs);
         return page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
       };

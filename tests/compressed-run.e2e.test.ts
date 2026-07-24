@@ -10,7 +10,7 @@ import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, registerFixtureFonts } from "./fixture-fonts.js";
 
 // Frame-sequence compressor e2e (docs/100, Primitive 1) — the
@@ -289,11 +289,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
 
       // ── Rasterize BOTH SVGs at every state (pause + seek) ────────────────
       const flipPage = await ctx.newPage();
-      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await flipPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(flipPage, flipbookSvg);
       const compPage = await ctx.newPage();
-      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await compPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(compPage, outerSvg);
       const shot = async (p: Page, tMs: number): Promise<Buffer> => {
         await seekTo(p, tMs);
         return p.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
@@ -441,11 +439,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
-      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await flipPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(flipPage, flipbookSvg);
       const compPage = await ctx.newPage();
-      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await compPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(compPage, outerSvg);
       const comparePage = await ctx.newPage();
       mkdirSync(OUT_DIR, { recursive: true });
       for (let s = 0; s < trees.length; s++) {
@@ -525,11 +521,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
-      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await flipPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(flipPage, flipbookSvg);
       const compPage = await ctx.newPage();
-      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await compPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(compPage, outerSvg);
       const comparePage = await ctx.newPage();
       mkdirSync(OUT_DIR, { recursive: true });
       for (let s = 0; s < trees.length; s++) {
@@ -607,11 +601,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
-      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await flipPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(flipPage, flipbookSvg);
       const compPage = await ctx.newPage();
-      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await compPage.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(compPage, outerSvg);
       const comparePage = await ctx.newPage();
       mkdirSync(OUT_DIR, { recursive: true });
       const compShots: Buffer[] = [];
@@ -694,8 +686,7 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         fontFaceCss: "",
       });
       const view = await ctx.newPage();
-      await view.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await view.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(view, outerSvg);
       await seekTo(view, 250);
       const png = await view.screenshot({ clip: { x: 0, y: 0, width: SW, height: SH } });
 

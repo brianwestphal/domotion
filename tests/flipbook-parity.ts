@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import type { Page } from "@playwright/test";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { STRICT_CAPS, type CompareResult } from "../src/review/compare-pngs.js";
@@ -111,4 +112,34 @@ export function expectFlipbookParity(cmp: CompareResult, label: string): void {
     cmp.strictRegionArea,
     `${label}: too much suppressed change in total. ${detail}`,
   ).toBeLessThanOrEqual(STRICT_CAPS.totalRegionArea);
+}
+
+/**
+ * Load an animated SVG into `page` for frame-by-frame seeking, pinned so its
+ * animations NEVER free-run before the first seek.
+ *
+ * DM-1779: the compressor e2e sample each state by `seekTo(page, tMs)` against a
+ * paused animation. Under CPU contention (the full compressor set runs in
+ * parallel) the gap between `setContent` and the first `seekTo` is long enough
+ * that the animation free-runs FORWARD past state 0 — and seeking it BACK to
+ * state 0 leaves a STABLE, torn frame: glyph-insertion runs and frame groups
+ * that appeared in the later state do not cleanly revert on a backward WAAPI
+ * seek. That produced an intermittent (~1-in-4) whole-region parity failure at
+ * state 0 only (the one seek preceded by a free-run), which no amount of
+ * screenshot-stabilising fixes because the torn frame is itself stable.
+ *
+ * Pinning `animation-play-state: paused` from the very first frame keeps the
+ * animation at 0 so every sampled seek is forward-only, which reverts cleanly.
+ * WAAPI `currentTime` still selects the frame under the CSS pause — verified:
+ * seeking to each state's time renders that state, identical to the unpinned
+ * page, so the comparison is unchanged. Matches the primary production path
+ * (`domotion animate` → svg-to-video) which also only ever seeks forward.
+ */
+export async function loadSeekableSvg(page: Page, svg: string): Promise<void> {
+  await page.setContent(
+    `<!doctype html><html><head><style>*{animation-play-state:paused!important;}</style></head>`
+    + `<body style="margin:0">${svg}</body></html>`,
+    { waitUntil: "domcontentloaded" },
+  );
+  await page.evaluate(() => document.fonts.ready);
 }

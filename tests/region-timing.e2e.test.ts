@@ -12,7 +12,7 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, FIXTURE_SERIF_STACK, registerFixtureFonts } from "./fixture-fonts.js";
 
 /**
@@ -213,8 +213,7 @@ async function assertParityAtEveryState(
 
   const open = async (svg: string): Promise<Page> => {
     const p = await ctx.newPage();
-    await p.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-    await p.evaluate(() => document.fonts.ready);
+    await loadSeekableSvg(p, svg);
     // NOTE: the "render one frame before the first seek" settle that used to
     // live here now lives in `seekTo` itself (DM-1781), so every caller gets it
     // — the other compressor e2e files, and the production svg-to-video /

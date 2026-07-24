@@ -8,7 +8,7 @@ import { generateAnimatedSvg } from "../src/animation/index.js";
 import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 
 // Declarative config surface for the frame-sequence compressor + the caret /
 // selection track (docs/100 stage 4, docs/43 §11–12): drive a `states: [...]`
@@ -162,8 +162,7 @@ describeBrowser("`states` compressed-run config (docs/100 stage 4)", () => {
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       const viewer = await ctx.newPage();
-      await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await viewer.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(viewer, svg);
       const boundaries = HOLDS.map((_, i) => HOLDS.slice(0, i).reduce((a, b) => a + b, 0));
       const shot = async (tMs: number): Promise<Buffer> => {
         await seekTo(viewer, tMs);
@@ -224,8 +223,7 @@ describeBrowser("`textTracks` caret/selection config (docs/101 config surface)",
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       const viewer = await ctx.newPage();
-      await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await viewer.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(viewer, svg);
       const shot = async (tMs: number): Promise<Buffer> => {
         await seekTo(viewer, tMs);
         return viewer.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
@@ -290,8 +288,7 @@ describeBrowser("`textTracks` caret/selection config (docs/101 config surface)",
       const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       try {
         const viewer = await ctx.newPage();
-        await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-        await viewer.evaluate(() => document.fonts.ready);
+        await loadSeekableSvg(viewer, svg);
         await seekTo(viewer, 1500);
         const png = await viewer.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
         return (await scanInk(viewer, png, "red", caretRect)).count;

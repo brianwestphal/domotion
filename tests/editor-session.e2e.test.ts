@@ -8,7 +8,7 @@ import { generateAnimatedSvg } from "../src/animation/index.js";
 import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 
 /**
  * Rasterized verification of the flagship `editor-session` example (docs/100
@@ -66,8 +66,7 @@ async function setup() {
     const svg = generateAnimatedSvg(config);
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     const viewer = await ctx.newPage();
-    await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-    await viewer.evaluate(() => document.fonts.ready);
+    await loadSeekableSvg(viewer, svg);
 
     // Measure the code area's monospace advance from the example page itself.
     // Every caret / selection assertion below is expressed in ADVANCES from the

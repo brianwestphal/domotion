@@ -12,7 +12,7 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 
 /**
  * Two independently-updating regions in one compressed run (docs/100,
@@ -216,11 +216,9 @@ async function assertFlipbookParity(ctx: BrowserContext, m: Measured, label: str
   writeFileSync(join(dir, "compressed.svg"), outerSvg);
 
   const flipPage = await ctx.newPage();
-  await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-  await flipPage.evaluate(() => document.fonts.ready);
+  await loadSeekableSvg(flipPage, flipbookSvg);
   const compPage = await ctx.newPage();
-  await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
-  await compPage.evaluate(() => document.fonts.ready);
+  await loadSeekableSvg(compPage, outerSvg);
   const shot = async (p: Page, tMs: number): Promise<Buffer> => {
     await seekTo(p, tMs);
     return p.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });

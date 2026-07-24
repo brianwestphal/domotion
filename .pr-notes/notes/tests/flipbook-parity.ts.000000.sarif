@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mrywmmwed2sz48hu",
+          "message": {
+            "text": "Root cause was diagnosed empirically, and is NOT the ticket's hypothesis (a seekTo timeline race). seekTo parks every animation correctly at the target time even under contention. The flake is a backward-seek tear: under parallel-fork CPU load the animated SVG free-runs FORWARD past state 0 during the setContent→first-seekTo gap, and seeking it BACK to state 0 leaves a stable, torn frame — glyph-insertion runs and frame groups from the later state do not cleanly revert on a backward WAAPI seek. State-0-only (the one seek preceded by a free-run); intermittent (depends on the gap crossing a 220 ms state boundary); screenshot-stabilising can't help (the torn frame is itself stable).\n\nEvidence (replaying the captured failing flipbook.svg/compressed.svg under CPU hogs, tools/scratch/probe-seek-race.mjs):\n- Plain load + 300 ms free-run + backward seek: 17/100 torn (regionCount>0), while getAnimations() showed all animations paused at the correct time and the correct frame visible — i.e. timeline correct, raster torn.\n- loadSeekableSvg (pins animation-play-state: paused at load → forward-only seeks): 0/100.\n- Forward seeks under the CSS pause still render the right state (s0..s5 → fv-0..fv-5, identical to unpinned), so the comparison is unchanged.\n\nEnd-to-end: the full 8-file compressor e2e set run 20× with the fix = 0 state-0 divergences (base rate was ~1-in-4). src/ is untouched — the flake was a test-harness seek artifact, not a product defect. The forward-only path also matches production (domotion animate → svg-to-video only ever seeks forward).\n",
+            "markdown": "Root cause was diagnosed empirically, and is NOT the ticket's hypothesis (a `seekTo` timeline race). `seekTo` parks every animation correctly at the target time even under contention. The flake is a **backward-seek tear**: under parallel-fork CPU load the animated SVG free-runs FORWARD past state 0 during the `setContent`→first-`seekTo` gap, and seeking it BACK to state 0 leaves a **stable, torn frame** — glyph-insertion runs and frame groups from the later state do not cleanly revert on a backward WAAPI seek. State-0-only (the one seek preceded by a free-run); intermittent (depends on the gap crossing a 220 ms state boundary); screenshot-stabilising can't help (the torn frame is itself stable).\n\nEvidence (replaying the captured failing `flipbook.svg`/`compressed.svg` under CPU hogs, `tools/scratch/probe-seek-race.mjs`):\n- Plain load + 300 ms free-run + backward seek: **17/100** torn (regionCount>0), while `getAnimations()` showed all animations paused at the correct time and the correct frame visible — i.e. timeline correct, raster torn.\n- `loadSeekableSvg` (pins `animation-play-state: paused` at load → forward-only seeks): **0/100**.\n- Forward seeks under the CSS pause still render the right state (s0..s5 → fv-0..fv-5, identical to unpinned), so the comparison is unchanged.\n\nEnd-to-end: the full 8-file compressor e2e set run **20×** with the fix = **0** state-0 divergences (base rate was ~1-in-4). `src/` is untouched — the flake was a test-harness seek artifact, not a product defect. The forward-only path also matches production (`domotion animate` → svg-to-video only ever seeks forward).\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/flipbook-parity.ts"
+                },
+                "region": {
+                  "startLine": 138,
+                  "endLine": 138,
+                  "snippet": {
+                    "text": "export async function loadSeekableSvg(page: Page, svg: string): Promise<void> {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "workItemUris": [
+            "DM-1779"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "972cccb839c7737b8a33281a19b7e3b6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "564ca70d9802129415bf054070ce026bb0df10e6",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
