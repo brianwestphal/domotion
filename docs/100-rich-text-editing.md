@@ -641,8 +641,8 @@ byte-identical — measured again for this fixture across three independent
 sessions), so that is a total statement about the splice with no rasterization
 in the loop. On top of it, the composed run is rasterized against the
 **uncompressed flipbook of those seven sequential captures** at every state
-through the shift-inclusive parity helper: 98.3% of glyphs paired, 108.7 KB →
-25.4 KB. The discriminator-override path, the outside-the-regions hard error,
+through the shift-inclusive parity helper: 98.3% of glyphs paired, 106.3 KB →
+23.5 KB. The discriminator-override path, the outside-the-regions hard error,
 the same-element collision, and the no-match selector are covered alongside
 them; the assembly's own multi-round behavior and both guards are unit-tested
 browser-free; and the committed golden `examples/animate/region-timing/`

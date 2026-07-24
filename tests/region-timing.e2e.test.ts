@@ -12,7 +12,8 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, FIXTURE_SERIF_STACK, registerFixtureFonts } from "./fixture-fonts.js";
 
 /**
  * Independent per-region timing inside ONE compressed run (docs/100
@@ -37,6 +38,10 @@ import { expectFlipbookParity } from "./flipbook-parity.js";
  *     top of it changed nothing.
  */
 
+// The renderer half of the fixture-font contract (the page carries the CSS
+// half) — see tests/fixture-fonts.ts.
+registerFixtureFonts();
+
 const W = 900;
 const H = 420;
 const OUT_DIR = "tests/output/region-timing-e2e";
@@ -44,14 +49,14 @@ const OUT_DIR = "tests/output/region-timing-e2e";
 /** Left = a code editor whose import line grows a character at a time;
  *  right = a preview scrolled by whole lines. The panes are fixed-width and
  *  clipped, so neither one's content can move anything outside itself. */
-const PAGE_HTML = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+const PAGE_HTML = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
   * { box-sizing: border-box; }
   body { margin: 0; width: ${W}px; height: ${H}px; overflow: hidden; background: #0f172a; }
   .split { display: flex; height: ${H}px; }
   .pane { width: 450px; height: ${H}px; overflow: hidden; padding: 12px 0; }
-  .editor { background: #1e293b; color: #e2e8f0; font-family: Menlo, ui-monospace, monospace;
+  .editor { background: #1e293b; color: #e2e8f0; font-family: ${FIXTURE_MONO_STACK};
     font-size: 12.5px; line-height: 19px; }
-  .preview { background: #f8fafc; color: #0f172a; font-family: Georgia, serif;
+  .preview { background: #f8fafc; color: #0f172a; font-family: ${FIXTURE_SERIF_STACK};
     font-size: 13px; line-height: 19px; }
   .ln { height: 19px; white-space: pre; padding: 0 14px; }
   .no { display: inline-block; width: 26px; text-align: right; margin-right: 12px; color: #475569; }
@@ -210,6 +215,14 @@ async function assertParityAtEveryState(
     const p = await ctx.newPage();
     await p.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
     await p.evaluate(() => document.fonts.ready);
+    // Let the document render one frame BEFORE the first seek. `seekTo` pauses
+    // whatever `document.getAnimations()` returns at the moment it runs, and a
+    // CSS animation only joins the timeline at the first style recalc — so on a
+    // page seeked immediately after load some animations can still be
+    // free-running at wall-clock time. That shows up as a flake at STATE 0
+    // only, which is exactly the shape observed; every later state is seeked on
+    // an already-rendered page and is unaffected.
+    await p.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
     return p;
   };
   const expPage = await open(expectedSvg);
@@ -237,7 +250,7 @@ async function setup() {
   try {
     const dir = mkdtempSync(join(tmpdir(), "dm-region-timing-"));
     writeFileSync(join(dir, "panes.html"), PAGE_HTML);
-    return { browser: await launchChromium(), dir };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS), dir };
   } catch {
     return null;
   }

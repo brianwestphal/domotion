@@ -394,7 +394,7 @@ The CLI logs the schedule it chose:
 
 ```
   states: 7 states over 2 regions → 4 whole-page captures (per-region timing; 7 without it)…
-  compress: run of 7 states, 98.3% glyphs paired, 108.7 KB → 25.4 KB
+  compress: run of 7 states, 98.3% glyphs paired, 106.3 KB → 23.5 KB
 ```
 
 Example: `examples/animate/region-timing/`. Design + measurements: `docs/100-rich-text-editing.md` ("Independent regions in one scene" and "Independent per-region timing").
