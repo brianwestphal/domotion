@@ -48,6 +48,16 @@ const H = 360;
 // 4px window inset... measured from the captured tree).
 const rowStrip = (row: number, x = 40, w = 580) => ({ x, y: 80 + 19 * (row - 1), w, h: 19 });
 
+// Left edge of the code text: 36px line-number column + 12px padding + the 4px
+// window inset. Fixed by the layout, NOT by the font — only the per-character
+// advance below varies with the face, which is why every position here is
+// written as `col(n)` (the left edge of character column `n`) rather than a
+// pixel literal. `ADV` is measured from the example page in `setup()`.
+const TEXT_X0 = 52;
+// Caret/ink columns land on whole pixels and the bar has width, so compare with
+// a tolerance of roughly half an advance rather than an exact equality.
+const COL_TOL = 4;
+
 async function setup() {
   try {
     const browser = await launchChromium(PARITY_LAUNCH_OPTS);
@@ -58,13 +68,43 @@ async function setup() {
     const viewer = await ctx.newPage();
     await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
     await viewer.evaluate(() => document.fonts.ready);
-    return { browser, viewer };
+
+    // Measure the code area's monospace advance from the example page itself.
+    // Every caret / selection assertion below is expressed in ADVANCES from the
+    // fixed text origin instead of pixels tuned to one host's face. The example
+    // used to ask for `Menlo`, which is macOS-only, so the Linux container laid
+    // it out with a narrower substitute and every hardcoded window missed low.
+    // Deriving the advance keeps these assertions honest on any platform — and
+    // keeps them meaningful if the example's typeface changes again.
+    const probe = await ctx.newPage();
+    await probe.goto(`file://${resolve(EX_DIR, "editor.html")}`);
+    await probe.evaluate(() => document.fonts.ready);
+    const advance = await probe.evaluate(() => {
+      const code = document.querySelector(".codearea");
+      if (code == null) return NaN;
+      const cs = getComputedStyle(code);
+      const el = document.createElement("span");
+      el.style.fontFamily = cs.fontFamily;
+      el.style.fontSize = cs.fontSize;
+      el.style.whiteSpace = "pre";
+      el.style.position = "absolute";
+      el.textContent = "0".repeat(100);
+      document.body.appendChild(el);
+      const w = el.getBoundingClientRect().width / 100;
+      el.remove();
+      return w;
+    });
+    await probe.close();
+    return { browser, viewer, advance };
   } catch {
     return null;
   }
 }
 
 const env = await setup();
+/** Left edge of character column `n` in the code area, in device px. */
+const ADV = env?.advance ?? NaN;
+const col = (n: number): number => TEXT_X0 + n * ADV;
 afterAll(async () => {
   await closeBrowserSafely(env?.browser);
 }, 15_000);
@@ -243,10 +283,13 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
   }, 120_000);
 
   it("keeps the prefix pixels byte-stable across the run's states", async () => {
-    // `import { signal,` spans x≈52..172; the auto-caret and every typed glyph
-    // land right of x=172, so this crop must not change by a single pixel
-    // level across keystroke states (the compressor emits the prefix ONCE).
-    const prefix = { x: 52, y: 80, w: 116, h: 19 };
+    // `import { signal,` occupies the first 16 character columns; the auto-caret
+    // and every typed glyph land to their RIGHT, so this crop must not change by
+    // a single pixel level across keystroke states (the compressor emits the
+    // prefix ONCE). The crop stops one column short of the edit point so it
+    // never straddles the caret — sized in advances, since a narrower face on
+    // another host would otherwise pull the typed glyphs into the crop.
+    const prefix = { x: TEXT_X0, y: 80, w: Math.floor(15 * ADV), h: 19 };
     const s1 = await rectBytes(await shot(7860), prefix);
     for (const t of [7980, 8100, 8220, 8940]) {
       expect(await rectBytes(await shot(t), prefix), `t=${t}: prefix pixels drifted`).toBe(s1);
@@ -296,8 +339,11 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const afterCut = await scan(await shot(14500), "selection", rowStrip(6));
     expect(mid.count).toBeGreaterThan(20);
     expect(full.count).toBeGreaterThan(mid.count);
-    // The full selection covers the five `"btn"` cells (~37.6 px).
-    expect(full.maxX - full.minX).toBeGreaterThan(30);
+    // The full selection covers the five `"btn"` cells — assert it against the
+    // measured advance rather than a pixel literal (on a narrower face the old
+    // `> 30` literal landed exactly ON the boundary and failed).
+    expect(full.maxX - full.minX).toBeGreaterThan(4 * ADV);
+    expect(full.maxX - full.minX).toBeLessThanOrEqual(6 * ADV);
     expect(afterCut.count).toBe(0);
   }, 60_000);
 
@@ -308,8 +354,8 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const cols = await caretColumns(await shot(12900), rowStrip(6, 150, 200));
     expect(cols.length, "no caret bar found in row 6").toBeGreaterThan(0);
     for (const c of cols) {
-      expect(c).toBeGreaterThanOrEqual(169);
-      expect(c).toBeLessThanOrEqual(176);
+      expect(Math.abs(c - col(16)), `caret at ${c}, expected the col-16 glyph edge ${col(16).toFixed(1)}`)
+        .toBeLessThanOrEqual(COL_TOL);
     }
   }, 60_000);
 
@@ -319,16 +365,18 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const typing = await caretColumns(await shot(8940), rowStrip(1, 170, 120));
     expect(typing.length, "no auto-caret bar during s10").toBeGreaterThan(0);
     for (const c of typing) {
-      expect(c).toBeGreaterThanOrEqual(243);
-      expect(c).toBeLessThanOrEqual(252);
+      expect(Math.abs(c - col(26)), `caret at ${c}, expected the col-26 edge ${col(26).toFixed(1)}`)
+        .toBeLessThanOrEqual(COL_TOL);
     }
     // The colorize state re-tokenizes the line (recolors + whitespace churn)
     // — a tokenizer catching up must NOT move the caret, so it holds at the
     // same edge (t=9700 is inside the colorize state at a blink-on phase).
     const colorize = await caretColumns(await shot(9700), rowStrip(1, 170, 120));
     expect(colorize.length, "auto-caret vanished during the colorize state").toBeGreaterThan(0);
+    // The HOLD contract: same edge as during typing, not merely "in range".
+    expect(Math.min(...colorize)).toBe(Math.min(...typing));
     for (const c of colorize) {
-      expect(c).toBeGreaterThanOrEqual(243);
+      expect(Math.abs(c - col(26))).toBeLessThanOrEqual(COL_TOL);
       expect(c).toBeLessThanOrEqual(252);
     }
   }, 60_000);
@@ -339,8 +387,8 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const cols = await caretColumns(await shot(14940), rowStrip(6, 150, 200));
     expect(cols.length, "no auto-caret bar found in row 6").toBeGreaterThan(0);
     for (const c of cols) {
-      expect(c).toBeGreaterThanOrEqual(190);
-      expect(c).toBeLessThanOrEqual(200);
+      expect(Math.abs(c - col(19)), `caret at ${c}, expected the col-19 edge ${col(19).toFixed(1)}`)
+        .toBeLessThanOrEqual(COL_TOL);
     }
   }, 60_000);
 
