@@ -162,9 +162,13 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "text.speculative-compose",
+    // INTERNAL surface (no `exports`): snapshotGeneration / restoreGeneration /
+    // snapshotEmbeddedFonts / restoreEmbeddedFonts are deliberately not on the
+    // package barrel — see the note in src/render/index.ts. In-package callers
+    // deep-import them from ../render/font-resolution.js, as animator.ts already
+    // does for the glyph-defs equivalents.
     behavior: "Snapshot/restore rolls the shared font + glyph-def registries back so a discarded speculative compose leaves the real output byte-identical.",
     doc: "docs/99-hinted-embedded-subset.md",
-    exports: ["snapshotGeneration", "restoreGeneration", "snapshotEmbeddedFonts", "restoreEmbeddedFonts"],
     tests: ["src/render/embedded-font-snapshot.test.ts"],
     transition: "populated → snapshot → speculative compose (different PUA/dmfN/gN allocation, possibly a clear) → restore → recompose yields the SAME bytes; nested snapshot/snapshot/restore/restore unwinds to each marker; markers are reusable and never throw on an empty builder.",
   },

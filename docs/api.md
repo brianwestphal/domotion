@@ -62,9 +62,6 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `withRenderTextMode` | function | `withRenderTextMode(mode, fn)` — run `fn` with the render-text mode set to `mode`, restoring the prior value afterward (even if `fn` throws). The mode is a process-global; prefer this save/restore wrapper over a bare `setRenderTextMode` for a scoped change so it can't leak into later renders. |
 | `clearEmbeddedFonts` | function | Reset the embedded-font subset builder (used by `"embedded"` mode) between independent captures. |
 | `getEmbeddedFontFaceCss` | function | Read the accumulated base64 `@font-face` CSS for the glyphs rendered in `"embedded"` mode — emit it once into the document's `<style>`. |
-| `snapshotGeneration` / `restoreGeneration` | function | Speculative composition: capture BOTH generation-scoped registries (embedded-font subset builder + paths-mode glyph defs) as an opaque marker, then roll every mutation since it back. Compose a variant only to measure its real byte size, restore, and the output composed afterward is byte-identical to the no-trial run. Markers nest and are reusable; the speculative output must be discarded, since its ids are handed back out. |
-| `snapshotEmbeddedFonts` / `restoreEmbeddedFonts` | function | The subset-builder half of the same transaction, when you know only the embedded-font registry is live. Rolls back instance registrations, glyph outlines, PUA codepoint assignments, weight ranges, hinted-source disqualification, and the `dmfN` family counter. |
-| `GenerationSnapshot` / `EmbeddedFontSnapshot` | type | The opaque rollback markers returned by `snapshotGeneration` / `snapshotEmbeddedFonts`. Treat as values to hand back to the matching `restore…`. |
 | `acquireGlyphHelper` | function | Ensure the platform native glyph-extraction helper binary is present (downloads + caches it on first use). Returns its path, or `null` when unavailable. See docs 50 / 51. |
 
 ## Animation

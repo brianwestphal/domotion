@@ -1,6 +1,7 @@
 {
   "appName": "Domotion",
   "ticketPrefix": "DM",
+  "aiReviewNotes": true,
   "terminals": [
     {
       "id": "t-mogdhedd-kh3g",
@@ -32,6 +33,11 @@
       "type": "tag",
       "key": "html test",
       "text": "For this change to be accepted, if I've specified crop regions: make sure the same cropped regions match, after your changes, at least with a significant improvement.  Attach the updated comparable region images."
+    },
+    {
+      "type": "tag",
+      "key": "fable",
+      "text": "Use a subagent running the Fable model for this ticket."
     }
   ],
   "custom_commands": [

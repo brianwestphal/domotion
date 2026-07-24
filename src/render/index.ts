@@ -20,19 +20,19 @@ export {
   withRenderTextMode,
   clearEmbeddedFonts,
   getEmbeddedFontFaceCss,
-  // Speculative composition: compose a variant just to measure its real byte
-  // size, then roll the shared font/glyph registries back so the discarded
-  // trial doesn't shift the ids the real output uses. `snapshotGeneration`
-  // covers both registries at once (whichever the current render-text mode
-  // populates); the `…EmbeddedFonts` pair is the subset-builder half alone.
-  snapshotGeneration,
-  restoreGeneration,
-  snapshotEmbeddedFonts,
-  restoreEmbeddedFonts,
   type RenderTextMode,
-  type GenerationSnapshot,
-  type EmbeddedFontSnapshot,
 } from "./text-to-path.js";
+
+// Speculative composition (`snapshotGeneration` / `restoreGeneration` /
+// `snapshotEmbeddedFonts` / `restoreEmbeddedFonts`) is deliberately NOT
+// re-exported here, so it stays off the published package surface. It is a
+// lifecycle API over module-global render state: calling a restore at the
+// wrong moment silently corrupts font output, and the mechanism is likely to
+// be redesigned. In-package callers import it directly from
+// `../render/font-resolution.js`, exactly as `src/animation/animator.ts`
+// already does for the glyph-defs equivalents (`glyphDefCount` /
+// `getGlyphDefsSince` / `truncateGlyphDefs`), which are internal for the same
+// reasons.
 
 // DM-886: pre-warm the native glyph-helper cache (download the platform/arch
 // release asset, SHA-verify, cache) ahead of rendering, instead of paying the
