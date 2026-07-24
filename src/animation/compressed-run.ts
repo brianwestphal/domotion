@@ -83,6 +83,16 @@
  * `translateY` waypoint instead of dying and re-birthing — see that function
  * for the two-phase, order-preserving matching.
  *
+ * Every glyph carries a REGION — which independently-updating area of the
+ * scene it belongs to — and line bucketing plus both bucket-pairing phases are
+ * scoped to it, so two panes at the same y never compete for a bucket. Regions
+ * are auto-detected by default (`regionKeyOf`: the innermost clipping
+ * ancestor, else the innermost side-by-side column taller than one line box)
+ * and can be declared explicitly by the caller via `opts.regionRootIds`
+ * (`declaredRegionKeyOf`), which is what lets a caller drive each region on its
+ * own schedule. Regions partition the glyph layer's BUCKETING only — paint
+ * order and the occlusion promotion check stay whole-scene.
+ *
  * v1 limitations (documented in docs/100): states are captured statics
  * (intra-frame animations / cursor-overlay addressing inside a run are
  * unsupported);
@@ -132,6 +142,14 @@ export interface CompressedRunOptions {
    *  embedding several runs in one animation pass distinct prefixes; the
    *  embed-namespace pass adds its own outer namespacing too). Default "cr". */
   idPrefix?: string;
+  /** EXPLICIT region roots, as captured `animId`s (the `data-domotion-anim`
+   *  stamp the caller put on each declared region element before capture).
+   *  An element carrying one of these ids starts a region for itself and its
+   *  subtree, overriding the auto-detected discriminator there; auto-detection
+   *  still applies outside them and subdivides further inside them. Omit (the
+   *  default) for pure auto-detection — the composed output is then
+   *  byte-identical to a build with no notion of declared regions at all. */
+  regionRootIds?: string[];
   /** `false` defers @font-face to a host pipeline (the outer animate run's
    *  shared embedded-font builder), exactly like the terminal composer's
    *  `manageFonts: false`. Default true — self-contained SVG. */
@@ -404,9 +422,43 @@ function elementTextEligible(el: CapturedElement, ctx: AncestorCtx): boolean {
  * A scene with one (or no) clipping ancestor over all its text yields ONE
  * region and every bucket partition, pairing decision, group, and emitted byte
  * is identical to a build with no discriminator at all.
+ *
+ * Auto-detection is the DEFAULT, not the only source of regions: a caller that
+ * knows better declares region roots explicitly via
+ * {@link CompressedRunOptions.regionRootIds} and those win wherever they apply
+ * (see {@link declaredRegionKeyOf}).
  */
 function regionKeyOf(el: CapturedElement): string {
   return `R${round2(el.x)},${round2(el.y)},${round2(el.width)},${round2(el.height)}`;
+}
+
+/**
+ * The EXPLICIT region key for an element the caller declared a region root
+ * (its captured `animId` is in `regionRootIds`), or null when it isn't one.
+ *
+ * Two differences from the auto-detected key above, both deliberate:
+ *
+ *   - It keys on the DECLARED IDENTITY, not the box. An auto-detected region
+ *     whose own box changes between states becomes a different region and its
+ *     lines re-emit ("re-emit on any doubt", since geometry is all the
+ *     detector has to go on). A declared region is named by the author, so a
+ *     pane that resizes stays the same region and its lines still pair. This
+ *     is a bytes-only difference: every emitted position comes from that
+ *     state's capture and every track is `step-end`, so pairing quality can
+ *     never move a pixel.
+ *   - It applies to the declared element's OWN text as well as its subtree's,
+ *     where the clipping rule scopes only the subtree (an element's own text
+ *     is laid out by its parent's flow, so it belongs to the parent's region —
+ *     but a declared root is the author asserting the whole box is one region).
+ *
+ * Auto-detection still runs INSIDE a declared region: a nested clipping
+ * ancestor or side-by-side column subdivides it further, which is strictly
+ * finer and never merges two declared regions.
+ */
+function declaredRegionKeyOf(el: CapturedElement, regionRootIds: ReadonlySet<string>): string | null {
+  if (regionRootIds.size === 0) return null;
+  const id = el.animId;
+  return id != null && regionRootIds.has(id) ? `D${id}` : null;
 }
 
 /**
@@ -472,8 +524,12 @@ interface ExtractedState {
 }
 
 /** Extract the glyph-layer records + the chrome (text-stripped) clone for one
- *  state's captured tree. Pure over the tree (no browser). */
-function extractState(tree: CapturedElement[]): ExtractedState {
+ *  state's captured tree. Pure over the tree (no browser).
+ *
+ *  `regionRootIds` are captured `animId`s the caller declared as explicit
+ *  region roots; empty (the default) leaves the auto-detected discriminator in
+ *  sole charge, and every decision below is then bit-for-bit what it was. */
+function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string>): ExtractedState {
   // Pass 1: the renderer's REAL paint order — the same
   // `gatherStackingContextChildren` / `sortChildrenByPaintOrder` traversal
   // `elementTreeToSvg` emits with (stacking contexts, z-index buckets,
@@ -514,7 +570,11 @@ function extractState(tree: CapturedElement[]): ExtractedState {
   const glyphs: GlyphRec[] = [];
   const eligible = new Set<CapturedElement>();
   const walk = (el: CapturedElement, ctx: AncestorCtx, isRegionRoot: boolean): void => {
-    if (isRegionRoot) ctx = { ...ctx, region: regionKeyOf(el) };
+    // An explicitly declared region root wins over auto-detection here, and
+    // (unlike the clipping rule) claims the element's own text too.
+    const declared = declaredRegionKeyOf(el, regionRootIds);
+    if (declared != null) ctx = { ...ctx, region: declared };
+    else if (isRegionRoot) ctx = { ...ctx, region: regionKeyOf(el) };
     if (elementTextEligible(el, ctx) && !occluded(el)) {
       eligible.add(el);
       for (const seg of el.textSegments!) {
@@ -550,8 +610,9 @@ function extractState(tree: CapturedElement[]): ExtractedState {
     const clip = (v: string | undefined): boolean => v === "hidden" || v === "clip" || v === "scroll" || v === "auto";
     if (clip(el.styles.overflowX) || clip(el.styles.overflowY)) {
       childCtx.clips = [...ctx.clips, { x: el.x, y: el.y, w: el.width, h: el.height, inset: maxBorderRadius(el) }];
-      // The innermost clipping ancestor IS the region (see `regionKeyOf`).
-      childCtx.region = regionKeyOf(el);
+      // The innermost clipping ancestor IS the region (see `regionKeyOf`) —
+      // unless this element is a DECLARED root, whose name already claimed it.
+      if (declared == null) childCtx.region = regionKeyOf(el);
     }
     const roots = regionRootChildren(el.children);
     for (const c of el.children) walk(c, childCtx, roots.has(c));
@@ -1251,8 +1312,12 @@ export interface CompressedRunPlan {
 
 /** Build the pairing/threading/union plan for a run — everything except the
  *  actual SVG rendering. Exported for unit tests (not part of the package
- *  barrel); `composeCompressedRun` is the public entry. */
-export function buildCompressedRunPlan(states: CompressedRunState[], idPrefix = "cr"): CompressedRunPlan {
+ *  barrel); `composeCompressedRun` is the public entry.
+ *
+ *  `regionRootIds` declares explicit region roots by captured `animId`
+ *  (see {@link CompressedRunOptions.regionRootIds}); omitting it leaves the
+ *  auto-detected discriminator in sole charge. */
+export function buildCompressedRunPlan(states: CompressedRunState[], idPrefix = "cr", regionRootIds: readonly string[] = []): CompressedRunPlan {
   const stateCount = states.length;
   const boundaries: number[] = [];
   let acc = 0;
@@ -1262,7 +1327,8 @@ export function buildCompressedRunPlan(states: CompressedRunState[], idPrefix = 
   }
   const totalMs = Math.max(1, acc);
 
-  const extracted = states.map((st) => extractState(st.tree));
+  const declaredRoots = new Set(regionRootIds);
+  const extracted = states.map((st) => extractState(st.tree, declaredRoots));
   const thread = threadGlyphs(extracted.map((e) => e.glyphs), stateCount);
   const groups = buildGlyphGroups(thread.all, idPrefix);
   const chromeRoots = buildChromeUnion(extracted.map((e) => e.chromeTree));
@@ -1299,6 +1365,7 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   const plan = buildCompressedRunPlan(
     states.map((st) => ({ tree: structuredClone(st.tree), holdMs: st.holdMs })),
     uid,
+    opts.regionRootIds ?? [],
   );
   const { boundaries, totalMs, stateCount } = plan;
   const css = new TrackCss(uid, totalMs);

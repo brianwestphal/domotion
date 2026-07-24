@@ -476,8 +476,35 @@ const runStateSchema = z.object({
   actions: z.array(actionSchema).optional(),
   /** How long this state holds (ms) before snapping to the next. */
   duration: z.number().positive("must be a positive number (ms)"),
+  /**
+   * DM-1770 (docs/100 "independent per-region timing", docs/43 §11.1): which
+   * declared `regions` this state advances. Names must appear in the frame's
+   * `regions` map, and state 0 (the frame's own post-actions state) may not
+   * declare any — it is every region's starting point.
+   *
+   * Declaring it is what lets each region run on its OWN schedule: the capture
+   * loop batches states that advance disjoint regions into one whole-page
+   * capture and assembles each state's tree from the capture holding each
+   * region's own state, so k regions cost `max(nᵢ)` captures instead of the
+   * `Σnᵢ` a hand-interleaved sequence pays. Omitting it on every state leaves
+   * capture exactly sequential (one per state) — `regions` is then purely a
+   * region-discriminator override.
+   */
+  advances: z.array(z.string().min(1, "must be a declared region name")).min(1, "must name at least one region").optional(),
 });
 type RunStateInput = z.infer<typeof runStateSchema>;
+
+/**
+ * DM-1770: explicit region declaration — `{ <name>: <selector> }`. Each
+ * selector resolves in page context at capture time (first match, stamped
+ * `data-domotion-anim` exactly like `textTracks` / intra-frame animations) and
+ * becomes an explicit region root for the compressor's glyph bucketing,
+ * overriding the auto-detected discriminator inside it. The HYBRID contract:
+ * auto-detection stays the default everywhere the author declares nothing.
+ */
+const runRegionsSchema = z
+  .record(z.string().min(1, "region names must be non-empty"), z.string().min(1, "region selectors must be non-empty"))
+  .refine((v) => Object.keys(v).length > 0, { message: "must declare at least one region" });
 
 // The run's opt-in auto-caret (docs/101 machinery): the compressor derives the
 // per-state edit points, so the caret rides the run with zero addressing.
@@ -712,6 +739,24 @@ const frameSchema = z.object({
    */
   states: z.array(runStateSchema).min(1, "must be a non-empty array").optional(),
   /**
+   * DM-1770 (docs/100 "independent per-region timing", docs/43 §11.1): name the
+   * scene's independently-updating regions — `{ "editor": "#ed", "preview":
+   * "#pv" }`. Two things follow, and they are separable:
+   *
+   *  1. Each named element becomes an explicit REGION ROOT for the compressor's
+   *     glyph bucketing, overriding the auto-detected discriminator (innermost
+   *     clipping ancestor / side-by-side column) inside it. Auto-detection
+   *     stays the default everywhere else — the declaration is an override, not
+   *     a replacement.
+   *  2. States may then declare `advances: [<name>…]`, which lets each region
+   *     run on its own schedule and collapses the capture count from `Σnᵢ`
+   *     toward `max(nᵢ)`.
+   *
+   * Requires `states`. A selector matching nothing at capture is a hard error
+   * naming the frame and the region.
+   */
+  regions: runRegionsSchema.optional(),
+  /**
    * DM-1747: the compressed run's auto-caret — `true` (bar, #111111) or
    * `{ shape, color }`. The compressor derives each state's edit point, so the
    * caret rides the run with zero addressing. Requires `states`.
@@ -905,6 +950,37 @@ export const animateConfigSchema = z
       }
       if (f.caret != null && f.states == null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "caret"], message: "`caret` requires a `states` compressed run (the typing overlay and `typeResample` carry their own caret options)" });
+      }
+      // DM-1770: explicit regions + per-state `advances`. Both only mean
+      // anything inside a compressed run, and `advances` can only name a region
+      // the frame actually declared — a typo there would silently give the
+      // author a different timing than they wrote, so it's a validation error
+      // rather than a runtime surprise.
+      if (f.regions != null && f.states == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "regions"], message: "`regions` requires a `states` compressed run — it declares the run's independently-updating regions" });
+      }
+      if (f.states != null) {
+        const declared = Object.keys(f.regions ?? {});
+        for (let j = 0; j < f.states.length; j++) {
+          const adv = f.states[j].advances;
+          if (adv == null) continue;
+          if (f.regions == null) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances"], message: "`advances` requires the frame to declare `regions`" });
+            continue;
+          }
+          if (j === 0) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "states", 0, "advances"], message: "state 0 is the frame's own post-`actions` state — every region's starting point — so it cannot advance one" });
+          }
+          const seen = new Set<string>();
+          for (let k = 0; k < adv.length; k++) {
+            if (!declared.includes(adv[k])) {
+              ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances", k], message: `unknown region "${adv[k]}" — this frame declares ${declared.map((n) => `"${n}"`).join(", ")}` });
+            } else if (seen.has(adv[k])) {
+              ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances", k], message: `region "${adv[k]}" is listed twice` });
+            }
+            seen.add(adv[k]);
+          }
+        }
       }
       // DM-1747: `textTracks` resolves addresses against THIS frame's single
       // captured tree, so it can't ride a frame whose content is a nested
@@ -1717,6 +1793,111 @@ async function buildCapturedFrame(
   return { frame, frameTree, rootBg };
 }
 
+// ── DM-1770: independent per-region timing inside one compressed run ────────
+
+/** The capture schedule for a `states` run whose states advance named regions
+ *  independently (docs/100 "independent per-region timing", docs/43 §11.1). */
+export interface RegionCapturePlan {
+  /** `rounds[r]` = the state indices whose `actions` run before capture round
+   *  `r`, in state order. Round 0 is always empty: it IS state 0, the frame's
+   *  own post-`actions` state and every region's starting point. */
+  rounds: number[][];
+  /** `sourceRound[s][name]` = the capture round holding region `name`'s
+   *  subtree for state `s`. */
+  sourceRound: Array<Record<string, number>>;
+}
+
+/**
+ * Schedule the whole-page captures a per-region-timed run needs.
+ *
+ * Capture stays whole-page — the browser paints the page, so there is no such
+ * thing as capturing one pane. What per-region timing changes is that a single
+ * whole-page capture can be *assigned* to several regions at once: if states 1
+ * and 2 advance DISJOINT regions, driving both edits into the page and
+ * capturing once yields region A at its state-1 content and region B at its
+ * state-2 content in the same tree, and each state's tree is then assembled by
+ * taking each region's subtree from the round that holds its own state.
+ *
+ * The assignment is a longest-chain walk, which is minimal by construction: a
+ * state's `actions` are one indivisible script, so they run in exactly one
+ * round; and every region it advances must move strictly past the round of its
+ * own previous advance (rounds are cumulative — the page carries forward), so
+ * the state's round is one past the latest of those. With k regions advancing
+ * nᵢ times each on disjoint schedules that gives `1 + max(nᵢ)` captures against
+ * the `1 + Σnᵢ` a hand-interleaved sequence pays; states that advance several
+ * regions at once chain them, so the true bound is the longest such chain.
+ *
+ * Pure and total — no browser, no I/O. The caller enforces the one semantic
+ * precondition (regions are independent: a region's content may not move
+ * anything outside itself), which `buildStatesRunContent` checks against the
+ * captures and reports as a hard error.
+ */
+export function planRegionCaptureRounds(
+  states: ReadonlyArray<{ advances?: string[] }>,
+  regionNames: readonly string[],
+): RegionCapturePlan {
+  const cur: Record<string, number> = {};
+  for (const n of regionNames) cur[n] = 0;
+  const rounds: number[][] = [[]];
+  const sourceRound: Array<Record<string, number>> = [{ ...cur }];
+  for (let s = 1; s < states.length; s++) {
+    // A state with no `advances` advances everything — the sequential default.
+    const adv = states[s].advances ?? regionNames;
+    let r = 0;
+    for (const n of adv) r = Math.max(r, cur[n] ?? 0);
+    r += 1;
+    while (rounds.length <= r) rounds.push([]);
+    rounds[r].push(s);
+    for (const n of adv) cur[n] = r;
+    sourceRound.push({ ...cur });
+  }
+  return { rounds, sourceRound };
+}
+
+/** Index the declared region roots of a captured tree by their stamped
+ *  `animId`. A region root missing from a capture is a hard error upstream. */
+function indexRegionRoots(tree: CapturedElement[], ids: ReadonlySet<string>): Map<string, CapturedElement> {
+  const out = new Map<string, CapturedElement>();
+  const walk = (els: CapturedElement[]): void => {
+    for (const el of els) {
+      const id = el.animId;
+      // First match wins, matching the "first match" selector-stamping rule.
+      if (id != null && ids.has(id) && !out.has(id)) out.set(id, el);
+      walk(el.children);
+    }
+  };
+  walk(tree);
+  return out;
+}
+
+/** Assemble one state's tree: the non-region remainder from `base`, and each
+ *  declared region's subtree from the capture holding that region's own state.
+ *  Every spliced subtree is cloned, so the assembled trees never alias. */
+function spliceRegionSubtrees(base: CapturedElement[], sources: Map<string, CapturedElement>): CapturedElement[] {
+  const walk = (els: CapturedElement[]): CapturedElement[] => els.map((el) => {
+    const id = el.animId;
+    const src = id != null ? sources.get(id) : undefined;
+    if (src != null) return structuredClone(src);
+    if (el.children.length === 0) return el;
+    return { ...el, children: walk(el.children) };
+  });
+  return walk(base);
+}
+
+/** A content key for everything OUTSIDE the declared regions: the tree with
+ *  each region root's whole node replaced by a marker. Equal keys across
+ *  rounds is the precondition the splice rests on — a region whose content
+ *  moved something outside itself (or another region) breaks it, and it is
+ *  cheaper and far more legible to catch that here than to ship wrong pixels. */
+function outsideRegionsKey(tree: CapturedElement[], ids: ReadonlySet<string>): string {
+  const mask = (els: CapturedElement[]): unknown[] => els.map((el) => {
+    const id = el.animId;
+    if (id != null && ids.has(id)) return { region: id };
+    return { ...el, children: mask(el.children) };
+  });
+  return JSON.stringify(mask(tree));
+}
+
 /**
  * DM-1747 (docs/100 Primitive 1): build a `states` frame's content. Runs each
  * state's actions against the live page, captures the tree, and composes the N
@@ -1729,6 +1910,13 @@ async function buildCapturedFrame(
  * namespaced per frame so nested runs can't collide. The compressor's pairing
  * log line (`compress: run of N states, X% glyphs paired, …`) surfaces through
  * the CLI logger.
+ *
+ * DM-1770: when the frame declares `regions` AND any state declares
+ * `advances`, the capture loop switches to the per-region schedule
+ * (`planRegionCaptureRounds`) — states advancing disjoint regions share one
+ * whole-page capture, and each state's tree is assembled from the round
+ * holding each region's own state. Without `advances` the loop is exactly
+ * sequential, one capture per state, as it has always been.
  */
 async function buildStatesRunContent(
   page: Page,
@@ -1738,18 +1926,104 @@ async function buildStatesRunContent(
   log: (msg: string) => void,
 ): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined }> {
   const stateCfgs = fc.states!;
-  log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);
-  const states: CompressedRunState[] = [];
-  for (let j = 0; j < stateCfgs.length; j++) {
-    const st = stateCfgs[j];
-    // State 0 is the frame's own post-`actions` state; each state's own
-    // actions (if any) run before its capture.
-    if (st.actions != null && st.actions.length > 0) await runActions(page, st.actions, log);
+
+  // DM-1770: stamp each declared region's element with `data-domotion-anim`,
+  // the same mechanism `textTracks` and intra-frame animations use, so the
+  // captured tree carries an `animId` the compressor can recognize as an
+  // explicit region root. Re-stamped before every capture, because a state's
+  // actions are free to rebuild the DOM under (or including) the region root.
+  const regionNames = Object.keys(fc.regions ?? {});
+  const regionIdOf = (name: string): string => `f${i}rg${regionNames.indexOf(name)}`;
+  const regionIds = regionNames.map(regionIdOf);
+  const regionIdSet = new Set(regionIds);
+  const stampRegions = async (): Promise<void> => {
+    for (const name of regionNames) {
+      const selector = fc.regions![name];
+      const matched = await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const el = document.querySelector(args.selector);
+          if (el instanceof HTMLElement) {
+            el.dataset.domotionAnim = args.animId;
+            return true;
+          }
+          return false;
+        },
+        { selector, animId: regionIdOf(name) },
+      );
+      if (!matched) throw new Error(`animate: frames[${i}].regions.${name} selector "${selector}" matched no element`);
+    }
+  };
+
+  // Per-region timing engages only once a state actually declares `advances`;
+  // a bare `regions` map is purely a region-discriminator override and leaves
+  // capture byte-for-byte what it was.
+  const perRegionTiming = regionNames.length > 0 && stateCfgs.some((st) => st.advances != null);
+  const plan = perRegionTiming ? planRegionCaptureRounds(stateCfgs, regionNames) : null;
+
+  const captureNow = async (): Promise<CapturedElement[]> => {
+    await stampRegions();
     const tree = await captureElementTree(page, fc.selector ?? "body", {
       x: 0, y: 0, width: cfg.width, height: cfg.height,
     });
     cullElementsOutsideViewBox(tree, cfg.width, cfg.height, undefined, 0, 1);
-    states.push({ tree, holdMs: st.duration });
+    return tree;
+  };
+
+  const states: CompressedRunState[] = [];
+  if (plan != null) {
+    log(`  states: ${stateCfgs.length} states over ${regionNames.length} region${regionNames.length === 1 ? "" : "s"} `
+      + `→ ${plan.rounds.length} whole-page capture${plan.rounds.length === 1 ? "" : "s"} (per-region timing; ${stateCfgs.length} without it)…`);
+    const roundTrees: CapturedElement[][] = [];
+    for (let r = 0; r < plan.rounds.length; r++) {
+      for (const s of plan.rounds[r]) {
+        const acts = stateCfgs[s].actions;
+        if (acts != null && acts.length > 0) await runActions(page, acts, log);
+      }
+      roundTrees.push(await captureNow());
+    }
+    // The splice takes each state's non-region remainder from round 0, so that
+    // remainder must be the same in every round — i.e. no region's content
+    // moved anything outside itself. Checked rather than assumed: a violation
+    // would compose plausible-looking but wrong pixels, and the author is the
+    // only one who can fix it (declare the moving element as a region, or drop
+    // `advances`).
+    const baseKey = outsideRegionsKey(roundTrees[0], regionIdSet);
+    for (let r = 1; r < roundTrees.length; r++) {
+      if (outsideRegionsKey(roundTrees[r], regionIdSet) !== baseKey) {
+        throw new Error(
+          `animate: frames[${i}] declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared regions `
+          + `between capture round 0 and round ${r} — each state's tree is assembled from the round holding each region's own `
+          + `state, so anything that changes must live inside a declared region. Declare the changing element in \`regions\`, `
+          + `or drop \`advances\` to capture every state whole.`,
+        );
+      }
+    }
+    for (let r = 0; r < roundTrees.length; r++) {
+      const roots = indexRegionRoots(roundTrees[r], regionIdSet);
+      for (const name of regionNames) {
+        if (!roots.has(regionIdOf(name))) {
+          throw new Error(`animate: frames[${i}].regions.${name} — the region's element is missing from capture round ${r} (its selector "${fc.regions![name]}" resolved earlier, so its subtree was replaced without keeping the element)`);
+        }
+      }
+    }
+    const rootsByRound = roundTrees.map((t) => indexRegionRoots(t, regionIdSet));
+    for (let s = 0; s < stateCfgs.length; s++) {
+      const sources = new Map<string, CapturedElement>();
+      for (const name of regionNames) {
+        const id = regionIdOf(name);
+        sources.set(id, rootsByRound[plan.sourceRound[s][name]].get(id)!);
+      }
+      states.push({ tree: spliceRegionSubtrees(roundTrees[0], sources), holdMs: stateCfgs[s].duration });
+    }
+  } else {
+    log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);
+    for (let j = 0; j < stateCfgs.length; j++) {
+      const st = stateCfgs[j];
+      // State 0 is the frame's own post-`actions` state; each state's own
+      // actions (if any) run before its capture.
+      if (st.actions != null && st.actions.length > 0) await runActions(page, st.actions, log);
+      states.push({ tree: await captureNow(), holdMs: st.duration });
+    }
   }
   const rootBg = states[0].tree[0]?.styles?.rootBgComputed;
   // The size-regression guard (below) can only fall back to the uncompressed
@@ -1764,6 +2038,10 @@ async function buildStatesRunContent(
     idPrefix: `cr${i}`,
     ...(rootBg != null ? { background: rootBg } : {}),
     ...(fc.caret != null ? { caret: fc.caret } : {}),
+    // DM-1770: the declared regions override the auto-detected discriminator
+    // inside them (the hybrid contract — auto-detection stays the default
+    // everywhere the author declared nothing).
+    ...(regionIds.length > 0 ? { regionRootIds: regionIds } : {}),
     // Defer @font-face to the outer run's shared embedded-font builder (one
     // scene-wide block, collected after the loop) — the cast pattern.
     manageFonts: false,
@@ -2735,8 +3013,16 @@ export function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig {
     if (Array.isArray(v)) return v.map(walk);
     if (v != null && typeof v === "object") {
       const out: Record<string, unknown> = {};
-      // Don't interpolate into the `vars` map itself (no nested vars in v1).
-      for (const [k, val] of Object.entries(v)) out[k] = k === "vars" ? val : walk(val);
+      // Two exclusions:
+      //  - the `vars` map itself (no nested vars in v1);
+      //  - DM-1770 `advances`, whose entries are region NAMES. Object keys are
+      //    never interpolated, so the `regions` map's own keys are literal;
+      //    interpolating the names that have to match them would make the two
+      //    sides of the same identifier follow different rules — and the
+      //    cross-check that a name is declared runs at parse time, before any
+      //    substitution could happen. Region SELECTORS (the map's values) are
+      //    interpolated like every other selector in the config.
+      for (const [k, val] of Object.entries(v)) out[k] = (k === "vars" || k === "advances") ? val : walk(val);
       return out;
     }
     return v;

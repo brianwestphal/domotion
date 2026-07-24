@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, planRegionCaptureRounds, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -372,6 +372,81 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
   });
 
+  describe("explicit `regions` + per-state `advances` (DM-1770, docs/43 §11.1)", () => {
+    const withRegions = (over: Record<string, unknown>) => ({
+      ...base,
+      frames: [{
+        input: "panes.html", duration: 900,
+        regions: { editor: "#ed", preview: "#pv" },
+        states: [{ duration: 300 }, { duration: 300 }, { duration: 300 }],
+        ...over,
+      }],
+    });
+
+    it("accepts a regions map with per-state advances", () => {
+      const cfg = validateAnimateConfig(withRegions({
+        states: [
+          { duration: 300 },
+          { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(2)" }], duration: 300 },
+          { advances: ["preview", "editor"], duration: 300 },
+        ],
+      }));
+      expect(cfg.frames[0].regions).toEqual({ editor: "#ed", preview: "#pv" });
+      expect(cfg.frames[0].states![1].advances).toEqual(["editor"]);
+      expect(cfg.frames[0].states![2].advances).toEqual(["preview", "editor"]);
+    });
+
+    it("accepts `regions` with no `advances` at all (a discriminator override)", () => {
+      const cfg = validateAnimateConfig(withRegions({}));
+      expect(cfg.frames[0].regions).toEqual({ editor: "#ed", preview: "#pv" });
+      expect(cfg.frames[0].states!.every((s) => s.advances == null)).toBe(true);
+    });
+
+    it("rejects `regions` without `states` (path-specific)", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, regions: { a: "#a" } }] }),
+      ).toThrow(/frames\[0\]\.regions: `regions` requires a `states` compressed run/);
+    });
+
+    it("rejects an empty regions map", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, regions: {}, states: [{ duration: 1 }] }] }),
+      ).toThrow(/frames\[0\]\.regions/);
+    });
+
+    it("rejects `advances` on a frame that declares no `regions`", () => {
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, states: [{ duration: 1 }, { advances: ["editor"], duration: 1 }] }],
+        }),
+      ).toThrow(/frames\[0\]\.states\[1\]\.advances: `advances` requires the frame to declare `regions`/);
+    });
+
+    it("rejects `advances` naming an undeclared region, listing what IS declared", () => {
+      expect(() =>
+        validateAnimateConfig(withRegions({
+          states: [{ duration: 1 }, { advances: ["previw"], duration: 1 }],
+        })),
+      ).toThrow(/frames\[0\]\.states\[1\]\.advances\[0\]: unknown region "previw" — this frame declares "editor", "preview"/);
+    });
+
+    it("rejects `advances` on state 0 — every region's starting point", () => {
+      expect(() =>
+        validateAnimateConfig(withRegions({ states: [{ advances: ["editor"], duration: 1 }, { duration: 1 }] })),
+      ).toThrow(/frames\[0\]\.states\[0\]\.advances: state 0 is the frame's own post-`actions` state/);
+    });
+
+    it("rejects an empty or duplicated advances list", () => {
+      expect(() =>
+        validateAnimateConfig(withRegions({ states: [{ duration: 1 }, { advances: [], duration: 1 }] })),
+      ).toThrow(/frames\[0\]\.states\[1\]\.advances: must name at least one region/);
+      expect(() =>
+        validateAnimateConfig(withRegions({ states: [{ duration: 1 }, { advances: ["editor", "editor"], duration: 1 }] })),
+      ).toThrow(/frames\[0\]\.states\[1\]\.advances\[1\]: region "editor" is listed twice/);
+    });
+  });
+
   describe("caret/selection `textTracks` frames (DM-1747, docs/101)", () => {
     it("accepts a track with the full event vocabulary + options", () => {
       const cfg = validateAnimateConfig({
@@ -729,6 +804,40 @@ describe("interpolateConfigVars (DM-852)", () => {
     expect(tt.selector).toBe("#line-1");
     const ev = tt.events[0];
     expect(ev.type === "move" ? ev.selector : "").toBe("#line-1");
+  });
+
+  it("substitutes ${name} inside `regions` SELECTORS, and leaves region names literal (DM-1770)", () => {
+    // A region's selector is a selector like any other, so it interpolates.
+    // Its NAME is a config-internal identifier: `regions`' own object keys are
+    // never interpolated (keys never are), so the `advances` entries that must
+    // match them stay literal too — otherwise the two halves of one identifier
+    // would follow different rules, and the "is this region declared?" check
+    // runs at parse time, before any substitution could happen.
+    const out = interpolateConfigVars(validateAnimateConfig({
+      ...base,
+      vars: { pane: "#ed" },
+      frames: [{
+        input: "panes.html", duration: 1000,
+        regions: { editor: "${pane}", preview: "#pv" },
+        states: [{ duration: 100 }, { advances: ["editor"], duration: 100 }],
+      }],
+    }));
+    expect(out.frames[0].regions).toEqual({ editor: "#ed", preview: "#pv" });
+    expect(out.frames[0].states![1].advances).toEqual(["editor"]);
+  });
+
+  it("leaves a ${...}-looking region name alone rather than substituting it (DM-1770)", () => {
+    const out = interpolateConfigVars({
+      ...base,
+      vars: { left: "editor" },
+      frames: [{
+        input: "panes.html", duration: 1000,
+        regions: { "${left}": "#ed" },
+        states: [{ duration: 100 }, { advances: ["${left}"], duration: 100 }],
+      }],
+    } as unknown as AnimateConfig);
+    expect(Object.keys(out.frames[0].regions!)).toEqual(["${left}"]);
+    expect(out.frames[0].states![1].advances).toEqual(["${left}"]);
   });
 
   it("throws on an unknown variable", () => {
@@ -1325,6 +1434,64 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     if (out.cursor != null && out.cursor !== "auto") {
       expect(out.cursor.events[0].frame).toBe(1); // original frame 2 → new index 1
     }
+  });
+});
+
+describe("planRegionCaptureRounds (DM-1770): independent per-region timing", () => {
+  const st = (...advances: string[][]) => [{} as { advances?: string[] }, ...advances.map((a) => ({ advances: a }))];
+
+  it("collapses two disjoint schedules to 1 + max(nᵢ) whole-page captures", () => {
+    // A on states 1/3/5, B on 2/4/6 — the shape a hand-interleaved sequence
+    // pays 7 captures for.
+    const plan = planRegionCaptureRounds(st(["a"], ["b"], ["a"], ["b"], ["a"], ["b"]), ["a", "b"]);
+    expect(plan.rounds).toEqual([[], [1, 2], [3, 4], [5, 6]]);
+    expect(plan.rounds).toHaveLength(4);
+    // Each state reads each region from the round holding that region's own
+    // state — state 1 is A-advanced but B still at its start.
+    expect(plan.sourceRound[0]).toEqual({ a: 0, b: 0 });
+    expect(plan.sourceRound[1]).toEqual({ a: 1, b: 0 });
+    expect(plan.sourceRound[2]).toEqual({ a: 1, b: 1 });
+    expect(plan.sourceRound[6]).toEqual({ a: 3, b: 3 });
+  });
+
+  it("scales with the number of regions: 3 regions x 4 advances is 13 states in 5 captures", () => {
+    const advances: string[][] = [];
+    for (let k = 0; k < 4; k++) for (const n of ["a", "b", "c"]) advances.push([n]);
+    const plan = planRegionCaptureRounds(st(...advances), ["a", "b", "c"]);
+    expect(plan.rounds).toHaveLength(5);
+    expect(plan.sourceRound).toHaveLength(13);
+  });
+
+  it("a state advancing several regions chains them into one round", () => {
+    // The state's actions are one indivisible script, so it takes ONE round —
+    // one past the latest round of every region it advances.
+    const plan = planRegionCaptureRounds(st(["a"], ["b"], ["a", "b"]), ["a", "b"]);
+    expect(plan.rounds).toEqual([[], [1, 2], [3]]);
+    expect(plan.sourceRound[3]).toEqual({ a: 2, b: 2 });
+  });
+
+  it("a region's advances always land in strictly increasing rounds", () => {
+    // Rounds are cumulative (the page carries forward), so a region can never
+    // read a later state from an earlier round.
+    const plan = planRegionCaptureRounds(st(["a"], ["a"], ["b"], ["a"]), ["a", "b"]);
+    expect(plan.rounds).toEqual([[], [1, 3], [2], [4]]);
+    let prev = -1;
+    for (const s of plan.sourceRound) {
+      expect(s.a).toBeGreaterThanOrEqual(prev);
+      prev = s.a;
+    }
+    expect(plan.sourceRound.map((s) => s.a)).toEqual([0, 1, 2, 2, 3]);
+    expect(plan.sourceRound.map((s) => s.b)).toEqual([0, 0, 0, 1, 1]);
+  });
+
+  it("states with no `advances` advance every region — one round each, the sequential default", () => {
+    const plan = planRegionCaptureRounds([{}, {}, {}], ["a", "b"]);
+    expect(plan.rounds).toEqual([[], [1], [2]]);
+    expect(plan.sourceRound).toEqual([{ a: 0, b: 0 }, { a: 1, b: 1 }, { a: 2, b: 2 }]);
+  });
+
+  it("a single state needs exactly one capture", () => {
+    expect(planRegionCaptureRounds([{}], ["a"]).rounds).toEqual([[]]);
   });
 });
 

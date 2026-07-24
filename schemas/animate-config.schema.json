@@ -1942,11 +1942,30 @@
                 "duration": {
                   "type": "number",
                   "exclusiveMinimum": 0
+                },
+                "advances": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               },
               "required": [
                 "duration"
               ]
+            }
+          },
+          "regions": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "caret": {

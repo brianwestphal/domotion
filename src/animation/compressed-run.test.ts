@@ -427,6 +427,81 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
     expect(plan.thread.deaths).toBe(right);
     expect(plan.thread.births).toBe(right);
   });
+
+  // ── Explicit region roots (the hybrid contract) ──────────────────────────
+  // Auto-detection is the default; a caller that knows better stamps
+  // `data-domotion-anim` on the region elements and passes those ids as
+  // `regionRootIds`, which wins inside them and changes nothing outside.
+
+  it("declared region roots separate panes the auto-detector would merge", () => {
+    // Two side-by-side ONE-LINE-TALL cells: geometrically a gutter, so the
+    // auto-detector deliberately keeps them in one bucket. Declaring them
+    // splits them — which is exactly the case the override exists for.
+    const cell = (x: number, id: string, lines: CapturedElement[]): CapturedElement =>
+      box(lines, { x, y: 100, width: 300, height: 19, animId: id, styles: styles({ lineHeight: "19px" }) });
+    const mk = (l: string, r: string) => [box([
+      cell(0, "rgL", [lineEl(l, { x: 10, y: 100 })]),
+      cell(300, "rgR", [lineEl(r, { x: 310, y: 100 })]),
+    ], { x: 0, y: 100, width: 600, height: 19 })];
+
+    const auto = buildCompressedRunPlan([state(mk("ab", "cd")), state(mk("ab", "cd"))]);
+    expect(new Set(auto.thread.all.map((t) => t.rec.lineKey)).size).toBe(1);
+
+    const declared = buildCompressedRunPlan([state(mk("ab", "cd")), state(mk("ab", "cd"))], "cr", ["rgL", "rgR"]);
+    expect(new Set(declared.thread.all.map((t) => t.rec.region)).size).toBe(2);
+    expect(new Set(declared.thread.all.map((t) => t.rec.lineKey)).size).toBe(2);
+  });
+
+  it("a DECLARED region survives its own box changing, where an auto-detected one re-emits", () => {
+    // The auto-detector keys on geometry — all it has — so a resized pane is a
+    // different region and its lines re-emit. A declared region is named by the
+    // author, so it stays itself and its lines still pair. Bytes only: every
+    // emitted position comes from that state's own capture.
+    const paneEl = (w: number, lines: CapturedElement[], id?: string) =>
+      box(lines, { x: 450, y: 0, width: w, height: 420, ...(id != null ? { animId: id } : {}),
+        styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
+    const mk = (w: number, id?: string) => [
+      pane(0, leftLines("")),
+      paneEl(w, rightLines(0), id),
+    ];
+    const right = "alpha rowbeta rowgamma row".length;
+
+    const auto = buildCompressedRunPlan([state(mk(450)), state(mk(400))]);
+    expect(auto.thread.deaths).toBe(right);
+
+    const declared = buildCompressedRunPlan([state(mk(450, "rgR")), state(mk(400, "rgR"))], "cr", ["rgR"]);
+    expect(declared.thread.deaths).toBe(0);
+    expect(declared.thread.births).toBe(0);
+  });
+
+  it("auto-detection still subdivides INSIDE a declared region, and still runs outside it", () => {
+    // The declaration is an override, not a replacement: a nested clipping
+    // ancestor inside a declared region is still its own (finer) region, and
+    // untouched siblings keep their auto-detected ones.
+    const inner = (x: number, lines: CapturedElement[]) =>
+      box(lines, { x, y: 0, width: 220, height: 420, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
+    const tree = [
+      box([inner(0, [lineEl("aa", { x: 10, y: 100 })]), inner(220, [lineEl("bb", { x: 230, y: 100 })])],
+        { x: 0, y: 0, width: 450, height: 420, animId: "rgL" }),
+      pane(450, [lineEl("cc", { x: 460, y: 100 })]),
+    ];
+    const plan = buildCompressedRunPlan([state(tree), state(tree)], "cr", ["rgL"]);
+    const regionOf = (ch: string) => plan.thread.all.find((t) => t.rec.ch === ch)!.rec.region;
+    // Two nested clipping boxes inside the declared region → two regions, both
+    // distinct from each other and from the undeclared sibling pane.
+    expect(new Set([regionOf("a"), regionOf("b"), regionOf("c")]).size).toBe(3);
+    // ...and the sibling pane's region is still the auto-detected geometry key.
+    expect(regionOf("c").startsWith("R")).toBe(true);
+  });
+
+  it("passing no region roots is byte-identical to a build with no notion of them", () => {
+    const mk = (typed: string) => [pane(0, leftLines(typed)), pane(450, rightLines(0))];
+    const states = [state(mk("")), state(mk("y"))];
+    const opts = { width: 900, height: 420, idPrefix: "cr" };
+    const bare = composeCompressedRun(states, opts);
+    const empty = composeCompressedRun(states, { ...opts, regionRootIds: [] });
+    expect(empty.svg).toBe(bare.svg);
+  });
 });
 
 describe("buildCompressedRunPlan — chrome union", () => {
