@@ -215,14 +215,10 @@ async function assertParityAtEveryState(
     const p = await ctx.newPage();
     await p.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
     await p.evaluate(() => document.fonts.ready);
-    // Let the document render one frame BEFORE the first seek. `seekTo` pauses
-    // whatever `document.getAnimations()` returns at the moment it runs, and a
-    // CSS animation only joins the timeline at the first style recalc — so on a
-    // page seeked immediately after load some animations can still be
-    // free-running at wall-clock time. That shows up as a flake at STATE 0
-    // only, which is exactly the shape observed; every later state is seeked on
-    // an already-rendered page and is unaffected.
-    await p.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+    // NOTE: the "render one frame before the first seek" settle that used to
+    // live here now lives in `seekTo` itself (DM-1781), so every caller gets it
+    // — the other compressor e2e files, and the production svg-to-video /
+    // svg-scrubber / svg-to-image paths — not just this fixture.
     return p;
   };
   const expPage = await open(expectedSvg);

@@ -803,7 +803,24 @@ function frameName(i: number): string {
 export async function seekTo(page: import("@playwright/test").Page, t: number): Promise<void> {
   // Pause every animation and seek it to t (ms). CSS/Web-Animations via the
   // WAAPI; SMIL via the SVG document timeline. Runs in the page — no outer scope.
-  await page.evaluate((tMs) => {
+  await page.evaluate(async (tMs) => {
+    // DM-1781: a CSS animation only joins the document timeline at its first
+    // style recalc, so on a document seeked immediately after load
+    // `getAnimations()` can return an INCOMPLETE set — the animations it misses
+    // keep free-running at wall-clock time and the first sampled state is a
+    // frame off. That is exactly the observed failure shape: a parity flake at
+    // STATE 0 only (every later state is seeked on an already-rendered page).
+    // Let the document render one frame before enumerating.
+    //
+    // Once per DOCUMENT, not per seek: the video-export path seeks once per
+    // output frame and must not pay an extra frame every time. The marker lives
+    // on `documentElement` (not `window`) so a page reused via a fresh
+    // `setContent` — a new document, new element — correctly settles again.
+    const root = document.documentElement as unknown as { __domotionSeekSettled?: boolean };
+    if (root != null && root.__domotionSeekSettled !== true) {
+      if (root != null) root.__domotionSeekSettled = true;
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    }
     const anims = typeof document.getAnimations === "function" ? document.getAnimations() : [];
     for (const a of anims) {
       try {
