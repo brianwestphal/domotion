@@ -20,7 +20,18 @@ export {
   withRenderTextMode,
   clearEmbeddedFonts,
   getEmbeddedFontFaceCss,
+  // Speculative composition: compose a variant just to measure its real byte
+  // size, then roll the shared font/glyph registries back so the discarded
+  // trial doesn't shift the ids the real output uses. `snapshotGeneration`
+  // covers both registries at once (whichever the current render-text mode
+  // populates); the `…EmbeddedFonts` pair is the subset-builder half alone.
+  snapshotGeneration,
+  restoreGeneration,
+  snapshotEmbeddedFonts,
+  restoreEmbeddedFonts,
   type RenderTextMode,
+  type GenerationSnapshot,
+  type EmbeddedFontSnapshot,
 } from "./text-to-path.js";
 
 // DM-886: pre-warm the native glyph-helper cache (download the platform/arch

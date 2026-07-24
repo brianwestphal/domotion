@@ -644,6 +644,20 @@ then shear when both apply (bold-italic on a no-bold-no-italic face).
 | `glyphDefs` (paths mode) | generation | `clearGlyphDefs` / `resetGeneration` |
 | `embeddedFonts` + subset builder | generation | `clearEmbeddedFonts` / `resetGeneration` |
 
+The two **generation-scoped** registries are also transactional: they hand out
+ids in order of first use (`dmfN` families + PUA codepoints in the subset
+builder, `gN` def ids in the paths registry), so a speculative render —
+composing a variant only to measure its real byte size, then discarding it —
+would permanently shift the addressing of the real output that follows.
+`snapshotGeneration()` captures both as an opaque marker and
+`restoreGeneration(marker)` rolls every mutation since it back, including a
+`clear` performed inside the speculative window; `snapshotEmbeddedFonts()` /
+`restoreEmbeddedFonts()` are the subset-builder half alone. The
+`fontInstanceCache` / `resolvedSpecCache` / helper caches are deliberately NOT
+part of the transaction — they memoize deterministic lookups and never affect
+output bytes. See doc
+[99 § speculative composition](99-hinted-embedded-subset.md#speculative-composition-snapshot--restore).
+
 ---
 
 ## Cross-platform calibration status (as of this writing)

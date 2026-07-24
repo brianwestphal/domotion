@@ -23,7 +23,12 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
-import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
+// Speculative-composition rollback (see `snapshotGeneration` below): re-exported
+// here so the render barrel's font surface stays one import for consumers.
+export { restoreEmbeddedFonts, snapshotEmbeddedFonts } from "./embedded-font-builder.js";
+export type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_PATHS_NOTO_LINUX, UNICODE_FONT_RANGES_NOTO_LINUX } from "./unicode-font-routing.noto-linux.generated.js";
@@ -3421,6 +3426,80 @@ export function truncateGlyphDefs(count: number): void {
     if (parseInt(v.slice(1), 10) >= count) glyphKeyToId.delete(k);
   }
   glyphIdCounter = count;
+}
+
+/**
+ * Opaque rollback marker for the paths-mode glyph registry — the full state,
+ * not just a count. `truncateGlyphDefs` is the cheap cursor form and is enough
+ * for the animator's append-only overlay; a SPECULATIVE pass may also clear the
+ * registry outright (any nested producer that starts its own generation calls
+ * `resetGeneration()`), which a count can't undo. This marker survives that.
+ */
+export interface GlyphDefsSnapshot {
+  readonly defs: ReadonlyArray<readonly [string, string]>;
+  readonly keyToId: ReadonlyArray<readonly [string, string]>;
+  readonly idCounter: number;
+}
+
+/** Capture the paths-mode glyph registry as a rollback marker. */
+export function snapshotGlyphDefs(): GlyphDefsSnapshot {
+  return { defs: [...glyphDefs], keyToId: [...glyphKeyToId], idCounter: glyphIdCounter };
+}
+
+/** Roll the paths-mode glyph registry back to a `snapshotGlyphDefs()` marker.
+ *  Reusable: the marker holds values, so restoring it twice is well-defined. */
+export function restoreGlyphDefs(snapshot: GlyphDefsSnapshot): void {
+  glyphDefs.clear();
+  for (const [id, markup] of snapshot.defs) glyphDefs.set(id, markup);
+  glyphKeyToId.clear();
+  for (const [key, id] of snapshot.keyToId) glyphKeyToId.set(key, id);
+  glyphIdCounter = snapshot.idCounter;
+}
+
+/**
+ * Rollback marker for BOTH generation-scoped render registries — the
+ * embedded-font subset builder and the paths-mode glyph-defs registry. Opaque:
+ * hand it back to `restoreGeneration()`.
+ */
+export interface GenerationSnapshot {
+  readonly fonts: EmbeddedFontSnapshot;
+  readonly glyphDefs: GlyphDefsSnapshot;
+}
+
+/**
+ * Capture BOTH generation-scoped registries so a speculative render can be
+ * rolled back wholesale — the transactional sibling of `resetGeneration()`.
+ *
+ * The use case is composing a variant just to measure its real byte size, then
+ * discarding it: without a rollback the trial permanently shifts the `dmfN`
+ * family names and PUA codepoints (embedded-font mode) or the `gN` def ids
+ * (paths mode) that the REAL output goes on to use, so the output stops being a
+ * function of its input. Snapshot, compose the trial, measure, restore, compose
+ * for real — the bytes are then identical to the no-trial run.
+ *
+ * Bundled for the same reason `resetGeneration()` is: which registry is live
+ * depends on the process-global render-text mode, so a caller that snapshots
+ * only one is correct until someone flips the mode. Does NOT cover the webfont
+ * registry (session-scoped, and only capture mutates it) or the font-instance /
+ * outline caches (memoized deterministic lookups — they never affect output
+ * bytes).
+ */
+export function snapshotGeneration(): GenerationSnapshot {
+  return { fonts: snapshotEmbeddedFonts(), glyphDefs: snapshotGlyphDefs() };
+}
+
+/**
+ * Roll both generation-scoped registries back to a `snapshotGeneration()`
+ * marker. Never throws (an empty marker just empties them); markers are
+ * reusable and nest, so `snapshot → snapshot → restore → restore` unwinds
+ * correctly.
+ *
+ * Contract: whatever the speculative pass emitted must be discarded — it holds
+ * ids that are handed back out to the next composition.
+ */
+export function restoreGeneration(snapshot: GenerationSnapshot): void {
+  restoreEmbeddedFonts(snapshot.fonts);
+  restoreGlyphDefs(snapshot.glyphDefs);
 }
 
 // ── Text Rendering ──

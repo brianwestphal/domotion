@@ -144,6 +144,73 @@ outlines (glyphs fontkit couldn't decode), CFF/CFF2 faces, native-only
 no-`glyf` fonts (PingFang `hvgl`), webfont buffers (no on-disk file is recorded
 for them).
 
+## Speculative composition: snapshot / restore
+
+The builder is module-global and **append-only within a generation**. It hands
+out PUA codepoints in order of first glyph use and `dmfN` family names in order
+of first instance registration, so what it emits is a function of the ORDER
+glyphs were tracked in. Under a nested composition (`manageFonts: false` — the
+mode the compressed-run and terminal composers use) that registry is shared with
+the whole outer run.
+
+That makes a *speculative* compose — render a variant purely to measure its real
+byte size, then throw it away and compose the real thing — impossible by
+default: the discarded trial permanently shifts the addressing the real output
+goes on to use, and its bytes change. `snapshotGeneration()` /
+`restoreGeneration(marker)` close that hole:
+
+```ts
+const marker = snapshotGeneration();
+const trialBytes = composeVariant(candidate).length;  // measure for real
+restoreGeneration(marker);                            // as if it never ran
+```
+
+The marker is opaque and holds **values**, not cursors, so the rollback survives
+a speculative pass that CLEARED a registry outright (any nested producer that
+starts its own generation calls `resetGeneration()`). Markers nest
+(`snapshot → snapshot → restore → restore` unwinds to each in turn), are
+reusable (restoring one neither consumes it nor invalidates an outer one), and
+never throw — restoring a marker taken from a never-used builder simply empties
+it.
+
+What is rolled back:
+
+| registry | state restored |
+|---|---|
+| embedded-font subset builder | tracked instances + their insertion order (the `@font-face` emission order), per-entry glyph outlines, glyph-id → PUA assignments, the per-entry PUA allocation cursor, the tracked weight range (`font-weight: min max` descriptor), the hinted-source disqualification latch, and the global `dmfN` family counter |
+| paths-mode glyph defs | the `<path id="gN">` def map, the key → id map, and the `gN` id counter |
+
+Both are bundled because *which* registry is live depends on the process-global
+render-text mode, so a caller snapshotting only one is correct right up until
+someone flips the mode — the same footgun `resetGeneration()` exists to prevent.
+`snapshotEmbeddedFonts()` / `restoreEmbeddedFonts()` are the subset-builder half
+alone, for a caller that knows the mode.
+
+Deliberately **not** covered: the webfont registry (session-scoped — only
+capture mutates it, and a compose never does) and the font-instance / resolved-
+spec / outline caches (memoized deterministic lookups, so they never affect
+output bytes). If a speculative pass ever registers a webfont, that registration
+outlives the rollback.
+
+**Contract:** whatever the speculative pass emitted must be discarded. Its
+`dmfN` names and PUA codepoints are handed straight back out to the next
+composition, so keeping both outputs would alias two different subsets onto the
+same names.
+
+The intended consumer is per-region trial composition — choosing between a
+per-region and a whole-run compression strategy on measured bytes rather than a
+heuristic, which needs to compose each candidate for real (see doc 100's
+independent-region design notes). This capability is the render-layer half only;
+it does not itself make that choice.
+
+Coverage: `src/render/embedded-font-snapshot.test.ts`, whose bar is byte
+identity — compose, then snapshot → compose a variant that allocates different
+PUA codepoints and family names → restore → recompose, asserting the two are
+byte-identical, at both the `@font-face` CSS level and through a real
+`elementTreeToSvg` render. Each byte-identity case is paired with an assertion
+that the same sequence WITHOUT the restore produces different bytes, so the
+test cannot quietly become vacuous.
+
 ## Measured payoff
 
 Windows CI, `0000-007F-basic-latin`, same commit, svg2ttf vs hb-subset:

@@ -158,9 +158,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   grid — measured **nearly free**, a 3.5× finer grid costs 0.4% of bytes, so
   per-region timing is an authoring/capture-count question, not a payload one —
   the whole-run size guard (per-region demotion into the chrome union measures
-  172.1 KB → 83.2 KB where today's guard reverts to a 97.8 KB flipbook, but
-  deciding it on real bytes needs a font-builder snapshot API that does not
-  exist), and per-run eligibility. And (2) a **caret + selection track** — declarative
+  172.1 KB → 83.2 KB where today's guard reverts to a 97.8 KB flipbook; deciding
+  it on real bytes needs speculative composition, and the render-layer half of
+  that now **ships** — `snapshotGeneration()` / `restoreGeneration()` roll the
+  embedded-font subset builder AND the paths-mode glyph-defs registry back to a
+  marker, so a trial compose measured for its real byte size leaves the output
+  composed afterward byte-identical, doc 99 § speculative composition), and
+  per-run eligibility. And (2) a **caret + selection track** — declarative
   caret/selection anchored node-side to captured text (`selector` + char offset
   over segment `xOffsets`; `caretShapeRect` geometry; blink + sweep), standalone
   and useful beyond editing. The original document-model + op-timeline core is

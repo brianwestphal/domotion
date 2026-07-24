@@ -160,6 +160,14 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/render/embedded-font-builder.test.ts"],
     transition: "clear → per-run registration accumulates → getEmbeddedFontFaceCss emits once → clearEmbeddedFonts resets.",
   },
+  {
+    id: "text.speculative-compose",
+    behavior: "Snapshot/restore rolls the shared font + glyph-def registries back so a discarded speculative compose leaves the real output byte-identical.",
+    doc: "docs/99-hinted-embedded-subset.md",
+    exports: ["snapshotGeneration", "restoreGeneration", "snapshotEmbeddedFonts", "restoreEmbeddedFonts"],
+    tests: ["src/render/embedded-font-snapshot.test.ts"],
+    transition: "populated → snapshot → speculative compose (different PUA/dmfN/gN allocation, possibly a clear) → restore → recompose yields the SAME bytes; nested snapshot/snapshot/restore/restore unwinds to each marker; markers are reusable and never throw on an empty builder.",
+  },
 
   // ── Fonts / webfonts ───────────────────────────────────────────────────
   {

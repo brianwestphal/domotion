@@ -83,7 +83,25 @@ export interface PathCommand {
   args: number[];
 }
 
-interface BuilderEntry {
+/**
+ * One tracked font instance's accumulated state.
+ *
+ * Exported only so `EmbeddedFontSnapshot` can name it in the emitted `.d.ts` —
+ * it is an internal representation, not a stable surface. Its FULL mutable
+ * footprint (what a snapshot has to be able to undo) is:
+ *
+ *   - `glyphs`            — append-only Map, one entry per shaped glyph id
+ *   - `puaForGlyphId`     — append-only Map, glyph id → assigned PUA codepoint
+ *   - `nextPua`           — monotonically incremented allocation cursor
+ *   - `weightMin`/`weightMax` — widened monotonically as weights are tracked
+ *   - `hintedSourceDisqualified` — latches false → true
+ *
+ * The remaining fields (`cssFamily`, `unitsPerEm`, `ascender`, `descender`,
+ * `italic`, `hintedSource`) are written once at entry creation and never
+ * mutated afterward. Nothing in this module ever DELETES a glyph, a PUA
+ * assignment, or an entry — the only removal is `clearEmbeddedFontBuilder()`.
+ */
+export interface BuilderEntry {
   /** CSS family name assigned at first registration (e.g. `dmf3`). Stable across calls. */
   cssFamily: string;
   unitsPerEm: number;
@@ -145,6 +163,106 @@ const PUA_END = 0xF8FF;
 export function clearEmbeddedFontBuilder(): void {
   builderRegistry.clear();
   builderIdCounter = 0;
+}
+
+// ── Speculative composition: snapshot / restore ──
+//
+// A caller that wants to compose a variant SPECULATIVELY — render it, measure
+// the real byte size, then throw it away and compose something else — cannot
+// simply let the trial run through this builder. PUA codepoints are handed out
+// in order of first glyph use and `dmfN` family names in order of first
+// instance registration, so a discarded trial permanently shifts the addressing
+// the REAL output would otherwise have gotten. Under a nested composition (the
+// `manageFonts: false` mode the compressed-run and terminal composers use) the
+// registry is shared with the whole outer run, so the perturbation survives all
+// the way into the final SVG's bytes.
+//
+// `snapshotEmbeddedFonts()` returns a marker; `restoreEmbeddedFonts(marker)`
+// puts the builder back exactly as it was, so the bytes produced after the
+// rollback are identical to the bytes that would have been produced had the
+// trial never run. Same shape as the paths-mode glyph-defs registry's
+// snapshot/rollback, which the animator's typing overlay uses for byte-stable
+// `gN` ids; `snapshotGeneration()` / `restoreGeneration()` in font-resolution
+// bundle the two so a caller can't roll back a partial set.
+
+/**
+ * Opaque rollback marker produced by `snapshotEmbeddedFonts()`. Treat the
+ * fields as private — the only supported operation is handing it back to
+ * `restoreEmbeddedFonts()`. Markers are reusable and nestable: restoring one
+ * neither consumes it nor invalidates markers taken before it.
+ */
+export interface EmbeddedFontSnapshot {
+  /**
+   * Cloned (instanceKey, entry) pairs in registry insertion order. Order is
+   * output-affecting — it is the order `getBuiltEmbeddedFontFaceCss()` emits
+   * the `@font-face` rules in — so the rollback restores it, not just the set.
+   */
+  readonly entries: ReadonlyArray<readonly [string, BuilderEntry]>;
+  /** `builderIdCounter` at snapshot time — the next `dmfN` family index. */
+  readonly nextFamilyId: number;
+}
+
+/**
+ * Copy an entry deeply enough that later mutations of the live entry can't
+ * reach the copy. The spread copies every scalar field automatically (so a new
+ * scalar on `BuilderEntry` is handled without touching this function); the two
+ * append-only Maps and the `hintedSource` record are copied explicitly.
+ *
+ * `EmbeddedGlyph` values are written once and never mutated in place, so
+ * sharing those object references is safe. `_builderEntryFieldNames()` + its
+ * unit test pin the field list, so adding a new MUTABLE CONTAINER field to
+ * `BuilderEntry` fails loudly here rather than silently escaping the rollback.
+ */
+function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
+  return {
+    ...entry,
+    glyphs: new Map(entry.glyphs),
+    puaForGlyphId: new Map(entry.puaForGlyphId),
+    hintedSource: entry.hintedSource == null
+      ? null
+      : {
+        ...entry.hintedSource,
+        variationAxes: entry.hintedSource.variationAxes == null
+          ? entry.hintedSource.variationAxes
+          : { ...entry.hintedSource.variationAxes },
+      },
+  };
+}
+
+/**
+ * Capture the builder's full state as a rollback marker. Cheap: the clone
+ * copies scalars and Map spines, sharing the (immutable) glyph outline strings.
+ *
+ * Pair with `restoreEmbeddedFonts()`. The marker is a value, not a cursor — the
+ * builder may be cleared, re-populated, or snapshotted again in between and the
+ * restore still reconstructs exactly the captured state.
+ */
+export function snapshotEmbeddedFonts(): EmbeddedFontSnapshot {
+  const entries: Array<readonly [string, BuilderEntry]> = [];
+  for (const [key, entry] of builderRegistry) entries.push([key, cloneBuilderEntry(entry)]);
+  return { entries, nextFamilyId: builderIdCounter };
+}
+
+/**
+ * Roll the builder back to a `snapshotEmbeddedFonts()` marker, discarding every
+ * mutation made since: instances registered, glyph outlines accumulated, PUA
+ * codepoints assigned, weight ranges widened, hinted-source disqualifications
+ * latched, and the `dmfN` family counter.
+ *
+ * Restoring re-clones out of the marker, so the marker stays pristine and can
+ * be restored again later (and outer markers survive an inner restore).
+ * Never throws — restoring a marker taken from a never-used builder simply
+ * empties it.
+ *
+ * Contract: the SVG the speculative pass produced must be discarded. Its
+ * `dmfN` family names and PUA codepoints are handed back out to whatever is
+ * composed next, so keeping both outputs would alias two different subsets onto
+ * the same names.
+ */
+export function restoreEmbeddedFonts(snapshot: EmbeddedFontSnapshot): void {
+  builderRegistry.clear();
+  for (const [key, entry] of snapshot.entries) builderRegistry.set(key, cloneBuilderEntry(entry));
+  builderIdCounter = snapshot.nextFamilyId;
 }
 
 /**
@@ -419,4 +537,50 @@ export function getBuiltEmbeddedFontFaceCss(): string {
 export function _builderRegistrySize(): number { return builderRegistry.size; }
 export function _builderGlyphsFor(instanceKey: string): number {
   return builderRegistry.get(instanceKey)?.glyphs.size ?? 0;
+}
+/**
+ * Test-only: the live field names of a tracked entry. Pinned by a unit test so
+ * that adding a field to `BuilderEntry` fails the suite and forces
+ * `cloneBuilderEntry` to be revisited — a field that clones by reference would
+ * silently escape `restoreEmbeddedFonts`, and a partial rollback corrupts
+ * output more quietly than no rollback at all.
+ */
+export function _builderEntryFieldNames(instanceKey: string): string[] {
+  const entry = builderRegistry.get(instanceKey);
+  return entry == null ? [] : Object.keys(entry);
+}
+/**
+ * Test-only: the complete mutable state of one tracked entry, flattened for
+ * assertions. Covers every field a snapshot has to roll back.
+ */
+export function _builderEntryState(instanceKey: string): {
+  cssFamily: string;
+  nextPua: number;
+  weightMin: number;
+  weightMax: number;
+  italic: boolean;
+  hintedSourceDisqualified: boolean;
+  hintedSourcePath: string | null;
+  glyphIds: number[];
+  puas: number[];
+} | null {
+  const e = builderRegistry.get(instanceKey);
+  if (e == null) return null;
+  return {
+    cssFamily: e.cssFamily,
+    nextPua: e.nextPua,
+    weightMin: e.weightMin,
+    weightMax: e.weightMax,
+    italic: e.italic,
+    hintedSourceDisqualified: e.hintedSourceDisqualified,
+    hintedSourcePath: e.hintedSource?.path ?? null,
+    glyphIds: [...e.glyphs.keys()],
+    puas: [...e.puaForGlyphId.values()],
+  };
+}
+
+/** Test-only: tracked instance keys, in registry insertion order (the order the
+ *  `@font-face` rules are emitted in). */
+export function _builderInstanceKeys(): string[] {
+  return [...builderRegistry.keys()];
 }
