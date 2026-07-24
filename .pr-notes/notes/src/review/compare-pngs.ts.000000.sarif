@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryu448f85hgfgo8",
+          "message": {
+            "text": "Windows figure measured, not inferred. A one-off windows-latest CI run (workflow dm1780-win-metrics.yml on throwaway branch ci/dm1780-windows-metrics) ran the 8 compressor e2e files with FLIPBOOK_METRICS set and recorded 68 parity checks on win32:\n\n- Clean ceiling: 58 px largest / 93 px total, regionCount === 0 on every check — inside the macOS 71/206 ceiling, far below the 256/512 caps.\n- Mutant (reopen position guard if (k < cursor || k > target) continue; in mergeLevel, src/animation/compressed-run.ts, removed): the out-of-position-reopen fixture breaks at 3712 px with regionCount === 0 — i.e. the strict caps, not the default gate, catch it on Windows too. Reverting the mutant returned the test to green.\n\nConfirms the previously-inferred claim that Windows lands with Linux/near-macOS because --disable-lcd-text neutralizes the same subpixel-text mechanism as ClearType. The Parallels VM path failed (Playwright browser won't finalize under the prlctl exec SYSTEM/session-0 context); CI's real-user runner installs it normally.\n",
+            "markdown": "Windows figure measured, not inferred. A one-off `windows-latest` CI run (workflow `dm1780-win-metrics.yml` on throwaway branch `ci/dm1780-windows-metrics`) ran the 8 compressor e2e files with `FLIPBOOK_METRICS` set and recorded 68 parity checks on win32:\n\n- **Clean ceiling: 58 px largest / 93 px total, `regionCount === 0` on every check** — inside the macOS 71/206 ceiling, far below the 256/512 caps.\n- **Mutant** (reopen position guard `if (k < cursor || k > target) continue;` in `mergeLevel`, `src/animation/compressed-run.ts`, removed): the out-of-position-reopen fixture breaks at **3712 px with `regionCount === 0`** — i.e. the strict caps, not the default gate, catch it on Windows too. Reverting the mutant returned the test to green.\n\nConfirms the previously-inferred claim that Windows lands with Linux/near-macOS because `--disable-lcd-text` neutralizes the same subpixel-text mechanism as ClearType. The Parallels VM path failed (Playwright browser won't finalize under the `prlctl exec` SYSTEM/session-0 context); CI's real-user runner installs it normally.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 694,
+                  "endLine": 694,
+                  "snippet": {
+                    "text": " *  and Windows — now measured directly on `windows-latest`, not inferred —"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "workItemUris": [
+            "DM-1780"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "271d1a9785f5443a6adcf1da663bcf0d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8c69ce91963d9e3b9ee8c1bab332be242e86d446",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
