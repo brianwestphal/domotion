@@ -229,6 +229,23 @@ to live with. Verified pixel-identical to the flipbook across a split window in
 `tests/auto-compress.e2e.test.ts`. Under the explicit `compress: true` marker a
 split point is still a hard error: the author asked for that exact run.
 
+**Splitting is the settled answer for cursor and magic-move frames — decided,
+not pending (DM-1764).** Both alternatives were costed and declined by the
+maintainer. *Lifting a pointer onto the collapsed frame* fails twice over: a
+cursor target resolves against the live page during that frame's capture, and a
+collapsed run leaves the page at its LAST state, so a click authored for state 2
+would aim at state 5's layout — wrong precisely because the layout moved, which
+is the reason the run compresses at all; and the cursor-TYPE hit-test reads the
+frame's captured tree, which a collapsed run does not have (its content is a
+nested SVG), so the pointer would silently fall back to the plain arrow over a
+link or button. *Allowing a magic-move entry to collapse* downgrades an author's
+deliberate morph to a crossfade with no indication why it stopped working. The
+whole remaining upside across both cases is ≤ 2.8 KB per run (measured: an
+8-state run composes at 10.6 KB whole, 11.9 KB split at the end, 13.4 KB split
+mid-run, against 18.7 KB under the old drop-everything rule), so neither trade
+is worth visible correctness. Do not re-open either without new evidence that
+the byte cost matters at some scale not yet seen.
+
 **Per-frame overlays inside a run — evaluated, left as a split (DM-1764).**
 Attaching a member's overlay to the collapsed frame at its state offset is not
 the remap it looks like. Overlay lifetime is *frame*-scoped — every kind is
