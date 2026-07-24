@@ -128,13 +128,24 @@ describe("passesStrict(): the no-motion bar (doc 12)", () => {
     expect(passesStrict({ ...clean, nonAaPixels: 235, shiftedPixels: 5062 }, CAPS)).toBe(true);
   });
 
-  it("degrades to passes() where the bar has no calibrated caps, never to a silent true", () => {
-    // Non-darwin hosts render these fixtures with substitute faces whose drift
-    // overlaps the known break, so there is no honest cap yet. Callers there get
-    // exactly the platform-agnostic gate they enforced before the bar existed —
-    // which still fails a real structural region.
-    expect(strictCapsFor("linux")).toBeNull();
-    expect(strictCapsFor("win32")).toBeNull();
+  it("applies the SAME caps on every platform, so the z-order hole is closed off macOS too", () => {
+    // The bar was darwin-only while the fixtures measured the host's text
+    // antialiasing instead of the compressor: Chrome skips LCD (subpixel) text
+    // inside the composited layers a compressed run's transform groups create,
+    // so on an LCD-text host every glyph edge differed and the clean ceiling
+    // (829 px) overlapped the known break (3712 px). The fixtures now rasterize
+    // with LCD text off and pin their own faces, which collapsed the Linux
+    // ceiling to 0 px — so one honest cap set covers all three.
+    for (const platform of ["darwin", "linux", "win32", "freebsd"]) {
+      expect(strictCapsFor(platform)).toEqual(CAPS);
+      // The whole point: the z-order swap reads regionCount 0, so ONLY the caps
+      // catch it — and now they do everywhere, not just on darwin.
+      expect(zOrderSwap.regionCount).toBe(0);
+      expect(passesStrict(zOrderSwap, strictCapsFor(platform))).toBe(false);
+    }
+  });
+
+  it("still degrades to passes() when caps are explicitly opted out, never to a silent true", () => {
     expect(passesStrict(zOrderSwap, null)).toBe(true);
     expect(passesStrict({ ...zOrderSwap, regionCount: 1 }, null)).toBe(false);
   });

@@ -142,8 +142,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   site): `regionCount === 0` alone suppresses large-but-low-severity components,
   so a paint-order flip measured 3712 differing pixels and still scored
   `clean` — the bar now also bounds the comparator's new `strictRegionCount` /
-  `strictRegionArea` / `strictMaxRegionArea` aggregates (doc 12; macOS-calibrated,
-  degrading to `regionCount === 0` elsewhere).
+  `strictRegionArea` / `strictMaxRegionArea` aggregates (doc 12). Calibrated on
+  ALL platforms with ONE cap set (DM-1769): the earlier macOS-only limit was the
+  fixtures measuring the host's text antialiasing — Chrome skips LCD subpixel
+  text inside the composited layers a compressed run's transform groups create —
+  so they now rasterize with LCD text off and pin bundled faces
+  (`tests/fixture-fonts.ts`), which took the Linux clean ceiling from 829 px
+  to 0 px.
   **Independent regions (DM-1770) — region DISCRIMINATION shipped; per-region
   TIMING is design-only.** Line buckets keyed on a segment's y alone merged two
   side-by-side panes into one logical line, so an editor pane and a preview pane

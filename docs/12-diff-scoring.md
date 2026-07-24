@@ -92,35 +92,66 @@ the primary numbers:
 `passesStrict(cmp, caps?)` is `passes(cmp)` plus `strictMaxRegionArea <=
 caps.maxRegionArea` and `strictRegionArea <= caps.totalRegionArea`. It is a
 **bounded** bar, not a zero bar. `caps` defaults to the host's, via
-`strictCapsFor(process.platform)`; on macOS that is `{ maxRegionArea: 256,
-totalRegionArea: 512 }`, sized from measurement rather than taste:
+`strictCapsFor(process.platform)`, which returns `{ maxRegionArea: 256,
+totalRegionArea: 512 }` on **every** platform — sized from measurement rather
+than taste:
 
-- **Clean ceiling.** Across every state of every compressed-run fixture on a
-  correct build, the largest single strict region was 88 px and the largest
-  total was 215 px — all of it sparse glyph-edge drift on one text-heavy
-  fixture (max per-pixel severity 34.5%, zero high-severity pixels, ~5–11% fill
-  density inside each bounding box). Every other fixture scored a flat 0.
-- **Known break.** The z-order flip above is a single *dense* 3712-px component.
+- **Clean ceiling.** Across all 54 parity checks of the compressor e2e suite on
+  a correct build: 71 px largest single strict region and 206 px total on macOS,
+  and a flat **0 px** on Linux. The macOS residual is sparse glyph-edge drift on
+  one text-heavy fixture (max per-pixel severity 34.5%, zero high-severity
+  pixels, ~5–11% fill density inside each bounding box), confined to the states
+  whose insertion lands off the pixel grid. Every other fixture scores 0.
+- **Known break.** The z-order flip above is a single *dense* component —
+  measured at 3712 px on macOS and 3718 px in the Linux container, with
+  `regionCount === 0` on both, so the caps are the only thing that catches it.
 
-So the caps sit ~3x above the clean ceiling and 5–15x below the known break.
+So the caps sit ~3.6x above the clean ceiling and ~7–14x below the known break.
 `strictMaxRegionArea` is the sharper of the two — glyph drift splits into many
 small edge-following components while a moved element produces one component the
 size of the element — and the total is the backstop for a bug that scatters
 mid-sized components instead of making one big one.
 
-### The no-motion bar is macOS-calibrated
+### One cap set for every platform — and what the fixtures owe it
 
-`strictCapsFor` returns `null` on non-darwin hosts, and `passesStrict` then
-degrades to plain `passes()`. That is deliberate, not an omission. Measured in
-the Linux container CI uses, the *same correct build* scores up to 749 px for
-the largest region and 3289 px in total: the host has no Menlo, so the fixtures
-fall back to a face whose outlines drift far more under the compressed run's
-transform groups. Those numbers overlap the 3712-px known break, so any Linux cap
-wide enough to pass a correct build would be too wide to catch the bug — an
-uncalibrated number pretending to be a gate. Callers on those hosts keep exactly
-the platform-agnostic `regionCount === 0` contract they had before this bar
-existed. Same reasoning as the per-platform hinting floor below. Calibrating the
-bar for Linux and Windows is open work.
+The bar was macOS-only at first. The *same correct build* scored up to 749 px
+largest / 3289 px total in the Linux container (and 829 px / 11423 px once every
+fixture was counted), overlapping the 3712-px known break — so no Linux cap could
+both pass a correct build and fail a broken one, and non-darwin callers degraded
+to plain `passes()`, which the z-order flip sails straight through.
+
+The cause was neither the compressor nor the comparator. **Chrome does not use
+LCD (subpixel) text antialiasing inside a composited layer**, and a compressed
+run wraps paired content in animated transform groups that get their own layer.
+So on a host where LCD text is on, a grayscale-antialiased compressed render was
+being compared against an LCD-antialiased flipbook, and every glyph edge in the
+frame differed. macOS has had LCD text off since Big Sur — the only reason it
+looked calibrated while the others did not.
+
+Two fixture-side rules fix it, and **every compressor fixture must follow both**
+or the shared caps stop holding off macOS:
+
+1. **Rasterize with LCD text off** — launch the comparison browser with
+   `PARITY_LAUNCH_OPTS` from `tests/flipbook-parity.ts` (`--disable-lcd-text`).
+   This is what collapsed Linux from 829 px to 59 px. It costs nothing real:
+   both images come from our own renderer, so the comparison is unchanged; it
+   just stops measuring the host's AA mode instead of the compressor.
+2. **Pin the fonts** — take faces from `tests/fixture-fonts.ts` rather than
+   naming host-dependent families (`Menlo`, `system-ui`, `Georgia`), which
+   resolve to a different face per platform. This took the remaining 59 px to 0.
+   The module documents the two-halves contract: the page needs the
+   `@font-face` CSS (for Chrome's layout) *and* the test needs
+   `registerFixtureFonts()` (for Domotion's outlines) — miss either and the
+   fixture silently falls back to a host font on one side.
+
+Unlike the per-platform hinting floor below, this bar needs no per-platform
+relief: there the two images come from *different* rasterizers, so the host's
+text rendering is inherently part of the measurement; here both come from ours.
+
+To re-measure after a change, set `FLIPBOOK_METRICS=<path>` and run the
+compressor e2e suite — each parity check appends a JSON line with its raw strict
+aggregates. Take the max over a correct build, then re-run against a
+deliberately broken one and confirm the populations stay separated.
 
 **Layer 1 is deliberately NOT lifted for strict callers**, and that is measured
 rather than assumed: a compressed run wraps paired content in transform groups,

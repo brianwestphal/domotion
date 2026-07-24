@@ -9,7 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
 
 // DM-1764 — the size-regression guard. Compressing a run is pixel-identical but
 // NOT unconditionally smaller: a WHOLESALE-CHANGE run (a slideshow, where
@@ -60,7 +60,7 @@ async function setup() {
   try {
     const dir = mkdtempSync(join(tmpdir(), "dm-compress-guard-e2e-"));
     writeFileSync(join(dir, "slides.html"), SLIDES_HTML);
-    return { browser: await launchChromium(), dir };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS), dir };
   } catch {
     return null;
   }

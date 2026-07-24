@@ -8,6 +8,7 @@ import { generateAnimatedSvg } from "../src/animation/index.js";
 import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
 
 // Declarative config surface for the frame-sequence compressor + the caret /
 // selection track (docs/100 stage 4, docs/43 §11–12): drive a `states: [...]`
@@ -102,7 +103,7 @@ async function setup() {
     const dir = mkdtempSync(join(tmpdir(), "dm-states-e2e-"));
     writeFileSync(join(dir, "editor.html"), EDITOR_HTML);
     writeFileSync(join(dir, "page.html"), TEXT_HTML);
-    return { browser: await launchChromium(), dir };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS), dir };
   } catch {
     return null;
   }

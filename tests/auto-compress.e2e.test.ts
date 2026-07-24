@@ -9,7 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
 
 // DM-1757: automatic compressed-run detection. `autoCompress: true` collapses a
 // maximal run of consecutive continue+cut frames into ONE `states` compressed
@@ -59,7 +59,7 @@ async function setup() {
   try {
     const dir = mkdtempSync(join(tmpdir(), "dm-autocompress-e2e-"));
     writeFileSync(join(dir, "editor.html"), EDITOR_HTML);
-    return { browser: await launchChromium(), dir };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS), dir };
   } catch {
     return null;
   }

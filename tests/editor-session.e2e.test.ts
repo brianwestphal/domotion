@@ -8,6 +8,7 @@ import { generateAnimatedSvg } from "../src/animation/index.js";
 import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
 
 /**
  * Rasterized verification of the flagship `editor-session` example (docs/100
@@ -49,7 +50,7 @@ const rowStrip = (row: number, x = 40, w = 580) => ({ x, y: 80 + 19 * (row - 1),
 
 async function setup() {
   try {
-    const browser = await launchChromium();
+    const browser = await launchChromium(PARITY_LAUNCH_OPTS);
     const cfg = validateAnimateConfig(JSON.parse(readFileSync(resolve(EX_DIR, "editor-session.json"), "utf8")));
     const config = await composeAnimateFrames(browser, cfg, { configDir: EX_DIR });
     const svg = generateAnimatedSvg(config);

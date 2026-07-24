@@ -651,8 +651,7 @@ export function passes(cmp: CompareResult): boolean {
   return cmp.regionCount === 0;
 }
 
-/** Caps for the no-motion bar (`passesStrict`), or `null` on a host the bar has
- *  not been calibrated for.
+/** Caps for the no-motion bar (`passesStrict`). Calibrated on every platform.
  *
  *  Sized from measurement, not taste. Across every state of every
  *  compressed-run fixture on a correct macOS build, the shift-inclusive regions
@@ -669,27 +668,45 @@ export function passes(cmp: CompareResult): boolean {
  *  one component the size of the element. `totalRegionArea` is the backstop for
  *  a bug that scatters mid-sized components instead of making one big one.
  *
- *  Non-darwin hosts return `null` — the bar is macOS-calibrated, and deliberately
- *  so rather than by omission. Measured in the Linux container CI uses, the same
- *  correct build scores up to 749 px for the largest region and 3289 px in total,
- *  because the host has no Menlo and the fixtures fall back to a face whose
- *  outlines drift far more under the compressed run's transform groups. That
- *  overlaps the 3712-px break, so any Linux cap wide enough to pass a correct
- *  build would be too wide to catch the bug — an uncalibrated number pretending
- *  to be a gate. Callers fall back to the platform-agnostic `regionCount === 0`
- *  there, which is exactly what they enforced before this bar existed, so the
- *  non-darwin contract is unchanged. Same reasoning as the visual gate's
- *  per-platform hinting floor — see "Per-platform coverage floor" in
- *  docs/12-diff-scoring.md. */
+ *  ONE cap set covers every platform, and the same numbers macOS always used —
+ *  the other hosts were raised to meet them rather than the bar being relaxed to
+ *  fit the other hosts.
+ *
+ *  They could not be shared at first. The same correct build measured up to
+ *  749 px largest / 3289 px total in the Linux container — overlapping the
+ *  3712 px break, so no Linux cap could both pass a correct build and fail a
+ *  broken one, and non-darwin hosts fell back to a plain `regionCount === 0`
+ *  gate with the blind spot these caps exist to close. The cause was not the
+ *  compressor and not the comparator: Chrome does not use LCD (subpixel) text
+ *  antialiasing inside a composited layer, and a compressed run wraps paired
+ *  content in animated transform groups that get their own layer. So on a host
+ *  where LCD text is on, the compressed render was being compared against an
+ *  LCD-antialiased flipbook and every glyph edge in the frame differed. macOS
+ *  has had LCD text off since Big Sur, which is the only reason it looked
+ *  calibrated and the others did not.
+ *
+ *  The fixtures now rasterize with it off on every host (`PARITY_LAUNCH_OPTS`
+ *  in `tests/flipbook-parity.ts`) and additionally pin their own bundled faces
+ *  (`tests/fixture-fonts.ts`) instead of asking for host-dependent families.
+ *  Re-measured over all 54 parity checks of the compressor e2e suite: Linux
+ *  scores a flat 0 px on every one, macOS keeps its 71 px / 206 px ceiling
+ *  (residual half-pixel drift on the states whose insertion lands off the pixel
+ *  grid). Windows is not measured directly, but its ClearType default is the
+ *  same LCD-text mechanism the flag disables, so it lands with Linux rather
+ *  than outside the pair that bracket it.
+ *
+ *  Unlike the visual gate's per-platform hinting floor ("Per-platform coverage
+ *  floor" in docs/12-diff-scoring.md), this bar needs no per-platform relief:
+ *  there both images come from DIFFERENT rasterizers, so the host's text
+ *  rendering is inherently part of the measurement; here both come from ours. */
 export interface StrictCaps {
   maxRegionArea: number;
   totalRegionArea: number;
 }
-export function strictCapsFor(platform: NodeJS.Platform | string): StrictCaps | null {
-  if (platform === "darwin") return { maxRegionArea: 256, totalRegionArea: 512 };
-  return null;
+export function strictCapsFor(_platform: NodeJS.Platform | string): StrictCaps {
+  return { maxRegionArea: 256, totalRegionArea: 512 };
 }
-/** The host's caps, or `null` when the no-motion bar isn't calibrated here. */
+/** The host's caps. Never null: the bar is calibrated on every platform. */
 export const STRICT_CAPS = strictCapsFor(process.platform);
 
 /** The no-motion pass criterion: `passes()` PLUS "nothing block-sized moved or
@@ -705,9 +722,9 @@ export const STRICT_CAPS = strictCapsFor(process.platform);
  *  keeps every paragraph of text from reading as structural change, and these
  *  caps would fail essentially every text-bearing fixture.
  *
- *  `caps` defaults to the host's. Where it is `null` the bar degrades to
- *  `passes()` — see `strictCapsFor` for why that is deliberate rather than a
- *  silent hole. Pass caps explicitly to score a result for another platform. */
+ *  `caps` defaults to the host's, which are now the same on every platform.
+ *  Pass an explicit set to score a result against different numbers; passing
+ *  `null` deliberately degrades the bar to plain `passes()`. */
 export function passesStrict(cmp: CompareResult, caps: StrictCaps | null = STRICT_CAPS): boolean {
   if (!passes(cmp)) return false;
   if (caps == null) return true;

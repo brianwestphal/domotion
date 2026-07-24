@@ -10,7 +10,8 @@ import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
+import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, registerFixtureFonts } from "./fixture-fonts.js";
 
 // Frame-sequence compressor e2e (docs/100, Primitive 1) — the
 // verify-the-rendered-SVG rule: capture a real editor-like page one keystroke
@@ -25,6 +26,11 @@ import { expectFlipbookParity } from "./flipbook-parity.js";
 //   4. the recolor lands as an in-place color change;
 //   5. a real measured size reduction (< 60% of the flipbook payload).
 
+// The renderer half of the fixture-font contract (the pages carry the CSS
+// half). Module scope is enough: nothing here calls `clearWebfonts()`, and
+// vitest gives each test file its own fork.
+registerFixtureFonts();
+
 const W = 760;
 const H = 560;
 const INS = " computed,";
@@ -33,16 +39,16 @@ const OUT_DIR = "tests/output/compressed-run-e2e";
 // Editor page modeled on the kerf getting-started capture (the doc-100 probe
 // page): Menlo 12.5px / 19px lines, 40px gutter, syntax-colored spans. NO
 // page-side caret span — the compressor's auto-caret replaces that workaround.
-const PAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+const PAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
   * { box-sizing: border-box; }
   body { margin: 0; width: ${W}px; height: ${H}px; overflow: hidden;
-    font-family: system-ui, sans-serif; background: #e8eaee; position: relative; }
+    font-family: ${FIXTURE_MONO_STACK}; background: #e8eaee; position: relative; }
   .window { position: absolute; top: 18px; left: 18px; width: 724px; height: 524px;
     border-radius: 10px; overflow: hidden; background: #1e293b; display: flex; flex-direction: column;
     box-shadow: 0 12px 40px rgba(15,23,42,0.35); }
   .titlebar { height: 34px; flex: none; background: #0f172a; display:flex; align-items:center;
     padding: 0 12px; font-size: 12px; color: #94a3b8; }
-  .codearea { flex: 1; padding: 10px 0; font-family: Menlo, ui-monospace, monospace;
+  .codearea { flex: 1; padding: 10px 0; font-family: ${FIXTURE_MONO_STACK};
     font-size: 12.5px; line-height: 19px; color: #e2e8f0; overflow: hidden; }
   .ln { display: flex; white-space: pre; height: 19px; }
   .ln .no { width: 40px; flex: none; text-align: right; padding-right: 14px; color: #475569; }
@@ -194,7 +200,7 @@ function findSegments(tree: CapturedElement[], pred: (seg: TextSegment, el: Capt
 
 async function setup() {
   try {
-    return { browser: await launchChromium() };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS) };
   } catch {
     return null;
   }
@@ -373,10 +379,10 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
   it("cross-line identity: an insertLine pushes N lines down and they PAIR across the move (translateY), matching the flipbook", async () => {
     const { browser } = env!;
     const LW = 420, LH = 220;
-    const LINEPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+    const LINEPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${LW}px; height: ${LH}px; background: #101820; }
       #code { position: absolute; left: 16px; top: 16px; color: #e2e8f0;
-        font-family: Menlo, ui-monospace, monospace; font-size: 13px; line-height: 19px; }
+        font-family: ${FIXTURE_MONO_STACK}; font-size: 13px; line-height: 19px; }
       .ln { white-space: pre; height: 19px; }
     </style></head><body><div id="code"></div>
     <script>
@@ -465,10 +471,10 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // glyph layer (the highlight sits BEHIND it, so it is not an occluder).
     const { browser } = env!;
     const RW = 380, RH = 160;
-    const RPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+    const RPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${RW}px; height: ${RH}px; background: #101820; }
       #code { position: absolute; left: 16px; top: 16px;
-        font-family: Menlo, ui-monospace, monospace; font-size: 13px; line-height: 19px; }
+        font-family: ${FIXTURE_MONO_STACK}; font-size: 13px; line-height: 19px; }
       .ln { white-space: pre; height: 19px; color: #e2e8f0; }
       .hl { background: #1d4ed8; }
     </style></head><body><div id="code"></div>
@@ -552,11 +558,11 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // overlap; the conservative re-emit keeps the pixels exact.
     const { browser } = env!;
     const OW = 320, OH = 180;
-    const OPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+    const OPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${OW}px; height: ${OH}px; background: #101820; }
       #ov { position: absolute; left: 0; top: 0; width: ${OW}px; height: ${OH}px; }
       .p { position: absolute; left: 20px; width: 200px; height: 40px; color: #ffffff;
-        font-family: Menlo, ui-monospace, monospace; font-size: 13px; line-height: 40px;
+        font-family: ${FIXTURE_MONO_STACK}; font-size: 13px; line-height: 40px;
         white-space: pre; padding-left: 8px; }
     </style></head><body><div id="ov"></div>
     <script>
@@ -660,10 +666,10 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // white pixel would survive.
     const { browser } = env!;
     const SW = 320, SH = 120;
-    const SELPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+    const SELPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${SW}px; height: ${SH}px; background: #101820; }
       #line { position: absolute; left: 20px; top: 40px; color: #ffffff;
-        font-family: Menlo, ui-monospace, monospace; font-size: 24px; white-space: pre; }
+        font-family: ${FIXTURE_MONO_STACK}; font-size: 24px; white-space: pre; }
     </style></head><body><div id="line">ABCDEFGHIJ</div></body></html>`;
     const ctx = await browser.newContext({ viewport: { width: SW, height: SH }, deviceScaleFactor: 1 });
     try {

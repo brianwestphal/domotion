@@ -502,7 +502,10 @@ called a full paint-order flip clean. The bar therefore also reads
 `strictMaxRegionArea` / `strictRegionArea` (the same components with the
 severity gate lifted) and bounds them; see
 [`docs/12-diff-scoring.md`](./12-diff-scoring.md) for the metric definitions,
-the measured sizing of the caps, and why the bar is macOS-calibrated.
+the measured sizing of the caps, and the two rules every compressor fixture
+owes the bar so ONE cap set can hold on macOS, Linux and Windows alike —
+rasterize with LCD text off (`PARITY_LAUNCH_OPTS`) and pin the fonts
+(`tests/fixture-fonts.ts`).
 
 The bar is mutant-tested rather than assumed: with the reopen position guard
 disabled it fails at 3712 px, and with an off-by-one in the chrome variants'

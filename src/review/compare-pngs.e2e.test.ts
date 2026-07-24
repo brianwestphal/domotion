@@ -121,9 +121,12 @@ describe("strict region aggregates: what regionCount suppresses", () => {
     expect(c.strictRegionArea).toBeGreaterThan(CAPS.totalRegionArea);
     expect(passesStrict(c, CAPS)).toBe(false);
 
-    // ...and on a host with no calibrated caps the bar degrades to the default
-    // gate rather than inventing a threshold. Pinned so the degradation stays a
-    // deliberate, visible property.
+    // The caps are the same on every platform, so this flip is caught off
+    // macOS too — the hole that made the bar darwin-only.
+    expect(passesStrict(c, strictCapsFor("linux"))).toBe(false);
+    expect(passesStrict(c, strictCapsFor("win32"))).toBe(false);
+    // ...while explicitly opting out of caps still degrades to the default gate
+    // rather than inventing a threshold. Pinned so that stays visible.
     expect(passesStrict(c, null)).toBe(true);
   });
 

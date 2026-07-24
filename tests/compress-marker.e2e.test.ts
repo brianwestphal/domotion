@@ -9,7 +9,7 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
 
 // DM-1761: the explicit per-frame `compress: true` marker — the surgical
 // counterpart to the whole-config `autoCompress` flag. Two claims are load-
@@ -66,7 +66,7 @@ async function setup() {
   try {
     const dir = mkdtempSync(join(tmpdir(), "dm-compress-marker-e2e-"));
     writeFileSync(join(dir, "editor.html"), EDITOR_HTML);
-    return { browser: await launchChromium(), dir };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS), dir };
   } catch {
     return null;
   }

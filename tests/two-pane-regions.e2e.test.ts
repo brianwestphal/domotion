@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page, BrowserContext } from "@playwright/test";
 import { launchChromium, captureElementTree } from "../src/capture/index.js";
+import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, FIXTURE_SERIF_STACK, registerFixtureFonts } from "./fixture-fonts.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { generateAnimatedSvg, namespaceEmbeddedAnimatedSvg } from "../src/animation/index.js";
@@ -11,7 +12,7 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { expectFlipbookParity } from "./flipbook-parity.js";
+import { expectFlipbookParity, PARITY_LAUNCH_OPTS } from "./flipbook-parity.js";
 
 /**
  * Two independently-updating regions in one compressed run (docs/100,
@@ -44,6 +45,10 @@ import { expectFlipbookParity } from "./flipbook-parity.js";
  * same state through the shift-inclusive parity helper.
  */
 
+// The renderer half of the fixture-font contract (the page carries the CSS
+// half) — see tests/fixture-fonts.ts.
+registerFixtureFonts();
+
 const W = 900;
 const H = 420;
 const OUT_DIR = "tests/output/two-pane-regions-e2e";
@@ -52,14 +57,14 @@ const OUT_DIR = "tests/output/two-pane-regions-e2e";
  *  text lines on the SAME 19px grid. `paneOverflow` picks which discriminator
  *  rule has to fire — `hidden` makes each pane a clipping ancestor, `visible`
  *  leaves only the side-by-side column geometry to go on. */
-const pageHtml = (paneOverflow: "hidden" | "visible"): string => String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+const pageHtml = (paneOverflow: "hidden" | "visible"): string => String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
   * { box-sizing: border-box; }
   body { margin: 0; width: ${W}px; height: ${H}px; overflow: hidden; background: #0f172a; }
   .split { display: flex; height: ${H}px; }
   .pane { width: 450px; height: ${H}px; overflow: ${paneOverflow}; padding: 12px 0; }
-  .editor { background: #1e293b; color: #e2e8f0; font-family: Menlo, ui-monospace, monospace;
+  .editor { background: #1e293b; color: #e2e8f0; font-family: ${FIXTURE_MONO_STACK};
     font-size: 12.5px; line-height: 19px; }
-  .preview { background: #f8fafc; color: #0f172a; font-family: Georgia, serif;
+  .preview { background: #f8fafc; color: #0f172a; font-family: ${FIXTURE_SERIF_STACK};
     font-size: 13px; line-height: 19px; }
   .ln { height: 19px; white-space: pre; padding: 0 14px; }
   .no { display: inline-block; width: 26px; text-align: right; margin-right: 12px; color: #475569; }
@@ -237,7 +242,7 @@ async function assertFlipbookParity(ctx: BrowserContext, m: Measured, label: str
 
 async function setup() {
   try {
-    return { browser: await launchChromium() };
+    return { browser: await launchChromium(PARITY_LAUNCH_OPTS) };
   } catch {
     return null;
   }
