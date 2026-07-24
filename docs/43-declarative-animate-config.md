@@ -359,6 +359,46 @@ A frame may capture **N editing states of the live page inside one frame** and c
 
 Examples: `examples/animate/compressed-run/` (minimal), `examples/animate/editor-session/` (the flagship editor rebuild). Engine + measured behavior: `docs/100-rich-text-editing.md` ("Shipped engine (v1)"); authoring recipe: `docs/102-editing-page-rig-cookbook.md`.
 
+## 11.1 Independent per-region timing — `regions` + `advances` (DM-1770)
+
+A scene often holds several **independently-updating regions**: an editor pane and a rendered-preview pane, a code view and its minimap, a log tail beside a static sidebar. The compressor already keeps each one's glyph identities apart — every run of text carries a **region**, auto-detected as its innermost *clipping* ancestor, else the innermost side-by-side **column** taller than one line box (`docs/100`, "Independent regions in one scene"). What §11 alone cannot express is regions running on **different schedules**: `states:` is one grid, so the author must interleave both panes' sequences by hand into a single list, and every distinct moment in the union of their schedules costs its own whole-page capture.
+
+`regions` + `advances` fixes both. It is a **hybrid**: auto-detection stays the default, and an explicit declaration overrides it only for the elements it covers.
+
+**Surface.** A frame-level `regions: { <name>: <selector> }` map beside `states:`, plus a per-state `advances: [<name>…]`:
+
+```jsonc
+{ "input": "./panes.html", "duration": 1940,
+  "regions": { "editor": "#ed", "preview": "#pv" },
+  "states": [
+    { "duration": 320 },                                                                              // state 0: both regions at their start
+    { "advances": ["editor"],  "actions": [{ "type": "evaluate", "script": "setEditor(3)" }],  "duration": 200 },
+    { "advances": ["preview"], "actions": [{ "type": "evaluate", "script": "setPreview(1)" }], "duration": 200 },
+    { "advances": ["editor"],  "actions": [{ "type": "evaluate", "script": "setEditor(6)" }],  "duration": 200 },
+    { "advances": ["preview"], "actions": [{ "type": "evaluate", "script": "setPreview(2)" }], "duration": 620 }
+  ] }
+```
+
+**Semantics.**
+
+- **`regions` (the declaration).** Each selector resolves in page context at capture time and is stamped `data-domotion-anim` on its **first** match — the same mechanism `textTracks` (§12) and intra-frame `animations` (§2) already use — so the captured element becomes an explicit **region root**. It overrides the auto-detected discriminator inside it, changes nothing outside it, and auto-detection still subdivides *within* it (a nested scroll container inside a declared pane is still its own, finer region). Two hard errors: a selector matching nothing, and two regions resolving to the **same** element — a region is the unit a state advances, so they must be distinct. `regions` requires `states`.
+- **Naming beats geometry.** An auto-detected region is identified by its box, all the detector has to go on, so a pane that **resizes** between states is a different region and its lines re-emit ("re-emit on any doubt"). A *declared* region is identified by its name, so a resizing pane stays itself and its lines still pair. This is a **bytes-only** difference — every emitted position comes from that state's own capture and every track is `step-end`, so pairing quality can never move a pixel.
+- **`advances` (the timing).** Names the region(s) a state moves forward. State 0 may not declare it (it is every region's starting point), names must be declared on the same frame and may not repeat, and the list may not be empty — all path-specific validation errors.
+- **Capture stays whole-page.** The browser paints the page; there is no such thing as capturing one pane. What changes is that one whole-page capture is **assigned** to several regions at once: states advancing **disjoint** regions are driven into the page together and captured once, and each state's tree is then assembled by taking each region's subtree from the capture round that holds *its* state. A state's `actions` are one indivisible script, so they run in exactly one round, and every region a state advances must move strictly past the round of its own previous advance (rounds are cumulative). Measured on a two-pane scene: **7 states over 2 alternating regions cost 4 whole-page captures instead of 7**, and 3 regions × 4 advances cost 5 instead of 13 — `1 + max(nᵢ)` against `1 + Σnᵢ`.
+- **The one precondition, checked not assumed.** The assembly is only valid if a region's content cannot move anything **outside** itself. The non-region remainder of every capture round must therefore be byte-identical; when it isn't, the run **hard-errors**, naming the frame and the round that diverged. (A plausible-looking but wrong composition is exactly what that check exists to prevent.) The fix is to declare the changing element as a region, or drop `advances`. A region's own subtree may of course change however it likes — that is the point. Region roots are re-stamped before every capture, so a state's actions may rebuild the DOM *under* a region root; losing the root **element** itself is its own named error.
+- **`advances` is what engages the schedule.** A bare `regions` map with no `advances` anywhere is a **discriminator override only** — capture stays sequential, one per state, exactly as §11 has always behaved.
+- **Payload is not the point.** Every track is `step-end` and the emitter only writes a stop where a value *changes*, so a state in which a region is unchanged contributes nothing to that region's keyframes: a 3.5× finer state grid costs 0.4% of the output (`docs/100`). Per-region timing buys the **authoring model** (two independent sequences instead of one hand-interleaved list) and the **capture count** — not bytes.
+- **`${}` interpolation** (§7) applies to region **selectors**, like every other selector. Region **names** are config-internal identifiers matched literally: object keys are never interpolated, so the `advances` entries that must match them are not either.
+
+The CLI logs the schedule it chose:
+
+```
+  states: 7 states over 2 regions → 4 whole-page captures (per-region timing; 7 without it)…
+  compress: run of 7 states, 98.3% glyphs paired, 108.7 KB → 25.4 KB
+```
+
+Example: `examples/animate/region-timing/`. Design + measurements: `docs/100-rich-text-editing.md` ("Independent regions in one scene" and "Independent per-region timing").
+
 ## 12. Caret + selection tracks — `textTracks` (docs/101)
 
 A frame may declare **caret / selection tracks** anchored to its captured text: timed events addressing character positions inside an element, rendered as a blinking caret (bar / block / underscore, docs/97 geometry) and/or a sweeping selection highlight — on **Chromium's own painted glyph positions** from the captured tree (no live-page probe, no hand-tuned ascent constants). See `docs/101-caret-selection-track.md` for the engine.

@@ -23,7 +23,14 @@ authoring surfaces now exist: the hand-authored `states:` block, the per-run
 `compress` marker, and the whole-config `autoCompress` flag. Remaining items are
 the filed follow-ups (locally tracked): the complex-interaction cases run
 detection excludes (per-frame overlays/cursor/magic-move crossing a run) and the
-caret-track addressing limits (docs/101 v1 limits).
+caret-track addressing limits (docs/101 v1 limits). Independent **per-region
+timing** ships too: a `states` frame may declare
+`regions: { <name>: <selector> }` and tag each state with the region(s) it
+`advances`, so two panes are authored as two independent sequences instead of
+one hand-interleaved list — and the capture loop batches states that advance
+disjoint regions, costing `1 + max(nᵢ)` whole-page captures against `1 + Σnᵢ`
+(docs/43 §11.1; "Independent per-region timing" below). The per-region *size
+guard* is the one region-aware piece still open, and is tracked separately.
 Since then, **automatic run detection has shipped behind an opt-in flag**
 (`autoCompress`, DM-1757 — see "Placement" below and docs/43 §13): the pre-pass
 collapses maximal `continue` + `cut` runs into `states` runs automatically,
@@ -558,23 +565,100 @@ geometry-preserving refusal and the in-flow non-candidate, and a rasterized e2e
 where the returning row **overlaps** a sibling inserted while it was gone, so a
 reopened-in-place variant would visibly flip the overlap.
 
-### Design — independent per-region timing (designed, NOT built)
+### Independent per-region timing — SHIPPED (DM-1770)
 
-Region *discrimination* ships (above): each pane gets its own line buckets and
-its own pairing. Region *timing* does not — a run is still N states on ONE
-grid, and every state is one whole-page capture. This section is the design for
-closing that, and the measurements that should decide how much of it is worth
-building. **Nothing here is implemented**; the authoring surface in particular
-is presented as options rather than a decision.
+Region *discrimination* ships above: each pane gets its own line buckets and
+its own pairing. Region **timing** now ships too — a run's states can each name
+which region(s) they advance, and the capture loop schedules accordingly. The
+authoring reference is docs/43 §11.1; this section keeps the design rationale
+and the measurements behind it.
 
-**Already region-aware today.** Two of the three pieces people expect from
-"independent regions" are in the shipped engine: the chrome union pairs
+**What shipped, in two separable pieces.**
+
+1. **Explicit region declaration (the HYBRID contract).** A `states` frame may
+   declare `regions: { <name>: <selector> }`. Each selector resolves in page
+   context at capture time and is stamped `data-domotion-anim` — the mechanism
+   `textTracks` and intra-frame animations already use — so the captured
+   element carries an `animId` the compressor recognizes as an explicit region
+   root (`composeCompressedRun`'s `regionRootIds`). Auto-detection remains the
+   default everywhere the author declares nothing, and still subdivides *within*
+   a declared region; the declaration is an override, not a replacement. A
+   declared region also keys on its **name** rather than its box, so the "a
+   resized pane is a different region" re-emission above applies only to
+   auto-detected ones — which is a bytes-only difference, since every emitted
+   position comes from that state's capture and every track is `step-end`.
+   Two hard errors: a selector matching nothing, and two regions resolving to
+   the same element.
+2. **Per-region timing.** A state may declare `advances: [<name>…]`. Capture
+   stays whole-page; what changes is that one whole-page capture is *assigned*
+   to several regions at once. States advancing **disjoint** regions are driven
+   into the page together and captured once, and each state's tree is assembled
+   by taking each region's subtree from the round holding its own state. The
+   schedule (`planRegionCaptureRounds` in `src/cli/animate.ts`) is a
+   longest-chain assignment and minimal by construction: a state's `actions` are
+   one indivisible script so they run in exactly one round, and every region a
+   state advances must move strictly past the round of its own previous advance,
+   because rounds are cumulative.
+
+**Measured capture-count reduction** (two panes, alternating schedules, through
+the real CLI pipeline):
+
+| shape | states | captures, hand-interleaved | captures, per-region |
+| --- | --- | --- | --- |
+| 2 regions × 3 advances | 7 | 7 | **4** |
+| 2 regions × 5 advances | 11 | 11 | **6** |
+| 2 regions × 8 advances | 17 | 17 | **9** |
+| 3 regions × 4 advances | 13 | 13 | **5** |
+
+That is exactly `1 + max(nᵢ)` against `1 + Σnᵢ` — the stated goal, reached in
+full for disjoint schedules. Composed **bytes are unchanged** across both paths
+(75.3 vs 75.4 KB on the 7-state shape), which is the same finding as the
+grid-granularity table below: per-region timing is an authoring-and-capture
+win, never a payload one. Where a state advances several regions at once the
+bound is the longest chain through them rather than `max(nᵢ)`, which is
+inherent — those states are genuinely ordered relative to each other.
+
+**The one precondition, and why it is checked rather than assumed.** Assembling
+a state's tree from several rounds is valid only if a region's content cannot
+move anything **outside** itself — the page is never actually driven into the
+assembled configuration, so nothing else validates it. The non-region remainder
+of every capture round must therefore be byte-identical; when it is not, the
+run hard-errors naming the frame and the diverging round, because a
+plausible-looking wrong composition is precisely what the check exists to
+prevent. Region roots are re-stamped before every capture, so a state's actions
+are free to rebuild the DOM under them.
+
+**Engagement is opt-in within the opt-in.** Per-region timing engages only once
+a state actually declares `advances`; a bare `regions` map is a discriminator
+override and leaves the capture loop byte-for-byte what it was.
+
+**Coverage — proven where it can be exact, then where it can be seen.**
+`tests/region-timing.e2e.test.ts` asserts the correctness claim at the level
+that admits no noise: the trees assembled from the 4 batched rounds are
+**byte-identical** to capturing all seven configurations one at a time.
+Captures are deterministic (the same static page state captured twice is
+byte-identical — measured again for this fixture across three independent
+sessions), so that is a total statement about the splice with no rasterization
+in the loop. On top of it, the composed run is rasterized against the
+**uncompressed flipbook of those seven sequential captures** at every state
+through the shift-inclusive parity helper: 98.3% of glyphs paired, 108.7 KB →
+25.4 KB. The discriminator-override path, the outside-the-regions hard error,
+the same-element collision, and the no-match selector are covered alongside
+them; the assembly's own multi-round behavior and both guards are unit-tested
+browser-free; and the committed golden `examples/animate/region-timing/`
+exercises the surface end to end.
+
+**Still global after this**: the **size guard** (one badly-pairing pane still
+reverts the whole scene — see below) and **run eligibility** (a per-frame
+overlay, cursor event, or magic-move landing anywhere in the scene disqualifies
+or splits the whole run).
+
+**Already region-aware before this.** Two of the three pieces people expect from
+"independent regions" were already in the shipped engine: the chrome union pairs
 per-*element* subtrees on byte-equality, so an unchanged pane's subtree is
 emitted once no matter how hard its neighbor churns; and glyph identity is
 threaded per line bucket per region, so each pane pairs, moves, and recolors on
-its own. What remains global is the **state grid**, the **size guard**, and
-**run eligibility** (a per-frame overlay, cursor event, or magic-move landing
-anywhere in the scene disqualifies or splits the whole run).
+its own.
 
 **Measured first: the global state grid is nearly free in bytes.** The worry
 that motivates per-region timing is that interleaving two schedules into their
@@ -593,19 +677,30 @@ inserting nothing-changed states:
 
 A 3.5× finer grid costs **0.4%**. So per-region timing is *not* a payload
 optimization, and any design that justifies itself on output size is
-mis-motivated. What the global grid actually costs is:
+mis-motivated. What the global grid actually cost — and what the shipped
+surface therefore attacks — is:
 
-- **Captures.** k regions with n₁…n_k states need Σnᵢ whole-page captures
+- **Captures.** k regions with n₁…n_k states needed Σnᵢ whole-page captures
   instead of max(nᵢ). Each is a Playwright round trip, and capture dominates run
-  wall-clock.
+  wall-clock. **Fixed** by `advances` (table above).
 - **Compose time.** The chrome union merge is O(states × tree); the 21-state
-  grid composed in 177 ms against the 6-state grid's 120 ms.
-- **Authoring.** The author must interleave the schedules by hand into one
-  `states:` list and make each state's `actions` drive whichever pane moves at
-  that moment. This is the real pain, and it is the thing a surface should fix.
+  grid composed in 177 ms against the 6-state grid's 120 ms. **Unchanged** — the
+  composed run still has all N states on one grid, which is what keeps its
+  output shape (and the 1 config-frame ↔ 1 animation-frame invariant) identical.
+  Only the number of *captures* backing those states drops.
+- **Authoring.** The author had to interleave the schedules by hand into one
+  `states:` list and make each state's `actions` drive whichever pane moved at
+  that moment. This was the real pain. **Fixed** by `regions` + `advances`:
+  each state names the region it advances and carries only that region's action.
 
-**Per-region size guard — measured, and it is not an extension of
-`composeStatesFlipbook`.** Today one badly-pairing pane reverts the whole scene.
+**Per-region size guard — measured; still OPEN, tracked separately.** This is
+the one piece of "region-aware compression" the timing work above deliberately
+did NOT build. Its prerequisite — a save/restore lifecycle for the shared
+embedded-font subset builder, so a trial compose can be measured and discarded —
+has since shipped (see below), so what remains is the decision procedure itself.
+The eligibility walk it will sit in was left untouched by the timing change
+apart from the declared-region branch. One badly-pairing pane still reverts the
+whole scene.
 The natural per-region fallback is *not* the whole-run flipbook: it is
 **demoting that region's text into the chrome union**, which is the path
 ineligible text already takes (so it is pixel-safe by the same argument, and the
@@ -639,41 +734,48 @@ the module-global embedded-font subset builder, which assigns PUA codepoints in
 order of first glyph use; a trial that renders text in a different layer order
 perturbs those assignments, and under `manageFonts: false` (the CLI path) that
 registry is shared with the whole outer animate run. Discarding a trial's effect
-needs a snapshot/restore on the font builder that does not exist today. So the
-options are:
+therefore needs a snapshot/restore on the font builder — **which now ships**
+(`snapshotGeneration()` / `restoreGeneration()` roll both the embedded-font
+subset builder and the paths-mode glyph-defs registry back to a marker, so a
+speculative compose leaves the output composed afterward byte-identical; doc 99
+§ speculative composition). The remaining work is the decision procedure itself,
+tracked as its own ticket. The options as they were costed:
 
 1. **Proxy metric** (per-region births-per-identity as the demotion trigger, no
    trial compose). Buildable entirely inside the compressor, no font-state risk.
    On the measured fixture it lands on 83.2 KB rather than the optimal 81.8 KB —
    1.7% off — but it breaks the "decide on real bytes" principle the whole-run
    guard was deliberately built around.
-2. **Trial composes + a font-builder generation snapshot.** Exact, matches the
-   existing guard's principle, and would also let the whole-run guard switch its
-   fallback from `composeStatesFlipbook` to full chrome demotion (97.8 → 81.8 KB
-   on the measured fixture). Costs a new save/restore API on the embedded-font
-   subset builder and the glyph-defs registry — a lifecycle change to shared
-   render state, which is the exact area a prior stale-registry bug came from.
+2. **Trial composes + a font-builder generation snapshot** — the chosen option,
+   now unblocked. Exact, matches the existing guard's principle, and would also
+   let the whole-run guard switch its fallback from `composeStatesFlipbook` to
+   full chrome demotion (97.8 → 81.8 KB on the measured fixture).
 3. **Leave it.** The whole-run guard already guarantees output is never worse
    than the flipbook; per-region only recovers the gap between "never worse" and
    "as good as it could be".
 
-**How regions are declared.** Three shapes, in increasing author cost:
+**How regions are declared — settled on the HYBRID, and shipped.** Three shapes
+were costed:
 
-- **A — auto-detected (no new surface).** Reuse the shipped discriminator: the
-  innermost clipping ancestor, else the innermost side-by-side column. Zero
-  authoring, and it already demonstrably separates real panes. Its limit is that
-  it detects *layout* regions, not *update* regions: two panes that always change
-  together are still two regions (harmless), and one pane containing two
-  independently-updating halves with no clip or column split between them is one
-  region (a missed opportunity, not a bug).
-- **B — explicit selectors in the `states:` block.** e.g. a `regions:` list of
-  selectors alongside `states:`, each state naming which region(s) it advances.
-  Precise, and it is the only form that can express "this state advances the
-  editor only" — which is what unlocks per-region capture counts. Costs a new
-  config surface, schema, validation, and per-state selector stamping at capture.
-- **C — hybrid.** Auto-detect by default; an optional `regions:` list overrides
-  the detection where the author knows better. Cheapest incremental path: ship A
-  (done), add B's override only when a real config needs it.
+- **A — auto-detected (no new surface).** The shipped discriminator: innermost
+  clipping ancestor, else innermost side-by-side column. Zero authoring, and it
+  demonstrably separates real panes. Its limit is that it detects *layout*
+  regions, not *update* regions: two panes that always change together are still
+  two regions (harmless), and one pane containing two independently-updating
+  halves with no clip or column split between them is one region (a missed
+  opportunity, not a bug).
+- **B — explicit selectors in the `states:` block.** A `regions:` map alongside
+  `states:`, each state naming which region(s) it advances. Precise, and the
+  only form that can express "this state advances the editor only" — which is
+  what unlocks the capture-count win.
+- **C — hybrid.** Auto-detect by default; an explicit `regions:` map overrides
+  the detection where the author knows better.
+
+**C is what shipped** (docs/43 §11.1): auto-detection is the default and needs
+no config, an explicit declaration overrides it *only for the elements it
+covers*, and auto-detection still subdivides inside a declared region. B's
+`advances` rides on top of the same declaration, so the surface that unlocks
+per-region capture counts is the same one that overrides the detector.
 
 **Overlapping and z-ordered regions.** The layering is global and stays that
 way: one chrome union below, selection rects in the gap, all glyph groups above,
@@ -691,18 +793,22 @@ that text is demoted, which is correct but costs compression, and recovering it
 would need per-region glyph sub-layers interleaved into the chrome union rather
 than one glyph layer on top.
 
-**Capture stays whole-page.** This is not negotiable and should be written into
-whatever surface lands: the browser paints the page, so every capture is a
-capture of the entire viewport. Per-region timing does not mean per-region
-capture; it means each whole-page capture is *assigned* to the region(s) that
-changed at that moment, and regions that did not change reuse their previous
-tree. That assignment is what would let a region's identity threading skip
-untouched boundaries — and, more usefully, would let a region be captured at its
-own rate rather than at the union rate, cutting the Σnᵢ capture count back
-toward max(nᵢ). The assignment can be authored (option B), or derived by
-diffing each fresh capture against the previous one per region (no new surface,
-but it pays a whole-page capture at every union boundary anyway, which is
-exactly the cost being removed).
+**Capture stays whole-page.** Not negotiable, and written into the shipped
+surface: the browser paints the page, so every capture is a capture of the
+entire viewport. Per-region timing does not mean per-region capture; it means
+each whole-page capture is *assigned* to the region(s) that changed at that
+moment, and regions that did not change reuse their previous tree. That
+assignment is what lets a region be captured at its own rate rather than at the
+union rate, cutting Σnᵢ back to max(nᵢ). The assignment is **authored**
+(`advances`); the alternative of deriving it by diffing each fresh capture
+against the previous one per region was rejected because it pays a whole-page
+capture at every union boundary anyway — exactly the cost being removed.
+
+Because the assembled configuration is one the page is never actually driven
+into, the assembly carries a checked precondition: the non-region remainder of
+every capture round must be byte-identical, and a violation hard-errors naming
+the frame and the diverging round. That check is what makes "each capture is
+assigned to the regions that changed" safe rather than merely plausible.
 
 ### Why not magic-move (the obvious-looking tool)
 

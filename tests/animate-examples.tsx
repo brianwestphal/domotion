@@ -471,6 +471,35 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    // docs/100 "independent per-region timing" (docs/43 §11.1): ONE `states`
+    // frame over TWO declared regions on their own schedules — the editor pane
+    // typed into on the odd states, the preview pane scrolled on the even ones,
+    // each state tagged with the region it `advances`. The author writes two
+    // independent sequences instead of interleaving them by hand, and the
+    // capture loop batches states that advance disjoint regions: seven states
+    // cost FOUR whole-page captures instead of seven.
+    name: "region-timing",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 640 360"`)) f.push("missing viewBox 640x360");
+      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 frame group (the whole run nests in one frame)");
+      // The run nests as its own animated <svg> (the cast/typeResample pattern).
+      if (count(svg, /<svg/g) < 2) f.push("missing the nested compressed-run animated <svg>");
+      if (!/cr0_/.test(svg)) f.push("missing the cr0_ namespace token on the nested run");
+      if (!/cr0_anim-cr0g\d+/.test(svg)) f.push("missing compressed-run glyph identity groups (cr0_anim-cr0g…)");
+      if (!/step-end/.test(svg)) f.push("missing step-end tracks (the compressor snaps at state boundaries)");
+      // The declared regions are stamped at capture, so both region roots ride
+      // the output as anim classes — the marker that the override took effect.
+      for (const id of ["anim-f0rg0", "anim-f0rg1"]) {
+        if (!svg.includes(id)) f.push(`missing the declared region root ${id}`);
+      }
+      // The preview pane scrolls by whole lines, which the cross-line identity
+      // pass expresses as a translate rather than wholesale re-emission.
+      if (!/translate\([-\d.]+px,[-\d.]+px\)/.test(svg)) f.push("missing the scrolled pane's translate waypoints");
+      return f;
+    },
+  },
+  {
     // docs/100 stage 5 (the flagship validation): the kerf getting-started
     // EDITOR phases rebuilt on the new primitives. Five lines typed via
     // `holdToFrameEnd` + `anchor.baseline` overlays handing off to real page

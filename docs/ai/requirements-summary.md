@@ -149,27 +149,43 @@ they describe (see `CLAUDE.md` "Documentation"):
   so they now rasterize with LCD text off and pin bundled faces
   (`tests/fixture-fonts.ts`), which took the Linux clean ceiling from 829 px
   to 0 px.
-  **Independent regions (DM-1770) — region DISCRIMINATION shipped; per-region
-  TIMING is design-only.** Line buckets keyed on a segment's y alone merged two
-  side-by-side panes into one logical line, so an editor pane and a preview pane
-  at the same vertical position defeated each other's pairing (measured: 59.7%
-  paired / 62.7 KB against 96.5% / 28.3 KB once separated). Each glyph now
-  carries a **region** — the innermost clipping ancestor, else the innermost
-  side-by-side column taller than one line box — and bucketing plus both
-  bucket-pairing phases are scoped to it; inert on single-region scenes by
-  construction (all 25 animate goldens byte-identical). Rasterized coverage:
-  `tests/two-pane-regions.e2e.test.ts`. Still global and written up as a design
-  section in doc 100 (with the measurements that should decide it): the state
-  grid — measured **nearly free**, a 3.5× finer grid costs 0.4% of bytes, so
-  per-region timing is an authoring/capture-count question, not a payload one —
-  the whole-run size guard (per-region demotion into the chrome union measures
-  172.1 KB → 83.2 KB where today's guard reverts to a 97.8 KB flipbook; deciding
-  it on real bytes needs speculative composition, and the render-layer half of
-  that now **ships** — `snapshotGeneration()` / `restoreGeneration()` roll the
-  embedded-font subset builder AND the paths-mode glyph-defs registry back to a
-  marker, so a trial compose measured for its real byte size leaves the output
-  composed afterward byte-identical, doc 99 § speculative composition), and
-  per-run eligibility. And (2) a **caret + selection track** — declarative
+  **Independent regions (DM-1770) — discrimination AND per-region timing
+  shipped; the per-region size guard is the one piece still open.** Line
+  buckets keyed on a segment's y alone merged two side-by-side panes into one
+  logical line, so an editor pane and a preview pane at the same vertical
+  position defeated each other's pairing (measured: 59.7% paired / 62.7 KB
+  against 96.5% / 28.3 KB once separated). Each glyph now carries a **region** —
+  the innermost clipping ancestor, else the innermost side-by-side column taller
+  than one line box — and bucketing plus both bucket-pairing phases are scoped to
+  it; inert on single-region scenes by construction (all 25 animate goldens
+  byte-identical). Rasterized coverage: `tests/two-pane-regions.e2e.test.ts`.
+  **Per-region timing** (docs/43 §11.1) adds the HYBRID declaration: a `states`
+  frame may declare `regions: { <name>: <selector> }` (stamped
+  `data-domotion-anim` at capture, overriding the auto-detected discriminator
+  only where declared — auto-detection stays the default and still subdivides
+  inside a declared region) and tag each state with the region(s) it `advances`.
+  Capture stays whole-page; states advancing DISJOINT regions share one capture
+  and each state's tree is assembled from the round holding each region's own
+  state, so k regions cost `1 + max(nᵢ)` captures against `1 + Σnᵢ` (measured:
+  7 states → 4 captures, 11 → 6, 17 → 9, 3 regions × 4 → 5). The assembly's one
+  precondition — a region's content may not move anything outside itself — is
+  CHECKED (the non-region remainder must be byte-identical across rounds) and
+  hard-errors otherwise. Bytes are unchanged either way: timing is an
+  authoring + capture-count win, not a payload one (a 3.5× finer state grid
+  costs 0.4%). Coverage: `tests/region-timing.e2e.test.ts` asserts the trees
+  assembled from 4 rounds BYTE-IDENTICAL to seven sequential captures (the
+  page is never driven into the assembled configuration, so this is the only
+  exact check available) and then holds the composed run to the uncompressed
+  flipbook of those same captures at every state; golden
+  `examples/animate/region-timing/`. Still global: the whole-run size guard
+  (per-region demotion into the chrome union measures 172.1 KB → 83.2 KB where
+  today's guard reverts to a 97.8 KB flipbook; deciding it on real bytes needs
+  speculative composition, and the render-layer half of that now **ships** —
+  `snapshotGeneration()` / `restoreGeneration()` roll the embedded-font subset
+  builder AND the paths-mode glyph-defs registry back to a marker, so a trial
+  compose measured for its real byte size leaves the output composed afterward
+  byte-identical, doc 99 § speculative composition), and per-run eligibility.
+  And (2) a **caret + selection track** — declarative
   caret/selection anchored node-side to captured text (`selector` + char offset
   over segment `xOffsets`; `caretShapeRect` geometry; blink + sweep), standalone
   and useful beyond editing. The original document-model + op-timeline core is

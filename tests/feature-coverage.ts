@@ -302,6 +302,13 @@ export const FEATURES: FeatureEntry[] = [
     transition: "load → frame actions → state-0 capture → per-state actions+capture ×N → compose → nested embed, asserted end-to-end through composeAnimateFrames with the rasterized tail shift + colorize recolor at seeked state midpoints.",
   },
   {
+    id: "animate.states-regions",
+    behavior: "Independent per-region timing in a compressed run: a frame's `regions: { name: selector }` map stamps each declared element `data-domotion-anim` at capture and hands the ids to the compressor as EXPLICIT region roots (overriding the auto-detected clipping-ancestor / side-by-side-column discriminator only inside them, keying on the declared NAME so a resized pane still pairs, with auto-detection still the default outside and still subdividing within); a per-state `advances: [name…]` then schedules capture so states advancing DISJOINT regions share one whole-page capture (`planRegionCaptureRounds`, a minimal longest-chain assignment) and each state's tree is assembled from the round holding each region's own state — 1+max(nᵢ) captures instead of 1+Σnᵢ — guarded by a hard error when the page changes outside every declared region, when two regions resolve to the same element, or when a region selector matches nothing.",
+    doc: "docs/43-declarative-animate-config.md",
+    tests: ["src/cli/animate.test.ts", "src/animation/compressed-run.test.ts", "tests/region-timing.e2e.test.ts", "tests/animate-examples.tsx"],
+    transition: "state 0 → editor advances → preview advances → editor advances → … is captured in FOUR rounds and re-assembled into seven states; the assembled trees are asserted BYTE-IDENTICAL to capturing all seven configurations one at a time (the page is never driven into the assembled configuration, so this is the only exact check available), then the composed run is rasterized against the uncompressed flipbook of those same sequential captures at every state.",
+  },
+  {
     id: "animate.text-tracks-config",
     behavior: "Declarative caret/selection surface: a frame's `textTracks: [...]` list — selector stamped `data-domotion-anim` at capture (hard error on no match, naming frame + path), events with frame-relative `at` mapped to global time (park/move/hide/select/clearSelection, code-point offsets), resolved against the captured tree into AnimationConfig.textTracks.",
     doc: "docs/101-caret-selection-track.md",

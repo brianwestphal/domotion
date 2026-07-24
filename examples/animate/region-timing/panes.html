@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Two independently-updating panes</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 640px; height: 360px; overflow: hidden; background: #0f172a; }
+  .split { display: flex; height: 360px; }
+  .pane { width: 320px; height: 360px; overflow: hidden; padding: 10px 0; }
+  .editor { background: #1e293b; color: #e2e8f0;
+    font-family: Menlo, ui-monospace, monospace; font-size: 12px; line-height: 18px; }
+  .preview { background: #f8fafc; color: #0f172a;
+    font-family: Georgia, "Times New Roman", serif; font-size: 12.5px; line-height: 18px; }
+  .ln { height: 18px; white-space: pre; padding: 0 12px; }
+  .no { display: inline-block; width: 20px; text-align: right; margin-right: 10px; color: #475569; }
+  .kw { color: #93c5fd; } .str { color: #86efac; } .num { color: #fbbf24; }
+  .h { font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="split">
+    <div class="pane editor" id="ed"></div>
+    <div class="pane preview" id="pv"></div>
+  </div>
+<script>
+  // The state-stepping page rig (docs/102): each pane exposes ONE setter that
+  // renders that pane at a given step. Nothing else is page-side contract —
+  // the config drives which pane steps when, and the compressor derives every
+  // glyph identity from the captures.
+  var K = function (s) { return '<span class="kw">' + s + '</span>'; };
+  var S_ = function (s) { return '<span class="str">' + s + '</span>'; };
+  var N_ = function (s) { return '<span class="num">' + s + '</span>'; };
+  var CODE = [
+    '',
+    '',
+    K('const') + ' n = signal(' + N_('0') + ');',
+    '',
+    'mount(root, () ' + K('=&gt;') + ' (',
+    '  &lt;button&gt;{n.value}&lt;/button&gt;',
+    '));'
+  ];
+  var PREVIEW = [
+    '<span class="h">Getting started</span>',
+    '',
+    'Install the package, then import',
+    'the two primitives you need.',
+    '',
+    '<span class="h">Signals</span>',
+    '',
+    'A signal is a value plus a set',
+    'of subscribers. Reading one in',
+    'a render registers a dependency.',
+    '',
+    '<span class="h">Mounting</span>',
+    '',
+    'Mount attaches a view to a host',
+    'and keeps it in sync for you.',
+    '',
+    '<span class="h">Next steps</span>',
+    '',
+    'Read the recipes for routing.'
+  ];
+  var INS = ' computed,';
+  var ROWS = 18;
+  function rows(host, htmls, numbered) {
+    document.getElementById(host).innerHTML = htmls.map(function (h, i) {
+      return '<div class="ln">' + (numbered ? '<span class="no">' + (i + 1) + '</span>' : '')
+        + '<span>' + h + '</span></div>';
+    }).join('');
+  }
+  // Step the EDITOR: `k` characters of " computed," inserted mid-line, which
+  // reflows the tail rightward exactly as typing there would.
+  window.setEditor = function (k) {
+    var c = CODE.slice();
+    c[0] = K('import') + ' { signal,' + INS.slice(0, k) + ' mount }';
+    rows('ed', c, true);
+  };
+  // Step the PREVIEW: scroll it by whole lines.
+  window.setPreview = function (off) {
+    var p = [];
+    for (var i = 0; i < ROWS; i++) p.push(PREVIEW[(off + i) % PREVIEW.length]);
+    rows('pv', p, false);
+  };
+  window.setEditor(0);
+  window.setPreview(0);
+</script>
+</body>
+</html>
