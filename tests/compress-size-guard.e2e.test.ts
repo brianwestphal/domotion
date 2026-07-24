@@ -161,4 +161,106 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
     // And it is a real win, not a wash.
     expect(generateAnimatedSvg(comp).length).toBeLessThan(generateAnimatedSvg(flip).length * 0.9);
   }, 240_000);
+
+  // DM-1772: the guard is PER REGION. A scene with a well-pairing pane beside a
+  // wholesale-change pane must demote only what's worth demoting — and the
+  // demoted output must beat BOTH the uncompressed flipbook and keep-all, which
+  // is only possible if it demoted the RIGHT region: demoting the wrong subset
+  // (the well-pairing pane) would exceed the flipbook and the guard would pick
+  // the flipbook instead. Chrome demotion beats the flipbook here because the
+  // large shared left column dedupes in the union while the flipbook re-emits it
+  // whole every state.
+  const MW = 640, MH = 300;
+  const MIXED_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box}
+    body{margin:0;width:${MW}px;height:${MH}px;overflow:hidden;background:#0f172a;font:13px Helvetica,Arial,sans-serif}
+    .split{display:flex;height:${MH}px}
+    .col{width:${MW / 2}px;height:${MH}px;padding:12px 0;overflow:hidden}
+    .left{background:#1e293b;color:#e2e8f0;font-family:Menlo,monospace;font-size:12.5px;line-height:19px}
+    .right{background:#f8fafc;color:#0f172a;font-size:13px;line-height:19px}
+    .ln{height:19px;white-space:pre;padding:0 14px}
+    h1{font-size:16px;margin:0 0 8px;padding:0 14px}
+  </style></head><body>
+    <div class="split"><div class="col left" id="left"></div><div class="col right" id="right"></div></div>
+  <script>
+    var BASE=['// module.ts','','const label = "";','const a = 1;','const b = 2;','const c = 3;','','function run() {','  return a + b + c;','}','','export { run };'];
+    window.setLeft=function(k){
+      var rows=BASE.slice(); rows[2]='const label = "'+'lorem-ipsum'.slice(0,k)+'";';
+      document.getElementById('left').innerHTML=rows.map(function(h){return '<div class="ln">'+h+'</div>';}).join('');
+    };
+    var SLIDES=[
+      ['Overview','Domotion turns DOM into SVG','Pixel-faithful to Chromium','Embeds with no external assets'],
+      ['Capture','Playwright drives Chromium','The tree is serialized','Computed styles ride along'],
+      ['Fonts','CoreText paints on macOS','fontconfig resolves on Linux','DirectWrite renders on Windows'],
+      ['Animate','Keyframes, not scripts','One self-contained file to ship','Loads lazily on the page'],
+      ['Review','Expected against actual','Region-level diff scoring','Pixel evidence comes first']
+    ];
+    window.setRight=function(k){
+      var s=SLIDES[k];
+      document.getElementById('right').innerHTML='<h1>'+s[0]+'</h1>'+s.slice(1).map(function(l){return '<div class="ln">'+l+'</div>';}).join('');
+    };
+    window.setLeft(0); window.setRight(0);
+  </script></body></html>`;
+
+  const MIXED_DUR = [360, 360, 360, 360, 360];
+  const MIXED_FRAMES = [
+    { input: "./mixed.html", duration: MIXED_DUR[0], transition: { type: "cut" as const, duration: 0 } },
+    ...[1, 2, 3, 4].map((k) => ({
+      continue: true as const, duration: MIXED_DUR[k], transition: { type: "cut" as const, duration: 0 },
+      actions: [{ type: "evaluate" as const, script: `setLeft(${k * 2}); setRight(${k})` }],
+    })),
+  ];
+
+  it("per-region: demotes the wholesale pane, keeps the shared pane deduped, and beats the flipbook (DM-1772)", async () => {
+    const { browser, dir } = env!;
+    writeFileSync(join(dir, "mixed.html"), MIXED_HTML);
+    const cfg = { width: MW, height: MH, frames: MIXED_FRAMES };
+
+    const flip = await composeAnimateFrames(browser, validateAnimateConfig(cfg), { configDir: dir });
+    const logs: string[] = [];
+    const comp = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), { configDir: dir, log: (m) => logs.push(m) });
+
+    // The guard tripped and chose chrome demotion (not the flipbook revert).
+    const demoteLog = logs.find((l) => /demoting .* into the chrome union/.test(l));
+    expect(demoteLog, `no demotion log; got:\n${logs.join("\n")}`).toBeDefined();
+
+    const flipSvg = generateAnimatedSvg(flip);
+    const compSvg = generateAnimatedSvg(comp);
+    // Beats BOTH keep-all (implicitly — the guard only demotes when smaller) and
+    // the uncompressed flipbook. A win over the flipbook is only reachable by
+    // demoting the RIGHT region(s); the wrong subset would exceed it.
+    expect(compSvg.length).toBeLessThan(flipSvg.length);
+
+    // Byte-identity of the speculative trials: composing the same config again
+    // (which re-runs every per-region trial) must be byte-for-byte identical —
+    // proof the snapshot/restore leaves no PUA / dmfN trace (DM-1771 contract).
+    const comp2 = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), { configDir: dir });
+    expect(generateAnimatedSvg(comp2)).toBe(compSvg);
+
+    // Pixel-identical to the flipbook at every state.
+    const starts = MIXED_DUR.map((_, i) => MIXED_DUR.slice(0, i).reduce((a, b) => a + b, 0));
+    const sampleTimes = MIXED_DUR.map((d, i) => starts[i] + d / 2);
+    const ctx = await browser.newContext({ viewport: { width: MW, height: MH }, deviceScaleFactor: 1 });
+    try {
+      const render = async (page: Page, svg: string, tMs: number): Promise<Buffer> => {
+        await loadSeekableSvg(page, svg);
+        await seekTo(page, tMs);
+        return page.screenshot({ clip: { x: 0, y: 0, width: MW, height: MH } });
+      };
+      const flipPage = await ctx.newPage();
+      const compPage = await ctx.newPage();
+      const diffPage = await ctx.newPage();
+      for (let s = 0; s < sampleTimes.length; s++) {
+        const t = sampleTimes[s];
+        const fPath = join(dir, `mixed-flip-${s}.png`);
+        const cPath = join(dir, `mixed-comp-${s}.png`);
+        writeFileSync(fPath, await render(flipPage, flipSvg, t));
+        writeFileSync(cPath, await render(compPage, compSvg, t));
+        const cmp = await comparePngs(diffPage, fPath, cPath, join(dir, `mixed-diff-${s}.png`));
+        expectFlipbookParity(cmp, `mixed state ${s} @ ${t}ms drifted from the flipbook`);
+      }
+    } finally {
+      await ctx.close();
+    }
+  }, 240_000);
 });

@@ -150,6 +150,15 @@ export interface CompressedRunOptions {
    *  default) for pure auto-detection — the composed output is then
    *  byte-identical to a build with no notion of declared regions at all. */
   regionRootIds?: string[];
+  /** Region keys (as returned in {@link CompressedRunResult.regions}) whose text
+   *  must be DEMOTED into the chrome union instead of pulled into the animated
+   *  glyph layer — the path ineligible text already takes, so pixel-safe by the
+   *  same argument (the occlusion promotion check stays whole-tree and is
+   *  unaffected). The per-region size guard (docs/100) trials each region demoted
+   *  vs kept and keeps whichever is smaller on real bytes; demoting EVERY region
+   *  is the whole-run chrome-demotion fallback. Omit (the default) for the normal
+   *  keep-all compose — byte-identical to a build with no demotion notion. */
+  demotedRegions?: readonly string[];
   /** `false` defers @font-face to a host pipeline (the outer animate run's
    *  shared embedded-font builder), exactly like the terminal composer's
    *  `manageFonts: false`. Default true — self-contained SVG. */
@@ -225,6 +234,11 @@ export interface CompressedRunResult {
   durationMs: number;
   pairingStats: CompressedRunPairingStats;
   edits: CompressedRunEdit[];
+  /** Distinct region keys the glyph layer bucketed text into (the auto `R…` /
+   *  `D…` / column discriminators, plus `""` for un-regioned text). These are
+   *  the candidate keys the per-region size guard trials via `demotedRegions`;
+   *  a region already demoted in this compose does not appear. */
+  regions: string[];
 }
 
 // ── Small helpers ───────────────────────────────────────────────────────────
@@ -528,8 +542,12 @@ interface ExtractedState {
  *
  *  `regionRootIds` are captured `animId`s the caller declared as explicit
  *  region roots; empty (the default) leaves the auto-detected discriminator in
- *  sole charge, and every decision below is then bit-for-bit what it was. */
-function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string>): ExtractedState {
+ *  sole charge, and every decision below is then bit-for-bit what it was.
+ *
+ *  `demoted` are region keys whose text must be forced INELIGIBLE — the same
+ *  path an occluded / undecorated-ineligible element takes, so `strip` keeps it
+ *  in the chrome tree. Empty (the default) demotes nothing. */
+function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string>, demoted: ReadonlySet<string>): ExtractedState {
   // Pass 1: the renderer's REAL paint order — the same
   // `gatherStackingContextChildren` / `sortChildrenByPaintOrder` traversal
   // `elementTreeToSvg` emits with (stacking contexts, z-index buckets,
@@ -575,7 +593,9 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
     const declared = declaredRegionKeyOf(el, regionRootIds);
     if (declared != null) ctx = { ...ctx, region: declared };
     else if (isRegionRoot) ctx = { ...ctx, region: regionKeyOf(el) };
-    if (elementTextEligible(el, ctx) && !occluded(el)) {
+    // A demoted region's text stays in the chrome tree (the ineligible path):
+    // skip glyph extraction so `strip` leaves its `textSegments` intact.
+    if (elementTextEligible(el, ctx) && !occluded(el) && !demoted.has(ctx.region)) {
       eligible.add(el);
       for (const seg of el.textSegments!) {
         const xs = seg.xOffsets!;
@@ -1308,6 +1328,10 @@ export interface CompressedRunPlan {
   chromeRoots: UnionNode[];
   edits: CompressedRunEdit[];
   thread: ThreadResult;
+  /** Distinct region keys the glyph layer bucketed text into across all states
+   *  (empty-string region included). Stable order: first appearance across the
+   *  state sequence. The per-region size guard enumerates these. */
+  regions: string[];
 }
 
 /** Build the pairing/threading/union plan for a run — everything except the
@@ -1316,8 +1340,16 @@ export interface CompressedRunPlan {
  *
  *  `regionRootIds` declares explicit region roots by captured `animId`
  *  (see {@link CompressedRunOptions.regionRootIds}); omitting it leaves the
- *  auto-detected discriminator in sole charge. */
-export function buildCompressedRunPlan(states: CompressedRunState[], idPrefix = "cr", regionRootIds: readonly string[] = []): CompressedRunPlan {
+ *  auto-detected discriminator in sole charge.
+ *
+ *  `demotedRegions` forces those region keys' text into the chrome union (see
+ *  {@link CompressedRunOptions.demotedRegions}); omitting it demotes nothing. */
+export function buildCompressedRunPlan(
+  states: CompressedRunState[],
+  idPrefix = "cr",
+  regionRootIds: readonly string[] = [],
+  demotedRegions: readonly string[] = [],
+): CompressedRunPlan {
   const stateCount = states.length;
   const boundaries: number[] = [];
   let acc = 0;
@@ -1328,11 +1360,21 @@ export function buildCompressedRunPlan(states: CompressedRunState[], idPrefix = 
   const totalMs = Math.max(1, acc);
 
   const declaredRoots = new Set(regionRootIds);
-  const extracted = states.map((st) => extractState(st.tree, declaredRoots));
+  const demoted = new Set(demotedRegions);
+  const extracted = states.map((st) => extractState(st.tree, declaredRoots, demoted));
   const thread = threadGlyphs(extracted.map((e) => e.glyphs), stateCount);
   const groups = buildGlyphGroups(thread.all, idPrefix);
   const chromeRoots = buildChromeUnion(extracted.map((e) => e.chromeTree));
-  return { stateCount, boundaries, totalMs, groups, chromeRoots, edits: thread.edits, thread };
+  // Distinct region keys the glyph layer actually bucketed text into, in
+  // first-appearance order — the guard's candidate set for `demotedRegions`.
+  const regions: string[] = [];
+  const seen = new Set<string>();
+  for (const e of extracted) {
+    for (const g of e.glyphs) {
+      if (!seen.has(g.region)) { seen.add(g.region); regions.push(g.region); }
+    }
+  }
+  return { stateCount, boundaries, totalMs, groups, chromeRoots, edits: thread.edits, thread, regions };
 }
 
 // ── Composition ─────────────────────────────────────────────────────────────
@@ -1366,6 +1408,7 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
     states.map((st) => ({ tree: structuredClone(st.tree), holdMs: st.holdMs })),
     uid,
     opts.regionRootIds ?? [],
+    opts.demotedRegions ?? [],
   );
   const { boundaries, totalMs, stateCount } = plan;
   const css = new TrackCss(uid, totalMs);
@@ -1529,5 +1572,5 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   const kb = (n: number): string => (n / 1024).toFixed(1);
   log(`compress: run of ${stateCount} states, ${(pairingStats.pairedPct * 100).toFixed(1)}% glyphs paired, ${kb(rawBytes)} KB → ${kb(svg.length)} KB`);
 
-  return { svg, width, height, durationMs: totalMs, pairingStats, edits: plan.edits };
+  return { svg, width, height, durationMs: totalMs, pairingStats, edits: plan.edits, regions: plan.regions };
 }

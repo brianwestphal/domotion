@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryyhd5frvnmz04k",
+          "message": {
+            "text": "Deliberate deviation from the ticket's item 3, flagged for review. DM-1772 says \"switch the whole-run fallback from composeStatesFlipbook to full chrome demotion.\" Taken literally (drop the flipbook), that regresses the DM-1764 guarantee that autoCompress never grows output: chrome demotion (the chrome union) only beats the flipbook when states share subtrees the union deduplicates. For a PURE wholesale slideshow the union can't dedupe and comes out slightly larger than the flipbook (measured on the DM-1764 fixture: demoted 10.7 KB vs flipbook ~9.9 KB).\n\nSo instead of replacing the flipbook, the guard keeps it as a third candidate and emits the real-bytes minimum of {keep-all, per-region demotion, flipbook floor}. This honors the maintainer's chosen per-region rule (\"minimize bytes\") AND preserves never-worse-than-uncompressed. Chrome demotion still wins where the ticket measured it (the mixed fixture, 81.8 < 97.8). If the maintainer prefers the literal item-3 (accept the pure-wholesale regression), dropping the composeStatesFlipbook candidate here is a one-line change.\n",
+            "markdown": "**Deliberate deviation from the ticket's item 3**, flagged for review. DM-1772 says \"switch the whole-run fallback from `composeStatesFlipbook` to full chrome demotion.\" Taken literally (drop the flipbook), that regresses the DM-1764 guarantee that `autoCompress` never grows output: chrome demotion (the chrome union) only beats the flipbook when states share subtrees the union deduplicates. For a PURE wholesale slideshow the union can't dedupe and comes out slightly larger than the flipbook (measured on the DM-1764 fixture: demoted 10.7 KB vs flipbook ~9.9 KB).\n\nSo instead of *replacing* the flipbook, the guard keeps it as a third candidate and emits the real-bytes minimum of {keep-all, per-region demotion, flipbook floor}. This honors the maintainer's chosen per-region rule (\"minimize bytes\") AND preserves never-worse-than-uncompressed. Chrome demotion still wins where the ticket measured it (the mixed fixture, 81.8 < 97.8). If the maintainer prefers the literal item-3 (accept the pure-wholesale regression), dropping the `composeStatesFlipbook` candidate here is a one-line change.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 2130,
+                  "endLine": 2130,
+                  "snippet": {
+                    "text": "      //   • composeStatesFlipbook — the uncompressed floor, kept so DM-1764's"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1772"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c81fb016c1f75497175a6932a8f89f24"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryyhdawdwpjqr5d",
+          "message": {
+            "text": "The preRun snapshot must be taken BEFORE the keep-all compose, not inside the guard. manageFonts:false means keep-all's PUA / dmfN addressing is appended to the shared builder and left live. Each per-region trial below snapshots AFTER keep-all and restores, so it leaves keep-all's addressing intact for the next trial. But if a demoted (or flipbook) candidate wins, it must become the REAL output owning the addressing — so we restoreGeneration(preRun) to undo keep-all entirely, THEN re-compose the winner. Without the pre-keep-all snapshot there'd be no marker to roll keep-all back to, and the winner's addressing would stack on top of keep-all's, shifting the real output's bytes. The tests/compress-size-guard.e2e.test.ts mixed-fixture byte-identity assertion (re-compose === compose) pins that this lifecycle leaves no trace.\n",
+            "markdown": "The `preRun` snapshot must be taken BEFORE the keep-all compose, not inside the guard. `manageFonts:false` means keep-all's PUA / `dmfN` addressing is appended to the shared builder and left live. Each per-region trial below snapshots AFTER keep-all and restores, so it leaves keep-all's addressing intact for the next trial. But if a demoted (or flipbook) candidate wins, it must become the REAL output owning the addressing — so we `restoreGeneration(preRun)` to undo keep-all entirely, THEN re-compose the winner. Without the pre-keep-all snapshot there'd be no marker to roll keep-all back to, and the winner's addressing would stack on top of keep-all's, shifting the real output's bytes. The `tests/compress-size-guard.e2e.test.ts` mixed-fixture byte-identity assertion (re-compose === compose) pins that this lifecycle leaves no trace.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 2101,
+                  "endLine": 2101,
+                  "snippet": {
+                    "text": "  const preRun = snapshotGeneration();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1772"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d4e26e028998aff3e330c29a6050a1b1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3baa119b3fc5b722bbd41d8bbba1ea0c903c2de4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

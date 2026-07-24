@@ -476,18 +476,21 @@ Under the `compress: true` marker a split point is still a **hard error** (§13.
 
 Both are changes to the overlay contract itself rather than to the collapse pass, so overlays remain a split point: the frame carrying one stays a plain sibling frame and the run compresses around it, which since sub-run splitting costs exactly that one frame.
 
-**Size-regression guard — `autoCompress` can never make output bigger.** Compression is pixel-identical but not unconditionally *smaller*: a wholesale-change run (a slideshow, where consecutive frames share almost nothing) pairs badly, re-emits nearly everything as births/deaths, and pays the union + track overhead on top. Measured on a five-slide run: **9.3 KB of uncompressed payload composed to 19.2 KB compressed — 2.1×**, at 10% of glyphs paired. So after composing a run *the automatic pass created*, the collapse is checked against the alternative and reverted when it lost:
+**Size-regression guard — `autoCompress` can never make output bigger; PER REGION (DM-1772).** Compression is pixel-identical but not unconditionally *smaller*: a wholesale-change run (a slideshow, where consecutive frames share almost nothing) pairs badly, re-emits nearly everything as births/deaths, and pays the union + track overhead on top. So after composing a run *the automatic pass created*, the guard decides on **real bytes** which of the run's regions (independently-updating panes — docs/100) to demote, and picks the smallest of three pixel-identical candidates: keep-all, **per-region demotion** (demote every region whose text is cheaper flipbooked into the chrome union than kept as animated glyphs; demoting all is the whole chrome union), and the uncompressed `composeStatesFlipbook` floor. Two shapes of log line result — a scene whose union deduplicates shared subtrees demotes into it, a pure slideshow whose union can't reverts to the flipbook floor:
 
 ```
   compress: run of 5 states, 10.2% glyphs paired, 9.3 KB → 19.2 KB
   auto-compress: reverting frame 0's run to uncompressed states — compressing it
     grew the payload 107% (9.3 KB → 19.2 KB, only 10.2% of glyphs paired);
     uncompressed is 10.1 KB
+  auto-compress: demoting all regions into the chrome union — compressing kept
+    them 77% larger than uncompressed (97.3 KB → 172.1 KB, only 41% paired);
+    demoted is 81.8 KB
 ```
 
-The reverted run keeps the same shape — one nested frame holding the N captured states, each gated by a `step-end` `display` window instead of the compressor's identity tracks — so it stays **pixel-identical** and the collapse's one config frame ↔ one animation frame invariant is untouched. End to end on that config, `autoCompress: true` produces **43.2 KB against the flipbook's 44.3 KB** (0.976×): the flag cannot make output worse, which is what makes it safe to enable blindly.
+Whichever wins keeps the same shape — one nested frame holding the N states, each gated by a `step-end` `display` window (flipbook) or by the compressor's chrome union — so it stays **pixel-identical** and the collapse's one config frame ↔ one animation frame invariant is untouched. Retaining the flipbook as a candidate (rather than *replacing* it with chrome demotion) is what preserves the never-worse guarantee for pure-wholesale runs the union can't dedupe. Full spec: **`docs/103-per-region-size-guard.md`**.
 
-The comparison is free of extra capture and near-free of extra compose: the compressor already reports both sides (`rawBytes` = the same states rendered independently, `compressedBytes` = what it produced), which triggers the check, and the uncompressed alternative is built only when that trigger fires (~5 ms; the state snapshot it needs costs ~1 ms).
+The comparison is near-free: the compressor already reports both sides (`rawBytes` = the same states rendered independently, `compressedBytes` = what it produced), which triggers the check, and the demotion/flipbook trials are built only when that trigger fires (~80–135 ms each, each bracketed in a font-builder snapshot/restore so a discarded trial leaves the shared addressing byte-identical — DM-1771).
 
 A run **you** asked for is not silently rewritten — a hand-authored `states:` block (§11) or a `compress: true` marker (§13.2) that regresses gets a `note:` line reporting the measured growth and pointing at the opt-out, exactly like the marker's hard-error contract. Only the automatic pass reverts.
 

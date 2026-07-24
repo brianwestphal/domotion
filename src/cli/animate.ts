@@ -60,6 +60,10 @@ import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+// Speculative composition (kept off the package barrel — import direct, as the
+// animator does). Brackets each per-region trial compose so its PUA / dmfN
+// addressing leaves no trace in the real output.
+import { snapshotGeneration, restoreGeneration } from "../render/font-resolution.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
 import { annotateAnimatedProperties, cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
@@ -2075,8 +2079,7 @@ async function buildStatesRunContent(
   // the trees, so snapshot them first — but ONLY for those runs, so a
   // hand-authored `states:` block pays nothing.
   const guarded = wasAutoCollapsed(fc);
-  const snapshots = guarded ? states.map((s) => structuredClone(s.tree)) : null;
-  const run = composeCompressedRun(states, {
+  const baseOpts = {
     width: cfg.width,
     height: cfg.height,
     idPrefix: `cr${i}`,
@@ -2089,37 +2092,85 @@ async function buildStatesRunContent(
     // Defer @font-face to the outer run's shared embedded-font builder (one
     // scene-wide block, collected after the loop) — the cast pattern.
     manageFonts: false,
-    log: (m) => log(`  ${m}`),
-  });
-  // DM-1764 size-regression guard (docs/100 "Default-flip recommendation"
-  // prerequisite 2). Compression is pixel-identical but NOT unconditionally
-  // smaller: a wholesale-change run (a slideshow, where consecutive states
-  // share almost nothing) pairs badly, re-emits nearly everything as
-  // births/deaths, and pays the union + track overhead on top — measured at
-  // 2.36x the uncompressed payload. The compressor already reports both sides
-  // of that comparison (`rawBytes` = the same states rendered independently,
-  // `compressedBytes` = what it just produced), so the guard is free: no second
-  // compose, no second capture. When the run the AUTOMATIC pass created comes
-  // out bigger, emit the uncompressed states instead — same nesting, same
-  // pixels, flipbook payload — so `autoCompress` can never make output worse.
+    log: (m: string) => log(`  ${m}`),
+  };
+  // Snapshot the shared builder BEFORE the keep-all compose. `manageFonts:false`
+  // leaves keep-all's PUA / dmfN addressing live; if the per-region guard below
+  // picks a demoted variant instead, it must roll back to here first so only the
+  // winner's addressing reaches the real output (DM-1771 speculative-compose).
+  const preRun = snapshotGeneration();
+  const run = composeCompressedRun(states, baseOpts);
+  // DM-1764 size-regression guard (docs/100), now PER REGION (DM-1772).
+  // Compression is pixel-identical but NOT unconditionally smaller: a
+  // wholesale-change pane (a slideshow, where consecutive states share almost
+  // nothing) pairs badly and re-emits nearly everything as births/deaths, paying
+  // the union + track overhead on top. `compressedBytes / rawBytes` is a free
+  // TRIGGER (the compressor already reports both), but the decision is made on
+  // REAL BYTES: each region is trialed demoted-vs-kept and demoted whenever that
+  // shrinks the run. Demoting a region moves its text into the chrome union (the
+  // path ineligible text already takes — pixel-safe), and demoting EVERY region
+  // is the whole-run fallback, which beats the old `composeStatesFlipbook` revert
+  // because the union dedupes subtrees shared across states.
   const { rawBytes, compressedBytes } = run.pairingStats;
   const ratio = rawBytes > 0 ? compressedBytes / rawBytes : 1;
   let svg = run.svg;
   let periodMs = run.durationMs;
   if (ratio > COMPRESS_SIZE_GUARD_RATIO) {
     const pct = `${((ratio - 1) * 100).toFixed(0)}%`;
-    if (snapshots != null) {
-      // The ratio is only the trigger — it compares against the raw payload,
-      // which the nested flipbook has to carry a wrapper on top of (measured at
-      // ~6% of the payload: one <svg>, N <g>s, one display track each). So
-      // build the actual fallback and pick on real bytes, which costs ~5 ms and
-      // cannot be talked out of the right answer near the threshold.
-      const fallback = composeStatesFlipbook(snapshots, states.map((s) => s.holdMs), cfg.width, cfg.height, `cr${i}`, rootBg);
-      if (fallback.svg.length < run.svg.length) {
-        log(`  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${(rawBytes / 1024).toFixed(1)} KB → ${(compressedBytes / 1024).toFixed(1)} KB, only ${(run.pairingStats.pairedPct * 100).toFixed(1)}% of glyphs paired); uncompressed is ${(fallback.svg.length / 1024).toFixed(1)} KB`);
-        svg = fallback.svg;
-        periodMs = fallback.durationMs;
+    if (guarded) {
+      // Decide on REAL BYTES among three pixel-identical candidates, each sized
+      // in a snapshot/restore trial so a discarded compose's PUA / dmfN
+      // addressing never leaks into the real output:
+      //   • keep-all (`run`, already composed)
+      //   • per-region demotion — demote every region that individually shrinks
+      //     the run (regions are pixel-independent: the occlusion promotion check
+      //     is whole-tree, so one region's demotion can't change another's).
+      //     Demoting them all is the chrome union, which beats the flipbook when
+      //     states share subtrees it can dedupe (docs/100: 81.8 vs 97.8 KB).
+      //   • composeStatesFlipbook — the uncompressed floor, kept so DM-1764's
+      //     guarantee (autoCompress never grows output) still holds for wholesale
+      //     runs whose union can't dedupe and would edge out larger.
+      const toKb = (n: number): string => (n / 1024).toFixed(1);
+      const paired = `${(run.pairingStats.pairedPct * 100).toFixed(1)}%`;
+      const cloneTrees = (): CapturedElement[][] => states.map((s) => structuredClone(s.tree));
+      const holds = states.map((s) => s.holdMs);
+
+      const demote: string[] = [];
+      for (const region of run.regions) {
+        const marker = snapshotGeneration();
+        const shrank = composeCompressedRun(states, { ...baseOpts, demotedRegions: [region] }).svg.length < run.svg.length;
+        restoreGeneration(marker);
+        if (shrank) demote.push(region);
       }
+      // Size the two fallbacks (trials — rolled back, so only the winner
+      // re-composed below keeps its addressing).
+      let demotedLen = Infinity;
+      if (demote.length > 0) {
+        const marker = snapshotGeneration();
+        demotedLen = composeCompressedRun(states, { ...baseOpts, demotedRegions: demote }).svg.length;
+        restoreGeneration(marker);
+      }
+      const fbMarker = snapshotGeneration();
+      const flipbookLen = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg).svg.length;
+      restoreGeneration(fbMarker);
+
+      // Pick the smallest; keep-all wins ties (never rewrite when nothing helps),
+      // and demotion wins over the flipbook on a tie (the primary fallback).
+      if (demotedLen <= flipbookLen && demotedLen < run.svg.length) {
+        restoreGeneration(preRun);
+        const chosen = composeCompressedRun(states, { ...baseOpts, demotedRegions: demote });
+        const scope = demote.length === run.regions.length ? "all regions" : `${demote.length}/${run.regions.length} regions`;
+        log(`  auto-compress: demoting ${scope} into the chrome union — compressing kept them ${pct} larger than uncompressed (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); demoted is ${toKb(chosen.svg.length)} KB`);
+        svg = chosen.svg;
+        periodMs = chosen.durationMs;
+      } else if (flipbookLen < run.svg.length) {
+        restoreGeneration(preRun);
+        const fb = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg);
+        log(`  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); uncompressed is ${toKb(fb.svg.length)} KB`);
+        svg = fb.svg;
+        periodMs = fb.durationMs;
+      }
+      // else: keep-all is already the smallest — leave `run` as emitted.
     } else {
       // A run the AUTHOR asked for (a hand-written `states:` block, or a
       // `compress: true` marker). Same contract as the marker's hard error:

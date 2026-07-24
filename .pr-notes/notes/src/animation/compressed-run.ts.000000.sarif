@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mryyhdgovt6eudk6",
+          "message": {
+            "text": "This is the whole demotion mechanism: a demoted region's text is forced INELIGIBLE at the single eligibility gate, so strip (the chrome clone) leaves its textSegments in the chrome tree instead of the glyph layer — the exact path occluded / decorated / complex-script text already takes, which is why it's pixel-safe by the same argument. ctx.region here is the region an element's OWN text buckets into (set at the declared/isRegionRoot branch just above; the clipping-region update below only affects CHILDREN), so it matches the region stamped on the glyphs and returned in CompressedRunResult.regions — the key the guard trials. Demoting every region is the whole chrome union (the whole-run fallback).\n",
+            "markdown": "This is the whole demotion mechanism: a demoted region's text is forced INELIGIBLE at the single eligibility gate, so `strip` (the chrome clone) leaves its `textSegments` in the chrome tree instead of the glyph layer — the exact path occluded / decorated / complex-script text already takes, which is why it's pixel-safe by the same argument. `ctx.region` here is the region an element's OWN text buckets into (set at the declared/isRegionRoot branch just above; the clipping-region update below only affects CHILDREN), so it matches the `region` stamped on the glyphs and returned in `CompressedRunResult.regions` — the key the guard trials. Demoting every region is the whole chrome union (the whole-run fallback).\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/compressed-run.ts"
+                },
+                "region": {
+                  "startLine": 598,
+                  "endLine": 598,
+                  "snippet": {
+                    "text": "    if (elementTextEligible(el, ctx) && !occluded(el) && !demoted.has(ctx.region)) {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1772"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2c166f8a77561bf865c36a05fbe2df69"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3baa119b3fc5b722bbd41d8bbba1ea0c903c2de4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

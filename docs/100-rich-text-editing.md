@@ -693,66 +693,57 @@ surface therefore attacks — is:
   that moment. This was the real pain. **Fixed** by `regions` + `advances`:
   each state names the region it advances and carries only that region's action.
 
-**Per-region size guard — measured; still OPEN, tracked separately.** This is
-the one piece of "region-aware compression" the timing work above deliberately
-did NOT build. Its prerequisite — a save/restore lifecycle for the shared
-embedded-font subset builder, so a trial compose can be measured and discarded —
-has since shipped (see below), so what remains is the decision procedure itself.
-The eligibility walk it will sit in was left untouched by the timing change
-apart from the declared-region branch. One badly-pairing pane still reverts the
-whole scene.
-The natural per-region fallback is *not* the whole-run flipbook: it is
-**demoting that region's text into the chrome union**, which is the path
-ineligible text already takes (so it is pixel-safe by the same argument, and the
-occlusion guard that governs promotion is computed on the full tree and is
-unaffected by another region's demotion). Measured on a deliberately mixed
-scene — a well-pairing editor pane beside a wholesale-change slideshow pane, 6
-states, 97.3 KB of raw flipbook payload:
+**Per-region size guard — SHIPPED (DM-1772).** The whole-run revert became a
+per-region decision. When a run trips the size trigger, the guard no longer
+reverts the whole scene; it decides on REAL BYTES which of the run's regions to
+demote. See `docs/103-per-region-size-guard.md` for the full spec; the summary:
+
+The per-region fallback is *not* the whole-run flipbook — it is **demoting that
+region's text into the chrome union**, the path ineligible text already takes
+(pixel-safe by the same argument, and the occlusion promotion check stays
+whole-tree, so one region's demotion can't change another's). Measured on a
+deliberately mixed scene — a well-pairing editor pane beside a wholesale-change
+slideshow pane, 6 states, 97.3 KB of raw flipbook payload:
 
 | | composed bytes |
 | --- | --- |
-| compress both regions (today's compressed output) | 172.1 KB (1.77× raw) |
-| demote the wholesale-change region only | **83.2 KB** |
-| demote the well-pairing region only (the wrong choice) | 170.9 KB |
-| demote both | **81.8 KB** |
-| `composeStatesFlipbook` (today's whole-run fallback) | 97.8 KB |
+| compress both regions (unguarded compressed output) | 172.1 KB (1.77× raw) |
+| demote the wholesale-change region only | 83.2 KB |
+| demote the well-pairing region only (the *wrong* single choice) | 170.9 KB |
+| demote both (per-region minimum here) | **81.8 KB** |
+| `composeStatesFlipbook` (the old whole-run fallback) | 97.8 KB |
 
-Two things fall out. First, per-region demotion beats today's outcome by 2×
-(the guard trips at 1.77× and reverts to the 97.8 KB flipbook; demoting just the
-bad pane gives 83.2 KB). Second — worth its own look — **the chrome union is a
-better whole-run fallback than `composeStatesFlipbook`**: demoting *everything*
-into the union gives 81.8 KB against the flipbook's 97.8 KB, because the union
-deduplicates subtrees shared across states while the flipbook re-emits each
-state whole.
+**The decision procedure (shipped).** The trigger (`compressedBytes / rawBytes`)
+is free and only *arms* the guard. The choice is then made on real bytes among
+three pixel-identical candidates, each SIZED in a `snapshotGeneration()` /
+`restoreGeneration()` trial so a discarded compose's PUA / `dmfN` addressing
+never leaks (doc 99 § speculative composition; DM-1771):
 
-What blocks building it is the *decision procedure*, not the mechanism. The
-existing guard's stated principle is to decide on real bytes, never a ratio
-proxy ("the ratio is only the trigger… build the actual fallback and pick on
-real bytes"). Applied per region that means one trial compose per candidate
-region (~80–135 ms each on the two-pane fixture — cheap). But each compose walks
-the module-global embedded-font subset builder, which assigns PUA codepoints in
-order of first glyph use; a trial that renders text in a different layer order
-perturbs those assignments, and under `manageFonts: false` (the CLI path) that
-registry is shared with the whole outer animate run. Discarding a trial's effect
-therefore needs a snapshot/restore on the font builder — **which now ships**
-(`snapshotGeneration()` / `restoreGeneration()` roll both the embedded-font
-subset builder and the paths-mode glyph-defs registry back to a marker, so a
-speculative compose leaves the output composed afterward byte-identical; doc 99
-§ speculative composition). The remaining work is the decision procedure itself,
-tracked as its own ticket. The options as they were costed:
+1. **keep-all** — the compressed run as first composed.
+2. **per-region demotion** — trial each region demoted alone; demote every
+   region whose demotion shrinks the run (regions are pixel-independent, so
+   demoting each individually-beneficial one gives the minimum). Demoting them
+   all is the chrome union. On the mixed fixture both panes shrink → 81.8 KB.
+3. **`composeStatesFlipbook`** — the uncompressed floor, kept as a candidate so
+   the DM-1764 guarantee (`autoCompress` never grows output) still holds for a
+   *pure* wholesale run whose union can't dedupe and comes out slightly larger
+   than the flipbook. Chrome demotion beats the flipbook only when states share
+   subtrees the union deduplicates (the mixed fixture: 81.8 < 97.8); for a pure
+   slideshow the flipbook floor wins and the guard reverts to it as before.
 
-1. **Proxy metric** (per-region births-per-identity as the demotion trigger, no
-   trial compose). Buildable entirely inside the compressor, no font-state risk.
-   On the measured fixture it lands on 83.2 KB rather than the optimal 81.8 KB —
-   1.7% off — but it breaks the "decide on real bytes" principle the whole-run
-   guard was deliberately built around.
-2. **Trial composes + a font-builder generation snapshot** — the chosen option,
-   now unblocked. Exact, matches the existing guard's principle, and would also
-   let the whole-run guard switch its fallback from `composeStatesFlipbook` to
-   full chrome demotion (97.8 → 81.8 KB on the measured fixture).
-3. **Leave it.** The whole-run guard already guarantees output is never worse
-   than the flipbook; per-region only recovers the gap between "never worse" and
-   "as good as it could be".
+The guard emits the smallest, preferring keep-all on a tie (never rewrite when
+nothing helps) and demotion over the flipbook on a tie (the primary fallback).
+The candidate set is `CompressedRunResult.regions`; a region is demoted by
+passing its key in `CompressedRunOptions.demotedRegions`, which forces that
+region's text ineligible in `extractState` so the chrome-clone keeps it.
+
+Two rejected alternatives, for the record: a **proxy metric** (per-region
+births-per-identity, no trial compose) lands 1.7% off the optimum and breaks the
+"decide on real bytes" principle; **leaving it** was rejected because per-region
+recovers the 2× gap between "never worse than the flipbook" and "as good as it
+could be." The reason the whole-run fallback couldn't simply *become* chrome
+demotion (dropping the flipbook) is item 3 above: it would regress the DM-1764
+never-worse-than-uncompressed guarantee on pure-wholesale runs.
 
 **How regions are declared — settled on the HYBRID, and shipped.** Three shapes
 were costed:
