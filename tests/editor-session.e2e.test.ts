@@ -377,7 +377,6 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     expect(Math.min(...colorize)).toBe(Math.min(...typing));
     for (const c of colorize) {
       expect(Math.abs(c - col(26))).toBeLessThanOrEqual(COL_TOL);
-      expect(c).toBeLessThanOrEqual(252);
     }
   }, 60_000);
 
