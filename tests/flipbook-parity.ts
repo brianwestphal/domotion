@@ -26,8 +26,21 @@ import { STRICT_CAPS, type CompareResult } from "../src/review/compare-pngs.js";
  * and depict the same content, so the comparison is unchanged — it just stops
  * measuring the host's AA mode instead of the compressor. The fidelity sweeps,
  * which compare against Chrome's own paint, are untouched by this.
+ *
+ * `--font-render-hinting=none` (DM-1784, rationale in DM-1783/DM-1785) disables
+ * FreeType's advance grid-fitting so the CAPTURE browser lays text out at the
+ * SAME unhinted advance Domotion's fontkit overlays use. It matters only where
+ * an assertion spans the Domotion-overlay ↔ Chrome-captured-page boundary — the
+ * editor-session ink-bbox continuity tests, on Linux, where FreeType otherwise
+ * grid-fits a mono advance to an integer (8.0 vs the fractional 7.5 fontkit and
+ * CoreText produce), drifting the overlay off the captured glyph edges by
+ * ~0.5 px/char. A NO-OP on macOS (CoreText renders effectively unhinted), and it
+ * cannot perturb the Domotion-vs-Domotion compressor parity (both sides use the
+ * same fontkit advances regardless). This is the deliberately LOCAL application
+ * DM-1785 recommends — it is NOT set as a production capture default, because
+ * the default hinted-embedded render mode wants the capture browser hinted.
  */
-export const PARITY_LAUNCH_OPTS = { args: ["--disable-lcd-text"] };
+export const PARITY_LAUNCH_OPTS = { args: ["--disable-lcd-text", "--font-render-hinting=none"] };
 
 /** Recalibration hook. Set `FLIPBOOK_METRICS=<path>` to append one JSON line
  *  per parity check — the raw strict aggregates behind the caps, on whatever
