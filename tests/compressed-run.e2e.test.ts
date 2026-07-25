@@ -649,6 +649,77 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     }
   }, 180_000);
 
+  it("multi-line same-element text: a group on a LATER line anchors on its own line, not the element's first-line textTop (DM-1788)", async () => {
+    // Two SAME-COLOR text nodes on DIFFERENT lines of ONE element. The element
+    // carries a single `textTop` (its first segment), so a glyph group born on a
+    // later line used to inherit the first line's textTop and render stacked on
+    // line 1 (the compressor's single-line render anchors on textTop, not seg.y).
+    const { browser } = env!;
+    const MW = 380, MH = 140;
+    const MLPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
+      body { margin: 0; width: ${MW}px; height: ${MH}px; background: #0d1117; }
+      #out { position: absolute; left: 16px; top: 14px; color: #c9d1d9;
+        font-family: ${FIXTURE_MONO_STACK}; font-size: 14px; line-height: 22px; white-space: pre; }
+    </style></head><body><div id="out"></div>
+    <script>
+      window.step = function (k) {
+        document.getElementById('out').innerHTML = k === 0
+          ? 'const answer = 42;'
+          : 'const answer = 42;\n\nready to render';
+      };
+      window.step(0);
+    </script></body></html>`;
+    const holds = [500, 500];
+    const boundaries = [0, holds[0]];
+    const ctx = await browser.newContext({ viewport: { width: MW, height: MH }, deviceScaleFactor: 1 });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(MLPAGE, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const trees: CapturedElement[][] = [];
+      trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: MW, height: MH }));
+      await page.evaluate(() => (window as unknown as { step: (k: number) => void }).step(1));
+      trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: MW, height: MH }));
+
+      const rootBg = "rgb(13, 17, 23)";
+      const run = composeCompressedRun(trees.map((tree, i) => ({ tree, holdMs: holds[i] })), {
+        width: MW, height: MH, idPrefix: "ml0", background: rootBg,
+      });
+
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      const frames = trees.map((tree, i) => ({
+        svgContent: elementTreeToSvgInner(structuredClone(tree), MW, MH, `ml${i}-`, true, 2, false),
+        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+      }));
+      const flipbookSvg = generateAnimatedSvg({ width: MW, height: MH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const outerSvg = generateAnimatedSvg({
+        width: MW, height: MH,
+        frames: [{ svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "mlcmp"), duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        fontFaceCss: "",
+      });
+      const flipPage = await ctx.newPage();
+      await loadSeekableSvg(flipPage, flipbookSvg);
+      const compPage = await ctx.newPage();
+      await loadSeekableSvg(compPage, outerSvg);
+      const comparePage = await ctx.newPage();
+      mkdirSync(OUT_DIR, { recursive: true });
+      for (let s = 0; s < trees.length; s++) {
+        const t = boundaries[s] + holds[s] / 2;
+        await seekTo(flipPage, t);
+        await seekTo(compPage, t);
+        const expPath = join(OUT_DIR, `multiline-${s}-flipbook.png`);
+        const actPath = join(OUT_DIR, `multiline-${s}-compressed.png`);
+        writeFileSync(expPath, await flipPage.screenshot({ clip: { x: 0, y: 0, width: MW, height: MH } }));
+        writeFileSync(actPath, await compPage.screenshot({ clip: { x: 0, y: 0, width: MW, height: MH } }));
+        const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `multiline-${s}-diff.png`));
+        expectFlipbookParity(cmp, `multi-line state ${s}: compressed render diverges from the flipbook`);
+      }
+    } finally {
+      await ctx.close();
+    }
+  }, 180_000);
+
   it("behind-glyph selection: the selection rect paints BEHIND the glyph ink (docs/101 true editor z-order)", async () => {
     // A minimal white-on-dark monospace line, selected over the middle chars
     // with an OPAQUE red selection. Behind-glyph z-order is decisive: the glyph

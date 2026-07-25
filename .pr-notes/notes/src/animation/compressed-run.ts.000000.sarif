@@ -64,6 +64,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms0e22mw8goza9sf",
+          "message": {
+            "text": "Root cause of the cross-line garble was NOT the bucket/glyph pairing (that pairs correctly — verified by instrumenting pairBuckets: bar@y85 → ready@y85, same line). It's here in groupElement: the compressor's single-line render anchors the baseline on the element's textTop, but a CapturedElement carries ONE textTop — the top of its FIRST text segment. When one element has same-color text nodes on several lines (a <div white-space:pre> with \\ns, e.g. a terminal body), a glyph group born on a LATER line inherited the first line's textTop and rendered stacked on line 1. The old textTop += dyTotal only corrected the group's own cross-line MOVE, not the offset between the group's birth line and the element's first segment. The (first.ys[0] - firstSegY) term adds that offset; for a single-line source firstSegY === first.ys[0] so it's 0 and every existing golden is byte-identical (verified: 26/26). Regression test + mutant check in compressed-run.e2e.test.ts.\n",
+            "markdown": "Root cause of the cross-line garble was NOT the bucket/glyph pairing (that pairs correctly — verified by instrumenting `pairBuckets`: bar@y85 → ready@y85, same line). It's here in `groupElement`: the compressor's single-line render anchors the baseline on the element's `textTop`, but a `CapturedElement` carries ONE `textTop` — the top of its FIRST text segment. When one element has same-color text nodes on several lines (a `<div white-space:pre>` with `\\n`s, e.g. a terminal body), a glyph group born on a LATER line inherited the first line's textTop and rendered stacked on line 1. The old `textTop += dyTotal` only corrected the group's own cross-line MOVE, not the offset between the group's birth line and the element's first segment. The `(first.ys[0] - firstSegY)` term adds that offset; for a single-line source `firstSegY === first.ys[0]` so it's 0 and every existing golden is byte-identical (verified: 26/26). Regression test + mutant check in compressed-run.e2e.test.ts.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/compressed-run.ts"
+                },
+                "region": {
+                  "startLine": 1071,
+                  "endLine": 1071,
+                  "snippet": {
+                    "text": "    const firstSegY = first.rec.srcEl.textSegments?.[0]?.y ?? first.ys[0];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1788"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "47d51b0c5544b631c2fdf349518b4e7a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ba17e17160030b9cd1f8035e86883ebb133b667c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

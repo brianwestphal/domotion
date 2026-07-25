@@ -1059,7 +1059,18 @@ function groupElement(group: GlyphGroup): CapturedElement {
   // vertical move to rest at its FINAL y. dyTotal ≡ 0 for a static line, so
   // non-moving output is byte-identical. textLeft is unaffected: horizontal
   // shifts ride the absolute xOffsets, which land independent of textLeft.
-  if (el.textTop != null) el.textTop += dyTotal;
+  // A multi-line source element carries a SINGLE `textTop` — the top of its
+  // FIRST text segment. A group whose glyphs come from a LATER line of that same
+  // element (e.g. two same-color text nodes on different lines of one `<div>`)
+  // must offset textTop by that birth line's distance from the first segment, ON
+  // TOP of any cross-line move (dyTotal) — otherwise it anchors on the element's
+  // first line and renders stacked there (DM-1788). For a single-line source the
+  // first segment IS the group's birth line, so the offset is 0 and the composed
+  // output is byte-identical.
+  if (el.textTop != null) {
+    const firstSegY = first.rec.srcEl.textSegments?.[0]?.y ?? first.ys[0];
+    el.textTop += (first.ys[0] - firstSegY) + dyTotal;
+  }
   return el;
 }
 
