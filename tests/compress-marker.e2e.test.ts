@@ -84,8 +84,12 @@ describeBrowser("compress: true marker — pixel-identical, and only where marke
   it("collapses just the marked run and rasterizes identically at every state", async () => {
     const { browser, dir } = env!;
 
-    const flipCfg = validateAnimateConfig({ width: W, height: H, frames: PLAIN_FRAMES });
-    const markCfg = validateAnimateConfig({ width: W, height: H, frames: FRAMES });
+    // `autoCompress: false` on the flipbook baseline AND the marker config so
+    // the DEFAULT auto-collapse (DM-1768) doesn't interfere: the flip stays
+    // uncompressed (5 frames) and `mark` isolates the `compress: true` MARKER
+    // (only the marked run collapses) rather than also auto-collapsing the rest.
+    const flipCfg = validateAnimateConfig({ width: W, height: H, autoCompress: false, frames: PLAIN_FRAMES });
+    const markCfg = validateAnimateConfig({ width: W, height: H, autoCompress: false, frames: FRAMES });
     const autoCfg = validateAnimateConfig({ width: W, height: H, autoCompress: true, frames: PLAIN_FRAMES });
 
     const markLogs: string[] = [];

@@ -78,7 +78,9 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
   it("reverts a wholesale-change run to uncompressed states, without growing the output", async () => {
     const { browser, dir } = env!;
 
-    const flipCfg = validateAnimateConfig({ width: W, height: H, frames: FRAMES });
+    // `autoCompress: false` — the uncompressed baseline (auto-collapse is the
+    // default since DM-1768, so the flipbook reference must opt out explicitly).
+    const flipCfg = validateAnimateConfig({ width: W, height: H, autoCompress: false, frames: FRAMES });
     const compCfg = validateAnimateConfig({ width: W, height: H, autoCompress: true, frames: FRAMES });
 
     const compLogs: string[] = [];
@@ -155,7 +157,7 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
       })),
     ];
     const logs: string[] = [];
-    const flip = await composeAnimateFrames(browser, validateAnimateConfig({ width: W, height: H, frames }), { configDir: dir });
+    const flip = await composeAnimateFrames(browser, validateAnimateConfig({ width: W, height: H, autoCompress: false, frames }), { configDir: dir });
     const comp = await composeAnimateFrames(browser, validateAnimateConfig({ width: W, height: H, autoCompress: true, frames }), { configDir: dir, log: (m) => logs.push(m) });
     expect(logs.some((l) => /reverting frame/.test(l))).toBe(false);
     // And it is a real win, not a wash.
@@ -216,7 +218,7 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
     writeFileSync(join(dir, "mixed.html"), MIXED_HTML);
     const cfg = { width: MW, height: MH, frames: MIXED_FRAMES };
 
-    const flip = await composeAnimateFrames(browser, validateAnimateConfig(cfg), { configDir: dir });
+    const flip = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: false }), { configDir: dir });
     const logs: string[] = [];
     const comp = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), { configDir: dir, log: (m) => logs.push(m) });
 

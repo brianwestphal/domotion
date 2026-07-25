@@ -439,7 +439,7 @@ There are three ways to get a compressed run, from most explicit to least:
 | --- | --- | --- | --- |
 | `states: [...]` (§11) | one frame you author | yes — states live inside one frame | n/a (you wrote the states) |
 | `compress: true` (§13.2) | one run you mark | no | **hard error** naming the frame + reason |
-| `autoCompress: true` (§13.1) | every run in the config | no | left uncompressed, logged reason |
+| `autoCompress` (§13.1, **default ON**) | every run in the config | no | left uncompressed, logged reason |
 
 All three end up at the **same** machinery and the same output shape: `autoCompress` and `compress` are pure config pre-passes that rewrite the run into a `states` frame before capture, so the composed result is exactly what hand-authoring the `states` block would have produced. Per doc 100 the result is **pixel-identical to the uncompressed flipbook** at every time; the win is **raw size + live-DOM weight** (shared content emitted once), never fidelity.
 
@@ -447,15 +447,16 @@ All three end up at the **same** machinery and the same output shape: `autoCompr
 
 The `states` block (§11) is the **explicit** way to compress an editing run: the author lists the states inside one frame. `autoCompress` is the **automatic** counterpart — a top-level opt-in that finds compressible runs in an *ordinary* multi-frame config and collapses each without the author restructuring anything.
 
-**Surface.** A top-level boolean (also `--auto-compress` on the CLI, which forces it on regardless of the config key):
+**Surface.** A top-level boolean, **default ON** — set `"autoCompress": false` (or `--no-auto-compress` on the CLI) to opt out; `--auto-compress` is a redundant explicit-on:
 
 ```jsonc
-{ "width": 640, "height": 360, "autoCompress": true, "frames": [ /* ordinary continue+cut frames */ ] }
+{ "width": 640, "height": 360, "frames": [ /* ordinary continue+cut frames — collapsed automatically */ ] }
+{ "width": 640, "height": 360, "autoCompress": false, "frames": [ /* … kept as N sibling frames */ ] }
 ```
 
 **What it does.** Before capture, a pre-pass detects **maximal runs of consecutive plain `continue` + `cut` frames** and rewrites each into a single `states` compressed run (§11) — reusing the exact same machinery, so the composed output is a nested compressed run just as if you had authored the `states` block by hand. Per doc 100, the result is **pixel-identical to the uncompressed flipbook** at every time; the win is **raw size + live-DOM weight** (shared content emitted once), never fidelity. The pairing-ratio log line (`compress: run of N states, …`) surfaces for each collapsed run.
 
-**Default OFF — and why.** Turning it on changes the **output shape** of any config that contains such a run (those frames now nest as one run instead of N sibling frame groups). That is a deliberate, global decision, so it is opt-in; a config without the flag is byte-identical to before. This mirrors doc 100's staged rollout ("behind a flag first, then default").
+**Default ON (DM-1768) — and why it's safe.** Compression is pixel-identical to the flipbook, and the size-regression guard makes it impossible to grow output — a run that composes larger than its uncompressed states is reverted (see below). Flipping the default was gated on three prerequisites, all now met: the exclusion set (overlays and every other per-frame decoration split the run cleanly rather than mis-collapsing), the size guard (shipped, DM-1772), and a golden-regeneration pass that turned out to be a **no-op** — the entire committed example corpus is byte-neutral under the flip because none of it has an auto-collapsible plain continue+cut run (all use non-cut transitions, per-frame decorations, or explicit `states`). So a config's output only changes if it actually contains such a run, and even then only in shape (nested run vs N sibling frames), never in pixels or — thanks to the guard — in a way that grows. Opt out with `autoCompress: false` where you want the frames kept separate.
 
 **Safe scope.** A run is collapsed only when it is safe to do so with zero interaction loss; anything else is **left uncompressed with a logged reason** (never a hard error). A run's members must all be plain captured frames with a `cut` transition and **none** of: `overlays`, `animations`, `textTracks`, `forceState`, a non-default (`body`) `selector`, or a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`). Non-anchor members must be pure `continue` frames with no readiness waits or `scrollTo` (a `states` run has no per-state readiness wait; a frame carrying one instead becomes the anchor of the *next* run). Frame-addressed features that survive (explicit `cursor.events[].frame` on frames *outside* the runs) are **remapped** onto the collapsed indices automatically.
 

@@ -854,17 +854,19 @@ export const animateConfigSchema = z
     /** DM-851 §6 — config-level cursor overlay. */
     cursor: cursorSchema.optional(),
     /**
-     * DM-1757 (docs/100 Primitive 1): opt into AUTOMATIC compressed-run
-     * detection. When `true`, a pre-pass detects maximal runs of consecutive
-     * plain `continue` + `cut` frames with no per-frame interactions crossing
-     * them (no overlays / animations / textTracks / forceState / cursor events /
-     * magic-move entry) and collapses each into ONE `states` compressed run —
-     * shared content emitted once, later frames contributing only their changes
-     * (docs/100). Output is pixel-identical to the uncompressed flipbook; the
-     * win is raw size + live-DOM weight. DEFAULTS OFF: turning it on changes the
-     * output shape of any config that has such a run (frames nest as a run), so
-     * it is a deliberate opt-in (also `--auto-compress` on the CLI). Runs it
-     * can't safely collapse are left untouched with a logged reason.
+     * DM-1757 (docs/100 Primitive 1): AUTOMATIC compressed-run detection. A
+     * pre-pass detects maximal runs of consecutive plain `continue` + `cut`
+     * frames with no per-frame interactions crossing them (no overlays /
+     * animations / textTracks / forceState / cursor events / magic-move entry)
+     * and collapses each into ONE `states` compressed run — shared content
+     * emitted once, later frames contributing only their changes (docs/100).
+     * Output is pixel-identical to the uncompressed flipbook; the win is raw
+     * size + live-DOM weight. DEFAULTS ON (DM-1768): the size-regression guard
+     * makes it safe (a run that composes larger than its uncompressed states is
+     * reverted, so it can never grow output — DM-1772), and it is byte-neutral
+     * on the whole committed example corpus. Set `false` (or `--no-auto-compress`
+     * on the CLI) to opt OUT; runs it can't safely collapse are left untouched
+     * with a logged reason regardless.
      */
     autoCompress: z.boolean().optional(),
     frames: z.array(frameSchema).min(1, "must be a non-empty array"),
@@ -1057,6 +1059,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       optimize:      { type: "boolean" },
       "no-optimize": { type: "boolean" },
       "auto-compress": { type: "boolean" },
+      "no-auto-compress": { type: "boolean" },
       brand:         { type: "string" },
       quiet:         { type: "boolean" },
       help:          { type: "boolean", short: "h" },
@@ -1068,6 +1071,9 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   if (values.optimize === true && values["no-optimize"] === true) {
     throw new Error("animate: --optimize and --no-optimize are mutually exclusive");
   }
+  if (values["auto-compress"] === true && values["no-auto-compress"] === true) {
+    throw new Error("animate: --auto-compress and --no-auto-compress are mutually exclusive");
+  }
 
   const configPath = resolve(positionals[0]);
   if (!existsSync(configPath)) throw new Error(`animate: config not found: ${configPath}`);
@@ -1075,10 +1081,11 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const cfgRaw: unknown = JSON.parse(readFileSync(configPath, "utf8"));
   const cfg = validateAnimateConfig(cfgRaw);
   const configDir = dirname(configPath);
-  // DM-1757: `--auto-compress` forces the opt-in automatic compressed-run
-  // detection on regardless of the config's own `autoCompress` key (the config
-  // key stays the persistent form). Defaults off either way.
+  // Automatic compressed-run detection defaults ON (DM-1768). `--auto-compress`
+  // is now a redundant explicit-on; `--no-auto-compress` opts OUT for this run
+  // (the config's own `autoCompress` key stays the persistent form).
   if (values["auto-compress"] === true) cfg.autoCompress = true;
+  if (values["no-auto-compress"] === true) cfg.autoCompress = false;
 
   // DM-1538: `--format <name|WxH>` re-targets the config's canvas (the animate
   // viewport). Precedence: explicit `--width`/`--height` > format > the config's
@@ -2611,10 +2618,15 @@ function collapseCompressibleRuns(
  * EVERY eligible maximal `continue` + `cut` run into a `states` compressed run,
  * skipping (with a logged reason) anything the v1 safe scope excludes.
  *
- * Exported for unit tests. Returns `cfg` unchanged when `autoCompress` is off.
+ * Exported for unit tests. DM-1768: default-ON — collapses unless the config
+ * explicitly sets `autoCompress: false` (undefined ⇒ on). The size-regression
+ * guard makes this safe (an auto-collapsed run that composes larger than its
+ * uncompressed states is reverted, DM-1772), and it is byte-neutral on the whole
+ * committed example corpus (nothing there has an auto-collapsible plain
+ * continue+cut run). Returns `cfg` unchanged only when compression is opted out.
  */
 export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
-  if (cfg.autoCompress !== true) return cfg;
+  if (cfg.autoCompress === false) return cfg;
   return collapseCompressibleRuns(cfg, log, "auto");
 }
 

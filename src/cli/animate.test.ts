@@ -1137,13 +1137,21 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   const cfgOf = (frames: unknown[], extra: Record<string, unknown> = {}) =>
     validateAnimateConfig({ ...B, ...extra, frames });
 
-  it("is a no-op when autoCompress is off (frames unchanged)", () => {
-    const cfg = cfgOf([
+  it("DM-1768: default-ON — collapses a plain run by default, no-op only when explicitly off", () => {
+    const frames = [
       { input: "a.html", duration: 100, transition: cut },
       { continue: true, duration: 100, transition: cut },
       { continue: true, duration: 100, transition: cut },
-    ]);
-    expect(autoCompressRuns(cfg)).toBe(cfg);
+    ];
+    // Explicit opt-out (`autoCompress: false`) is a genuine no-op.
+    const off = cfgOf(frames, { autoCompress: false });
+    expect(autoCompressRuns(off)).toBe(off);
+    // The DEFAULT (unset) now collapses the maximal continue+cut run.
+    const def = cfgOf(frames);
+    const out = autoCompressRuns(def);
+    expect(out).not.toBe(def);
+    expect(out.frames).toHaveLength(1);
+    expect(out.frames[0].input).toBe("a.html");
   });
 
   it("collapses a maximal continue+cut run into ONE states frame", () => {

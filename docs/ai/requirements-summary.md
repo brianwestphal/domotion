@@ -198,8 +198,8 @@ they describe (see `CLAUDE.md` "Documentation"):
   compressed run). Includes two small independent fold-ins on the existing
   `typing` overlay: `holdToFrameEnd` (opt out of the forced 150 ms end-of-frame
   fade) and a baseline anchor mode (`anchor.baseline: true`).
-  **Automatic run detection (DM-1757) — shipped behind an opt-in flag,
-  default OFF.** `autoCompress: true` (or `--auto-compress`; docs/43 §13) runs a
+  **Automatic run detection (DM-1757) — shipped, default ON (DM-1768).**
+  `autoCompress` (opt out with `false` / `--no-auto-compress`; docs/43 §13) runs a
   config pre-pass in `composeAnimateFrames` that collapses maximal consecutive
   `continue` + `cut` runs into `states` frames — reusing the block machinery
   verbatim, so the 1 config-frame ↔ 1 animation-frame reindexing (frameStartsMs,
@@ -224,9 +224,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   stay a split point by evaluation, not omission: overlay lifetime is
   frame-scoped and anchors resolve against the run's LAST state, so preserving
   them needs an explicit per-overlay window + per-state anchor resolution in the
-  overlay model (doc 43 §13.1). The default-flip to ON is still a separate
-  decision — prerequisite 2 (size guard) is now met, 1 is partly met, and the
-  golden regen pass is untouched (doc 100 "Default-flip recommendation").
+  overlay model (doc 43 §13.1). The default-flip to ON SHIPPED (DM-1768): all
+  three prerequisites met — (1) exclusion set (overlays handled by sub-run
+  splitting, DM-1767), (2) size guard (DM-1772), (3) golden regen was a no-op
+  (byte-neutral across all 26 goldens — the corpus has no auto-collapsible plain
+  continue+cut run). Opt out per config with `autoCompress: false`.
   **Per-run marker (DM-1761) — shipped.** `compress: true` on a run's anchor
   frame (docs/43 §13.2) collapses that ONE run through the same pre-pass, leaving
   every other frame alone — the surgical counterpart to the whole-config flag,

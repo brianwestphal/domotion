@@ -215,9 +215,9 @@ config-frame ↔ 1 animation-frame invariant that the block form preserves for
 free (the reindexing of `frameStartsMs` / cursor `events[].frame` falls out of
 operating on the rewritten config; explicit cursor events are remapped onto the
 collapsed indices). Output is pixel-identical to the flipbook (verified in
-`tests/auto-compress.e2e.test.ts`). It **defaults OFF** because flipping it on
-changes the output shape of every config with such a run; the default-flip is a
-separate, deliberate decision (see "Default-flip recommendation" below). It
+`tests/auto-compress.e2e.test.ts`). It **defaults ON** (DM-1768 — see
+"Default-flip" below; opt out with `autoCompress: false`), changing the output
+shape only of a config that actually contains such a run. It
 compresses pure continue+cut runs with no
 overlays/animations/textTracks/forceState crossing them; everything else is
 left uncompressed with a logged reason.
@@ -310,19 +310,22 @@ true` marker — is never silently rewritten; it gets a `note:` line reporting t
 measured growth and pointing at `compress: false`. Same contract as the marker's
 hard error: don't quietly turn what they wrote into something else.
 
-**Default-flip recommendation (DM-1757).** Flip `autoCompress` to default-ON
-only after: (1) the excluded complex-interaction cases (per-frame overlays,
-cursor events, and magic-move transitions *inside* a run) are either handled or
-the exclusion set is proven complete against the real config corpus —
-**partially met**: sub-run splitting (above) reduces every remaining exclusion
-to a per-frame cost instead of a per-run one, and overlays are the one case
-still open; (2) a size-regression guard confirms no config's raw output GROWS —
-**met** (above); and (3) every committed golden is regenerated in one reviewed
-pass (the flip shifts the output shape of any golden that contains a
-compressible run — expected, not a regression) — **not started**, and it stays
-last because it is only worth doing once (1) is settled. The risk surface is
-exactly "changes every existing config's output": frame-count, nesting, and any
-frame-addressed feature crossing a run. Until then it stays opt-in.
+**Default-flip — SHIPPED (DM-1768). `autoCompress` is now default-ON.** The
+flip was gated on three prerequisites, all now met: (1) the excluded
+complex-interaction cases (per-frame overlays, cursor events, magic-move *inside*
+a run) — **met**: sub-run splitting (above) reduces every exclusion to a
+per-frame cost, and overlays are handled by that same splitting (they split the
+run and the sub-runs on either side compress independently — not a gap; DM-1767);
+(2) a size-regression guard confirms no config's raw output GROWS — **met**, and
+strengthened to per-region demotion (DM-1772); (3) every committed golden
+regenerated in one reviewed pass — **met, and it was a no-op**: the entire
+committed example corpus is byte-neutral under the flip, because none of it has an
+auto-collapsible plain continue+cut run (all use non-cut transitions, per-frame
+decorations, or explicit `states` — measured across all 26 goldens). So the flip
+changed zero shipped output. Opt out per config with `autoCompress: false` (or
+`--no-auto-compress`); the risk surface — frame-count/nesting/frame-addressed
+features crossing a run — applies only to a config that actually contains such a
+run, and even then only its shape changes, never its pixels.
 
 Interactions (all inherited from the nested-block precedent): outer transitions
 compose normally around the run (the run holds its final state until the cut);

@@ -77,7 +77,9 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
   it("collapses the continue+cut run and rasterizes identically at every state", async () => {
     const { browser, dir } = env!;
 
-    const flipCfg = validateAnimateConfig({ width: W, height: H, frames: FRAMES });
+    // `autoCompress: false` — the uncompressed flipbook baseline (DM-1768 made
+    // auto-collapse the DEFAULT, so this reference must opt out explicitly).
+    const flipCfg = validateAnimateConfig({ width: W, height: H, autoCompress: false, frames: FRAMES });
     const compCfg = validateAnimateConfig({ width: W, height: H, autoCompress: true, frames: FRAMES });
 
     const flipLogs: string[] = [];
@@ -148,7 +150,7 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
     // The cursor event lands on frame 3 — the middle of the eligible window.
     const cursor = { events: [{ frame: 3, at: 0, type: "click", selector: "#line" }] };
 
-    const flipCfg = validateAnimateConfig({ width: W, height: H, cursor, frames: splitFrames });
+    const flipCfg = validateAnimateConfig({ width: W, height: H, cursor, autoCompress: false, frames: splitFrames });
     const compCfg = validateAnimateConfig({ width: W, height: H, cursor, autoCompress: true, frames: splitFrames });
 
     const compLogs: string[] = [];

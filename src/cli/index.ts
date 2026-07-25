@@ -242,9 +242,10 @@ animate options:
       --auto-compress      Collapse maximal runs of consecutive continue+cut
                            frames into compressed states runs (shared content
                            emitted once; pixel-identical to the flipbook, smaller
-                           raw size + lighter live DOM). Opt-in — off by default;
-                           also settable as "autoCompress": true in the config.
-                           See docs/100 / docs/43.
+                           raw size + lighter live DOM). ON by default — this flag
+                           is a redundant explicit-on. See docs/100 / docs/43.
+      --no-auto-compress   Opt OUT of the automatic collapse for this run (also
+                           settable as "autoCompress": false in the config).
       --brand <file>       Brand-kit JSON. Injects the brand's CSS custom
                            properties onto every CAPTURED frame's :root before
                            capture (same var names as capture --brand; see
