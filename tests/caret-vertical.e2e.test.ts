@@ -5,6 +5,7 @@ import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs } from "../src/render/index.js";
 import { generateAnimatedSvg, resolveTextTrack, resolveCaretPoint, resolveRangeRects, addressableLength } from "../src/animation/index.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
+import { loadSeekableSvg } from "./flipbook-parity.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // Vertical-writing-mode addressing (docs/101): a caret / selection addressed
@@ -185,8 +186,7 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
       expect(svg).toContain('class="text-track"');
 
       const viewer = await ctx.newPage();
-      await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await viewer.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(viewer, svg);
       const shot = async (tMs: number): Promise<Buffer> => {
         await seekTo(viewer, tMs);
         return viewer.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });

@@ -4,6 +4,7 @@ import {
   findDuplicateIds,
   fitContain,
   frameSampleTimeMs,
+  htmlWrapper,
   isAnimatedImageContainer,
   isTransparentBackground,
   parseSvgIntrinsicSize,
@@ -12,6 +13,18 @@ import {
   type AnimTiming,
   type ResolvedFormat,
 } from "./svg-to-video-core.js";
+
+describe("htmlWrapper", () => {
+  const svg = "<svg><rect/></svg>";
+  it("does NOT pin animations by default — svg-scrubber's play mode needs them running", () => {
+    expect(htmlWrapper(svg, "#fff")).not.toContain("animation-play-state");
+  });
+  it("pins animations paused when asked, so the frame-export paths seek forward-only (DM-1779)", () => {
+    const w = htmlWrapper(svg, "#fff", true);
+    expect(w).toContain("*{animation-play-state:paused!important}");
+    expect(w).toContain(svg);
+  });
+});
 
 describe("fitContain", () => {
   it("returns the natural size (rounded to even) when no bounds are given", () => {

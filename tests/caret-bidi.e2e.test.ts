@@ -5,6 +5,7 @@ import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs } from "../src/render/index.js";
 import { generateAnimatedSvg, resolveTextTrack, resolveCaretPoint, resolveRangeRects } from "../src/animation/index.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
+import { loadSeekableSvg } from "./flipbook-parity.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // Logical-order addressing over RTL / bidi runs (docs/101), CALIBRATED AGAINST
@@ -285,8 +286,7 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       });
 
       const viewer = await ctx.newPage();
-      await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
-      await viewer.evaluate(() => document.fonts.ready);
+      await loadSeekableSvg(viewer, svg);
       await seekTo(viewer, 1500);
 
       for (let i = 0; i < cases.length; i++) {

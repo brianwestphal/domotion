@@ -568,11 +568,24 @@ function fmtBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-export function htmlWrapper(svgMarkup: string, background: string): string {
+/**
+ * Wrap `svgMarkup` in a full-viewport page for rasterizing.
+ *
+ * `pauseAnimations` pins `animation-play-state: paused` from the first frame, so
+ * the animation never free-runs before it is first seeked and every seek is
+ * forward-only (DM-1779: a seek BACKWARD across a free-run leaves a stable torn
+ * frame — glyph-insertion runs / frame groups don't cleanly revert). The
+ * frame-EXPORT paths (svg-to-video, svg-to-image) only ever seek, so they pass
+ * true to harden the FIRST exported frame against a torn capture under load.
+ * svg-scrubber leaves it false — it has a PLAY mode that needs the animation to
+ * actually run, and its interactive per-step scrubbing re-renders cleanly.
+ */
+export function htmlWrapper(svgMarkup: string, background: string, pauseAnimations = false): string {
   return (
     "<!doctype html><html><head><meta charset=\"utf-8\"><style>" +
     `html,body{margin:0;padding:0;background:${background}}` +
     "svg{display:block;width:100vw;height:100vh}" +
+    (pauseAnimations ? "*{animation-play-state:paused!important}" : "") +
     "</style></head><body>" +
     svgMarkup +
     "</body></html>"
@@ -631,7 +644,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
       deviceScaleFactor: opts.scale,
     });
     const page = await context.newPage();
-    await page.setContent(htmlWrapper(svgMarkup, renderBackground), { waitUntil: "load" });
+    await page.setContent(htmlWrapper(svgMarkup, renderBackground, true), { waitUntil: "load" });
 
     // Collect every CSS/Web-Animation's timing (and whether SMIL is present) so
     // we can derive the render duration. Runs in the page — no outer scope.

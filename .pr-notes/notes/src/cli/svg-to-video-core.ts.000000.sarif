@@ -64,6 +64,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mrzmazadnr5e8oo7",
+          "message": {
+            "text": "pauseAnimations is opt-in (default false) SPECIFICALLY so svg-scrubber is excluded. The scrubber shares htmlWrapper (src/scrubber/server.ts) but has a PLAY mode that needs the animation to actually run — pinning animation-play-state: paused globally would freeze it. The frame-EXPORT paths (svg-to-video, svg-to-image) only ever seek, so they pass true to harden the FIRST exported frame against the DM-1779 backward-seek tear (a free-run before the first seek, then seeking back to frame 0). svg-scrubber's interactive per-step scrubbing re-renders cleanly, so it doesn't need the pin. Verified: svg-to-image-e2e (paused export) and scrubber server.e2e (play mode) both green.\n",
+            "markdown": "`pauseAnimations` is opt-in (default false) SPECIFICALLY so svg-scrubber is excluded. The scrubber shares `htmlWrapper` (src/scrubber/server.ts) but has a PLAY mode that needs the animation to actually run — pinning `animation-play-state: paused` globally would freeze it. The frame-EXPORT paths (svg-to-video, svg-to-image) only ever seek, so they pass true to harden the FIRST exported frame against the DM-1779 backward-seek tear (a free-run before the first seek, then seeking back to frame 0). svg-scrubber's interactive per-step scrubbing re-renders cleanly, so it doesn't need the pin. Verified: svg-to-image-e2e (paused export) and scrubber server.e2e (play mode) both green.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/svg-to-video-core.ts"
+                },
+                "region": {
+                  "startLine": 583,
+                  "endLine": 583,
+                  "snippet": {
+                    "text": "export function htmlWrapper(svgMarkup: string, background: string, pauseAnimations = false): string {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-1786"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b2c53c4bb6488ee2961b9348caabdee5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7beb0b5698ef1bfee09c98abc170cb3623de4fbd",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

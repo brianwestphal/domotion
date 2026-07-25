@@ -5,6 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import type { Page } from "@playwright/test";
 import { launchChromium } from "../src/capture/index.js";
+import { loadSeekableSvg } from "./flipbook-parity.js";
 import { composeAnimateConfig, validateAnimateConfig } from "../src/cli/animate.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
@@ -103,7 +104,7 @@ describeBrowser("intra-frame opacity fade-in from a partially-transparent captur
       // Rasterize the composed SVG (inline, so document.getAnimations() sees
       // the CSS animations) at rest (t=10ms, before the 400ms delay) and at
       // the peak (t=1900ms, after the animation window ends and holds `to`).
-      await page.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`);
+      await loadSeekableSvg(page, svg);
       await seekTo(page, 10);
       const [restDim, restHidden] = await samplePixels(page, [DIM_PX, HIDDEN_PX]);
       await seekTo(page, 1900);

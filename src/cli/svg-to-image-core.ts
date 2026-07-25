@@ -141,7 +141,9 @@ export async function runSvgToImage(
       deviceScaleFactor: format === "pdf" ? 1 : scale,
     });
     const page = await context.newPage();
-    await page.setContent(htmlWrapper(svgMarkup, renderBackground), { waitUntil: "load" });
+    // pauseAnimations: pin the timeline so the single seek to `atMs` is
+    // forward-from-0, never a backward seek across a free-run (DM-1779).
+    await page.setContent(htmlWrapper(svgMarkup, renderBackground, true), { waitUntil: "load" });
     // Let embedded webfonts (data-URI @font-face) finish loading before we shoot.
     await page
       .evaluate(() => (document as unknown as { fonts: { ready: Promise<unknown> } }).fonts.ready)
