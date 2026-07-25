@@ -12,7 +12,7 @@ Open any `<name>.svg` in a browser to watch it loop.
 | Folder | Demonstrates |
 |---|---|
 | `crossfade-cards/` | A **crossfade** transition between two full-bleed scenes. Each frame composites as a complete sub-SVG and dissolves by opacity. |
-| `progress-install/` | **`cut`** transitions between terminal states, a **typing overlay** (with a blinking `caret`) that types a command, and an **intra-frame `animations`** entry that fills a progress bar by revealing a full-width fill via a **`clipPath` inset**. |
+| `progress-install/` | A **typing overlay** (with a blinking `caret`) types `npm install`, then a **`states` compressed run** (docs/100 / docs/103) drives the output forward — `Resolving…`, a textual progress bar filling cell-by-cell, then the completion lines — so the terminal chrome and unchanged lines emit once and only the deltas animate. |
 | `slides-pushleft/` | A **`push-left`** transition across three slides — each slides in from the right while the previous slides off to the left. |
 | `scroll-feed/` | A **`scroll` block**: one tall page captured at multiple scroll positions via the pattern grammar (`down:bottom/6s`) and composed into one scrolling SVG. The sticky header stays put while the feed scrolls. |
 | `svg-overlay/` | A **`kind: "svg"` overlay** — a separately-authored `badge.svg` inlined into the frame (its ids namespaced to avoid collisions) and slid in from the bottom with the `enter` sugar. |

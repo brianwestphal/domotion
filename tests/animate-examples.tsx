@@ -65,14 +65,16 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 700 200"`)) f.push("missing viewBox 700x200");
-      if (count(svg, /class="f f-\d+"/g) !== 3) f.push("expected 3 frame groups");
-      // Frame 0 types the command with a blinking caret; frame 1 fills the
-      // progress bar by revealing a full-width fill via a clip-path inset
-      // (not by animating width% on a captured zero-width rect, which doesn't
-      // paint — that was the old bug).
+      // Two frame groups: frame 0 types the command with a blinking caret;
+      // frame 1 is ONE compressed run whose states drive the npm output forward
+      // (resolving → a textual progress bar filling → the completion lines), so
+      // the terminal chrome and unchanged lines emit once and only the deltas
+      // animate (docs/100 / docs/103).
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups (typing + one compressed run)");
       if (!/typing|domotion-typing|<text/i.test(svg)) f.push("missing typing-overlay text");
-      if (!/@keyframes f1-/.test(svg)) f.push("missing intra-frame animation keyframes on frame 1 (progress fill)");
-      if (!/clip-path|clipPath|inset\(/.test(svg)) f.push("missing clip-path reveal on the progress fill");
+      if (!/t0-caret-blink/.test(svg)) f.push("missing the typing overlay's blinking caret");
+      if (!/@keyframes cr1_cr1k\d+/.test(svg)) f.push("missing the compressed run's per-state keyframe tracks (cr1_cr1k…)");
+      if (!/cr1_anim-cr/.test(svg)) f.push("missing the compressed run's glyph groups (cr1_anim-cr…)");
       return f;
     },
   },
