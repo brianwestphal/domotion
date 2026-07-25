@@ -149,6 +149,15 @@ or the shared caps stop holding off macOS:
    `registerFixtureFonts()` (for Domotion's outlines) — miss either and the
    fixture silently falls back to a host font on one side.
 
+   **Scope:** this platform-independence holds only because both compared images
+   come from *our* renderer (same fontkit outlines/advances on every host). It
+   does **not** make Chrome-*captured* metrics platform-independent — Chrome-on-
+   Linux (FreeType) grid-fits even a pinned face's advances to integer pixels
+   where CoreText/fontkit use the fractional advance (DM-1783). An assertion that
+   compares a Domotion-rendered overlay against a Chrome-captured page still
+   drifts by that hinting delta on Linux; pinning does not fix it (launching the
+   capture browser with `--font-render-hinting=none` does — DM-1783/DM-1784).
+
 Unlike the per-platform hinting floor below, this bar needs no per-platform
 relief: there the two images come from *different* rasterizers, so the host's
 text rendering is inherently part of the measurement; here both come from ours.

@@ -25,6 +25,15 @@ import { registerWebfont } from "../src/render/index.js";
  * faces collapses the ceiling to one number on every platform, which is what
  * lets ONE cap set gate all three.
  *
+ * SCOPE — this platform-independence is for the compressor's Domotion-vs-Domotion
+ * parity ONLY (both the compressed render and the flipbook come from our renderer,
+ * so both use the same fontkit outlines/advances regardless of host). It does NOT
+ * make CHROME-captured metrics platform-independent: Chrome-on-Linux (FreeType)
+ * grid-fits a pinned face's advances to integer pixels where CoreText/fontkit use
+ * the fractional advance (DM-1783: JetBrains Mono 8.0 vs 7.5 px/char), so any
+ * assertion that compares a Domotion-rendered overlay against a Chrome-captured
+ * page still drifts by the hinting delta on Linux — pinning does not fix that.
+ *
  * HOW TO USE IT — a fixture needs BOTH halves, for two different consumers:
  *
  *   1. Put `FIXTURE_FONT_CSS` in the page's `<style>` and reference
