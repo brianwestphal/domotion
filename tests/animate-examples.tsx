@@ -60,32 +60,10 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
-  {
-    name: "progress-install",
-    check: (svg) => {
-      const f: string[] = [];
-      if (!svg.includes(`viewBox="0 0 700 200"`)) f.push("missing viewBox 700x200");
-      // Three frame groups: frame 0 types the command with a blinking caret;
-      // frame 1 fills the polished blue→purple gradient progress bar via an
-      // intra-frame clipPath reveal; frame 2 is ONE compressed run whose states
-      // land the completion lines one at a time, so the terminal chrome and the
-      // settled lines emit once and only the newly-revealed line animates in
-      // (docs/100 / docs/103 / docs/43 §11).
-      if (count(svg, /class="f f-\d+"/g) !== 3) f.push("expected 3 frame groups (typing + gradient bar + one compressed run)");
-      if (!/typing|domotion-typing|<text/i.test(svg)) f.push("missing typing-overlay text");
-      if (!/t0-caret-blink/.test(svg)) f.push("missing the typing overlay's blinking caret");
-      // The gradient progress bar is the demo's centerpiece — a linear-gradient
-      // fill revealed left-to-right by a clipPath animation. Lock both in so a
-      // regression can't silently drop it back to a plain/textual bar.
-      if (!/<linearGradient/.test(svg)) f.push("missing the progress bar's linear-gradient fill");
-      if (!/stop-color="rgb\(88,166,255\)"/.test(svg) || !/stop-color="rgb\(163,113,247\)"/.test(svg)) f.push("progress bar lost its blue→purple gradient stops");
-      if (!/clip-path/.test(svg)) f.push("missing the progress bar's clipPath reveal");
-      // The compressed run is frame 2 (cr2_…): per-state keyframe tracks + glyph groups.
-      if (!/@keyframes cr2_cr2k\d+/.test(svg)) f.push("missing the compressed run's per-state keyframe tracks (cr2_cr2k…)");
-      if (!/cr2_anim-cr/.test(svg)) f.push("missing the compressed run's glyph groups (cr2_anim-cr…)");
-      return f;
-    },
-  },
+  // NOTE: `progress-install` moved OUT of the animate-config golden harness — it
+  // is now a realistic terminal-cast demo (`examples/progress-install.ts`, run
+  // via `demos:examples`), rendered through the `domotion term` pipeline rather
+  // than an animate config. See examples/output/progress-install.svg.
   {
     name: "slides-pushleft",
     check: (svg) => {

@@ -7,7 +7,11 @@ hand-authored terminal demos with automatic capture from a real program.
 then hand-rolls macOS window chrome (traffic lights + title bar, as a plain SVG
 string) and composites it over the terminal via `composeAnimatedLayers` — it does
 *not* use the doc-65 `--chrome window` bezel. It's the canonical runnable demo of
-the verb.
+the verb. `examples/progress-install.ts` drives the same pipeline for a realistic
+`npm install domotion-svg` session — the command types a key at a time, npm's
+braille reify spinner cycles in place (carriage-return overwrites), then the
+completion summary lands and the prompt returns with a caret — showcasing the
+default `incremental` composer on both append and overwrite output.
 
 ## Front-end: asciinema `.cast`
 
