@@ -20,6 +20,7 @@
  */
 
 import type { Page } from "@playwright/test";
+import type { CapturedElement } from "../capture/types.js";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
 import { firstLineBaseline } from "./caret-metrics.js";
 import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, AnimationOverlay } from "./overlay-schema.js";
@@ -195,6 +196,30 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       if (box == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no element`);
     }
 
+    out.push(applyAnchorBox(ov, box, label));
+  }
+  return out;
+}
+
+/**
+ * The anchor arithmetic, factored out of the page resolver (DM-1799) so the
+ * tree-side resolver below runs byte-for-byte the same math. PURE: everything
+ * page-specific ends at producing the `AnchorBox`. Strips the authoring-only
+ * `anchor` / `maxWidth` keys and writes the concrete coordinates.
+ */
+function applyAnchorBox<T extends AnchorableOverlay>(
+  ov: T,
+  box: AnchorBox | null,
+  label: (kind: string) => string,
+): T {
+  const anchor = ov.anchor;
+  const maxWidth = ov.kind === "typing" ? ov.maxWidth : undefined;
+  const fontFromAnchor = ov.kind === "typing" && ov.fontFamily === "anchor";
+  const wantBaseline = anchor?.baseline === true;
+  if (wantBaseline && ov.kind !== "typing") {
+    throw new Error(`${label(ov.kind)} anchor.baseline is only supported on typing overlays (a typing overlay's y is its text baseline; a ${ov.kind} overlay's y is a box corner)`);
+  }
+  {
     // Strip the authoring-only keys; set the resolved coordinates below.
     const resolved = { ...ov };
     const mut = resolved as Record<string, unknown>;
@@ -242,9 +267,8 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       resolved.fontFamily = box.fontFamily;
       if (ov.fontSize == null) resolved.fontSize = box.fontSize;
     }
-    out.push(resolved);
+    return resolved;
   }
-  return out;
 }
 
 /**
@@ -270,4 +294,123 @@ export async function resolveOverlays(page: Page, overlays: AnchoredOverlay[]): 
   // discriminated union), which is exactly what this returns.
   const resolved = await resolveAnchoredOverlays(page, overlays);
   return (resolved ?? []) as AnimationOverlay[];
+}
+
+// ── DM-1799: the TREE-side anchor resolver ─────────────────────────────────
+//
+// Everything above measures the anchor in PAGE context, which is exact whenever
+// the page is standing at the moment the overlay belongs to. Inside a compressed
+// run using per-region timing (`regions` + `advances`, docs/43 §11.1) it is not:
+// states advancing disjoint regions share one whole-page capture, and each
+// state's tree is ASSEMBLED afterwards by taking each region's subtree from the
+// round holding that region's own state. The live page never stands in the
+// assembled configuration, so a state's anchor into a region on a different
+// schedule resolves against whatever that region happened to hold in the round
+// the state was driven in (DM-1793).
+//
+// The assembled tree does hold every region at its own state — and it carries
+// every input the page probe measures, including the canvas-measured
+// `fontAscent` / `fontDescent` a `baseline` anchor needs (captured since DM-587
+// for the renderer's own baseline math). So the same anchor arithmetic can run
+// against the tree, and then it is exact for every state.
+//
+// This is deliberately ADDITIVE. The page resolver stays the default: it is
+// correct wherever the page can stand at the right moment, it is what every
+// shipped golden was measured under, and it can see things the tree never will
+// (anything capture drops). Only the per-region-timing path needs this.
+
+/** Locate a captured element by the `data-domotion-anim` id stamped on it. */
+function findByAnimId(tree: readonly CapturedElement[], animId: string): CapturedElement | null {
+  for (const el of tree) {
+    if (el.animId === animId) return el;
+    const hit = el.children != null ? findByAnimId(el.children, animId) : null;
+    if (hit != null) return hit;
+  }
+  return null;
+}
+
+const numPx = (v: string | undefined): number => {
+  const n = parseFloat(v ?? "");
+  return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * Build the same `AnchorBox` the page probe produces, from a captured element.
+ *
+ * Two documented differences from the page measurement, both consequences of
+ * reading a serialized tree rather than a live layout:
+ *
+ *  - **content width** is `width − horizontal borders − horizontal padding`,
+ *    where the page uses `clientWidth − padding`. They agree except when the
+ *    element has a vertical scrollbar, which `clientWidth` excludes and the
+ *    captured `width` does not. A scrollable anchor target is the one case this
+ *    can differ, and it differs by the scrollbar's width.
+ *  - **`fontAscent` / `fontDescent` are pre-scaled** by the element's cumulative
+ *    ancestor scale at capture (DM-587), while the page probe measures the
+ *    unscaled computed font. Inside a `transform: scale()` subtree the captured
+ *    value is the one that matches painted output, so this resolver is if
+ *    anything the more faithful of the two — but they are not interchangeable.
+ */
+function anchorBoxFromCaptured(el: CapturedElement): AnchorBox {
+  const st = el.styles;
+  const padL = numPx(st.paddingLeft);
+  const padR = numPx(st.paddingRight);
+  const bL = numPx(st.borderLeftWidth);
+  const bR = numPx(st.borderRightWidth);
+  const bT = numPx(st.borderTopWidth);
+  const bB = numPx(st.borderBottomWidth);
+  const box: AnchorBox = {
+    x: el.x, y: el.y, width: el.width, height: el.height,
+    contentWidth: Math.max(0, el.width - bL - bR - padL - padR),
+    borderRadius: numPx(st.borderTopLeftRadius),
+    fontFamily: st.fontFamily,
+    fontSize: numPx(st.fontSize) || 16,
+  };
+  // Only meaningful on a text-bearing element; `fontAscent` is 0 elsewhere,
+  // which the caller turns into the same authoring error the page path raises.
+  if (el.fontAscent != null && el.fontAscent > 0) {
+    box.lineBox = {
+      lineHeightPx: numPx(st.lineHeight),
+      fontAscentPx: el.fontAscent,
+      fontDescentPx: el.fontDescent ?? 0,
+      contentTop: el.y + bT + numPx(st.paddingTop),
+      contentHeight: el.height - bT - bB - numPx(st.paddingTop) - numPx(st.paddingBottom),
+      centerInContentBox: el.tag === "input",
+    };
+  }
+  return box;
+}
+
+/**
+ * Resolve anchored overlays against an ASSEMBLED captured tree instead of the
+ * live page — the tree-side counterpart of `resolveAnchoredOverlays`, sharing
+ * its arithmetic exactly (`applyAnchorBox`), so the two cannot drift.
+ *
+ * Anchor targets are located by the `data-domotion-anim` id the caller stamped
+ * before capture, via `animIdForSelector`. That is the mechanism `regions` and
+ * `textTracks` already use; a CSS-selector engine over the tree is deliberately
+ * NOT built. A selector with no stamp, or a stamp with no captured element, is a
+ * hard error — the same fail-fast policy the page path has.
+ */
+export function resolveAnchoredOverlaysInTree<T extends AnchorableOverlay>(
+  tree: readonly CapturedElement[],
+  overlays: T[] | undefined,
+  animIdForSelector: (selector: string) => string | undefined,
+  label: (kind: string) => string = (kind) => `resolveOverlays: ${kind} overlay`,
+): T[] | undefined {
+  if (overlays == null) return undefined;
+  return overlays.map((ov) => {
+    const anchor = ov.anchor;
+    const needsBox = anchor != null
+      || (ov.kind === "typing" && (ov.maxWidth != null || ov.fontFamily === "anchor"));
+    if (!needsBox) return ov;
+    let box: AnchorBox | null = null;
+    if (anchor != null) {
+      const animId = animIdForSelector(anchor.selector);
+      const el = animId != null ? findByAnimId(tree, animId) : null;
+      if (el == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no captured element`);
+      box = anchorBoxFromCaptured(el);
+    }
+    return applyAnchorBox(ov, box, label);
+  });
 }

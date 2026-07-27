@@ -60,6 +60,66 @@ wrapper that supplies the frame-indexed error label; `resolveOverlays` is the
 public wrapper typed for the resolved-overlay-plus-anchor union. They can no
 longer diverge.
 
+## Two box producers, one arithmetic (DM-1799)
+
+Everything above measures the anchor in **page** context. That is exact wherever
+the page can stand at the moment the overlay belongs to — which is every ordinary
+frame, and every state of a *sequential* compressed run.
+
+It is not exact in one place: a compressed run using **per-region timing**
+(`regions` + `advances`, [docs/43 §11.1](43-declarative-animate-config.md)).
+There, states advancing disjoint regions share one whole-page capture, and each
+state's tree is **assembled** afterwards by taking each region's subtree from the
+round holding *that region's* own state. The live page never stands in the
+assembled configuration, so an anchor pointing into a region on a **different**
+schedule would resolve against whatever that region held in the round the state
+was driven in — off by however far that region's schedule had diverged.
+
+So the engine now has **two box producers and one arithmetic**:
+
+| | Box from | Used by |
+|---|---|---|
+| `resolveAnchoredOverlays` | `page.evaluate` — `getBoundingClientRect`, computed styles, canvas `measureText` | everything (the default) |
+| `resolveAnchoredOverlaysInTree` | a captured element in an **assembled tree** | per-state overlays of a per-region-timing run |
+
+Both hand their `AnchorBox` to the same `applyAnchorBox`, so the corner math,
+`maxWidth: "anchor"`, `fontFamily: "anchor"`, the baseline placement, and the
+`shine`/`interact` auto-size + auto-radius cannot drift between them.
+
+This is possible because the captured element already carries every input the
+page probe measures — including `fontAscent` / `fontDescent`, which come from the
+**same** `canvas.measureText("Hg")` call and have been captured since DM-587 for
+the renderer's own baseline math.
+
+**Finding the element.** The tree resolver does not run CSS selectors. The caller
+stamps each anchor target with `data-domotion-anim` before capture — the
+mechanism `regions` and `textTracks` already use — and passes a
+selector→animId lookup. A selector that was never stamped, or a stamp with no
+element in the tree, is a hard error, matching the page path's fail-fast policy.
+Building a selector engine over the captured tree is deliberately out of scope.
+
+**Two documented differences**, both consequences of reading a serialized tree:
+
+- **Content width** is `width − horizontal borders − horizontal padding`, where
+  the page uses `clientWidth − padding`. These agree except when the element has
+  a vertical scrollbar, which `clientWidth` excludes and the captured `width`
+  does not.
+- **`fontAscent` / `fontDescent` are pre-scaled** by the element's cumulative
+  ancestor scale at capture (DM-587), while the page probe measures the unscaled
+  computed font. Inside a `transform: scale()` subtree the captured value is the
+  one matching painted output, so the tree resolver is if anything the more
+  faithful — but the two are not interchangeable.
+
+**Why the page resolver stays the default.** It is correct wherever the page can
+stand at the right moment, it is what every shipped golden was measured under,
+and it can see things the tree never will (anything capture drops). Only the
+per-region-timing path needs the tree.
+
+Regression coverage: `tests/cross-region-anchor.e2e.test.ts` drives two panes on
+interleaved schedules with each editor state anchoring into the preview pane, and
+asserts the two states' anchors land exactly one marker step apart. Reverting to
+page-context resolution fails it by exactly that step, which is the DM-1793 bug.
+
 ## Scope / not covered
 
 - **SVG-overlay file resolution.** `resolveOverlays` resolves only the page

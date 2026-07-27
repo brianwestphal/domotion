@@ -1,6 +1,7 @@
+import type { CapturedElement } from "../capture/types.js";
 import { describe, it, expect } from "vitest";
 import type { Page } from "@playwright/test";
-import { resolveOverlays } from "./resolve-overlays.js";
+import { resolveOverlays, resolveAnchoredOverlaysInTree } from "./resolve-overlays.js";
 
 /**
  * DM-1132: the overlay-resolution engine (selector `anchor` + typing `maxWidth`
@@ -186,5 +187,116 @@ describe("resolveOverlays (DM-1132)", () => {
       { kind: "interact", x: 0, y: 0, width: 40, height: 20, radius: 2, anchor: { selector: "#btn" } } as never,
     ]);
     expect(ov).toMatchObject({ x: 50, y: 60, width: 40, height: 20, radius: 2 });
+  });
+});
+
+// ── DM-1799: the TREE-side resolver ────────────────────────────────────────
+//
+// Same anchor arithmetic as the page resolver (they share `applyAnchorBox`),
+// but the box comes from a captured element instead of a `page.evaluate`. This
+// exists for per-region-timing compressed runs, where the live page never
+// stands in a state's assembled configuration — see docs/61.
+describe("resolveAnchoredOverlaysInTree (DM-1799)", () => {
+  /** A captured element with just the fields the anchor box reads. */
+  const el = (over: Partial<CapturedElement> & { styles?: Partial<CapturedElement["styles"]> } = {}): CapturedElement => ({
+    tag: "div", x: 100, y: 200, width: 80, height: 40, children: [],
+    ...over,
+    styles: {
+      paddingLeft: "5px", paddingRight: "5px", paddingTop: "4px", paddingBottom: "4px",
+      borderLeftWidth: "1px", borderRightWidth: "1px", borderTopWidth: "1px", borderBottomWidth: "1px",
+      borderTopLeftRadius: "6px", fontFamily: "Georgia, serif", fontSize: "22px", lineHeight: "30px",
+      ...(over.styles ?? {}),
+    } as CapturedElement["styles"],
+  } as CapturedElement);
+
+  const idOf = (sel: string): string | undefined => (sel === "#t" ? "A1" : undefined);
+  const tree = (target: CapturedElement): CapturedElement[] => [
+    el({ tag: "body", x: 0, y: 0, width: 500, height: 500, children: [target] }),
+  ];
+
+  it("resolves x/y from the anchor's corner + dx/dy, like the page resolver", () => {
+    const [ov] = resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1" })),
+      [{ kind: "blink", x: 0, y: 0, anchor: { selector: "#t", at: "top-left", dx: 2, dy: 3 } }],
+      idOf,
+    )!;
+    expect(ov).toMatchObject({ kind: "blink", x: 102, y: 203 });
+    // The authoring-only key is stripped, exactly as the page path does.
+    expect("anchor" in ov).toBe(false);
+  });
+
+  it("finds the target at any depth, by its stamped animId", () => {
+    const deep = el({ tag: "section", children: [el({ tag: "span", children: [el({ animId: "A1", x: 7, y: 9 })] })] });
+    const [ov] = resolveAnchoredOverlaysInTree(
+      tree(deep), [{ kind: "blink", anchor: { selector: "#t" } }], idOf,
+    )!;
+    expect(ov).toMatchObject({ x: 7, y: 9 });
+  });
+
+  it("auto-sizes + auto-rounds a shine/interact overlay from the captured box", () => {
+    const [ov] = resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1" })), [{ kind: "interact", anchor: { selector: "#t" } }], idOf,
+    )!;
+    expect(ov).toMatchObject({ width: 80, height: 40, radius: 6 });
+  });
+
+  it("maxWidth:\"anchor\" uses the CONTENT width (border + padding subtracted)", () => {
+    // 80 wide − 2×1px border − 2×5px padding = 68.
+    const [ov] = resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1" })),
+      [{ kind: "typing", anchor: { selector: "#t" }, maxWidth: "anchor" }],
+      idOf,
+    )!;
+    expect(ov).toMatchObject({ wrapWidth: 68 });
+    expect("maxWidth" in ov).toBe(false);
+  });
+
+  it("fontFamily:\"anchor\" adopts the captured font, size included unless pinned", () => {
+    const t = tree(el({ animId: "A1" }));
+    expect(resolveAnchoredOverlaysInTree(t, [{ kind: "typing", fontFamily: "anchor", anchor: { selector: "#t" } }], idOf)![0])
+      .toMatchObject({ fontFamily: "Georgia, serif", fontSize: 22 });
+    expect(resolveAnchoredOverlaysInTree(t, [{ kind: "typing", fontFamily: "anchor", fontSize: 11, anchor: { selector: "#t" } }], idOf)![0])
+      .toMatchObject({ fontFamily: "Georgia, serif", fontSize: 11 });
+  });
+
+  it("baseline anchoring uses the CAPTURED fontAscent — the same canvas measurement the page probe makes", () => {
+    const [ov] = resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1", fontAscent: 18, fontDescent: 6 })),
+      [{ kind: "typing", anchor: { selector: "#t", baseline: true } }],
+      idOf,
+    )!;
+    // Block content lays its first line from the content-box top: y(200) +
+    // border(1) + padding(4) = 205, plus the half-leading and the ascent.
+    const y = (ov as unknown as { y: number }).y;
+    expect(y).toBeGreaterThan(205);
+    expect(y).toBeLessThan(205 + 30);
+  });
+
+  it("errors on a baseline anchor to a non-text element rather than placing at 0", () => {
+    // `fontAscent` is only populated for text-bearing elements; a silent 0 would
+    // put the overlay at the top of the document.
+    expect(() => resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1" })), [{ kind: "typing", anchor: { selector: "#t", baseline: true } }], idOf,
+    )).toThrow(/baseline/i);
+  });
+
+  it("errors on a baseline anchor on a non-typing kind (its y is a box corner)", () => {
+    expect(() => resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1", fontAscent: 18 })), [{ kind: "blink", anchor: { selector: "#t", baseline: true } }], idOf,
+    )).toThrow(/only supported on typing/);
+  });
+
+  it("errors when the selector was never stamped, or its element isn't in the tree", () => {
+    expect(() => resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "A1" })), [{ kind: "blink", anchor: { selector: "#nope" } }], idOf,
+    )).toThrow(/matched no captured element/);
+    expect(() => resolveAnchoredOverlaysInTree(
+      tree(el({ animId: "OTHER" })), [{ kind: "blink", anchor: { selector: "#t" } }], idOf,
+    )).toThrow(/matched no captured element/);
+  });
+
+  it("passes un-anchored overlays through untouched", () => {
+    const ov = { kind: "tap", x: 4, y: 5 } as const;
+    expect(resolveAnchoredOverlaysInTree(tree(el({ animId: "A1" })), [{ ...ov }], idOf)![0]).toEqual(ov);
   });
 });

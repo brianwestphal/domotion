@@ -24,7 +24,7 @@ import {
   overlaySlideSchema,
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
-import { resolveAnchoredOverlays } from "../animation/resolve-overlays.js";
+import { resolveAnchoredOverlays, resolveAnchoredOverlaysInTree } from "../animation/resolve-overlays.js";
 import {
   captureStyleSnapshot,
   classifyHoverTransition,
@@ -2082,6 +2082,10 @@ async function buildStatesRunContent(
 
   const captureNow = async (): Promise<CapturedElement[]> => {
     await stampRegions();
+    // DM-1799: stamp overlay anchor targets too, so the assembled tree carries
+    // an id the tree-side resolver can find them by (the same mechanism
+    // `regions` / `textTracks` use — no CSS-selector engine over the tree).
+    if (perRegionTiming) await stampAnchorTargets();
     const tree = await captureElementTree(page, fc.selector ?? "body", {
       x: 0, y: 0, width: cfg.width, height: cfg.height,
     });
@@ -2105,11 +2109,8 @@ async function buildStatesRunContent(
   // the capture rounds visit states out of order, and an overlay's position in
   // the frame's list is its paint order.
   const overlayBuckets: OverlayInput[][] = stateCfgs.map(() => []);
-  const collectStateOverlays = async (j: number): Promise<void> => {
-    const authored = stateCfgs[j].overlays;
-    if (authored == null || authored.length === 0) return;
-    const resolved = await resolveOverlayAnchors(page, authored, i);
-    if (resolved == null) return;
+  /** Re-base a state's already-anchor-resolved overlays onto the run's timeline. */
+  const bucketStateOverlays = (j: number, resolved: OverlayInput[]): void => {
     const start = stateOffsets[j];
     const hold = stateCfgs[j].duration;
     for (const ov of resolved) {
@@ -2118,6 +2119,42 @@ async function buildStatesRunContent(
       // hold is the window. Either way the result can never outlive the state.
       const endAt = start + Math.min(ov.endAt ?? hold, hold);
       overlayBuckets[j].push({ ...ov, delay: (ov.delay ?? OVERLAY_DEFAULT_DELAY_MS[ov.kind]) + start, endAt } as OverlayInput);
+    }
+  };
+  const collectStateOverlays = async (j: number): Promise<void> => {
+    const authored = stateCfgs[j].overlays;
+    if (authored == null || authored.length === 0) return;
+    const resolved = await resolveOverlayAnchors(page, authored, i);
+    if (resolved != null) bucketStateOverlays(j, resolved);
+  };
+
+  // DM-1799: under PER-REGION TIMING the live page never stands in a state's
+  // assembled configuration — states advancing disjoint regions share a capture
+  // round, and each state's tree is assembled afterwards from the round holding
+  // each region's own state. So a page-context anchor into a region on a
+  // different schedule would resolve against that round's position, not the
+  // assembled one (DM-1793). Those runs resolve anchors against the ASSEMBLED
+  // TREE instead, which does hold every region at its own state.
+  //
+  // The sequential path keeps the page resolver: there the page DOES stand at
+  // each state when it is captured, so page resolution is already exact, it is
+  // what every shipped golden was measured under, and it can see things the
+  // tree cannot (anything capture drops).
+  const anchorSelectors = [...new Set(
+    stateCfgs.flatMap((st) => (st.overlays ?? []).map((ov) => ov.anchor?.selector).filter((sel): sel is string => sel != null)),
+  )];
+  const anchorAnimId = (sel: string): string => `f${i}ova${anchorSelectors.indexOf(sel)}`;
+  const stampAnchorTargets = async (): Promise<void> => {
+    for (const sel of anchorSelectors) {
+      const matched = await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const el = document.querySelector(args.selector);
+          if (el instanceof HTMLElement) { el.dataset.domotionAnim = args.animId; return true; }
+          return false;
+        },
+        { selector: sel, animId: anchorAnimId(sel) },
+      );
+      if (!matched) throw new Error(`animate: frames[${i}] overlay anchor selector "${sel}" matched no element`);
     }
   };
 
@@ -2132,10 +2169,6 @@ async function buildStatesRunContent(
         if (acts != null && acts.length > 0) await runActions(page, acts, log);
       }
       roundTrees.push(await captureNow());
-      // DM-1767: resolve the anchors of every state DRIVEN in this round, at
-      // this round's page. Round 0 is state 0 (the frame's own post-actions
-      // state), which `rounds[0]` leaves empty — handle it explicitly.
-      for (const s of r === 0 ? [0] : plan.rounds[r]) await collectStateOverlays(s);
     }
     const assembled = assembleRegionStateTrees(
       roundTrees,
@@ -2143,6 +2176,19 @@ async function buildStatesRunContent(
       new Map(regionNames.map((n) => [n, regionIdOf(n)])),
       `frames[${i}]`,
     );
+    // DM-1799: anchors resolve against each state's ASSEMBLED tree, which holds
+    // every region at its own state — exact even for an anchor pointing into a
+    // region on a different `advances` schedule.
+    for (let s = 0; s < stateCfgs.length; s++) {
+      const authored = stateCfgs[s].overlays;
+      if (authored != null && authored.length > 0) {
+        const resolved = resolveAnchoredOverlaysInTree(
+          assembled[s], authored, (sel) => anchorAnimId(sel),
+          (kind) => `animate: frames[${i}].states[${s}] ${kind} overlay`,
+        );
+        if (resolved != null) bucketStateOverlays(s, resolved);
+      }
+    }
     for (let s = 0; s < stateCfgs.length; s++) states.push({ tree: assembled[s], holdMs: stateCfgs[s].duration });
   } else {
     log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);

@@ -263,7 +263,8 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Resolve typing/tap/svg/blink overlays + DOM-mutation/interaction actions.",
     doc: "docs/61-overlay-resolution-primitive.md",
     exports: ["resolveOverlays", "runActions"],
-    tests: ["src/animation/resolve-overlays.test.ts", "src/animation/overlay-schema.test.ts"],
+    tests: ["src/animation/resolve-overlays.test.ts", "src/animation/overlay-schema.test.ts", "tests/cross-region-anchor.e2e.test.ts"],
+    transition: "DM-1799 — two box producers, one arithmetic: the page probe (`getBoundingClientRect` + computed styles + canvas `measureText`) and a TREE-side producer reading the same inputs off a captured element (including `fontAscent`/`fontDescent`, the same canvas measurement, captured since DM-587). Both feed one `applyAnchorBox`, so corner math / `maxWidth:\"anchor\"` / `fontFamily:\"anchor\"` / baseline placement / shine+interact auto-size cannot drift. The tree producer exists for per-region-timing compressed runs, where the live page never stands in a state's ASSEMBLED configuration, so a cross-region anchor could not be exact page-side; targets are located by a pre-capture `data-domotion-anim` stamp rather than a selector engine over the tree.",
   },
   {
     id: "animate.tree-diff",
