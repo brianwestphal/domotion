@@ -125,6 +125,8 @@ This supersedes the "why per-frame `overlays` split rather than ride along" note
 | Per-state anchor resolution + re-basing | `buildStatesRunContent` in `src/cli/animate.ts` |
 | Member overlays → state overlays on collapse | `collapseCompressibleRuns` in `src/cli/animate.ts` |
 
+Runnable example: **`examples/animate/overlay-window/`** — two `endAt`-bounded annotations sharing one frame, plus a `states:` run whose per-state overlays anchor to a marker that moves 44 px per state (the golden asserts four *distinct* ring positions, so a regression to once-per-frame anchoring fails loudly).
+
 Tests: `src/animation/animator.test.ts` ("per-overlay window — `endAt`"), `src/cli/animate.test.ts` ("member overlays ride along as per-state overlays"), and the rasterized end-to-end proof in `tests/overlay-window.e2e.test.ts` — a three-frame run whose middle member anchors an overlay to a **moving** element, asserting in painted pixels that it appears in its state only and at *that* state's position.
 
 ## 6. Not covered

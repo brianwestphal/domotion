@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Per-overlay window demo page (docs/104). A settings panel with four option
+     rows and a `.marker` chevron that `select(k)` moves to row k — so the
+     anchor target genuinely MOVES between the states of the compressed run.
+     That movement is the point: a state's overlay is anchor-resolved while the
+     page is at THAT state, not at the run's last one. -->
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 640px; height: 360px; overflow: hidden; position: relative;
+    font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #e6edf3; }
+  .panel { position: absolute; top: 40px; left: 40px; width: 340px;
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 14px 0; }
+  .title { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #7d8590; padding: 0 18px 12px; }
+  .row { position: relative; height: 44px; display: flex; align-items: center;
+    padding: 0 18px 0 40px; font-size: 14px; }
+  .row .sub { margin-left: auto; color: #7d8590; font-size: 12px; }
+  /* The marker is absolutely positioned and moved by `select(k)`; each row is
+     44px tall, the first sits 44px below the panel's padded top. */
+  .marker { position: absolute; left: 18px; width: 10px; height: 10px; border-radius: 50%;
+    background: #2f81f7; transition: none; }
+</style></head><body>
+  <div class="panel">
+    <div class="title">Export settings</div>
+    <div class="marker" id="marker"></div>
+    <div class="row" data-row="0">Format<span class="sub">SVG</span></div>
+    <div class="row" data-row="1">Scale<span class="sub">2×</span></div>
+    <div class="row" data-row="2">Background<span class="sub">Transparent</span></div>
+    <div class="row" data-row="3">Fonts<span class="sub">Embedded</span></div>
+  </div>
+<script>
+  // Move the marker onto row k. Absolute-positioned so the move is a real
+  // layout change the overlay anchor has to see at the right moment.
+  window.select = (k) => {
+    const row = document.querySelector('.row[data-row="' + k + '"]');
+    const panel = document.querySelector('.panel');
+    const m = document.getElementById('marker');
+    m.style.top = (row.offsetTop + (row.offsetHeight - 10) / 2) + 'px';
+  };
+  window.select(0);
+</script></body></html>

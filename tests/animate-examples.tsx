@@ -142,6 +142,40 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    // DM-1767 / DM-1796 (docs/104): the per-overlay window and per-state
+    // overlays. Frame 0 carries TWO typing annotations in ONE frame — the first
+    // bounded by `endAt: 1250`, the second starting at `delay: 1350` — which is
+    // the standalone point of `endAt` (an overlay that ends where the author
+    // says, without splitting the frame in two). Frame 1 is a hand-authored
+    // `states:` run whose four states each carry an `interact` overlay anchored
+    // to a `.marker` that MOVES 44 px per state.
+    name: "overlay-window",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 640 360"`)) f.push("missing viewBox 640x360");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups");
+      // Two typing overlays on frame 0 — the second disambiguated as `t0_1`.
+      for (const cls of ["t0-text", "t0_1-text"]) {
+        if (!svg.includes(`class="${cls}"`)) f.push(`missing typing overlay ${cls}`);
+      }
+      // Frame 1 composes as a nested compressed run.
+      if (!svg.includes("cr1_")) f.push("missing the cr1_ compressed-run namespace token");
+      // THE load-bearing assertion: each state's `interact` overlay resolved its
+      // anchor against ITS OWN state's layout, so the four rings sit at four
+      // DIFFERENT y positions tracking the marker. A once-per-frame anchor
+      // resolution would put all four at the LAST state's y — that regression
+      // is invisible in a frame count and obvious here.
+      const ys = ["ix1", "ix1_1", "ix1_2", "ix1_3"].map((cls) => {
+        const at = svg.indexOf(`class="${cls}"`);
+        if (at < 0) return null;
+        return svg.slice(at, at + 320).match(/y="([\d.]+)"/)?.[1] ?? null;
+      });
+      if (ys.some((y) => y == null)) f.push(`missing per-state interact overlays (got ${JSON.stringify(ys)})`);
+      else if (new Set(ys).size !== 4) f.push(`per-state anchors collapsed to the same y — expected 4 distinct, got ${JSON.stringify(ys)}`);
+      return f;
+    },
+  },
+  {
     // DM-1556 (docs/93 §2): per-keystroke real-site re-sampling. One frame types
     // "4155550142" into a phone field one key at a time, re-capturing the page
     // after each keystroke — so the field's OWN input mask ("(415) 555-0142") and
