@@ -3,12 +3,12 @@
     "suite": "features",
     "os": "linux",
     "image": "playwright-noble",
-    "commit": "3df02b8ab17ffcd6e88d509995fe597cf23bcec1",
-    "capturedAt": "2026-06-29T02:57:25.250Z",
+    "commit": "8e9bcdfe7ed8b0fc7f58670e658f4a8b7d9d1720",
+    "capturedAt": "2026-07-27T23:39:45.915Z",
     "counts": {
-      "total": 101,
-      "pass": 99,
-      "fail": 2,
+      "total": 104,
+      "pass": 103,
+      "fail": 1,
       "skipped": 0
     }
   },
@@ -16,15 +16,15 @@
     "background-clip-text-inherited-from-ancestor": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.7076539628716124,
-      "worstTilePct": 2.6957668828452794,
+      "diffPct": 0.2768783612322238,
+      "worstTilePct": 1.0566328382946566,
       "regionCount": 0
     },
     "background-clip-text-nested-child-wraps": {
       "pass": false,
       "skipped": false,
-      "diffPct": 1.6990713464953684,
-      "worstTilePct": 7.374219071716482,
+      "diffPct": 1.614080252228201,
+      "worstTilePct": 3.3142452045169914,
       "regionCount": 3
     },
     "bg-conic-checkerboard": {
@@ -93,8 +93,8 @@
     "border-image-gradient-source": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0377447840314764,
-      "worstTilePct": 0.20932260659271332,
+      "diffPct": 0.010607722335183338,
+      "worstTilePct": 0.06971548550512366,
       "regionCount": 0
     },
     "border-image-gradient-source-sliced": {
@@ -247,16 +247,16 @@
     "counter-style-counter-function-with-pad": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.10403421462217019,
-      "worstTilePct": 0.6521198007171541,
+      "diffPct": 0.05678475928447953,
+      "worstTilePct": 0.41056419409950756,
       "regionCount": 0
     },
     "counter-style-cyclic-and-prefixed-numeric": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.13186745852187062,
-      "worstTilePct": 0.7826861213235281,
-      "regionCount": 1
+      "diffPct": 0.05773001508295637,
+      "worstTilePct": 0.46693091299019557,
+      "regionCount": 0
     },
     "filter-passthrough": {
       "pass": true,
@@ -298,6 +298,27 @@
       "skipped": false,
       "diffPct": 0,
       "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "iframe-canvas-bg-fill": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.13874172752170513,
+      "worstTilePct": 1.293279043182804,
+      "regionCount": 0
+    },
+    "iframe-inner-clip-mask": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "iframe-recursion-bordered": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.18781666557216103,
+      "worstTilePct": 1.8334038499411545,
       "regionCount": 0
     },
     "inline-box-decoration-break": {
@@ -392,17 +413,17 @@
       "regionCount": 0
     },
     "mathml-mi-greek-italic": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.4283077498323201,
-      "worstTilePct": 2.201349975664225,
+      "diffPct": 0.42223845856112713,
+      "worstTilePct": 1.827356139571306,
       "regionCount": 1
     },
     "mathml-mi-italic-letters": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.20294277209905978,
-      "worstTilePct": 2.853882732643028,
+      "diffPct": 0.18318628281317725,
+      "worstTilePct": 2.576057102060305,
       "regionCount": 0
     },
     "multi-column-block-decoration-clone": {
@@ -443,9 +464,9 @@
     "preserve-3d-translatez-paint-order": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.033144743807564526,
-      "worstTilePct": 0.3367408891305692,
-      "regionCount": 1
+      "diffPct": 0.024016298571385968,
+      "worstTilePct": 0.2553155622459411,
+      "regionCount": 0
     },
     "pseudo-after-badge": {
       "pass": true,
@@ -464,8 +485,8 @@
     "pseudo-after-emoji-overflows-line-box": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.025834788216316903,
-      "worstTilePct": 0.10854626684315855,
+      "diffPct": 0.0024679145215365703,
+      "worstTilePct": 0.016934305018958977,
       "regionCount": 0
     },
     "pseudo-before-checkmark-rotated": {
@@ -520,8 +541,8 @@
     "replaced-iframe-same-origin": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0,
-      "worstTilePct": 0,
+      "diffPct": 0.2215177018275131,
+      "worstTilePct": 1.3999900175616828,
       "regionCount": 0
     },
     "replaced-video-poster": {
@@ -604,8 +625,8 @@
     "text-mixed-script": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.7665218694157934,
-      "worstTilePct": 1.9267108821027452,
+      "diffPct": 0.6512324943377473,
+      "worstTilePct": 1.6379340544133252,
       "regionCount": 0
     },
     "text-mono": {
@@ -716,8 +737,8 @@
     "zoom-scaled-card-text": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.038511885566567663,
-      "worstTilePct": 0.09217447266937331,
+      "diffPct": 0.01674925780685322,
+      "worstTilePct": 0.07059151159108275,
       "regionCount": 0
     }
   }

@@ -445,7 +445,7 @@ the real regression catch.
 | Platform | Rasterizer | Max observed hinting coverage | Gate |
 | --- | --- | --- | --- |
 | macOS | CoreText (light) | ~0% (outline ≈ paint) | strict `regionCount === 0` |
-| Linux | FreeType | 0.58% (4 fixtures) | `coveragePct ≤ 1%` |
+| Linux | FreeType | 0.43% (2 fixtures non-zero) — was 0.58% before DM-1795 | `coveragePct ≤ 1%` |
 | Windows | DirectWrite (heavy) | 3.34% (18 fixtures) | `coveragePct ≤ 4%` |
 
 Both non-macOS suites are green at these caps (Linux via `npm run
@@ -468,9 +468,20 @@ returning byte-identical screenshots confirms it on each (with
 `--disable-lcd-text` altering the same probe, so it does discriminate). Hence no
 platform branch: the flag is applied unconditionally.
 
-The caps in the table are deliberately **not** lowered to match. They are a
-ceiling on acceptable noise rather than a measurement, and re-tuning them is a
-separate change that should gather its own evidence across the full fixture set.
+The caps in the table are deliberately **not** lowered to match, and DM-1800
+re-examined that with the full-suite evidence in hand rather than leaving it
+open. Under the unhinted capture the highest coverage among *passing* Linux
+fixtures is **0.428%** (`mathml-mi-greek-italic`), with only two fixtures
+non-zero at all — a 2.3× margin to the 1% cap.
+
+Lowering it anyway was rejected: the cap is a ceiling on acceptable hinting
+noise, not a running measurement, and it is no longer the gate that matters —
+the required check is the *baseline-relative* diff
+(`scripts/diff-against-baseline.mjs --strict`), which fails on a regression
+regardless of where the cap sits. Tightening it would buy nothing that the
+baseline diff doesn't already catch, while making a legitimately text-heavy new
+fixture liable to trip it. The margin is headroom for new fixtures, not slack to
+be reclaimed.
 
 This is scoped to `tests/runner.tsx` alone. It must **not** reach
 `tests/html-test-suite.tsx`, which exercises the default **embedded** render
