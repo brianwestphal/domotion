@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "ms2xvy8jbolewj3h",
+          "message": {
+            "text": "The expected-PNG cache silently invalidated this whole mode's first measurement, and the cache token (0) is what fixes it — this is the sharpest edge in the change.\n\nThe cached artifact is a screenshot taken by the CAPTURE browser. A capture-side Chromium flag changes that screenshot and nothing else in the key (source HTML, viewport, Playwright version, capture-script hash, capture-node hash), so a flagged run happily reuses the unflagged PNG and reports numbers for a condition it never ran.\n\nThat is not hypothetical: the first three-condition run during this ticket produced coverage identical to four decimal places across default / symmetric / asymmetric, which is what prompted looking at the key at all. It is also the exact failure this mode exists to prevent, reproduced one layer down — the mode is for measuring honestly, and it was itself measuring a cache.\n\nTwo properties to preserve if this is ever touched: the token must be empty when no capture flags are set (otherwise every default run re-captures and every committed cache entry is discarded), and it must exclude the raster flags (those affect actual.png, which is never cached — including them would fragment the cache for no reason).\n\nVerified after the fix by watching the cache split (27 → 38 entries when a new capture-flag condition was introduced) and by the three-condition tables in the attached artifact.\n",
+            "markdown": "The expected-PNG cache silently invalidated this whole mode's first measurement, and the [cache token](0) is what fixes it — this is the sharpest edge in the change.\n\nThe cached artifact is a screenshot taken by the CAPTURE browser. A capture-side Chromium flag changes that screenshot and nothing else in the key (source HTML, viewport, Playwright version, capture-script hash, capture-node hash), so a flagged run happily reuses the unflagged PNG and reports numbers for a condition it never ran.\n\nThat is not hypothetical: the first three-condition run during this ticket produced coverage **identical to four decimal places** across default / symmetric / asymmetric, which is what prompted looking at the key at all. It is also the exact failure this mode exists to prevent, reproduced one layer down — the mode is for measuring honestly, and it was itself measuring a cache.\n\nTwo properties to preserve if this is ever touched: the token must be **empty** when no capture flags are set (otherwise every default run re-captures and every committed cache entry is discarded), and it must **exclude** the raster flags (those affect `actual.png`, which is never cached — including them would fragment the cache for no reason).\n\nVerified after the fix by watching the cache split (27 → 38 entries when a new capture-flag condition was introduced) and by the three-condition tables in the attached artifact.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/html-test-suite.tsx"
+                },
+                "region": {
+                  "startLine": 116,
+                  "endLine": 128,
+                  "snippet": {
+                    "text": "// DM-1790: and fold the CAPTURE browser's Chromium flags in too. The cached\n// artifact is a screenshot taken by that browser, so a capture-side flag\n// changes it while changing nothing else in the key — a flagged run would\n// otherwise reuse the unflagged PNG and report numbers for a condition it never\n// ran. Empty (and so key-neutral) unless `DOMOTION_CAPTURE_FLAGS` is set.\nfunction expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {\n  return createHash(\"sha256\")\n    .update(htmlBytes)\n    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}${captureFlagsCacheToken()}`)\n    .digest(\"hex\");\n}\nfunction expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }\nfunction expectedCacheMetaPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.json`); }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/harness-browsers.ts"
+                },
+                "region": {
+                  "startLine": 67
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-1790"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4fa84968b04129ed9719ee23d2aa3c2f"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm1790-asymmetric-validation.txt",
+                "properties": {
+                  "ext-sha256": "91b1709dcc8eaf20c3a9c6fbf20f70a4d73a59f12ff520ce7bebd9897bc8537a"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dfc2428f7d77a3659fabbc77f9f2a455be3415df",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

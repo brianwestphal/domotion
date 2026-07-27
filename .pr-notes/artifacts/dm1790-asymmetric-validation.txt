@@ -1,0 +1,55 @@
+DM-1790 — validating that the asymmetric harness mode actually discriminates
+===========================================================================
+
+Method: run the same 11 `02-text` html-test fixtures under all three browser
+configurations and compare the aggregate coverage. A mode that cannot produce
+three different numbers is not an instrument.
+
+macOS — all three identical, and that is the TRUTH, not a bug
+------------------------------------------------------------
+  default     11 fixtures  mean 0.0067%  max 0.0272%  6 passing
+  symmetric   11 fixtures  mean 0.0067%  max 0.0272%  6 passing
+  asymmetric  11 fixtures  mean 0.0067%  max 0.0272%  6 passing
+
+Probe (one fixture, 1024x768, sha256 of the screenshot bytes):
+  (none)                       e1d105828fa3de81
+  --font-render-hinting=none   e1d105828fa3de81
+  --disable-lcd-text           e1d105828fa3de81
+
+Byte-identical. CoreText ignores the FreeType hinting flag, and Playwright's
+headless Chromium already paints without LCD subpixel text. A flag that changes
+nothing cannot produce three different numbers.
+
+(An earlier run of this same table was invalid: the expected-PNG cache key did
+not include the capture flags, so the flagged runs silently reused the unflagged
+cached screenshots. Fixed by `captureFlagsCacheToken()`; the numbers above are
+from after the fix, and the cache was observed to split — 27 -> 38 entries when
+a new capture-flag condition was introduced.)
+
+Linux — the pinned Playwright container, where --disable-lcd-text DOES paint differently
+----------------------------------------------------------------------------------------
+Probe on the same fixture:
+  (none)                       fa2a571a050c082d
+  --font-render-hinting=none   fa2a571a050c082d      <- also a no-op here, for this fixture
+  --disable-lcd-text           29f192fca608b99e      <- differs
+
+  default (no flags)                       mean 0.0157%  max 0.0524%  5/11 passing
+  symmetric (--disable-lcd-text on both)   mean 0.0183%  max 0.0590%  3/11 passing
+  asymmetric (capture flagged, raster not) mean 0.0164%  max 0.0670%  8/11 passing
+
+Three genuinely different results. The load-bearing observation is that the
+asymmetric number is NOT between the other two: coupling the two sides does not
+yield a conservative estimate of the consumer's condition, it yields a number
+that is not about the consumer's condition at all.
+
+Not a recommendation: on this subset, capturing with --disable-lcd-text while
+the consumer rasterizes with LCD text on scored better than the fully-default
+run. One flag, 11 fixtures, one platform.
+
+Also worth recording: --font-render-hinting=none was a no-op on this container
+for this fixture, so DM-1789's paths-mode result came from the feature suite's
+fonts, not from these.
+
+Run via: HTML_TEST_OUTPUT_DIR=... CMD="..." bash scripts/test-linux-docker.sh
+(redirected output dir because the expected-PNG cache is not platform-keyed —
+a pre-existing hazard, noted in docs/105 "Not covered").

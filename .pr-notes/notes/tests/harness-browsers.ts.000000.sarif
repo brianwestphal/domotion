@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2xw6cnmyw9qlk1",
+          "message": {
+            "text": "Returning the SAME Browser object under both names in the default case is deliberate — it is what keeps the unflagged path byte-identical rather than merely equivalent.\n\nEvery committed visual baseline was measured with one browser, one context per worker, and the candidate SVG rasterized on the same page that captured the fixture. If the default path launched a second browser (or even a second context) \"for symmetry\", the raster page would be a fresh page with its own compositor state and its own first-paint timing, and any resulting sub-pixel difference would show up as unexplained baseline movement across the whole suite — for a mode nobody enabled.\n\nSo the branch is at the identity level: callers compare w.rasterPage !== w.page and skip the extra viewport set / context creation entirely. The consequence is that asymmetric: false really means \"nothing changed\", not \"changed in a way we believe is harmless\".\n\nOrder-sensitive flag comparison is the same instinct pointed the other way: two arg lists differing only in order are treated as distinct configurations and get two browsers. A false split costs one Chromium process; a false merge costs a wrong number.\n",
+            "markdown": "Returning the SAME `Browser` object under both names in the default case is deliberate — it is what keeps the unflagged path byte-identical rather than merely equivalent.\n\nEvery committed visual baseline was measured with one browser, one context per worker, and the candidate SVG rasterized on the *same page* that captured the fixture. If the default path launched a second browser (or even a second context) \"for symmetry\", the raster page would be a fresh page with its own compositor state and its own first-paint timing, and any resulting sub-pixel difference would show up as unexplained baseline movement across the whole suite — for a mode nobody enabled.\n\nSo the branch is at the identity level: callers compare `w.rasterPage !== w.page` and skip the extra viewport set / context creation entirely. The consequence is that `asymmetric: false` really means \"nothing changed\", not \"changed in a way we believe is harmless\".\n\nOrder-sensitive flag comparison is the same instinct pointed the other way: two arg lists differing only in order are treated as distinct configurations and get two browsers. A false split costs one Chromium process; a false merge costs a wrong number.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/harness-browsers.ts"
+                },
+                "region": {
+                  "startLine": 99,
+                  "endLine": 117,
+                  "snippet": {
+                    "text": "  /** True when `raster !== capture` — i.e. a second browser really was launched. */\n  asymmetric: boolean;\n  /** The resolved flag lists, for the run's log line. */\n  captureFlags: string[];\n  rasterFlags: string[];\n  /** Close whichever browsers were actually launched (once each). */\n  close: () => Promise<void>;\n}\n\n/**\n * Launch the harness's browser(s) honoring `DOMOTION_CAPTURE_FLAGS` /\n * `DOMOTION_RASTER_FLAGS`. Returns one browser under both names unless the two\n * flag lists differ, in which case a second is launched for the raster side.\n */\nexport async function launchHarnessBrowsers(): Promise<HarnessBrowsers> {\n  const { captureFlags, rasterFlags, asymmetric } = resolveHarnessFlags();\n\n  const capture = await chromium.launch(captureFlags.length > 0 ? { args: captureFlags } : {});\n  if (!asymmetric) {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "rank": 65,
+          "workItemUris": [
+            "DM-1790"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b54cf4581575e4a249c52a87d6405351"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dfc2428f7d77a3659fabbc77f9f2a455be3415df",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
