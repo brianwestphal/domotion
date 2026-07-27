@@ -47,6 +47,39 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
     it("collapses runs of whitespace between flags", () => {
       expect(resolveHarnessFlags({ DOMOTION_CAPTURE_FLAGS: "  --a\t\t--b  " }).captureFlags).toEqual(["--a", "--b"]);
     });
+
+    // DM-1795: a harness may declare launch flags of its own — the feature suite
+    // captures unhinted (`tests/runner.tsx`). They must NOT turn the default run
+    // into the two-browser asymmetric mode, and an env override must win outright
+    // rather than merging (an experiment controls the whole launch).
+    describe("a harness's own default launch flags (DM-1795)", () => {
+      const DEF = ["--font-render-hinting=none"];
+
+      it("applies to BOTH sides, so the default stays ONE browser", () => {
+        const r = resolveHarnessFlags({}, DEF);
+        expect(r.captureFlags).toEqual(DEF);
+        expect(r.rasterFlags).toEqual(DEF);
+        expect(r.asymmetric, "a harness default must not silently split the browser").toBe(false);
+      });
+
+      it("a capture-flag override REPLACES the defaults on both sides (asymmetric experiment)", () => {
+        const r = resolveHarnessFlags({ DOMOTION_CAPTURE_FLAGS: "--disable-lcd-text" }, DEF);
+        expect(r.captureFlags).toEqual(["--disable-lcd-text"]);
+        // Not DEF — the experiment owns the whole launch, so raster is unflagged.
+        expect(r.rasterFlags).toEqual([]);
+        expect(r.asymmetric).toBe(true);
+      });
+
+      it("a RASTER-only override also takes over completely", () => {
+        const r = resolveHarnessFlags({ DOMOTION_RASTER_FLAGS: "--disable-lcd-text" }, DEF);
+        expect(r.captureFlags).toEqual([]);
+        expect(r.rasterFlags).toEqual(["--disable-lcd-text"]);
+      });
+
+      it("no defaults declared is exactly the old behavior", () => {
+        expect(resolveHarnessFlags({})).toEqual({ captureFlags: [], rasterFlags: [], asymmetric: false });
+      });
+    });
   });
 
   // The cache-key token is the load-bearing part: `html-test-suite.tsx` caches

@@ -219,6 +219,16 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // per-platform coverage cap. Caps sit above the max observed hinting coverage:
   //   - win32: 3.34% observed (DirectWrite, heavy hinting) → cap 4%
   //   - linux: 0.58% observed (FreeType, lighter hinting)  → cap 1%
+  //
+  // DM-1795: the floor is now measured under an UNHINTED CAPTURE (this harness
+  // launches with `--font-render-hinting=none`, above), which shrinks it on
+  // Linux — total diff coverage across the suite fell ~10.7% and one fixture
+  // crossed to passing. The caps below are deliberately left where they were:
+  // they are a ceiling on acceptable noise, not a measurement, and lowering
+  // them is a separate, evidence-gathering change. Note the flag does NOT move
+  // Windows at all (it is a FreeType/Skia flag; DirectWrite ignores it — a
+  // probe returns byte-identical screenshots), so the win32 cap describes
+  // exactly the same condition it always did.
   const HINTING_FLOOR_PCT: Record<string, number> = { win32: 4.0, linux: 1.0 };
   const floorPct = HINTING_FLOOR_PCT[process.platform] ?? 0;
   let pass: boolean;
@@ -280,7 +290,23 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   lowerProcessPriority();
   // DM-1790: one browser by default; two when the capture and raster sides are
   // flagged differently (`DOMOTION_CAPTURE_FLAGS` / `DOMOTION_RASTER_FLAGS`).
-  const browsers = await launchHarnessBrowsers();
+  // DM-1795: capture UNHINTED. This harness pins `paths` render mode, so the
+  // candidate SVG is vector geometry that hinting cannot apply to — while the
+  // expected paint IS grid-fitted by the platform rasterizer. Turning hinting
+  // off aligns Chromium's paint with Domotion's unhinted fontkit outlines,
+  // which is the same alignment `tests/flipbook-parity.ts` already relies on.
+  //
+  // Measured per platform before landing (DM-1791 / DM-1795):
+  //   Linux    103/104 passing vs 102, 0 regressions, total diff coverage −10.7%
+  //   macOS    no change — a probe returns byte-identical screenshots
+  //   Windows  no change — byte-identical too; this is a FreeType/Skia flag and
+  //            DirectWrite ignores it (`--disable-lcd-text` DOES alter that
+  //            probe, so the probe discriminates)
+  // Hence no platform branch. Deliberately NOT applied to
+  // `tests/html-test-suite.tsx`, which exercises the default EMBEDDED render
+  // mode: there the SVG carries a hinted subset font, so an unhinted capture
+  // would diverge from what a consumer's browser paints (docs/66, docs/105).
+  const browsers = await launchHarnessBrowsers(["--font-render-hinting=none"]);
   const browser = browsers.capture;
   const browserNote = harnessBrowserNote(browsers);
   if (browserNote != null) console.log(`  ${browserNote}`);

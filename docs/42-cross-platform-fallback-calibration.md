@@ -452,6 +452,32 @@ Both non-macOS suites are green at these caps (Linux via `npm run
 test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap lives in
 `tests/runner.tsx` (`HINTING_FLOOR_PCT`).
 
+**The capture is now unhinted too (DM-1795).** This harness launches Chromium
+with `--font-render-hinting=none`, so the *expected* paint is no longer
+grid-fitted either — which is the same capture↔render alignment
+`tests/flipbook-parity.ts` has always relied on. It only makes sense here
+because this suite pins `paths` mode: the candidate SVG is vector geometry that
+hinting cannot apply to, so only the expected side moves. Measured on the pinned
+Linux container: **103/104 passing (up from 102)**, `mathml-mi-greek-italic`
+crossing over, **0 regressions**, and total diff coverage across the suite down
+**~10.7%** (Σ 5.645 → 5.039).
+
+macOS and Windows are **unaffected** — `--font-render-hinting=none` is a
+FreeType/Skia flag, and both CoreText and DirectWrite ignore it. A probe
+returning byte-identical screenshots confirms it on each (with
+`--disable-lcd-text` altering the same probe, so it does discriminate). Hence no
+platform branch: the flag is applied unconditionally.
+
+The caps in the table are deliberately **not** lowered to match. They are a
+ceiling on acceptable noise rather than a measurement, and re-tuning them is a
+separate change that should gather its own evidence across the full fixture set.
+
+This is scoped to `tests/runner.tsx` alone. It must **not** reach
+`tests/html-test-suite.tsx`, which exercises the default **embedded** render
+mode: there the SVG carries a hinting-preserving subset font, so an unhinted
+capture would diverge from what a consumer's (hinted) browser actually paints —
+see `docs/66` and `docs/105`.
+
 ### The embedded-mode share of the floor is now recoverable (DM-1714/DM-1716)
 
 The floor above was measured in the `paths` render mode (unhinted `<path>`

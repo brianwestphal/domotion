@@ -79,11 +79,20 @@ export function captureFlagsCacheToken(env: NodeJS.ProcessEnv = process.env): st
  * order are still two distinct launch configurations as far as this helper is
  * concerned, and splitting the browser is the conservative answer.
  */
-export function resolveHarnessFlags(env: NodeJS.ProcessEnv = process.env): {
-  captureFlags: string[]; rasterFlags: string[]; asymmetric: boolean;
-} {
-  const captureFlags = parseFlags(env.DOMOTION_CAPTURE_FLAGS);
-  const rasterFlags = parseFlags(env.DOMOTION_RASTER_FLAGS);
+export function resolveHarnessFlags(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultLaunchFlags: string[] = [],
+): { captureFlags: string[]; rasterFlags: string[]; asymmetric: boolean } {
+  // DM-1795: a harness may declare launch flags of its own (the feature suite
+  // captures unhinted — see `tests/runner.tsx`). They apply to BOTH sides, so
+  // the default stays a single browser; the env vars are the experiment
+  // override and, when either is set, they take over completely rather than
+  // merging — an experiment should control the whole launch, not inherit half
+  // of it from whichever harness it happens to be running.
+  const overridden = (env.DOMOTION_CAPTURE_FLAGS ?? "").trim() !== ""
+    || (env.DOMOTION_RASTER_FLAGS ?? "").trim() !== "";
+  const captureFlags = overridden ? parseFlags(env.DOMOTION_CAPTURE_FLAGS) : [...defaultLaunchFlags];
+  const rasterFlags = overridden ? parseFlags(env.DOMOTION_RASTER_FLAGS) : [...defaultLaunchFlags];
   const same = captureFlags.length === rasterFlags.length
     && captureFlags.every((f, i) => f === rasterFlags[i]);
   return { captureFlags, rasterFlags, asymmetric: !same };
@@ -209,8 +218,8 @@ export interface HarnessBrowsers {
  * `DOMOTION_RASTER_FLAGS`. Returns one browser under both names unless the two
  * flag lists differ, in which case a second is launched for the raster side.
  */
-export async function launchHarnessBrowsers(): Promise<HarnessBrowsers> {
-  const { captureFlags, rasterFlags, asymmetric } = resolveHarnessFlags();
+export async function launchHarnessBrowsers(defaultLaunchFlags: string[] = []): Promise<HarnessBrowsers> {
+  const { captureFlags, rasterFlags, asymmetric } = resolveHarnessFlags(process.env, defaultLaunchFlags);
 
   const capture = await chromium.launch(captureFlags.length > 0 ? { args: captureFlags } : {});
   if (!asymmetric) {
