@@ -1,0 +1,29 @@
+DM-1767 — pixel-identity verification of the two regenerated example goldens
+============================================================================
+
+Method: rasterize the PREVIOUS committed golden and the NEW output in the same
+Chromium (animations paused, `seekTo` per sample), screenshot the full canvas at
+evenly spaced times across the whole timeline, and run each pair through the
+project's own visual-regression comparator (`src/review/compare-pngs.ts`) — the
+same metric `demos:test` gates on, where the pass criterion is regionCount === 0.
+
+examples/animate/form-fill  (560x480, 8200 ms, 32 samples)
+  every sample: regions 0   nonAA 0.000%
+  worst regionCount: 0
+  4 -> 2 animation frames, 53 KB -> 46 KB (-12.0%)
+
+examples/animate/editor-session  (640x360, 17240 ms, 48 samples)
+  every sample: regions 0   nonAA 0.000%
+  worst regionCount: 0
+  11 -> 6 animation frames, 187 KB -> 158 KB (-15.4%)
+
+Both examples changed shape only because DM-1767 removed `overlays` from the
+autoCompress exclusion set. editor-session is the flagship: its five typed-line
+frames (each carrying a `typing` overlay with `holdToFrameEnd: true`) collapse
+into one compressed run, and the overlays ride along as per-state overlays.
+`holdToFrameEnd` now cuts at the overlay's WINDOW end, which for a per-state
+overlay is its state's end — the same instant the member frame's own cut was, so
+the hard handoff to the next state's real page text is preserved.
+
+Frame 7's line stays a plain sibling frame because frame 8 carries `textTracks`,
+which is still a blocker; frames 6 and 9 were already authored `states` runs.

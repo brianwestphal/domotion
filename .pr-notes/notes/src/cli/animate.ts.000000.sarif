@@ -102,6 +102,119 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2x05om5sr0cj1k",
+          "message": {
+            "text": "With per-region timing (advances), a state's overlay anchors resolve in the capture ROUND that state was driven in — which is exact for an anchor inside the region the state advances, and approximate for one inside a different region.\n\nThe assumption this relies on is the run's own checked precondition: states sharing a round advance disjoint regions, and the non-region remainder of every round must be byte-identical (the run hard-errors otherwise). So the page at round r holds this state's own region at this state's content, and the unchanging chrome everywhere else. An anchor into either is the layout the author meant.\n\nWhat is NOT exact: anchoring to an element inside a different declared region, which may be ahead of or behind this state on its own schedule. That resolves against whatever position that region holds in this round. Documented as the one caveat in docs/104-overlay-windows.md §3 with the guidance to anchor within the state's own region when placement must be exact.\n\nRound 0 is special-cased (r === 0 ? [0] : …) because plan.rounds[0] is always empty by construction — round 0 IS state 0, the frame's own post-actions state and every region's starting point — so iterating rounds[0] would silently skip state 0's overlays.\n",
+            "markdown": "With per-region timing (`advances`), a state's overlay anchors resolve in the capture ROUND that state was driven in — which is exact for an anchor inside the region the state advances, and approximate for one inside a different region.\n\nThe assumption this relies on is the run's own checked precondition: states sharing a round advance *disjoint* regions, and the non-region remainder of every round must be byte-identical (the run hard-errors otherwise). So the page at round `r` holds this state's own region at this state's content, and the unchanging chrome everywhere else. An anchor into either is the layout the author meant.\n\nWhat is NOT exact: anchoring to an element inside a *different* declared region, which may be ahead of or behind this state on its own schedule. That resolves against whatever position that region holds in this round. Documented as the one caveat in `docs/104-overlay-windows.md` §3 with the guidance to anchor within the state's own region when placement must be exact.\n\nRound 0 is special-cased (`r === 0 ? [0] : …`) because `plan.rounds[0]` is always empty by construction — round 0 IS state 0, the frame's own post-`actions` state and every region's starting point — so iterating `rounds[0]` would silently skip state 0's overlays.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 2130,
+                  "endLine": 2140,
+                  "snippet": {
+                    "text": "      for (const s of plan.rounds[r]) {\n        const acts = stateCfgs[s].actions;\n        if (acts != null && acts.length > 0) await runActions(page, acts, log);\n      }\n      roundTrees.push(await captureNow());\n      // DM-1767: resolve the anchors of every state DRIVEN in this round, at\n      // this round's page. Round 0 is state 0 (the frame's own post-actions\n      // state), which `rounds[0]` leaves empty — handle it explicitly.\n      for (const s of r === 0 ? [0] : plan.rounds[r]) await collectStateOverlays(s);\n    }\n    const assembled = assembleRegionStateTrees("
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "assumption"
+            ]
+          },
+          "rank": 55,
+          "workItemUris": [
+            "DM-1767"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1c3fffe87c0e320b63fd4daa52b568ce"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2x0tshcu9gkqz7",
+          "message": {
+            "text": "Removing overlays from the exclusion set changed two committed goldens; both were verified pixel-identical to their previous output before the goldens were regenerated.\n\nThis is the risky edit of the change: autoCompress is default-ON, so dropping a blocker silently alters the output shape of any config that has an overlay-carrying continue + cut run — including the flagship editor-session example, whose five typed-line frames now collapse into one run.\n\nRather than trust the compressor's pixel-identity contract, both affected examples were rasterized old-vs-new across their whole timelines and diffed with the project's own comparator (compare-pngs.ts, pass = regionCount === 0): 32 samples over form-fill's 8.2 s and 48 over editor-session's 17.2 s, every one at regionCount 0 / 0.000% non-AA, at 12% and 15% fewer bytes. Attached artifact has the full numbers and the reasoning for which frames stayed siblings.\n\nThe subtle case that could have broken and didn't: editor-session's typing overlays set holdToFrameEnd: true, whose whole point is a hard cut at the frame boundary handing off to the next frame's identical real page text. Inside the run that boundary is now the overlay's window end — which is its state's end, the same instant — so the handoff survives.\n",
+            "markdown": "Removing `overlays` from the exclusion set changed two committed goldens; both were verified **pixel-identical** to their previous output before the goldens were regenerated.\n\nThis is the risky edit of the change: `autoCompress` is default-ON, so dropping a blocker silently alters the output shape of any config that has an overlay-carrying `continue` + `cut` run — including the flagship `editor-session` example, whose five typed-line frames now collapse into one run.\n\nRather than trust the compressor's pixel-identity contract, both affected examples were rasterized old-vs-new across their whole timelines and diffed with the project's own comparator (`compare-pngs.ts`, pass = `regionCount === 0`): 32 samples over form-fill's 8.2 s and 48 over editor-session's 17.2 s, **every one at regionCount 0 / 0.000% non-AA**, at 12% and 15% fewer bytes. Attached artifact has the full numbers and the reasoning for which frames stayed siblings.\n\nThe subtle case that could have broken and didn't: editor-session's typing overlays set `holdToFrameEnd: true`, whose whole point is a hard cut at the frame boundary handing off to the next frame's identical real page text. Inside the run that boundary is now the overlay's *window* end — which is its state's end, the same instant — so the handoff survives.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 2586,
+                  "endLine": 2600,
+                  "snippet": {
+                    "text": "    // DM-1767: each member's `overlays` become its STATE's overlays. That is\n    // what preserves the authored behavior through the collapse: the state's\n    // capture is where its anchors resolve, and the state's slice of the run is\n    // the window `buildStatesRunContent` bounds them to — so an overlay on the\n    // third of five members still dies at that member's cut instead of holding\n    // to the end of the whole run.\n    const states: RunStateInput[] = [\n      {\n        duration: runAnchor.duration, // state 0 = the anchor's own post-actions capture\n        ...(runAnchor.overlays != null && runAnchor.overlays.length > 0 ? { overlays: runAnchor.overlays } : {}),\n      },\n      ...runFrames.slice(1).map((f) => ({\n        ...(f.actions != null ? { actions: f.actions } : {}),\n        duration: f.duration,\n        ...(f.overlays != null && f.overlays.length > 0 ? { overlays: f.overlays } : {}),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-1767"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "16bbbe677747a39aa78b7d76751bf7c7"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm1767-golden-pixel-identity.txt",
+                "properties": {
+                  "ext-sha256": "e1d0d6cc052d272210381bfbb767c8f5543457171fbb99dce89b8bd65369c46b"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8176fbf5f29d7982f56fad06537b3b095ecdf4bd",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

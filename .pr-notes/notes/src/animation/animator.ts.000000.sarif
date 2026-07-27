@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2wzshmlrrcbrv8",
+          "message": {
+            "text": "endAt can only SHORTEN an overlay's window, never extend it — the clamp to frameDurationMs is the load-bearing part.\n\nEvery overlay renderer clamps its keyframe stops to the frame precisely so an overlay cannot paint across the cut into the next frame. If endAt were allowed past the frame's end, the visibility keyframes would run into the successor frame's window and the overlay would bleed over a scene it was never authored on. Allowing \"late\" ends would also make the compressed-run rewrite unsound: a per-state overlay's window is pinned to its state, and a state's end is always inside the run.\n\nSo the contract is deliberately asymmetric — end early, never late — and an overlay that should span a whole compressed run is authored at frame level, which already means exactly that.\n\nThe Math.max(1, …) floor exists because a sub-millisecond window would collapse the keyframe stops onto each other after pct()'s 2-decimal rounding, producing out-of-order stops rather than a very short overlay.\n",
+            "markdown": "`endAt` can only SHORTEN an overlay's window, never extend it — the clamp to `frameDurationMs` is the load-bearing part.\n\nEvery overlay renderer clamps its keyframe stops to the frame precisely so an overlay cannot paint across the cut into the next frame. If `endAt` were allowed past the frame's end, the visibility keyframes would run into the successor frame's window and the overlay would bleed over a scene it was never authored on. Allowing \"late\" ends would also make the compressed-run rewrite unsound: a per-state overlay's window is pinned to its state, and a state's end is always inside the run.\n\nSo the contract is deliberately asymmetric — end early, never late — and an overlay that should span a whole compressed run is authored at *frame* level, which already means exactly that.\n\nThe `Math.max(1, …)` floor exists because a sub-millisecond window would collapse the keyframe stops onto each other after `pct()`'s 2-decimal rounding, producing out-of-order stops rather than a very short overlay.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 1112,
+                  "endLine": 1117,
+                  "snippet": {
+                    "text": "export function overlayWindowEndMs(overlay: AnimationOverlay, frameDurationMs: number): number {\n  const endAt = (overlay as { endAt?: number }).endAt;\n  if (endAt == null) return frameDurationMs;\n  // A window shorter than a millisecond is meaningless; clamp to [1, frame].\n  return Math.min(frameDurationMs, Math.max(1, endAt));\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "rank": 70,
+          "workItemUris": [
+            "DM-1767"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "03d1e993f80d85116b863eeeba6a33c6"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2x05irq6ovlvvq",
+          "message": {
+            "text": "Re-basing an overlay onto a new time origin has to add the offset to its EFFECTIVE delay, which is why this table exists rather than a bare delay ?? 0 at the call site (0).\n\nA per-state overlay inside a compressed run moves origin: it was authored against \"its own frame's start\" and must be replayed against \"the collapsed run's start\". The naive rewrite — delay: (ov.delay ?? 0) + stateOffset — silently drops the kind's own lead-in, so a typing overlay with no explicit delay would start 300 ms EARLIER relative to its state than it did as its own frame, and shine / interact / tap 200 / 200 / 50 ms earlier. That is a behavior change the collapse is supposed to be incapable of.\n\nDeliberately NOT re-exported from src/animation/index.ts: it is an internal timing detail with exactly one caller, and publishing it would widen the package's API contract (and trip the index.exports.test.ts / feature-coverage manifest drift gates) for no consumer benefit.\n\nKeep in lockstep with the overlay.delay ?? … defaults in the render functions — shine and interact now both read DEFAULTEFFECTDELAY_MS rather than repeating the literal 200, so that pair can't drift from the table.\n",
+            "markdown": "Re-basing an overlay onto a new time origin has to add the offset to its EFFECTIVE delay, which is why this table exists rather than a bare `delay ?? 0` at the [call site](0).\n\nA per-state overlay inside a compressed run moves origin: it was authored against \"its own frame's start\" and must be replayed against \"the collapsed run's start\". The naive rewrite — `delay: (ov.delay ?? 0) + stateOffset` — silently drops the kind's own lead-in, so a `typing` overlay with no explicit `delay` would start 300 ms EARLIER relative to its state than it did as its own frame, and `shine` / `interact` / `tap` 200 / 200 / 50 ms earlier. That is a behavior change the collapse is supposed to be incapable of.\n\nDeliberately NOT re-exported from `src/animation/index.ts`: it is an internal timing detail with exactly one caller, and publishing it would widen the package's API contract (and trip the `index.exports.test.ts` / feature-coverage manifest drift gates) for no consumer benefit.\n\nKeep in lockstep with the `overlay.delay ?? …` defaults in the render functions — `shine` and `interact` now both read `DEFAULT_EFFECT_DELAY_MS` rather than repeating the literal `200`, so that pair can't drift from the table.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 1596,
+                  "endLine": 1612,
+                  "snippet": {
+                    "text": " * DM-1767: each overlay kind's default `delay` — the ms after frame start at\n * which it begins when the author sets none. Published because SHIFTING an\n * overlay onto a different origin (a per-state overlay inside a compressed run\n * moving from \"its own state's start\" to \"the collapsed run's start\" —\n * docs/104) must add the offset to the EFFECTIVE delay; adding it to a bare\n * `delay ?? 0` would silently drop the kind's own lead-in and the overlay would\n * fire early relative to how it behaved as its own frame.\n */\nexport const OVERLAY_DEFAULT_DELAY_MS: Record<AnimationOverlay[\"kind\"], number> = {\n  typing: DEFAULT_TYPING_DELAY_MS,\n  tap: DEFAULT_TAP_DELAY_MS,\n  svg: 0,\n  blink: 0,\n  shine: DEFAULT_EFFECT_DELAY_MS,\n  interact: DEFAULT_EFFECT_DELAY_MS,\n};\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 2120
+                }
+              }
+            }
+          ],
+          "rank": 60,
+          "workItemUris": [
+            "DM-1767"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7336514c8040f7e6e7019cd53863eb8d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8176fbf5f29d7982f56fad06537b3b095ecdf4bd",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
