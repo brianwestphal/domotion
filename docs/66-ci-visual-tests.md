@@ -77,6 +77,17 @@ Establish / refresh a baseline from a reviewed known-good run: `node tools/run-c
 - **Linux is expected to differ** from macOS by design (separate fallback calibration + the runner's Linux text-hinting/coverage floor — see `test-linux.yml`). Use it to catch tofu/missing-font regressions, not to match macOS pixels. It carries its own `tests/baselines/<suite>-linux.json` once established.
 - **windows-latest is Windows Server**, whose default font set is narrower than desktop Windows 11 (`windows-fidelity.yml`) — limited fidelity, debugging only.
 
+## These suites can't measure a capture-only Chromium flag
+
+Both harnesses (`tests/runner.tsx`, `tests/html-test-suite.tsx`) drive **one** Chromium: the same browser page screenshots the expected paint AND rasterizes the candidate Domotion SVG for the pixel diff. So a `chromium.launch({ args: [...] })` flag applied to change *capture* also changes how the candidate SVG is rasterized — both sides move together, and any effect that should only hit the capture is masked.
+
+This bit a `--font-render-hinting=none` experiment (the flag disables FreeType/DirectWrite glyph hinting):
+
+- **Paths mode (feature suite) — measurable.** The candidate SVG is vector `<path>` geometry; hinting doesn't apply to paths, so only the expected capture changes (goes unhinted). Unhinted capture aligns better with Domotion's unhinted fontkit outlines → a real, if small, improvement (one fixture crossed to passing). This is exactly why `flipbook-parity.ts` uses the flag locally to align capture↔render.
+- **Embedded mode (html / unicode sweeps) — NOT measurable.** The candidate SVG embeds a *hinted* subset font; the flagged browser rasterizes it **unhinted** too, so both sides go soft and agree — the sweep's per-fixture `diff%` even *drops*. That is a mirage: a real consumer opens the shipped SVG in an **unflagged** browser that renders the embedded font hinted, so the capture-vs-consumer mismatch the flag would introduce is invisible to a suite that rasterizes both sides in the same flagged browser. Do not read a sweep run under such a flag as evidence the flag is safe for the default (embedded) render mode.
+
+To measure an asymmetric capture flag you need an asymmetric harness: capture the expected paint **with** the flag but rasterize the candidate SVG in a **separate, unflagged** browser (the consumer's condition). The current suites do not support that.
+
 ## Local sharding
 
 The shard slice is plain env, so you can reproduce a shard locally:
