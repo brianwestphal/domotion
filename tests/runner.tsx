@@ -12,7 +12,8 @@
  * Usage: npx tsx tests/runner.tsx [--only feature-name]
  */
 
-import { chromium, type BrowserContext, type Page } from "@playwright/test";
+import { type BrowserContext, type Page } from "@playwright/test";
+import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -115,6 +116,14 @@ export interface SuiteResult {
 interface RunnerWorker {
   context: BrowserContext;
   page: Page;
+  /**
+   * DM-1790: the page the candidate SVG is rasterized on. Normally the SAME
+   * page as `page` (one browser, today's fast path); under the asymmetric mode
+   * it lives in a SEPARATE browser launched without the capture's flags — the
+   * consumer's condition. See `tests/harness-browsers.ts`.
+   */
+  rasterPage: Page;
+  rasterContext: BrowserContext | null;
   compareContext: BrowserContext;
   comparePage: Page;
   /** DM-559: cross-origin font URLs the worker's page has fetched since the
@@ -183,10 +192,16 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // already includes the <img> resource load, so the prior 200ms wait is
   // redundant. Wait once more on document.fonts.ready in case the embedded
   // SVG carries text that triggers font resolution in this context too.
+  //
+  // DM-1790: rasterized on `w.rasterPage`, which IS `w.page` by default (so
+  // this sequence is unchanged) but is a page in a separately-flagged browser
+  // under the asymmetric mode — the point being that a capture-side Chromium
+  // flag must not silently move the candidate side too.
   const svgRenderHtml = renderDoc(<SvgRenderPage svgUrl={`file://${svgPath}`} width={width} height={height} />);
-  await w.page.setContent(svgRenderHtml, { waitUntil: "load" });
-  await w.page.evaluate(() => document.fonts.ready);
-  await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width, height } });
+  if (w.rasterPage !== w.page) await w.rasterPage.setViewportSize({ width, height });
+  await w.rasterPage.setContent(svgRenderHtml, { waitUntil: "load" });
+  await w.rasterPage.evaluate(() => document.fonts.ready);
+  await w.rasterPage.screenshot({ path: actualPath, clip: { x: 0, y: 0, width, height } });
 
   // Step 4: Compare. Pass criterion (DM-383): every differing pixel must be
   // classified as glyph anti-aliasing by the Yee detector. avg / sig / tile
@@ -263,7 +278,12 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
 
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
   lowerProcessPriority();
-  const browser = await chromium.launch();
+  // DM-1790: one browser by default; two when the capture and raster sides are
+  // flagged differently (`DOMOTION_CAPTURE_FLAGS` / `DOMOTION_RASTER_FLAGS`).
+  const browsers = await launchHarnessBrowsers();
+  const browser = browsers.capture;
+  const browserNote = harnessBrowserNote(browsers);
+  if (browserNote != null) console.log(`  ${browserNote}`);
   const workerCount = resolveWorkerCount();
 
   const results = await runJobsInPool<FeatureTest, RunnerWorker, SuiteResult>({
@@ -287,15 +307,29 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
           fontUrls.add(url);
         }
       });
+      // DM-1790: the compare page only runs canvas pixel math, so which
+      // browser hosts it is immaterial — keep it on the capture browser.
       const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
       const comparePage = await compareContext.newPage();
       comparePage.setDefaultTimeout(90_000);
       comparePage.setDefaultNavigationTimeout(90_000);
       await comparePage.goto("about:blank");
-      return { context, page, compareContext, comparePage, fontUrls };
+      // Under the asymmetric mode the candidate SVG gets its own page in the
+      // unflagged browser; otherwise it shares the capture page exactly as
+      // before, so the default path allocates no extra context.
+      let rasterContext: BrowserContext | null = null;
+      let rasterPage = page;
+      if (browsers.asymmetric) {
+        rasterContext = await browsers.raster.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
+        rasterPage = await rasterContext.newPage();
+        rasterPage.setDefaultTimeout(90_000);
+        rasterPage.setDefaultNavigationTimeout(90_000);
+      }
+      return { context, page, rasterPage, rasterContext, compareContext, comparePage, fontUrls };
     },
     teardown: async (w) => {
       await w.context.close();
+      if (w.rasterContext != null) await w.rasterContext.close();
       await w.compareContext.close();
     },
     runJob: async (test, w) => runOneTest(test, w),
@@ -305,7 +339,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     },
   });
 
-  await browser.close();
+  await browsers.close();
 
   // Write a per-suite manifest the review tool (tests/review-server.tsx) reads
   // to render per-test cards. Include a timestamp so the review page shows
@@ -316,7 +350,11 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   if (suiteName != null) {
     writeFileSync(
       resolve(OUTPUT_DIR, `${suiteName}-results.json`),
-      JSON.stringify({ suite: suiteName, generatedAt: new Date().toISOString(), results }, null, 2),
+      // DM-1790: record the browser condition alongside the results. The
+      // failure mode the asymmetric mode exists to prevent is a number
+      // measured under a flag nobody remembers setting — so the manifest says
+      // which condition produced it, not just the numbers.
+      JSON.stringify({ suite: suiteName, generatedAt: new Date().toISOString(), browsers: browserNote ?? "default (one browser, no flags)", results }, null, 2),
     );
   }
 

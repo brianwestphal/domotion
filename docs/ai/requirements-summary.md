@@ -42,6 +42,27 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 105 (`docs/105-asymmetric-harness-browsers.md`, DM-1790)** — **Shipped**
+  (opt-in; nothing runs in this mode by default). `tests/runner.tsx` and
+  `tests/html-test-suite.tsx` each drove ONE Chromium for BOTH the expected
+  paint and the candidate SVG's rasterization, so a `chromium.launch({ args })`
+  flag meant for one side silently moved both — which makes a capture-only
+  experiment unmeasurable (docs/66: `--font-render-hinting=none` reads as an
+  IMPROVEMENT in embedded render mode purely because the flagged browser also
+  rasterizes the SVG's hinted subset font unhinted; a real consumer's browser
+  does not). `DOMOTION_CAPTURE_FLAGS` / `DOMOTION_RASTER_FLAGS` now configure
+  the two sides independently: neither set ⇒ one browser (the unchanged default
+  every committed baseline was measured under), capture only ⇒ asymmetric (the
+  consumer's condition), both identical ⇒ the historical coupled behavior stated
+  deliberately. Two things it has to get right: the default path must stay
+  byte-identical (same `Browser` object under both names, no extra context), and
+  the html-test **expected-PNG cache key** must include the capture flags — it
+  didn't at first, and three conditions produced identical coverage to four
+  decimals because the flagged runs reused the unflagged cached screenshots.
+  Validated on Linux (`--disable-lcd-text`, which unlike the hinting flag does
+  change that platform's paint): three configurations → three genuinely
+  different numbers, with the asymmetric one NOT between the other two.
+
 - **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747/DM-1756/DM-1754/DM-1753)** —
   **Shipped** (engine + programmatic wiring + the declarative config surface:
   per-frame `textTracks: [...]` with capture-time selector stamping and

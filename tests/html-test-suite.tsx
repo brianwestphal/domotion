@@ -26,7 +26,8 @@
  * Usage: npx tsx tests/html-test-suite.tsx [--only 07-svg-shapes]
  */
 
-import { chromium, type BrowserContext, type Page } from "@playwright/test";
+import { type BrowserContext, type Page } from "@playwright/test";
+import { launchHarnessBrowsers, harnessBrowserNote, captureFlagsCacheToken } from "./harness-browsers.js";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -112,10 +113,15 @@ const CAPTURE_NODE_HASH = createHash("sha256")
   .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/emoji.ts")))
   .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/index.ts")))
   .digest("hex");
+// DM-1790: and fold the CAPTURE browser's Chromium flags in too. The cached
+// artifact is a screenshot taken by that browser, so a capture-side flag
+// changes it while changing nothing else in the key — a flagged run would
+// otherwise reuse the unflagged PNG and report numbers for a condition it never
+// ran. Empty (and so key-neutral) unless `DOMOTION_CAPTURE_FLAGS` is set.
 function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
   return createHash("sha256")
     .update(htmlBytes)
-    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}`)
+    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}${captureFlagsCacheToken()}`)
     .digest("hex");
 }
 function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
@@ -1185,6 +1191,14 @@ function categoryOf(name: string): string {
 interface HtmlTestWorker {
   context: BrowserContext;
   page: Page;
+  /**
+   * DM-1790: the page the candidate SVG is rasterized on. Normally the SAME
+   * page as `page`; under the asymmetric mode it lives in a SEPARATE browser
+   * launched without the capture's flags — the consumer's condition. See
+   * `tests/harness-browsers.ts`.
+   */
+  rasterPage: Page;
+  rasterContext: BrowserContext | null;
 }
 
 // DM-1006: one comparePage shared across all workers. The N-workers-each-
@@ -1413,14 +1427,21 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // blocks external resource loads inside the SVG for security, which
     // masked rendering fidelity for any test using background:url() or <img>.
     // Loading the SVG as a document lets those external file:// refs resolve.
-    await w.page.goto(`file://${svgPath}`);
+    //
+    // DM-1790: `w.rasterPage` IS `w.page` by default (so this is unchanged);
+    // under the asymmetric mode it is a page in a separately-flagged browser,
+    // so a capture-side Chromium flag can't silently move the candidate side.
+    if (w.rasterPage !== w.page) {
+      await w.rasterPage.setViewportSize({ width: WIDTH, height: fixtureHeight });
+    }
+    await w.rasterPage.goto(`file://${svgPath}`);
     timer.mark("goto-svg");
     // DM-1009: replaced waitForTimeout(200) — the 200 ms was a buffer for
     // SVG `<image href>` external file:// refs to finish loading.
     // waitForSettled awaits each image's load/error event directly.
-    await waitForSettled(w.page);
+    await waitForSettled(w.rasterPage);
     timer.mark("settle-svg");
-    await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+    await w.rasterPage.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
     timer.mark("screenshot-actual");
 
     const cmp = await withCompareLock((cp) => comparePngs(cp, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST));
@@ -1556,7 +1577,12 @@ async function main(): Promise<void> {
   // many serial pipelines run concurrently.
   _timingRunStartMs = performance.now();
   _timingWorkerCount = workerCount;
-  const browser = await chromium.launch();
+  // DM-1790: one browser by default; two when the capture and raster sides are
+  // flagged differently (`DOMOTION_CAPTURE_FLAGS` / `DOMOTION_RASTER_FLAGS`).
+  const browsers = await launchHarnessBrowsers();
+  const browser = browsers.capture;
+  const browserNote = harnessBrowserNote(browsers);
+  if (browserNote != null) console.log(`  ${browserNote}\n`);
 
   // DM-1006: one shared comparePage for all workers (was per-worker before).
   // Set up once here, torn down after the pool finishes; the per-call mutex
@@ -1576,10 +1602,22 @@ async function main(): Promise<void> {
       // DM-479: 90 s instead of Playwright's 30 s default.
       page.setDefaultTimeout(90_000);
       page.setDefaultNavigationTimeout(90_000);
-      return { context, page };
+      // DM-1790: under the asymmetric mode the candidate SVG gets its own page
+      // in the unflagged browser; otherwise it shares the capture page exactly
+      // as before, so the default path allocates no extra context.
+      let rasterContext: BrowserContext | null = null;
+      let rasterPage = page;
+      if (browsers.asymmetric) {
+        rasterContext = await browsers.raster.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: CAPTURE_DPR });
+        rasterPage = await rasterContext.newPage();
+        rasterPage.setDefaultTimeout(90_000);
+        rasterPage.setDefaultNavigationTimeout(90_000);
+      }
+      return { context, page, rasterPage, rasterContext };
     },
     teardown: async (w) => {
       await w.context.close();
+      if (w.rasterContext != null) await w.rasterContext.close();
     },
     runJob: async (file, w) => runOneHtmlTest(file, w),
     onResult: (result) => {
@@ -1616,9 +1654,20 @@ async function main(): Promise<void> {
   // browser so its resources are released cleanly.
   await sharedCompareContext.close();
   sharedComparePage = null;
-  await browser.close();
+  await browsers.close();
 
   writeFileSync(resolve(OUTPUT_DIR, "results.json"), JSON.stringify(results, null, 2));
+  // DM-1790: `results.json` is a bare array (the CI shard merger concatenates
+  // them), so the browser condition goes in a sidecar rather than changing that
+  // shape. Written only when the run was NOT the default single-browser
+  // condition — its whole purpose is to stop a flagged measurement from being
+  // mistaken later for a plain one.
+  if (browserNote != null) {
+    writeFileSync(
+      resolve(OUTPUT_DIR, "run-conditions.json"),
+      JSON.stringify({ generatedAt: new Date().toISOString(), browsers: browserNote, captureFlags: browsers.captureFlags, rasterFlags: browsers.rasterFlags }, null, 2),
+    );
+  }
 
   // DM-1029: dump the per-step timing trace so `tools/render-timing-diagram.mjs`
   // can build the annotated pipeline SVG and we can re-measure after each
