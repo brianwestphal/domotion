@@ -41,6 +41,8 @@
  * single-browser path is what every committed baseline was measured under.
  */
 
+import { readdirSync, statSync, type Dirent } from "node:fs";
+import { createHash } from "node:crypto";
 import { chromium, type Browser } from "@playwright/test";
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */
@@ -88,6 +90,68 @@ export function resolveHarnessFlags(env: NodeJS.ProcessEnv = process.env): {
 }
 
 /**
+ * DM-1797: a digest of the FONT SET installed on this Linux host.
+ *
+ * `process.platform` is too coarse for Linux, where the available fonts are
+ * what varies between environments — the pinned Playwright container and a
+ * Noto-installed desktop image both report `linux` and paint the same fixture
+ * differently. That difference is the whole subject of `linuxFontProfile()`
+ * (DM-1404).
+ *
+ * The profile itself is NOT the right key here, though, and this deliberately
+ * does not use it: it is a two-way `noto` / `bare` classification derived from a
+ * SINGLE probe (`fc-match sans-serif:charset=4e00`, a Han codepoint). Two images
+ * can both classify as `bare` while differing in their Latin fonts — same
+ * partition, different screenshots. What actually determines the screenshot is
+ * the set of font files fontconfig can see, so that is what gets hashed.
+ *
+ * Implemented over `fs` rather than shelling out to `fc-list`: no subprocess, no
+ * dependency (this module otherwise imports only `@playwright/test`), and the
+ * file set is the ground truth `fc-list` itself reports on. Walks the standard
+ * fontconfig directories, hashing each font file's path + size — enough to
+ * separate two images, cheap enough to do once per process.
+ *
+ * `DOMOTION_FONT_FINGERPRINT` overrides it, for reproducibility across machines
+ * that are known-equivalent (or to force a partition apart deliberately).
+ */
+const FONT_DIRS = [
+  "/usr/share/fonts",
+  "/usr/local/share/fonts",
+  `${process.env.HOME ?? ""}/.fonts`,
+  `${process.env.HOME ?? ""}/.local/share/fonts`,
+];
+const FONT_EXT = /\.(ttf|otf|ttc|otc|pfb|pfa|pcf|bdf)(\.gz)?$/i;
+
+let _fontDigest: string | null = null;
+function linuxFontDigest(): string {
+  if (_fontDigest != null) return _fontDigest;
+  const override = process.env.DOMOTION_FONT_FINGERPRINT;
+  if (override != null && override.trim() !== "") return (_fontDigest = override.trim());
+  const entries: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 6) return;
+    let items: Dirent[];
+    try { items = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const it of items) {
+      const full = `${dir}/${it.name}`;
+      if (it.isDirectory()) { walk(full, depth + 1); continue; }
+      if (!FONT_EXT.test(it.name)) continue;
+      let size = 0;
+      try { size = statSync(full).size; } catch { /* raced or unreadable — path alone still counts */ }
+      entries.push(`${full}:${size}`);
+    }
+  };
+  for (const d of FONT_DIRS) if (d !== "/.fonts" && d !== "/.local/share/fonts") walk(d, 0);
+  entries.sort();
+  // Short digest: this names a directory, and 8 hex chars is ample to separate
+  // the handful of environments any one checkout ever sees.
+  return (_fontDigest = createHash("sha256").update(entries.join("\n")).digest("hex").slice(0, 8));
+}
+
+/** Test-only: clear the memoized font digest. */
+export function __resetFontDigestForTest(): void { _fontDigest = null; }
+
+/**
  * DM-1794: the sub-directory the expected-PNG cache lives in, named for the
  * platform whose Chromium painted those screenshots.
  *
@@ -114,7 +178,12 @@ export function resolveHarnessFlags(env: NodeJS.ProcessEnv = process.env): {
  * differently with the same `process.platform`. See DM-1797.
  */
 export function expectedCachePlatformDir(platform: string = process.platform): string {
-  return platform;
+  // DM-1797: on Linux the platform alone is not enough — the installed font set
+  // is what varies between environments, and it is what the screenshot depends
+  // on. macOS and Windows keep the bare platform name: their system font sets
+  // are stable per OS, and the silent-cross-contamination hazard DM-1794 fixed
+  // is specific to running a container against a mounted host checkout.
+  return platform === "linux" ? `linux-${linuxFontDigest()}` : platform;
 }
 
 export interface HarnessBrowsers {

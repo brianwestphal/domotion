@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveHarnessFlags, captureFlagsCacheToken, harnessBrowserNote, expectedCachePlatformDir } from "./harness-browsers.js";
+import { resolveHarnessFlags, captureFlagsCacheToken, harnessBrowserNote, expectedCachePlatformDir, __resetFontDigestForTest } from "./harness-browsers.js";
 
 // DM-1790 (docs/105): the visual harnesses drive ONE Chromium for both the
 // expected paint and the candidate SVG's rasterization, so a `chromium.launch`
@@ -96,6 +96,51 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
       for (const p of ["darwin", "linux", "win32"]) {
         expect(expectedCachePlatformDir(p)).not.toMatch(/[/\\]/);
       }
+    });
+
+    // DM-1797: `linux` alone is too coarse — the installed FONT SET is what
+    // varies between Linux environments and what the screenshot depends on.
+    // Deliberately not keyed on `linuxFontProfile()`: that is a two-way
+    // noto/bare classification from a single Han-codepoint probe, so two images
+    // can share a profile while differing in their Latin fonts.
+    describe("Linux font-set digest (DM-1797)", () => {
+      const withFingerprint = <T>(v: string | undefined, fn: () => T): T => {
+        const prev = process.env.DOMOTION_FONT_FINGERPRINT;
+        if (v == null) delete process.env.DOMOTION_FONT_FINGERPRINT;
+        else process.env.DOMOTION_FONT_FINGERPRINT = v;
+        __resetFontDigestForTest();
+        try { return fn(); } finally {
+          if (prev == null) delete process.env.DOMOTION_FONT_FINGERPRINT;
+          else process.env.DOMOTION_FONT_FINGERPRINT = prev;
+          __resetFontDigestForTest();
+        }
+      };
+
+      it("suffixes ONLY linux — macOS and Windows keep the bare platform name", () => {
+        withFingerprint("abc123", () => {
+          expect(expectedCachePlatformDir("linux")).toBe("linux-abc123");
+          expect(expectedCachePlatformDir("darwin")).toBe("darwin");
+          expect(expectedCachePlatformDir("win32")).toBe("win32");
+        });
+      });
+
+      it("two different font sets get two different cache directories", () => {
+        const a = withFingerprint("fontsetA", () => expectedCachePlatformDir("linux"));
+        const b = withFingerprint("fontsetB", () => expectedCachePlatformDir("linux"));
+        expect(a).not.toBe(b);
+      });
+
+      it("is stable for one font set (a cache stays hot across runs)", () => {
+        const a = withFingerprint("same", () => expectedCachePlatformDir("linux"));
+        const b = withFingerprint("same", () => expectedCachePlatformDir("linux"));
+        expect(a).toBe(b);
+      });
+
+      it("stays a single path segment", () => {
+        withFingerprint(undefined, () => {
+          expect(expectedCachePlatformDir("linux")).toMatch(/^linux-[0-9a-f]{8}$/);
+        });
+      });
     });
   });
 
