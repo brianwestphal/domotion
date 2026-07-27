@@ -25,6 +25,12 @@ export {
 export { namespaceEmbeddedAnimatedSvg, type NamespaceEmbedOptions } from "./embed-namespace.js";
 export { offsetEmbeddedAnimatedSvgTimeline, type OffsetTimelineOptions, type EmbeddedTimelineMode } from "./embed-timeline.js";
 
+// DM-1767 (docs/104): `overlayWindowEndMs` / `OVERLAY_DEFAULT_DELAY_MS` are
+// deliberately NOT re-exported here. They are internal overlay-timing details
+// (how `endAt` resolves; each kind's default start delay) that only a caller
+// RE-BASING an overlay onto a different origin needs — today just the CLI's
+// compressed-run rewrite, which imports them from `./animator.js` directly.
+// Publishing them would widen the package's API contract for no consumer.
 export {
   generateAnimatedSvg,
   type AnimationConfig,

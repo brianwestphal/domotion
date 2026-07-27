@@ -206,8 +206,9 @@ they describe (see `CLAUDE.md` "Documentation"):
   cursor `events[].frame` remap) falls out of operating on the rewritten config.
   Output is pixel-identical to the flipbook (`tests/auto-compress.e2e.test.ts`);
   the win is raw size + live-DOM weight. It compresses runs with no
-  overlays/animations/textTracks/forceState crossing them; anything else is left
-  uncompressed with a logged reason.
+  animations/textTracks/forceState crossing them (per-frame `overlays` ride along
+  as per-state overlays since DM-1767); anything else is left uncompressed with a
+  logged reason.
   **Sub-run splitting + size-regression guard (DM-1764) — shipped.** The three
   interaction exclusions (an explicit cursor event addressing a member, an
   interaction action a `cursor: "auto"` pointer would come from, a magic-move
@@ -220,15 +221,29 @@ they describe (see `CLAUDE.md` "Documentation"):
   rendered uncompressed and reverted when it lost — `composeStatesFlipbook` in
   `src/cli/animate.ts`, same nesting + same pixels, so `autoCompress` can never
   make output bigger (`tests/compress-size-guard.e2e.test.ts`). A run the AUTHOR
-  asked for is warned about, never rewritten. Per-frame overlays inside a run
-  stay a split point by evaluation, not omission: overlay lifetime is
-  frame-scoped and anchors resolve against the run's LAST state, so preserving
-  them needs an explicit per-overlay window + per-state anchor resolution in the
-  overlay model (doc 43 §13.1). The default-flip to ON SHIPPED (DM-1768): all
-  three prerequisites met — (1) exclusion set (overlays handled by sub-run
-  splitting, DM-1767), (2) size guard (DM-1772), (3) golden regen was a no-op
-  (byte-neutral across all 26 goldens — the corpus has no auto-collapsible plain
-  continue+cut run). Opt out per config with `autoCompress: false`.
+  asked for is warned about, never rewritten. The default-flip to ON SHIPPED
+  (DM-1768): all three prerequisites met — (1) exclusion set (every per-frame
+  decoration split cleanly), (2) size guard (DM-1772), (3) golden regen was a
+  no-op at the time (byte-neutral across all 26 goldens — the corpus then had no
+  auto-collapsible plain continue+cut run). Opt out per config with
+  `autoCompress: false`.
+  **Per-overlay windows + per-state overlays (DM-1767, docs/104) — shipped.**
+  The two overlay-model changes DM-1764 identified, now built, which removed
+  `overlays` from the exclusion set. (1) **`endAt`** on every overlay kind: the ms
+  from frame start at which THAT overlay's window closes instead of the frame's
+  end — clamped to the frame, so an overlay may end early but never leak across
+  the cut; plus a `delay` on the `svg` kind so all six share one `[delay, endAt]`
+  window. Useful standalone (bound an overlay inside an ordinary frame). (2)
+  **Per-state `overlays`** on a `states:` run, anchor-resolved WHILE the page is
+  at that state (not the run's last) inside `buildStatesRunContent`'s capture
+  loop, then re-based onto the frame's timeline (`delay` += the state's offset,
+  `endAt` pinned to the state's end). On collapse each member's overlays become
+  its state's, so an overlay-carrying run compresses whole and reproduces the
+  authored behavior exactly. Corpus impact: `form-fill` 4 → 2 animation frames
+  (−12% bytes), `editor-session` 11 → 6 (−15%), both verified pixel-identical
+  frame-by-frame across their full timelines (`tests/overlay-window.e2e.test.ts`
+  is the rasterized proof — an overlay anchored to a MOVING element appears in
+  its state only, at that state's position).
   **Per-run marker (DM-1761) — shipped.** `compress: true` on a run's anchor
   frame (docs/43 §13.2) collapses that ONE run through the same pre-pass, leaving
   every other frame alone — the surgical counterpart to the whole-config flag,

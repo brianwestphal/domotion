@@ -16,16 +16,16 @@
       0% { opacity: 0; }
       0.000% { opacity: 0; }
       0.000% { opacity: 1; }
-      23.170% { opacity: 1; }
-      23.171% { opacity: 0; }
+      70.730% { opacity: 1; }
+      70.731% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-0 {
       0% { visibility: hidden; }
       0.000% { visibility: hidden; }
       0.000% { visibility: visible; }
-      24.999% { visibility: visible; }
-      25.000% { visibility: hidden; }
+      72.559% { visibility: visible; }
+      72.560% { visibility: hidden; }
       100% { visibility: hidden; }
     }
     .f-0 { animation: fv-0 8.20s step-end infinite, fd-0 8.20s step-end infinite; }
@@ -38,59 +38,23 @@
     @keyframes t0-caret-blink { 0%, 3.66% { opacity: 0; } 4.02% { opacity: 1; } 16.10% { opacity: 1; } 19.33% { opacity: 0; } 22.56%, 100% { opacity: 0; } }
     .t0-caret { animation: t0-caret-pos 8.20s step-end infinite, t0-caret-blink 8.20s step-end infinite; }
 
+    @keyframes t0_1-rev0 { 0.00% { width: 0.01px; } 27.73% { width: 0.01px; } 27.74% { width: 9.65px; } 28.66% { width: 18.31px; } 29.57% { width: 26.96px; } 30.49% { width: 35.62px; } 31.40% { width: 44.27px; } 32.32% { width: 52.93px; } 33.23% { width: 61.58px; } 34.15% { width: 70.23px; } 35.06% { width: 78.89px; } 35.98% { width: 87.54px; } 36.89% { width: 96.20px; } 37.80% { width: 104.85px; } 38.72% { width: 113.51px; } 39.63% { width: 122.16px; } 40.55% { width: 130.81px; } 41.46% { width: 139.47px; } 42.38% { width: 148.12px; } 43.29% { width: 156.78px; } 48.17% { width: 156.77734375px; } 49.39%, 100% { width: 0.01px; } }
+    .t0_1-rev0 { animation: t0_1-rev0 8.20s step-end infinite; }
+    @keyframes t0_1-vis { 0%, 26.83% { opacity: 0; } 27.20% { opacity: 1; } 48.17% { opacity: 1; } 49.39%, 100% { opacity: 0; } }
+    .t0_1-text { animation: t0_1-vis 8.20s infinite; }
+    @keyframes t0_1-caret-pos { 0.00% { transform: translate(0px, 0px); } 26.83% { transform: translate(0px, 0px); } 27.74% { transform: translate(8.65px, 0.00px); } 28.66% { transform: translate(17.31px, 0.00px); } 29.57% { transform: translate(25.96px, 0.00px); } 30.49% { transform: translate(34.62px, 0.00px); } 31.40% { transform: translate(43.27px, 0.00px); } 32.32% { transform: translate(51.93px, 0.00px); } 33.23% { transform: translate(60.58px, 0.00px); } 34.15% { transform: translate(69.23px, 0.00px); } 35.06% { transform: translate(77.89px, 0.00px); } 35.98% { transform: translate(86.54px, 0.00px); } 36.89% { transform: translate(95.20px, 0.00px); } 37.80% { transform: translate(103.85px, 0.00px); } 38.72% { transform: translate(112.51px, 0.00px); } 39.63% { transform: translate(121.16px, 0.00px); } 40.55% { transform: translate(129.81px, 0.00px); } 41.46% { transform: translate(138.47px, 0.00px); } 42.38% { transform: translate(147.12px, 0.00px); } 43.29% { transform: translate(155.78px, 0.00px); } 48.17%, 100% { transform: translate(155.78px, 0.00px); } }
+    @keyframes t0_1-caret-blink { 0%, 26.83% { opacity: 0; } 27.20% { opacity: 1; } 43.29% { opacity: 1; } 46.52% { opacity: 0; } 49.39%, 100% { opacity: 0; } }
+    .t0_1-caret { animation: t0_1-caret-pos 8.20s step-end infinite, t0_1-caret-blink 8.20s step-end infinite; }
+
+    @keyframes t0_2-rev0 { 0.00% { width: 0.01px; } 54.56% { width: 0.01px; } 54.57% { width: 9.65px; } 55.49% { width: 18.31px; } 56.40% { width: 26.96px; } 57.32% { width: 35.62px; } 58.23% { width: 44.27px; } 59.15% { width: 52.93px; } 60.06% { width: 61.58px; } 60.98% { width: 70.23px; } 61.89% { width: 78.89px; } 62.80% { width: 87.54px; } 63.72% { width: 96.20px; } 68.90% { width: 96.197265625px; } 70.12%, 100% { width: 0.01px; } }
+    .t0_2-rev0 { animation: t0_2-rev0 8.20s step-end infinite; }
+    @keyframes t0_2-vis { 0%, 53.66% { opacity: 0; } 54.02% { opacity: 1; } 68.90% { opacity: 1; } 70.12%, 100% { opacity: 0; } }
+    .t0_2-text { animation: t0_2-vis 8.20s infinite; }
+    @keyframes t0_2-caret-pos { 0.00% { transform: translate(0px, 0px); } 53.66% { transform: translate(0px, 0px); } 54.57% { transform: translate(8.65px, 0.00px); } 55.49% { transform: translate(17.31px, 0.00px); } 56.40% { transform: translate(25.96px, 0.00px); } 57.32% { transform: translate(34.62px, 0.00px); } 58.23% { transform: translate(43.27px, 0.00px); } 59.15% { transform: translate(51.93px, 0.00px); } 60.06% { transform: translate(60.58px, 0.00px); } 60.98% { transform: translate(69.23px, 0.00px); } 61.89% { transform: translate(77.89px, 0.00px); } 62.80% { transform: translate(86.54px, 0.00px); } 63.72% { transform: translate(95.20px, 0.00px); } 68.90%, 100% { transform: translate(95.20px, 0.00px); } }
+    @keyframes t0_2-caret-blink { 0%, 53.66% { opacity: 0; } 54.02% { opacity: 1; } 63.72% { opacity: 1; } 66.95% { opacity: 0; } 70.12%, 100% { opacity: 0; } }
+    .t0_2-caret { animation: t0_2-caret-pos 8.20s step-end infinite, t0_2-caret-blink 8.20s step-end infinite; }
+
     @keyframes fv-1 {
-      0% { opacity: 0; }
-      23.169% { opacity: 0; }
-      23.170% { opacity: 1; }
-      50.000% { opacity: 1; }
-      50.001% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-1 {
-      0% { visibility: hidden; }
-      21.340% { visibility: hidden; }
-      21.341% { visibility: visible; }
-      51.829% { visibility: visible; }
-      51.830% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
-    .f-1 { animation: fv-1 8.20s step-end infinite, fd-1 8.20s step-end infinite; }
-
-    @keyframes t1-rev0 { 0.00% { width: 0.01px; } 27.73% { width: 0.01px; } 27.74% { width: 9.65px; } 28.66% { width: 18.31px; } 29.57% { width: 26.96px; } 30.49% { width: 35.62px; } 31.40% { width: 44.27px; } 32.32% { width: 52.93px; } 33.23% { width: 61.58px; } 34.15% { width: 70.23px; } 35.06% { width: 78.89px; } 35.98% { width: 87.54px; } 36.89% { width: 96.20px; } 37.80% { width: 104.85px; } 38.72% { width: 113.51px; } 39.63% { width: 122.16px; } 40.55% { width: 130.81px; } 41.46% { width: 139.47px; } 42.38% { width: 148.12px; } 43.29% { width: 156.78px; } 48.17% { width: 156.77734375px; } 49.39%, 100% { width: 0.01px; } }
-    .t1-rev0 { animation: t1-rev0 8.20s step-end infinite; }
-    @keyframes t1-vis { 0%, 26.83% { opacity: 0; } 27.20% { opacity: 1; } 48.17% { opacity: 1; } 49.39%, 100% { opacity: 0; } }
-    .t1-text { animation: t1-vis 8.20s infinite; }
-    @keyframes t1-caret-pos { 0.00% { transform: translate(0px, 0px); } 26.83% { transform: translate(0px, 0px); } 27.74% { transform: translate(8.65px, 0.00px); } 28.66% { transform: translate(17.31px, 0.00px); } 29.57% { transform: translate(25.96px, 0.00px); } 30.49% { transform: translate(34.62px, 0.00px); } 31.40% { transform: translate(43.27px, 0.00px); } 32.32% { transform: translate(51.93px, 0.00px); } 33.23% { transform: translate(60.58px, 0.00px); } 34.15% { transform: translate(69.23px, 0.00px); } 35.06% { transform: translate(77.89px, 0.00px); } 35.98% { transform: translate(86.54px, 0.00px); } 36.89% { transform: translate(95.20px, 0.00px); } 37.80% { transform: translate(103.85px, 0.00px); } 38.72% { transform: translate(112.51px, 0.00px); } 39.63% { transform: translate(121.16px, 0.00px); } 40.55% { transform: translate(129.81px, 0.00px); } 41.46% { transform: translate(138.47px, 0.00px); } 42.38% { transform: translate(147.12px, 0.00px); } 43.29% { transform: translate(155.78px, 0.00px); } 48.17%, 100% { transform: translate(155.78px, 0.00px); } }
-    @keyframes t1-caret-blink { 0%, 26.83% { opacity: 0; } 27.20% { opacity: 1; } 43.29% { opacity: 1; } 46.52% { opacity: 0; } 49.39%, 100% { opacity: 0; } }
-    .t1-caret { animation: t1-caret-pos 8.20s step-end infinite, t1-caret-blink 8.20s step-end infinite; }
-
-    @keyframes fv-2 {
-      0% { opacity: 0; }
-      49.999% { opacity: 0; }
-      50.000% { opacity: 1; }
-      70.730% { opacity: 1; }
-      70.731% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-2 {
-      0% { visibility: hidden; }
-      48.170% { visibility: hidden; }
-      48.171% { visibility: visible; }
-      72.559% { visibility: visible; }
-      72.560% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
-    .f-2 { animation: fv-2 8.20s step-end infinite, fd-2 8.20s step-end infinite; }
-
-    @keyframes t2-rev0 { 0.00% { width: 0.01px; } 54.56% { width: 0.01px; } 54.57% { width: 9.65px; } 55.49% { width: 18.31px; } 56.40% { width: 26.96px; } 57.32% { width: 35.62px; } 58.23% { width: 44.27px; } 59.15% { width: 52.93px; } 60.06% { width: 61.58px; } 60.98% { width: 70.23px; } 61.89% { width: 78.89px; } 62.80% { width: 87.54px; } 63.72% { width: 96.20px; } 68.90% { width: 96.197265625px; } 70.12%, 100% { width: 0.01px; } }
-    .t2-rev0 { animation: t2-rev0 8.20s step-end infinite; }
-    @keyframes t2-vis { 0%, 53.66% { opacity: 0; } 54.02% { opacity: 1; } 68.90% { opacity: 1; } 70.12%, 100% { opacity: 0; } }
-    .t2-text { animation: t2-vis 8.20s infinite; }
-    @keyframes t2-caret-pos { 0.00% { transform: translate(0px, 0px); } 53.66% { transform: translate(0px, 0px); } 54.57% { transform: translate(8.65px, 0.00px); } 55.49% { transform: translate(17.31px, 0.00px); } 56.40% { transform: translate(25.96px, 0.00px); } 57.32% { transform: translate(34.62px, 0.00px); } 58.23% { transform: translate(43.27px, 0.00px); } 59.15% { transform: translate(51.93px, 0.00px); } 60.06% { transform: translate(60.58px, 0.00px); } 60.98% { transform: translate(69.23px, 0.00px); } 61.89% { transform: translate(77.89px, 0.00px); } 62.80% { transform: translate(86.54px, 0.00px); } 63.72% { transform: translate(95.20px, 0.00px); } 68.90%, 100% { transform: translate(95.20px, 0.00px); } }
-    @keyframes t2-caret-blink { 0%, 53.66% { opacity: 0; } 54.02% { opacity: 1; } 63.72% { opacity: 1; } 66.95% { opacity: 0; } 70.12%, 100% { opacity: 0; } }
-    .t2-caret { animation: t2-caret-pos 8.20s step-end infinite, t2-caret-blink 8.20s step-end infinite; }
-
-    @keyframes fv-3 {
       0% { opacity: 0; }
       70.729% { opacity: 0; }
       70.730% { opacity: 1; }
@@ -98,7 +62,7 @@
       100.000% { opacity: 0; }
       100% { opacity: 0; }
     }
-    @keyframes fd-3 {
+    @keyframes fd-1 {
       0% { visibility: hidden; }
       68.900% { visibility: hidden; }
       68.901% { visibility: visible; }
@@ -106,129 +70,127 @@
       100.000% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .f-3 { animation: fv-3 8.20s step-end infinite, fd-3 8.20s step-end infinite; }
+    .f-1 { animation: fv-1 8.20s step-end infinite, fd-1 8.20s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
-  <defs><filter id="f0-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter><clipPath id="f0-ct1"><rect x="90" y="72" width="380" height="24" /></clipPath><clipPath id="f0-ct2"><rect x="90" y="100" width="380" height="16" /></clipPath><clipPath id="f0-ct3"><rect x="90" y="136" width="380" height="15" /></clipPath><clipPath id="f0-cp4"><rect x="87" y="154" width="386" height="46"/></clipPath><clipPath id="f0-ct5"><rect x="90" y="211" width="380" height="15" /></clipPath><clipPath id="f0-cp6"><rect x="90" y="232" width="380" height="40"/></clipPath><clipPath id="f0-ct7"><rect x="90" y="286" width="380" height="15" /></clipPath><clipPath id="f0-cp8"><rect x="90" y="307" width="380" height="40"/></clipPath><linearGradient id="f0-bg9" gradientUnits="userSpaceOnUse" x1="174.75" y1="282.25" x2="385.25" y2="492.75"><stop offset="0" stop-color="rgb(121,184,255)" /><stop offset="1" stop-color="rgb(210,168,255)" /></linearGradient><clipPath id="f0-ct10"><rect x="90" y="367" width="380" height="41" /></clipPath></defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="480" viewBox="0 0 560 480"><style>@keyframes cr0_cr0k0 { 0% { display:inline } 0% { display:inline } 23.1707% { display:none } 70.7317% { display:none } 100% { display:none } }
+@keyframes cr0_cr0k1 { 0% { display:none } 0% { display:none } 23.1707% { display:inline } 70.7317% { display:inline } 100% { display:inline } }
+@keyframes cr0_cr0k2 { 0% { display:none } 0% { display:none } 23.1707% { display:inline } 50% { display:none } 70.7317% { display:none } 100% { display:none } }
+@keyframes cr0_cr0k3 { 0% { display:none } 0% { display:none } 50% { display:inline } 70.7317% { display:inline } 100% { display:inline } }
+@keyframes cr0_cr0k4 { 0% { display:inline } 0% { display:inline } 50% { display:none } 70.7317% { display:none } 100% { display:none } }
+.cr0_anim-cr0c0,.cr0_anim-cr0c2{animation:cr0_cr0k0 8.2s step-end infinite}
+.cr0_anim-cr0c1{animation:cr0_cr0k1 8.2s step-end infinite}
+.cr0_anim-cr0c3{animation:cr0_cr0k2 8.2s step-end infinite}
+.cr0_anim-cr0c4,.cr0_anim-cr0c6{animation:cr0_cr0k3 8.2s step-end infinite}
+.cr0_anim-cr0c5{animation:cr0_cr0k4 8.2s step-end infinite}</style><rect width="560" height="480" fill="rgba(0, 0, 0, 0)"/>  <defs><filter id="cr0_cr0c-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter><linearGradient id="cr0_cr0c-bg1" gradientUnits="userSpaceOnUse" x1="174.75" y1="282.25" x2="385.25" y2="492.75"><stop offset="0" stop-color="rgb(121,184,255)" /><stop offset="1" stop-color="rgb(210,168,255)" /></linearGradient><clipPath id="cr0_cr0c-cp2"><rect x="87" y="154" width="386" height="46"/></clipPath><clipPath id="cr0_cr0c-cp3"><rect x="90" y="157" width="380" height="40"/></clipPath><clipPath id="cr0_cr0c-ct4"><rect x="103" y="157" width="354" height="40" /></clipPath><clipPath id="cr0_cr0c-cp5"><rect x="90" y="232" width="380" height="40"/></clipPath><clipPath id="cr0_cr0c-cp6"><rect x="87" y="229" width="386" height="46"/></clipPath><clipPath id="cr0_cr0c-cp7"><rect x="90" y="232" width="380" height="40"/></clipPath><clipPath id="cr0_cr0c-ct8"><rect x="103" y="232" width="354" height="40" /></clipPath><clipPath id="cr0_cr0c-cp9"><rect x="90" y="307" width="380" height="40"/></clipPath><clipPath id="cr0_cr0c-cp10"><rect x="87" y="304" width="386" height="46"/></clipPath></defs>
   <rect x="0" y="0" width="560" height="480" rx="0" fill="rgb(13,17,23)" />
-  <rect x="61" y="57" width="438" height="390" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#f0-sh0)" />
+  <rect x="61" y="57" width="438" height="390" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#cr0_cr0c-sh0)" />
   <rect x="61" y="45" width="438" height="390" rx="16" fill="rgb(22,27,34)" />
   <rect x="61.5" y="45.5" width="437" height="389" rx="15.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g role="img" aria-label="Create your account"><title>Create your account</title><text x="90 104.97 112.88 124.77 136.44 144.19 160.66 171.92 184.2 196.59 209.38 221.05 232.69 244.33 256.61 269 281.41" y="92" font-family="dmf0" font-size="21" font-weight="700" fill="rgb(230,237,243)"></text></g>
-    <g role="img" aria-label="Start shipping demos in under a minute."><title>Start shipping demos in under a minute.</title><text x="90 98.2 102.84 109.94 114.94 123.17 129.91 137.47 140.61 148.47 156.33 159.47 166.97 178.39 186.31 193.66 204.89 212.5 222.8 225.94 237.03 244.53 252.05 259.95 267.31 275.77 286.44 297.67 300.81 308.31 315.83 320.38 327.73" y="113" font-family="dmf1" font-size="13" fill="rgb(139,148,158)"></text></g>
-    <g role="img" aria-label="Full name"><title>Full name</title><text x="90 96.86 103.86 106.89 113.31 120.31 126.94 137.38" y="148" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f0-cp4)">
+    <rect x="90" y="367" width="380" height="41" rx="9" fill="url(#cr0_cr0c-bg1)" />
+    <g clip-path="url(#cr0_cr0c-cp2)">
+    <g class="cr0_anim-cr0c0">
     <rect x="87" y="154" width="386" height="46" rx="12" fill="rgba(121,184,255,0.2)" />
     <rect x="90" y="157" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="157.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(121,184,255)" stroke-width="1" />
     </g>
-    <g role="img" aria-label="Work email"><title>Work email</title><text x="90 101.02 108.11 112.69 122.58 129.42 139.88 146.48 149.45" y="223" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f0-cp6)">
+    </g>
+    <g clip-path="url(#cr0_cr0c-cp3)">
+    <g class="cr0_anim-cr0c1">
+    <rect x="90" y="157" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
+    <rect x="90.5" y="157.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+    <g clip-path="url(#cr0_cr0c-ct4)"><g role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><text x="103 111.64 120.3 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19" y="182" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
+    </g>
+    </g>
+    <g clip-path="url(#cr0_cr0c-cp5)">
+    <g class="cr0_anim-cr0c2">
     <rect x="90" y="232" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="232.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
     </g>
-    <g role="img" aria-label="Password"><title>Password</title><text x="90 97.38 104 110.17 116.27 125.33 132.42 136.81" y="298" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f0-cp8)">
-    <rect x="90" y="307" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
-    <rect x="90.5" y="307.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
     </g>
-    <rect x="90" y="367" width="380" height="41" rx="9" fill="url(#f0-bg9)" />
-    <g role="img" aria-label="Create account"><title>Create account</title><text x="227.33 237.55 243.31 251.58 259.69 265.27 276.98 285.09 293.17 301.23 309.77 318.41 327.03" y="393" font-family="dmf2" font-size="14" font-weight="700" fill="rgb(13,17,23)"></text></g>
-  </g>
-  <defs><clipPath id="t0-clip0"><rect class="t0-rev0" x="102" y="167" width="0.01px" height="18" /></clipPath></defs>
-  <g class="t0-text" clip-path="url(#t0-clip0)"><g transform="translate(102,181)" fill="#e6edf3" role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><g transform="scale(0.00684,-0.00684)"><use href="#g0" x="0" y="0"/><use href="#g1" x="1266" y="0"/><use href="#g2" x="2532" y="0"/><use href="#g3" x="5064" y="0"/><use href="#g4" x="6330" y="0"/><use href="#g5" x="7596" y="0"/><use href="#g6" x="8862" y="0"/><use href="#g7" x="10128" y="0"/><use href="#g2" x="11394" y="0"/><use href="#g8" x="12660" y="0"/><use href="#g6" x="13926" y="0"/></g></g></g>
-  <rect class="t0-caret" x="102" y="167.46" width="2" height="16" fill="#e6edf3" />
-  <g class="f f-1">
-  <defs><filter id="f1-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter><clipPath id="f1-ct1"><rect x="90" y="72" width="380" height="24" /></clipPath><clipPath id="f1-ct2"><rect x="90" y="100" width="380" height="16" /></clipPath><clipPath id="f1-ct3"><rect x="90" y="136" width="380" height="15" /></clipPath><clipPath id="f1-cp4"><rect x="90" y="157" width="380" height="40"/></clipPath><clipPath id="f1-ct5"><rect x="103" y="157" width="354" height="40" /></clipPath><clipPath id="f1-ct6"><rect x="90" y="211" width="380" height="15" /></clipPath><clipPath id="f1-cp7"><rect x="87" y="229" width="386" height="46"/></clipPath><clipPath id="f1-ct8"><rect x="90" y="286" width="380" height="15" /></clipPath><clipPath id="f1-cp9"><rect x="90" y="307" width="380" height="40"/></clipPath><linearGradient id="f1-bg10" gradientUnits="userSpaceOnUse" x1="174.75" y1="282.25" x2="385.25" y2="492.75"><stop offset="0" stop-color="rgb(121,184,255)" /><stop offset="1" stop-color="rgb(210,168,255)" /></linearGradient><clipPath id="f1-ct11"><rect x="90" y="367" width="380" height="41" /></clipPath></defs>
-  <rect x="0" y="0" width="560" height="480" rx="0" fill="rgb(13,17,23)" />
-  <rect x="61" y="57" width="438" height="390" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#f1-sh0)" />
-  <rect x="61" y="45" width="438" height="390" rx="16" fill="rgb(22,27,34)" />
-  <rect x="61.5" y="45.5" width="437" height="389" rx="15.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g role="img" aria-label="Create your account"><title>Create your account</title><text x="90 104.97 112.88 124.77 136.44 144.19 160.66 171.92 184.2 196.59 209.38 221.05 232.69 244.33 256.61 269 281.41" y="92" font-family="dmf0" font-size="21" font-weight="700" fill="rgb(230,237,243)"></text></g>
-    <g role="img" aria-label="Start shipping demos in under a minute."><title>Start shipping demos in under a minute.</title><text x="90 98.2 102.84 109.94 114.94 123.17 129.91 137.47 140.61 148.47 156.33 159.47 166.97 178.39 186.31 193.66 204.89 212.5 222.8 225.94 237.03 244.53 252.05 259.95 267.31 275.77 286.44 297.67 300.81 308.31 315.83 320.38 327.73" y="113" font-family="dmf1" font-size="13" fill="rgb(139,148,158)"></text></g>
-    <g role="img" aria-label="Full name"><title>Full name</title><text x="90 96.86 103.86 106.89 113.31 120.31 126.94 137.38" y="148" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f1-cp4)">
-    <rect x="90" y="157" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
-    <rect x="90.5" y="157.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g clip-path="url(#f1-ct5)"><g role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><text x="103 111.64 120.3 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19" y="182" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
-    </g>
-    <g role="img" aria-label="Work email"><title>Work email</title><text x="90 101.02 108.11 112.69 122.58 129.42 139.88 146.48 149.45" y="223" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f1-cp7)">
+    <g clip-path="url(#cr0_cr0c-cp6)">
+    <g class="cr0_anim-cr0c3">
     <rect x="87" y="229" width="386" height="46" rx="12" fill="rgba(121,184,255,0.2)" />
     <rect x="90" y="232" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="232.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(121,184,255)" stroke-width="1" />
     </g>
-    <g role="img" aria-label="Password"><title>Password</title><text x="90 97.38 104 110.17 116.27 125.33 132.42 136.81" y="298" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f1-cp9)">
+    </g>
+    <g clip-path="url(#cr0_cr0c-cp7)">
+    <g class="cr0_anim-cr0c4">
+    <rect x="90" y="232" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
+    <rect x="90.5" y="232.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+    <g clip-path="url(#cr0_cr0c-ct8)"><g role="img" aria-label="ada@analytical.dev"><title>ada@analytical.dev</title><text x="103 111.64 120.3 128.95 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19 206.84 215.5 224.16 232.81 241.47 250.11" y="257" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
+    </g>
+    </g>
+    <g clip-path="url(#cr0_cr0c-cp9)">
+    <g class="cr0_anim-cr0c5">
     <rect x="90" y="307" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="307.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
     </g>
-    <rect x="90" y="367" width="380" height="41" rx="9" fill="url(#f1-bg10)" />
-    <g role="img" aria-label="Create account"><title>Create account</title><text x="227.33 237.55 243.31 251.58 259.69 265.27 276.98 285.09 293.17 301.23 309.77 318.41 327.03" y="393" font-family="dmf2" font-size="14" font-weight="700" fill="rgb(13,17,23)"></text></g>
-  </g>
-  <defs><clipPath id="t1-clip0"><rect class="t1-rev0" x="102" y="243" width="0.01px" height="18" /></clipPath></defs>
-  <g class="t1-text" clip-path="url(#t1-clip0)"><g transform="translate(102,257)" fill="#e6edf3" role="img" aria-label="ada@analytical.dev"><title>ada@analytical.dev</title><g transform="scale(0.00684,-0.00684)"><use href="#g2" x="0" y="0"/><use href="#g1" x="1266" y="0"/><use href="#g2" x="2532" y="0"/><use href="#g9" x="3798" y="0"/><use href="#g2" x="5064" y="0"/><use href="#g10" x="6330" y="0"/><use href="#g2" x="7596" y="0"/><use href="#g7" x="8862" y="0"/><use href="#g11" x="10128" y="0"/><use href="#g12" x="11394" y="0"/><use href="#g13" x="12660" y="0"/><use href="#g8" x="13926" y="0"/><use href="#g2" x="15192" y="0"/><use href="#g7" x="16458" y="0"/><use href="#g14" x="17724" y="0"/><use href="#g1" x="18990" y="0"/><use href="#g6" x="20256" y="0"/><use href="#g5" x="21522" y="0"/></g></g></g>
-  <rect class="t1-caret" x="102" y="243.46" width="2" height="16" fill="#e6edf3" />
-  <g class="f f-2">
-  <defs><filter id="f2-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter><clipPath id="f2-ct1"><rect x="90" y="72" width="380" height="24" /></clipPath><clipPath id="f2-ct2"><rect x="90" y="100" width="380" height="16" /></clipPath><clipPath id="f2-ct3"><rect x="90" y="136" width="380" height="15" /></clipPath><clipPath id="f2-cp4"><rect x="90" y="157" width="380" height="40"/></clipPath><clipPath id="f2-ct5"><rect x="103" y="157" width="354" height="40" /></clipPath><clipPath id="f2-ct6"><rect x="90" y="211" width="380" height="15" /></clipPath><clipPath id="f2-cp7"><rect x="90" y="232" width="380" height="40"/></clipPath><clipPath id="f2-ct8"><rect x="103" y="232" width="354" height="40" /></clipPath><clipPath id="f2-ct9"><rect x="90" y="286" width="380" height="15" /></clipPath><clipPath id="f2-cp10"><rect x="87" y="304" width="386" height="46"/></clipPath><linearGradient id="f2-bg11" gradientUnits="userSpaceOnUse" x1="174.75" y1="282.25" x2="385.25" y2="492.75"><stop offset="0" stop-color="rgb(121,184,255)" /><stop offset="1" stop-color="rgb(210,168,255)" /></linearGradient><clipPath id="f2-ct12"><rect x="90" y="367" width="380" height="41" /></clipPath></defs>
-  <rect x="0" y="0" width="560" height="480" rx="0" fill="rgb(13,17,23)" />
-  <rect x="61" y="57" width="438" height="390" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#f2-sh0)" />
-  <rect x="61" y="45" width="438" height="390" rx="16" fill="rgb(22,27,34)" />
-  <rect x="61.5" y="45.5" width="437" height="389" rx="15.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g role="img" aria-label="Create your account"><title>Create your account</title><text x="90 104.97 112.88 124.77 136.44 144.19 160.66 171.92 184.2 196.59 209.38 221.05 232.69 244.33 256.61 269 281.41" y="92" font-family="dmf0" font-size="21" font-weight="700" fill="rgb(230,237,243)"></text></g>
-    <g role="img" aria-label="Start shipping demos in under a minute."><title>Start shipping demos in under a minute.</title><text x="90 98.2 102.84 109.94 114.94 123.17 129.91 137.47 140.61 148.47 156.33 159.47 166.97 178.39 186.31 193.66 204.89 212.5 222.8 225.94 237.03 244.53 252.05 259.95 267.31 275.77 286.44 297.67 300.81 308.31 315.83 320.38 327.73" y="113" font-family="dmf1" font-size="13" fill="rgb(139,148,158)"></text></g>
-    <g role="img" aria-label="Full name"><title>Full name</title><text x="90 96.86 103.86 106.89 113.31 120.31 126.94 137.38" y="148" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f2-cp4)">
-    <rect x="90" y="157" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
-    <rect x="90.5" y="157.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g clip-path="url(#f2-ct5)"><g role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><text x="103 111.64 120.3 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19" y="182" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
     </g>
-    <g role="img" aria-label="Work email"><title>Work email</title><text x="90 101.02 108.11 112.69 122.58 129.42 139.88 146.48 149.45" y="223" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f2-cp7)">
-    <rect x="90" y="232" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
-    <rect x="90.5" y="232.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g clip-path="url(#f2-ct8)"><g role="img" aria-label="ada@analytical.dev"><title>ada@analytical.dev</title><text x="103 111.64 120.3 128.95 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19 206.84 215.5 224.16 232.81 241.47 250.11" y="257" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
-    </g>
-    <g role="img" aria-label="Password"><title>Password</title><text x="90 97.38 104 110.17 116.27 125.33 132.42 136.81" y="298" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f2-cp10)">
+    <g clip-path="url(#cr0_cr0c-cp10)">
+    <g class="cr0_anim-cr0c6">
     <rect x="87" y="304" width="386" height="46" rx="12" fill="rgba(121,184,255,0.2)" />
     <rect x="90" y="307" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="307.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(121,184,255)" stroke-width="1" />
     </g>
-    <rect x="90" y="367" width="380" height="41" rx="9" fill="url(#f2-bg11)" />
-    <g role="img" aria-label="Create account"><title>Create account</title><text x="227.33 237.55 243.31 251.58 259.69 265.27 276.98 285.09 293.17 301.23 309.77 318.41 327.03" y="393" font-family="dmf2" font-size="14" font-weight="700" fill="rgb(13,17,23)"></text></g>
+    </g>  <defs><clipPath id="cr0_cr0g-ct0"><rect x="90" y="72" width="199.3" height="24" /></clipPath><clipPath id="cr0_cr0g-ct1"><rect x="90" y="100" width="241.5" height="16" /></clipPath><clipPath id="cr0_cr0g-ct2"><rect x="90" y="136" width="54.2" height="15" /></clipPath><clipPath id="cr0_cr0g-ct3"><rect x="90" y="211" width="62.5" height="15" /></clipPath><clipPath id="cr0_cr0g-ct4"><rect x="90" y="286" width="54.2" height="15" /></clipPath><clipPath id="cr0_cr0g-ct5"><rect x="227.3" y="379" width="105.3" height="17" /></clipPath></defs>
+  <g class="cr0_anim-cr0g0">
+  <g role="img" aria-label="Createyouraccount"><title>Createyouraccount</title><text x="90 104.97 112.88 124.77 136.44 144.19 160.66 171.92 184.2 196.59 209.38 221.05 232.69 244.33 256.61 269 281.41" y="92" font-family="dmf0" font-size="21" font-weight="700" fill="rgb(230, 237, 243)"></text></g>
   </g>
-  <defs><clipPath id="t2-clip0"><rect class="t2-rev0" x="102" y="319" width="0.01px" height="18" /></clipPath></defs>
-  <g class="t2-text" clip-path="url(#t2-clip0)"><g transform="translate(102,333)" fill="#e6edf3" role="img" aria-label="•••••••••••"><title>•••••••••••</title><g transform="scale(0.00684,-0.00684)"><use href="#g15" x="0" y="0"/><use href="#g15" x="1266" y="0"/><use href="#g15" x="2532" y="0"/><use href="#g15" x="3798" y="0"/><use href="#g15" x="5064" y="0"/><use href="#g15" x="6330" y="0"/><use href="#g15" x="7596" y="0"/><use href="#g15" x="8862" y="0"/><use href="#g15" x="10128" y="0"/><use href="#g15" x="11394" y="0"/><use href="#g15" x="12660" y="0"/></g></g></g>
-  <rect class="t2-caret" x="102" y="319.46" width="2" height="16" fill="#e6edf3" />
-  <g class="f f-3">
-  <defs><filter id="f3-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter><clipPath id="f3-ct1"><rect x="90" y="43" width="380" height="24" /></clipPath><clipPath id="f3-ct2"><rect x="90" y="71" width="380" height="16" /></clipPath><clipPath id="f3-ct3"><rect x="90" y="107" width="380" height="15" /></clipPath><clipPath id="f3-cp4"><rect x="90" y="128" width="380" height="40"/></clipPath><clipPath id="f3-ct5"><rect x="103" y="128" width="354" height="40" /></clipPath><clipPath id="f3-ct6"><rect x="90" y="182" width="380" height="15" /></clipPath><clipPath id="f3-cp7"><rect x="90" y="203" width="380" height="40"/></clipPath><clipPath id="f3-ct8"><rect x="103" y="203" width="354" height="40" /></clipPath><clipPath id="f3-ct9"><rect x="90" y="257" width="380" height="15" /></clipPath><clipPath id="f3-cp10"><rect x="90" y="278" width="380" height="40"/></clipPath><clipPath id="f3-ct11"><rect x="103" y="278" width="354" height="40" /></clipPath><linearGradient id="f3-bg12" gradientUnits="userSpaceOnUse" x1="174.75" y1="253.25" x2="385.25" y2="463.75"><stop offset="0" stop-color="rgb(121,184,255)" /><stop offset="1" stop-color="rgb(210,168,255)" /></linearGradient><clipPath id="f3-ct13"><rect x="90" y="338" width="380" height="41" /></clipPath><clipPath id="f3-ct14"><rect x="90" y="395" width="380" height="42" /></clipPath></defs>
+  <g class="cr0_anim-cr0g1">
+  <g role="img" aria-label="Startshippingdemosinunderaminute."><title>Startshippingdemosinunderaminute.</title><text x="90 98.2 102.84 109.94 114.94 123.17 129.91 137.47 140.61 148.47 156.33 159.47 166.97 178.39 186.31 193.66 204.89 212.5 222.8 225.94 237.03 244.53 252.05 259.95 267.31 275.77 286.44 297.67 300.81 308.31 315.83 320.38 327.73" y="113" font-family="dmf1" font-size="13" fill="rgb(139, 148, 158)"></text></g>
+  </g>
+  <g class="cr0_anim-cr0g2">
+  <g role="img" aria-label="Fullname"><title>Fullname</title><text x="90 96.86 103.86 106.89 113.31 120.31 126.94 137.38" y="148" font-family="dmf1" font-size="12" fill="rgb(139, 148, 158)"></text></g>
+  </g>
+  <g class="cr0_anim-cr0g3">
+  <g role="img" aria-label="Workemail"><title>Workemail</title><text x="90 101.02 108.11 112.69 122.58 129.42 139.88 146.48 149.45" y="223" font-family="dmf1" font-size="12" fill="rgb(139, 148, 158)"></text></g>
+  </g>
+  <g class="cr0_anim-cr0g4">
+  <g role="img" aria-label="Password"><title>Password</title><text x="90 97.38 104 110.17 116.27 125.33 132.42 136.81" y="298" font-family="dmf1" font-size="12" fill="rgb(139, 148, 158)"></text></g>
+  </g>
+  <g class="cr0_anim-cr0g5">
+  <g role="img" aria-label="Createaccount"><title>Createaccount</title><text x="227.33 237.55 243.31 251.58 259.69 265.27 276.98 285.09 293.17 301.23 309.77 318.41 327.03" y="393" font-family="dmf2" font-size="14" font-weight="700" fill="rgb(13, 17, 23)"></text></g>
+  </g></svg>
+  </g>
+  <defs><clipPath id="t0-clip0"><rect class="t0-rev0" x="102" y="167" width="0.01px" height="18" /></clipPath></defs>
+  <g class="t0-text" clip-path="url(#t0-clip0)"><g transform="translate(102,181)" fill="#e6edf3" role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><g transform="scale(0.00684,-0.00684)"><use href="#g0" x="0" y="0"/><use href="#g1" x="1266" y="0"/><use href="#g2" x="2532" y="0"/><use href="#g3" x="5064" y="0"/><use href="#g4" x="6330" y="0"/><use href="#g5" x="7596" y="0"/><use href="#g6" x="8862" y="0"/><use href="#g7" x="10128" y="0"/><use href="#g2" x="11394" y="0"/><use href="#g8" x="12660" y="0"/><use href="#g6" x="13926" y="0"/></g></g></g>
+  <rect class="t0-caret" x="102" y="167.46" width="2" height="16" fill="#e6edf3" />
+  <defs><clipPath id="t0_1-clip0"><rect class="t0_1-rev0" x="102" y="243" width="0.01px" height="18" /></clipPath></defs>
+  <g class="t0_1-text" clip-path="url(#t0_1-clip0)"><g transform="translate(102,257)" fill="#e6edf3" role="img" aria-label="ada@analytical.dev"><title>ada@analytical.dev</title><g transform="scale(0.00684,-0.00684)"><use href="#g2" x="0" y="0"/><use href="#g1" x="1266" y="0"/><use href="#g2" x="2532" y="0"/><use href="#g9" x="3798" y="0"/><use href="#g2" x="5064" y="0"/><use href="#g10" x="6330" y="0"/><use href="#g2" x="7596" y="0"/><use href="#g7" x="8862" y="0"/><use href="#g11" x="10128" y="0"/><use href="#g12" x="11394" y="0"/><use href="#g13" x="12660" y="0"/><use href="#g8" x="13926" y="0"/><use href="#g2" x="15192" y="0"/><use href="#g7" x="16458" y="0"/><use href="#g14" x="17724" y="0"/><use href="#g1" x="18990" y="0"/><use href="#g6" x="20256" y="0"/><use href="#g5" x="21522" y="0"/></g></g></g>
+  <rect class="t0_1-caret" x="102" y="243.46" width="2" height="16" fill="#e6edf3" />
+  <defs><clipPath id="t0_2-clip0"><rect class="t0_2-rev0" x="102" y="319" width="0.01px" height="18" /></clipPath></defs>
+  <g class="t0_2-text" clip-path="url(#t0_2-clip0)"><g transform="translate(102,333)" fill="#e6edf3" role="img" aria-label="•••••••••••"><title>•••••••••••</title><g transform="scale(0.00684,-0.00684)"><use href="#g15" x="0" y="0"/><use href="#g15" x="1266" y="0"/><use href="#g15" x="2532" y="0"/><use href="#g15" x="3798" y="0"/><use href="#g15" x="5064" y="0"/><use href="#g15" x="6330" y="0"/><use href="#g15" x="7596" y="0"/><use href="#g15" x="8862" y="0"/><use href="#g15" x="10128" y="0"/><use href="#g15" x="11394" y="0"/><use href="#g15" x="12660" y="0"/></g></g></g>
+  <rect class="t0_2-caret" x="102" y="319.46" width="2" height="16" fill="#e6edf3" />
+  <g class="f f-1">
+  <defs><filter id="f1-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter><clipPath id="f1-ct1"><rect x="90" y="43" width="380" height="24" /></clipPath><clipPath id="f1-ct2"><rect x="90" y="71" width="380" height="16" /></clipPath><clipPath id="f1-ct3"><rect x="90" y="107" width="380" height="15" /></clipPath><clipPath id="f1-cp4"><rect x="90" y="128" width="380" height="40"/></clipPath><clipPath id="f1-ct5"><rect x="103" y="128" width="354" height="40" /></clipPath><clipPath id="f1-ct6"><rect x="90" y="182" width="380" height="15" /></clipPath><clipPath id="f1-cp7"><rect x="90" y="203" width="380" height="40"/></clipPath><clipPath id="f1-ct8"><rect x="103" y="203" width="354" height="40" /></clipPath><clipPath id="f1-ct9"><rect x="90" y="257" width="380" height="15" /></clipPath><clipPath id="f1-cp10"><rect x="90" y="278" width="380" height="40"/></clipPath><clipPath id="f1-ct11"><rect x="103" y="278" width="354" height="40" /></clipPath><linearGradient id="f1-bg12" gradientUnits="userSpaceOnUse" x1="174.75" y1="253.25" x2="385.25" y2="463.75"><stop offset="0" stop-color="rgb(121,184,255)" /><stop offset="1" stop-color="rgb(210,168,255)" /></linearGradient><clipPath id="f1-ct13"><rect x="90" y="338" width="380" height="41" /></clipPath><clipPath id="f1-ct14"><rect x="90" y="395" width="380" height="42" /></clipPath></defs>
   <rect x="0" y="0" width="560" height="480" rx="0" fill="rgb(13,17,23)" />
-  <rect x="61" y="28" width="438" height="448" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#f3-sh0)" />
+  <rect x="61" y="28" width="438" height="448" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#f1-sh0)" />
   <rect x="61" y="16" width="438" height="448" rx="16" fill="rgb(22,27,34)" />
   <rect x="61.5" y="16.5" width="437" height="447" rx="15.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
     <g role="img" aria-label="Create your account"><title>Create your account</title><text x="90 104.97 112.88 124.77 136.44 144.19 160.66 171.92 184.2 196.59 209.38 221.05 232.69 244.33 256.61 269 281.41" y="63" font-family="dmf0" font-size="21" font-weight="700" fill="rgb(230,237,243)"></text></g>
     <g role="img" aria-label="Start shipping demos in under a minute."><title>Start shipping demos in under a minute.</title><text x="90 98.2 102.84 109.94 114.94 123.17 129.91 137.47 140.61 148.47 156.33 159.47 166.97 178.39 186.31 193.66 204.89 212.5 222.8 225.94 237.03 244.53 252.05 259.95 267.31 275.77 286.44 297.67 300.81 308.31 315.83 320.38 327.73" y="84" font-family="dmf1" font-size="13" fill="rgb(139,148,158)"></text></g>
     <g role="img" aria-label="Full name"><title>Full name</title><text x="90 96.86 103.86 106.89 113.31 120.31 126.94 137.38" y="119" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f3-cp4)">
+    <g clip-path="url(#f1-cp4)">
     <rect x="90" y="128" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="128.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g clip-path="url(#f3-ct5)"><g role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><text x="103 111.64 120.3 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19" y="153" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
+    <g clip-path="url(#f1-ct5)"><g role="img" aria-label="Ada Lovelace"><title>Ada Lovelace</title><text x="103 111.64 120.3 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19" y="153" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
     </g>
     <g role="img" aria-label="Work email"><title>Work email</title><text x="90 101.02 108.11 112.69 122.58 129.42 139.88 146.48 149.45" y="194" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f3-cp7)">
+    <g clip-path="url(#f1-cp7)">
     <rect x="90" y="203" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="203.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g clip-path="url(#f3-ct8)"><g role="img" aria-label="ada@analytical.dev"><title>ada@analytical.dev</title><text x="103 111.64 120.3 128.95 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19 206.84 215.5 224.16 232.81 241.47 250.11" y="228" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
+    <g clip-path="url(#f1-ct8)"><g role="img" aria-label="ada@analytical.dev"><title>ada@analytical.dev</title><text x="103 111.64 120.3 128.95 137.61 146.27 154.92 163.58 172.23 180.88 189.53 198.19 206.84 215.5 224.16 232.81 241.47 250.11" y="228" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
     </g>
     <g role="img" aria-label="Password"><title>Password</title><text x="90 97.38 104 110.17 116.27 125.33 132.42 136.81" y="269" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
-    <g clip-path="url(#f3-cp10)">
+    <g clip-path="url(#f1-cp10)">
     <rect x="90" y="278" width="380" height="40" rx="9" fill="rgb(13,17,23)" />
     <rect x="90.5" y="278.5" width="379" height="39" rx="8.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-    <g clip-path="url(#f3-ct11)"><g role="img" aria-label="•••••••••••"><title>•••••••••••</title><text x="103 111.64 120.3 128.95 137.61 146.27 154.92 163.58 172.23 180.88 189.53" y="303" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
+    <g clip-path="url(#f1-ct11)"><g role="img" aria-label="•••••••••••"><title>•••••••••••</title><text x="103 111.64 120.3 128.95 137.61 146.27 154.92 163.58 172.23 180.88 189.53" y="303" font-family="dmf3" font-size="14" fill="rgb(230,237,243)"></text></g></g>
     </g>
-    <rect x="90" y="338" width="380" height="41" rx="9" fill="url(#f3-bg12)" />
+    <rect x="90" y="338" width="380" height="41" rx="9" fill="url(#f1-bg12)" />
     <g role="img" aria-label="Create account"><title>Create account</title><text x="227.33 237.55 243.31 251.58 259.69 265.27 276.98 285.09 293.17 301.23 309.77 318.41 327.03" y="364" font-family="dmf2" font-size="14" font-weight="700" fill="rgb(13,17,23)"></text></g>
     <rect x="90" y="395" width="380" height="42" rx="9" fill="rgba(86,211,100,0.1)" />
     <rect x="90.5" y="395.5" width="379" height="41" rx="8.5" fill="none" stroke="rgba(86,211,100,0.4)" stroke-width="1" />

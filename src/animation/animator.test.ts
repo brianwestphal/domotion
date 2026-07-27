@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
+import { generateAnimatedSvg, dedupeFrameIds, overlayWindowEndMs } from "./animator.js";
 import type { IntraFrameAnimation } from "./animator.js";
 import type { CapturedElement } from "../capture/types.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/viewbox-culling.js";
@@ -1777,5 +1777,103 @@ describe("interaction-feedback overlay (DM-1565)", () => {
       expect(svg, treatment).not.toContain("filter:");
       expect(svg, treatment).not.toMatch(/blur\(/);
     }
+  });
+});
+
+
+// ── DM-1767 (docs/104): the explicit per-overlay window ─────────────────────
+//
+// Every overlay's lifetime used to be frame-scoped. `endAt` decouples it: an
+// overlay may end EARLY (clamped to the frame, so it still can't leak past the
+// cut). This is what lets a per-state overlay ride inside a compressed run
+// keeping its own state's lifetime — and it stands alone inside an ordinary
+// frame too.
+describe("per-overlay window — `endAt` (DM-1767)", () => {
+  // A cut transition makes the scene's total duration exactly the frame's, so
+  // a keyframe stop's percentage reads directly as a fraction of the window.
+  const cut = { type: "cut", duration: 0 } as const;
+  const frameOf = (overlay: Record<string, unknown>, duration = 4000) => ({
+    width: 300, height: 120,
+    frames: [{ svgContent: `<rect/>`, duration, transition: cut, overlays: [overlay as never] }],
+  });
+  /** The stop percentages of the named `@keyframes` block (one per line). */
+  const stopsOf = (svg: string, name: string): number[] => {
+    const line = svg.split("\n").find((l) => l.includes(`@keyframes ${name} `)) ?? "";
+    return [...line.matchAll(/([\d.]+)%/g)].map((m) => parseFloat(m[1]));
+  };
+  /** The last stop BEFORE the trailing 100% park — i.e. when the effect ends. */
+  const endPct = (svg: string, name: string): number =>
+    Math.max(0, ...stopsOf(svg, name).filter((n) => n < 100));
+
+  it("resolves to the frame's duration when unset, and clamps to it when over", () => {
+    const ov = { kind: "typing", text: "hi", x: 0, y: 0 } as const;
+    expect(overlayWindowEndMs(ov, 800)).toBe(800);
+    expect(overlayWindowEndMs({ ...ov, endAt: 300 }, 800)).toBe(300);
+    // An overlay may end early, never late — it must not leak across the cut.
+    expect(overlayWindowEndMs({ ...ov, endAt: 5000 }, 800)).toBe(800);
+    // Sub-millisecond windows are meaningless; floor at 1 ms.
+    expect(overlayWindowEndMs({ ...ov, endAt: 0.2 }, 800)).toBe(1);
+  });
+
+  it("omitting `endAt` is byte-identical to before the feature", () => {
+    // Pinned against the shipped goldens by the visual suites; here we assert
+    // the default path is deterministic and untouched by the new field.
+    for (const ov of [
+      { kind: "typing", text: "hello", x: 10, y: 40, caret: true },
+      { kind: "tap", x: 5, y: 5 },
+      { kind: "blink", x: 1, y: 1, width: 2, height: 12 },
+      { kind: "shine", x: 0, y: 0, width: 80, height: 24 },
+      { kind: "interact", x: 0, y: 0, width: 80, height: 24 },
+    ]) {
+      expect(generateAnimatedSvg(frameOf(ov)), ov.kind).toBe(generateAnimatedSvg(frameOf({ ...ov })));
+    }
+  });
+
+  it("a typing overlay's hold ends at `endAt`, not the frame's end", () => {
+    const full = generateAnimatedSvg(frameOf({ kind: "typing", text: "hello", x: 10, y: 40 }));
+    const early = generateAnimatedSvg(frameOf({ kind: "typing", text: "hello", x: 10, y: 40, endAt: 1000 }));
+    // 1000 ms of a 4000 ms frame — the visibility track's last stop lands just
+    // inside a quarter in (the 150 ms fade reserve + its 100 ms ramp are taken
+    // off the WINDOW's end now, not the frame's) instead of near the frame end.
+    expect(endPct(full, "t0-vis")).toBeGreaterThan(90);
+    expect(endPct(early, "t0-vis")).toBeGreaterThan(20);
+    expect(endPct(early, "t0-vis")).toBeLessThanOrEqual(25);
+  });
+
+  it("a blink overlay stops toggling at `endAt`", () => {
+    const mk = (extra: Record<string, unknown>) =>
+      generateAnimatedSvg(frameOf({ kind: "blink", x: 0, y: 0, width: 2, height: 12, periodMs: 200, ...extra }));
+    // The blink emits one stop per half-period across its window, so a window a
+    // fifth as long emits about a fifth as many.
+    const full = stopsOf(mk({}), "blink0").length;
+    const early = stopsOf(mk({ endAt: 800 }), "blink0").length;
+    expect(early).toBeLessThan(full);
+    expect(endPct(mk({ endAt: 800 }), "blink0")).toBeCloseTo(20, 0);
+  });
+
+  it("a tap ripple is cut short by `endAt`, and suppressed entirely when the window closes before it", () => {
+    const full = generateAnimatedSvg(frameOf({ kind: "tap", x: 5, y: 5, delay: 100 }));
+    const cutShort = generateAnimatedSvg(frameOf({ kind: "tap", x: 5, y: 5, delay: 100, endAt: 300 }));
+    expect(endPct(cutShort, "tap0")).toBeLessThan(endPct(full, "tap0"));
+    expect(endPct(cutShort, "tap0")).toBeCloseTo(300 / 4000 * 100, 1);
+    // A window that closes before the tap's own delay leaves nothing to show.
+    expect(generateAnimatedSvg(frameOf({ kind: "tap", x: 5, y: 5, delay: 900, endAt: 400 }))).not.toContain("tap0");
+  });
+
+  it("an svg overlay's `delay` shifts its appear time and `endAt` closes it early", () => {
+    const mk = (extra: Record<string, unknown>) => generateAnimatedSvg({
+      width: 300, height: 120,
+      frames: [{ svgContent: `<rect/>`, duration: 4000, transition: cut, overlays: [
+        { kind: "svg", innerSvg: `<circle r="4"/>`, x: 0, y: 0, width: 40, height: 40, animId: "pip", ...extra } as never] }],
+    });
+    // Default (no delay) — the overlay appears with the frame, as it always has.
+    expect(mk({})).toBe(mk({ delay: 0 }));
+    // The visibility track is `0%, <appear-1ms> { opacity: 0 } <appear> { 1 } <end> { 1 } <end+1ms>, 100% { 0 }`.
+    const appearPct = (svg: string): number => stopsOf(svg, "ov-0-pip-vis")[2];
+    const closePct = (svg: string): number => stopsOf(svg, "ov-0-pip-vis")[3];
+    expect(appearPct(mk({}))).toBeCloseTo(0, 1);
+    expect(appearPct(mk({ delay: 1000 }))).toBeCloseTo(25, 0);
+    expect(closePct(mk({}))).toBeCloseTo(100, 1);
+    expect(closePct(mk({ endAt: 2000 }))).toBeCloseTo(50, 1);
   });
 });

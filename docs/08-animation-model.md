@@ -15,7 +15,7 @@ A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
 - `svgContent` — the SVG fragment from `elementTreeToSvg`.
 - `duration` — ms held at full visibility.
 - `transition` — how this frame transitions to the next.
-- `overlays` — typing/tap effects layered on top during the frame's hold.
+- `overlays` — typing/tap/svg/blink/shine/interact effects layered on top during the frame's hold. Each may set **`endAt`** (DM-1767) to close its own window early, independent of the frame — see `docs/104-overlay-windows.md`.
 
 The composer emits one `<svg>` document with a `<style>` block of `@keyframes` driving each frame's timeline. Routing by transition:
 

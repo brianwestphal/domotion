@@ -82,10 +82,10 @@ and typing / tap / SVG overlays.
 | `EmbeddedTimelineMode` | type | `"hold"` \| `"stretch"` \| `"loop"` — the nested-timeline playback mode. |
 | `AnimationConfig` | type | Top-level config: `{ width, height, frames, sharedDefs?, fontFaceCss?, cursorOverlay?, resolveSelector?, background? }`. (`fontFaceCss` injects embedded-font `@font-face` once; `background` paints a full-viewport canvas rect.) |
 | `AnimationFrame` | type | Per-frame data: `{ svgContent, duration, transition?, magicMove?, overlays?, animations?, cullCss? }`. (`magicMove` is the per-frame bridge layer built by `buildMagicMove`.) |
-| `AnimationOverlay` | type | Discriminated union of `TypingOverlay` \| `TapOverlay` \| `SvgOverlay`. (Renamed from `Overlay` in DM-622.) |
+| `AnimationOverlay` | type | Discriminated union of `TypingOverlay` \| `TapOverlay` \| `SvgOverlay` \| `BlinkOverlay` \| `ShineOverlay` \| `InteractOverlay`. (Renamed from `Overlay` in DM-622.) Every kind takes the optional **`endAt`** — the ms from frame start at which that overlay's window closes, instead of the frame's end (DM-1767, `docs/104-overlay-windows.md`); omitted, the window ends with the frame, and it is clamped so an overlay can never outlive its frame. |
 | `TypingOverlay` | type | Frame-relative typed-text reveal. Character-by-character with the caret glued to the fontkit-measured text edge (DM-1518); `mode: "type" \| "paste"` and `jitter: 0–1` tune the feel. See `docs/93-realistic-typing.md`. |
 | `TapOverlay` | type | Frame-relative tap-ripple at `(x, y)`. |
-| `SvgOverlay` | type | Inline a separately-captured SVG over the frame (e.g. picture-in-picture). |
+| `SvgOverlay` | type | Inline a separately-captured SVG over the frame (e.g. picture-in-picture). `delay` (DM-1767, default 0) shifts when it appears; `enter.delay` is an additional nudge from that appear time. |
 | `IntraFrameAnimation` | type | CSS property animation that runs while the frame is held. |
 | `CursorOverlay` | type | Macro-style cursor track played across the scene timeline. |
 | `CursorEvent` | type | Union of `Move` / `Click` / `Show` / `Hide`. |

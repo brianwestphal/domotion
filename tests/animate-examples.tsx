@@ -122,11 +122,20 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 560 480"`)) f.push("missing viewBox 560x480");
-      // 4 frames on a continued live page: each field is TYPED with a caret
-      // typing overlay, then `fill`ed for real so it persists while the next
-      // field types; the final frame clicks submit and reveals a success
+      // 4 config frames on a continued live page: each field is TYPED with a
+      // caret typing overlay, then `fill`ed for real so it persists while the
+      // next field types; the final frame clicks submit and reveals a success
       // message. (Typing overlays render <text>.)
-      if (count(svg, /class="f f-\d+"/g) !== 4) f.push("expected 4 frame groups");
+      //
+      // DM-1767: the first three collapse into ONE compressed run — an
+      // overlay-carrying frame no longer has to stay a plain sibling, since each
+      // member's typing overlay rides along as its state's, anchor-resolved
+      // against that state and bounded to that state's hold. The fourth frame
+      // carries a readiness `wait`, which still ends the run. So: 2 animation
+      // frames, and the output is pixel-identical to the 4-frame flipbook it
+      // replaced (verified frame-by-frame over the timeline) at ~12% fewer bytes.
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups (3 collapsed + the wait-anchored 4th)");
+      if (!svg.includes("cr0_")) f.push("missing the cr0_ compressed-run namespace token");
       if (!/<text/.test(svg)) f.push("missing typing-overlay text (fields should type, not instant-fill)");
       if (!/Account created/.test(svg)) f.push("missing submit-success message in final frame");
       return f;
@@ -501,27 +510,37 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 640 360"`)) f.push("missing viewBox 640x360");
-      if (count(svg, /class="f f-\d+"/g) !== 11) f.push("expected 11 frame groups");
+      // DM-1767: the 11 config frames compose to 6 animation frames. The five
+      // typed-line frames (0–5) now collapse into ONE compressed run, because a
+      // frame carrying an overlay is no longer a split point — each line's
+      // typing overlay rides along as its STATE's overlay, anchor-resolved
+      // against that state's layout and bounded to that state's hold, so it
+      // still dies at its own cut. Pixel-identical to the 11-frame flipbook it
+      // replaced (verified frame-by-frame across the 17.2 s timeline) at ~15%
+      // fewer bytes. Frame 7's line stays a sibling (frame 8's `textTracks`
+      // still blocks), and frames 6 / 9 were already `states` runs.
+      if (count(svg, /class="f f-\d+"/g) !== 6) f.push("expected 6 frame groups");
       // Six typed lines ride typing overlays (5 v1 lines + the cls line),
       // each with a caret; `holdToFrameEnd` means NO fade-out ramp on the
-      // typed text (the hold drops with the frame's own cut).
+      // typed text (the hold drops with its own window's cut).
       const typed = [...svg.matchAll(/class="t[\d_]+-text"/g)];
       if (typed.length !== 6) f.push(`expected 6 typing overlays, got ${typed.length}`);
       const carets = [...svg.matchAll(/class="t[\d_]+-caret"/g)];
       if (carets.length !== 6) f.push(`expected 6 typing carets, got ${carets.length}`);
-      // The two editing phases nest as compressed runs (frames 6 and 9),
-      // namespaced cr6_ / cr9_, with glyph identity groups on step-end tracks
-      // and the auto-caret riding each run.
-      for (const tok of ["cr6_", "cr9_"]) {
+      // Three nested compressed runs, at composed frame indices 0 (the collapsed
+      // typed-lines run), 1 (the mid-line insert) and 4 (the "btn" replace),
+      // namespaced cr0_ / cr1_ / cr4_, with glyph identity groups on step-end
+      // tracks and the auto-caret riding each authored run.
+      for (const tok of ["cr0_", "cr1_", "cr4_"]) {
         if (!svg.includes(tok)) f.push(`missing the ${tok} compressed-run namespace token`);
       }
-      if (!/cr6_anim-cr6g\d+/.test(svg)) f.push("missing insert-run glyph identity groups (cr6_anim-cr6g…)");
-      if (!/cr9_anim-cr9g\d+/.test(svg)) f.push("missing replace-run glyph identity groups (cr9_anim-cr9g…)");
+      if (!/cr1_anim-cr1g\d+/.test(svg)) f.push("missing insert-run glyph identity groups (cr1_anim-cr1g…)");
+      if (!/cr4_anim-cr4g\d+/.test(svg)) f.push("missing replace-run glyph identity groups (cr4_anim-cr4g…)");
       if (!/step-end/.test(svg)) f.push("missing step-end tracks (runs snap at state boundaries)");
-      if (!/class="cr6_text-track"/.test(svg)) f.push("missing the insert run's auto-caret (cr6_text-track)");
-      if (!/class="cr9_text-track"/.test(svg)) f.push("missing the replace run's auto-caret (cr9_text-track)");
-      // Frame 8's declarative selection track: a top-level text-track group
-      // with the sweep rect (the "btn" selection — no page-side markup).
+      if (!/class="cr1_text-track"/.test(svg)) f.push("missing the insert run's auto-caret (cr1_text-track)");
+      if (!/class="cr4_text-track"/.test(svg)) f.push("missing the replace run's auto-caret (cr4_text-track)");
+      // The declarative selection track on the "btn" line: a top-level
+      // text-track group with the sweep rect (no page-side markup).
       if (!/class="text-track"/.test(svg)) f.push("missing the frame-8 textTracks group (top-level text-track)");
       if (!/class="tt-sel"/.test(svg)) f.push("missing the selection sweep rect (tt-sel)");
       return f;

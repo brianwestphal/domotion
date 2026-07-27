@@ -55,6 +55,11 @@ import {
   type TextTrackSpec,
   type TextTrackSpecEvent,
 } from "../animation/index.js";
+// DM-1767 (docs/104): re-basing a per-state overlay onto the collapsed run's
+// timeline has to add the state's offset to the overlay's EFFECTIVE delay, so
+// it needs each kind's default. Internal to the overlay-timing model — not part
+// of the published barrel (see the note in `../animation/index.ts`).
+import { OVERLAY_DEFAULT_DELAY_MS } from "../animation/animator.js";
 import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
@@ -315,6 +320,11 @@ export const overlaySchema = z.discriminatedUnion("kind", [
     enter: overlaySlideSchema.optional(),
     exit: overlaySlideSchema.optional(),
     anchor: anchorSchema.optional(),
+    // DM-1767 (docs/104): the `[delay, endAt]` per-overlay window. Hand-written
+    // here (this authoring kind takes a `src` path rather than the runtime
+    // `innerSvg`), so these must mirror `svgOverlaySchema`'s fields.
+    delay: z.number().optional(),
+    endAt: z.number().positive("must be a positive number (ms from frame start)").optional(),
   }),
   blinkOverlaySchema.extend({
     x: z.number().default(0),
@@ -495,6 +505,20 @@ const runStateSchema = z.object({
    * region-discriminator override.
    */
   advances: z.array(z.string().min(1, "must be a declared region name")).min(1, "must name at least one region").optional(),
+  /**
+   * DM-1767 (docs/104): overlays scoped to THIS state rather than to the whole
+   * run. Each is anchor-resolved against the live page at the moment this state
+   * is captured — so a `selector` anchor / `maxWidth: "anchor"` sees this
+   * state's layout, not the run's last — and then bounded to this state's slice
+   * of the run: its `delay` is shifted by the state's offset and its `endAt`
+   * pinned to the state's end, so it dies at this state's snap exactly as it
+   * would have at its own frame's cut.
+   *
+   * This is what lets `autoCompress` collapse a run whose members carry
+   * overlays (docs/43 §13.1) — each member's overlays become its state's — and
+   * it is authorable directly on a hand-written `states:` block.
+   */
+  overlays: z.array(overlaySchema).optional(),
 });
 type RunStateInput = z.infer<typeof runStateSchema>;
 
@@ -1668,6 +1692,10 @@ async function buildCapturedFrame(
   // own internal timeline; set so the animator re-anchors it to this frame's
   // master-loop offset (same as a `cast` / animated-`template` frame).
   let embeddedAnimationPeriodMs: number | undefined;
+  // DM-1767 (docs/104): overlays a `states` run's individual states carried,
+  // already anchor-resolved per state and re-based onto this frame's timeline.
+  // Appended AFTER the frame's own overlays below (frame-level paints first).
+  let stateOverlays: OverlayInput[] | undefined;
   if (fc.typeResample != null) {
     // DM-1556 (docs/93 §2): drive the field one keystroke at a time, re-capturing
     // after each keystroke, and compose the captures into one nested animated SVG
@@ -1713,6 +1741,9 @@ async function buildCapturedFrame(
     frameCullCss = "";
     rootBg = res.rootBg;
     embeddedAnimationPeriodMs = res.periodMs;
+    // DM-1767 (docs/104): per-state overlays, anchor-resolved against each
+    // state's own page inside the run and re-based onto this frame's timeline.
+    stateOverlays = res.overlays;
     if (fc.duration < res.periodMs) {
       log(`  note: frame duration ${fc.duration}ms < compressed-run play time ${res.periodMs}ms — the run will be cut off; size duration to ≈ ${res.periodMs}ms`);
     }
@@ -1787,10 +1818,17 @@ async function buildCapturedFrame(
   // (bbox → x/y, and maxWidth:"anchor" → the element's content width) BEFORE
   // the svg-inlining pass, while the page is still loaded.
   const anchoredOverlays = await resolveOverlayAnchors(page, fc.overlays, i);
+  // DM-1767: a `states` run's per-state overlays were already anchor-resolved
+  // against their own state's page (`buildStatesRunContent`), so they join the
+  // list AFTER the frame-level ones — declaration order is paint order, and a
+  // frame-level overlay spans the whole run while a state's is bounded to it.
+  const allOverlays = stateOverlays != null
+    ? [...(anchoredOverlays ?? []), ...stateOverlays]
+    : anchoredOverlays;
   // Resolve SVG-kind overlays: read each `src` from disk, namespace its
   // ids, and replace with `innerSvg`. Other overlay kinds pass through
   // verbatim. (DM-210.)
-  const overlays = resolveSvgOverlays(anchoredOverlays, configDir, i);
+  const overlays = resolveSvgOverlays(allOverlays, configDir, i);
 
   const frame: AnimationFrame = {
     svgContent,
@@ -1987,7 +2025,7 @@ async function buildStatesRunContent(
   i: number,
   cfg: AnimateConfig,
   log: (msg: string) => void,
-): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined }> {
+): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined; overlays?: OverlayInput[] }> {
   const stateCfgs = fc.states!;
 
   // DM-1770: stamp each declared region's element with `data-domotion-anim`,
@@ -2051,6 +2089,38 @@ async function buildStatesRunContent(
     return tree;
   };
 
+  // DM-1767 (docs/104): per-state overlays. Each state's overlays are anchor-
+  // resolved WHILE the page is at that state — the whole point, since a
+  // collapsed run leaves the page at its LAST state and layout moving between
+  // states is exactly why the run compresses — then rewritten onto the outer
+  // frame's timeline: `delay` shifted by the state's offset into the run and
+  // `endAt` pinned to the state's end, so the overlay dies at its own state's
+  // snap instead of holding to the end of the whole run.
+  const stateOffsets: number[] = [];
+  {
+    let t = 0;
+    for (const st of stateCfgs) { stateOffsets.push(t); t += st.duration; }
+  }
+  // Bucketed per state, then flattened in STATE order — with per-region timing
+  // the capture rounds visit states out of order, and an overlay's position in
+  // the frame's list is its paint order.
+  const overlayBuckets: OverlayInput[][] = stateCfgs.map(() => []);
+  const collectStateOverlays = async (j: number): Promise<void> => {
+    const authored = stateCfgs[j].overlays;
+    if (authored == null || authored.length === 0) return;
+    const resolved = await resolveOverlayAnchors(page, authored, i);
+    if (resolved == null) return;
+    const start = stateOffsets[j];
+    const hold = stateCfgs[j].duration;
+    for (const ov of resolved) {
+      // An `endAt` authored on a per-state overlay is relative to ITS state, so
+      // it bounds the overlay inside the state; without one the state's own
+      // hold is the window. Either way the result can never outlive the state.
+      const endAt = start + Math.min(ov.endAt ?? hold, hold);
+      overlayBuckets[j].push({ ...ov, delay: (ov.delay ?? OVERLAY_DEFAULT_DELAY_MS[ov.kind]) + start, endAt } as OverlayInput);
+    }
+  };
+
   const states: CompressedRunState[] = [];
   if (plan != null) {
     log(`  states: ${stateCfgs.length} states over ${regionNames.length} region${regionNames.length === 1 ? "" : "s"} `
@@ -2062,6 +2132,10 @@ async function buildStatesRunContent(
         if (acts != null && acts.length > 0) await runActions(page, acts, log);
       }
       roundTrees.push(await captureNow());
+      // DM-1767: resolve the anchors of every state DRIVEN in this round, at
+      // this round's page. Round 0 is state 0 (the frame's own post-actions
+      // state), which `rounds[0]` leaves empty — handle it explicitly.
+      for (const s of r === 0 ? [0] : plan.rounds[r]) await collectStateOverlays(s);
     }
     const assembled = assembleRegionStateTrees(
       roundTrees,
@@ -2078,8 +2152,11 @@ async function buildStatesRunContent(
       // actions (if any) run before its capture.
       if (st.actions != null && st.actions.length > 0) await runActions(page, st.actions, log);
       states.push({ tree: await captureNow(), holdMs: st.duration });
+      // DM-1767: this state's overlays anchor against THIS state's layout.
+      await collectStateOverlays(j);
     }
   }
+  const runOverlays = overlayBuckets.flat();
   const rootBg = states[0].tree[0]?.styles?.rootBgComputed;
   // The size-regression guard (below) can only fall back to the uncompressed
   // form for a run the automatic pass created, and the compressor renders from
@@ -2195,6 +2272,10 @@ async function buildStatesRunContent(
     svgContent: namespaced.replace(/^<\?xml[^>]*\?>\s*/, ""),
     periodMs,
     rootBg,
+    // DM-1767: already anchor-resolved (each against its own state's page) and
+    // re-based onto the outer frame's timeline; the caller appends them to the
+    // frame's own overlays and runs the shared `svg`-kind `src` resolution.
+    ...(runOverlays.length > 0 ? { overlays: runOverlays } : {}),
   };
 }
 
@@ -2428,7 +2509,11 @@ function collapseCompressibleRuns(
     if (f.jsReveal != null) return "jsReveal";
     if (f.hoverReveal != null) return "hoverReveal";
     if (f.hoverDetect != null) return "hoverDetect";
-    if (f.overlays != null && f.overlays.length > 0) return "overlays";
+    // DM-1767 (docs/104): `overlays` is NO LONGER a blocker. A member's
+    // overlays become that state's `overlays` — anchor-resolved against its own
+    // state's page and bounded to its state's hold by the explicit per-overlay
+    // window — so the authored behavior survives the collapse instead of the
+    // frame having to stay a plain sibling.
     if (f.animations != null && f.animations.length > 0) return "animations";
     if (f.textTracks != null && f.textTracks.length > 0) return "textTracks";
     if (f.forceState != null && f.forceState.length > 0) return "forceState";
@@ -2498,11 +2583,21 @@ function collapseCompressibleRuns(
     const runAnchor = frames[start];
     const runFrames = frames.slice(start, end + 1);
     const totalDuration = runFrames.reduce((sum, f) => sum + f.duration, 0);
+    // DM-1767: each member's `overlays` become its STATE's overlays. That is
+    // what preserves the authored behavior through the collapse: the state's
+    // capture is where its anchors resolve, and the state's slice of the run is
+    // the window `buildStatesRunContent` bounds them to — so an overlay on the
+    // third of five members still dies at that member's cut instead of holding
+    // to the end of the whole run.
     const states: RunStateInput[] = [
-      { duration: runAnchor.duration }, // state 0 = the anchor's own post-actions capture
+      {
+        duration: runAnchor.duration, // state 0 = the anchor's own post-actions capture
+        ...(runAnchor.overlays != null && runAnchor.overlays.length > 0 ? { overlays: runAnchor.overlays } : {}),
+      },
       ...runFrames.slice(1).map((f) => ({
         ...(f.actions != null ? { actions: f.actions } : {}),
         duration: f.duration,
+        ...(f.overlays != null && f.overlays.length > 0 ? { overlays: f.overlays } : {}),
       })),
     ];
     const collapsed: AnimateFrameCfg = {

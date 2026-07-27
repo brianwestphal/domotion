@@ -1099,10 +1099,31 @@ ${mid}
 }
 
 /**
+ * DM-1767 (docs/104): resolve an overlay's WINDOW END, in ms from frame start.
+ *
+ * Historically every overlay's window ended with its frame. `endAt` makes that
+ * explicit and lets an overlay end EARLY — clamped to the frame's duration, so
+ * it can still never leak past the cut into the next frame. Returns the frame's
+ * own duration when the overlay declares nothing, which is why every existing
+ * config emits byte-identical CSS.
+ *
+ * Exported for unit tests.
+ */
+export function overlayWindowEndMs(overlay: AnimationOverlay, frameDurationMs: number): number {
+  const endAt = (overlay as { endAt?: number }).endAt;
+  if (endAt == null) return frameDurationMs;
+  // A window shorter than a millisecond is meaningless; clamp to [1, frame].
+  return Math.min(frameDurationMs, Math.max(1, endAt));
+}
+
+/**
  * Render a frame's overlays (typing / tap / svg / blink), in declaration order,
  * to parallel group-markup + keyframe-css arrays. The cursor overlay is global
  * (one per scene) and stays in generateAnimatedSvg. Extracted from
  * generateAnimatedSvg (DM-1375).
+ *
+ * DM-1767: each overlay's frame-end is now its OWN `overlayWindowEndMs` rather
+ * than the frame's duration — the per-overlay window (docs/104).
  */
 function emitFrameOverlays(
   frame: AnimationFrame, i: number, timeOffset: number, totalDuration: number, totalSec: number,
@@ -1121,28 +1142,32 @@ function emitFrameOverlays(
       const n = kindSeq[overlay.kind] ?? 0;
       kindSeq[overlay.kind] = n + 1;
       const idBase = n === 0 ? `${i}` : `${i}_${n}`;
+      // DM-1767: the overlay's own window end (defaults to the frame's), so a
+      // per-state overlay inside a compressed run dies at ITS state's cut.
+      const winMs = overlayWindowEndMs(overlay, frame.duration);
       if (overlay.kind === "typing") {
-        const { svgMarkup, css } = renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + winMs, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "tap") {
-        const { svgMarkup, css } = renderTapOverlay(overlay, idBase, timeOffset, totalDuration, totalSec);
+        // A tap is self-timed, so it only clamps when an explicit window is set.
+        const { svgMarkup, css } = renderTapOverlay(overlay, idBase, timeOffset, overlay.endAt != null ? timeOffset + winMs : null, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "svg") {
-        const { svgMarkup, css } = renderSvgOverlay(overlay, idBase, timeOffset, frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderSvgOverlay(overlay, idBase, timeOffset, winMs, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "blink") {
-        const { svgMarkup, css } = renderBlinkOverlay(overlay, idBase, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderBlinkOverlay(overlay, idBase, timeOffset, timeOffset + winMs, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "shine") {
-        const { svgMarkup, css } = renderShineOverlay(overlay, idBase, timeOffset, frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderShineOverlay(overlay, idBase, timeOffset, winMs, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "interact") {
-        const { svgMarkup, css } = renderInteractOverlay(overlay, idBase, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderInteractOverlay(overlay, idBase, timeOffset, timeOffset + winMs, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       }
@@ -1563,6 +1588,27 @@ const MAX_DISCRETE_TYPING_CHARS = 300;
 const DEFAULT_MISTAKE_THINK_MS = 400;
 const DEFAULT_TAP_DELAY_MS = 50;
 const DEFAULT_BLINK_PERIOD_MS = 1000;
+/** DM-1542 / DM-1565: `shine` and `interact` both hold off 200 ms before their
+ *  first sweep / treatment, so the effect reads as a beat after the frame lands. */
+const DEFAULT_EFFECT_DELAY_MS = 200;
+
+/**
+ * DM-1767: each overlay kind's default `delay` — the ms after frame start at
+ * which it begins when the author sets none. Published because SHIFTING an
+ * overlay onto a different origin (a per-state overlay inside a compressed run
+ * moving from "its own state's start" to "the collapsed run's start" —
+ * docs/104) must add the offset to the EFFECTIVE delay; adding it to a bare
+ * `delay ?? 0` would silently drop the kind's own lead-in and the overlay would
+ * fire early relative to how it behaved as its own frame.
+ */
+export const OVERLAY_DEFAULT_DELAY_MS: Record<AnimationOverlay["kind"], number> = {
+  typing: DEFAULT_TYPING_DELAY_MS,
+  tap: DEFAULT_TAP_DELAY_MS,
+  svg: 0,
+  blink: 0,
+  shine: DEFAULT_EFFECT_DELAY_MS,
+  interact: DEFAULT_EFFECT_DELAY_MS,
+};
 
 /** Deterministic PRNG (mulberry32) so humanized jitter stays byte-stable per run. */
 function mulberry32(seed: number): () => number {
@@ -2191,10 +2237,19 @@ function renderTypingOverlay(
   return { svgMarkup: parts.join("\n"), css: cssRules.join("") };
 }
 
+/**
+ * DM-1767: `windowEnd` is the absolute ms at which an explicit per-overlay
+ * window (docs/104) closes, or `null` for the historical self-timed ripple. A
+ * tap never consulted the frame's end — its 500 ms ripple is fully described by
+ * its own `delay` — so the clamp only engages when the author (or the
+ * compressed-run rewrite, which bounds each member overlay to its state's hold)
+ * set `endAt`. Passing `null` keeps existing output byte-identical.
+ */
 function renderTapOverlay(
   overlay: TapOverlay,
   idBase: string,
   frameStart: number,
+  windowEnd: number | null,
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
@@ -2203,9 +2258,19 @@ function renderTapOverlay(
   const rippleDur = 500;
   const id = `tap${idBase}`;
 
+  // A window that closes before the ripple even starts means the tap belongs to
+  // a moment that is no longer on screen — emit nothing rather than a ripple
+  // squeezed into zero time.
+  if (windowEnd != null && windowEnd <= tapMs) return { svgMarkup: "", css: "" };
+  // Cut the ripple short at the window edge (never stretch it): each stop is
+  // clamped, then nudged so the three keyframe stops stay strictly increasing.
+  const cut = windowEnd ?? Infinity;
+  const peakMs = Math.max(tapMs + 1, Math.min(tapMs + rippleDur * 0.3, cut));
+  const endMs = Math.max(peakMs + 1, Math.min(tapMs + rippleDur, cut));
+
   const tapStartPct = pct(tapMs, totalDuration);
-  const tapPeakPct = pct(tapMs + rippleDur * 0.3, totalDuration);
-  const tapEndPct = pct(tapMs + rippleDur, totalDuration);
+  const tapPeakPct = pct(peakMs, totalDuration);
+  const tapEndPct = pct(endMs, totalDuration);
 
   const svgMarkup = [
     `  <circle class="${id}" cx="${overlay.x}" cy="${overlay.y}" r="0" fill="rgba(255,255,255,0.35)" />`,
@@ -2215,7 +2280,7 @@ function renderTapOverlay(
   const css = `
     @keyframes ${id} { 0%, ${tapStartPct} { r: 0; opacity: 0.4; } ${tapPeakPct} { r: 28; opacity: 0.2; } ${tapEndPct}, 100% { r: 35; opacity: 0; } }
     .${id} { animation: ${id} ${totalSec.toFixed(2)}s infinite; }
-    @keyframes ${id}-dot { 0%, ${tapStartPct} { opacity: 0; } ${pct(tapMs + 20, totalDuration)} { opacity: 0.6; } ${tapPeakPct} { opacity: 0.2; } ${tapEndPct}, 100% { opacity: 0; } }
+    @keyframes ${id}-dot { 0%, ${tapStartPct} { opacity: 0; } ${pct(Math.min(tapMs + 20, peakMs), totalDuration)} { opacity: 0.6; } ${tapPeakPct} { opacity: 0.2; } ${tapEndPct}, 100% { opacity: 0; } }
     .${id}-dot { animation: ${id}-dot ${totalSec.toFixed(2)}s infinite; }`;
 
   return { svgMarkup, css };
@@ -2235,7 +2300,7 @@ function renderShineOverlay(
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const delay = overlay.delay ?? 200;
+  const delay = overlay.delay ?? DEFAULT_EFFECT_DELAY_MS;
   const duration = overlay.duration ?? 900;
   const sweepStartMs = frameStart + delay;
   const sweep = buildShineSweep({
@@ -2328,7 +2393,7 @@ function renderInteractOverlay(
   const ringWidth = overlay.ringWidth ?? 2;
   const radius = overlay.radius ?? 6;
   const scaleTo = overlay.scale ?? d.scale;
-  const delay = overlay.delay ?? 200;
+  const delay = overlay.delay ?? DEFAULT_EFFECT_DELAY_MS;
   const duration = overlay.duration ?? 240;
   const releaseMs = overlay.releaseMs ?? 180;
 
@@ -2561,14 +2626,18 @@ function renderSvgOverlay(
   const id = `ov-${idBase}-${overlay.animId}`;
   const clipId = `${id}-clip`;
   const visibilityId = `${id}-vis`;
+  // DM-1767: `delay` is the overlay's start knob (default 0 = appears with the
+  // frame, byte-identical to before) and `frameHoldMs` is its window end — the
+  // frame's hold unless the overlay declared its own `endAt` (docs/104).
+  const appearMs = frameStart + Math.min(overlay.delay ?? 0, Math.max(0, frameHoldMs - 1));
   const overlayEnd = frameStart + frameHoldMs;
-  const visStart = pct(frameStart, totalDuration);
+  const visStart = pct(appearMs, totalDuration);
   const visEnd = pct(overlayEnd, totalDuration);
 
   const cssRules: string[] = [];
-  // Visibility timeline: hidden until frame start, visible during the hold.
+  // Visibility timeline: hidden until the appear time, visible during the hold.
   cssRules.push(`
-    @keyframes ${visibilityId} { 0%, ${pct(Math.max(0, frameStart - 1), totalDuration)} { opacity: 0; } ${visStart} { opacity: 1; } ${visEnd} { opacity: 1; } ${pct(overlayEnd + 1, totalDuration)}, 100% { opacity: 0; } }
+    @keyframes ${visibilityId} { 0%, ${pct(Math.max(0, appearMs - 1), totalDuration)} { opacity: 0; } ${visStart} { opacity: 1; } ${visEnd} { opacity: 1; } ${pct(overlayEnd + 1, totalDuration)}, 100% { opacity: 0; } }
     .${id} { animation: ${visibilityId} ${totalSec.toFixed(2)}s infinite; }`);
 
   // Slide-in entrance (DM-211): translate from off-screen to (0, 0) over
@@ -2578,7 +2647,9 @@ function renderSvgOverlay(
     const easing = e.easing ?? "ease-out";
     const enterDelay = e.delay ?? 0;
     const fromStr = offsetForDirection(e.from, overlay.width, overlay.height);
-    const enterStart = frameStart + enterDelay;
+    // DM-1767: measured from the overlay's appear time, so `enter.delay` stays
+    // an additional nudge (identical when `delay` is unset — the default).
+    const enterStart = appearMs + enterDelay;
     const enterEnd = enterStart + e.duration;
     const enterId = `${id}-enter`;
     cssRules.push(`

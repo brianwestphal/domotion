@@ -394,6 +394,10 @@
                     "holdToFrameEnd": {
                       "type": "boolean"
                     },
+                    "endAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
                     "anchor": {
                       "type": "object",
                       "properties": {
@@ -463,6 +467,10 @@
                     },
                     "delay": {
                       "type": "number"
+                    },
+                    "endAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "type": "object",
@@ -610,6 +618,13 @@
                         "selector"
                       ],
                       "additionalProperties": false
+                    },
+                    "delay": {
+                      "type": "number"
+                    },
+                    "endAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
                     }
                   },
                   "required": [
@@ -654,6 +669,10 @@
                     },
                     "delay": {
                       "type": "number"
+                    },
+                    "endAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "type": "object",
@@ -751,6 +770,10 @@
                     },
                     "repeatPeriodMs": {
                       "type": "number"
+                    },
+                    "endAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "type": "object",
@@ -863,6 +886,10 @@
                     },
                     "repeatPeriodMs": {
                       "type": "number"
+                    },
+                    "endAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "type": "object",

@@ -25,6 +25,36 @@
 import { z } from "zod";
 
 /**
+ * DM-1767 (docs/104): the EXPLICIT per-overlay window end.
+ *
+ * An overlay's lifetime has always been *frame*-scoped — `typing` / `blink` /
+ * `interact` hold until the frame ends, `shine` / `svg` clamp their sweep and
+ * visibility to the frame's hold. `endAt` decouples that: it is the ms, from
+ * frame start, at which THIS overlay's window closes, independent of how long
+ * the frame runs. Omitted (the default) the window still ends with the frame,
+ * so existing output is byte-identical.
+ *
+ * Together with each kind's start knob (`delay` — added to `svg` in DM-1767 so
+ * every kind has one) it gives every overlay a fully explicit `[delay, endAt]`
+ * window. That is what lets a per-state overlay ride INSIDE a compressed run
+ * (docs/43 §13.1) — each member's overlay keeps its own authored lifetime
+ * instead of inheriting the whole collapsed run's — and it is independently
+ * useful inside an ordinary frame ("this annotation goes away halfway
+ * through", without splitting the frame in two).
+ *
+ * Clamped to the frame's duration at emission: an overlay may end EARLY, never
+ * late, so it still cannot leak across the cut into the next frame.
+ */
+const overlayWindowFields = {
+  /**
+   * DM-1767: ms from frame start at which this overlay's window closes.
+   * Defaults to the frame's `duration` (the historical frame-scoped lifetime)
+   * and is clamped to it. See `docs/104-overlay-windows.md`.
+   */
+  endAt: z.number().positive("must be a positive number (ms from frame start)").optional(),
+};
+
+/**
  * Slide-in / slide-out descriptor shared by SVG overlays (`enter` / `exit`)
  * — DM-211. Sugar over an intra-frame animation.
  */
@@ -185,6 +215,7 @@ export const typingOverlaySchema = z.object({
    * Default false (the fade; existing output is byte-identical).
    */
   holdToFrameEnd: z.boolean().optional(),
+  ...overlayWindowFields,
 });
 export type TypingOverlay = z.infer<typeof typingOverlaySchema>;
 
@@ -195,6 +226,12 @@ export const tapOverlaySchema = z.object({
   y: z.number(),
   /** Delay from frame start (ms). */
   delay: z.number().optional(),
+  // DM-1767: a `tap` is the one kind fully described by its own `delay` + the
+  // fixed 500 ms ripple, so it never consulted the frame end. `endAt` still
+  // applies — it CUTS the ripple short when the window closes mid-ripple (and
+  // suppresses it entirely when the window closes before it starts), which is
+  // what a per-state tap inside a compressed run needs.
+  ...overlayWindowFields,
 });
 export type TapOverlay = z.infer<typeof tapOverlaySchema>;
 
@@ -231,6 +268,15 @@ export const svgOverlaySchema = z.object({
   enter: overlaySlideSchema.optional(),
   /** Slide-out exit (DM-211). */
   exit: overlaySlideSchema.optional(),
+  /**
+   * DM-1767: ms after the frame becomes visible before the overlay appears.
+   * Default 0 (the historical behavior — it appears with the frame). This is
+   * the `svg` kind's start knob, so that every overlay kind now has the same
+   * `[delay, endAt]` window; `enter.delay` remains an ADDITIONAL offset applied
+   * to the slide, measured from this appear time.
+   */
+  delay: z.number().optional(),
+  ...overlayWindowFields,
 });
 export type SvgOverlay = z.infer<typeof svgOverlaySchema>;
 
@@ -258,6 +304,7 @@ export const blinkOverlaySchema = z.object({
   radius: z.number().optional(),
   /** Ms after the frame becomes visible before blinking starts. Default 0. */
   delay: z.number().optional(),
+  ...overlayWindowFields,
 });
 export type BlinkOverlay = z.infer<typeof blinkOverlaySchema>;
 
@@ -302,6 +349,7 @@ export const shineOverlaySchema = z.object({
   repeat: z.union([z.number(), z.literal("infinite")]).optional(),
   /** Period of ONE ambient sweep in ms (only with `repeat`). Default 1400. */
   repeatPeriodMs: z.number().optional(),
+  ...overlayWindowFields,
 });
 export type ShineOverlay = z.infer<typeof shineOverlaySchema>;
 
@@ -365,6 +413,7 @@ export const interactOverlaySchema = z.object({
   repeat: z.union([z.number(), z.literal("infinite")]).optional(),
   /** Period of ONE ambient pulse in ms (only with `repeat`). Default 1600. */
   repeatPeriodMs: z.number().optional(),
+  ...overlayWindowFields,
 });
 export type InteractOverlay = z.infer<typeof interactOverlaySchema>;
 

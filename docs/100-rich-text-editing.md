@@ -22,8 +22,9 @@ chrome-variant reopen are also shipped — see Primitive 1 below. The multi-fram
 authoring surfaces now exist: the hand-authored `states:` block, the per-run
 `compress` marker, and the whole-config `autoCompress` flag. Remaining items are
 the filed follow-ups (locally tracked): the complex-interaction cases run
-detection excludes (per-frame overlays/cursor/magic-move crossing a run) and the
-caret-track addressing limits (docs/101 v1 limits). Independent **per-region
+detection still excludes (cursor / magic-move crossing a run — per-frame
+overlays no longer split, DM-1767) and the caret-track addressing limits
+(docs/101 v1 limits). Independent **per-region
 timing** ships too: a `states` frame may declare
 `regions: { <name>: <selector> }` and tag each state with the region(s) it
 `advances`, so two panes are authored as two independent sequences instead of
@@ -219,8 +220,9 @@ collapsed indices). Output is pixel-identical to the flipbook (verified in
 "Default-flip" below; opt out with `autoCompress: false`), changing the output
 shape only of a config that actually contains such a run. It
 compresses pure continue+cut runs with no
-overlays/animations/textTracks/forceState crossing them; everything else is
-left uncompressed with a logged reason.
+animations/textTracks/forceState crossing them (overlays ride along as per-state
+overlays since DM-1767); everything else is left uncompressed with a logged
+reason.
 
 **Sub-run splitting (DM-1764).** The pass no longer drops a whole run over one
 frame. The three interaction exclusions — an explicit cursor event addressing a
@@ -229,8 +231,8 @@ and a magic-move landing on the anchor — are single-*frame* reasons, so that
 frame splits the candidate window and the eligible sub-runs on either side
 collapse anyway (subject to the two-frame minimum). The split frame stays a
 plain sibling frame, so its pointer / its magic-move morph behaves exactly as it
-did uncompressed; frame-level blockers (overlays, animations, a readiness wait)
-already split the same way. One bad frame therefore costs one frame rather than
+did uncompressed; frame-level blockers (animations, textTracks, a readiness
+wait) already split the same way. One bad frame therefore costs one frame rather than
 the whole run — which is also what makes the remaining exclusions cheap enough
 to live with. Verified pixel-identical to the flipbook across a split window in
 `tests/auto-compress.e2e.test.ts`. Under the explicit `compress: true` marker a
@@ -253,23 +255,28 @@ mid-run, against 18.7 KB under the old drop-everything rule), so neither trade
 is worth visible correctness. Do not re-open either without new evidence that
 the byte cost matters at some scale not yet seen.
 
-**Per-frame overlays inside a run — evaluated, left as a split (DM-1764).**
-Attaching a member's overlay to the collapsed frame at its state offset is not
-the remap it looks like. Overlay lifetime is *frame*-scoped — every kind is
-emitted against its frame's window and `typing` / `blink` / `interact` hold
-until the frame ends — so an overlay authored on the third of five members
-would stop disappearing at that member's cut and hold to the end of the whole
-run; only `tap` is fully described by its own `delay` + `duration`. And
-`selector`-anchored overlays (and `maxWidth: "anchor"`) resolve against the live
-page once per frame, after that frame's actions have run, which for a collapsed
-run means the LAST state — so a state-3 overlay would anchor against state 5's
+**Per-frame overlays inside a run — now RIDE ALONG (DM-1764 analysis,
+DM-1767 fix).** Attaching a member's overlay to the collapsed frame at its state
+offset was not the remap it looked like, for two reasons that both lived in the
+OVERLAY model rather than the collapse pass. Overlay lifetime was *frame*-scoped
+— every kind emitted against its frame's window, with `typing` / `blink` /
+`interact` holding until the frame ends — so an overlay authored on the third of
+five members would stop disappearing at that member's cut and hold to the end of
+the whole run (only `tap` was fully described by its own `delay` + `duration`).
+And `selector`-anchored overlays (and `maxWidth: "anchor"`) resolved against the
+live page once per frame, after that frame's actions, which for a collapsed run
+means the LAST state — so a state-3 overlay would anchor against state 5's
 layout, and layout moving between states is exactly why the run compresses.
-Preserving authored behavior therefore needs two changes to the OVERLAY model,
-not the collapse pass: an explicit per-overlay end (docs/43 §5's contract today
-has none), and anchor resolution interleaved into the run's per-state capture
-loop. Since sub-run splitting already reduces the cost to one frame, overlays
-stay a split point until that overlay-model change is worth making on its own
-terms.
+
+DM-1767 made both changes: an **explicit per-overlay window** (`endAt` on every
+kind, plus a `delay` on the `svg` kind so all six share one `[delay, endAt]`
+shape) and **per-state anchor resolution** interleaved into the run's capture
+loop, surfaced as a per-state `overlays` list. A member's overlays become its
+state's, so the run collapses whole and each overlay resolves against its own
+capture and dies at its own cut. Measured on the committed corpus: `form-fill`
+4 → 2 animation frames (−12% bytes), `editor-session` 11 → 6 (−15%), both
+verified pixel-identical frame-by-frame across their whole timelines. Full spec:
+`docs/104-overlay-windows.md`.
 
 **Size-regression guard — shipped (DM-1764).** Compression is pixel-identical
 but not unconditionally smaller, and the original estimate here ("≈ flipbook +
@@ -314,15 +321,17 @@ hard error: don't quietly turn what they wrote into something else.
 flip was gated on three prerequisites, all now met: (1) the excluded
 complex-interaction cases (per-frame overlays, cursor events, magic-move *inside*
 a run) — **met**: sub-run splitting (above) reduces every exclusion to a
-per-frame cost, and overlays are handled by that same splitting (they split the
-run and the sub-runs on either side compress independently — not a gap; DM-1767);
+per-frame cost (and DM-1767 has since removed overlays from the exclusion set
+entirely — they ride along as per-state overlays);
 (2) a size-regression guard confirms no config's raw output GROWS — **met**, and
 strengthened to per-region demotion (DM-1772); (3) every committed golden
-regenerated in one reviewed pass — **met, and it was a no-op**: the entire
-committed example corpus is byte-neutral under the flip, because none of it has an
-auto-collapsible plain continue+cut run (all use non-cut transitions, per-frame
-decorations, or explicit `states` — measured across all 26 goldens). So the flip
-changed zero shipped output. Opt out per config with `autoCompress: false` (or
+regenerated in one reviewed pass — **met, and it was a no-op at the time**: the
+entire committed example corpus was byte-neutral under the flip, because none of
+it had an auto-collapsible plain continue+cut run (all used non-cut transitions,
+per-frame decorations, or explicit `states` — measured across all 26 goldens). So
+the flip itself changed zero shipped output. (DM-1767 later brought two
+overlay-carrying examples into scope — `form-fill` and `editor-session`, whose
+goldens were regenerated and verified pixel-identical.) Opt out per config with `autoCompress: false` (or
 `--no-auto-compress`); the risk surface — frame-count/nesting/frame-addressed
 features crossing a run — applies only to a config that actually contains such a
 run, and even then only its shape changes, never its pixels.

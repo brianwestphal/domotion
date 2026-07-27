@@ -1218,10 +1218,10 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     expect(out.frames[2].states).toHaveLength(2);
   });
 
-  it("excludes frames carrying overlays / animations / forceState from a run", () => {
+  it("excludes frames carrying animations / textTracks / forceState from a run", () => {
     for (const feature of [
-      { overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }] },
       { animations: [{ selector: "#a", property: "opacity", from: "0", to: "1", duration: 100 }] },
+      { textTracks: [{ selector: "#a", events: [{ at: 0, type: "park", charOffset: 0 }] }] },
       { forceState: [{ selector: "#a", states: ["hover"] }] },
     ]) {
       const cfg = cfgOf([
@@ -1233,6 +1233,55 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
       // The feature frame breaks the run: frame 0 (len 1) and frame 2 (len 1) → nothing collapses.
       expect(out.frames, JSON.stringify(feature)).toHaveLength(3);
     }
+  });
+
+  // DM-1767 (docs/104): overlays used to be a run-wide blocker — the frame
+  // carrying one stayed a plain sibling and the run compressed around it.
+  // The explicit per-overlay window plus per-state anchor resolution let a
+  // member's overlays become its STATE's overlays, so the run now collapses
+  // whole and the overlay keeps its authored lifetime.
+  describe("DM-1767: member overlays ride along as per-state overlays", () => {
+    it("collapses a run whose members carry overlays, mapping each onto its state", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 120, transition: cut, overlays: [{ kind: "typing", text: "hi", x: 4, y: 8 }] },
+        { continue: true, duration: 140, transition: cut },
+      ], { autoCompress: true });
+      const out = autoCompressRuns(cfg);
+      // All three collapse now — the overlay no longer splits the window.
+      expect(out.frames).toHaveLength(1);
+      const f = out.frames[0];
+      expect(f.duration).toBe(360);
+      expect(f.states).toHaveLength(3);
+      // The overlay lands on state 1 (the member that authored it), not on the
+      // collapsed frame — which is what bounds it to that state's 120 ms hold.
+      expect(f.states?.[0].overlays).toBeUndefined();
+      expect(f.states?.[1].overlays).toMatchObject([{ kind: "typing", text: "hi", x: 4, y: 8 }]);
+      expect(f.states?.[2].overlays).toBeUndefined();
+      // Nothing is hoisted to frame level (that would span the whole run).
+      expect(f.overlays).toBeUndefined();
+    });
+
+    it("maps the ANCHOR's overlays onto state 0", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut, overlays: [{ kind: "tap", x: 3, y: 3 }] },
+        { continue: true, duration: 100, transition: cut },
+      ], { autoCompress: true });
+      const f = autoCompressRuns(cfg).frames[0];
+      expect(f.states?.[0].overlays).toMatchObject([{ kind: "tap", x: 3, y: 3 }]);
+      expect(f.states?.[1].overlays).toBeUndefined();
+    });
+
+    it("a `compress: true` marker no longer rejects a run carrying overlays", () => {
+      const cfg = cfgOf([
+        { input: "a.html", duration: 100, transition: cut, compress: true, overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }] },
+        { continue: true, duration: 100, transition: cut, overlays: [{ kind: "blink", x: 0, y: 0, width: 2, height: 10 }] },
+      ]);
+      const out = compressMarkedRuns(cfg);
+      expect(out.frames).toHaveLength(1);
+      expect(out.frames[0].states?.[0].overlays).toHaveLength(1);
+      expect(out.frames[0].states?.[1].overlays).toMatchObject([{ kind: "blink" }]);
+    });
   });
 
   it("ends a run at a non-anchor readiness wait, but that frame can anchor the NEXT run", () => {
@@ -1747,14 +1796,6 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
         { continue: true, duration: 100, transition: cut },
       ],
       match: /frames\[0\].*`crossfade` transition, not a `cut`/,
-    },
-    {
-      name: "the anchor carries overlays (points at the `states:` block)",
-      frames: [
-        { input: "a.html", duration: 100, transition: cut, compress: true, overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }] },
-        { continue: true, duration: 100, transition: cut },
-      ],
-      match: /frames\[0\] carries `overlays`.*`states:` block/,
     },
     {
       name: "a member carries animations",
