@@ -87,6 +87,36 @@ export function resolveHarnessFlags(env: NodeJS.ProcessEnv = process.env): {
   return { captureFlags, rasterFlags, asymmetric: !same };
 }
 
+/**
+ * DM-1794: the sub-directory the expected-PNG cache lives in, named for the
+ * platform whose Chromium painted those screenshots.
+ *
+ * The cached artifact is a screenshot, and the expected paint differs
+ * materially by platform — macOS CoreText vs Linux FreeType/fontconfig vs
+ * Windows DirectWrite is the entire reason this project maintains three
+ * separate fallback calibrations. The key never said so, so running the suite
+ * inside the Linux container (`scripts/test-linux-docker.sh` mounts the repo
+ * read-write, so `tests/output/` lands back in the host tree) wrote
+ * Linux-captured PNGs into the cache a subsequent macOS run then read — the
+ * macOS run comparing its SVG against a Linux screenshot, silently, looking
+ * exactly like a rendering regression.
+ *
+ * A directory rather than another key token, for two reasons: it makes the
+ * partition visible on inspection (which is what you want when you suspect
+ * cross-contamination), and it makes collision structurally impossible rather
+ * than merely improbable. It also retires any already-polluted flat entries
+ * from before this fix — they are simply never looked up again. (Capture FLAGS
+ * stay in the key: platform is "which machine painted these", flags are a
+ * variant within one machine.)
+ *
+ * KNOWN GAP: two different *Linux* environments still share `linux` — the
+ * pinned Playwright container and a Noto-installed desktop image paint
+ * differently with the same `process.platform`. See DM-1797.
+ */
+export function expectedCachePlatformDir(platform: string = process.platform): string {
+  return platform;
+}
+
 export interface HarnessBrowsers {
   /** Renders the fixture HTML — the expected paint. */
   capture: Browser;

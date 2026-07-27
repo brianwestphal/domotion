@@ -27,7 +27,7 @@
  */
 
 import { type BrowserContext, type Page } from "@playwright/test";
-import { launchHarnessBrowsers, harnessBrowserNote, captureFlagsCacheToken } from "./harness-browsers.js";
+import { launchHarnessBrowsers, harnessBrowserNote, captureFlagsCacheToken, expectedCachePlatformDir } from "./harness-browsers.js";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -87,7 +87,10 @@ const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0"
 // + Playwright version). Playwright pins a specific Chromium revision
 // per release, so the package version is a sufficient proxy for "the
 // Chromium that would produce this screenshot."
-const EXPECTED_CACHE_DIR = resolve(OUTPUT_DIR, ".expected-cache");
+// DM-1794: partitioned by the platform whose Chromium took the screenshots —
+// see `expectedCachePlatformDir`. Without it a Linux container run (which
+// mounts this tree read-write) poisons the cache a macOS run then reads.
+const EXPECTED_CACHE_DIR = resolve(OUTPUT_DIR, ".expected-cache", expectedCachePlatformDir());
 const _require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION: string = (() => {
   try { return _require("@playwright/test/package.json").version as string; }

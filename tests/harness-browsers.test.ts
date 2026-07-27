@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveHarnessFlags, captureFlagsCacheToken, harnessBrowserNote } from "./harness-browsers.js";
+import { resolveHarnessFlags, captureFlagsCacheToken, harnessBrowserNote, expectedCachePlatformDir } from "./harness-browsers.js";
 
 // DM-1790 (docs/105): the visual harnesses drive ONE Chromium for both the
 // expected paint and the candidate SVG's rasterization, so a `chromium.launch`
@@ -68,6 +68,34 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
 
     it("ignores the RASTER flags — they only affect actual.png, which is never cached", () => {
       expect(captureFlagsCacheToken({ DOMOTION_RASTER_FLAGS: "--disable-lcd-text" })).toBe("");
+    });
+  });
+
+  // DM-1794: the expected-PNG cache holds SCREENSHOTS, so it must be
+  // partitioned by the platform whose Chromium took them — macOS CoreText vs
+  // Linux FreeType vs Windows DirectWrite paint differently, which is why the
+  // project keeps three fallback calibrations. Before this, a Linux container
+  // run (the repo is mounted read-write, so `tests/output/` lands back in the
+  // host tree) wrote Linux PNGs into the cache a macOS run then read.
+  describe("expectedCachePlatformDir", () => {
+    it("gives each platform its own cache sub-directory", () => {
+      const dirs = ["darwin", "linux", "win32"].map((p) => expectedCachePlatformDir(p));
+      expect(new Set(dirs).size, "platforms must not share a cache directory").toBe(3);
+    });
+
+    it("does NOT give macOS the un-suffixed root (no platform is implicit)", () => {
+      // Deliberate: an implicit root would keep the macOS cache hot across this
+      // change, but it would also let entries a Linux run had ALREADY written
+      // there survive the fix. Every platform is named, so the old flat entries
+      // are simply never looked up again.
+      expect(expectedCachePlatformDir("darwin")).not.toBe("");
+      expect(expectedCachePlatformDir("darwin")).not.toBe(".");
+    });
+
+    it("is a single path segment (it is joined under `.expected-cache/`)", () => {
+      for (const p of ["darwin", "linux", "win32"]) {
+        expect(expectedCachePlatformDir(p)).not.toMatch(/[/\\]/);
+      }
     });
   });
 
