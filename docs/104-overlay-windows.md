@@ -1,6 +1,6 @@
 # 104 — Per-overlay windows (`endAt`) and per-state overlays inside a compressed run
 
-Status: **shipped** (DM-1767). Two changes to the **overlay model**:
+Status: **shipped** (DM-1767; the window's closing edge reworked in DM-1796 — §3.1). Two changes to the **overlay model**:
 
 1. an **explicit per-overlay window** — an overlay ends where the author says, independent of its frame;
 2. **per-state overlays** on a compressed run (`states:`, [docs/43 §11](43-declarative-animate-config.md)) — anchor-resolved against the state they belong to and bounded to that state's hold.
@@ -15,7 +15,7 @@ Overlay lifetime was **frame-scoped**, everywhere:
 
 | Kind | What the frame's end meant |
 |---|---|
-| `typing` | the typed text, mask, and parked caret hold to the frame's end, then fade (or, with `holdToFrameEnd`, cut at it) |
+| `typing` | the typed text, mask, and parked caret hold to the frame's end, then fade (or, with `holdToFrameEnd`, cut at it — reworked in DM-1796, §3.1) |
 | `blink` | toggles across the frame's hold, then off |
 | `interact` | `hover` / `focus` hold at peak to ~the frame's end before releasing |
 | `shine` | the sweep is clamped to the frame's hold |
@@ -43,7 +43,7 @@ Every overlay kind accepts an optional **`endAt`**: the ms, **from frame start**
 - **Clamped to the frame's `duration`.** An overlay may end **early**, never late: it still cannot leak across the cut into the next frame. A sub-millisecond window is floored at 1 ms.
 - The window end replaces the frame's end **wherever the kind consulted it** (the table above), so the meaning is uniform: `typing` holds and fades against `endAt`, `blink` stops toggling at it, `interact` releases before it, `shine` clamps its sweep to it, `svg` hides at it and measures `exit` back from it.
 - **`tap`** is the exception worth stating: it never consulted the frame's end, so `endAt` is not a shortening of an existing hold but a **cut** — a ripple still running when the window closes is cut short, and one whose `delay` falls at or past the window is not emitted at all.
-- `endAt` composes with the kind's own knobs rather than replacing them. `typing`'s 150 ms fade reserve, `interact`'s `holdMs` / `releaseMs`, and `shine`'s `duration` are all measured against the window, not the frame.
+- `endAt` composes with the kind's own knobs rather than replacing them: `interact`'s `holdMs` / `releaseMs` and `shine`'s `duration` are measured against the window, not the frame. (`typing`'s exit is its own topic — see §3.1.)
 
 **Starting the window.** The complement already existed on five kinds as `delay`; DM-1767 adds it to the sixth:
 
@@ -80,6 +80,22 @@ A state may carry its own **`overlays`**, using the same authoring vocabulary as
 - **Paint order.** A frame-level overlay on the same frame spans the whole run and paints first; per-state overlays follow in state order, then declaration order.
 - **Per-region timing** (`advances`, [docs/43 §11.1](43-declarative-animate-config.md)): a state's anchors resolve in the capture **round** that state was driven in. States sharing a round advance *disjoint* regions and the non-region remainder is byte-identical across rounds (the run's checked precondition), so an anchor inside the region the state advances — or in the unchanging chrome — is exact. Anchoring to an element inside a *different* region, which may be ahead of or behind this state, resolves against that round's position; anchor within the state's own region when the placement must be exact.
 
+## 3.1 Leaving the window (DM-1796)
+
+A window has two edges, and the closing one has to be as careful as the opening one. A `typing` overlay used to start fading **150 ms before** its window ended and sit fully transparent for the last ~50 ms — which is exactly wrong for the thing it exists to do. The whole point of a typing overlay is that it gets **replaced**: the next frame (or the next state of a compressed run) carries the same value as real captured text. Fading early opens a hole where the value is on *neither* side of the handoff. Measured on `examples/animate/form-fill/`: a hard ~120 ms blank in the field, reported as "the input value disappears then reappears".
+
+So a typing overlay now holds at **full opacity through its window's end** and leaves the way its frame does:
+
+| Situation | Exit |
+|---|---|
+| `cut` into a following frame, **or a compressed-run state snap** (`endAt`) | hard `step-end` cut at the boundary — the replacement appears in the same instant |
+| a non-`cut` frame transition | dissolves across the frame's own transition window, travelling with the frame |
+| the scene's **last** frame | the historical graceful fade (hold to −150 ms, fade over 100 ms) — nothing takes over before the loop wraps, and there is no handoff to protect |
+
+The boundary tick deliberately belongs to the **visible** state: the full-opacity stop sits *at* the boundary and the drop an epsilon (~0.01% of the timeline) after it, so the overlay and its replacement overlap for well under a display frame. Choosing a sub-frame overlap over a sub-frame gap is the right bias — a momentary double-strike is imperceptible, a momentary hole flickers.
+
+This makes `endAt` on a per-state overlay strictly stronger than "the overlay is bounded": the state's snap **is** its handoff, so the overlay is opaque right up to it.
+
 ## 4. What this changes for `autoCompress`
 
 `overlays` is **no longer** a run-splitting exclusion. When a run collapses, each member's `overlays` become that member's **state's** overlays; the anchor frame's become state 0's. Everything in §3 then applies, and the result reproduces the authored per-frame behavior exactly: the overlay resolves against its own capture and dies at its own cut.
@@ -103,6 +119,7 @@ This supersedes the "why per-frame `overlays` split rather than ride along" note
 |---|---|
 | `endAt` on every kind + `delay` on `svg` | `src/animation/overlay-schema.ts` |
 | Window resolution + per-kind threading | `overlayWindowEndMs` / `emitFrameOverlays` in `src/animation/animator.ts` |
+| How a typing overlay leaves its window (DM-1796) | `OverlayExit` + `renderTypingOverlay` in `src/animation/animator.ts` |
 | Each kind's default start delay | `OVERLAY_DEFAULT_DELAY_MS` in `src/animation/animator.ts` (internal — not on the published barrel) |
 | Per-state `overlays` authoring + validation | `runStateSchema` in `src/cli/animate.ts` |
 | Per-state anchor resolution + re-basing | `buildStatesRunContent` in `src/cli/animate.ts` |

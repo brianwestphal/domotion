@@ -1099,6 +1099,31 @@ ${mid}
 }
 
 /**
+ * DM-1796: how a typing overlay LEAVES once its window closes.
+ *
+ * The distinction that matters is whether anything TAKES OVER at that instant:
+ *
+ *  - `cut` — a replacement appears in the same instant (a `cut` frame
+ *    transition into the next frame, or a compressed-run state snap). The
+ *    overlay holds at full opacity through the boundary and drops with a hard
+ *    step. This is the handoff case: the next frame carries the same value as
+ *    real captured text, so ANY early fade opens a hole where the value is on
+ *    neither side.
+ *  - `dissolve` — the frame itself cross-dissolves to the next over `ms`. The
+ *    overlay dissolves on that same window, travelling with the frame it sits
+ *    on rather than popping off ahead of it. (Overlay groups are siblings of
+ *    the frame group, not children, so they don't inherit its fade.)
+ *  - `loop-out` — nothing takes over: this is the scene's LAST frame, and the
+ *    loop wraps to a frame that knows nothing about this overlay. A graceful
+ *    fade before the wrap reads better than a hard cut, and there is no handoff
+ *    to protect. This is the historical behavior, kept for exactly this case.
+ */
+type OverlayExit =
+  | { kind: "cut" }
+  | { kind: "dissolve"; ms: number }
+  | { kind: "loop-out" };
+
+/**
  * DM-1767 (docs/104): resolve an overlay's WINDOW END, in ms from frame start.
  *
  * Historically every overlay's window ended with its frame. `endAt` makes that
@@ -1126,7 +1151,7 @@ export function overlayWindowEndMs(overlay: AnimationOverlay, frameDurationMs: n
  * than the frame's duration — the per-overlay window (docs/104).
  */
 function emitFrameOverlays(
-  frame: AnimationFrame, i: number, timeOffset: number, totalDuration: number, totalSec: number,
+  frame: AnimationFrame, i: number, isLastFrame: boolean, timeOffset: number, totalDuration: number, totalSec: number,
 ): { groups: string[]; keyframes: string[] } {
   const groups: string[] = [];
   const keyframes: string[] = [];
@@ -1145,8 +1170,19 @@ function emitFrameOverlays(
       // DM-1767: the overlay's own window end (defaults to the frame's), so a
       // per-state overlay inside a compressed run dies at ITS state's cut.
       const winMs = overlayWindowEndMs(overlay, frame.duration);
+      // DM-1796: how the overlay LEAVES — see `OverlayExit`. A window that
+      // closes EARLY (`endAt`: a compressed-run state snap, or an
+      // author-bounded overlay) closes hard, because there is no transition at
+      // that instant to ride. Otherwise the overlay leaves the way its frame
+      // does, except on the scene's last frame, where nothing takes over.
+      const transDur = transitionDurationMs(frame);
+      const exit: OverlayExit = winMs < frame.duration
+        ? { kind: "cut" }
+        : isLastFrame
+        ? { kind: "loop-out" }
+        : transDur > 0 ? { kind: "dissolve", ms: transDur } : { kind: "cut" };
       if (overlay.kind === "typing") {
-        const { svgMarkup, css } = renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + winMs, totalDuration, totalSec);
+        const { svgMarkup, css } = renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + winMs, exit, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "tap") {
@@ -1442,7 +1478,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     }
 
     // Overlays (typing / tap / svg / blink), in declaration order.
-    const ov = emitFrameOverlays(frame, i, timeOffset, totalDuration, totalSec);
+    const ov = emitFrameOverlays(frame, i, i === frames.length - 1, timeOffset, totalDuration, totalSec);
     frameGroups.push(...ov.groups);
     keyframes.push(...ov.keyframes);
 
@@ -2082,11 +2118,14 @@ function buildTypingMistakes(
   return { parts, cssRules };
 }
 
+/** DM-1796: `exit` says how the overlay leaves once `frameEnd` (its window end)
+ *  arrives — see `OverlayExit`. */
 function renderTypingOverlay(
   overlay: TypingOverlay,
   idBase: string,
   frameStart: number,
   frameEnd: number,
+  exit: OverlayExit,
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
@@ -2148,37 +2187,50 @@ function renderTypingOverlay(
   const parts: string[] = [];
   const cssRules: string[] = [];
 
-  // ── Timeline — all stops clamped to the frame so the overlay can't leak
-  // across the cut into the next frame. `naturalEnd` is when typing finishes
-  // at the requested speed; if that runs past the frame we compress the reveal
-  // to fit. The fully-typed text then HOLDS until just before the frame ends
-  // (the old hard 3 s cap cut long text off mid-type), then fades out.
-  // DM-1749: `holdToFrameEnd` opts out of that fade — no 150 ms reserve, the
-  // overlay (text, mask, parked caret) holds at full opacity through the
-  // frame's end and drops with a hard step cut at the frame boundary, so a
-  // next frame carrying the identical page text takes over seamlessly.
-  const holdToEnd = overlay.holdToFrameEnd === true;
-  const disappearGap = holdToEnd ? 0 : 150;
+  // ── Timeline. `naturalEnd` is when typing finishes at the requested speed;
+  // if that runs past the window we compress the reveal to fit. The fully-typed
+  // text then HOLDS at FULL opacity through the window's end, and only then
+  // exits.
+  //
+  // DM-1796 — the seam this fixes. The overlay used to start fading 150 ms
+  // BEFORE its window ended and sit fully transparent for the last ~50 ms. But
+  // a typing overlay's whole job is to be replaced: the next frame (or the next
+  // state of a compressed run) carries the same value as REAL captured text.
+  // Vanishing early opens a hole where the value is on neither side of the
+  // handoff — measured at ~120 ms of blank field on `examples/animate/
+  // form-fill/`, reported as "the input value disappears then reappears". So
+  // the overlay now never goes transparent before the instant it hands over.
+  //
+  // How it LEAVES is the caller's `exit` (see `OverlayExit`). Only `loop-out`
+  // — the scene's last frame, where nothing takes over before the loop wraps —
+  // keeps the historical pre-fade; `holdToFrameEnd: true` overrides even that.
+  const loopOut = exit.kind === "loop-out" && overlay.holdToFrameEnd !== true;
+  const hardCut = !loopOut && exit.kind !== "dissolve";
+  // The 150 ms reserve is taken out of the typing window ONLY when the overlay
+  // still has to fade itself out inside that window.
+  const disappearGap = loopOut ? 150 : 0;
   // DM-1555: grow the natural window by each typo's cost (wrong glyph +
   // backspace + think pause) so mistakes don't over-compress the rest.
   const naturalEndMs = typeStartMs + visibleChars * speed + mistakeOverheadMs(mistakes, speed, thinkMs);
   const textEndMs = Math.min(naturalEndMs, Math.max(typeStartMs + 1, frameEnd - disappearGap));
   const effTypeDur = Math.max(1, textEndMs - typeStartMs);
   const holdEndMs = Math.max(textEndMs, frameEnd - disappearGap);
-  const disappearMs = holdToEnd ? frameEnd : Math.min(frameEnd, holdEndMs + 100);
+  const disappearMs = loopOut
+    ? Math.min(frameEnd, holdEndMs + 100)
+    : exit.kind === "dissolve" ? Math.min(totalDuration, holdEndMs + exit.ms) : holdEndMs;
   const textHeight = fontSize + 4;
   const holdEndPct = pct(holdEndMs, totalDuration);
-  // DM-1749: with the hard cut, the full-opacity stop sits AT the frame
+  // DM-1749: with the hard cut, the full-opacity stop sits AT the window
   // boundary and the disappear stop an epsilon past it (so the boundary tick
   // belongs to the visible state); the segment between them gets a step-end
   // timing function (`holdAtf`, appended to the hold stop of the fade-driven
   // `-bg` / `-vis` keyframes) so no fade ramp is emitted at all. The reveal
   // clips and caret already animate step-end, so the epsilon stop alone makes
   // their drop a hard cut too.
-  const disappearPct = holdToEnd
+  const disappearPct = hardCut
     ? `${padAfter(pctNum(disappearMs, totalDuration), KEYFRAME_EPSILON.display, 2)}%`
     : pct(disappearMs, totalDuration);
-  const holdAtf = holdToEnd ? " animation-timing-function: step-end;" : "";
+  const holdAtf = hardCut ? " animation-timing-function: step-end;" : "";
 
   // Background mask — grown to cover every wrapped line so the typed text
   // always lands on a clean field instead of the captured placeholder.

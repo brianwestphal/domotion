@@ -136,14 +136,21 @@ describeBrowser("typing holdToFrameEnd rasterized handoff (DM-1749)", () => {
     expect(await diffFraction(beforeCut, afterCut)).toBeLessThan(0.05);
   });
 
-  it("default (no flag) has already faded out just before the boundary", async () => {
+  // DM-1796 INVERTED THIS TEST, deliberately. It used to assert the old
+  // default — "at frameEnd − 20 the overlay is gone, the crop is blank white" —
+  // which reads as documentation but was the bug: the value was on neither side
+  // of the handoff for ~120 ms, and every config that didn't know to set
+  // `holdToFrameEnd` flashed. The default now holds through the boundary, so
+  // the flag is a no-op HERE (it still forces the cut on a non-cut frame).
+  it("DM-1796: the default no longer blanks before the boundary — it matches holdToFrameEnd", async () => {
     const { page } = env!;
     const svg = makeSvg(false);
-    // The default fade starts at frameEnd − 150 and completes by frameEnd − 50,
-    // so at frameEnd − 20 the overlay is gone — the crop is blank white.
+    // The crop that used to be blank white now still carries the typed text …
     const beforeCut = await cropAt(page, svg, FRAME1_MS - 20);
-    expect((await ink(beforeCut)).count).toBe(0);
-    // Sanity: mid-hold the same SVG shows the typed text.
-    expect((await ink(await cropAt(page, svg, 1400))).count).toBeGreaterThan(150);
+    expect((await ink(beforeCut)).count).toBeGreaterThan(150);
+    // … at FULL opacity: pixel-identical to the mid-hold state, no fade begun.
+    expect(await diffFraction(await cropAt(page, svg, 1400), beforeCut)).toBeLessThan(0.001);
+    // And the whole emitted SVG is now identical to the explicit-flag form.
+    expect(svg).toBe(makeSvg(true));
   });
 });

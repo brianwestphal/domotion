@@ -699,25 +699,82 @@ describe("animator", () => {
       expect(kfLine(svg, "t0-caret-blink")).toContain("66.68%, 100% { opacity: 0; }");
     });
 
-    it("default keeps the 150 ms fade reserve, byte-identical with holdToFrameEnd: false", () => {
-      const svg = mk({});
-      // holdEnd = 2000 − 150 = 1850 ms (61.67%), fade completes at 1950 ms (65%).
-      expect(kfLine(svg, "t0-vis")).toContain("61.67% { opacity: 1; } 65.00%, 100% { opacity: 0; }");
-      expect(svg).not.toContain("animation-timing-function: step-end");
-      expect(mk({ holdToFrameEnd: false })).toBe(svg);
+    // DM-1796: the DEFAULT on an interior `cut` frame is now the hold-and-cut
+    // that `holdToFrameEnd` used to opt into. The old default (fade out 150 ms
+    // before the boundary) opened a ~120 ms hole in exactly the handoff this
+    // overlay kind exists for — the next frame carrying the same value as real
+    // captured text — so it now survives ONLY where nothing takes over.
+    it("DM-1796: the default on an interior cut frame IS the hold-and-cut", () => {
+      expect(mk({})).toBe(mk({ holdToFrameEnd: true }));
+      // And explicitly: no fade ramp, no 150 ms reserve.
+      expect(kfLine(mk({}), "t0-vis")).toContain("66.67% { opacity: 1; animation-timing-function: step-end; }");
     });
 
-    it("typing compression reclaims the 150 ms fade reserve", () => {
+    it("DM-1796: `holdToFrameEnd: false` no longer buys back the early fade on a handoff", () => {
+      // The field is retained (it still forces the cut on a non-cut frame), but
+      // it cannot re-open the hole: an interior cut frame always hands off.
+      expect(mk({ holdToFrameEnd: false })).toBe(mk({}));
+    });
+
+    it("DM-1796: the 150 ms fade reserve survives on the LAST frame (nothing takes over)", () => {
+      // A single-frame looping scene: the wrap goes back to a frame that knows
+      // nothing about this overlay, so a graceful fade still reads better than
+      // a hard cut — and there is no handoff to protect.
+      const svg = generateAnimatedSvg({
+        width: 300, height: 80,
+        frames: [{ svgContent: `<rect/>`, duration: 2000, transition: { type: "cut", duration: 0 },
+          overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true, mask: { color: "#fff" } } as never] }],
+      });
+      // holdEnd = 2000 − 150 = 1850 ms (92.5%), fade completes at 1950 ms (97.5%).
+      expect(kfLine(svg, "t0-vis")).toContain("92.50% { opacity: 1; } 97.50%, 100% { opacity: 0; }");
+      expect(svg).not.toContain("animation-timing-function: step-end");
+    });
+
+    it("DM-1796: on a crossfade frame the overlay dissolves ON the transition window", () => {
+      // Overlay groups are SIBLINGS of the frame group, so they don't inherit
+      // its cross-dissolve. Riding the same window is what stops the overlay
+      // popping off ahead of the frame it sits on.
+      const svg = generateAnimatedSvg({
+        width: 300, height: 80,
+        frames: [
+          { svgContent: `<rect/>`, duration: 2000, transition: { type: "crossfade", duration: 400 },
+            overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40 } as never] },
+          { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        ],
+      });
+      // Total 3400 ms. Full opacity through the frame's end (2000 ms = 58.82%),
+      // then a ramp to 0 across the 400 ms transition (2400 ms = 70.59%).
+      expect(kfLine(svg, "t0-vis")).toContain("58.82% { opacity: 1; } 70.59%, 100% { opacity: 0; }");
+      expect(kfLine(svg, "t0-vis")).not.toContain("step-end");
+    });
+
+    // The invariant that generalizes all of the above, stated once: a typing
+    // overlay must be at FULL opacity right up to the instant its window ends
+    // whenever something takes over there. Anything less is the reported bug.
+    it("DM-1796: never goes transparent before the handoff instant", () => {
+      const kf = kfLine(mk({}), "t0-vis");
+      const stops = [...kf.matchAll(/([\d.]+)% \{ opacity: (\d)/g)].map((m) => ({ pct: parseFloat(m[1]), op: Number(m[2]) }));
+      const boundaryPct = 2000 / 3000 * 100;
+      for (const s of stops) {
+        if (s.pct <= boundaryPct + 1e-9) continue;      // at/before the handoff
+        expect(s.pct, `first zero-opacity stop must be past ${boundaryPct}%`).toBeGreaterThan(boundaryPct);
+      }
+      // The last stop at or before the boundary is fully opaque.
+      const atBoundary = stops.filter((s) => s.pct <= boundaryPct + 1e-9).pop();
+      expect(atBoundary?.op).toBe(1);
+    });
+
+    it("typing compression reclaims the fade reserve on a loop-out frame", () => {
       // 60 ms/char × 8 chars = 480 ms natural from typeStart, but a tight frame
-      // compresses it: default clamps to frameEnd − 150, holdToFrameEnd to
-      // frameEnd — so the hold-mode reveal's last glyph lands LATER.
+      // compresses it. On a LAST frame the default still reserves 150 ms while
+      // holdToFrameEnd does not — so the hold-mode reveal's last glyph lands
+      // LATER. (On an interior frame the two are now identical, above.)
       const tight = (overlay: Record<string, unknown>): number[] => {
         const svg = generateAnimatedSvg({
           width: 300, height: 80,
           frames: [
             { svgContent: `<rect/>`, duration: 500, transition: { type: "cut", duration: 0 },
               overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, delay: 100, ...overlay } as never] },
-            { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
           ],
         });
         const rev = svg.split("\n").find((l) => l.includes("@keyframes t0-rev0 ")) ?? "";
@@ -1832,12 +1889,12 @@ describe("per-overlay window — `endAt` (DM-1767)", () => {
   it("a typing overlay's hold ends at `endAt`, not the frame's end", () => {
     const full = generateAnimatedSvg(frameOf({ kind: "typing", text: "hello", x: 10, y: 40 }));
     const early = generateAnimatedSvg(frameOf({ kind: "typing", text: "hello", x: 10, y: 40, endAt: 1000 }));
-    // 1000 ms of a 4000 ms frame — the visibility track's last stop lands just
-    // inside a quarter in (the 150 ms fade reserve + its 100 ms ramp are taken
-    // off the WINDOW's end now, not the frame's) instead of near the frame end.
+    // 1000 ms of a 4000 ms frame. DM-1796: a window that closes EARLY closes
+    // HARD, so the overlay is fully opaque right up to 25% and drops at the
+    // epsilon-after stop — never before the window it was given.
     expect(endPct(full, "t0-vis")).toBeGreaterThan(90);
-    expect(endPct(early, "t0-vis")).toBeGreaterThan(20);
-    expect(endPct(early, "t0-vis")).toBeLessThanOrEqual(25);
+    expect(endPct(early, "t0-vis")).toBeGreaterThan(24.9);
+    expect(endPct(early, "t0-vis")).toBeLessThan(25.1);
   });
 
   it("a blink overlay stops toggling at `endAt`", () => {

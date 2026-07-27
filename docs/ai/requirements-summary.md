@@ -42,6 +42,23 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 104 §3.1 (DM-1796) — typing-overlay handoff seam, FIXED.** A `typing`
+  overlay used to fade out starting 150 ms before its window ended and sit fully
+  transparent for the last ~50 ms. But a typing overlay exists to be REPLACED —
+  the next frame (or compressed-run state) carries the same value as real
+  captured text — so the pre-fade opened a hole where the value was on NEITHER
+  side: a measured ~120 ms blank field on `examples/animate/form-fill/`,
+  reported as "the input value disappears then reappears". The overlay now holds
+  at full opacity through its window's end and leaves the way its frame does:
+  hard `step-end` cut at a `cut` boundary or a state snap, dissolve across a
+  non-`cut` transition, and the historical fade ONLY on the scene's last frame
+  (nothing takes over before the loop wraps). `holdToFrameEnd` (DM-1749) is thus
+  the default wherever it mattered; the field is retained and still forces the
+  cut in the other two cases. Guarded by `tests/typing-handoff-seam.e2e.test.ts`
+  — a rasterized, 10 ms-resolution walk across the boundary asserting the field
+  never blanks OR thins (verified to fail on the pre-fix build with a 110 ms
+  blank). Only `form-fill`'s golden moved.
+
 - **Doc 105 (`docs/105-asymmetric-harness-browsers.md`, DM-1790)** — **Shipped**
   (opt-in; nothing runs in this mode by default). `tests/runner.tsx` and
   `tests/html-test-suite.tsx` each drove ONE Chromium for BOTH the expected

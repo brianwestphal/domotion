@@ -117,7 +117,7 @@ All optional; existing configs are unchanged.
 | `mistakes` | number `0–1` \| `[{ at, wrong? }]` | off | Humanizing typos (DM-1555). See below. |
 | `mistakeThinkMs` | number (ms) | `400` | Pause between typing a wrong glyph and backspacing it. |
 | `delay` | number (ms) | `300` | Delay from frame start before typing begins. |
-| `holdToFrameEnd` | boolean | `false` | Opt out of the forced end-of-frame fade (DM-1749). By default the typed text, mask, and parked caret fade out starting 150 ms before the frame ends; with `true` they hold at **full opacity** through the frame's end and drop with a hard `step-end` cut at the frame boundary. When the next frame carries the identical text as real page content at the same geometry, the cut hands off seamlessly — no cover-rect reveal choreography. Typing compression (the natural typing window clamped into the frame) still applies, minus the 150 ms fade reserve. |
+| `holdToFrameEnd` | boolean | (now the default where it matters) | **DM-1796 made hold-and-cut the default**, so this is usually a no-op. A typing overlay holds at full opacity through its window's end and then leaves the way its frame does: a hard `step-end` cut at a `cut` boundary or a compressed-run state snap (the seamless handoff to the next frame's real page text), a dissolve across the frame's own transition window otherwise, and the historical 150 ms-early fade only on the scene's LAST frame, where nothing takes over before the loop wraps. Setting `true` still forces the hard cut in those last two cases. Before DM-1796 the pre-fade applied everywhere, so on a handoff the value was visible on neither side for ~120 ms — the field blanked and the value reappeared. |
 
 ### Mistake → backspace → correct (DM-1555)
 
