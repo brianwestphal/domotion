@@ -117,6 +117,93 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2yzk18qgjcjmm9",
+          "message": {
+            "text": "Why this is a three-way OverlayExit and not simply \"flip holdToFrameEnd to default true\".\n\nThe bug is real and was measured: a typing overlay faded out 150 ms before its window ended, so on a handoff the value was visible on neither side for ~120 ms (attached artifact has the before/after ink traces for all three form-fill fields). The obvious fix is to make the hold-and-cut universal.\n\nThat would be wrong for one case. A single-frame looping demo — typing-search, caret-shapes — has nothing taking over: the loop wraps to a frame that knows nothing about the overlay. A hard cut there replaces a graceful exit with a snap, degrading two shipped demos to fix a bug neither of them has.\n\nSo the discriminator is \"does anything take over at this instant?\", which the animator already knows without new plumbing: a window that closes early is a compressed-run state snap (something takes over), a non-last frame hands to its successor (the transition type says how), and the last frame hands to the loop wrap (nothing does). Those are exactly the three arms.\n\nThe payoff shows in the blast radius: of the four committed configs with typing overlays, only form-fill moved. typing-search / caret-shapes are last-frame loop-outs and stayed byte-identical; editor-session already set holdToFrameEnd everywhere.\n\nThe dissolve arm is the one no committed example exercises, so it is verified by hand (0) and in the artifact: the overlay ramps to 0 across exactly the frame's own transition window. It matters because overlay groups are siblings of the frame group, not children — they don't inherit the frame's cross-dissolve, so without this they'd pop off while the frame beneath was still fading.\n",
+            "markdown": "Why this is a three-way `OverlayExit` and not simply \"flip `holdToFrameEnd` to default true\".\n\nThe bug is real and was measured: a typing overlay faded out 150 ms before its window ended, so on a handoff the value was visible on **neither** side for ~120 ms (attached artifact has the before/after ink traces for all three `form-fill` fields). The obvious fix is to make the hold-and-cut universal.\n\nThat would be wrong for one case. A **single-frame looping** demo — `typing-search`, `caret-shapes` — has nothing taking over: the loop wraps to a frame that knows nothing about the overlay. A hard cut there replaces a graceful exit with a snap, degrading two shipped demos to fix a bug neither of them has.\n\nSo the discriminator is **\"does anything take over at this instant?\"**, which the animator already knows without new plumbing: a window that closes early is a compressed-run state snap (something takes over), a non-last frame hands to its successor (the transition type says how), and the last frame hands to the loop wrap (nothing does). Those are exactly the three arms.\n\nThe payoff shows in the blast radius: of the four committed configs with typing overlays, **only `form-fill` moved**. `typing-search` / `caret-shapes` are last-frame loop-outs and stayed byte-identical; `editor-session` already set `holdToFrameEnd` everywhere.\n\nThe `dissolve` arm is the one no committed example exercises, so it is [verified by hand](0) and in the artifact: the overlay ramps to 0 across exactly the frame's own transition window. It matters because overlay groups are **siblings** of the frame group, not children — they don't inherit the frame's cross-dissolve, so without this they'd pop off while the frame beneath was still fading.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 1105,
+                  "endLine": 1128,
+                  "snippet": {
+                    "text": " *\n *  - `cut` — a replacement appears in the same instant (a `cut` frame\n *    transition into the next frame, or a compressed-run state snap). The\n *    overlay holds at full opacity through the boundary and drops with a hard\n *    step. This is the handoff case: the next frame carries the same value as\n *    real captured text, so ANY early fade opens a hole where the value is on\n *    neither side.\n *  - `dissolve` — the frame itself cross-dissolves to the next over `ms`. The\n *    overlay dissolves on that same window, travelling with the frame it sits\n *    on rather than popping off ahead of it. (Overlay groups are siblings of\n *    the frame group, not children, so they don't inherit its fade.)\n *  - `loop-out` — nothing takes over: this is the scene's LAST frame, and the\n *    loop wraps to a frame that knows nothing about this overlay. A graceful\n *    fade before the wrap reads better than a hard cut, and there is no handoff\n *    to protect. This is the historical behavior, kept for exactly this case.\n */\ntype OverlayExit =\n  | { kind: \"cut\" }\n  | { kind: \"dissolve\"; ms: number }\n  | { kind: \"loop-out\" };\n\n/**\n * DM-1767 (docs/104): resolve an overlay's WINDOW END, in ms from frame start.\n *"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 2207
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-1796"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c4ee2d5a631b44f6f6ef82c2a1d35c16"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm1796-handoff-seam.txt",
+                "properties": {
+                  "ext-sha256": "ffb6293ffafa232eb50165329b3e3f113b4610362c3beb60f6c4509768db6c7d"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a80663a22c23dbe421e0b1c52c57abeaf2e6a539",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

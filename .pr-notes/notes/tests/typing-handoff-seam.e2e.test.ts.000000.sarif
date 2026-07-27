@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "ms2yzu2ed2bqjpz5",
+          "message": {
+            "text": "This guard is rasterized and dense on purpose, and it was verified to FAIL on the pre-fix build — a keyframe assertion would not have been enough.\n\nThe maintainer's framing was that this is \"a very common problem i have to report\", so the point of the test is that the class of bug can't come back quietly. Three deliberate choices:\n\nRasterized, not keyframe-inspecting. The failure only ever existed in painted pixels. A timeline can satisfy every stop-ordering assertion and still leave a gap once the overlay group and the frame group composite — they are separate groups with separate opacity tracks.\n\n10 ms steps across the boundary. A ~120 ms hole is ~7 frames at 60 fps, but the sampling has to resolve holes far smaller than that to be a real guard; 10 ms is under one display frame.\n\nAsserts it never THINS, not just never blanks. expect(floor).toBeGreaterThan(typedInk * 0.9) catches a partial fade — the same bug wearing a smaller number. Without it, a 60%-opacity dip at the handoff would pass while still reading as a flicker.\n\nConfirmed non-vacuous by reverting src/animation/animator.ts and re-running:\n\n× never blanks the field between the typed overlay and the real captured value\n  → field went blank at 1090ms, 1100ms, 1110ms, 1120ms, 1130ms, 1140ms,\n    1150ms, 1160ms, 1170ms, 1180ms, 1190ms\n\nIt pins autoCompress: false so the two frames stay siblings and this measures the frame-boundary handoff specifically; the compressed-run state-snap path has its own coverage in tests/overlay-window.e2e.test.ts.\n",
+            "markdown": "This guard is rasterized and dense on purpose, and it was verified to FAIL on the pre-fix build — a keyframe assertion would not have been enough.\n\nThe maintainer's framing was that this is *\"a very common problem i have to report\"*, so the point of the test is that the class of bug can't come back quietly. Three deliberate choices:\n\n**Rasterized, not keyframe-inspecting.** The failure only ever existed in painted pixels. A timeline can satisfy every stop-ordering assertion and still leave a gap once the overlay group and the frame group composite — they are separate groups with separate opacity tracks.\n\n**10 ms steps across the boundary.** A ~120 ms hole is ~7 frames at 60 fps, but the sampling has to resolve holes far smaller than that to be a real guard; 10 ms is under one display frame.\n\n**Asserts it never THINS, not just never blanks.** `expect(floor).toBeGreaterThan(typedInk * 0.9)` catches a partial fade — the same bug wearing a smaller number. Without it, a 60%-opacity dip at the handoff would pass while still reading as a flicker.\n\nConfirmed non-vacuous by reverting `src/animation/animator.ts` and re-running:\n\n```\n× never blanks the field between the typed overlay and the real captured value\n  → field went blank at 1090ms, 1100ms, 1110ms, 1120ms, 1130ms, 1140ms,\n    1150ms, 1160ms, 1170ms, 1180ms, 1190ms\n```\n\nIt pins `autoCompress: false` so the two frames stay siblings and this measures the **frame-boundary** handoff specifically; the compressed-run state-snap path has its own coverage in `tests/overlay-window.e2e.test.ts`.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/typing-handoff-seam.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 120,
+                  "endLine": 145,
+                  "snippet": {
+                    "text": "\n      // Typing completes well before the boundary (300 ms delay + 12 × 55 ms).\n      const typedInk = await inkAt(1050);\n      expect(typedInk, \"the overlay should have typed the value by 1050 ms\").toBeGreaterThan(100);\n\n      // Walk the handoff densely. From \"fully typed\" through the boundary and\n      // into the next frame, the field must never lose its text. A 10 ms step\n      // resolves any hole a viewer could actually perceive (< one 60 fps frame).\n      const samples: Array<{ t: number; ink: number }> = [];\n      for (let t = 1050; t <= HOLD + 150; t += 10) samples.push({ t, ink: await inkAt(t) });\n\n      const blank = samples.filter((s) => s.ink === 0);\n      expect(\n        blank,\n        `field went blank at ${blank.map((s) => `${s.t}ms`).join(\", \")} — the overlay left before the captured value arrived`,\n      ).toEqual([]);\n\n      // Stronger than \"not zero\": it must never even THIN OUT. A partial fade\n      // is the same bug wearing a smaller number, and the pre-DM-1796 timeline\n      // would trip this at the fade's midpoint even where ink stayed non-zero.\n      const floor = Math.min(...samples.map((s) => s.ink));\n      expect(floor, \"the value must not fade at the handoff\").toBeGreaterThan(typedInk * 0.9);\n    } finally {\n      await ctx.close();\n    }\n  }, 240_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-1796"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5dc5d95704ff3d5f0f20b3720eed607d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a80663a22c23dbe421e0b1c52c57abeaf2e6a539",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

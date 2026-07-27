@@ -1,0 +1,65 @@
+DM-1796 — the typing-overlay handoff seam, measured
+===================================================
+
+Reported: "on form-fill.svg, the input values briefly disappear after they're
+entered, and then they reappear."
+
+Measurement: rasterize the SHIPPED examples/animate/form-fill/form-fill.svg with
+animations paused, seek in 25 ms steps across the name field's handoff, count
+light (text) pixels inside the field interior (x 100..300, y 166..188).
+
+BEFORE (committed golden, and identical in the pre-DM-1767 golden)
+------------------------------------------------------------------
+  1725ms  ink=285      <- typed value held by the overlay
+  1750ms  ink=284
+  1775ms  ink= 76      <- overlay fading (frameEnd-150 = 1750)
+  1800ms  ink=  0      <- BLANK
+  1825ms  ink=  0
+  1850ms  ink=  0
+  1875ms  ink=  0
+  1900ms  ink=361      <- real captured text takes over at the boundary
+
+  => a hard ~120 ms hole where the value is on NEITHER side of the handoff.
+
+The same probe on the pre-DM-1767 golden gives byte-identical numbers, so the
+seam predates the compressed-run collapse. (It also re-confirms the DM-1767
+pixel-identity claim: old and new agree here too, hole included.)
+
+AFTER
+-----
+  1725ms  ink=285
+  1750ms  ink=285
+  1775ms  ink=285
+  1800ms  ink=285
+  1825ms  ink=285
+  1850ms  ink=318      <- caret parks
+  1875ms  ink=318
+  1900ms  ink=537      <- sub-frame overlap at the boundary tick (see below)
+  1925ms  ink=361      <- real captured text
+
+  => never zero. Same result at the email (4100 ms) and password (5800 ms)
+     handoffs, both of which also previously blanked.
+
+The 1900 ms spike is the deliberate sub-frame overlap: the full-opacity stop
+sits AT the boundary and the drop an epsilon (~0.01% of an 8200 ms timeline,
+i.e. ~0.8 ms) after it. Overlap for well under one 60 fps frame is invisible; a
+gap of the same size flickers. Overlap is the correct bias.
+
+Emitted-timeline check of the three exit paths (t0-vis stops, converted to ms)
+-----------------------------------------------------------------------------
+  cut → next frame        total=2000ms  stops=0,300,330,1000,1000,2000  [hard cut]
+  crossfade(400) → next   total=2400ms  stops=0,300,330,1000,1400,2400  [ramp]
+  last frame (loop-out)   total=1000ms  stops=0,300,330,850,950,1000    [ramp]
+
+  cut:       opaque through the 1000 ms boundary, step-end drop.
+  crossfade: opaque through 1000 ms, then ramps to 0 over exactly the 400 ms
+             transition window — in lockstep with the frame's own dissolve.
+  loop-out:  historical behavior preserved (hold to 850, fade by 950).
+
+Guard is non-vacuous
+--------------------
+tests/typing-handoff-seam.e2e.test.ts run against the pre-fix animator:
+
+  × never blanks the field between the typed overlay and the real captured value
+    → field went blank at 1090ms, 1100ms, 1110ms, 1120ms, 1130ms, 1140ms,
+      1150ms, 1160ms, 1170ms, 1180ms, 1190ms
