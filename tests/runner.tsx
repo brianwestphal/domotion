@@ -324,6 +324,15 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
         rasterPage = await rasterContext.newPage();
         rasterPage.setDefaultTimeout(90_000);
         rasterPage.setDefaultNavigationTimeout(90_000);
+        // Give the raster page a `file://` origin ONCE. `setContent` keeps the
+        // page's current URL as the document's base, and the candidate markup
+        // is `<img src="file://…/<name>.svg">` — from a fresh page's
+        // `about:blank` origin Chromium refuses that subresource, so the image
+        // never loads and every fixture screenshots blank. (The default path
+        // never hits this: it reuses the capture page, which is already on
+        // `file://…/<name>.html`.) Caught by the feature suite scoring ~90%
+        // coverage on EVERY fixture under a flag that provably changes nothing.
+        await rasterPage.goto(`file://${OUTPUT_DIR}/`);
       }
       return { context, page, rasterPage, rasterContext, compareContext, comparePage, fontUrls };
     },

@@ -54,6 +54,12 @@ The failure mode this mode exists to prevent is a number measured under a flag n
 - `tests/runner.tsx` records it in its per-suite manifest (`tests/output/<suite>-results.json`, new `browsers` field);
 - `tests/html-test-suite.tsx` writes a `run-conditions.json` sidecar next to `results.json` **only** when the run was non-default. (Its `results.json` is a bare array — the CI shard merger concatenates them — so the condition can't go inside it without changing that shape.)
 
+## The control that catches plumbing bugs
+
+**On macOS, an asymmetric run under a flag that provably changes nothing must reproduce the default run exactly.** That invariant is worth keeping: it is what caught the one real bug in this change. The feature suite's raster page is `setContent`-ed with `<img src="file://…/<name>.svg">`, and `setContent` keeps the page's current URL as the document base — so a *fresh* raster page, sitting on `about:blank`, had Chromium refuse the `file://` subresource and every fixture screenshotted blank (~90% coverage on all 104). The default path never hits it, because it reuses the capture page, which is already on `file://…/<name>.html`. The fix is to navigate the raster page to a `file://` URL once at worker setup.
+
+Without the control that would have read as "the flag makes everything diverge" — a plausible-sounding conclusion, and completely wrong.
+
 ## Validation
 
 The mode was validated by running the same 11 `02-text` html-test fixtures under all three configurations and confirming the numbers actually diverge.
