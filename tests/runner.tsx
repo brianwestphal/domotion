@@ -263,7 +263,11 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
 
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
   lowerProcessPriority();
-  const browser = await chromium.launch();
+  // DM-1789 EXPERIMENT (throwaway branch): capture with FreeType hinting OFF.
+  // The feature suite renders in `paths` mode (unhinted fontkit outlines), so an
+  // unhinted capture should ALIGN better on Linux. Measuring the delta vs the
+  // committed features-linux baseline (which was captured hinted).
+  const browser = await chromium.launch({ args: ["--font-render-hinting=none"] });
   const workerCount = resolveWorkerCount();
 
   const results = await runJobsInPool<FeatureTest, RunnerWorker, SuiteResult>({

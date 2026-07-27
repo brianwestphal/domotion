@@ -1556,7 +1556,12 @@ async function main(): Promise<void> {
   // many serial pipelines run concurrently.
   _timingRunStartMs = performance.now();
   _timingWorkerCount = workerCount;
-  const browser = await chromium.launch();
+  // DM-1789 EXPERIMENT (throwaway branch): capture with FreeType hinting OFF.
+  // The broad sweeps render in the EMBEDDED hinted-subset mode (default), whose
+  // recovered fidelity depends on the capture staying hinted to match the
+  // embedded subset's TrueType hinting. An unhinted capture should REGRESS these
+  // vs the committed html-linux/unicode-linux baselines (captured hinted).
+  const browser = await chromium.launch({ args: ["--font-render-hinting=none"] });
 
   // DM-1006: one shared comparePage for all workers (was per-worker before).
   // Set up once here, torn down after the pool finishes; the per-call mutex
