@@ -313,7 +313,19 @@ lacking that font.
 | `lucida-grande` | LucidaGrande.ttc | specific arrows / shapes |
 | `snell` / `apple-chancery` / `papyrus` | Supplemental/… | cursive / fantasy |
 | `last-resort` | LastResort.otf (macOS) / bundled LastResortHE (else) | per-block tofu frame |
-| `u-…` (319 block routes) | `unicode-font-routing.darwin.generated.ts` | DM-983 CDP sweep |
+| `u-…` (319 block routes) | `unicode-font-routing.darwin.generated.ts` | DM-983 CDP sweep — **availability-gated, see below** |
+
+#### Generated block routes are gated on the family being installed (DM-1844)
+
+The `u-…` table records which family Chrome's CoreText fallback picked **per Unicode block, as sampled on one Mac**. It is therefore a snapshot of that machine's font inventory, and several of its families are *not* stock — `SF Pro Text` and `Noto Sans` are separate Apple / Google downloads, and the Cyrillic route (among 18 others) names `SF Pro Text`.
+
+So each entry now carries the `family` it was sampled from, and `fallbackFontChain` uses a route only when `resolveInstalledFont(family)` succeeds here (`generatedRouteUsable`). On a machine without that family Chrome cannot pick it either, and a route to a face Chrome will never choose defeats the table's whole purpose.
+
+**A file-existence check is not sufficient** and was the trap: the Cyrillic route's `/System/Library/Fonts/SFNS.ttf` exists on every macOS. What varies is whether the *family* is installed — which is what decides Chrome's pick. Same rule the family→key map already applies to `"SF Pro Text"`.
+
+When a route is rejected, the **live resolver** supplies the replacement and is placed at the chain HEAD. Merely dropping the route would be worse than the original bug: the static tail ends in `last-resort`, whose LastResort.otf has a block-frame glyph for *every* codepoint, so it would win and paint tofu — and `u-noto-sans` sitting in that tail is itself a non-stock download that gets skipped when absent. If the OS has no answer either, the generated route is kept: a face Chrome might not pick still beats guaranteed tofu.
+
+Measured with `tools/chrome-font-agreement.ts` (FONTAGREE), which asks Chrome via CDP `CSS.getPlatformFontsForNode` and our resolver the same per-codepoint question on the same machine. On the GitHub macOS runner this went **6/10 → 10/10**: U+04FA–U+04FC now resolve to `sysfb:.NewYork-Regular`, matching the `.New York` Chrome paints there, and U+1D00 to Lucida Grande, instead of the route's SFNS. On a developer Mac — which *has* the sampled fonts — nothing changes and it stays 10/10. `src/render/generated-route-family.test.ts` pins the family provenance the gate depends on.
 
 ### Linux (`LINUX_FONT_PATHS`, bare CI image) & Windows (`WIN32_FONT_PATHS`)
 
