@@ -63,13 +63,13 @@ node scripts/merge-shard-results.mjs --input /tmp/vt
 
 ## The runner must build the native glyph helper (DM-1844)
 
-**A sweep without the native glyph helper measures a different renderer, not a noisier one.** On macOS and Windows the per-codepoint fallback resolver asks the OS — CoreText / DirectWrite — through the helper binary in `tools/<platform>-glyph-extractor/`. That binary is a **build artifact and is gitignored**, so a fresh CI checkout has none. `isGlyphHelperAvailable()` then returns false and font selection silently drops to the **static** fallback chain, which picks different faces than the browser does.
+**A sweep without the native glyph helper measures a different renderer, not a noisier one** (though see the measured note below — this was NOT what caused the CI-only unicode failures). On macOS and Windows the per-codepoint fallback resolver asks the OS — CoreText / DirectWrite — through the helper binary in `tools/<platform>-glyph-extractor/`. That binary is a **build artifact and is gitignored**, so a fresh CI checkout has none. `isGlyphHelperAvailable()` then returns false and font selection silently drops to the **static** fallback chain, which picks different faces than the browser does.
 
 This is not a small drift. Reproduced by disabling the helper on a Mac (`DOMOTION_DISABLE_HELPER=1`), `0400-04FF-cyrillic` goes from **clean · 0 regions** to **major · 142 regions**. The symptom is a sweep of "this is rendering a different font" failures that are **unreproducible locally**, because a developer's tree does have the binary.
 
 `visual-tests.yml`'s macOS job now builds it (arm64 only — `build.sh` also builds x86_64 for the universal release binary, which the arm64 runners don't need) before the shard runs. `tests/visual-tests-workflow.test.ts` guards the wiring, since the failure mode is workflow drift rather than a code change. Both harnesses now print a loud warning and record `glyphHelper` in `run-conditions.json` when the resolver is off, so a non-comparable run says so instead of being read as a fidelity regression.
 
-> **Re-measure the numbers below.** The DM-1217 gap was characterised *before* this was found, and its profile — ~24 extra failures concentrated in the common text blocks — is exactly what a missing helper produces. Treat the counts in the next section as an upper bound until a sweep is re-run with the helper built.
+> **This is hardening, not a fix for the CI-vs-local gap — measured.** It is tempting to read the section below as a missing-helper symptom; a sweep says otherwise. Building the helper in-tree changed the macOS unicode sweep by **nothing at all**: 36 failures / 818 before and after, with `0400-04FF-cyrillic` at major · 20 regions both times, the build step green and the missing-helper warning never firing. CI evidently already obtained a helper through `resolveHelperPath`'s on-demand release-asset download. What the step buys is the removal of a silent network dependency and a reproducible in-tree binary — worth having, but the CI-vs-local difference documented below is still unexplained.
 
 ## Two baselines: local Mac vs CI image (DM-1217)
 
