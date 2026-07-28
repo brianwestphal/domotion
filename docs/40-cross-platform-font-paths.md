@@ -97,6 +97,15 @@ family installed instead resolves the generic primaries to Noto via the opt-in
 | `papyrus` (= `fantasy`) | Papyrus | (fontconfig `fantasy`) | `impact.ttf` (Impact) |
 | `source-serif-pro` | `/Library/Fonts/...` (if installed) | — (unmapped → chain falls through) | — (unmapped → chain falls through) |
 
+The weight/slant sibling keys (`-bold`, `-italic`, `-bold-italic`, and the
+`-light` cut Helvetica adds) are resolved through the same per-platform tables,
+so a sibling that only exists on one platform simply doesn't resolve elsewhere:
+`helvetica-light` and `lucida-grande-bold` are macOS-only entries, and on Linux
+/ Windows `resolveFontSpec` returns null for them so the regular face stands —
+matching what Chrome picks from Liberation Sans / Arial, neither of which ships
+those cuts. See the weight → face routing table in
+[font-resolution-diagram.md](font-resolution-diagram.md#3-key--fontinstance-getfontinstance).
+
 Beyond these primaries, the Linux table also carries a generated per-Unicode-block
 route table (`UNICODE_FONT_PATHS_LINUX`, the `u-…` keys — 9 fonts covering
 326/330 blocks on the bare image, dominated by Unifont) plus the Noto-profile

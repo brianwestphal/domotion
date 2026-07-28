@@ -81,6 +81,15 @@ export interface FontInstance {
   /** True when this instance baked the slant into a variable `slnt` axis — its
    *  outline is ALREADY slanted, so no faux-italic. */
   hasSlantAxis?: boolean;
+  /** True when `getFontInstance` deliberately routed a slant request to the
+   *  family's own italic/oblique sibling face. That routing decision is a
+   *  stronger signal than `resolvedItalicAngle`, because some faces ship a
+   *  `post.italicAngle` of 0 despite a genuinely slanted outline — on macOS,
+   *  `Helvetica-LightOblique` and `HelveticaNeue-BoldItalic` both do, while
+   *  their outlines lean the same ~12° as their correctly-tagged siblings.
+   *  Trusting the angle alone there sheared an already-oblique face a second
+   *  time in embedded-font mode. */
+  isRoutedItalicCut?: boolean;
 }
 
 /** Glyph id for a codepoint, tolerating a null return from `glyphForCodePoint`.
@@ -682,6 +691,16 @@ const FONT_PATHS: Record<string, FontPath> = {
   // (↔ ⇒ ⇔ etc.) stay on Apple Symbols because LucidaGrande lacks those
   // glyphs.
   "lucida-grande":   { path: "/System/Library/Fonts/LucidaGrande.ttc", postscriptName: "LucidaGrande" },
+  // LucidaGrande.ttc's bold member. Chrome switches the whole family over to it
+  // from CSS weight 450 up — an ↑ or ✓ falling back to Lucida Grande inside a
+  // bold heading is painted BOLD, not regular. Measured over 100…900 in
+  // 10-point steps with `CSS.getPlatformFontsForNode` (Chromium on macOS) for
+  // arrow / Hebrew / check-mark codepoints alike: 100-440 → LucidaGrande,
+  // 450-900 → LucidaGrande-Bold. The 450 boundary is the platform matcher's,
+  // not the CSS font-matching walk's — the two faces declare
+  // `OS/2.usWeightClass` 500 and 600, which the spec algorithm would split at a
+  // different point.
+  "lucida-grande-bold": { path: "/System/Library/Fonts/LucidaGrande.ttc", postscriptName: "LucidaGrande-Bold" },
   // Chrome on macOS routes Dingbats (U+2700-27BF: ✂✈✏✔✘✚✦❄❤❶ etc.) to
   // Zapf Dingbats, NOT Apple Symbols. Apple Symbols' glyphs at the same
   // codepoints exist but have different (narrower, often slightly different
@@ -718,6 +737,14 @@ const FONT_PATHS: Record<string, FontPath> = {
   "helvetica-bold":         { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Bold" },
   "helvetica-italic":       { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Oblique" },
   "helvetica-bold-italic":  { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-BoldOblique" },
+  // Helvetica.ttc also carries a LIGHT cut (`OS/2.usWeightClass` 300) that the
+  // regular/bold pair above hides. Chrome picks it for every CSS weight ≤ 300 —
+  // measured over the whole 100…700 range with `CSS.getPlatformFontsForNode`
+  // (Chromium on macOS): 100-300 → Helvetica-Light, 310-590 → Helvetica,
+  // 600-700 → Helvetica-Bold, with the oblique column parallel. Routed by
+  // `subBoldWeightCutSuffix` in getFontInstance.
+  "helvetica-light":        { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Light" },
+  "helvetica-light-italic": { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-LightOblique" },
   // Arial ships as separate weight/style files in macOS Supplemental.
   "arial":                  { path: "/System/Library/Fonts/Supplemental/Arial.ttf" },
   "arial-bold":             { path: "/System/Library/Fonts/Supplemental/Arial Bold.ttf" },
@@ -2444,6 +2471,56 @@ export function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   return false;
 }
 
+/**
+ * Sub-bold weight cuts: families whose installed face set carries a face BELOW
+ * the regular one, which the plain `weight >= 600 ? bold : regular` split in
+ * `getFontInstance` would otherwise hide.
+ *
+ * Each family lists its extra cuts in ascending order as the inclusive UPPER
+ * CSS weight bound that selects it; a request above every listed bound (but
+ * still under 600) falls through to the family's regular face. The suffix is
+ * appended to the family key to name the `FONT_PATHS` entry —
+ * `helvetica` + `light` → `helvetica-light`, and `-italic` on top of that when
+ * a slant is requested.
+ *
+ * The bounds are measured, not derived from the CSS font-matching algorithm:
+ * Chrome delegates weight selection to the platform matcher (CoreText on
+ * macOS), which does not always agree with the spec's descending/ascending
+ * walk. Helvetica's numbers come from asking Chromium directly over the whole
+ * 100…700 range in 10-point steps via the CDP `CSS.getPlatformFontsForNode`
+ * command: 100-300 → Helvetica-Light, 310-590 → Helvetica, 600-700 →
+ * Helvetica-Bold. That matters for the `sans-serif` generic, which Chrome on
+ * macOS resolves to Helvetica — so any page setting `font-weight: 100`/`200`/
+ * `300` on default sans-serif text was being painted a full cut too heavy.
+ *
+ * Platform-agnostic by construction: the suffixed key is only adopted when
+ * `resolveFontSpec` can resolve it on the host platform, so the Linux
+ * (Liberation Sans) and Windows (Arial) mappings for `helvetica` — neither of
+ * which ships a light cut — keep falling back to their regular face, which is
+ * what Chrome picks there too.
+ */
+const SUB_BOLD_WEIGHT_CUTS: Record<string, ReadonlyArray<{ maxWeight: number; suffix: string }>> = {
+  "helvetica": [{ maxWeight: 300, suffix: "light" }],
+};
+
+/**
+ * The `FONT_PATHS` key suffix for the sub-bold cut `key` should use at
+ * `weight`, or null when the family's regular face is the right pick (no cut
+ * declared, the weight sits above every declared cut, or the request is bold
+ * and therefore already covered by the `-bold` routing).
+ *
+ * Exported for unit tests — the mapping is pure and platform-independent, so it
+ * can be asserted on any host even though the resolved FILE cannot.
+ */
+export function subBoldWeightCutSuffix(key: string, weight: number): string | null {
+  const cuts = SUB_BOLD_WEIGHT_CUTS[key];
+  if (cuts == null || weight >= 600) return null;
+  for (const cut of cuts) {
+    if (weight <= cut.maxWeight) return cut.suffix;
+  }
+  return null;
+}
+
 export function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
@@ -2469,9 +2546,13 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // fonts (sf-arabic / cjk / thai / devanagari / symbols) have no italic
   // sibling — the slnt argument is quietly ignored there.
   let effectiveKey = key;
+  // Set whenever the slant request is satisfied by routing to a real italic /
+  // oblique sibling face rather than left to synthetic shear — see
+  // `FontInstance.isRoutedItalicCut`.
+  let routedItalicCut = false;
   if (slant !== 0) {
-    if (key === "sf-pro") effectiveKey = "sf-pro-italic";
-    else if (key === "sf-mono") effectiveKey = "sf-mono-italic";
+    if (key === "sf-pro") { effectiveKey = "sf-pro-italic"; routedItalicCut = true; }
+    else if (key === "sf-mono") { effectiveKey = "sf-mono-italic"; routedItalicCut = true; }
   }
   // Helvetica/Arial/Courier/Menlo/Times/Georgia don't expose a variable wght
   // axis — pick the right sub-font (or sibling file) based on weight × slant.
@@ -2487,6 +2568,14 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
     else if (isBold) effectiveKey = `${key}-bold`;
     else if (isItalic) effectiveKey = `${key}-italic`;
+    // …and below the regular face, take the family's lighter cut when it ships
+    // one and the host platform actually has it (see SUB_BOLD_WEIGHT_CUTS).
+    const cutSuffix = subBoldWeightCutSuffix(key, weight);
+    if (cutSuffix != null) {
+      const cutKey = isItalic ? `${key}-${cutSuffix}-italic` : `${key}-${cutSuffix}`;
+      if (resolveFontSpec(cutKey) != null) effectiveKey = cutKey;
+    }
+    routedItalicCut = routedItalicCut || (isItalic && effectiveKey !== key);
   }
   // CJK has only regular + bold variants (no italic); pick W6 for bold contexts
   // so fallback characters in headings (← → ▲ ☀) inherit the heading weight.
@@ -2505,6 +2594,16 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // Apple SD Gothic Neo (Hangul). DM-691.
   if (key === "korean" && weight >= 600) {
     effectiveKey = "korean-bold";
+  }
+  // Lucida Grande — the macOS fallback for arrows, Hebrew, check marks and a
+  // few symbol blocks — has a bold cut, and Chrome crosses to it at 450 rather
+  // than the 600 the other families use (its two faces declare usWeightClass
+  // 500/600, so the platform matcher's switch-over lands lower). Only adopted
+  // when the host platform actually has the face: the Linux (Liberation Sans)
+  // and Windows (Arial) mappings for `lucida-grande` have no bold sibling key,
+  // so `resolveFontSpec` returns null there and the regular face stands.
+  if (key === "lucida-grande" && weight >= 450 && resolveFontSpec("lucida-grande-bold") != null) {
+    effectiveKey = "lucida-grande-bold";
   }
   // PingFang ships separate weight subfonts in PingFang.ttc — Regular for
   // body weight, Medium for semibold+. No italic. Same pattern across all
@@ -2668,6 +2767,13 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     instance.resolvedItalicAngle = italicAngle;
   }
   instance.hasSlantAxis = font?.variationAxes?.slnt != null;
+  // `post.italicAngle` is not trustworthy on its own: Helvetica-LightOblique and
+  // HelveticaNeue-BoldItalic both report 0 even though their outlines lean the
+  // same ~12° as their correctly-tagged siblings (an 'I' stem measures 150+
+  // font units of horizontal travel from foot to cap). The routing decision
+  // above is the reliable signal — when we picked the family's own italic cut,
+  // the face IS slanted, whatever its post table claims.
+  instance.isRoutedItalicCut = routedItalicCut;
   // DM-891: record the exact file this fontkit instance was loaded from, so the
   // per-glyph helper fallback can open the SAME file (glyph ids match) when
   // fontkit returns an empty outline for a glyph it should be able to draw.

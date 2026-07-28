@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -245,6 +245,106 @@ describe("resolveFontSpec: cross-platform font path discovery (DM-258)", () => {
       expect(__resolveFontSpecForTest("times")?.path).toBe("/System/Library/Fonts/Times.ttc");
       // The native-extractor flag survives the resolver indirection (PingFang).
       expect(__resolveFontSpecForTest("pingfang-sc")?.extractor).toBe("native");
+    });
+  }
+});
+
+// Weight -> face routing. `getFontInstance` used to collapse every CSS weight
+// under 600 onto a family's REGULAR face, which silently discarded the lighter
+// and heavier cuts some families ship. All the expectations below come from
+// asking Chromium itself which face it painted, over the whole 100..900 range
+// in 10-point steps, via the CDP `CSS.getPlatformFontsForNode` command.
+describe("weight -> face routing: sub-bold cuts", () => {
+  // Pure key math — no font files involved, so it holds on every platform.
+  it("maps Helvetica's CSS weights onto its light cut at 300 and below", () => {
+    expect(subBoldWeightCutSuffix("helvetica", 100)).toBe("light");
+    expect(subBoldWeightCutSuffix("helvetica", 200)).toBe("light");
+    expect(subBoldWeightCutSuffix("helvetica", 300)).toBe("light");
+    // Above the cut, the family's regular face is the right pick.
+    expect(subBoldWeightCutSuffix("helvetica", 310)).toBeNull();
+    expect(subBoldWeightCutSuffix("helvetica", 400)).toBeNull();
+    expect(subBoldWeightCutSuffix("helvetica", 590)).toBeNull();
+  });
+
+  it("defers to the existing bold routing at 600 and above", () => {
+    expect(subBoldWeightCutSuffix("helvetica", 600)).toBeNull();
+    expect(subBoldWeightCutSuffix("helvetica", 700)).toBeNull();
+    expect(subBoldWeightCutSuffix("helvetica", 900)).toBeNull();
+  });
+
+  it("returns null for families that ship no cut below regular", () => {
+    // Arial, Times, Georgia, Courier and Menlo are regular/bold-only on macOS —
+    // Chrome paints their regular face for every weight under 600.
+    for (const key of ["arial", "times", "georgia", "courier", "menlo", "helvetica-neue"]) {
+      expect(subBoldWeightCutSuffix(key, 100), key).toBeNull();
+      expect(subBoldWeightCutSuffix(key, 300), key).toBeNull();
+    }
+    expect(subBoldWeightCutSuffix("definitely-not-a-real-font-key", 100)).toBeNull();
+  });
+
+  const psName = (key: string, weight: number, slant = 0): string | undefined =>
+    (getFontInstance(key, weight, 22, slant) as unknown as { postscriptName?: string } | null)?.postscriptName;
+
+  if (MACOS_FONTS) {
+    // Measured: 100-300 -> Helvetica-Light, 310-590 -> Helvetica,
+    // 600-900 -> Helvetica-Bold, with the oblique column parallel. This is the
+    // `sans-serif` generic on macOS, so it governs default body text.
+    it("resolves Helvetica's full weight ladder the way Chrome does", () => {
+      expect(psName("helvetica", 100)).toBe("Helvetica-Light");
+      expect(psName("helvetica", 300)).toBe("Helvetica-Light");
+      expect(psName("helvetica", 310)).toBe("Helvetica");
+      expect(psName("helvetica", 400)).toBe("Helvetica");
+      expect(psName("helvetica", 590)).toBe("Helvetica");
+      expect(psName("helvetica", 600)).toBe("Helvetica-Bold");
+      expect(psName("helvetica", 900)).toBe("Helvetica-Bold");
+    });
+
+    it("resolves Helvetica's oblique column in lockstep with the upright one", () => {
+      expect(psName("helvetica", 100, -0.2)).toBe("Helvetica-LightOblique");
+      expect(psName("helvetica", 300, -0.2)).toBe("Helvetica-LightOblique");
+      expect(psName("helvetica", 400, -0.2)).toBe("Helvetica-Oblique");
+      expect(psName("helvetica", 700, -0.2)).toBe("Helvetica-BoldOblique");
+    });
+
+    // The instance cache is keyed on the RESOLVED face, so walking back and
+    // forth across a cut boundary must keep handing back distinct faces — a
+    // cache key that dropped the cut would serve the first-seen face forever.
+    it("keeps the cuts distinct when weights interleave through the cache", () => {
+      const seq = [100, 400, 100, 700, 300, 400, 300];
+      const want = [
+        "Helvetica-Light", "Helvetica", "Helvetica-Light", "Helvetica-Bold",
+        "Helvetica-Light", "Helvetica", "Helvetica-Light",
+      ];
+      expect(seq.map((w) => psName("helvetica", w))).toEqual(want);
+    });
+
+    // Lucida Grande is the macOS fallback for arrows, Hebrew and check marks;
+    // Chrome crosses to its bold cut at 450, so an arrow inside a bold heading
+    // is painted bold. Measured: 100-440 -> LucidaGrande, 450-900 -> Bold.
+    it("crosses Lucida Grande over to its bold cut at 450", () => {
+      expect(psName("lucida-grande", 400)).toBe("LucidaGrande");
+      expect(psName("lucida-grande", 440)).toBe("LucidaGrande");
+      expect(psName("lucida-grande", 450)).toBe("LucidaGrande-Bold");
+      expect(psName("lucida-grande", 700)).toBe("LucidaGrande-Bold");
+    });
+
+    // Faux-italic guard. `post.italicAngle` is 0 on Helvetica-LightOblique and
+    // HelveticaNeue-BoldItalic even though both outlines lean ~12°, so the
+    // angle alone would shear an already-oblique face a second time. The
+    // routing decision is the reliable signal.
+    it("flags a routed italic cut even when the face under-reports its angle", () => {
+      const lightOblique = getFontInstance("helvetica", 100, 22, -0.2);
+      expect(lightOblique?.isRoutedItalicCut).toBe(true);
+      expect(Math.abs(lightOblique?.resolvedItalicAngle ?? 0)).toBeLessThan(1);
+
+      const neueBoldItalic = getFontInstance("helvetica-neue", 700, 22, -0.2);
+      expect(neueBoldItalic?.isRoutedItalicCut).toBe(true);
+      expect(Math.abs(neueBoldItalic?.resolvedItalicAngle ?? 0)).toBeLessThan(1);
+    });
+
+    it("leaves upright faces unflagged so they still get a synthetic oblique", () => {
+      expect(getFontInstance("helvetica", 400, 22, 0)?.isRoutedItalicCut).toBe(false);
+      expect(getFontInstance("lucida-grande", 400, 22, 0)?.isRoutedItalicCut).toBe(false);
     });
   }
 });

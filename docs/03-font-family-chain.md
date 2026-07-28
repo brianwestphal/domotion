@@ -40,13 +40,15 @@ In `src/render/font-resolution.ts`:
      - `fantasy` → **Papyrus** (Chrome on macOS resolves bare `fantasy` to Papyrus — verified by empirical advance-width probe).
    - Anything else → next token, then SF Pro.
 
-2. New `FONT_PATHS` entries for the common families. Initial set (all macOS system fonts). Helvetica is a TTC with separate sub-fonts per weight×slant; pick the right sub-font in `getFontInstance` based on weight (≥600 → Bold) and slant.
+2. New `FONT_PATHS` entries for the common families. Initial set (all macOS system fonts). Helvetica is a TTC with separate sub-fonts per weight×slant; pick the right sub-font in `getFontInstance` based on weight and slant. The bold split is at weight ≥600, and Helvetica additionally carries a **Light** cut (`OS/2.usWeightClass` 300) that Chrome selects for every weight ≤300 — see the weight → face routing table in [font-resolution-diagram.md](font-resolution-diagram.md#3-key--fontinstance-getfontinstance) for the full measured ladder.
 
    ```ts
    "helvetica":             { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica" },
    "helvetica-bold":        { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Bold" },
    "helvetica-italic":      { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Oblique" },
    "helvetica-bold-italic": { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-BoldOblique" },
+   "helvetica-light":        { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Light" },
+   "helvetica-light-italic": { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-LightOblique" },
    "times":            { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Roman" },
    "times-italic":     { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Italic" },
    "courier":              { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier" },

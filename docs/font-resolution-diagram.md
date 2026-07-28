@@ -202,8 +202,9 @@ flowchart TD
   G1 -->|"localalias:&lt;family&gt;"| GL["pickLocalFontAliasVariant()<br/>→ recurse getFontInstance(baseKey,<br/>declared weight/italic)"]
   G1 -->|"plain / sysfb: / u- / un-"| G2["effectiveKey = key"]
 
-  G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/hiragino-jp/korean/<br/>pingfang-* → -bold when weight≥600"]
-  G3 --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
+  G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/hiragino-jp/korean/<br/>pingfang-* → -bold when weight≥600<br/>lucida-grande → -bold when weight≥450"]
+  G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
+  G3b --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
@@ -225,9 +226,48 @@ DM-891, doc [52](52-embedded-mode-glyph-fallback.md)) supplies a single glyph's
 outline from the SAME file when fontkit opened the font but returned an empty path
 for one inkable glyph.
 
+**Weight → face routing.** A static family has no `wght` axis to drive, so the
+requested CSS weight has to pick a FILE (or a TTC member). Three rules, applied
+in order, all of them calibrated by asking Chromium which face it painted —
+`CSS.getPlatformFontsForNode` over the full 100…900 range in 10-point steps —
+rather than by running the CSS font-matching algorithm, which the platform
+matcher does not reproduce:
+
+| Family key | Measured Chrome behavior |
+| --- | --- |
+| `helvetica` | 100-300 → `Helvetica-Light`, 310-590 → `Helvetica`, 600-900 → `Helvetica-Bold`; oblique column parallel |
+| `lucida-grande` | 100-440 → `LucidaGrande`, 450-900 → `LucidaGrande-Bold` |
+| `arial` / `times` / `georgia` / `courier` / `menlo` / … | regular below 600, bold at 600+ (no other cut installed) |
+
+1. the `weight ≥ 600` bold split plus the italic sibling (the long-standing
+   rule, still the default for every regular/bold-only family);
+2. `SUB_BOLD_WEIGHT_CUTS` / `subBoldWeightCutSuffix` for a family that ships a
+   face **below** regular — today `helvetica`, whose `Helvetica.ttc` carries a
+   Light cut at `OS/2.usWeightClass` 300 that the regular/bold pair hid. This
+   one matters broadly: Chrome on macOS resolves the `sans-serif` generic to
+   Helvetica, so `font-weight: 100/200/300` on default body text was painted a
+   full cut too heavy;
+3. the per-family bold thresholds that are not 600 — `lucida-grande` (the macOS
+   fallback for arrows, Hebrew and check marks) crosses over at 450, so a `↑` or
+   `✓` inside a bold heading is painted from the bold face.
+
+Every suffixed key is adopted **only when `resolveFontSpec` resolves it on the
+host platform**, which is what keeps the table platform-agnostic: the Linux
+(Liberation Sans) and Windows (Arial) mappings for `helvetica` / `lucida-grande`
+have no light or bold sibling key, so they fall back to the regular face —
+which is what Chrome picks there too.
+
+**Faux-italic signal.** `FontInstance.isRoutedItalicCut` records that the slant
+request was satisfied by routing to a real italic/oblique sibling. It exists
+because `post.italicAngle` is not trustworthy on its own — `Helvetica-LightOblique`
+and `HelveticaNeue-BoldItalic` both report 0 despite outlines that lean the same
+~12° as their correctly-tagged siblings, and the embedded-mode faux-italic gate
+in `renderTextAsPath` sheared those a second time. The routing decision wins over
+the angle.
+
 **Source of truth:** `getFontInstance` / `resolveFontSpec` / `applyVariationAxes` /
-`fontHasOutlineTable` / `commandsFor` in `src/render/font-resolution.ts`;
-`src/render/glyph-helper.ts`.
+`subBoldWeightCutSuffix` / `fontHasOutlineTable` / `commandsFor` in
+`src/render/font-resolution.ts`; `src/render/glyph-helper.ts`.
 
 ---
 
@@ -635,8 +675,11 @@ requested but the resolved face is upright (no italic sibling was routed to, no
 same shear (`x += 0.25·y`, y-up, pivoting at the baseline) via `shearPathCommands`
 (`embolden-outline.ts`). The bake fires when italic is requested and
 `FontInstance.resolvedItalicAngle` is ~0 (an upright face) and no `slnt` axis
-carried the slant (`FontInstance.hasSlantAxis`), both populated in
-`getFontInstance`. A shear is a pure affine transform — it commutes with the
+carried the slant (`FontInstance.hasSlantAxis`) and the slant was not satisfied
+by routing to the family's own italic cut (`FontInstance.isRoutedItalicCut` —
+needed because `Helvetica-LightOblique` and `HelveticaNeue-BoldItalic` report
+`post.italicAngle` 0 despite genuinely slanted outlines, and the angle test
+alone sheared them a second time), all populated in `getFontInstance`. A shear is a pure affine transform — it commutes with the
 uniform font scaling, so unlike the embolden it reproduces Chrome's device-space
 skew EXACTLY at every size and is applied to stroked runs too (no gate). Embolden
 then shear when both apply (bold-italic on a no-bold-no-italic face).

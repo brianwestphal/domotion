@@ -1506,10 +1506,14 @@ function renderTextAsEmbedded(
     // unlike faux-bold — it reproduces Chrome's device-space skew exactly and is
     // safe on stroked runs too (no gate). `italicAngle` is the resolved face's
     // own slant: a real italic face (|angle| ≥ 1°) already leans, so skip it.
+    // `isRoutedItalicCut` covers the faces that lean but under-report it — some
+    // TTC members ship `post.italicAngle` 0 despite a visibly slanted outline,
+    // and shearing those a second time doubled their lean.
     let shearFactor = 0;
     if (
       slant !== 0 &&
       run.font.hasSlantAxis !== true &&
+      run.font.isRoutedItalicCut !== true &&
       (run.font.resolvedItalicAngle == null || Math.abs(run.font.resolvedItalicAngle) < 1)
     ) {
       shearFactor = OBLIQUE_SHEAR;
