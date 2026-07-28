@@ -28,6 +28,7 @@
 
 import { type BrowserContext, type Page } from "@playwright/test";
 import { launchHarnessBrowsers, harnessBrowserNote, captureFlagsCacheToken, expectedCachePlatformDir } from "./harness-browsers.js";
+import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -1594,6 +1595,24 @@ async function main(): Promise<void> {
   const browserNote = harnessBrowserNote(browsers);
   if (browserNote != null) console.log(`  ${browserNote}\n`);
 
+  // Announce a missing native glyph helper. On macOS and Windows the
+  // per-codepoint fallback resolver asks the OS (CoreText / DirectWrite)
+  // through this binary; without it, resolution silently drops to the STATIC
+  // fallback chain and picks different faces than the browser does. That is
+  // not a small drift — it is a different renderer, and it produced a whole
+  // sweep of "wrong font" failures that were unreproducible locally because
+  // the developer's tree HAS the binary (it is gitignored) and CI's did not.
+  // Silence here is what made that cost days, so say it loudly.
+  const helperAvailable = isGlyphHelperAvailable();
+  if (!helperAvailable && (process.platform === "darwin" || process.platform === "win32")) {
+    console.log(
+      `  ⚠  NATIVE GLYPH HELPER MISSING — the live ${process.platform === "darwin" ? "CoreText" : "DirectWrite"} fallback\n`
+      + `     resolver is OFF, so font selection falls back to the static chain and will NOT\n`
+      + `     match the browser. These results are not comparable to a normal run.\n`
+      + `     Build it: tools/${process.platform === "darwin" ? "macos" : "win32"}-glyph-extractor/build.sh\n`,
+    );
+  }
+
   // DM-1006: one shared comparePage for all workers (was per-worker before).
   // Set up once here, torn down after the pool finishes; the per-call mutex
   // (`withCompareLock`) serialises access so workers don't race on it.
@@ -1678,7 +1697,12 @@ async function main(): Promise<void> {
   {
     writeFileSync(
       resolve(OUTPUT_DIR, "run-conditions.json"),
-      JSON.stringify({ generatedAt: new Date().toISOString(), platform: process.platform, browsers: browserNote, captureFlags: browsers.captureFlags, rasterFlags: browsers.rasterFlags }, null, 2),
+      // `glyphHelper` records whether the live OS fallback resolver was on.
+      // A run without it selects fonts by the static chain and is a different
+      // renderer — comparing its numbers to a normal run's is meaningless, so
+      // the artifact has to carry the fact rather than leaving a reviewer to
+      // infer it from the fixture names that happened to fail.
+      JSON.stringify({ generatedAt: new Date().toISOString(), platform: process.platform, glyphHelper: helperAvailable, browsers: browserNote, captureFlags: browsers.captureFlags, rasterFlags: browsers.rasterFlags }, null, 2),
     );
   }
 

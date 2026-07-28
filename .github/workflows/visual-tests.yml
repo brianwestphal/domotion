@@ -120,6 +120,25 @@ jobs:
       - name: Font env probe (diagnostic — grep FONTPROBE in this step's log)
         run: npx tsx tools/font-env-probe.mjs
       - run: npx playwright install chromium
+        # Without this the sweep measures a DIFFERENT renderer than a developer
+        # runs. The macOS per-codepoint fallback resolver asks CoreText through
+        # this native helper; the built binary is gitignored, so a fresh CI
+        # checkout has none, `helperAvailable` goes false, and resolution silently
+        # drops to the STATIC fallback chain. That picks a different face than
+        # CoreText does, and the whole unicode sweep fails on faces that pass
+        # locally. Reproduced by disabling the helper on a Mac: 0400-04FF-cyrillic
+        # goes from clean (0 regions) to major (142 regions).
+        #
+        # arm64 only — `build.sh` also builds x86_64 for the universal release
+        # binary, which CI does not need (the runners are arm64) and which
+        # doubles the build for nothing.
+      - name: Build the macOS glyph helper (CoreText fallback resolver)
+        run: |
+          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             tools/macos-glyph-extractor/domotion-glyph-paths
+          tools/macos-glyph-extractor/domotion-glyph-paths --help >/dev/null 2>&1 || true
+          echo "helper built: $(file tools/macos-glyph-extractor/domotion-glyph-paths)"
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
@@ -203,6 +222,14 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
+        # Same reason as the macOS job above: the win32 per-codepoint resolver
+        # asks DirectWrite through this helper, the binary is gitignored, and
+        # without it font selection drops to the static chain — a different
+        # renderer, not a noisier one. (Linux needs no equivalent step: its
+        # resolver shells out to fontconfig rather than to a built helper.)
+      - name: Build the DirectWrite glyph helper (fallback resolver)
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}

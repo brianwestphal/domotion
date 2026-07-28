@@ -61,6 +61,16 @@ gh run download <id> --pattern 'results-*' --dir /tmp/vt
 node scripts/merge-shard-results.mjs --input /tmp/vt
 ```
 
+## The runner must build the native glyph helper (DM-1844)
+
+**A sweep without the native glyph helper measures a different renderer, not a noisier one.** On macOS and Windows the per-codepoint fallback resolver asks the OS — CoreText / DirectWrite — through the helper binary in `tools/<platform>-glyph-extractor/`. That binary is a **build artifact and is gitignored**, so a fresh CI checkout has none. `isGlyphHelperAvailable()` then returns false and font selection silently drops to the **static** fallback chain, which picks different faces than the browser does.
+
+This is not a small drift. Reproduced by disabling the helper on a Mac (`DOMOTION_DISABLE_HELPER=1`), `0400-04FF-cyrillic` goes from **clean · 0 regions** to **major · 142 regions**. The symptom is a sweep of "this is rendering a different font" failures that are **unreproducible locally**, because a developer's tree does have the binary.
+
+`visual-tests.yml`'s macOS job now builds it (arm64 only — `build.sh` also builds x86_64 for the universal release binary, which the arm64 runners don't need) before the shard runs. `tests/visual-tests-workflow.test.ts` guards the wiring, since the failure mode is workflow drift rather than a code change. Both harnesses now print a loud warning and record `glyphHelper` in `run-conditions.json` when the resolver is off, so a non-comparable run says so instead of being read as a fidelity regression.
+
+> **Re-measure the numbers below.** The DM-1217 gap was characterised *before* this was found, and its profile — ~24 extra failures concentrated in the common text blocks — is exactly what a missing helper produces. Treat the counts in the next section as an upper bound until a sweep is re-run with the helper built.
+
 ## Two baselines: local Mac vs CI image (DM-1217)
 
 **The macOS runner is not your local Mac, and its pass/fail COUNT does not transfer (measured).** `macos-latest` is currently `macos-15-arm64` (Apple Silicon). A full unicode sweep there returned **742/818 vs 766/818 locally** (commit-matched) — ~24 extra failures, almost all in the COMMON text blocks (basic-latin, latin-1, cyrillic, greek, IPA, punctuation, math, arrows). They fail by a *small* margin that is consistently ~5–7× the local diff (basic-latin: CI 0.18% / worst-tile 2.4% vs local 0.027% / 0.07%): that runner rasterizes text differently enough that Domotion's locally-calibrated output crosses the pass threshold on otherwise-clean blocks (the same Chrome-paints-hinted-vs-Domotion-fills-unhinted gap that Linux/Windows carry a coverage floor for — macOS has none, because locally the gap is negligible).
