@@ -203,6 +203,12 @@ interface ReviewManifest {
   // yet — the client shows a loading banner + POSTs /api/refresh-source, then
   // reloads, instead of the page silently blocking on the gh fetch.
   sourceFetchNeeded: boolean;
+  // DM-1802: set when a LOCAL source's artifacts were produced on a different
+  // platform than the host — e.g. a `test-linux-docker.sh` run wrote Linux
+  // results and PNGs into `tests/output/`, which this UI would otherwise label
+  // "Local · macOS" with nothing indicating the mismatch. Reading it required
+  // knowing each platform's failure signature by heart; now it says so.
+  platformMismatch?: { manifest: string; host: string };
 }
 
 function loadManifest(activeSourceId: string): ReviewManifest {
@@ -217,6 +223,7 @@ function loadManifest(activeSourceId: string): ReviewManifest {
     "real-world":        { present: false, count: 0 },
   };
   const timestamps: string[] = [];
+  let manifestPlatform: string | null = null;
 
   for (const m of manifestFiles) {
     if (!existsSync(m.path)) continue;
@@ -228,8 +235,10 @@ function loadManifest(activeSourceId: string): ReviewManifest {
     if (m.isBareArray) {
       records = Array.isArray(raw) ? raw : [];
     } else {
-      const wrapped = raw as { generatedAt?: string; results?: unknown[] };
+      const wrapped = raw as { generatedAt?: string; platform?: string; results?: unknown[] };
       generatedAt = wrapped.generatedAt;
+      // DM-1802: the platform that painted these artifacts, stamped at write time.
+      if (typeof wrapped.platform === "string" && wrapped.platform !== "") manifestPlatform = wrapped.platform;
       records = wrapped.results ?? [];
     }
     if (generatedAt != null) {
@@ -294,7 +303,12 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   // latest completed run on demand (DM-1662), so "no local data" ≠ "unavailable".
   const sources = SOURCES.map((s) => ({ id: s.id, label: s.label, present: s.id.startsWith("ci-") ? true : sourceIsPresent(s.root) }));
   const sourceFetchNeeded = activeSourceId.startsWith("ci-") && tests.length === 0;
-  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded };
+  // DM-1802: only meaningful for a LOCAL source — a CI source is *expected* to
+  // hold another platform's artifacts, that is the whole point of the toggle.
+  const platformMismatch = !activeSourceId.startsWith("ci-") && manifestPlatform != null && manifestPlatform !== process.platform
+    ? { manifest: manifestPlatform, host: process.platform }
+    : undefined;
+  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded, ...(platformMismatch != null ? { platformMismatch } : {}) };
 }
 
 function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
@@ -702,6 +716,7 @@ const REVIEW_CSS = `
   .chunk-imgs img { display: block; width: 100%; height: auto; }
   /* DM-1665: async loading feedback. */
   .refresh-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; width: 28px; height: 28px; font-size: 15px; cursor: pointer; line-height: 1; }
+    .platform-warn { color: #f0883e; background: rgba(240,136,62,0.12); border: 1px solid rgba(240,136,62,0.4); border-radius: 6px; padding: 2px 8px; font-size: 12px; white-space: nowrap; }
   .refresh-btn:hover { background: #30363d; color: #fff; }
   #load-overlay { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(13,17,23,0.92); color: #e6edf3; font-size: 15px; text-align: center; padding: 24px; }
   #load-overlay .msg { max-width: 560px; }
@@ -770,6 +785,15 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
             </select></label>
             {/* DM-1665: re-pull the latest CI run's metadata for the active source. */}
             <button id="refresh-source" className="refresh-btn" title="Re-fetch the latest CI run for this source">↻</button>
+            {/* DM-1802: a LOCAL source holding another platform's artifacts —
+                e.g. a container run wrote Linux results into tests/output/.
+                Say so, rather than leaving it to be inferred from per-platform
+                failure signatures. */}
+            {manifest.platformMismatch != null ? (
+              <span className="platform-warn" title="Re-run the suite on this host to regenerate, or use the platform-specific output dir (DOMOTION_OUTPUT_DIR)">
+                {`⚠ these artifacts were produced on ${manifest.platformMismatch.manifest}, not ${manifest.platformMismatch.host}`}
+              </span>
+            ) : ""}
             <label>Filter: <select id="filter">
               <option value="fail">Failing</option>
               <option value="all">All</option>

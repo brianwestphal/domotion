@@ -81,6 +81,13 @@ TTY_FLAG=""
 #               container's Linux install is fully isolated (see SAFETY above).
 # npm cache   : a named volume keeps repeated `npm ci` fast via --prefer-offline.
 # HOME=/tmp + CI=true: writable caches + CI-mode npm/playwright defaults.
+# DOMOTION_OUTPUT_DIR (DM-1802): the repo is mounted READ-WRITE so build output
+# lands back in your tree — which also meant a visual suite run in here
+# overwrote `tests/output/` with LINUX-rendered results and PNGs, and
+# `demos:review` then showed them under its "Local · macOS" source with nothing
+# saying otherwise. Container runs therefore write to `tests/output-linux/` by
+# default. Export DOMOTION_OUTPUT_DIR yourself to override (e.g. point it at
+# `/work/tests/output` if you deliberately want the host's tree replaced).
 # shellcheck disable=SC2086  # $TTY_FLAG is intentionally word-split: empty or `-it`.
 docker run --rm $TTY_FLAG \
   --ipc=host \
@@ -92,5 +99,6 @@ docker run --rm $TTY_FLAG \
   -e HOME=/tmp \
   -e CI=true \
   -e npm_config_cache=/tmp/.npm \
+  -e "DOMOTION_OUTPUT_DIR=${DOMOTION_OUTPUT_DIR:-/work/tests/output-linux}" \
   "${IMAGE}" \
   bash -lc "npm ci --no-audit --no-fund --prefer-offline && ${RUN_CMD}"

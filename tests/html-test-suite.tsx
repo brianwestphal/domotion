@@ -56,8 +56,15 @@ const HTML_TEST_DIR = process.env.HTML_TEST_DIR != null && process.env.HTML_TEST
 // `demos:test:unicode` in package.json) can point its expected/actual/diff
 // triplets at a separate folder without clobbering the canonical
 // html-test results.
+// DM-1802: `DOMOTION_OUTPUT_DIR` is the broader override — it relocates the
+// whole `tests/output` tree so a container run can't overwrite the host's
+// artifacts (see the note in tests/runner.tsx). The suite-specific
+// `HTML_TEST_OUTPUT_DIR` still wins where both are set, since it names this
+// suite's folder exactly.
 const OUTPUT_DIR = process.env.HTML_TEST_OUTPUT_DIR != null && process.env.HTML_TEST_OUTPUT_DIR !== ""
   ? resolve(process.env.HTML_TEST_OUTPUT_DIR)
+  : process.env.DOMOTION_OUTPUT_DIR != null && process.env.DOMOTION_OUTPUT_DIR !== ""
+  ? resolve(process.env.DOMOTION_OUTPUT_DIR, "html-test")
   : resolve(__dirname, "output/html-test");
 const WIDTH = 1024;
 const HEIGHT = 768;
@@ -1665,10 +1672,13 @@ async function main(): Promise<void> {
   // shape. Written only when the run was NOT the default single-browser
   // condition — its whole purpose is to stop a flagged measurement from being
   // mistaken later for a plain one.
-  if (browserNote != null) {
+  // DM-1802: always written now (it was browser-condition-only), because the
+  // PLATFORM that produced these artifacts is the thing a reviewer most needs
+  // and most easily mistakes — see the note in tests/runner.tsx.
+  {
     writeFileSync(
       resolve(OUTPUT_DIR, "run-conditions.json"),
-      JSON.stringify({ generatedAt: new Date().toISOString(), browsers: browserNote, captureFlags: browsers.captureFlags, rasterFlags: browsers.rasterFlags }, null, 2),
+      JSON.stringify({ generatedAt: new Date().toISOString(), platform: process.platform, browsers: browserNote, captureFlags: browsers.captureFlags, rasterFlags: browsers.rasterFlags }, null, 2),
     );
   }
 

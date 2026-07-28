@@ -28,7 +28,19 @@ import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worke
 // Resolve against this script's dir so runs from any cwd write to the real
 // tests/output, not a stray nested ... path.
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
-const OUTPUT_DIR = resolve(TESTS_DIR, "output");
+// DM-1802: overridable so a run in a DIFFERENT platform's environment doesn't
+// overwrite the host's artifacts. `scripts/test-linux-docker.sh` mounts the repo
+// read-write, so a container run used to rewrite `tests/output/` — results
+// manifests AND the expected/actual/diff PNGs — with Linux-rendered output,
+// which `demos:review` then showed under its "Local · macOS" source. Nothing on
+// screen said otherwise; you had to already know each platform's failure
+// signature to notice. The html-test suite has had `HTML_TEST_OUTPUT_DIR` for
+// the analogous reason (a secondary sweep clobbering the canonical results);
+// this is the same idea for the feature suite, and `DOMOTION_OUTPUT_DIR` is
+// honored by both so one env var redirects a whole container run.
+const OUTPUT_DIR = process.env.DOMOTION_OUTPUT_DIR != null && process.env.DOMOTION_OUTPUT_DIR !== ""
+  ? resolve(process.env.DOMOTION_OUTPUT_DIR)
+  : resolve(TESTS_DIR, "output");
 const WIDTH = 400;
 const HEIGHT = 300;
 
@@ -389,7 +401,12 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       // failure mode the asymmetric mode exists to prevent is a number
       // measured under a flag nobody remembers setting — so the manifest says
       // which condition produced it, not just the numbers.
-      JSON.stringify({ suite: suiteName, generatedAt: new Date().toISOString(), browsers: browserNote ?? "default (one browser, no flags)", results }, null, 2),
+      // DM-1802: `platform` records which OS's Chromium painted these. The
+      // review UI reads it and warns when a source's data was not produced by
+      // the host — the failure it guards is silent (Linux results shown under a
+      // "Local · macOS" label), and detectable otherwise only if you already
+      // know each platform's failure signature.
+      JSON.stringify({ suite: suiteName, generatedAt: new Date().toISOString(), platform: process.platform, browsers: browserNote ?? "default (one browser, no flags)", results }, null, 2),
     );
   }
 
