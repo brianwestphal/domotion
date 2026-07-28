@@ -694,7 +694,13 @@ export interface SystemFallbackFont {
   resolvedAxes?: Record<string, number>;
 }
 
-const _systemFallbackCache = new Map<number, SystemFallbackFont | null>();
+// Keyed on `<basePostscriptName>\u0000<cp>`, NOT on the codepoint alone.
+// CoreText's cascade depends on the font you ask FROM — asking for U+20BF from
+// SF Pro Text answers SF Pro Text, while asking from Helvetica answers
+// .NewYork. A cp-only key therefore served whichever base happened to ask
+// first to every later caller, silently, for the rest of the process.
+const _systemFallbackCache = new Map<string, SystemFallbackFont | null>();
+const fallbackCacheKey = (base: string, cp: number): string => `${base}\u0000${cp}`;
 
 /** Authoritative per-codepoint system font fallback, matching Chrome-on-macOS.
  *
@@ -718,7 +724,7 @@ export function resolveSystemFallbackFonts(
   if (!isGlyphHelperAvailable()) return out;
   const need: number[] = [];
   for (const cp of cps) {
-    if (_systemFallbackCache.has(cp)) out.set(cp, _systemFallbackCache.get(cp)!);
+    if (_systemFallbackCache.has(fallbackCacheKey(basePostscriptName, cp))) out.set(cp, _systemFallbackCache.get(fallbackCacheKey(basePostscriptName, cp))!);
     else need.push(cp);
   }
   if (need.length === 0) return out;
@@ -742,7 +748,7 @@ export function resolveSystemFallbackFonts(
     const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
       ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes }
       : null;
-    _systemFallbackCache.set(e.cp, resolved);
+    _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp), resolved);
     out.set(e.cp, resolved);
   }
   return out;
