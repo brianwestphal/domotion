@@ -1494,7 +1494,23 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
     // the darwin table directly (not the host-platform resolver) so this guard
     // runs identically on Linux CI — `darwinFallbackChain` emits darwin-only
     // `u-...` routes that `LINUX_FONT_PATHS` deliberately doesn't carry.
-    const unresolved = [...keys].filter((k) => k !== "last-resort" && __resolveDarwinFontSpecForTest(k) == null);
+    // `sysfb:` keys come from the LIVE OS resolver, which now wins over a
+    // sampled route the two disagree on (DM-1811). They are registered into the
+    // dynamic font registry by `resolveSystemFallbackKeyForCp` at the moment it
+    // returns them, so they are never dangling — but they are deliberately
+    // absent from the static darwin table, and which ones appear depends on the
+    // host's installed fonts. Checking them against the darwin table would make
+    // this guard fail on any machine whose CoreText/fontconfig answers differ
+    // from the calibration Mac, which is the opposite of what it is for.
+    //
+    // The property the guard actually protects — no key reaches the renderer
+    // without a font behind it — still holds for them, via the runtime resolver.
+    const sysfb = [...keys].filter((k) => k.startsWith("sysfb:"));
+    const danglingDynamic = sysfb.filter((k) => __resolveFontSpecForTest(k) == null);
+    expect(danglingDynamic, "live-resolver keys must be registered when emitted").toEqual([]);
+
+    const unresolved = [...keys].filter((k) =>
+      k !== "last-resort" && !k.startsWith("sysfb:") && __resolveDarwinFontSpecForTest(k) == null);
     expect(unresolved).toEqual([]);
   });
 

@@ -2304,7 +2304,23 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // when absent, which is exactly how the chain would reach `last-resort`.
   let generatedKey = generatedKeyRaw;
   let liveOverride: string | null = null;
-  if (generatedKeyRaw != null && !generatedRouteUsable(generatedKeyRaw)) {
+  // Where the sampled route and the live OS resolver DISAGREE, the live answer
+  // wins. The table is a snapshot of one machine's CoreText replies at sweep
+  // time; the live resolver asks the same API Chrome asks, on this machine, now
+  // — so when they differ it is the table that has drifted. Observed cases:
+  // U+1DBB (route "Arial", live and Chrome "Menlo") and U+3251 / U+32D0 (live
+  // and Chrome "Hiragino Sans").
+  //
+  // Measured across the full 818-fixture macOS unicode sweep before landing,
+  // because the blast radius is every block: 2 fixtures fixed
+  // (1D80-phonetic-extensions-supplement, 3200-enclosed-cjk-letters-and-months),
+  // 0 broken, 0 made worse. The route is still what supplies the chain when the
+  // two AGREE, and it remains the fallback when the OS has no answer.
+  if (generatedKeyRaw != null && generatedRouteUsable(generatedKeyRaw)) {
+    const live = resolveSystemFallbackKeyForCp(codepoint);
+    if (live != null && live !== generatedKeyRaw) liveOverride = live;
+  }
+  if (generatedKeyRaw != null && liveOverride == null && !generatedRouteUsable(generatedKeyRaw)) {
     liveOverride = resolveSystemFallbackKeyForCp(codepoint);
     // If the OS has no answer either, keep the generated route: a face Chrome
     // might not pick still beats a guaranteed `last-resort` tofu.
