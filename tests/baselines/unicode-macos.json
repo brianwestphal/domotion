@@ -3,11 +3,11 @@
     "suite": "unicode",
     "os": "macos",
     "image": "macos26-arm64",
-    "commit": "4f2006b8f0ed44a0bd2effb03276b1f776dfd2ad",
-    "capturedAt": null,
+    "commit": "801174aecefd33a4acdda3ba16064c6b43271d03",
+    "capturedAt": "2026-07-28T05:00:59Z",
     "counts": {
-      "passed": 782,
-      "failed": 36,
+      "passed": 786,
+      "failed": 32,
       "skipped": 0,
       "total": 818
     }
@@ -72,9 +72,9 @@
     "0400-04FF-cyrillic": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.056144875522292234,
-      "worstTilePct": 0.6530522365196075,
-      "regionCount": 20
+      "diffPct": 0.04021741353837835,
+      "worstTilePct": 0.6671262254901962,
+      "regionCount": 4
     },
     "0500-052F-cyrillic-supplement": {
       "pass": true,
@@ -1743,11 +1743,11 @@
       "regionCount": 0
     },
     "1D00-1D7F-phonetic-extensions": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.08874845006974623,
-      "worstTilePct": 2.4984681372549025,
-      "regionCount": 21
+      "diffPct": 0.03597827610341995,
+      "worstTilePct": 0.09133731617647059,
+      "regionCount": 0
     },
     "1D000-1D0FF-byzantine-musical-symbols": {
       "pass": true,
@@ -1829,8 +1829,8 @@
     "1D80-1DBF-phonetic-extensions-supplement": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.023677341600891886,
-      "worstTilePct": 0.3690831801470587,
+      "diffPct": 0.02654310175586534,
+      "worstTilePct": 0.7126991421568627,
       "regionCount": 1
     },
     "1D800-1DAAF-sutton-signwriting.0": {
@@ -1857,8 +1857,8 @@
     "1DC0-1DFF-combining-diacritical-marks-supplement": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02278205746033679,
-      "worstTilePct": 0.07372089460784313,
+      "diffPct": 0.022850871607089242,
+      "worstTilePct": 0.0840609681372549,
       "regionCount": 0
     },
     "1DF00-1DFFF-latin-extended-g": {
@@ -1869,11 +1869,11 @@
       "regionCount": 0
     },
     "1E00-1EFF-latin-extended-additional": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.04076613417508321,
-      "worstTilePct": 0.38880591299019596,
-      "regionCount": 1
+      "diffPct": 0.0397988311740705,
+      "worstTilePct": 0.09239047181372549,
+      "regionCount": 0
     },
     "1E000-1E02F-glagolitic-supplement": {
       "pass": true,
@@ -3290,11 +3290,11 @@
       "regionCount": 0
     },
     "2150-218F-number-forms": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.09129740270111532,
-      "worstTilePct": 3.0997242647058845,
-      "regionCount": 4
+      "diffPct": 0.020043844311614125,
+      "worstTilePct": 0.08166743259803921,
+      "regionCount": 0
     },
     "2190-21FF-arrows": {
       "pass": true,
@@ -3332,11 +3332,11 @@
       "regionCount": 0
     },
     "2460-24FF-enclosed-alphanumerics": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.07010203914766348,
-      "worstTilePct": 4.982287837009807,
-      "regionCount": 2
+      "diffPct": 0.03870550158298507,
+      "worstTilePct": 0.08061427696078433,
+      "regionCount": 0
     },
     "2500-257F-box-drawing": {
       "pass": true,
