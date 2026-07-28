@@ -160,6 +160,9 @@ jobs:
           ONLY: ${{ inputs.only }}
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
+          # BRANCH-ONLY (exp/live-over-generated): arm the DM-1811 experiment.
+          # Never merge this line to main — the flag defaults off there.
+          DOMOTION_LIVE_OVER_ROUTE: '1'
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()

@@ -2304,7 +2304,19 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // when absent, which is exactly how the chain would reach `last-resort`.
   let generatedKey = generatedKeyRaw;
   let liveOverride: string | null = null;
-  if (generatedKeyRaw != null && !generatedRouteUsable(generatedKeyRaw)) {
+  // EXPERIMENT (DM-1811 / DM-1836): prefer the live OS resolver over the
+  // sampled route wherever the two DISAGREE. The table is a snapshot of one
+  // machine's CoreText answers; the live resolver asks the same API Chrome
+  // asks, on this machine, right now. Measured disagreements so far all
+  // favored the live answer (U+1DBB: route says Arial, live and Chrome say
+  // Menlo; U+3251/U+32D0: live and Chrome say Hiragino Sans), but that is 3
+  // cells — the blast radius is every block, so this rides a branch until a
+  // full sweep says whether it is a net win.
+  if (process.env.DOMOTION_LIVE_OVER_ROUTE === "1" && generatedKeyRaw != null && generatedRouteUsable(generatedKeyRaw)) {
+    const live = resolveSystemFallbackKeyForCp(codepoint);
+    if (live != null && live !== generatedKeyRaw) liveOverride = live;
+  }
+  if (generatedKeyRaw != null && liveOverride == null && !generatedRouteUsable(generatedKeyRaw)) {
     liveOverride = resolveSystemFallbackKeyForCp(codepoint);
     // If the OS has no answer either, keep the generated route: a face Chrome
     // might not pick still beats a guaranteed `last-resort` tofu.
