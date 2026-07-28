@@ -1087,3 +1087,88 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
     expect(svg).not.toContain("<feGaussianBlur");
   });
 });
+
+describe("float paint order — a text-bearing block paints its own floats beneath its text", () => {
+  /**
+   * CSS 2.1 Appendix E orders a stacking context's non-positioned floats at
+   * step 4 and its in-flow inline-level content at step 5, so a float paints
+   * BENEATH the text of the stacking context it belongs to. That matters
+   * whenever `shape-outside` shrinks a float's exclusion area below its border
+   * box: the wrapped text then legitimately overlaps the painted float and has
+   * to win z.
+   *
+   * The renderer emits a text-bearing block's floats ahead of that block's own
+   * text for exactly this reason. The stacking-context float hoist (which lifts
+   * floats to the enclosing context's float bucket so they paint over earlier
+   * block backgrounds) used to fire on the SAME float, emitting it a second
+   * time AFTER the whole text-bearing block — so the hoisted copy covered the
+   * first glyph of every wrapped line. Both call sites now share one predicate.
+   */
+  function floatInParagraphTree(parentText: string) {
+    // The root is `position: static` so the floats resolve against the
+    // implicit document stacking context — a `position: relative; z-index:
+    // auto` root would paint atomically and block the hoist on its own.
+    return [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          tag: "p",
+          text: parentText,
+          x: 0, y: 0, width: 400, height: 120,
+          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+          children: [
+            makeElement({
+              tag: "span",
+              x: 0, y: 0, width: 140, height: 80,
+              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+  }
+
+  it("emits the float exactly once, before the paragraph's own text", () => {
+    const svg = elementTreeToSvgInner(floatInParagraphTree("wrapped around the float"), 400, 200);
+    const floatFill = 'fill="rgb(147,197,253)"';
+    expect(svg.split(floatFill).length - 1).toBe(1);
+    const floatIdx = svg.indexOf(floatFill);
+    const textIdx = svg.indexOf("wrapped around the float");
+    expect(floatIdx).toBeGreaterThanOrEqual(0);
+    expect(textIdx).toBeGreaterThanOrEqual(0);
+    expect(floatIdx).toBeLessThan(textIdx);
+  });
+
+  it("still hoists the float over a later block sibling's background when the parent has no own text", () => {
+    // The hoist exists so a float that overflows its (often zero-height,
+    // because floats are out of flow) parent paints on top of block content
+    // that follows in document order rather than being covered by it. A
+    // parent with no inline content of its own keeps that behavior.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 300,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 400, height: 0,
+          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+          children: [
+            makeElement({
+              x: 0, y: 0, width: 140, height: 200,
+              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+            }),
+          ],
+        }),
+        makeElement({
+          x: 0, y: 100, width: 400, height: 60,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
+        }),
+      ],
+    })];
+
+    const svg = elementTreeToSvgInner(tree, 400, 300);
+    const floatFill = 'fill="rgb(147,197,253)"';
+    expect(svg.split(floatFill).length - 1).toBe(1);
+    expect(svg.indexOf(floatFill)).toBeGreaterThan(svg.indexOf('fill="rgb(221,221,221)"'));
+  });
+});

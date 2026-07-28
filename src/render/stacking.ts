@@ -122,6 +122,39 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
 }
 
 /**
+ * Does `el` paint its own floated children locally, ahead of its own inline
+ * text, rather than letting them hoist to the enclosing stacking context's
+ * float bucket?
+ *
+ * Per CSS 2.1 Appendix E a stacking context paints non-positioned floats at
+ * step 4 and in-flow inline-level content at step 5, so a float always paints
+ * BENEATH the text of the stacking context it belongs to. `renderElement`
+ * approximates that for the case it matters most — a text-bearing block whose
+ * own float lets text wrap over the float's border box (`shape-outside`) — by
+ * emitting the float before the block's text.
+ *
+ * `gatherStackingContextChildren` consults the same predicate so it does NOT
+ * also hoist those floats into the stacking context's flat paint list: a float
+ * that is painted locally AND hoisted is emitted twice, and the hoisted copy
+ * (which sorts after the text-bearing block) covers the very text it was
+ * supposed to paint under. Keeping both call sites on one predicate keeps them
+ * from drifting apart.
+ */
+export function paintsOwnFloatsBeforeText(el: CapturedElement): boolean {
+  return el.text !== "";
+}
+
+/**
+ * Is `c` a non-positioned floated child (the shape both the local float paint
+ * in `renderElement` and the stacking-context float hoist select on)?
+ */
+export function isNonPositionedFloat(c: CapturedElement): boolean {
+  const pos = c.styles.position;
+  const positioned = pos != null && pos !== "static";
+  return !positioned && (c.styles.float ?? "none") !== "none";
+}
+
+/**
  * DM-473: build the flat paint list for one stacking context.
  *
  * For each direct child of the SC root, walk into the child's subtree only
@@ -242,7 +275,18 @@ export function gatherStackingContextChildren(
       // siblings of the float's ancestors instead of painting on top of them.
       // Real-world hit: 14-deep-float-bfc section 1's float-left FL extends
       // ~60 px below the .frame and is covered by section 2's gray bar.
-      const isFloat = !positioned && (c.styles.float ?? "none") !== "none";
+      //
+      // The hoist is skipped when `parent` paints its own floats locally
+      // (`paintsOwnFloatsBeforeText`): a text-bearing block emits its floats
+      // ahead of its own text so the text wins z, exactly as CSS 2.1 Appendix
+      // E orders step 4 (floats) before step 5 (inline content). Hoisting such
+      // a float as well emitted it TWICE, and the hoisted copy sorted into the
+      // stacking context's float bucket — after the text-bearing block — so it
+      // painted back over the text. Visible on `shape-outside`, where the
+      // wrapped text legitimately overlaps the float's border box: the first
+      // glyph of each wrapped line disappeared under the float.
+      const isFloat = !positioned && (c.styles.float ?? "none") !== "none"
+        && !paintsOwnFloatsBeforeText(parent);
       // DM-683: per CSS Flexbox 1 §5.4 ("Flex items paint exactly the same
       // as inline blocks"), flex items paint at CSS 2.1 Appendix E step 5
       // (in-flow inline-level non-positioned descendants) — AFTER block

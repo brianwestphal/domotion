@@ -18,7 +18,7 @@ import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { translateClipPath } from "./clip-path.js";
 import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
-import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, sortChildrenByPaintOrder } from "./stacking.js";
+import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, sortChildrenByPaintOrder, paintsOwnFloatsBeforeText, isNonPositionedFloat } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
 import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, rewriteFragmentMaskDef } from "./mask.js";
 // Re-exported for existing importers (mask.test.ts, mask-contain-align.test.ts) — public entry unchanged.
@@ -4137,15 +4137,17 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // paint the aside FIRST and then the block siblings would cover it.
   // Letting the float fall through to the normal child sort puts it last
   // (= on top of preceding block siblings) — matching Chrome for that case.
-  const hasOwnText = el.text !== "";
+  //
+  // `gatherStackingContextChildren` keys its float hoist off the SAME
+  // predicate, so a float painted here is not hoisted into the enclosing
+  // stacking context's flat paint list as well (that double emit put the
+  // hoisted copy back on top of the text — see `paintsOwnFloatsBeforeText`).
+  const hasOwnText = paintsOwnFloatsBeforeText(el);
   const floatChildren: CapturedElement[] = [];
   const nonFloatChildren: CapturedElement[] = [];
   if (hasOwnText) {
     for (const c of el.children) {
-      const flt = c.styles.float ?? "none";
-      const pos = c.styles.position;
-      const positioned = pos != null && pos !== "static";
-      if (!positioned && flt !== "none") floatChildren.push(c);
+      if (isNonPositionedFloat(c)) floatChildren.push(c);
       else nonFloatChildren.push(c);
     }
     for (const child of floatChildren) {

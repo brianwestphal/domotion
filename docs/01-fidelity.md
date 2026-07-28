@@ -100,6 +100,10 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 - [x] z-index for positioned siblings (paint order sorted: negative, base, auto/0, positive)
 - [~] Nested stacking contexts (trapped z-index inside opacity/transform context) — flattened; may paint above outside sibling
+- [~] Float paint order (CSS 2.1 Appendix E step 4) — approximated in two places, and the approximation is deliberately split by whether the float's parent has inline content of its own:
+  - A float whose parent has **no** own text hoists into the enclosing stacking context's float bucket, so it paints above the backgrounds of block-level siblings that follow it in document order (the common "float overflows its zero-height wrapper" case).
+  - A float whose parent **does** have own text is painted by that parent, immediately before the parent's text, so the text wins z. This is what `shape-outside` needs: shrinking the exclusion area below the float's border box makes the wrapped text legitimately overlap the painted float, and CSS orders inline content (step 5) above floats (step 4).
+  - Not yet modeled: a float paints below the text of the *whole* stacking context, so text in a later paragraph should also paint above an earlier paragraph's float. We only order a float against its own parent's text.
 
 ### Rasterized as static snapshot
 
