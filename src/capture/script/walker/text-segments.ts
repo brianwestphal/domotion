@@ -429,38 +429,32 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       // inside the styled segment correctly (`fontBoundingBoxAscent`
       // mirrors the canvas measurement the regular-text path uses).
       const flMetrics = measureFontMetrics(flStyle);
-      // DM-989: `initial-letter: N [M]` cap-height equalisation. Chrome
-      // internally scales the first-letter glyph to a larger font-size
-      // than `getComputedStyle().fontSize` reports — per Blink's
-      // `initial_letter_utils.cc::ComputeInitialLetterBoxBlockOffset`, the
-      // glyph is sized so its cap-height equals N × the parent's
-      // line-height. The naive theoretical formula `effectiveFs =
-      // (N × parentLineHeight) / capHeightRatio(font)` overshoots Chrome
-      // empirically (gave 202 px for drop-5 where Chrome paints ~171 px);
-      // probably Chrome's internal cap-height target uses (N-1)*line-height
-      // + body-line-height-leading or similar nuance buried in the layout
-      // code. Side-step the formula and derive `effectiveFs` from Chrome's
-      // *computed pseudo width* — `flStyle.width` is the content-box width
-      // Chrome already sized the pseudo to, which equals the glyph's
-      // painted extent. Probe the chars' natural width at 100 px via
-      // canvas, scale: `effectiveFs = 100 × paintedGlyphWidth /
-      // naturalWidthAt100`. Same approach for `effectiveAscent` — read
-      // `fontBoundingBoxAscent` from the probe-rendered font and scale.
+      // `initial-letter: <size> [<sink>]` cap-height equalisation. Chrome
+      // internally scales the first-letter glyph to a font-size that
+      // `getComputedStyle().fontSize` does NOT report (it echoes the author's
+      // specified value, typically an `em` fallback for non-supporting
+      // engines). What Chrome DOES report faithfully is the pseudo's computed
+      // content box: measured across nine `initial-letter` variants, its
+      // `height` is exactly `(size - 1) x parent-line-height + parent
+      // cap-height` — i.e. the cap-height Chrome sized the glyph to — and its
+      // `width` is the glyph's painted INK width. So the effective font-size
+      // is derived from the content box rather than from a theoretical
+      // formula. Two derivations, because the two layout modes differ:
+      //   - NON-floated (raised/sunk cap): `height / capHeightRatio`.
+      //   - FLOATED drop cap: `height / glyphInkHeightRatio` (the float box
+      //     is sized to the glyph's own ink, which differs from cap-height
+      //     for glyphs with descenders or round overshoot).
+      // `effectiveAscent` scales `fontBoundingBoxAscent` from the same
+      // 100 px canvas probe.
       let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
       let effectiveAscent = flMetrics.ascent;
       let styledSegY = minT - vp.y;
-      // DM-1675: `flIsFloatSize` distinguishes a FLOATED sunk drop cap from a
-      // NON-floated raised cap (`.raise`: `initial-letter: 1 3; vertical-align:
-      // super; display: inline; float: none`). The width/height size derivation
-      // below is CORRECT for both (Chrome's `initial-letter: 1` sizes the raised
-      // cap to ~1 line, overriding the `font-size: 2.8em` the author set as a
-      // no-support fallback — so the computed `fontSize` OVER-reports and the
-      // width-derived ~16.7px is right). But the DM-994 pixel-probe re-positioning
-      // must NOT run for the non-floated case: the per-char `Range` rect already
-      // captures the raised paint position (`minT`), and the probe's
-      // "largest ink block" pick merges the small raised cap with the adjacent
-      // floated drop cap below and shoves it ~40-80px down. So keep the derivation
-      // unconditional but gate the probe (further below) on `flIsFloatSize`.
+      // `flIsFloatSize` distinguishes a FLOATED sunk drop cap from a NON-floated
+      // raised/sunk cap (`.raise`: `initial-letter: 1 3; vertical-align: super;
+      // display: inline; float: none`). Chrome's `initial-letter` sizing applies
+      // to both — it overrides the `font-size` the author set as a no-support
+      // fallback, so the computed `fontSize` OVER-reports — but the two cases
+      // need DIFFERENT size and position derivations, so they're branched below.
       const flFloatSize = flStyle.float || flStyle.cssFloat || '';
       const flIsFloatSize = flFloatSize === 'left' || flFloatSize === 'right';
       if (hasInitialLetter) {
@@ -470,6 +464,8 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         const probeM = probeCtx.measureText(styledText);
         const naturalWidthAt100 = probeM.width;
         const ascentRatio = probeM.fontBoundingBoxAscent / 100;
+        const hM = probeCtx.measureText('H');
+        const capHeightRatio = hM.actualBoundingBoxAscent / 100;
         const pseudoComputedW = parseFloat(flStyle.width);
         if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
           // `flStyle.width` is the pseudo's content-box width Chrome sized the
@@ -492,23 +488,33 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           if ((flFloatForSize === 'left' || flFloatForSize === 'right')
               && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && glyphInkH100 > 0) {
             effectiveFs = 100 * pseudoComputedH / glyphInkH100;
+          } else if (!flIsFloatSize
+              && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && capHeightRatio > 0) {
+            // NON-floated initial letter (`float: none`, e.g. a raised cap).
+            // Chrome sizes it so its CAP-HEIGHT equals the pseudo's computed
+            // content height — measured across nine `initial-letter` variants,
+            // `height` is exactly `(size - 1) x parent line-height + parent
+            // cap-height` in every case. So the effective font-size is
+            // `height / capHeightRatio`. This is the accurate derivation; the
+            // width quotient above divides the pseudo's INK width by the
+            // canvas ADVANCE width, so it under-reports by the side bearings
+            // (1.8% on Georgia, 7% on Arial). Verified at 8x DPI against the
+            // painted ink: for `initial-letter: 3 3` Georgia the painted ink
+            // implies 97.93 px (width) / 97.96 px (height), the height/cap
+            // derivation gives 97.96 px, the advance quotient gives 96.16 px.
+            effectiveFs = pseudoComputedH / capHeightRatio;
           }
           effectiveAscent = effectiveFs * ascentRatio;
-          // Position the segment so the rendered baseline matches Chrome's
-          // painted baseline. Chrome paints the first-letter with its
-          // cap-top aligned to line-1's cap-top — i.e. the cap-top sits
-          // at `minT` (Range.top of the painted glyph as captured here).
-          // Use the H-probe cap-height ratio to derive baseline from
-          // cap-top, then seg.y from baseline - effectiveAscent so the
-          // renderer's `seg.y + segAscent = baseline` arithmetic
-          // reconstructs the right paint position.
-          const hM = probeCtx.measureText('H');
-          const capHeightRatio = hM.actualBoundingBoxAscent / 100;
-          if (capHeightRatio > 0) {
-            const effectiveCapHeight = effectiveFs * capHeightRatio;
-            const baseline = minT + effectiveCapHeight;
-            styledSegY = baseline - effectiveAscent - vp.y;
-          }
+          // NOTE: the segment's vertical position is NOT adjusted here.
+          // `styledSegY` stays at `minT` (the per-char `Range` rect top),
+          // which for BOTH float and non-float initial letters is the
+          // ASCENT-top of the glyph at its effective size — so the
+          // renderer's `baseline = seg.y + seg.fontAscent` arithmetic lands
+          // on Chrome's painted baseline directly. An earlier revision
+          // treated `minT` as the CAP-top and added `capHeight - ascent`;
+          // that painted the non-floated raised cap 2.9-21.9 px too high
+          // (error growing with the cap size). Floated drop caps get their
+          // final position from the content-box block further below.
         }
       }
       // Compute the pseudo's painted padding-box. Reuses the rect-math
@@ -557,13 +563,11 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       // its content box) and left the glyph ~6px too far left. Position the
       // styled segment straight from the captured content box instead: baseline
       // at the content-box bottom (a drop cap is a capital → ink-bottom =
-      // baseline), and the glyph centered in the content box. The width-derived
-      // `effectiveFs` already sizes the ink to the content box. The pixel probe
-      // is skipped here — the content box IS the painted ink box, so there's
-      // nothing left to refine and the probe's cap-height heuristic would
-      // re-introduce the error.
+      // baseline), and the glyph centered in the content box. The
+      // ink-height-derived `effectiveFs` already sizes the ink to the content
+      // box. Non-floated initial letters keep the `minT`-anchored position set
+      // above — their `Range` rect already reports the painted ascent-top.
       let flGlyphX = minL - vp.x;
-      let flSkipProbe = false;
       const flIsFloat = flFloat === 'left' || flFloat === 'right';
       if (hasInitialLetter && effectiveFs != null && flIsFloat) {
         const contentBottom = pboxT + pboxH - padB;        // vp-relative
@@ -572,7 +576,6 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         const contentW = pboxW - padL - padR;
         const glyphW = maxR - minL;
         flGlyphX = contentLeft + (contentW - glyphW) / 2;
-        flSkipProbe = true;
       }
       // Borders — per-side widths + colors, with uniform shorthand when
       // all four sides match (same convention as pseudo-content.ts).
@@ -607,53 +610,6 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       const flTextShadow = (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow)
         ? flStyle.textShadow
         : undefined;
-      // DM-994 capture-time pixel probe for `initial-letter` cases. The
-      // CSS-derived placement (`styledSegY` above) is within ±12 px of
-      // Chrome's painted cap-top on the 24-deep-initial-letter fixtures
-      // — the residual diff is real fragment-state from Blink's inline
-      // layout that doesn't surface in `getComputedStyle`. Tag the
-      // styled seg with a probe rect so the Node-side post-pass can
-      // pixel-walk Chrome's screenshot to find the actual painted ink
-      // top and refine `seg.y` accordingly. Cap-height + ascent travel
-      // alongside so the post-pass can solve `seg.y = chromeInkTop −
-      // ascent + capHeight` without re-deriving font metrics.
-      let initialLetterProbe;
-      if (hasInitialLetter && effectiveFs != null && flIsFloatSize) {
-        const capHeightForProbe = effectiveFs * 0.6929; // fallback ratio; overridden below when we have ratios
-        // Compute the actual cap-height ratio inline so the probe carries
-        // the value matching what we used to derive styledSegY above.
-        const _probeCanvas2 = document.createElement('canvas');
-        const _probeCtx2 = _probeCanvas2.getContext('2d');
-        _probeCtx2.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
-        const _hMetrics2 = _probeCtx2.measureText('H');
-        const _capRatio = _hMetrics2.actualBoundingBoxAscent / 100;
-        const realCapHeight = _capRatio > 0 ? effectiveFs * _capRatio : capHeightForProbe;
-        // Probe rect: cover the full Range area plus generous margin for
-        // raise cases (cap may overflow well above Range.top) and sink
-        // cases (descenders may extend below Range.bottom). The Node
-        // post-pass thresholds at > 8 dark pixels per row, which filters
-        // out section-header text and body-text wrapping that the rect
-        // may also catch.
-        // Probe rect margins scale with effectiveFs so smaller drop caps
-        // (clustered together like the `T A T` multi-row) don't catch
-        // neighboring drop caps' ink — only enough margin to cover the
-        // raise overflow above and the sink overflow below for this
-        // particular drop cap. Large drop caps (W at 185 px) need more
-        // upward margin to catch raised caps; small ones (T multi at
-        // 56 px) need tight bounds.
-        const upMargin = Math.min(100, Math.max(15, effectiveFs * 0.4));
-        const downMargin = Math.min(120, Math.max(20, effectiveFs * 0.5));
-        initialLetterProbe = {
-          rect: {
-            x: minL - vp.x - 5,
-            y: minT - vp.y - upMargin,
-            width: (maxR - minL) + 10,
-            height: (maxB - minT) + upMargin + downMargin,
-          },
-          capHeight: realCapHeight,
-          ascent: effectiveAscent,
-        };
-      }
       const styledSeg = {
         text: styledText,
         x: flGlyphX,
@@ -670,7 +626,6 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         fontAscent: effectiveAscent,
         textShadow: flTextShadow,
         pseudoBox,
-        _initialLetterProbe: flSkipProbe ? undefined : initialLetterProbe,
       };
     return { seg: styledSeg, minL, maxR, minT, maxB };
   };

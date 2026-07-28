@@ -17,7 +17,6 @@ import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
-import { refineInitialLetterPositions } from "./initial-letter-probe.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
@@ -987,7 +986,6 @@ export async function captureElementTreeWithWarnings(
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
-  await refineInitialLetterPositions(page, typed.tree, viewport);
   return { tree: typed.tree, warnings };
 }
 

@@ -118,17 +118,64 @@ the default `-10% … 110%` filter region.
 Only `blur()` is translated today; other filter functions (`drop-shadow`,
 `brightness`, `contrast`, …) on a pseudo are not yet honored.
 
+## `::first-letter` and `initial-letter` (drop caps)
+
+A styled `::first-letter` is emitted as its own native-SVG text segment,
+carrying the pseudo's font-family / size / weight / style / variant, color and
+`text-shadow`, plus a `pseudoBox` for its background, border and
+border-radius. The host element's body text suppresses the glyphs the pseudo
+selected, so the styled segment is the only paint for them. Chrome's selection
+rule is mirrored at capture time: skip leading whitespace, take any leading
+punctuation, one letter (or a precomposed letter plus its combining marks),
+then any trailing punctuation.
+
+`initial-letter: <size> [<sink>]` (CSS Inline 3) makes this more than a font
+override — Chromium re-sizes the glyph and takes it out of the normal line
+flow. Two of its decisions are not readable from `getComputedStyle` in the
+obvious place:
+
+- **Effective size.** `getComputedStyle(el, "::first-letter").fontSize` echoes
+  the value the author *specified* — typically a large `em` fallback written
+  for engines without `initial-letter` support — not the size Chromium paints.
+  What Chromium does report faithfully is the pseudo's computed **content
+  box**: its `height` is the cap-height the initial letter was sized to
+  (measured across nine variants, exactly `(size − 1) × parent-line-height +
+  parent-cap-height`), and its `width` is the glyph's painted **ink** width.
+  The effective font-size is therefore derived from that box, against ratios
+  read from a 100 px canvas probe of the pseudo's own font: `height /
+  capHeightRatio` for a non-floated initial letter, and `height /
+  glyphInkHeightRatio` for a floated drop cap (a float box is sized to the
+  glyph's own ink, which differs from cap-height for glyphs with descenders or
+  round overshoot). Dividing the ink `width` by a canvas *advance* width is
+  **not** equivalent — it under-reports the size by the side bearings (~1.8%
+  on Georgia, ~7% on Arial).
+
+- **Vertical placement.** For a **non-floated** initial letter (a raised
+  and/or sunk cap: `float: none`, `display: inline`), the per-character
+  `Range` rect top is the **ascent**-top of the glyph at its effective size,
+  so the baseline is `rangeTop + ascent` and the segment anchors at the
+  `Range` top directly. Treating that top as the **cap**-top instead paints
+  the cap too high by an amount that grows with the cap size (≈4 px at
+  `initial-letter: 1`, ≈22 px at `initial-letter: 3`). For a **floated** drop
+  cap, Chromium paints the glyph's ink to exactly fill the float's content
+  box, so the segment is positioned from that box instead: baseline at the
+  content-box bottom, glyph centered horizontally within it.
+
+Both rules were reverse-engineered by comparing Chromium's painted ink (at 8×
+device scale) against its reported boxes across nine `initial-letter`
+variants — differing size, sink, font, weight and line-height — and they
+reproduce the painted cap top to within 0.5 px on every one. Fixture:
+`24-deep-initial-letter` in the `html-test` suite.
+
 ## What's NOT honored (known gaps)
 
 - **3D transforms** — `rotateX/Y/Z(…)`, `perspective(…)`, `translateZ(…)`.
   The captured matrix is the resolved 2D `matrix(...)` form; 3D content
   collapses to its 2D projection per CSS spec, so `rotateX(…)` looks
   axis-aligned in Domotion's output. Filed as a follow-up.
-- **`::first-letter` / `::first-line`** — `::first-line` is partially
-  supported via the multi-segment override path (the first segment of a
-  paragraph carries the pseudo's font / weight / variant overrides);
-  `::first-letter` drop caps are not (see DM-779 — initial-letter / line-
-  wrap-around layout is a feature gap).
+- **`::first-line`** — partially supported via the multi-segment override
+  path (the first segment of a paragraph carries the pseudo's font / weight /
+  variant overrides).
 - **`::marker`** — list markers paint via the host's marker emit path, not as
   a pseudo. Built-in `list-style-type` numbering systems are resolved by
   `formatListMarker` in `src/render/element-tree-to-svg.ts`: decimal /
