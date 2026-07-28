@@ -144,6 +144,12 @@ You have **standing permission to use Playwright freely** for any investigation,
 >
 > It is a git checkout, so the revision is always available — `git -C external/chromium log -1 --format='%h %cd' --date=short` (as of writing: `7d859f27`, 2026-06-27). Quote it alongside any constant or table you transcribe, so a later disagreement can be attributed to drift rather than re-investigated from scratch.
 
+**The font goal is GUARANTEED parity with Chromium's mechanism — not less code.** Every decision about *which font* and *which glyphs, where* must be either the same logic Blink runs (transcribed from `external/chromium`, with a cited file + line and the checkout revision) or the same call Blink makes (identical API, identical arguments). Some of this is *additive* — porting Blink's Windows per-script table is more code and is correct. **An approximation that scores well is the thing being removed**, even where it currently passes: "the gap is <1%" is not a defense, it is the defect.
+
+Parity cannot be established by a fixture suite — fixtures sample, and every "wrong font" bug in the 2026-07 cycle hid from exactly that. It is established by a **conformance oracle**: ask Chrome (CDP `CSS.getPlatformFontsForNode`) and ask Domotion the same question exhaustively, require 100% agreement, gate CI on it. `tools/chrome-font-agreement.ts` is the seed of that.
+
+The honest boundary, worth stating rather than eliding: font selection, glyph choice, and glyph positioning **can** be identical by construction. **Rasterization cannot** — Chrome uses Skia, our output is rasterized by the consumer browser. That is the documented hinting floor, and a different concern from the matching mechanism.
+
 **Mirror Chromium's decision procedure — don't re-derive it, and don't sample it.** Where Chrome's behavior is expressible as an algorithm, port the algorithm from source rather than probing outputs and curve-fitting a table. This is the single most expensive lesson in the font area so far:
 
 - `unicode-font-routing.darwin.generated.ts` was built by **sampling** one Mac's CoreText answers per Unicode block. It froze that machine's font inventory into source (it names `SF Pro Text` — a separate Apple download — for Cyrillic), so every machine without those fonts painted faces Chrome never picks. The bug was never "a table exists"; Blink has one too. The bug was that ours was sampled from a machine instead of transcribed from Chromium.
