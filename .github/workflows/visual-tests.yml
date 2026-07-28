@@ -139,6 +139,17 @@ jobs:
              tools/macos-glyph-extractor/domotion-glyph-paths
           tools/macos-glyph-extractor/domotion-glyph-paths --help >/dev/null 2>&1 || true
           echo "helper built: $(file tools/macos-glyph-extractor/domotion-glyph-paths)"
+        # Runs AFTER the helper build so it describes the environment the shard
+        # actually renders in. Font selection is only correct if it matches what
+        # Chrome does ON THIS MACHINE — which fonts happen to be installed is not
+        # something we may assume, and a developer Mac with Apple's downloadable
+        # SF Pro / Noto families resolves a stack quite differently from a stock
+        # runner. This asks Chrome (CSS.getPlatformFontsForNode) and our resolver
+        # the same per-codepoint question here, so a disagreement is NAMED in the
+        # log instead of being inferred from diff pixels somewhere else.
+      - name: Chrome-vs-resolver font agreement (grep FONTAGREE in this step's log)
+        run: npx tsx tools/chrome-font-agreement.ts
+        continue-on-error: true
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
