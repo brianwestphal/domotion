@@ -2264,7 +2264,30 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // `.notdef` slot).
   const isEmojiCp = (codepoint >= 0x1F300 && codepoint <= 0x1FAFF)
     || (codepoint >= 0x1F1E6 && codepoint <= 0x1F1FF);
-  const generatedKey = lookupUnicodeFontRange(codepoint);
+  const generatedKeyRaw = lookupUnicodeFontRange(codepoint);
+  // A generated route whose family isn't installed here names a face Chrome
+  // will never pick on this machine. Drop it and ask the OS what Chrome WOULD
+  // use — the live CoreText resolver queries the same API Chrome does, so it
+  // gives the right answer for whatever font set this machine happens to have.
+  //
+  // The live key must go at the HEAD rather than simply dropping the route:
+  // the static tail ends in `last-resort`, whose LastResort.otf has a
+  // block-frame glyph for every codepoint, so it would win and paint tofu.
+  // `u-noto-sans` in that tail is itself a non-stock download and is skipped
+  // when absent, which is exactly how the chain would reach `last-resort`.
+  let generatedKey = generatedKeyRaw;
+  let liveOverride: string | null = null;
+  if (generatedKeyRaw != null && !generatedRouteUsable(generatedKeyRaw)) {
+    liveOverride = resolveSystemFallbackKeyForCp(codepoint);
+    // If the OS has no answer either, keep the generated route: a face Chrome
+    // might not pick still beats a guaranteed `last-resort` tofu.
+    generatedKey = liveOverride != null ? null : generatedKeyRaw;
+  }
+  if (liveOverride != null) {
+    return isEmojiCp
+      ? [liveOverride, "symbols", "u-noto-sans"]
+      : [liveOverride, "symbols", "u-noto-sans", "last-resort"];
+  }
   if (generatedKey != null) {
     // DM-1018: the DM-983 per-block generated table assigns ONE font per
     // block, sampled from the first few cells. Many blocks are heterogeneous
@@ -2307,6 +2330,37 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
 /** Binary-search the generated `UNICODE_FONT_RANGES` for a codepoint. */
 function lookupUnicodeFontRange(codepoint: number): string | null {
   return binarySearchRange(UNICODE_FONT_RANGES, codepoint);
+}
+
+/**
+ * Is a generated per-block route valid on THIS machine?
+ *
+ * The DM-983 table records, per Unicode block, the family Chrome's CoreText
+ * fallback picked when the table was SAMPLED — on one particular Mac. It is
+ * therefore a snapshot of that machine's font inventory, and several of its
+ * families are not stock: `SF Pro Text` and `Noto Sans` are separate Apple /
+ * Google downloads, and the route for e.g. Cyrillic names `SF Pro Text`.
+ *
+ * On a machine without that family Chrome cannot pick it either, so neither may
+ * we — the whole point of the table is to mirror Chrome, and a route to a font
+ * Chrome will never choose is worse than no route at all. Measured on the CI
+ * runner: for U+04FA Chrome painted `.New York` while we painted the route's
+ * `SFNS.ttf`, across ~26 unicode fixtures that pass on a developer Mac.
+ *
+ * A file-existence check is NOT sufficient and was the trap here: the route's
+ * path `/System/Library/Fonts/SFNS.ttf` exists everywhere. What varies is
+ * whether the *family* is installed, which is what decides Chrome's pick — so
+ * the check is `resolveInstalledFont(family)`, the same rule the CSS-family
+ * path already applies to "SF Pro Text" (DM-1659).
+ *
+ * Conservative by construction: a route with no recorded family, or one whose
+ * family resolves, is kept. Only a positively-absent family is rejected.
+ */
+function generatedRouteUsable(key: string): boolean {
+  const entry = UNICODE_FONT_PATHS[key];
+  const family = entry?.family;
+  if (family == null || family === "") return true;
+  return resolveInstalledFont(family) != null;
 }
 
 /** @deprecated Single-key wrapper for back-compat — prefer `fallbackFontChain`. */
