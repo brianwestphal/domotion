@@ -1984,6 +1984,24 @@ export function getDecorationMetrics(
   /** CSS `text-underline-offset` — when set to a length value, adds this much
    *  EXTRA distance below the baseline (on top of the auto offset). DM-431. */
   underlineOffsetCss?: string,
+  /**
+   * DM-1819/DM-1820: CSS `text-underline-position`. Captured since DM-936 but,
+   * until now, read only by the VERTICAL text path — so in horizontal text
+   * `under` rendered as `auto` and the underline cut straight through the
+   * descenders instead of clearing them.
+   *
+   *   `auto` (default) / `from-font` — just below the alphabetic baseline (the
+   *     empirical auto rule below; `from-font` would use the face's own
+   *     `post.underlinePosition`, which for the faces we resolve lands within a
+   *     rounding of the auto rule, so it is deliberately NOT special-cased).
+   *   `under` — below ALL descenders, i.e. at the font's descent depth. This is
+   *     what Chromium's `ComputeUnderlineOffsetForUnder` does: it drops the line
+   *     to the under edge of the content box rather than offsetting from the
+   *     baseline.
+   *   `left` / `right` — vertical-writing-mode only; horizontally they behave as
+   *     `auto` (handled by falling through).
+   */
+  underlinePositionCss?: string,
 ): DecorationMetrics {
   const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
   const slant = slantForStyle(fontStyle);
@@ -2018,7 +2036,16 @@ export function getDecorationMetrics(
     const v = parseFloat(underlineOffsetCss);
     if (!isNaN(v)) extraUnderlineOffset = v;
   }
-  const underlineOffsetY = 1.5 * thicknessPx + extraUnderlineOffset;
+  let underlineOffsetY = 1.5 * thicknessPx + extraUnderlineOffset;
+  // DM-1819/DM-1820: `under` drops the line clear of the descenders. The font's
+  // descent IS that depth (it is the bottom of the em box below the baseline),
+  // so use it in place of the baseline-relative auto gap; `text-underline-offset`
+  // still applies on top, as it does for `auto`.
+  const underlinePos = (underlinePositionCss ?? "").trim().toLowerCase();
+  if (underlinePos.split(/\s+/).includes("under") && font != null) {
+    const descentPx = Math.abs(font.descent) * (fontSize / font.unitsPerEm);
+    if (descentPx > 0) underlineOffsetY = descentPx + thicknessPx + extraUnderlineOffset;
+  }
   const underlineThickness = thicknessPx;
   // Empirical strike: stroke top sits at `round(baseline) - round(fontSize / 3)`
   // (probed at 14 / 22 / 32 px sans-serif / Times / Menlo). The Chromium-

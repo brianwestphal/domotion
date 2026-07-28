@@ -408,6 +408,10 @@ interface TextDecorationOptions {
   thicknessOverride?: string;
   /** CSS `text-underline-offset` (e.g. `6px` or `auto`). DM-431. */
   underlineOffset?: string;
+  /** CSS `text-underline-position` (`auto` / `from-font` / `under` / `left` /
+   *  `right`). DM-1819: horizontal text ignored this entirely, so `under` drew
+   *  through the descenders. */
+  underlinePosition?: string;
   /** Run text used to compute `text-decoration-skip-ink: auto` glyph
    *  intercepts. Required for skip-ink to apply. DM-446. */
   runText?: string;
@@ -691,7 +695,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
     textDecorationLine, decorationColor, style, segX, baselineY, segWidth,
     fontSize, fontFamily, fontWeight, fontStyle, thicknessOverride,
-    underlineOffset, runText, skipInk, features, runXOffsets,
+    underlineOffset, underlinePosition, runText, skipInk, features, runXOffsets,
   } = opts;
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
   // DM-1723: decoration metrics (position, auto thickness) come from the
@@ -702,7 +706,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const mFontSize = opts.metricsFontSize ?? fontSize;
   const mFontWeight = opts.metricsFontWeight ?? fontWeight;
   const mFontStyle = opts.metricsFontStyle ?? fontStyle;
-  const m = getDecorationMetrics(mFontFamily, mFontSize, mFontWeight, mFontStyle, thicknessOverride, underlineOffset);
+  const m = getDecorationMetrics(mFontFamily, mFontSize, mFontWeight, mFontStyle, thicknessOverride, underlineOffset, underlinePosition);
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
   // Skip-ink applies to solid + double + wavy underlines per Chromium's
@@ -825,6 +829,9 @@ function renderAppliedTextDecorations(
       segX: run.segX, baselineY: pickPropagatedBaseline(pd.baselines, run.baselineY, pd.fontSize), segWidth: run.segWidth,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       thicknessOverride: pd.thickness, underlineOffset: pd.underlineOffset,
+      // `PropagatedDecoration` carries no position of its own, so the
+      // decorated element's value applies.
+      underlinePosition: el.styles.textUnderlinePosition,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
       runXOffsets: run.runXOffsets,
       metricsFontFamily: pd.fontFamily, metricsFontSize: pd.fontSize,
@@ -840,6 +847,7 @@ function renderAppliedTextDecorations(
       segX: run.segX, baselineY: run.baselineY, segWidth: run.segWidth,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      underlinePosition: el.styles.textUnderlinePosition,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
       runXOffsets: run.runXOffsets,
     }));
