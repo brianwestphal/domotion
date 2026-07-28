@@ -190,6 +190,26 @@ if (updateBaseline) {
   }
 }
 
+// DM-1803: resolve the `domotion-ci-images` branch tip for <suite>-<os>, but
+// only return it when that commit's meta.json names THIS run — see the call
+// site. Returns null on any doubt (branch absent, gh unavailable, meta
+// unreadable, different run), which makes the review server take its existing
+// whole-shard fallback instead of serving another run's images.
+function resolveImagesSha(ciSuite, stageOs, wantRunId) {
+  const CI_IMAGES_REPO = "brianwestphal/domotion-ci-images";
+  const gh = (path) => execFileSync("gh", ["api", path, "--jq", ".content"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  try {
+    const sha = execFileSync("gh", ["api",
+      `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${stageOs}`, "--jq", ".object.sha"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    if (!/^[0-9a-f]{40}$/.test(sha)) return null;
+    const meta = JSON.parse(Buffer.from(
+      gh(`repos/${CI_IMAGES_REPO}/contents/meta.json?ref=${sha}`), "base64").toString("utf8"));
+    return String(meta.runId) === String(wantRunId) ? sha : null;
+  } catch { return null; }
+}
+
 // --review (default ON): stage EACH OS's shard PNGs + .svg + merged results.json
 // into its own review SOURCE folder — tests/output/review/ci-<os>/<suiteDir>/ —
 // laid out the way tests/review-server.tsx expects. The review UI's source
@@ -208,9 +228,26 @@ if (!process.argv.includes("--no-review")) {
     rmSync(dest, { recursive: true, force: true });
     mkdirSync(dest, { recursive: true });
     // Metadata (always) + the lazy-fetch pointer so the review server can pull
-    // image shards on demand for THIS run.
+    // images on demand for THIS run.
     copyFileSync(mergedJson, join(dest, "results.json"));
-    writeFileSync(join(dest, ".ci-source.json"), JSON.stringify({ runId: String(runId), os: stageOs, suite }, null, 2));
+    // DM-1803: resolve the `domotion-ci-images` commit sha for this run and put
+    // it in the pointer. The review server keys its transport off exactly this
+    // field: with a `sha` it fetches individual PNGs from the CDN (~0.2-0.7 s
+    // cold); without one it falls back to `gh run download` of a WHOLE shard
+    // (hundreds of MB), during which every image request 503s and the UI reads
+    // "image unavailable". Staging without it therefore DOWNGRADED the source
+    // that `/api/refresh-source` (the ↻ button) would have set up correctly —
+    // a dispatch made the review experience worse than not dispatching.
+    //
+    // Only adopt the sha when the branch actually holds THIS run: a partial
+    // `--only` dispatch never pushes images, so the branch tip still describes
+    // an older run and pointing at it would serve stale pictures under this
+    // run's metrics. Verified against the branch's own meta.json rather than
+    // assumed from the absence of `--only`, so a skipped or failed push is
+    // caught too — omitting the field is safe (it just takes the slow path).
+    const imagesSha = resolveImagesSha(suite, stageOs, String(runId));
+    writeFileSync(join(dest, ".ci-source.json"), JSON.stringify(
+      { runId: String(runId), os: stageOs, suite, ...(imagesSha != null ? { sha: imagesSha } : {}) }, null, 2));
     let pngs = 0;
     if (eager) {
       for (const name of readdirSync(dir)) {
