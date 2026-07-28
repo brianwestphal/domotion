@@ -30,8 +30,16 @@ const resultsPath = arg("--results", "tests/output/features-results.json");
 const outPath = arg("--out", `tests/baselines/features-${os}.json`);
 const image = arg("--image", os === "macos" ? "macos-local" : os === "linux" ? "playwright-noble" : "windows-local");
 
-let commit = "unknown";
-try { commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { /* not a repo */ }
+// The commit the RUN measured, which is not necessarily the one checked out
+// now: refreshing a baseline from a downloaded CI artifact is the normal case,
+// and stamping local HEAD there would claim the numbers describe code the run
+// never executed. Defaults to HEAD for the seed-from-a-local-run case.
+//   gh run view <id> --json headSha -q .headSha
+let commit = arg("--commit", null);
+if (commit == null) {
+  commit = "unknown";
+  try { commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { /* not a repo */ }
+}
 
 const doc = JSON.parse(readFileSync(resultsPath, "utf8"));
 const results = Array.isArray(doc.results) ? doc.results : Array.isArray(doc) ? doc : [];
