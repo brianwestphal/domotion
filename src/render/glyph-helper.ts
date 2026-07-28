@@ -132,6 +132,80 @@ function parseSvgPath(d: string): PathCommand[] {
   return out;
 }
 
+// Every helper path command is a run of (x, y) pairs — moveTo/lineTo carry one,
+// quadraticCurveTo two, bezierCurveTo three, closePath none — so the y values
+// are always the odd-indexed args.
+function pathMinY(commands: PathCommand[]): number | null {
+  let min: number | null = null;
+  for (const c of commands) {
+    for (let i = 1; i < c.args.length; i += 2) {
+      if (min == null || c.args[i] < min) min = c.args[i];
+    }
+  }
+  return min;
+}
+
+function translateCommandsY(commands: PathCommand[], dy: number): PathCommand[] {
+  if (dy === 0) return commands;
+  return commands.map((c) => {
+    if (c.args.length === 0) return c;
+    const args = c.args.slice();
+    for (let i = 1; i < args.length; i += 2) args[i] += dy;
+    return { command: c.command, args };
+  });
+}
+
+/** Glyph ids sampled to measure a face's outline offset. Low ids so every font
+ *  has them; a spread so a few blank ones (`.notdef`, space) still leave inked
+ *  samples to compare. */
+export const OFFSET_PROBE_GLYPHS = [3, 4, 5, 6, 7, 8, 15, 20];
+
+/**
+ * DM-1831: the vertical offset between the outline CoreText hands us
+ * (`CTFontCreatePathForGlyph`) and the box CoreText says the glyph occupies
+ * (`CTFontGetBoundingRectsForGlyphs`). Chrome paints at the BOUNDING RECT, so
+ * where the two disagree the raw outline lands in the wrong place.
+ *
+ * Apple Color Emoji is the one macOS face where they disagree: CoreText reports
+ * every one of its glyphs 100 units (0.125 em at its 800 upem) BELOW the
+ * outline it returns for that same glyph — unanimous across 102 outline glyphs,
+ * and matching Chrome's painted output exactly (dx 0, dy -100.0, pixel-exact at
+ * font-size 800, where one unit is one px). Ten ordinary faces (Helvetica,
+ * Apple Symbols, Hiragino Sans, Times New Roman, Menlo, Zapf Dingbats, STIX Two
+ * Math, Geeza Pro, Thonburi, Kohinoor Devanagari) report exactly 0 across 600
+ * glyphs each. The visible symptom was a lone U+20E3 COMBINING ENCLOSING KEYCAP
+ * — one of the few Apple Color Emoji glyphs that is a real outline rather than
+ * an sbix bitmap, so it takes the glyph-path pipeline instead of the
+ * raster-overlay one — painting its box ~4 px high at font-size 32.
+ *
+ * The offset is a property of the FACE, so it is measured once per font and
+ * never per glyph, and only from a UNANIMOUS, MATERIAL reading. Both guards
+ * earn their place: `pathMinY` is a control-point minimum while CoreText's rect
+ * is a tight curve bound, so a face whose extrema sit off its control points
+ * reports sub-unit noise rather than a real offset (PingFang SC scatters deltas
+ * of 0 to -1 unit at 1000 upem). A genuine offset is two orders of magnitude
+ * larger, so requiring agreement AND at least 1% of the em keeps that noise
+ * from being read as signal.
+ *
+ * `probeUnitsPerEm` is the size the probe glyphs were requested at; the result
+ * is scaled into the font's design-unit space.
+ */
+export function measureOutlineOffsetY(
+  glyphs: GlyphResponse[], unitsPerEm: number, probeUnitsPerEm: number,
+): number {
+  const seen: number[] = [];
+  for (const g of glyphs) {
+    if (g == null || g.d.length === 0 || g.bbox == null) continue;
+    const minY = pathMinY(parseSvgPath(g.d));
+    if (minY == null) continue;
+    seen.push(Math.round((g.bbox.y - minY) * unitsPerEm / probeUnitsPerEm));
+  }
+  if (seen.length === 0) return 0;
+  const first = seen[0];
+  if (!seen.every((v) => v === first)) return 0;
+  return Math.abs(first) >= unitsPerEm * 0.01 ? first : 0;
+}
+
 // Spawn the helper once, request meta + a batch of glyphs in one envelope.
 interface HelperRequest {
   fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; size: number; variations?: Record<string, number> }>;
@@ -409,14 +483,31 @@ export function createGlyphHelperFont(spec: {
   // matches fontkit's coordinate convention so the existing
   // `scale(fontSize/unitsPerEm, ...)` transform in text-to-path.ts works.
   let metaResp: MetaResponse;
+  let offsetProbe: GlyphResponse[] = [];
   try {
     const probe = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 }],
-      queries: [{ type: "meta", fontRef: "f" }]
+      fonts: [
+        { ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 },
+        // DM-1831: a SECOND handle on the same face, opened by system NAME
+        // rather than by file. See `outlineOffsetY` — CoreText only reports the
+        // Apple Color Emoji baseline adjustment through the system-registered
+        // font, so the by-path handle above can never observe it.
+        ...(spec.postscriptName != null && spec.variations == null
+          ? [{ ref: "n", postscriptName: spec.postscriptName, size: 1000 }]
+          : [])
+      ],
+      queries: [
+        { type: "meta" as const, fontRef: "f" },
+        ...(spec.postscriptName != null && spec.variations == null
+          ? [{ type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) }]
+          : [])
+      ]
     });
     const r = probe.results[0];
     if (r.type !== "meta") throw new Error("unexpected response shape");
     metaResp = r;
+    const r1 = probe.results[1];
+    if (r1 != null && r1.type === "glyphs") offsetProbe = r1.glyphs;
   } catch {
     return null;
   }
@@ -428,6 +519,15 @@ export function createGlyphHelperFont(spec: {
   const cpToGlyph = new Map<number, GlyphHelperGlyph>();
   const idToGlyph = new Map<number, GlyphHelperGlyph>();
   const missingCp = new Set<number>();
+
+  // Probe glyphs come back in the 1000-unit probe space; scale to design units.
+  const outlineOffsetY = measureOutlineOffsetY(offsetProbe, unitsPerEm, 1000);
+
+  /** Parse a helper outline into the renderer's command space, moved to where
+   *  CoreText (and therefore Chrome) actually paints it. */
+  function glyphCommands(d: string): PathCommand[] {
+    return translateCommandsY(parseSvgPath(d), outlineOffsetY);
+  }
   // DM-1028: per-run-text shape cache so identical runs shape once.
   const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();
 
@@ -455,7 +555,7 @@ export function createGlyphHelperFont(spec: {
       const glyph: GlyphHelperGlyph = {
         id: g.id,
         advanceWidth: g.advance,
-        path: { commands: parseSvgPath(g.d) },
+        path: { commands: glyphCommands(g.d) },
         codePoints: [cp]
       };
       cpToGlyph.set(cp, glyph);
@@ -492,7 +592,7 @@ export function createGlyphHelperFont(spec: {
     const glyph: GlyphHelperGlyph = {
       id: g.id,
       advanceWidth: g.advance,
-      path: { commands: parseSvgPath(g.d) }
+      path: { commands: glyphCommands(g.d) }
     };
     idToGlyph.set(id, glyph);
     return glyph;
@@ -650,7 +750,10 @@ export function createGlyphHelperFont(spec: {
           const glyph: GlyphHelperGlyph = {
             id: sg.id,
             advanceWidth: sg.ax,
-            path: { commands: parseSvgPath(sg.d) }
+            // Shaped outlines carry no bounding rect of their own, so they use
+            // the font-level offset the coverage probe above already learned
+            // (`layout` always runs `fetchByCps` before shaping).
+            path: { commands: glyphCommands(sg.d) }
           };
           // Cache the outline by id so a later getGlyph(id) reuses it.
           if (sg.id !== 0 && !idToGlyph.has(sg.id)) idToGlyph.set(sg.id, glyph);

@@ -226,6 +226,34 @@ DM-891, doc [52](52-embedded-mode-glyph-fallback.md)) supplies a single glyph's
 outline from the SAME file when fontkit opened the font but returned an empty path
 for one inkable glyph.
 
+**Outline offset — where CoreText says the glyph goes vs where it draws it.**
+`createGlyphHelperFont` measures one per-face vertical correction on macOS and
+applies it to every outline it returns (`measureOutlineOffsetY` →
+`glyphCommands`, `src/render/glyph-helper.ts`). CoreText exposes two answers for
+the same glyph: `CTFontCreatePathForGlyph` (the outline) and
+`CTFontGetBoundingRectsForGlyphs` (the box it occupies). Chrome paints at the
+bounding rect, so where the two disagree the raw outline lands in the wrong
+place. Apple Color Emoji is the one macOS face that disagrees — CoreText places
+every one of its glyphs 100 units (0.125 em at its 800 upem) below the outline
+it hands back, matching Chrome's painted output exactly; ten ordinary faces
+report 0 across 600 glyphs each.
+
+The catch is that CoreText only reveals this through the **system-registered**
+font: opening the very same file by URL — which is how the helper normally opens
+faces — reports an offset of 0. So the probe issues a second handle on the face
+by PostScript **name** (no path) inside the existing `meta` round trip and reads
+the disagreement there. The offset is a property of the face, so it is measured
+once per font, never per glyph, and adopted only when the sampled glyphs agree
+AND the offset is at least 1% of the em — a face whose curve extrema sit off its
+control points otherwise reports sub-unit noise (PingFang SC scatters 0 to −1
+unit at 1000 upem) that must not be mistaken for a real offset. Faces opened
+with an explicit variation location skip the probe.
+
+The visible symptom was a lone U+20E3 COMBINING ENCLOSING KEYCAP: one of the few
+Apple Color Emoji glyphs that is a real outline rather than an sbix bitmap, so it
+takes the glyph-path pipeline rather than the raster-overlay one, and painted its
+box ~4 px high at font-size 32.
+
 **Weight → face routing.** A static family has no `wght` axis to drive, so the
 requested CSS weight has to pick a FILE (or a TTC member). Three rules, applied
 in order, all of them calibrated by asking Chromium which face it painted —

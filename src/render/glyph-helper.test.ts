@@ -8,7 +8,9 @@ import {
   __helperBinaryForPlatform,
   clearGlyphHelperCache,
   createGlyphHelperFont,
-  isGlyphHelperAvailable
+  isGlyphHelperAvailable,
+  measureOutlineOffsetY,
+  OFFSET_PROBE_GLYPHS
 } from "./glyph-helper.js";
 
 // DM-385 / DM-387: validates the Swift CoreText helper.
@@ -582,5 +584,81 @@ describeHelper("persistent --serve protocol (DM-1031)", () => {
       child.stdin!.end();
       child.kill();
     }
+  });
+});
+
+// DM-1831: CoreText reports Apple Color Emoji's glyphs 100 units (0.125 em at
+// its 800 upem) below the outline it hands back for the same glyph, and Chrome
+// paints at that bounding rect — so the raw outline needs moving. Every other
+// macOS face reports 0. These pin the measurement rule itself; the live-font
+// assertion below pins the actual system behavior.
+describe("measureOutlineOffsetY (DM-1831)", () => {
+  // A unit box from (0,0) to (100,100); `bbox.y` is what CoreText claims.
+  const g = (bboxY: number, d = "M 0 0 L 0 100 L 100 100 L 100 0 Z") =>
+    ({ id: 1, advance: 100, bbox: { x: 0, y: bboxY, w: 100, h: 100 }, d });
+
+  it("returns 0 when CoreText's rect agrees with the outline", () => {
+    expect(measureOutlineOffsetY([g(0), g(0), g(0)], 1000, 1000)).toBe(0);
+  });
+  it("adopts a unanimous, material offset", () => {
+    expect(measureOutlineOffsetY([g(-100), g(-100), g(-100)], 800, 800)).toBe(-100);
+  });
+  it("scales the probe reading into design units", () => {
+    // Probed at 1000 for an 800-upem face: -125 probe units == -100 design units.
+    expect(measureOutlineOffsetY([g(-125), g(-125)], 800, 1000)).toBe(-100);
+  });
+  it("ignores a NON-unanimous reading (per-glyph curve-extrema noise)", () => {
+    // PingFang-style scatter: control-point minimum vs tight curve bound.
+    expect(measureOutlineOffsetY([g(0), g(-1), g(-1), g(0)], 1000, 1000)).toBe(0);
+  });
+  it("ignores a unanimous but IMMATERIAL offset (< 1% of the em)", () => {
+    expect(measureOutlineOffsetY([g(-1), g(-1)], 1000, 1000)).toBe(0);
+  });
+  it("ignores blank and malformed probe glyphs rather than reading them as 0", () => {
+    const blank = { id: 0, advance: 0, bbox: { x: 0, y: 0, w: 0, h: 0 }, d: "" };
+    expect(measureOutlineOffsetY([blank, g(-100), g(-100)], 800, 800)).toBe(-100);
+  });
+  it("returns 0 when there is nothing to measure", () => {
+    expect(measureOutlineOffsetY([], 1000, 1000)).toBe(0);
+  });
+  it("probes a spread of low glyph ids so blanks still leave samples", () => {
+    expect(OFFSET_PROBE_GLYPHS.length).toBeGreaterThanOrEqual(4);
+    expect(Math.min(...OFFSET_PROBE_GLYPHS)).toBeGreaterThan(0);
+  });
+});
+
+// Gated on a RESOLVABLE helper (in-tree build or the downloaded release asset),
+// not just the in-tree binary, since either can serve these queries.
+const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
+
+(darwinHelper ? describe : describe.skip)("Apple Color Emoji outline offset, live (DM-1831)", () => {
+  afterEach(() => clearGlyphHelperCache());
+
+  it("moves the U+20E3 keycap outline down to where Chrome paints it", () => {
+    const font = createGlyphHelperFont({
+      postscriptName: "AppleColorEmoji",
+      fontPath: "/System/Library/Fonts/Apple Color Emoji.ttc"
+    });
+    if (font == null) return; // face absent on this machine
+    const glyph = font.glyphForCodePoint(0x20E3);
+    if (glyph.id === 0 || glyph.path.commands.length === 0) return;
+    const ys: number[] = [];
+    for (const c of glyph.path.commands) for (let i = 1; i < c.args.length; i += 2) ys.push(c.args[i]);
+    // Raw glyf outline is 0..708; Chrome paints it at -100..608.
+    expect(Math.min(...ys)).toBe(-100);
+    expect(Math.max(...ys)).toBe(608);
+  });
+
+  it("leaves an ordinary face's outlines untouched", () => {
+    const font = createGlyphHelperFont({
+      postscriptName: "Helvetica",
+      fontPath: "/System/Library/Fonts/Helvetica.ttc"
+    });
+    if (font == null) return;
+    const glyph = font.glyphForCodePoint(0x48); // 'H' sits on the baseline
+    if (glyph.id === 0 || glyph.path.commands.length === 0) return;
+    const ys: number[] = [];
+    for (const c of glyph.path.commands) for (let i = 1; i < c.args.length; i += 2) ys.push(c.args[i]);
+    expect(Math.min(...ys)).toBe(0);
   });
 });

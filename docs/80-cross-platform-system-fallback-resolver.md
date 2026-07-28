@@ -191,7 +191,12 @@ coverage — it calls Chromium's own DirectWrite fallback API with the helper's
 itself would paint, or report `found:false` and correctly tofu (matching Chromium).
 Orphaned variation selectors are stripped upstream by `stripOrphanedDefaultIgnorables`
 (DM-1158) before the resolver runs, exactly as on Linux, so the flip paints no
-last-resort boxes.
+last-resort boxes. That strip does **not** consult font coverage: HarfBuzz hides
+every default-ignorable after shaping whether or not the font has a glyph for it
+(`hb_ot_hide_default_ignorables` rewrites it to the invisible/space glyph with a
+zero advance), so a selector an emoji font happens to carry in its cmap must be
+dropped just the same — keeping those painted a tofu box where Chrome paints
+nothing.
 
 The `features-windows.json` baseline gate (covered text) is unaffected: every
 codepoint it exercises is static-owned, so the resolver never fires for it. There

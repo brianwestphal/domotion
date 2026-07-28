@@ -742,16 +742,15 @@ describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
   });
 });
 
-(MACOS_FONTS_DC ? describe : describe.skip)("stripOrphanedDefaultIgnorables (DM-1158)", () => {
-  // Helvetica covers no variation selector, so the primary-uncovered gate fires
-  // deterministically (a chain led by a font that DOES cover a given VS — e.g.
-  // Noto Sans for U+FE00 — would keep it, which is also correct but font-version
-  // dependent, so it's the wrong basis for an assertion).
-  const fam = "Helvetica";
+describe("stripOrphanedDefaultIgnorables (DM-1158)", () => {
+  // Font-independent by design (DM-1835): HarfBuzz hides default-ignorables
+  // after shaping regardless of cmap coverage, so neither the family nor the
+  // installed font set may change the answer. That also makes these assertions
+  // deterministic on any machine — no MACOS_FONTS_DC gate needed.
   const run = (text: string, xOffsets?: number[]) =>
-    stripOrphanedDefaultIgnorables(text, xOffsets, fam, 400, 32, 0, undefined);
+    stripOrphanedDefaultIgnorables(text, xOffsets);
 
-  it("drops a lone, uncovered variation selector (Chrome paints nothing)", () => {
+  it("drops a lone variation selector (Chrome paints nothing)", () => {
     const r = run("︀", [16]);
     expect(r.text).toBe("");
     expect(r.xOffsets).toEqual([]);
@@ -777,6 +776,40 @@ describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
     const r = run("Hello", [0, 1, 2, 3, 4]);
     expect(r.text).toBe("Hello");
     expect(r.xOffsets).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  // DM-1835: the regression that motivated dropping the coverage gate. U+FE0F is
+  // in Apple Color Emoji's cmap (a zero-advance, outline-less glyph), so the old
+  // "only strip what the primary font does NOT cover" rule kept it — and the
+  // variation-selector fixture painted a tofu box where Chrome paints nothing.
+  it("drops a LONE U+FE0F even though emoji fonts map it in their cmap", () => {
+    const r = run("️", [16]);
+    expect(r.text).toBe("");
+    expect(r.xOffsets).toEqual([]);
+  });
+  it("drops every orphaned selector in the FE00-FE0F block", () => {
+    for (let cp = 0xFE00; cp <= 0xFE0F; cp++) {
+      expect(run(String.fromCodePoint(cp), [16]).text).toBe("");
+    }
+  });
+  it("drops orphaned supplement selectors and language tags", () => {
+    expect(run("\u{E0100}", [16, 16]).text).toBe("");
+    expect(run("\u{E0041}", [16, 16]).text).toBe("");
+  });
+  it("still keeps U+FE0F after an emoji base regardless of coverage", () => {
+    // The emoji-presentation sequence must survive intact for the downstream
+    // raster-overlay path; only the ORPHANED case is Chrome-invisible.
+    expect(run("\u{1F600}️").text).toBe("\u{1F600}️");
+  });
+  it("resets the cluster base across whitespace, so a post-space selector is orphaned again", () => {
+    const r = run("A ️", [0, 10, 20]);
+    expect(r.text).toBe("A ");
+    expect(r.xOffsets).toEqual([0, 10]);
+  });
+  it("drops a run of consecutive orphaned selectors", () => {
+    const r = run("︀️︁B", [0, 0, 0, 12]);
+    expect(r.text).toBe("B");
+    expect(r.xOffsets).toEqual([12]);
   });
 });
 
