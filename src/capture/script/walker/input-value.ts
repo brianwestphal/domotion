@@ -334,7 +334,18 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
         textSegments = lines.map(ln => ({
           text: ln.text,
           x: textLeft + ln.left,
-          y: textTopLineBox + ln.top,
+          // Snap to a whole pixel: Chrome positions glyphs with SUBPIXEL
+          // precision horizontally only — vertically the text origin is rounded
+          // to an integer device pixel before rasterization. Measured directly:
+          // a box at top 40 / 140.25 / 240.5 / 340.75 paints its first ink row
+          // at 45 / 145 / 246 / 346 — always round(top) + a constant, and always
+          // an integer row (identical for a <textarea> and a plain <div>, so this
+          // is glyph rasterization, not a scroll-container effect). A textarea
+          // whose border box lands on a fractional y (here .4375, from ordinary
+          // page flow) therefore had every line rendered up to a pixel off.
+          // The renderer already rounds the ascent it adds to reach the baseline
+          // (`text-to-path.ts`), so rounding the line top rounds the baseline.
+          y: Math.round(textTopLineBox + ln.top),
           width: ln.right - ln.left,
           height: ln.bottom - ln.top,
           xOffsets: ln.xOffsets,

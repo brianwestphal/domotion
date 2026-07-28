@@ -31,7 +31,9 @@ const PAGE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
     padding: 8px; border: 1px solid #888; box-sizing: border-box;
     white-space: pre-wrap; margin: 0;
   }
-  #ta  { top: 40px;  height: 120px; }
+  /* Deliberately a FRACTIONAL top: Chrome rounds the text origin to a whole
+     device pixel vertically, so the captured line y must be an integer. */
+  #ta  { top: 40.4375px; height: 120px; }
   /* The reference: same box, same type, laid out by Chrome as ordinary text. */
   #ref { top: 300px; height: auto; }
 </style></head><body>
@@ -116,10 +118,19 @@ describeBrowser("textarea per-line segment baselines", () => {
       + (parseFloat(ta.styles.paddingTop ?? "0") || 0);
 
     // Line 0 must sit exactly one half-leading below the content top — the
-    // offset Chrome itself produced for the reference. Before the fix this was
-    // off by a further half-leading (~2.3px here), which this 0.75px tolerance
-    // rejects.
-    expect(segs[0].y - contentTop).toBeCloseTo(oracle.firstLineOffset, 1);
+    // offset Chrome itself produced for the reference — snapped to the whole
+    // pixel Chrome rasterizes at. Before the fix this was off by a FURTHER
+    // half-leading (~2.3px here), far outside this tolerance.
+    expect(segs[0].y).toBeCloseTo(Math.round(contentTop + oracle.firstLineOffset), 1);
+
+    // Chrome positions glyphs subpixel horizontally but rounds the vertical
+    // origin, so a textarea on a fractional y must still yield integer line
+    // tops. `#ta` is deliberately at 40.4375px to make this bite.
+    expect(contentTop, "fixture must sit on a fractional y or this proves nothing")
+      .not.toBe(Math.round(contentTop));
+    for (const s of segs) {
+      expect(s.y, `line "${s.text}" must land on a whole pixel`).toBe(Math.round(s.y));
+    }
 
     // ...and the leading must not compound down the block: every subsequent
     // line is exactly one pitch below its predecessor.
