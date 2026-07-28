@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -2466,5 +2466,73 @@ describe("glyphIdForCp (DM-1712 null-safety)", () => {
     // "not covered", so the fallback chain is probed rather than crashing.
     expect(() => glyphIdForCp(stub(null), 0x2b50)).not.toThrow();
     expect(glyphIdForCp(stub(null), 0x2b50)).toBe(0);
+  });
+});
+
+// A shaped glyph's UTF-16 source span must be measured against the SOURCE
+// TEXT, never against the glyph's own `codePoints`.
+//
+// fontkit memoizes Glyph objects by glyph id, so a glyph reached from more than
+// one source codepoint reports the codePoints of whichever codepoint FIRST
+// materialized it. `.notdef` (id 0) is the acute case: every codepoint no font
+// in the chain covers shares one Glyph, so once a BMP codepoint has missed, a
+// later ASTRAL miss still reports the BMP one. A span derived from that counts
+// 1 code unit where the surrogate pair consumed 2, the emitter's cursor lands
+// mid-pair, and every later glyph in the run reads the wrong captured x — the
+// synthetic dotted circle after an orphaned astral mark collapsed onto the
+// mark's tofu instead of sitting beside it.
+//
+// Order-dependent by construction, which is why it only ever reproduced in a
+// multi-fixture sweep: rendered alone, a fixture's first miss IS the astral one
+// and the stale value happens to be right.
+describe("sourceClusterSpan (shared-Glyph codePoints aliasing)", () => {
+  it("measures an astral cluster as 2 code units even when the glyph claims BMP", () => {
+    // The failing shape: source is a surrogate pair, the shared `.notdef`
+    // reports one BMP codepoint. One source codepoint consumed → span 2.
+    expect(sourceClusterSpan("\u{10F46}◌", 0, 1, false)).toBe(2);
+  });
+
+  it("measures a BMP cluster as 1 code unit", () => {
+    expect(sourceClusterSpan("ු◌", 0, 1, false)).toBe(1);
+    expect(sourceClusterSpan("abc", 1, 1, false)).toBe(1);
+  });
+
+  it("sums a multi-codepoint (ligature) cluster from the text's own widths", () => {
+    expect(sourceClusterSpan("fi!", 0, 2, false)).toBe(2);                 // 2 BMP
+    expect(sourceClusterSpan("\u{10F46}\u{10F47}", 0, 2, false)).toBe(4);  // 2 astral
+    expect(sourceClusterSpan("a\u{10F46}", 0, 2, false)).toBe(3);          // mixed
+  });
+
+  it("walks backwards for an RTL run, whose cursor sits at the cluster END", () => {
+    // Cursor at end of "𐽆" (2 units): one source codepoint back → span 2.
+    expect(sourceClusterSpan("\u{10F46}", 2, 1, true)).toBe(2);
+    expect(sourceClusterSpan("ab", 2, 1, true)).toBe(1);
+    expect(sourceClusterSpan("a\u{10F46}", 3, 2, true)).toBe(3);
+  });
+
+  it("always advances the cursor, even past the end of the text", () => {
+    // A zero span would spin the emitter's walk forever.
+    expect(sourceClusterSpan("ab", 2, 1, false)).toBe(1);
+    expect(sourceClusterSpan("ab", 0, 1, true)).toBe(1);
+    expect(sourceClusterSpan("", 0, 3, false)).toBe(1);
+  });
+});
+
+// The aliasing itself, pinned against real fontkit so the fix stays anchored to
+// the library behavior that motivates it rather than to our own stub.
+(MACOS_FONTS ? describe : describe.skip)("fontkit shares one .notdef Glyph across uncovered codepoints", () => {
+  it("reports the FIRST miss's codePoints for a later astral miss", () => {
+    const font = fontkit.openSync("/System/Library/Fonts/Supplemental/Arial Unicode.ttf") as unknown as {
+      layout: (t: string) => { glyphs: Array<{ id: number; codePoints?: number[] }> };
+    };
+    // A BMP codepoint Arial Unicode MS lacks materializes `.notdef` first.
+    const bmp = font.layout("ࡰ").glyphs[0];
+    expect(bmp.id).toBe(0);
+    // An ASTRAL miss now hands back that same cached Glyph — still BMP
+    // codePoints, so a span derived from it would be 1 instead of 2.
+    const astral = font.layout("\u{10F46}").glyphs[0];
+    expect(astral.id).toBe(0);
+    expect(astral.codePoints?.[0]).toBe(0x870);
+    expect(sourceClusterSpan("\u{10F46}", 0, 1, false)).toBe(2);
   });
 });

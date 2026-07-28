@@ -615,6 +615,51 @@ export function cjkTrimShiftFontUnits(
   return -trimFU;
 }
 
+/**
+ * UTF-16 length of the source cluster a shaped glyph consumed, measured from
+ * the SOURCE TEXT rather than from the glyph's own `codePoints`.
+ *
+ * fontkit memoizes `Glyph` objects by glyph id, so a glyph reached from more
+ * than one source codepoint reports the `codePoints` of whichever codepoint
+ * FIRST materialized it. `.notdef` (id 0) is the acute case: every codepoint no
+ * font in the chain covers shares that single Glyph instance, so once any BMP
+ * codepoint has missed, a later ASTRAL miss still reports the BMP one — and a
+ * span derived from it counts 1 code unit where the source consumed 2 (a
+ * surrogate pair). The cursor then lands mid-pair, and every later glyph in the
+ * run reads the wrong captured x. The synthetic dotted circle after an orphaned
+ * astral combining mark collapses onto the mark's tofu instead of sitting
+ * beside it — the whole cell paints one glyph-width narrow.
+ *
+ * It is order-dependent, which is why it only ever showed up in a multi-fixture
+ * sweep: rendered on its own, a fixture's first `.notdef` miss IS the astral
+ * one, so the stale value happens to be right.
+ *
+ * The glyph still tells us HOW MANY source codepoints it consumed (1 for a
+ * plain glyph, 2+ for a ligature) — only their code-unit widths come from the
+ * text, which is the part a shared Glyph cannot know. `backwards` walks an RTL
+ * run, whose cursor sits at the cluster END rather than its start.
+ */
+export function sourceClusterSpan(
+  text: string, cursor: number, cpCount: number, backwards: boolean,
+): number {
+  let span = 0;
+  for (let k = 0; k < cpCount; k++) {
+    if (backwards) {
+      const end = cursor - span;
+      if (end <= 0) break;
+      const unit = text.charCodeAt(end - 1);
+      const isLowSurrogate = unit >= 0xDC00 && unit <= 0xDFFF;
+      span += isLowSurrogate && end - 2 >= 0 ? 2 : 1;
+    } else {
+      const at = cursor + span;
+      if (at >= text.length) break;
+      span += text.codePointAt(at)! > 0xFFFF ? 2 : 1;
+    }
+  }
+  // Never return 0: the caller's cursor must advance or the walk never ends.
+  return span > 0 ? span : 1;
+}
+
 function singleFontMarkup(
   font: FontInstance,
   fontKey: string,
@@ -663,18 +708,13 @@ function singleFontMarkup(
       }
       // Advance the text-index cursor by the cluster's char span: each BMP
       // codepoint in the cluster consumes 1 text index, each astral codepoint
-      // consumes 2 (surrogate pair). Empty codePoints (decomposed glyphs)
-      // count as 1 to keep the cursor moving — good enough for the Latin
-      // ligature cases we hit; Arabic/Devanagari/Thai re-ordering goes
-      // through the multi-font run path, not here.
+      // consumes 2 (surrogate pair). Measured against the SOURCE text, not the
+      // glyph's own `codePoints` — see `sourceClusterSpan` for why a shared
+      // (memoized) Glyph misreports those. Good enough for the Latin ligature
+      // cases we hit; Arabic/Devanagari/Thai re-ordering goes through the
+      // multi-font run path, not here.
       const cps = glyph.codePoints;
-      let span = 0;
-      if (cps != null && cps.length > 0) {
-        for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
-      } else {
-        span = 1;
-      }
-      textIdx += span;
+      textIdx += sourceClusterSpan(text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, false);
     }
     return {
       markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
@@ -1579,10 +1619,12 @@ function renderTextAsEmbedded(
     // Walk the shaped glyph stream. For each glyph: convert its cluster's
     // first-codepoint xOffset to a CSS pixel x, OR fall back to the
     // accumulated cursor when no xOffsets are present (or the cluster
-    // boundary doesn't have one). Cluster span = sum of per-codepoint
-    // UTF-16 lengths in glyph.codePoints (BMP=1, astral=2). When the
-    // codePoints array is missing or empty (decomposed glyphs) span=1
-    // so the cursor still advances.
+    // boundary doesn't have one). The cluster's UTF-16 span is measured from
+    // the SOURCE text (BMP=1, astral=2) rather than from the glyph's own
+    // `codePoints`, which a memoized/shared Glyph misreports — see
+    // `sourceClusterSpan`. A missing or empty codePoints array (decomposed
+    // glyphs, native-helper glyphs) counts as one source codepoint, so the
+    // cursor still advances.
     let textIdx = runIsRtl ? run.text.length : 0; // index within run.text
     // DM-1028: when the run was shaped by the CoreText helper, each glyph
     // carries its UTF-16 source cluster index. We anchor each CLUSTER at its
@@ -1669,12 +1711,8 @@ function renderTextAsEmbedded(
         // intra-run textIdx to look it up.
         // Compute the cluster's UTF-16 char span (size in run.text).
         const cps = glyph.codePoints;
-        let span = 0;
-        if (cps != null && cps.length > 0) {
-          for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
-        } else {
-          span = 1;
-        }
+        const span = sourceClusterSpan(
+          run.text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, runIsRtl);
         // For RTL runs, textIdx walks backwards: the cluster's first
         // logical char sits at (textIdx - span), so subtract BEFORE lookup
         // so the lookup index lands on the cluster's first char.
