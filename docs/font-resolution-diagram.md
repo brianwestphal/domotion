@@ -414,7 +414,7 @@ flowchart TD
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F2
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
-  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else (Linux) base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
+  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| F3["2a. kSystemFonts: fallbackFontChain(cp, primaryKey, lang)<br/>(§7 static per-block calibrated table, literal only)"]
   F3 -->|"first covering key (skip 'last-resort')"| F3H["cover(candidate)"]
@@ -434,7 +434,7 @@ Notes:
 - Step 1 confines NFD decomposition to the DECLARED cascade (so it never
   over-renders into deep fallback faces Chrome can't reach — the DM-1080 hazard;
   Arial Unicode MS covers +85 CJK-compat cells via in-font decomposition).
-- Step 1's third check (**Linux only**) mirrors HarfBuzz's normalizer
+- Step 1's third check (**all platforms**) mirrors HarfBuzz's normalizer
   (`hb-ot-shape-normalize.cc`): a codepoint with a canonical **base+mark** NFD
   (`nfdBaseMarkDecomposition` — e.g. U+21AE ↮ → U+2194 ↔ + U+0338 combining long
   solidus) whose pieces a declared family covers is routed through a real-HarfBuzz
@@ -442,11 +442,25 @@ Notes:
   paints the negated arrows (↮ ⇎ ↚ ↛) as two Liberation Sans glyphs (base arrow +
   naively-placed zero-advance slash; no GPOS anchors on arrow bases) and never
   reaches the fontconfig per-char fallback, whose FreeSans PRECOMPOSED ↮
-  (slash centered) is a visibly different glyph. Gated to Linux: on macOS Chrome
-  cannot decompose these in Helvetica (it lacks the U+2194 base — misc arrows
-  route to Hiragino) and paints Apple Symbols' composed glyph, which the darwin
-  chain already matches; Windows resolves them via its calibrated chain
-  (Segoe UI Symbol).
+  (slash centered) is a visibly different glyph.
+
+  It is **not** platform-gated: HarfBuzz normalization is engine behavior, and
+  what holds a codepoint back is the every-piece-covered guard, not the platform.
+  On macOS that guard is what keeps the negated arrows on their composed route —
+  Helvetica lacks the U+2194 base piece (misc arrows route to Hiragino), so
+  Chrome-on-macOS can't decompose them either and paints Apple Symbols' composed
+  glyph, which the darwin chain already matches. The guard **does** fire on a
+  **stock macOS** install for accented Latin / Cyrillic: with the non-stock
+  "SF Pro Text" absent the unicode fixtures' stacks fall to Arial Unicode MS,
+  which has no precomposed Ѐ Ѝ ѐ ѝ Ӭ ӭ (U+0400, U+040D, U+0450, U+045D, U+04EC,
+  U+04ED) or Ǹ Ș Ț Ȟ Ȧ Ǫ Ȯ Ȱ Ȳ (U+0218–U+0233) yet covers every NFD piece.
+  Chrome decomposes there — CDP `getPlatformFontsForNode` reports "Arial Unicode
+  MS" with glyphCount 2 (3 for the two-mark U+0230/U+0231). Rejecting the font on
+  missing composed coverage previously walked the resolver on to Helvetica's
+  precomposed glyph, whose accent sits at a visibly different height; a developer
+  Mac cannot reproduce that, because SF Pro Text covers those codepoints and the
+  walk never reaches Arial Unicode MS. Windows resolves these via its calibrated
+  chain (Segoe UI Symbol).
 - `codepointResolvesToNotdef(cp, …)` is the read-only predicate that runs the same
   chain (primary → webfont partition → `fallbackFontChain` → live resolver) to ask
   "does anything cover `cp`?" without emitting.

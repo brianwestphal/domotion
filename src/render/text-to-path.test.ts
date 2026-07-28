@@ -469,11 +469,13 @@ describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)
     expect(nfdBaseMarkDecomposition(0x0338)).toBeNull();  // the combining mark itself
     expect(nfdBaseMarkDecomposition(0xAC00)).toBeNull();  // 가 — jamo pieces are Lo, not M
   });
-  // The resolver branch itself is Linux-gated (`process.platform === "linux"`):
-  // Chrome-on-macOS CANNOT decompose these in Helvetica (macOS Helvetica lacks
-  // the U+2194 base piece — the misc arrows route to Hiragino per the darwin
-  // chain) and paints Apple Symbols' composed glyph instead, which the macOS
-  // pipeline already matches pixel-exactly.
+  // The resolver branch is NOT platform-gated — HarfBuzz normalization is engine
+  // behavior, not a platform quirk. What keeps the negated arrows on their
+  // composed route on macOS is the every-piece-covered guard, not a platform
+  // check: macOS Helvetica lacks the U+2194 base piece (the misc arrows route to
+  // Hiragino per the darwin chain), so the guard fails and Chrome-on-macOS
+  // likewise paints Apple Symbols' composed glyph, which we already match
+  // pixel-exactly.
   if (process.platform === "linux") {
     it("[linux] resolves the negated arrows to a DECOMPOSED run in the declared cascade, not the fc-match composed glyph", () => {
       for (const cp of [0x21AE, 0x21CE, 0x219A, 0x219B]) {
@@ -495,7 +497,72 @@ describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)
       expect(r!.decomposed).toBe(false);
     });
   }
+
+  // The guard above is what holds the arrows back on macOS, so pin its
+  // precondition explicitly — otherwise a future repoint of `sans-serif` to a
+  // face that DOES carry U+2194 would silently start decomposing them and the
+  // test above would still read as "correct by platform".
+  if (MACOS_FONTS) {
+    it("[macos] Helvetica genuinely lacks the U+2194 base piece (why the arrows don't decompose here)", () => {
+      const helv = getFontInstance("helvetica", 400, 32)!;
+      expect(glyphIdForCp(helv, 0x2194)).toBe(0);
+    });
+  }
 });
+
+// A stock macOS install has neither Apple's downloadable "SF Pro Text" nor
+// Google's "Noto Sans", so the unicode fixtures' font stacks fall through to
+// Arial Unicode MS. Arial Unicode MS carries no PRECOMPOSED glyph for the
+// grave/diaeresis Cyrillic letters or a swathe of Latin Extended-B, but it does
+// cover every piece of their canonical NFD — and HarfBuzz's normalizer
+// (hb-ot-shape-normalize.cc, decompose_current_character) decomposes exactly
+// there and shapes the pieces IN THAT SAME FONT. Chrome proves it: CDP
+// getPlatformFontsForNode reports "Arial Unicode MS" with glyphCount 2 for these
+// (3 for the two-mark U+0230/U+0231). Rejecting the font on missing composed
+// coverage walked us on to Helvetica's precomposed glyph, whose accent sits at a
+// visibly different height — the stock-macOS "accent marks in the wrong place"
+// that a developer Mac cannot reproduce, because there SF Pro Text covers them
+// and the walk never reaches Arial Unicode MS.
+if (process.platform === "darwin" && existsSync("/System/Library/Fonts/Supplemental/Arial Unicode.ttf")) {
+  describe("[macos] stock-install accents decompose in Arial Unicode MS, as Chrome does", () => {
+    const STACK = '"Arial Unicode MS", sans-serif';
+    // The six Cyrillic + a spread of the Latin Extended-B codepoints the
+    // stock-macOS runner reported as mispositioned.
+    const CPS = [0x0400, 0x040D, 0x0450, 0x045D, 0x04EC, 0x04ED, 0x01F8, 0x0218, 0x021A, 0x0226, 0x0230];
+
+    it("routes them to Arial Unicode MS as a DECOMPOSED run, not on to Helvetica's precomposed glyph", () => {
+      for (const cp of CPS) {
+        const r = __resolveFontForCodepointForTest(cp, STACK);
+        expect(r, `U+${cp.toString(16)}`).not.toBeNull();
+        expect(r!.covered, `U+${cp.toString(16)} covered`).toBe(true);
+        expect(r!.decomposed, `U+${cp.toString(16)} decomposed`).toBe(true);
+        expect(r!.key, `U+${cp.toString(16)} key`).toBe("u-arial-unicode-ms");
+      }
+    });
+
+    it("preconditions: Arial Unicode MS lacks the composed glyph but covers every NFD piece", () => {
+      const aum = getFontInstance("u-arial-unicode-ms", 400, 32)!;
+      for (const cp of CPS) {
+        expect(glyphIdForCp(aum, cp), `composed U+${cp.toString(16)}`).toBe(0);
+        const nfd = nfdBaseMarkDecomposition(cp);
+        expect(nfd, `nfd U+${cp.toString(16)}`).not.toBeNull();
+        for (const piece of [...nfd!]) {
+          expect(glyphIdForCp(aum, piece.codePointAt(0)!), `piece U+${piece.codePointAt(0)!.toString(16)}`).not.toBe(0);
+        }
+      }
+    });
+
+    it("leaves a codepoint Arial Unicode MS DOES carry composed on the literal fast path", () => {
+      // Ё / Й are precomposed in Arial Unicode MS, so Chrome paints one glyph
+      // and so must we — the decomposition branch must not steal these.
+      for (const cp of [0x0401, 0x0419]) {
+        const r = __resolveFontForCodepointForTest(cp, STACK);
+        expect(r!.decomposed, `U+${cp.toString(16)}`).toBe(false);
+        expect(r!.key).toBe("u-arial-unicode-ms");
+      }
+    });
+  });
+}
 
 // DM-1215: an ORPHANED complex-script combining mark must be shaped via real
 // HarfBuzz so the dotted circle Chrome inserts (and GPOS-positions the mark on)

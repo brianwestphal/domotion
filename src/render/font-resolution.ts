@@ -3959,8 +3959,8 @@ export function resolveFontForCodepoint(
   const singleton = (dcp0 != null && dcp0 !== cp && String.fromCodePoint(dcp0) === nfd) ? dcp0 : null;
 
   // Canonical base+mark decomposition (e.g. U+21AE ↮ → U+2194 ↔ + U+0338
-  // COMBINING LONG SOLIDUS OVERLAY), Linux-only. Chrome shapes with HarfBuzz,
-  // whose normalizer (hb-ot-shape-normalize.cc, decompose_current_character)
+  // COMBINING LONG SOLIDUS OVERLAY). Chrome shapes with HarfBuzz, whose
+  // normalizer (hb-ot-shape-normalize.cc, decompose_current_character)
   // decomposes a codepoint the current font's cmap lacks and shapes the pieces
   // IN THAT SAME FONT when it covers them — so Chrome-on-Linux paints the
   // negated arrows (↮ ⇎ ↚ ↛) as TWO Liberation Sans glyphs (CDP
@@ -3971,13 +3971,27 @@ export function resolveFontForCodepoint(
   // ↮ (slash centered through the arrow — a visibly different glyph). Mirror
   // that here: when a declared family covers every NFD piece, route the run
   // through real HarfBuzz (harfbuzzjs — the same engine Chrome embeds) so it
-  // decomposes and positions exactly like Chrome. Gated to Linux: on macOS the
-  // darwin chains route these blocks to Apple Symbols, whose literal composed
-  // coverage matches Chrome-on-macOS's paint (Chrome can't decompose them in
-  // Helvetica there — macOS Helvetica lacks the U+2194 base piece), and the
-  // macOS calibration is pixel-exact as-is; Windows likewise resolves them via
-  // its own calibrated chain (Segoe UI Symbol).
-  const baseMarkNfd = process.platform === "linux" && singleton == null ? nfdBaseMarkDecomposition(cp) : null;
+  // decomposes and positions exactly like Chrome.
+  //
+  // This is HarfBuzz behavior, not a platform quirk, so it is NOT gated by
+  // platform. It was originally scoped to Linux because the macOS cases that
+  // motivated it (the negated arrows) don't arise there — the darwin chains
+  // route those blocks to Apple Symbols and macOS Helvetica lacks the U+2194
+  // base piece, so the every-piece-covered guard below simply fails and the
+  // walk falls through exactly as before. But the same guard DOES fire on a
+  // stock macOS install for accented Latin / Cyrillic: with the non-stock
+  // "SF Pro Text" absent, the unicode fixtures' stacks fall to Arial Unicode
+  // MS, which has no PRECOMPOSED Ѐ / Ѝ / ѐ / ѝ / Ӭ / ӭ (U+0400, U+040D,
+  // U+0450, U+045D, U+04EC, U+04ED) or Ș / Ț / Ǹ / Ȟ / Ȧ / Ǫ… (U+0218-U+0233)
+  // yet does cover every NFD piece. Chrome decomposes and paints TWO Arial
+  // Unicode MS glyphs there (CDP getPlatformFontsForNode: "Arial Unicode MS",
+  // glyphCount 2 — glyphCount 3 for the two-mark U+0230/U+0231). Rejecting the
+  // font on missing composed coverage sent us on down the chain to Helvetica,
+  // whose PRECOMPOSED glyph carries the accent at a visibly different height —
+  // the "accent marks in the wrong place" the stock-macOS runner reports and a
+  // developer Mac (which has SF Pro Text, so it never reaches Arial Unicode MS)
+  // cannot reproduce.
+  const baseMarkNfd = singleton == null ? nfdBaseMarkDecomposition(cp) : null;
   const baseMarkCps = baseMarkNfd != null ? [...baseMarkNfd].map((c) => c.codePointAt(0)!) : null;
 
   // Materialize a chain key to an instance — webfont-partition-aware, and only
