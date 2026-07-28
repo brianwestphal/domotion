@@ -82,6 +82,24 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(jobs["test-linux"]).not.toMatch(/linux-glyph-extractor/);
   });
 
+  // DM-1843: `include_svg` kept the SVGs in the shard artifacts, but the step
+  // that publishes to the `domotion-ci-images` transport repo hard-filtered to
+  // `*.png` — so the input could never put an SVG where the review UI reads
+  // from, which is precisely the evidence a runner-only failure needs. Verified
+  // empirically: run 30322700111 (include_svg=true) published 110 files, zero
+  // of them `.svg`, while its raw shard artifacts held 36.
+  it("the images publish step can carry SVGs, not only PNGs", () => {
+    const job = jobs["aggregate"];
+    expect(job, "aggregate job must exist").toBeDefined();
+    const publish = job.slice(job.indexOf("Push images to domotion-ci-images"));
+    expect(
+      /-name "\*\.svg"/.test(publish),
+      "the publish step copies only *.png, so include_svg can never reach the review UI",
+    ).toBe(true);
+    // Gated, not unconditional — SVGs are ~85% of the weight.
+    expect(publish).toMatch(/INCLUDE_SVG/);
+  });
+
   it("copies the built binary to the path the resolver looks for", () => {
     // `HELPER_BINARIES.darwin` in src/render/glyph-helper.ts resolves exactly
     // this filename; `swift build` emits `DomotionGlyphPaths`, so a build that

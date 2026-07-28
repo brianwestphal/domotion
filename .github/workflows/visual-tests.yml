@@ -311,6 +311,7 @@ jobs:
           GH_RUN_ID: ${{ github.run_id }}
           GH_SHA: ${{ github.sha }}
           SUITE: ${{ inputs.suite }}
+          INCLUDE_SVG: ${{ inputs.include_svg }}
         run: |
           if [ -z "$CI_IMAGES_DEPLOY_KEY" ]; then
             echo "CI_IMAGES_DEPLOY_KEY secret not set — skipping image push"; exit 0
@@ -326,9 +327,17 @@ jobs:
             [ -f "$slim" ] || continue
             stage=$(mktemp -d)
             # Every shard dir for this OS contributes its PNGs (flat layout —
-            # fixture filenames are unique per suite).
+            # fixture filenames are unique per suite). SVGs ride along only when
+            # the run asked for them: they are ~85% of the weight, so the default
+            # branch stays lean, but `include_svg` was previously unable to reach
+            # the review UI at all — the SVGs survived into the shard artifacts
+            # and were then dropped here by a hard `*.png` filter, which is
+            # exactly the evidence a runner-only rendering failure needs.
             find shard-artifacts -type d -name "results-$os-shard*" | while read -r d; do
               find "$d" -name "*.png" -exec cp {} "$stage/" ";"
+              if [ "$INCLUDE_SVG" = "true" ]; then
+                find "$d" -name "*.svg" -exec cp {} "$stage/" ";"
+              fi
             done
             cp "$slim" "$stage/results.json"
             node -e "require(\"fs\").writeFileSync(process.argv[1] + \"/meta.json\", JSON.stringify({ runId: process.env.GH_RUN_ID, commit: process.env.GH_SHA, suite: process.env.SUITE, os: process.argv[2], pushedAt: new Date().toISOString() }))" "$stage" "$os"
