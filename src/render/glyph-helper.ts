@@ -773,8 +773,36 @@ const _installedFontCache = new Map<string, InstalledFont | null>();
  *  name isn't a real installed font (caller keeps walking the stack), or when
  *  the helper binary isn't available (Linux / unbuilt). Memoized
  *  process-wide. */
+/**
+ * Families to pretend are not installed, from `DOMOTION_HIDE_FAMILIES`
+ * (comma-separated, case-insensitive).
+ *
+ * Font selection is only correct when it matches what Chrome paints ON THE SAME
+ * MACHINE, and machines genuinely differ: a developer Mac carrying Apple's
+ * downloadable SF Pro and Google's Noto Sans resolves a stack quite differently
+ * from a stock install or a CI runner. That asymmetry made a whole class of
+ * "wrong font" failures reproduce only on CI, which is a terrible place to
+ * debug — every iteration is a push and a sweep.
+ *
+ * This makes the leaner machine reproducible on the richer one:
+ *
+ *   DOMOTION_HIDE_FAMILIES="SF Pro Text,SF Pro Display,SF Pro,Noto Sans" \
+ *     npx tsx tests/html-test-suite.tsx --only 0400-04FF-cyrillic
+ *
+ * It hides families from *our* resolver only — Chrome still sees them, so the
+ * expected paint is unchanged. That makes it a debugging instrument for "what
+ * would our resolver pick without this font", NOT a simulation of the runner
+ * (whose Chrome also lacks them). Read the two sides accordingly.
+ */
+function hiddenFamilies(): Set<string> {
+  const raw = process.env.DOMOTION_HIDE_FAMILIES;
+  if (raw == null || raw.trim() === "") return new Set();
+  return new Set(raw.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s !== ""));
+}
+
 export function resolveInstalledFont(name: string): InstalledFont | null {
   const key = name.toLowerCase();
+  if (hiddenFamilies().has(key)) return null;
   if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
   let resolved: InstalledFont | null = null;
   if (isGlyphHelperAvailable()) {
