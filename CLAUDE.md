@@ -138,7 +138,26 @@ Keep **text search** (ripgrep / the Explore agent) for what it's best at: litera
 
 You have **standing permission to use Playwright freely** for any investigation, debugging, or experimentation — driving live pages, replaying cached HARs (`tests/cache/real-world/*.har`), dumping captured trees with computed styles, comparing painted output against captured rects, or any other interactive probe. Do NOT defer a ticket as "needs DOM access" or "blocked on interactive Playwright session" — write the probe script, run it, and proceed. Probes can land as throwaway scripts or be inlined directly in a Bash invocation; whatever's expedient. **Put reusable-but-uncommitted scratch scripts under `tools/scratch/` — it's gitignored**, so they persist locally without cluttering `git status` or risking an accidental commit (ES imports there are `../../src/...`). A committed, documented probe (referenced from docs/CLAUDE.md) belongs at `tools/` proper.
 
-**Always read Chromium source code when stuck on Chrome-paint behavior.** `chromium.googlesource.com` and `source.chromium.org` are in the sandbox allowlist and reachable via `WebFetch`. The project's fidelity rule says Chrome's actual paint is the source of truth — the Chromium source IS that source of truth, written down and citable. Whenever a ticket investigation reaches "I'm not sure why Chrome does X here," go read the blink renderer code instead of probing-and-curve-fitting. Useful entry points:
+**The Chromium source is checked out locally at `external/chromium`** — the full `third_party/blink/renderer/` tree. **Read it there first**; it is greppable, complete, and doesn't cost a fetch. `chromium.googlesource.com` and `source.chromium.org` remain in the sandbox allowlist via `WebFetch` for anything the checkout lacks, but prefer the local tree — a fetched *summary* of a file is not the file, and reading locally has already corrected conclusions drawn from one (the Windows fallback order, below).
+
+> The checkout is refreshed periodically and will drift from the Chrome that Playwright ships. That variance is **known and accepted**: the policy is to keep both reasonably recent rather than to pin them together. When a transcribed constant or table starts disagreeing with measured paint, suspect drift and re-read the local source before assuming our logic is wrong.
+>
+> It is a git checkout, so the revision is always available — `git -C external/chromium log -1 --format='%h %cd' --date=short` (as of writing: `7d859f27`, 2026-06-27). Quote it alongside any constant or table you transcribe, so a later disagreement can be attributed to drift rather than re-investigated from scratch.
+
+**Mirror Chromium's decision procedure — don't re-derive it, and don't sample it.** Where Chrome's behavior is expressible as an algorithm, port the algorithm from source rather than probing outputs and curve-fitting a table. This is the single most expensive lesson in the font area so far:
+
+- `unicode-font-routing.darwin.generated.ts` was built by **sampling** one Mac's CoreText answers per Unicode block. It froze that machine's font inventory into source (it names `SF Pro Text` — a separate Apple download — for Cyrillic), so every machine without those fonts painted faces Chrome never picks. The bug was never "a table exists"; Blink has one too. The bug was that ours was sampled from a machine instead of transcribed from Chromium.
+- A table is **correct** when it is what Blink does. `win/font_fallback_win.cc` is a hardcoded per-script table (74 `USCRIPT_*` → font-list mappings) that Blink consults **before** falling through to DirectWrite — so on Windows, porting that table *is* matching Chrome.
+
+**Per-codepoint font fallback is NOT the same procedure on all three platforms.** Verified against the local checkout; don't assume one shape generalizes:
+
+| Platform | Blink's path | Key detail |
+|---|---|---|
+| macOS | `font_cache_mac.mm` → `CTFontCreateForString(ct_font, …)` | base is **the run's current font**, and the answer depends on it |
+| Linux | `font_cache_linux.cc` → `gfx::GetFallbackFontForChar(c, locale, …)` (or `WebSandboxSupport::GetFallbackFontForCharacter` when sandboxed) | keyed on **locale**; there is no base font |
+| Windows | `font_cache_skia_win.cc` → hardcoded table first, `GetDWriteFallbackFamily` as fall-through | the table wins whenever it matches |
+
+Whenever a ticket investigation reaches "I'm not sure why Chrome does X here," go read the blink renderer code instead of probing-and-curve-fitting. Useful entry points (all under `external/chromium/`):
 
 - `third_party/blink/renderer/platform/fonts/` — font fallback, glyph metrics, sbix / COLR painters, `font-palette` resolution
 - `third_party/blink/renderer/platform/fonts/shaping/` — `ShapeResult`, glyph offset / advance math
