@@ -84,7 +84,8 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 - [x] `<input>` with `value` attr — rendered via path
 - [x] `<input>` placeholder — rendered in `::placeholder` color (and font-style, font-weight) — SK-1097 / SK-1100 / SK-1099
-- [x] `<textarea>` content — rasterized via `page.screenshot` for pixel-perfect Chrome word-wrap — SK-1108
+- [x] `<textarea>` content — rendered as one path run **per visual line**. A capture-side soft-wrap probe re-lays the value in an off-screen box matching the textarea's content box and type, so Chrome decides the wrap points; each resulting line becomes a `textSegment` with its own x/y and per-char offsets. Where the element carries a raster snapshot instead, that PNG is stamped at the content rect (SK-1108) — see [reference/raster-image-fallback-cases.md](reference/raster-image-fallback-cases.md).
+  - **Line y is a measured offset, never a computed one.** Each segment's y is the line-box top plus the probe's own character-rect top. That rect already sits at the font-box top, so Chrome's half-leading is *in* it — the segment base must therefore be the content-box top **before** the half-leading that the single-line `<input>` path folds into `textTop`. Adding both counted the leading twice and pushed every line ~half a leading down (a 14px/21px monospace textarea rendered a uniform ~3px low and clipped its last visible line). Pinned by `tests/textarea-line-baseline.e2e.test.ts`, which takes its expected offset from a Chrome-laid-out reference block rather than from our own arithmetic.
 - [~] `<button>`, `<select>` chrome: synthesized to UA-default; author-styled `::-webkit-*` pseudos partially supported (tracked SK-1125 / SK-1126)
 
 ### List markers

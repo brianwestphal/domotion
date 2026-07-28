@@ -139,6 +139,13 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
     // on each side. The renderer treats `textTop` as the line-box top and draws
     // the baseline at textTop + ascent, so fold the half-leading into textTop.
     const fontH = fontAscent + fontDescent;
+    // The textarea per-line probe below derives each line's y from a CHARACTER
+    // range rect, whose top is already the font-box top — half-leading included,
+    // measured by Chrome rather than estimated. So the segment base must be the
+    // line-box top, BEFORE the adjustment below, or the leading is counted twice
+    // and every line paints ~half-leading too low (14px/21px monospace textareas
+    // rendered a uniform ~3px down, clipping the last visible line).
+    const textTopLineBox = textTop;
     if (cs.lineHeight !== 'normal' && textHeight > fontH + 0.5) {
       // DM-1259: an EXPLICIT line-height TALLER than the font → positive
       // half-leading; the single line's text is centered in the line box, LOWER
@@ -327,7 +334,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
         textSegments = lines.map(ln => ({
           text: ln.text,
           x: textLeft + ln.left,
-          y: textTop + ln.top,
+          y: textTopLineBox + ln.top,
           width: ln.right - ln.left,
           height: ln.bottom - ln.top,
           xOffsets: ln.xOffsets,
