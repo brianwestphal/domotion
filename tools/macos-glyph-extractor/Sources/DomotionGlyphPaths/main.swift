@@ -42,6 +42,84 @@ func formatNumber(_ value: CGFloat) -> String {
     return s
 }
 
+// MARK: - system-ui matching (Blink MatchSystemUIFont)
+
+// blink/renderer/platform/fonts/font_selection_types.h — kNormalWeightValue 400,
+// kNormalWidthValue 100, kBoldThreshold 600, kNormalSlopeValue 0.
+let kNormalWeightValue = 400.0
+let kNormalWidthValue = 100.0
+let kBoldThreshold = 600.0
+let kNormalSlopeValue = 0.0
+
+/// Clamp `weight` / `width` to the ranges the font's own variation axes accept.
+///
+/// Transcribed from `ClampVariationValuesToFontAcceptableRange`
+/// (font_matcher_mac.mm:483-538). Note Blink only clamps an axis when the value
+/// differs from that axis's normal — a normal value is left alone even if the
+/// font's range excludes it.
+func clampVariationValuesToFontAcceptableRange(_ font: CTFont,
+                                               _ weight: inout Double,
+                                               _ width: inout Double) {
+    guard let axes = CTFontCopyVariationAxes(font) as? [[String: Any]] else { return }
+    let weightTag = fourCharTag("wght")
+    let widthTag = fourCharTag("wdth")
+    for axis in axes {
+        guard let axisId = (axis[kCTFontVariationAxisIdentifierKey as String] as? NSNumber)?.uint32Value,
+              let axisMin = (axis[kCTFontVariationAxisMinimumValueKey as String] as? NSNumber)?.doubleValue,
+              let axisMax = (axis[kCTFontVariationAxisMaximumValueKey as String] as? NSNumber)?.doubleValue
+        else { continue }
+        if axisId == weightTag && weight != kNormalWeightValue {
+            weight = min(max(weight, axisMin), axisMax)
+        }
+        if axisId == widthTag && width != kNormalWidthValue {
+            width = min(max(width, axisMin), axisMax)
+        }
+    }
+}
+
+/// The `system-ui` primary, as Blink builds it.
+///
+/// Transcribed from `MatchSystemUIFont` (font_matcher_mac.mm:540-588). The
+/// `size` is load-bearing twice over: CoreText picks the Text vs Display optical
+/// cut from it (measured switch at exactly 20px), and it is carried into both
+/// copy calls.
+func matchSystemUIFont(weight: Double, slant: Double, width: Double, size: CGFloat) -> CTFont? {
+    guard var ctFont = CTFontCreateUIFontForLanguage(.system, size, nil) else { return nil }
+
+    var desiredTraits: CTFontSymbolicTraits = []
+    if slant != kNormalSlopeValue { desiredTraits.insert(.traitItalic) }
+    if weight >= kBoldThreshold { desiredTraits.insert(.traitBold) }
+
+    if !desiredTraits.isEmpty {
+        // Blink does `ct_font.reset(...)` unconditionally, so a copy CoreText
+        // declines makes the whole match null rather than falling back to the
+        // untraited font. Mirror that.
+        guard let copy = CTFontCreateCopyWithSymbolicTraits(
+            ctFont, size, nil, desiredTraits, desiredTraits) else { return nil }
+        ctFont = copy
+    }
+
+    if weight == kNormalWeightValue && width == kNormalWidthValue {
+        return ctFont
+    }
+
+    var w = weight
+    var wd = width
+    clampVariationValuesToFontAcceptableRange(ctFont, &w, &wd)
+
+    var variations: [CFNumber: CFNumber] = [:]
+    if w != kNormalWeightValue {
+        variations[NSNumber(value: fourCharTag("wght")) as CFNumber] = NSNumber(value: w) as CFNumber
+    }
+    if wd != kNormalWidthValue {
+        variations[NSNumber(value: fourCharTag("wdth")) as CFNumber] = NSNumber(value: wd) as CFNumber
+    }
+
+    let attributes = [kCTFontVariationAttribute: variations as CFDictionary] as CFDictionary
+    let varFontDesc = CTFontDescriptorCreateWithAttributes(attributes)
+    return CTFontCreateCopyWithAttributes(ctFont, size, nil, varFontDesc)
+}
+
 // MARK: - Font open
 
 struct FontEntry {
@@ -65,11 +143,8 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     // `systemUI: true` — the CSS `system-ui` / `-apple-system` primary.
     //
     // Blink does not resolve this through family matching. `CreateFontPlatformData`
-    // routes it to `MatchSystemUIFont` (font_cache_mac.mm:409-412), which is
-    // (font_matcher_mac.mm:540-570):
-    //
-    //     CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, nullptr)
-    //     + CTFontCreateCopyWithSymbolicTraits for bold / italic
+    // routes it to `MatchSystemUIFont` (font_cache_mac.mm:409-412), transcribed
+    // below from font_matcher_mac.mm:540-588. Chromium rev 7d859f27, 2026-06-27.
     //
     // This is NOT reproducible by opening the SF font file. Measured: with
     // `/System/Library/Fonts/SFNS.ttf` as the base, CoreText's cascade answers
@@ -79,24 +154,27 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     // Apple's `.…UI` variants — and only this API returns it. Blink's own
     // comment notes the same effect for emoji: the system API "might also return
     // '.Apple Color Emoji UI' when starting from system-ui" (font_cache_mac.mm:156-159).
-    //
-    // The size matters and must be the run's: CoreText picks the Text vs Display
-    // optical cut from it (measured switch at exactly 20px).
     if (spec["systemUI"] as? NSNumber)?.boolValue == true {
-        var uiFont = CTFontCreateUIFontForLanguage(.system, CGFloat(size), nil)
-        var traits: CTFontSymbolicTraits = []
-        if (spec["bold"] as? NSNumber)?.boolValue == true { traits.insert(.traitBold) }
-        if (spec["italic"] as? NSNumber)?.boolValue == true { traits.insert(.traitItalic) }
-        if !traits.isEmpty, let f = uiFont,
-           let copy = CTFontCreateCopyWithSymbolicTraits(f, CGFloat(size), nil, traits, traits) {
-            uiFont = copy
+        // CSS values, not booleans: Blink derives the traits from the numbers,
+        // so the thresholds have to live on this side to match it.
+        let cssWeight = (spec["cssWeight"] as? NSNumber)?.doubleValue ?? kNormalWeightValue
+        let cssWidth = (spec["cssWidth"] as? NSNumber)?.doubleValue ?? kNormalWidthValue
+        let cssSlant = (spec["cssSlant"] as? NSNumber)?.doubleValue
+            ?? (((spec["italic"] as? NSNumber)?.boolValue == true) ? 1.0 : kNormalSlopeValue)
+        guard let f = matchSystemUIFont(weight: cssWeight, slant: cssSlant,
+                                        width: cssWidth, size: CGFloat(size)) else {
+            // Blink propagates this null: `CreateFontPlatformData` sees a null
+            // `matched_font` and returns nullptr, i.e. the family is unavailable.
+            // Say so rather than silently substituting a different base — a
+            // wrong base answers a different question than the one asked, and
+            // the caller would have no way to tell (same rule as `runFallbackQuery`).
+            throw NSError(domain: "domotion", code: 3, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "system-ui font unavailable at size \(size) weight \(cssWeight) width \(cssWidth) slant \(cssSlant)",
+            ])
         }
-        if let f = uiFont {
-            return FontEntry(ref: ref, font: f, pointSize: CGFloat(size),
-                             unitsPerEm: Int(CTFontGetUnitsPerEm(f)))
-        }
-        // Fall through to the normal path if CoreText declined — better a
-        // named-font cascade than no answer at all.
+        return FontEntry(ref: ref, font: f, pointSize: CGFloat(size),
+                         unitsPerEm: Int(CTFontGetUnitsPerEm(f)))
     }
 
     if let path = fontPath {
