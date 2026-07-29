@@ -3,12 +3,17 @@ import { defineConfig } from "vitest/config";
 // Unit-test config (DM-1075). The default `vitest run` (= `npm test`) runs the
 // fast, browser-free unit suite — every `*.test.ts` EXCEPT the browser-launching
 // `*e2e.test.ts` files, which run on their own lane via `npm run test:e2e`
-// (vitest.e2e.config.ts). Keep the two in sync where they overlap (esbuild/jsx,
+// (vitest.e2e.config.ts). Keep the two in sync where they overlap (oxc/jsx,
 // pool, timeout).
 export default defineConfig({
-  esbuild: {
-    jsx: "automatic",
-    jsxImportSource: "kerfjs",
+  // Vite 8 (vitest 4) transforms with oxc, not esbuild — an `esbuild: { jsx }`
+  // block here is silently ignored. oxc's own default importSource is "react",
+  // so state kerf explicitly rather than leaning on tsconfig.json picking it up.
+  oxc: {
+    jsx: {
+      runtime: "automatic",
+      importSource: "kerfjs",
+    },
   },
   test: {
     pool: "forks",

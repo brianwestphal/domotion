@@ -4,9 +4,12 @@ import { defineConfig } from "vitest/config";
 // files (Chromium-bound, slower, env-sensitive) — separate from the fast unit
 // gate in vitest.config.ts. `npm run test:e2e`.
 export default defineConfig({
-  esbuild: {
-    jsx: "automatic",
-    jsxImportSource: "kerfjs",
+  // Vite 8 (vitest 4) transforms with oxc, not esbuild — see vitest.config.ts.
+  oxc: {
+    jsx: {
+      runtime: "automatic",
+      importSource: "kerfjs",
+    },
   },
   test: {
     pool: "forks",
