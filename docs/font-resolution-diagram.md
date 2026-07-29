@@ -447,7 +447,9 @@ flowchart TD
   F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| F3["2a. kSystemFonts: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)"]
-  F3 -->|"first covering key (skip 'last-resort')"| F3H["cover(candidate)"]
+  F3 -->|"first covering key (skip 'last-resort')"| F3C["macOS: fallbackFamilyCutKey(candidate, …)<br/>in-family cut re-selection at this weight/style"]
+  F3C -->|"moved & still covers cp"| F3HC["cover(sysfb:cut)"]
+  F3C -->|"unchanged / non-darwin"| F3H["cover(candidate)"]
   F3 -->|"none"| F4{"_systemFallbackResolutionEnabled?"}
   F4 -->|"yes"| F4A["2b. kSystemFonts: resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
   F4A -->|"hit"| F4H["cover(sysfb:key)"]
@@ -461,6 +463,22 @@ Notes:
 - `instanceFor(key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
+- Step 2a names a **family**, not a face. Each `FONT_PATHS` entry can hold only
+  one PostScript name, and the `-bold` siblings beside it are a two-slot
+  approximation of a ladder Chrome actually runs: Songti SC answers Light at
+  100-300, Regular at 400, Bold at 500-700 and Black at 800-900 for the same
+  character; Apple SD Gothic Neo runs all nine steps; and every crossover sits on
+  an xx50 boundary, because Blink buckets the CSS weight with `(weight - 50) /
+  100` integer division before handing CoreText a weight trait — Chrome moves
+  Lucida Grande and Songti SC at 450, not 500. (The hand-tuned
+  `lucida-grande` heuristic had that boundary right for that one family; the
+  mechanism has it right for all of them.) `fallbackFamilyCutKey`
+  replaces that approximation with the mechanism (§8a): it hands the candidate's
+  own face to the system-fallback resolver as the cascade base, so
+  `CTFontCreateForString` answers with that same face — the caller has already
+  checked it covers `cp` — and only the in-family re-selection moves. macOS only;
+  Linux and Windows keep the base key, their engines' weight handling being
+  calibrated separately. Memoized in `fallbackFamilyCutCache`.
 - Step 1 confines NFD decomposition to the DECLARED cascade (so it never
   over-renders into deep fallback faces Chrome can't reach — the DM-1080 hazard;
   Arial Unicode MS covers +85 CJK-compat cells via in-font decomposition).
@@ -645,11 +663,18 @@ Blink's, not an approximation of them. Skipping it pinned every fallback family
 to whichever cut CoreText nominated: at weight 700 that is the wrong face for
 8,121 of a 27,790-codepoint stride (29%).
 
-Two consequences worth holding onto:
+Three consequences worth holding onto:
 
 - **The CSS description is part of the cache key**, not just the codepoint —
   `systemFallbackKeyCache` and the helper's own memo both carry weight, italic
   and size. A codepoint-only key served whichever weight asked first.
+- **A cascade base must be opened from its FILE, never looked up by name alone,
+  whenever it may be one of Apple's hidden `.`-prefixed faces.** CoreText refuses
+  those names and answers with Times New Roman *without erroring*, so a name-only
+  base silently walks Times' cascade — which is how `.ThonburiUI-Regular` briefly
+  reported the unrelated public Thonburi family as its own bold cut. The
+  `basePath` field on the request carries the file; the helper now errors on a
+  named-but-unopenable `fontRef` instead of quietly substituting Helvetica.
 - **This is NOT the same matcher as the declared-family path.** Chrome resolves
   `font-family: "Euphemia UCAS"; font-weight: 500` to the regular face but a
   *fallback* to the same family at weight 500 to `EuphemiaUCAS-Bold`; declared
@@ -783,6 +808,7 @@ then shear when both apply (bold-italic on a no-bold-no-italic face).
 | `fontInstanceCache` (key-weight-size-slant-fvs → instance) | process | never (immutable system fonts) |
 | `resolvedSpecCache` (key → FontPath) | process | never |
 | `systemFallbackKeyCache` (cp + weight + italic + size → sysfb key\|null) | process | never |
+| `fallbackFamilyCutCache` (chain key + cp + weight + italic + size → sysfb cut\|null) | process | never |
 | `dynamicSystemFontPaths` (sysfb: → FontPath) | process | never (grows as resolver fires) |
 | `helperFontCache` / `helperOutlineCache` | process | `__clearGlyphFallbackCaches` (test) |
 | `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |

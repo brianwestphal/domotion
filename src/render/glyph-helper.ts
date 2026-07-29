@@ -811,7 +811,7 @@ const _systemFallbackCache = new Map<string, SystemFallbackFont | null>();
 const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest): string =>
   req == null
     ? `${base}\u0000${cp}`
-    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}`;
+    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -827,6 +827,12 @@ export interface SystemFallbackRequest {
   /** Computed pixel size — what Blink hands CoreText for both the cascade walk
    *  and the in-family re-selection. */
   fontSize: number;
+  /** On-disk file of the cascade base, when the caller knows it. REQUIRED for
+   *  Apple's hidden `.`-prefixed faces: CoreText refuses to resolve those by
+   *  name and hands back Times New Roman WITHOUT erroring, so a name-only lookup
+   *  would silently walk the wrong font's cascade. With a path the helper opens
+   *  the exact face out of the file. */
+  basePath?: string;
 }
 
 /** Authoritative per-codepoint system font fallback, matching Chrome-on-macOS.
@@ -869,7 +875,10 @@ export function resolveSystemFallbackFonts(
   let resp: HelperResponse;
   try {
     resp = callHelper({
-      fonts: [{ ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16 }],
+      fonts: [{
+        ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
+        ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
+      }],
       queries: [{
         type: "fallback", fontRef: "base", cps: need,
         ...(req != null

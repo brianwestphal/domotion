@@ -1470,6 +1470,64 @@ function fontFileCoversCodepoint(path: string, postscriptName: string | undefine
   }
 }
 
+/**
+ * The `sysfb:` key naming the cut of `candidate`'s OWN family that Chrome would
+ * paint at this CSS description, or null when the base face already is it.
+ *
+ * The static per-block chain names a FAMILY, but each entry can name only one
+ * face, and the `-bold` siblings beside it are a two-slot approximation of what
+ * Chrome does. Chrome runs a ladder: Songti SC answers Light at 100-300, Regular
+ * at 400, Bold at 500-700 and Black at 800-900 for the same character. That is
+ * not a table to transcribe — it is CoreText's nearest-weight descriptor match,
+ * the same one Blink runs on a substituted face (`GetAlternateFontPlatformData`,
+ * font_cache_mac.mm:200-280). So this asks for it instead of encoding it: the
+ * resolver is handed the candidate's own face as the cascade base, which makes
+ * `CTFontCreateForString` answer with that same face (the caller has already
+ * checked it covers `cp`) and leaves only the in-family re-selection to move.
+ * One mechanism, no third weight table.
+ *
+ * macOS only. Linux and Windows reach their fallback faces through different
+ * engines whose weight handling is calibrated separately, so they keep the base
+ * key.
+ */
+function fallbackFamilyCutKey(
+  candidate: string, cp: number, weight: number, slant: number, fontSize: number,
+): string | null {
+  if (process.platform !== "darwin" || !_systemFallbackResolutionEnabled) return null;
+  // The BASE key's face, not `getFontInstance`'s effective key — feeding the
+  // `-bold` sibling in would ask CoreText to re-weight an already-re-weighted
+  // face, and the point is to replace that approximation rather than compose
+  // with it.
+  const spec = resolveFontSpec(candidate);
+  const base = spec?.postscriptName;
+  // Faces with no PostScript name of their own can't be asked about at all.
+  if (spec == null || base == null || base === "") return null;
+  // Apple's hidden `.`-prefixed faces (`.ThonburiUI-Regular`, `.SFGujarati-…`)
+  // must be opened from their FILE. CoreText refuses to resolve those names and
+  // answers with Times New Roman without erroring, so a name-only base would
+  // silently walk Times' cascade and could return an unrelated family.
+  if (base.startsWith(".") && (spec.path == null || spec.path === "")) return null;
+  const cacheKey = `${candidate}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
+  const cached = fallbackFamilyCutCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  let key: string | null = null;
+  try {
+    const resolved = resolveSystemFallbackFonts([cp], base, {
+      weight, italic: slant !== 0, fontSize, basePath: spec.path,
+    }).get(cp);
+    if (resolved != null && resolved.path !== "" && resolved.postscriptName !== base) {
+      key = `sysfb:${resolved.postscriptName}`;
+      registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+    }
+  } catch { key = null; }
+  fallbackFamilyCutCache.set(cacheKey, key);
+  return key;
+}
+
+// Memo for `fallbackFamilyCutKey`, keyed on the candidate family + codepoint +
+// CSS description. Process-global, like the other font caches.
+const fallbackFamilyCutCache = new Map<string, string | null>();
+
 /** Test-only: drive the per-codepoint live system-fallback resolver directly
  *  (DM-1403). Honors the platform routing + the `DOMOTION_SYSTEM_FALLBACK`
  *  opt-in, so a Linux/Docker probe can confirm fontconfig resolution end to end. */
@@ -4150,7 +4208,14 @@ export function resolveFontForCodepoint(
   for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
     if (candidate === "last-resort") continue;
     const cf = getFontInstance(candidate, weight, fontSize, slant);
-    if (cf != null && glyphIdForCp(cf, cp) !== 0) return cover(candidate, null);
+    if (cf != null && glyphIdForCp(cf, cp) !== 0) {
+      const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
+      if (cut != null) {
+        const cutFont = getFontInstance(cut, weight, fontSize, slant);
+        if (cutFont != null && glyphIdForCp(cutFont, cp) !== 0) return cover(cut, null);
+      }
+      return cover(candidate, null);
+    }
   }
 
   // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).

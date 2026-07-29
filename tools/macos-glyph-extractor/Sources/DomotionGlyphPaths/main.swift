@@ -534,8 +534,15 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
     // Base font drives the cascade list + trait matching. Use the caller's
     // primary font when provided (matches Chrome, which starts from the
     // element's resolved primary), else a neutral system font at 16pt.
+    // A caller that NAMES a base and doesn't get it must hear about it. Falling
+    // back to Helvetica here would answer a different question than the one
+    // asked — CoreText's cascade depends on the font you ask FROM — and the
+    // caller would have no way to tell.
     let baseFont: CTFont
-    if let ref = query["fontRef"] as? String, let entry = fonts[ref] {
+    if let ref = query["fontRef"] as? String {
+        guard let entry = fonts[ref] else {
+            return ["type": "fallback", "error": "fontRef missing or unknown: \(ref)"]
+        }
         baseFont = entry.font
     } else {
         baseFont = CTFontCreateWithName("Helvetica" as CFString, 16.0, nil)

@@ -2536,3 +2536,59 @@ describe("sourceClusterSpan (shared-Glyph codePoints aliasing)", () => {
     expect(sourceClusterSpan("\u{10F46}", 0, 1, false)).toBe(2);
   });
 });
+
+// The static per-block chain names a FAMILY; which CUT of it Chrome paints is
+// CoreText's nearest-weight match, not a two-slot regular/bold split. Every
+// expectation is Chrome's own answer, read off CDP
+// `CSS.getPlatformFontsForNode` at that CSS weight.
+const macCutHelper = process.platform === "darwin"
+  && existsSync("tools/macos-glyph-extractor/domotion-glyph-paths");
+
+(macCutHelper ? describe : describe.skip)("static fallback chain — in-family cut selection", () => {
+  const at = (cp: number, family: string, weight: number): string =>
+    (__resolveFontForCodepointForTest(cp, family, weight, 16)?.key ?? "-").replace("sysfb:", "");
+
+  it("walks Songti SC's four cuts for Han under a serif primary", () => {
+    // `cjk-serif` IS STSongti-SC-Light, so 100-300 keep the base key.
+    if (at(0x4F60, "Times", 300) !== "cjk-serif") return; // Songti absent
+    expect(at(0x4F60, "Times", 400)).toBe("STSongti-SC-Regular");
+    expect(at(0x4F60, "Times", 449)).toBe("STSongti-SC-Regular");
+    expect(at(0x4F60, "Times", 450)).toBe("STSongti-SC-Bold");
+    expect(at(0x4F60, "Times", 700)).toBe("STSongti-SC-Bold");
+    expect(at(0x4F60, "Times", 900)).toBe("STSongti-SC-Black");
+  });
+
+  it("walks Apple SD Gothic Neo's full ladder for Hangul", () => {
+    if (at(0xAC00, "sans-serif", 400) !== "korean") return; // face absent
+    expect(at(0xAC00, "sans-serif", 100)).toBe("AppleSDGothicNeo-Thin");
+    expect(at(0xAC00, "sans-serif", 500)).toBe("AppleSDGothicNeo-Medium");
+    expect(at(0xAC00, "sans-serif", 600)).toBe("AppleSDGothicNeo-SemiBold");
+    expect(at(0xAC00, "sans-serif", 700)).toBe("AppleSDGothicNeo-Bold");
+  });
+
+  // Blink buckets the CSS weight with `(weight - 50) / 100` integer division
+  // before handing CoreText a weight trait, so every crossover lands on a
+  // xx50 boundary rather than on a round hundred. Chrome measured at
+  // 449 → LucidaGrande, 450 → LucidaGrande-Bold, and Songti moves at the same
+  // point — a curve fit sampled at multiples of 100 could not have found this.
+  it("crosses to the bold cut at the xx50 bucket boundary, like Blink", () => {
+    if (at(0x05D0, "sans-serif", 400) !== "lucida-grande") return; // face absent
+    expect(at(0x05D0, "sans-serif", 449)).toBe("lucida-grande");
+    expect(at(0x05D0, "sans-serif", 450)).toBe("LucidaGrande-Bold");
+  });
+
+  it("leaves weight 400 on the base key where the base IS the regular cut", () => {
+    if (at(0x0E01, "sans-serif", 400) === "-") return;
+    expect(at(0x0E01, "sans-serif", 400)).toBe("thai");
+  });
+
+  // Regression pin for a silent corruption: CoreText refuses to resolve Apple's
+  // hidden `.`-prefixed faces BY NAME and hands back Times New Roman without
+  // erroring, so asking for `.ThonburiUI-Regular`'s family by name walked Times'
+  // cascade and answered with the unrelated public Thonburi family. The cascade
+  // base must be opened from its FILE.
+  it("keeps a hidden system face inside its own family", () => {
+    if (at(0x0E01, "sans-serif", 400) !== "thai") return;
+    expect(at(0x0E01, "sans-serif", 700)).toBe(".ThonburiUI-Bold");
+  });
+});
