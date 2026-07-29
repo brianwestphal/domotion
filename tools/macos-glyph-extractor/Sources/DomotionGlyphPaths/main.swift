@@ -61,6 +61,44 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
 
     var baseFont: CTFont?
     var pickedNameMatch = false
+
+    // `systemUI: true` — the CSS `system-ui` / `-apple-system` primary.
+    //
+    // Blink does not resolve this through family matching. `CreateFontPlatformData`
+    // routes it to `MatchSystemUIFont` (font_cache_mac.mm:409-412), which is
+    // (font_matcher_mac.mm:540-570):
+    //
+    //     CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, nullptr)
+    //     + CTFontCreateCopyWithSymbolicTraits for bold / italic
+    //
+    // This is NOT reproducible by opening the SF font file. Measured: with
+    // `/System/Library/Fonts/SFNS.ttf` as the base, CoreText's cascade answers
+    // U+6F22 with PingFangSC-Regular at every size, while Chrome answers
+    // `.PingFangUITextSC-Regular` at 13px and `.PingFangUIDisplaySC-Regular` at
+    // 20px. The UI font carries its own cascade list — the one that reaches
+    // Apple's `.…UI` variants — and only this API returns it. Blink's own
+    // comment notes the same effect for emoji: the system API "might also return
+    // '.Apple Color Emoji UI' when starting from system-ui" (font_cache_mac.mm:156-159).
+    //
+    // The size matters and must be the run's: CoreText picks the Text vs Display
+    // optical cut from it (measured switch at exactly 20px).
+    if (spec["systemUI"] as? NSNumber)?.boolValue == true {
+        var uiFont = CTFontCreateUIFontForLanguage(.system, CGFloat(size), nil)
+        var traits: CTFontSymbolicTraits = []
+        if (spec["bold"] as? NSNumber)?.boolValue == true { traits.insert(.traitBold) }
+        if (spec["italic"] as? NSNumber)?.boolValue == true { traits.insert(.traitItalic) }
+        if !traits.isEmpty, let f = uiFont,
+           let copy = CTFontCreateCopyWithSymbolicTraits(f, CGFloat(size), nil, traits, traits) {
+            uiFont = copy
+        }
+        if let f = uiFont {
+            return FontEntry(ref: ref, font: f, pointSize: CGFloat(size),
+                             unitsPerEm: Int(CTFontGetUnitsPerEm(f)))
+        }
+        // Fall through to the normal path if CoreText declined — better a
+        // named-font cascade than no answer at all.
+    }
+
     if let path = fontPath {
         let url = URL(fileURLWithPath: path) as CFURL
         // CTFontManagerCreateFontDescriptorsFromURL returns every face in the file
