@@ -1408,10 +1408,40 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
  * `IDWriteFontFallback::MapCharacters` via the win32 helper (DM-1403, calibrated +
  * default-on in DM-1424).
  */
+/** DM-1852, armed by `DOMOTION_FALLBACK_BASE=1`. Blink asks CoreText for a
+ *  substitute FROM the run's current font — `CTFontCreateForString(ct_font, …)`,
+ *  font_cache_mac.mm:128-150 — and the cascade it gets back depends on that
+ *  base. We pass a hardcoded "Helvetica" regardless of what the run paints in.
+ *
+ *  Off by default because the blast radius is every codepoint that reaches the
+ *  live resolver, which needs the full 818-fixture sweep A/B before it can be
+ *  the default (the way DM-1811 was measured). Armed, `resolveFontForCodepoint`
+ *  and the darwin chain pass the run's primary key and the base is derived from
+ *  it. */
+const _fallbackBaseFromPrimary = process.env.DOMOTION_FALLBACK_BASE === "1";
+
+/** The cascade base to ask CoreText from, for a run whose primary is `primaryKey`.
+ *
+ *  Returns the PostScript name plus — importantly — the on-disk path. The path
+ *  is what lets the helper open Apple's hidden `.`-prefixed faces: CoreText
+ *  refuses those by name and hands back Times New Roman WITHOUT erroring, so a
+ *  name-only lookup would silently walk the wrong font's cascade. */
+function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?: string } {
+  if (!_fallbackBaseFromPrimary || primaryKey == null) return { name: "Helvetica" };
+  const spec = resolveFontSpec(primaryKey);
+  if (spec?.postscriptName == null || spec.postscriptName === "") return { name: "Helvetica" };
+  return { name: spec.postscriptName, path: spec.path };
+}
+
 function resolveSystemFallbackKeyForCp(
   cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
+  primaryKey?: string,
 ): string | null {
-  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
+  const base = fallbackBaseFor(primaryKey);
+  // The base joins the cache key for the same reason the CSS description does:
+  // the answer is a function of the font you ask FROM, so a base-blind key would
+  // serve whichever base asked first to every later caller (the a72e557 lesson).
+  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}`;
   if (systemFallbackKeyCache.has(cacheKey)) return systemFallbackKeyCache.get(cacheKey)!;
   let key: string | null = null;
   try {
@@ -1419,7 +1449,7 @@ function resolveSystemFallbackKeyForCp(
       // CoreText CTFontCreateForString via the native helper (always on), THEN
       // the in-family re-selection at the requested traits + weight that Blink
       // runs on the nominated face (font_cache_mac.mm:242-267).
-      const resolved = resolveSystemFallbackFonts([cp], "Helvetica", { weight, italic: slant !== 0, fontSize }).get(cp);
+      const resolved = resolveSystemFallbackFonts([cp], base.name, { weight, italic: slant !== 0, fontSize, basePath: base.path }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
@@ -2469,11 +2499,11 @@ export function darwinFallbackChain(
   // 0 broken, 0 made worse. The route is still what supplies the chain when the
   // two AGREE, and it remains the fallback when the OS has no answer.
   if (generatedKeyRaw != null && generatedRouteUsable(generatedKeyRaw)) {
-    const live = resolveSystemFallbackKeyForCp(codepoint, css?.weight, css?.slant, css?.fontSize);
+    const live = resolveSystemFallbackKeyForCp(codepoint, css?.weight, css?.slant, css?.fontSize, primaryKey);
     if (live != null && live !== generatedKeyRaw) liveOverride = live;
   }
   if (generatedKeyRaw != null && liveOverride == null && !generatedRouteUsable(generatedKeyRaw)) {
-    liveOverride = resolveSystemFallbackKeyForCp(codepoint, css?.weight, css?.slant, css?.fontSize);
+    liveOverride = resolveSystemFallbackKeyForCp(codepoint, css?.weight, css?.slant, css?.fontSize, primaryKey);
     // If the OS has no answer either, keep the generated route: a face Chrome
     // might not pick still beats a guaranteed `last-resort` tofu.
     generatedKey = liveOverride != null ? null : generatedKeyRaw;
@@ -4042,7 +4072,7 @@ export function codepointResolvesToNotdef(
         && glyphIdForCp(cf, cp) !== 0) return false;
   }
   if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null && sf.glyphForCodePoint != null
@@ -4298,7 +4328,7 @@ export function resolveFontForCodepoint(
 
   // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).
   if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null) {
