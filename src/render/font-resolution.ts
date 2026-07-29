@@ -3733,6 +3733,47 @@ export function getGlyphDefsSince(startCount: number): string {
 }
 
 /**
+ * Drop every process-global font-resolution MEMO, freeing the fontkit `Font`
+ * objects they retain.
+ *
+ * For long-running sweeps over a large codepoint space — the conformance oracle
+ * is the motivating caller — these memos are unbounded in the size of that
+ * space, and the retention is far larger than the entry count suggests: fontkit
+ * memoizes a `Glyph` object per glyph id for the life of a `Font`, so a `Font`
+ * held by `fontInstanceCache` accumulates one retained `Glyph` for every
+ * codepoint ever probed through it. A full-universe sweep exhausted a default
+ * Node heap partway through, which made the instrument report a PREFIX of the
+ * universe as though it were the whole answer.
+ *
+ * Clearing is safe because every entry here is a pure function of its key:
+ * a cold lookup re-derives the identical answer, it just pays for the
+ * file/CoreText read again. It is NOT free — expect a sweep to slow measurably —
+ * so this is for bounded-memory batch work, not per-render use.
+ *
+ * Deliberately NOT cleared, because they are registries rather than memos and
+ * dropping them would change behavior, not just cost:
+ *
+ *  - `webfontRegistry` / `embeddedFonts` / `localFontAliasRegistry` — caller-
+ *    supplied state (see `clearWebfonts` / `clearEmbeddedFonts` to drop those
+ *    deliberately).
+ *  - `dynamicSystemFontPaths` — on-disk faces the system fallback discovered
+ *    that the static tables don't list. `resolveFontSpec` consults it, so a
+ *    cleared entry would make a previously-resolvable `sysfb:` key stop
+ *    resolving. It is bounded by the number of distinct fonts, not by
+ *    codepoints, so it is not part of the growth being addressed here.
+ */
+export function clearFontResolutionCaches(): void {
+  fontInstanceCache.clear();
+  resolvedSpecCache.clear();
+  systemFallbackKeyCache.clear();
+  fallbackFamilyCutCache.clear();
+  helperFontCache.clear();
+  helperOutlineCache.clear();
+  fileFaceInfoCache.clear();
+  _famAvailCache.clear();
+}
+
+/**
  * Clear the `paths`-mode glyph registry. Producers call this once per top-level
  * generation, alongside `clearEmbeddedFonts()` (DM-1338), so the module-global
  * `<path id="gN">` defs don't accumulate across back-to-back renders. No-op in

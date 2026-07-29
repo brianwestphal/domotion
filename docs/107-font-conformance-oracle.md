@@ -34,6 +34,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 | `--batch n` | Codepoints per probe page (default 8000). |
 | `--concurrency n` | Pipelined CDP calls in flight (default 128). |
 | `--max-rows n` | Per-mismatch example rows retained in `report.json` (default 20000). Counts are always exact; only the detail is capped. |
+| `--reset-every n` | Drop the font-resolution memos every `n` batches (default 1; `0` disables). Keeps a long sweep inside a bounded heap — see [Memory](#memory-why-the-sweep-resets-its-own-caches). |
 | `--strict-alias` | Treat the documented naming aliases as mismatches (see below). |
 | `--allowlist <file>` | Accepted-divergence file (default `tools/font-conformance-allowlist.json`). |
 | `--lang <tag>` | Locale for both sides (default `en`): `<html lang>` on the probe page *and* the `lang` our resolver routes Han with. |
@@ -138,6 +139,32 @@ The full cross product — 292,466 codepoints × 418 stacks = **122.2 million co
 2. **Scoped for the change at hand.** `--range` for a routing change confined to a script, `--max-stacks` for a change to a specific family's handling. Both are subsets, and the report says which.
 
 Whatever the scope, the report's `meta` block records exactly what was swept — codepoint count, stack count, ranges, shards, PUA inclusion — so a number can never be quoted without its scope.
+
+### Memory: why the sweep resets its own caches
+
+A sweep is unusual for this codebase in that it drives the resolver across the *entire* codepoint space in one process. The font-resolution memos are keyed by codepoint, and — the part that actually dominates — **fontkit memoizes a `Glyph` object per glyph id for the life of a `Font`**, so every `Font` held in `fontInstanceCache` accumulates one retained `Glyph` for each codepoint ever probed through it. Nothing is collectable, because the cache holds the fonts.
+
+Left alone, that ends the run: `--max-stacks 8 --no-pua` exhausted a default Node heap at **32,000 of 154,998 codepoints** (~3.5 GB, `Ineffective mark-compacts near heap limit`). The consequence is worse than an inconvenient crash — a sweep that dies partway has measured a **prefix of the universe**, and every number it printed on the way describes that prefix while reading like the answer.
+
+So the sweep now calls `clearFontResolutionCaches()` every `--reset-every` batches (default: every batch) and rebuilds the stack, since the `ResolvedStack` owns the primary `FontInstance` and would otherwise keep the largest glyph memo of all alive. On the same run that used to die:
+
+| | before | after |
+| --- | --- | --- |
+| resident at 32k codepoints | ~3.5 GB, then fatal | ~1.0 GB, still running |
+| reached | 32,000 / 154,998 | full sweep |
+
+Correctness is not traded for it: every cleared entry is a pure function of its key, so a cold lookup re-derives the same answer. Verified rather than assumed — the same slice run with `--reset-every 0` and `--reset-every 1` produced identical summaries and **zero row-level differences across all 950 mismatch rows**. `src/render/font-resolution-cache-reset.test.ts` pins the property, including that registries (webfonts, embedded fonts, local aliases, discovered system-fallback paths) deliberately **survive** a reset — those hold caller state, and dropping them would change behavior rather than just cost.
+
+Each batch's resident size is printed alongside progress, and the peak lands in the summary, so a long run can be seen to be bounded rather than merely not-yet-dead.
+
+### The CI gate must not pass by losing data
+
+The sharded workflow (`.github/workflows/font-conformance.yml`) previously ran each shard with `|| true` — intended so one shard's *mismatches* wouldn't cancel its siblings. But a shard that **dies** writes no `report.json`, the aggregate step skipped missing reports with a log line, and the gate then tested a mismatch total summed over the survivors. A run whose mismatch-bearing shards ran out of memory would therefore report zero mismatches and go green.
+
+Two changes close that:
+
+- The sweep step accepts only the exit codes the tool defines — `0` (full agreement) and `1` (mismatches found). Anything else is a dead shard and fails the job.
+- The aggregate counts the reports it merged against the requested shard count and **withholds the verdict** if any is absent, failing on that rather than on a partial total.
 
 ## Instrument corrections, 2026-07-29
 

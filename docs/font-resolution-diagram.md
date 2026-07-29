@@ -395,7 +395,7 @@ When a route is rejected, the **live resolver** supplies the replacement and is 
 
 Measured with `tools/chrome-font-agreement.ts` (FONTAGREE), which asks Chrome via CDP `CSS.getPlatformFontsForNode` and our resolver the same per-codepoint question on the same machine. On the GitHub macOS runner this went **6/10 → 10/10**: U+04FA–U+04FC now resolve to `sysfb:.NewYork-Regular`, matching the `.New York` Chrome paints there, and U+1D00 to Lucida Grande, instead of the route's SFNS. On a developer Mac — which *has* the sampled fonts — nothing changes and it stays 10/10. `src/render/generated-route-family.test.ts` pins the family provenance the gate depends on.
 
-Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same comparison is **`tools/font-conformance.ts`** (`npm run fonts:conformance`, [doc 100](./100-font-conformance-oracle.md)): every assigned Unicode codepoint × every font stack the fixture corpus uses, asked of both Chrome and this diagram's resolver, with a JSON report and a non-zero exit on any disagreement. Anything in this diagram that is a sampled approximation rather than a transcription of Blink's own logic shows up there as a mismatch count.
+Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same comparison is **`tools/font-conformance.ts`** (`npm run fonts:conformance`, [doc 107](./107-font-conformance-oracle.md)): every assigned Unicode codepoint × every font stack the fixture corpus uses, asked of both Chrome and this diagram's resolver, with a JSON report and a non-zero exit on any disagreement. Anything in this diagram that is a sampled approximation rather than a transcription of Blink's own logic shows up there as a mismatch count.
 
 ### Linux (`LINUX_FONT_PATHS`, bare CI image) & Windows (`WIN32_FONT_PATHS`)
 
@@ -805,15 +805,30 @@ then shear when both apply (bold-italic on a no-bold-no-italic face).
 
 | Cache / registry | Scope | Cleared by |
 |---|---|---|
-| `fontInstanceCache` (key-weight-size-slant-fvs → instance) | process | never (immutable system fonts) |
-| `resolvedSpecCache` (key → FontPath) | process | never |
-| `systemFallbackKeyCache` (cp + weight + italic + size → sysfb key\|null) | process | never |
-| `fallbackFamilyCutCache` (chain key + cp + weight + italic + size → sysfb cut\|null) | process | never |
-| `dynamicSystemFontPaths` (sysfb: → FontPath) | process | never (grows as resolver fires) |
-| `helperFontCache` / `helperOutlineCache` | process | `__clearGlyphFallbackCaches` (test) |
+| `fontInstanceCache` (key-weight-size-slant-fvs → instance) | process | `clearFontResolutionCaches` † |
+| `resolvedSpecCache` (key → FontPath) | process | `clearFontResolutionCaches` † |
+| `systemFallbackKeyCache` (cp + weight + italic + size → sysfb key\|null) | process | `clearFontResolutionCaches` † |
+| `fallbackFamilyCutCache` (chain key + cp + weight + italic + size → sysfb cut\|null) | process | `clearFontResolutionCaches` † |
+| `fileFaceInfoCache` / `_famAvailCache` | process | `clearFontResolutionCaches` † |
+| `dynamicSystemFontPaths` (sysfb: → FontPath) | process | **never** — a registry, not a memo (grows as resolver fires) |
+| `helperFontCache` / `helperOutlineCache` | process | `clearFontResolutionCaches` † · `__clearGlyphFallbackCaches` (test) |
 | `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |
 | `glyphDefs` (paths mode) | generation | `clearGlyphDefs` / `resetGeneration` |
 | `embeddedFonts` + subset builder | generation | `clearEmbeddedFonts` / `resetGeneration` |
+
+† **`clearFontResolutionCaches()` is for bounded-memory batch work, not for
+rendering.** Normal generation never calls it: these memoize deterministic
+lookups over immutable system fonts, so keeping them is free correctness-wise
+and expensive to give up. It exists because a process that sweeps the *entire*
+codepoint space accumulates without bound — fontkit memoizes a `Glyph` per
+glyph id for the life of a `Font`, and `fontInstanceCache` keeps the `Font`
+alive, so a full-universe run exhausted the heap partway through and reported
+its prefix as the answer. Clearing is safe (every entry is a pure function of
+its key; a cold lookup re-derives it) but costs the file / CoreText reads again.
+`dynamicSystemFontPaths` is excluded on purpose — `resolveFontSpec` consults it,
+so dropping it would make a previously-resolvable `sysfb:` key stop resolving,
+and it is bounded by distinct fonts rather than by codepoints anyway. See
+[doc 107 § Memory](107-font-conformance-oracle.md#memory-why-the-sweep-resets-its-own-caches).
 
 The two **generation-scoped** registries are also transactional: they hand out
 ids in order of first use (`dmfN` families + PUA codepoints in the subset

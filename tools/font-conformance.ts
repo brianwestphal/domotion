@@ -41,6 +41,8 @@
  *   --batch n            codepoints per probe page (8000)
  *   --concurrency n      pipelined CDP calls in flight (128)
  *   --max-rows n         example mismatch rows kept in the report (20000)
+ *   --reset-every n      drop the font-resolution memos every n batches (1);
+ *                        0 disables. Bounds memory — see the loop for why.
  *   --strict-alias       treat the documented naming aliases as mismatches
  *   --allowlist <file>   accepted-divergence file
  *   --lang <tag>         locale for BOTH sides — <html lang> on the probe page
@@ -57,6 +59,7 @@ import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   ITALIC_SLNT,
+  clearFontResolutionCaches,
   type FontInstance,
   getFontInstance,
   getFontSourceInfo,
@@ -716,6 +719,7 @@ export interface Options {
   maxStacks: number | null;
   maxRows: number;
   lang: string;
+  resetEvery: number;
 }
 
 export function parseArgs(argv: string[]): Options {
@@ -735,6 +739,7 @@ export function parseArgs(argv: string[]): Options {
     maxStacks: null,
     maxRows: 20_000,
     lang: "en",
+    resetEvery: 1,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -777,6 +782,7 @@ export function parseArgs(argv: string[]): Options {
       case "--strict-alias": o.strictAlias = true; break;
       case "--max-stacks": o.maxStacks = parseInt(next(), 10); break;
       case "--max-rows": o.maxRows = parseInt(next(), 10); break;
+      case "--reset-every": o.resetEvery = parseInt(next(), 10); break;
       case "--lang": o.lang = next(); break;
       case "-h":
       case "--help":
@@ -862,10 +868,11 @@ async function main(): Promise<number> {
     let skippedStacks = 0;
     let chromeMs = 0;
     let oursMs = 0;
+    let peakRssMb = 0;
     const t0 = Date.now();
 
     for (const spec of stacks) {
-      const rs = prepareStack(spec);
+      let rs = prepareStack(spec);
       if (rs == null) {
         skippedStacks++;
         process.stdout.write(`  SKIP (no resolvable primary): ${spec.fontFamily}\n`);
@@ -875,7 +882,23 @@ async function main(): Promise<number> {
         `  stack ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`
         + ` → chain [${rs.chain.join(", ")}]\n`,
       );
+      let batchNo = 0;
       for (let i = 0; i < universe.length; i += opts.batch) {
+        // Bound memory (DM-1860). The font-resolution memos are unbounded in the
+        // codepoint universe, and each retained fontkit `Font` holds a memoized
+        // `Glyph` for every codepoint probed through it — so a full sweep OOMed
+        // partway and reported its prefix as the answer. Rebuilding the stack is
+        // part of the reset, not an extra: `rs` owns the primary `FontInstance`,
+        // so dropping the caches while holding `rs` would keep the largest glyph
+        // memo of all alive. Every cleared entry is a pure function of its key,
+        // so this costs re-reads, never a different answer.
+        if (opts.resetEvery > 0 && batchNo > 0 && batchNo % opts.resetEvery === 0) {
+          clearFontResolutionCaches();
+          const again = prepareStack(spec);
+          if (again == null) throw new Error(`stack stopped resolving after cache reset: ${spec.fontFamily}`);
+          rs = again;
+        }
+        batchNo++;
         const cps = universe.slice(i, i + opts.batch);
         const tc = Date.now();
         const faces = await oracle.facesFor(cps, spec);
@@ -943,9 +966,15 @@ async function main(): Promise<number> {
         }
         oursMs += Date.now() - to;
         const done = Math.min(i + opts.batch, universe.length);
+        // Report resident memory per batch. A sweep that OOMs reports a PREFIX
+        // of the universe as though it were the answer (DM-1860), so the trend
+        // here is what tells you a long run is actually bounded rather than
+        // merely not dead yet.
+        const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+        if (rssMb > peakRssMb) peakRssMb = rssMb;
         process.stdout.write(
           `    ${done}/${universe.length}  mismatches=${mismatchRowsSeen}  `
-          + `(${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
+          + `rss=${rssMb}MB  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
         );
       }
     }
@@ -980,6 +1009,8 @@ async function main(): Promise<number> {
         strictAlias: opts.strictAlias,
         maxRows: opts.maxRows,
         lang: opts.lang,
+        resetEvery: opts.resetEvery,
+        peakRssMb,
         wallMs,
         chromeMs,
         oursMs,
@@ -1020,6 +1051,7 @@ async function main(): Promise<number> {
     lines.push(`comparisons        ${comparisons.toLocaleString()}  (${universe.length.toLocaleString()} cps × ${stacks.length - skippedStacks} stacks)`);
     lines.push(`wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`);
     lines.push(`throughput         ${Math.round((comparisons / wallMs) * 1000).toLocaleString()} comparisons/s`);
+    lines.push(`peak rss           ${peakRssMb} MB  (memo reset every ${opts.resetEvery || "never"} batches)`);
     lines.push("");
     lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
     lines.push(`agree same-file    ${counts["agree-same-file"].toLocaleString()}  ${pct(counts["agree-same-file"])}`);

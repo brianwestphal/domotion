@@ -5,7 +5,7 @@ run-name: Font conformance · shards=${{ inputs.shards }}${{ inputs.range != '' 
 # Exhaustive font-selection parity check: for every assigned Unicode codepoint
 # crossed with every font stack the fixture corpus uses, ask Chrome (CDP
 # `CSS.getPlatformFontsForNode`) and Domotion's `resolveFontForCodepoint` which
-# face paints it, and fail on any disagreement. See docs/100.
+# face paints it, and fail on any disagreement. See docs/107.
 #
 # Sharded on STACKS rather than codepoints: the resolver memoizes each
 # first-seen uncovered codepoint's platform-fallback lookup, so a stack shard
@@ -86,16 +86,29 @@ jobs:
       - name: Font env probe (diagnostic — grep FONTPROBE in this step's log)
         run: npx tsx tools/font-env-probe.mjs
       - name: Sweep
-        # `|| true` so one shard's mismatches don't cancel the others; the
-        # aggregate job re-derives the verdict from the merged reports.
+        # Exit 1 means "mismatches found" and must NOT cancel the other shards —
+        # the aggregate job re-derives the verdict from the merged reports.
+        # Anything else means the shard DIED (DM-1860: a full sweep could exhaust
+        # the heap partway through). A dead shard writes no report.json, and the
+        # aggregate would then compute its verdict over the survivors alone — so
+        # a blanket `|| true` here can turn a red run green by losing data. Allow
+        # only the two exit codes the tool actually defines.
         run: |
+          set +e
           npx tsx tools/font-conformance.ts \
             --stack-shard ${{ matrix.shard }}/${{ matrix.total }} \
             --out "tests/output/font-conformance" \
             ${{ inputs.range != '' && format('--range {0}', inputs.range) || '' }} \
             ${{ inputs.max_stacks != '' && format('--max-stacks {0}', inputs.max_stacks) || '' }} \
             ${{ inputs.no_pua && '--no-pua' || '' }} \
-            ${{ inputs.strict_alias && '--strict-alias' || '' }} || true
+            ${{ inputs.strict_alias && '--strict-alias' || '' }}
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+            echo "::error::conformance shard ${{ matrix.shard }} died with exit $code (not a mismatch exit) — its report is missing, so the aggregate would under-count"
+            exit "$code"
+          fi
+          echo "shard exited $code (0 = full agreement, 1 = mismatches found)"
       - uses: actions/upload-artifact@v4
         with:
           name: font-conformance-shard-${{ matrix.shard }}
@@ -120,9 +133,13 @@ jobs:
             let comparisons = 0, mismatch = 0, allowed = 0;
             const pairs = new Map();
             const buckets = {};
+            // A missing report is FATAL, not a line of log (DM-1860). Summing
+            // the survivors and gating on that total is how a run where the
+            // mismatch-bearing shards died reports zero mismatches and passes.
+            const missing = [];
             for (const d of dirs) {
               const f = `shards/${d}/report.json`;
-              if (!fs.existsSync(f)) { console.log(`missing report: ${d}`); continue; }
+              if (!fs.existsSync(f)) { missing.push(d); continue; }
               const r = JSON.parse(fs.readFileSync(f, "utf-8"));
               comparisons += r.summary.comparisons;
               mismatch += r.summary.mismatchTotal;
@@ -145,11 +162,25 @@ jobs:
               out.push(`### Top disagreeing pairs (chrome → ours)`, "", `| count | pair |`, `| --- | --- |`);
               for (const [p, c] of top) out.push(`| ${c} | \`${p}\` |`);
             }
+            const expected = Number("${{ inputs.shards }}");
+            if (missing.length || dirs.length !== expected) {
+              out.push("", `> **INCOMPLETE — verdict withheld.** expected ${expected} shard reports, merged ${dirs.length - missing.length}.`
+                + (missing.length ? ` Missing: ${missing.join(", ")}.` : ""));
+            }
             fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n", { flag: "a" });
             fs.writeFileSync("mismatch-total", String(mismatch));
+            fs.writeFileSync("shards-missing", String(missing.length + Math.max(0, expected - dirs.length)));
           '
       - name: Gate
         run: |
           total=$(cat mismatch-total)
+          absent=$(cat shards-missing)
           echo "mismatch total: $total"
+          echo "shards absent:  $absent"
+          # Order matters: an incomplete merge must fail on its own terms rather
+          # than being judged by a total that was summed over the survivors.
+          if [ "$absent" -ne 0 ]; then
+            echo "::error::$absent shard report(s) absent — the merged total covers only part of the sweep and is not a verdict"
+            exit 1
+          fi
           test "$total" -eq 0
