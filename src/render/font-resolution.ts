@@ -657,8 +657,24 @@ const FONT_PATHS: Record<string, FontPath> = {
   // them visibly narrower than Chrome (DM-324 / DM-326). The TTC ships W3..W9
   // sub-fonts; W3 is the regular weight, W6 is the bold pair to match the
   // existing cjk → cjk-bold weight swap.
-  "hiragino-jp":      { path: "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", postscriptName: "HiraKakuProN-W3" },
-  "hiragino-jp-bold": { path: "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", postscriptName: "HiraKakuProN-W6" },
+  // Chrome resolves `font-family:"Hiragino Sans"` to the HiraginoSans-W* cut
+  // whose OS/2.usWeightClass EXACTLY matches the CSS weight — measured over
+  // 100..900 with CDP getPlatformFontsForNode: 100→W0 200→W1 300→W3 400→W4
+  // 500→W5 600→W6 700→W7 800→W8 900→W9. (W2 exists at usWeightClass 250 and is
+  // never selected, because no CSS weight lands there.) The base key is W4, the
+  // weight-400 cut — NOT HiraKakuProN-W3, which is a different family
+  // (Hiragino Kaku Gothic ProN) that merely shares the W3 .ttc container.
+  "hiragino-jp":      { path: "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc", postscriptName: "HiraginoSans-W4" },
+  "hiragino-jp-bold": { path: "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", postscriptName: "HiraginoSans-W6" },
+  "hiragino-jp-w0":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W0.ttc", postscriptName: "HiraginoSans-W0" },
+  "hiragino-jp-w1":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W1.ttc", postscriptName: "HiraginoSans-W1" },
+  "hiragino-jp-w3":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", postscriptName: "HiraginoSans-W3" },
+  "hiragino-jp-w4":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc", postscriptName: "HiraginoSans-W4" },
+  "hiragino-jp-w5":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W5.ttc", postscriptName: "HiraginoSans-W5" },
+  "hiragino-jp-w6":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", postscriptName: "HiraginoSans-W6" },
+  "hiragino-jp-w7":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W7.ttc", postscriptName: "HiraginoSans-W7" },
+  "hiragino-jp-w8":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W8.ttc", postscriptName: "HiraginoSans-W8" },
+  "hiragino-jp-w9":   { path: "/System/Library/Fonts/ヒラギノ角ゴシック W9.ttc", postscriptName: "HiraginoSans-W9" },
   // Korean Hangul (U+AC00..D7AF Syllables, U+1100..11FF Jamo). Chrome on
   // macOS paints Hangul via Apple SD Gothic Neo — neither Hiragino Sans GB
   // (the `cjk` chain) nor PingFang SC includes Hangul codepoints, so a
@@ -2537,6 +2553,39 @@ export function subBoldWeightCutSuffix(key: string, weight: number): string | nu
   return null;
 }
 
+/**
+ * The `hiragino-jp-*` cut for `weight`, or null outside the ladder.
+ *
+ * Chrome selects the HiraginoSans cut by EXACT `OS/2.usWeightClass` match; the
+ * family ships W0(100) W1(200) W2(250) W3(300) W4(400) W5(500) W6(600) W7(700)
+ * W8(800) W9(900). W2 is unreachable from CSS, so the ladder skips it. For a
+ * non-standard weight we take the nearest declared cut, ties going lighter —
+ * which is what CSS font matching does below 400.
+ *
+ * Exported for unit tests: the mapping is pure, so it can be asserted on any
+ * host even where the FILES cannot be resolved.
+ */
+const HIRAGINO_CUTS: ReadonlyArray<{ usWeight: number; key: string }> = [
+  { usWeight: 100, key: "hiragino-jp-w0" },
+  { usWeight: 200, key: "hiragino-jp-w1" },
+  { usWeight: 300, key: "hiragino-jp-w3" },
+  { usWeight: 400, key: "hiragino-jp-w4" },
+  { usWeight: 500, key: "hiragino-jp-w5" },
+  { usWeight: 600, key: "hiragino-jp-w6" },
+  { usWeight: 700, key: "hiragino-jp-w7" },
+  { usWeight: 800, key: "hiragino-jp-w8" },
+  { usWeight: 900, key: "hiragino-jp-w9" },
+];
+
+export function hiraginoWeightCut(weight: number): string | null {
+  let best: { key: string; dist: number } | null = null;
+  for (const c of HIRAGINO_CUTS) {
+    const dist = Math.abs(c.usWeight - weight);
+    if (best == null || dist < best.dist) best = { key: c.key, dist };
+  }
+  return best?.key ?? null;
+}
+
 export function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
@@ -2604,8 +2653,14 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   if (key === "hiragino-mincho" && weight >= 600) {
     effectiveKey = "hiragino-mincho-bold"; // HiraMinProN-W6. DM-1117.
   }
-  if (key === "hiragino-jp" && weight >= 600) {
-    effectiveKey = "hiragino-jp-bold";
+  // Hiragino Sans ships a full W0..W9 ladder and Chrome picks the cut whose
+  // OS/2.usWeightClass matches the CSS weight (measured — see FONT_PATHS). A
+  // single regular + bold pair, which is what this used to be, is wrong at
+  // SEVEN of the nine standard weights. Gated on the cut resolving here, so
+  // Linux (IPAGothic) and Windows (Yu Gothic) keep their single face.
+  if (key === "hiragino-jp") {
+    const cut = hiraginoWeightCut(weight);
+    if (cut != null && resolveFontSpec(cut) != null) effectiveKey = cut;
   }
   // Apple SD Gothic Neo (Hangul). DM-691.
   if (key === "korean" && weight >= 600) {
