@@ -164,7 +164,7 @@ First measured run, on a developer Mac (macOS arm64, Unicode 16.0, native glyph 
 | `system-ui, -apple-system, sans-serif` | 13 / 400 / italic | 52,526 |
 | `system-ui, -apple-system, sans-serif` | 20 / 700 / normal | 52,720 |
 
-A separate three-stack run (`system-ui …` 20/700 plus the two 32 px CJK stacks the Unicode fixtures use) swept 877,398 comparisons and returned **318,978 mismatches across 153 distinct routes** — 36.4%, with agreement splitting 6.3% exact / 8.2% same-file / 1.2% alias / 48.1% shared tofu.
+A separate three-stack run — `--max-stacks 12 --stack-shard 3/4`, which selects `system-ui …` 20/700 plus the two 32 px CJK stacks the Unicode fixtures use — swept 877,398 comparisons and returned **318,978 mismatches across 153 distinct routes**, 36.4%, with agreement splitting 6.3% exact / 8.2% same-file / 1.2% alias / 48.1% shared tofu. That flag pair is the reproducer for every number in this section.
 
 What actually disagrees, in descending order of blast radius:
 
@@ -175,6 +175,41 @@ What actually disagrees, in descending order of blast radius:
 5. **Latin-Extended and symbol routing in the `Times` stack**: `TimesNewRomanPSMT` → `Helvetica` / `LucidaGrande`, `Kokonor` → `Kailasa` (Tibetan), `ITFDevanagari-Book` → `KohinoorDevanagari-Regular`.
 
 Note the shape of the number: the raw mismatch count is dominated by a handful of primary-family decisions, so it should fall in large steps rather than gradually. Track `distinctMismatchPairs` to see real progress.
+
+### Where that baseline stands now
+
+Two things happened to it. Routing the `hiragino-jp` key to the weight cut Chrome picks removed item 1 above outright. Correcting the instrument (previous section) then re-scored what remained. Same slice, same host, same 877,398 comparisons:
+
+| | quoted baseline | after the Hiragino ladder fix | after the instrument corrections |
+| --- | ---: | ---: | ---: |
+| mismatch total | 318,978 (36.36%) | 93,553 (10.66%) | **95,617 (10.90%)** |
+| distinct routes | 153 | 153 | **171** |
+| `agree-exact` | 54,884 | 69,609 | **139,143** |
+| `agree-same-file` | 71,598 | 71,598 | **0** |
+| `agree-alias` | 10,093 | 10,093 | 10,093 |
+| `agree-tofu` | 421,845 | 632,545 | 632,545 |
+| `mismatch-we-tofu` | 210,700 | 0 | 0 |
+
+**The last column is higher than the one before it, and that is the point.** The 71,598 comparisons the file tier used to reconcile did not vanish — 69,532 of them turned out to be genuinely the same face and are now proven by name at the strongest tier, and 2,064 turned out not to be. Those 2,064 are real wrong-cut picks that the instrument had been scoring as agreement, and the 18 extra distinct routes name them. A smaller number here would have meant less was being measured, not that more was correct.
+
+The same decomposition on `--max-stacks 3 --no-pua` (464,994 comparisons over the `Times` / `Menlo` / `system-ui` 20/700 stacks) separates the two corrections: naming the cut moves 4,958 comparisons from `agree-same-file` to `agree-exact` and leaves the total at 88,895, because those three stacks' primaries are mostly weight 400 where the cut IS the base entry. Tightening the file tier then converts the remaining 31,484 same-file agreements into mismatches, every one of them a cut disagreement:
+
+| Newly visible route | rows | what it means |
+| --- | ---: | --- |
+| `STSongti-SC-Regular` → `STSongti-SC-Light` | 29,420 | Chrome paints Han in the `Times` stack with Songti Regular; the `cjk-serif` key resolves to the Light cut. Both live in `Songti.ttc`, so the file tier called it agreement across the whole Han block. |
+| `EuphemiaUCAS-Bold` → `EuphemiaUCAS` | 630 | Chrome takes the family's bold cut at weight 700; the key has no `-bold` routing. |
+| `KefaIII-Bold` → `KefaIII-Regular` | 495 | same |
+| `TamilSangamMN-Bold` → `TamilSangamMN` | 261 | same |
+| `NotoSansMyanmar-Bold` → `NotoSansMyanmar-Regular` | 224 | same |
+| `Galvji-Bold` → `Galvji` | 172 | same |
+| `SinhalaSangamMN-Bold` → `SinhalaSangamMN` | 80 | same |
+| `NotoSansSyriac-Regular_Bold` → `NotoSansSyriac-Regular` | 77 | same |
+| `Menlo-Bold` → `Menlo-Regular` | 63 | same |
+| `MuktaMahee-Bold` → `MuktaMahee-Regular`, `Inter-Regular_Bold` → `Inter-Regular`, `NotoSansNagMundari-Regular_Bold` → …, `NotoSansKannada-Bold` → …, `HelveticaNeue-Bold` → `HelveticaNeue` | 62 | same |
+
+Nothing moved the other way — no route lost agreement for any reason other than a named cut disagreeing with a named cut.
+
+On a slice chosen to match the change instead of the history — the six corpus stacks whose primary IS cut-routed, stride-1/4 universe, 438,702 comparisons — the total falls **116,654 → 71,233** while distinct routes rise **302 → 351**. The fall is one artifact: 53,474 rows of `Arial-BoldMT → arial` where our tofu donor had no name at all, so every uncovered codepoint in that stack scored as `mismatch-we-tofu`. The rise is diagnosis: `PingFangSC-Semibold → PingFangSC-Regular` keeps its 12,861 rows but is really `→ PingFangSC-Medium`, and `.AppleSDGothicNeoI-Bold → AppleSDGothicNeo-Regular` is really `→ AppleSDGothicNeo-Bold`. The old report would have sent a fixer after a decision the renderer never made.
 
 ## Related
 
