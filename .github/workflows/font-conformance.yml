@@ -1,0 +1,155 @@
+name: Font conformance oracle
+
+run-name: Font conformance · shards=${{ inputs.shards }}${{ inputs.range != '' && format(' · range={0}', inputs.range) || '' }}${{ inputs.max_stacks != '' && format(' · max-stacks={0}', inputs.max_stacks) || '' }}
+
+# Exhaustive font-selection parity check: for every assigned Unicode codepoint
+# crossed with every font stack the fixture corpus uses, ask Chrome (CDP
+# `CSS.getPlatformFontsForNode`) and Domotion's `resolveFontForCodepoint` which
+# face paints it, and fail on any disagreement. See docs/100.
+#
+# Sharded on STACKS rather than codepoints: the resolver memoizes each
+# first-seen uncovered codepoint's platform-fallback lookup, so a stack shard
+# pays the cold-cache cost once and every later stack in the same job is several
+# times faster. A codepoint shard would re-pay it in every shard.
+#
+# Manual dispatch. The full cross product is ~122M comparisons — hours of work
+# fanned across runners, not a per-PR gate. Scope it with `range` / `max_stacks`
+# when a change is confined to one script or one family, and read the report's
+# `meta` block, which records exactly what was swept.
+#
+# macOS only for now: the oracle compares against the host platform's font
+# matcher, and the macOS CoreText path is the calibrated one. Linux (fontconfig)
+# and Windows (DirectWrite) work the same way and can be added as separate jobs
+# once their baselines are meaningful.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: 'Number of stack shards to fan out across'
+        default: '20'
+      range:
+        description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'
+        default: ''
+      max_stacks:
+        description: 'Optional cap on the number of corpus stacks (most-used first)'
+        default: ''
+      no_pua:
+        description: 'Skip private-use codepoints (137k of 292k) for a faster run'
+        type: boolean
+        default: false
+      strict_alias:
+        description: 'Treat the documented macOS system-font naming alias as a mismatch'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '22.21.0'
+
+concurrency:
+  group: font-conformance-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        run: |
+          n="${{ inputs.shards }}"
+          list=$(seq 1 "$n" | paste -sd, -)
+          echo "matrix={\"shard\":[$list],\"total\":[$n]}" >> "$GITHUB_OUTPUT"
+
+  sweep:
+    needs: setup
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+        # Without the native helper the macOS per-codepoint fallback resolver
+        # cannot ask CoreText and silently drops to the static chain — which
+        # answers a DIFFERENT question than the one this workflow reports on.
+      - name: Build the macOS glyph helper (CoreText fallback resolver)
+        run: |
+          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             tools/macos-glyph-extractor/domotion-glyph-paths
+          echo "helper built: $(file tools/macos-glyph-extractor/domotion-glyph-paths)"
+      - name: Font env probe (diagnostic — grep FONTPROBE in this step's log)
+        run: npx tsx tools/font-env-probe.mjs
+      - name: Sweep
+        # `|| true` so one shard's mismatches don't cancel the others; the
+        # aggregate job re-derives the verdict from the merged reports.
+        run: |
+          npx tsx tools/font-conformance.ts \
+            --stack-shard ${{ matrix.shard }}/${{ matrix.total }} \
+            --out "tests/output/font-conformance" \
+            ${{ inputs.range != '' && format('--range {0}', inputs.range) || '' }} \
+            ${{ inputs.max_stacks != '' && format('--max-stacks {0}', inputs.max_stacks) || '' }} \
+            ${{ inputs.no_pua && '--no-pua' || '' }} \
+            ${{ inputs.strict_alias && '--strict-alias' || '' }} || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-conformance-shard-${{ matrix.shard }}
+          path: tests/output/font-conformance/
+          retention-days: 14
+
+  aggregate:
+    needs: sweep
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - uses: actions/download-artifact@v4
+        with: { path: shards, pattern: font-conformance-shard-* }
+      - name: Merge shard reports
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const dirs = fs.readdirSync("shards");
+            let comparisons = 0, mismatch = 0, allowed = 0;
+            const pairs = new Map();
+            const buckets = {};
+            for (const d of dirs) {
+              const f = `shards/${d}/report.json`;
+              if (!fs.existsSync(f)) { console.log(`missing report: ${d}`); continue; }
+              const r = JSON.parse(fs.readFileSync(f, "utf-8"));
+              comparisons += r.summary.comparisons;
+              mismatch += r.summary.mismatchTotal;
+              allowed += r.summary.allowlisted;
+              for (const [k, v] of Object.entries(r.summary)) {
+                if (k.startsWith("agree") || k.startsWith("mismatch")) buckets[k] = (buckets[k] ?? 0) + v;
+              }
+              for (const p of r.topMismatchPairs) pairs.set(p.pair, (pairs.get(p.pair) ?? 0) + p.count);
+            }
+            const top = [...pairs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 60);
+            const out = [];
+            out.push(`## Font conformance`);
+            out.push("");
+            out.push(`| metric | value |`, `| --- | --- |`);
+            out.push(`| comparisons | ${comparisons.toLocaleString()} |`);
+            for (const [k, v] of Object.entries(buckets)) out.push(`| ${k} | ${v.toLocaleString()} |`);
+            out.push(`| allowlisted | ${allowed.toLocaleString()} |`);
+            out.push("", `**mismatches: ${mismatch.toLocaleString()}**`, "");
+            if (top.length) {
+              out.push(`### Top disagreeing pairs (chrome → ours)`, "", `| count | pair |`, `| --- | --- |`);
+              for (const [p, c] of top) out.push(`| ${c} | \`${p}\` |`);
+            }
+            fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n", { flag: "a" });
+            fs.writeFileSync("mismatch-total", String(mismatch));
+          '
+      - name: Gate
+        run: |
+          total=$(cat mismatch-total)
+          echo "mismatch total: $total"
+          test "$total" -eq 0

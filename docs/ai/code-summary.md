@@ -162,6 +162,13 @@ shortest possible map:
   `tests/conventions.test.ts` (dep allow-list + no-shell-exec + manifest
   integrity/drift, in the `npm test` gate), and `tools/check-feature-coverage.ts`
   (`npm run check:features` — the standalone report). See `docs/83-feature-coverage.md`.
+- **Font parity** — `tools/font-conformance.ts` (`npm run fonts:conformance`) is
+  the conformance oracle: Chrome's `CSS.getPlatformFontsForNode` vs
+  `resolveFontForCodepoint`, over every assigned Unicode codepoint × every font
+  stack in the fixture corpus (`tools/font-conformance-stacks.json`), non-zero
+  exit on any mismatch. Logic pinned by `tests/font-conformance.test.ts`; see
+  `docs/100-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
+  single-shot `FONTAGREE:` diagnostic sibling.
 
 ## Debugging a render-fidelity bug
 

@@ -1,0 +1,12 @@
+{
+  "_README": [
+    "Accepted divergences between Chrome's font selection and Domotion's, consumed by tools/font-conformance.ts.",
+    "An entry here suppresses a real, reproduced disagreement — it does not fix one. Keep this file as close to empty as the truth allows.",
+    "Schema: entries[] of { cp, stack?, reason }.",
+    "  cp     — \"0xNNNN\" or an inclusive range \"0xNNNN-0xNNNN\".",
+    "  stack  — optional exact computed font-family string; omit to apply to every stack.",
+    "  reason — REQUIRED, and must be a real sentence (>= 10 chars). Say what diverges and why living with it is defensible. The loader throws on a missing or perfunctory reason.",
+    "Every entry's hit count is written to report.json, so an entry that stops matching shows up as dead and can be deleted."
+  ],
+  "entries": []
+}
