@@ -99,10 +99,21 @@ The three `mismatch*` buckets gate. Each mismatch row also carries a triage `cla
 
 The instrument is only worth its exit code if its blind spots are written down rather than discovered later as "the number was wrong all along". Current ones:
 
-- **Variable faces cannot be adjudicated by name.** A variable file instanced along `wght` keeps the base master's PostScript name (`/System/Library/Fonts/SFNS.ttf` reports `.SFNS-Regular` at every weight) while Chrome names the optical/weight cut it selected. Those land in `agree-alias` or `same-family-different-cut`; the oracle can prove the FILE and the axis request but not the name.
-- **The stack corpus keys on family / size / weight / style only.** `font-variation-settings`, `font-stretch` and `font-feature-settings` are not extracted, so a fixture that uses them is swept as though it did not — and `font-stretch` in particular can change which face Chrome picks.
+- **Variable faces cannot be adjudicated by name.** A variable file instanced along `wght` keeps the base master's PostScript name (`/System/Library/Fonts/SFNS.ttf` reports `.SFNS-Regular` at every weight) while Chrome names the optical/weight cut it selected. Those land in `agree-alias` or `same-family-different-cut`; the oracle can prove the FILE and the axis request but not the name. **This one is structural and stays** — the name-independent check lives in the sibling shaping oracle ([doc 108](108-shaping-conformance-oracle.md)), which compares painted glyph positions and so discriminates two instances of one name where this tool cannot.
+- **`font-feature-settings` is still not extracted**, so a fixture using it is swept as though it did not.
 - **One face per cell.** When a codepoint decomposes across two faces the oracle compares the one with the most glyphs; the full list survives in `chromeAllFaces`.
 - **Synthetic vs real cuts are compared by face, not by synthesis.** If Chrome synthesizes bold from a regular face it reports the regular face, so our picking a real bold sibling shows up — correctly — as a mismatch. That is the intended reading, but it means a `same-family-different-cut` row can mean either "we took the wrong cut" or "Chrome faked one".
+
+### `font-stretch` and `font-variation-settings` — closed, and measured (DM-1858)
+
+Both are now part of the stack key, extracted from the computed style and declared on the probe page, and our side honors an author's axis settings through `getFontInstance`. The corpus grew **418 → 434 stacks**, surfacing 8 combinations with non-normal `font-stretch` (the fixtures span 50% → 200%) and 9 with explicit `font-variation-settings`.
+
+Those 17 newly-visible stacks measure **0 mismatches**. That is a real result rather than a vacuous one, and it was checked name-independently rather than trusted:
+
+- Chrome's painted width for `sans-serif` is **identical at every stretch from 50% to 200%** (151.19px, face `Helvetica`). macOS Helvetica has no condensed face and no `wdth` axis, so there is nothing to select and Chrome does not synthesize condensing.
+- Chrome's painted width is likewise **unchanged** across `"wght" 100` ↔ `"wght" 900` and `"wdth" 50` ↔ `"wdth" 150` — including on `system-ui`, whose SFNS file *is* variable.
+
+So on this corpus and platform neither axis moves Chrome's output, and agreement is genuine. The corollary worth stating: **nothing in the fixture corpus currently exercises a live variable axis**, so the name-blindness above, while real, is presently untested rather than passing. A fixture that drives a `wdth`/`wght` axis Chrome actually honors would be the thing to add.
 
 ### Aliases are not exemptions
 

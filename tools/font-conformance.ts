@@ -81,6 +81,15 @@ export interface StackSpec {
   fontSize: number;
   fontWeight: number;
   fontStyle: string;
+  /** Computed `font-stretch` (e.g. "100%", "75%"). Chrome's CSS font matching
+   *  selects on stretch BEFORE weight, so a condensed face is a different
+   *  matching decision, not a variation on the same one. Optional so a corpus
+   *  file written before DM-1858 still parses; absent is read as normal. */
+  fontStretch?: string;
+  /** Computed `font-variation-settings` (e.g. `"wght" 350`). An explicit axis
+   *  location the author asked for, which the resolver must honor and which
+   *  changes the face we instance (docs/99). */
+  fontVariationSettings?: string;
   /** How many corpus fixtures contain at least one element with this combination. */
   fixtures: number;
   /**
@@ -400,6 +409,24 @@ export interface ResolvedStack {
  * families we don't recognize, which is precisely the population most likely
  * to disagree with Chrome.
  */
+/**
+ * Parse a computed `font-variation-settings` into the axis map `getFontInstance`
+ * takes. `"wght" 350, "wdth" 87` → `{ wght: 350, wdth: 87 }`; `normal` → null.
+ *
+ * DM-1858: previously the oracle never read this property at all, so an author
+ * axis location swept as though it were the default — our side was asked a
+ * different question than the probe page rendered.
+ */
+export function parseVariationSettings(value: string | undefined): Record<string, number> | null {
+  if (value == null || value.trim() === "" || value.trim() === "normal") return null;
+  const out: Record<string, number> = {};
+  for (const m of value.matchAll(/["']([A-Za-z0-9]{4})["']\s*([-\d.]+)/g)) {
+    const n = Number(m[2]);
+    if (Number.isFinite(n)) out[m[1]] = n;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 export function prepareStack(spec: StackSpec): ResolvedStack | null {
   const chain = resolveFontKeyChain(spec.fontFamily);
   const primaryKey = resolveFontKey(spec.fontFamily);
@@ -407,7 +434,14 @@ export function prepareStack(spec: StackSpec): ResolvedStack | null {
   // Mirror `resolveFont`'s opsz pin for an explicitly-named macOS optical cut,
   // so the instance we probe is the one the renderer would actually use.
   const cutOpsz = opticalCutOpszFor(spec.fontFamily);
-  const variations = cutOpsz != null ? { opsz: cutOpsz } : undefined;
+  // The author's own axis settings win over the opsz pin for any axis they name,
+  // matching the renderer: `font-variation-settings` is the last word in CSS.
+  const authorAxes = parseVariationSettings(spec.fontVariationSettings);
+  const merged: Record<string, number> = {
+    ...(cutOpsz != null ? { opsz: cutOpsz } : {}),
+    ...(authorAxes ?? {}),
+  };
+  const variations = Object.keys(merged).length > 0 ? merged : undefined;
   const primary = getFontInstance(primaryKey, spec.fontWeight, spec.fontSize, slant, variations);
   if (primary == null) return null;
   const rs: ResolvedStack = {
@@ -535,7 +569,9 @@ class ChromeOracle {
       `<!doctype html><html lang="${this.lang}"><head><meta charset="utf-8"><style>`
       + `body{margin:0}`
       + `#w{display:flex;flex-wrap:wrap;font-family:${family};font-size:${spec.fontSize}px;`
-      + `font-weight:${spec.fontWeight};font-style:${spec.fontStyle}}`
+      + `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};`
+      + `font-stretch:${spec.fontStretch ?? "normal"};`
+      + `font-variation-settings:${spec.fontVariationSettings ?? "normal"}}`
       // `white-space:pre` is load-bearing: without it a cell holding U+0020 (or
       // any other space separator) collapses to nothing, Chrome paints no
       // glyph, and the oracle reports a mismatch that only exists because of
@@ -643,6 +679,10 @@ async function extractStacks(browser: Browser, dirs: string[], outFile: string):
           fontSize: Math.round(parseFloat(cs.fontSize)),
           fontWeight: parseInt(cs.fontWeight, 10) || 400,
           fontStyle: cs.fontStyle,
+          // DM-1858: previously absent from the key, so every condensed face and
+          // every explicit axis location swept as though it were the default.
+          fontStretch: cs.fontStretch,
+          fontVariationSettings: cs.fontVariationSettings,
         }));
       }
       return Array.from(seen);
