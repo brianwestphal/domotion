@@ -1,4 +1,4 @@
-# 100 — Font-resolution conformance oracle
+# 107 — Font-resolution conformance oracle
 
 Domotion's font goal is guaranteed parity with Chromium's font-selection mechanism: for any codepoint, in any CSS font stack, we must resolve the face Chromium actually paints with. A visual-regression suite cannot establish that. Fixtures sample, and a wrong-font bug survives comfortably in the codepoints no fixture happens to cover — which is how several of them survived.
 

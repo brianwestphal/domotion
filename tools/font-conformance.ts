@@ -47,7 +47,7 @@
  *   --out <dir>          report directory (tests/output/font-conformance)
  *
  * Exit code: 0 when every comparison agrees (or is allowlisted), 1 on any
- * mismatch, 2 on a harness error. See `docs/100-font-conformance-oracle.md`.
+ * mismatch, 2 on a harness error. See `docs/107-font-conformance-oracle.md`.
  * ---------------------------------------------------------------------------
  */
 import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
@@ -708,7 +708,6 @@ export function parseArgs(argv: string[]): Options {
       case "--help":
         process.stdout.write(readFileSync(new URL(import.meta.url).pathname, "utf-8").split("*/")[0]);
         process.exit(0);
-        break;
       default: throw new Error(`unknown option ${a}`);
     }
   }
