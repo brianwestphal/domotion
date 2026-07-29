@@ -90,6 +90,17 @@ export interface FontInstance {
    *  Trusting the angle alone there sheared an already-oblique face a second
    *  time in embedded-font mode. */
   isRoutedItalicCut?: boolean;
+  /** PostScript name of the face fontkit actually OPENED (`Helvetica-Bold`,
+   *  `HiraginoSans-W7`, `.SFNS-Regular`). fontkit exposes it on every `Font`,
+   *  including the member a `.ttc` collection resolved to; native-helper and
+   *  webfont instances leave it undefined, and `getFontSourceInfo().postscriptName`
+   *  (the name the path table asked for) is the fallback there.
+   *
+   *  Typed here so the conformance oracle can name the face the renderer would
+   *  really emit — a face's identity is exactly what it compares against
+   *  Chrome's `CSS.getPlatformFontsForNode`, and reading it through a cast would
+   *  put the one load-bearing field of that comparison outside the type system. */
+  postscriptName?: string;
 }
 
 /** Glyph id for a codepoint, tolerating a null return from `glyphForCodePoint`.
@@ -2751,6 +2762,10 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
+      // Native-helper instances carry no name of their own. Stamp the resolved
+      // cut's, so the instance is self-identifying no matter which of the two
+      // branches below records a `fontSourceMap` entry (one is flag-gated).
+      instance.postscriptName ??= spec.postscriptName;
       // DM-1714: even when outlines come from the native helper (macOS CoreText /
       // Windows DirectWrite — the default for live-resolver-registered system
       // fonts), the on-disk FILE is known. If it's a standard sfnt with glyf/CFF
@@ -2812,6 +2827,7 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
+      instance.postscriptName ??= spec.postscriptName;
       fontInstanceCache.set(cacheKey, instance);
       return instance;
     }

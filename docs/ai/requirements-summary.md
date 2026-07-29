@@ -838,13 +838,16 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   extraction helpers (currently macOS via CoreText is doc 16).
 - **Doc 49 / 50 / 51 / 52** — glyph-helper dispatch, acquisition,
   probe-then-fallback, embedded-mode glyph fallback.
-- **Doc 100 (`docs/100-font-conformance-oracle.md`)** — **Shipped.** The
+- **Doc 107 (`docs/107-font-conformance-oracle.md`)** — **Shipped.** The
   font-parity *instrument*: `tools/font-conformance.ts` asks Chrome (CDP
   `CSS.getPlatformFontsForNode`) and `resolveFontForCodepoint` the same
   per-codepoint question over every assigned Unicode codepoint × every
   font stack the fixture corpus uses, writes a JSON + text report, and
   exits non-zero on any mismatch. Parity is measured here, not inferred
-  from a passing fixture sweep. The allowlist ships empty by design.
+  from a passing fixture sweep. The allowlist ships empty by design. Our
+  side is materialized through the renderer's own call
+  (`getFontInstance`), so the face compared is the weight/slant-selected
+  cut rather than the family's base path-table entry.
 - **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
   always-in-sync Mermaid flow diagram of the *entire* font-resolution
   system, synthesizing docs 03/30/40/42/51/52/80: family-stack→key, the

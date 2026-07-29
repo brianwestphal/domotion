@@ -5,7 +5,7 @@ Domotion's font goal is guaranteed parity with Chromium's font-selection mechani
 `tools/font-conformance.ts` is the instrument that replaces sampling with enumeration. It asks Chrome and Domotion the same question about every assigned Unicode codepoint, crossed with every font stack the fixture corpus actually uses, and fails on any disagreement.
 
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
-- **Our answer** — `resolveFontForCodepoint` against the same stack's key chain, at the same size, weight and style.
+- **Our answer** — `resolveFontForCodepoint` against the same stack's key chain, at the same size, weight and style, materialized through the same call the renderer makes (`res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`), so the face reported is the concrete **cut** the renderer would load and not the family's base entry.
 
 `tools/chrome-font-agreement.ts` is the single-shot diagnostic sibling: it prints `FONTAGREE:` lines into a CI log for a handful of codepoints and never gates. This is the exhaustive, gateable one.
 
@@ -36,7 +36,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 | `--max-rows n` | Per-mismatch example rows retained in `report.json` (default 20000). Counts are always exact; only the detail is capped. |
 | `--strict-alias` | Treat the documented naming aliases as mismatches (see below). |
 | `--allowlist <file>` | Accepted-divergence file (default `tools/font-conformance-allowlist.json`). |
-| `--lang <tag>` | `<html lang>` on the probe page (default `en`). Han fallback depends on it. |
+| `--lang <tag>` | Locale for both sides (default `en`): `<html lang>` on the probe page *and* the `lang` our resolver routes Han with. |
 | `--out <dir>` | Report directory (default `tests/output/font-conformance`). |
 
 ## What it sweeps
@@ -81,7 +81,7 @@ Every comparison lands in exactly one bucket:
 | Bucket | Meaning |
 | --- | --- |
 | `agree-exact` | Same PostScript name. The only tier that also proves the weight/style cut. |
-| `agree-same-file` | Chrome's PostScript name resolves — through the same platform font matcher Chrome used — to the file we picked. Covers path-table entries that carry no PostScript name of their own. A `.ttc` holds several faces behind one path, so this tier cannot distinguish Helvetica Regular from Helvetica Bold. |
+| `agree-same-file` | Chrome's PostScript name resolves — through the same platform font matcher Chrome used — to the file we picked. Covers path-table entries that carry no PostScript name of their own, and is consulted **only when one of the two sides is nameless**: a `.ttc` holds several faces behind one path, so a file match between two faces we can both name, whose names differ, is evidence of a shared collection rather than a shared face. |
 | `agree-alias` | Reconciled by a documented entry in `FACE_ALIASES`. |
 | `agree-tofu` | No font covers the codepoint, so we draw the run primary's `.notdef` — and Chrome, which reports the face it *selected* rather than the face that *covered* the character, names that same primary. The largest bucket by far: most of Unicode is uncovered in any given stack. |
 | `agree-not-painted` | Chrome painted nothing and neither would we. |
@@ -93,6 +93,15 @@ The three `mismatch*` buckets gate. Each mismatch row also carries a triage `cla
 
 - `different-family` — we routed the codepoint to a different typeface entirely (Chrome: `.SFDevanagari-Regular`, us: `KohinoorDevanagari-Regular`). A routing defect.
 - `same-family-different-cut` — right typeface, wrong weight or optical cut (Chrome: `Arimo-Bold`, us: `Arimo-Regular`). A cut-selection defect — or, for a variable face we instance along `wght` instead of naming a static cut, a name the oracle cannot adjudicate either way.
+
+### What the oracle does not yet compare
+
+The instrument is only worth its exit code if its blind spots are written down rather than discovered later as "the number was wrong all along". Current ones:
+
+- **Variable faces cannot be adjudicated by name.** A variable file instanced along `wght` keeps the base master's PostScript name (`/System/Library/Fonts/SFNS.ttf` reports `.SFNS-Regular` at every weight) while Chrome names the optical/weight cut it selected. Those land in `agree-alias` or `same-family-different-cut`; the oracle can prove the FILE and the axis request but not the name.
+- **The stack corpus keys on family / size / weight / style only.** `font-variation-settings`, `font-stretch` and `font-feature-settings` are not extracted, so a fixture that uses them is swept as though it did not — and `font-stretch` in particular can change which face Chrome picks.
+- **One face per cell.** When a codepoint decomposes across two faces the oracle compares the one with the most glyphs; the full list survives in `chromeAllFaces`.
+- **Synthetic vs real cuts are compared by face, not by synthesis.** If Chrome synthesizes bold from a regular face it reports the regular face, so our picking a real bold sibling shows up — correctly — as a mismatch. That is the intended reading, but it means a `same-family-different-cut` row can mean either "we took the wrong cut" or "Chrome faked one".
 
 ### Aliases are not exemptions
 
@@ -129,6 +138,18 @@ The full cross product — 292,466 codepoints × 418 stacks = **122.2 million co
 2. **Scoped for the change at hand.** `--range` for a routing change confined to a script, `--max-stacks` for a change to a specific family's handling. Both are subsets, and the report says which.
 
 Whatever the scope, the report's `meta` block records exactly what was swept — codepoint count, stack count, ranges, shards, PUA inclusion — so a number can never be quoted without its scope.
+
+## Instrument corrections, 2026-07-29
+
+Every parity fix is scored against this tool, so a defect in the tool corrupts every number measured after it. Three were found and fixed in the first review after the first baseline was taken; the numbers below are quoted before and after so the correction is auditable rather than silent.
+
+1. **Our side named the family, not the cut.** The oracle asked `resolveFontSpec(key)`, which returns the family's base entry in the path table. The renderer asks `getFontInstance(key, weight, size, slant)`, which makes a *second* decision on top of the key — the `-bold` / `-italic` / `-bold-italic` sibling, the sub-bold cut, the Hiragino Sans W0…W9 ladder, `cjk-bold`, `korean-bold`, `lucida-grande-bold`, the PingFang Medium subfont. Chrome's answer is always weight-selected, so the comparison was base-against-cut. On the committed 418-stack corpus, **75 stacks** reported a face other than the one they would render. The oracle now materializes the instance the way the renderer does and reads the identity back off it (fontkit's own `postscriptName` first, so the resolved member of a `.ttc` is named exactly).
+
+   This also silently defeated the previous commit's Hiragino work: `resolveFontSpec("hiragino-jp")` answers `HiraginoSans-W4` at every weight, which happens to be right at 400 and wrong at the other eight rungs of the ladder — so the ladder could be fixed or broken without the instrument moving.
+
+2. **`agree-same-file` could absorb a wrong cut.** Every cut of a `.ttc` family shares one path, so "Chrome's face resolves to the file we picked" was true of Helvetica Regular *and* Helvetica Bold. Combined with (1) that made the base-vs-cut error invisible: the oracle reported the regular face, Chrome reported the bold, and the shared `Helvetica.ttc` reconciled them. The tier is now consulted only when one of the two sides is nameless, which is the case it was written for.
+
+3. **`--lang` moved only Chrome.** The tag went on the probe page's `<html>` element but not into `resolveFontForCodepoint`, whose `fallbackFontChain` routes Han by locale. `--lang ja` would have moved Chrome's answer and not ours. Both sides now receive it. Behavior-neutral at the default (`en` selects no locale-specific Han route), wrong at every other value.
 
 ## Baseline, 2026-07-29
 

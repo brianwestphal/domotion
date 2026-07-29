@@ -43,7 +43,8 @@
  *   --max-rows n         example mismatch rows kept in the report (20000)
  *   --strict-alias       treat the documented naming aliases as mismatches
  *   --allowlist <file>   accepted-divergence file
- *   --lang <tag>         <html lang> on the probe page (en)
+ *   --lang <tag>         locale for BOTH sides — <html lang> on the probe page
+ *                        and the `lang` the resolver routes Han with (en)
  *   --out <dir>          report directory (tests/output/font-conformance)
  *
  * Exit code: 0 when every comparison agrees (or is allowlisted), 1 on any
@@ -56,7 +57,9 @@ import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   ITALIC_SLNT,
+  type FontInstance,
   getFontInstance,
+  getFontSourceInfo,
   opticalCutOpszFor,
   resolveFontForCodepoint,
   resolveFontKey,
@@ -99,7 +102,16 @@ export interface ChromeFace {
   isCustomFont?: boolean;
 }
 
-/** A face as we resolve it. */
+/**
+ * A face as we resolve it.
+ *
+ * `path` / `postscriptName` describe the face the RENDERER WOULD LOAD — the
+ * concrete cut, not the family's base table entry. `key` stays the logical
+ * routing key (`helvetica`, `hiragino-jp`), because that is what the resolver
+ * decided and what a fix would be made against; the cut is a second decision
+ * `getFontInstance` makes on top of it, and both have to be right for the pixels
+ * to match. See `faceFor`.
+ */
 export interface OurFace {
   key: string;
   path: string | null;
@@ -314,9 +326,14 @@ function chromeFaceFile(face: ChromeFace): string | null {
  *  2. `agree-same-file` — Chrome's PostScript name resolves (through the same
  *     platform font matcher Chrome used) to the file we picked. This covers
  *     entries in our path tables that carry no PostScript name of their own.
- *     Caveat: a `.ttc` collection holds several faces behind one path, so this
- *     tier cannot distinguish Helvetica Regular from Helvetica Bold inside
- *     Helvetica.ttc. Weight/style parity is therefore only proven at tier 1.
+ *
+ *     Only consulted when at least one side is NAMELESS, because a `.ttc`
+ *     collection holds several faces behind one path: Helvetica Regular and
+ *     Helvetica Bold are both `/System/Library/Fonts/Helvetica.ttc`, so a
+ *     file match between two faces we can both NAME, whose names differ, is
+ *     evidence of a shared collection and not of a shared face. Letting it pass
+ *     is how a wrong-cut pick hides — it is exactly what concealed the family
+ *     base-vs-cut defect this tier used to paper over.
  *  3. `agree-alias`     — a documented entry in FACE_ALIASES.
  */
 export function identifyFace(chrome: ChromeFace, ours: OurFace, strictAlias: boolean): Verdict | null {
@@ -324,7 +341,12 @@ export function identifyFace(chrome: ChromeFace, ours: OurFace, strictAlias: boo
   if (cName.length < 2) return null;
   if (ours.postscriptName != null && norm(ours.postscriptName) === cName) return "agree-exact";
 
-  const cFile = chromeFaceFile(chrome);
+  // Both sides named, and the names differ ⇒ the shared file below cannot be
+  // read as a shared face. `chrome.postScriptName` specifically: when Chrome
+  // reports only a family name we are not comparing two PostScript names, and
+  // the file resolution is still the best evidence available.
+  const bothNamed = chrome.postScriptName != null && ours.postscriptName != null;
+  const cFile = bothNamed ? null : chromeFaceFile(chrome);
   if (cFile != null && ours.path != null && cFile === ours.path) return "agree-same-file";
 
   if (!strictAlias) {
@@ -346,12 +368,21 @@ export function slantForStyle(style: string): number {
   return (s === "italic" || s.startsWith("oblique")) ? ITALIC_SLNT : 0;
 }
 
-interface ResolvedStack {
+export interface ResolvedStack {
   spec: StackSpec;
   chain: string[];
   primaryKey: string;
   primary: NonNullable<ReturnType<typeof getFontInstance>>;
   slant: number;
+  /**
+   * key → face, memoized for the life of this stack.
+   *
+   * Scoped to the stack rather than the process because the answer DEPENDS on
+   * the stack's weight / size / style: `helvetica` is Helvetica-Bold at 700 and
+   * Helvetica-Light at 300. A process-global cache keyed on the font key alone
+   * would serve the first stack's cut to every later one.
+   */
+  faceCache: Map<string, { path: string | null; postscriptName: string | null }>;
   /** The face whose `.notdef` the renderer draws when nothing covers a codepoint. */
   notdefDonor: OurFace;
 }
@@ -366,7 +397,7 @@ interface ResolvedStack {
  * families we don't recognize, which is precisely the population most likely
  * to disagree with Chrome.
  */
-function prepareStack(spec: StackSpec): ResolvedStack | null {
+export function prepareStack(spec: StackSpec): ResolvedStack | null {
   const chain = resolveFontKeyChain(spec.fontFamily);
   const primaryKey = resolveFontKey(spec.fontFamily);
   const slant = slantForStyle(spec.fontStyle);
@@ -376,24 +407,67 @@ function prepareStack(spec: StackSpec): ResolvedStack | null {
   const variations = cutOpsz != null ? { opsz: cutOpsz } : undefined;
   const primary = getFontInstance(primaryKey, spec.fontWeight, spec.fontSize, slant, variations);
   if (primary == null) return null;
-  return { spec, chain, primaryKey, primary, slant, notdefDonor: faceMeta(primaryKey, true) };
+  const rs: ResolvedStack = {
+    spec, chain, primaryKey, primary, slant,
+    faceCache: new Map(),
+    // Placeholder — `faceFor` needs the stack, so the real donor is filled in
+    // immediately below.
+    notdefDonor: { key: primaryKey, path: null, postscriptName: null, covered: false },
+  };
+  rs.notdefDonor = faceFor(rs, primaryKey, false, primary);
+  return rs;
 }
 
-const ourPsCache = new Map<string, { path: string | null; postscriptName: string | null }>();
+/**
+ * The face the RENDERER would load for `key` in this stack.
+ *
+ * This is deliberately NOT `resolveFontSpec(key)`. That returns the family's
+ * BASE entry, and `getFontInstance` makes a second, weight- and slant-dependent
+ * decision on top of the key — `-bold` / `-italic` / `-bold-italic` siblings,
+ * the sub-bold cut (`helvetica-light` below 300), the Hiragino Sans W0…W9
+ * ladder, `cjk-bold`, `korean-bold`, `lucida-grande-bold`, the PingFang Medium
+ * subfont. Comparing the base entry against Chrome's answer, which IS
+ * weight-selected, is wrong in both directions: it invents mismatches where we
+ * would have rendered the right cut, and — worse — hides real ones behind the
+ * `agree-same-file` tier, since every cut of a `.ttc` family shares one path.
+ *
+ * So the instance is materialized exactly the way the renderer materializes it
+ * (`res.fontOverride ?? (key === primaryKey ? primaryFont : getFontInstance(…))`
+ * — src/render/text-to-path.ts) and its identity read back off the instance:
+ * fontkit's own `postscriptName` first (the face actually opened, including the
+ * resolved member of a `.ttc`), then the path table's declared name, then the
+ * `sysfb:` key's embedded name.
+ */
+export function faceFor(rs: ResolvedStack, key: string, covered: boolean, override: FontInstance | null): OurFace {
+  // A per-codepoint override (webfont partition, decomposition-shaping instance)
+  // is not a property of the key, so it must not populate or read the cache.
+  const cacheable = override == null;
+  const hit = cacheable ? rs.faceCache.get(key) : undefined;
+  if (hit !== undefined) return { key, path: hit.path, postscriptName: hit.postscriptName, covered };
 
-function faceMeta(key: string, covered: boolean): OurFace {
-  let meta = ourPsCache.get(key);
-  if (meta === undefined) {
-    const spec = resolveFontSpec(key);
-    // A `sysfb:` key carries the PostScript name the platform matcher returned.
-    const fromKey = key.startsWith("sysfb:") ? key.slice("sysfb:".length) : null;
-    meta = { path: spec?.path ?? null, postscriptName: spec?.postscriptName ?? fromKey };
-    ourPsCache.set(key, meta);
+  const materialize = (): FontInstance | null =>
+    key === rs.primaryKey ? rs.primary : getFontInstance(key, rs.spec.fontWeight, rs.spec.fontSize, rs.slant);
+  let inst = override ?? materialize();
+  let src = getFontSourceInfo(inst);
+  // An override with no identity of its own (a synthetic shaping wrapper) tells
+  // us nothing about which file was used — fall back to the key's own instance
+  // rather than reporting a nameless face.
+  if (src == null && inst?.postscriptName == null && override != null) {
+    inst = materialize();
+    src = getFontSourceInfo(inst);
   }
+  const spec = resolveFontSpec(key);
+  // A `sysfb:` key carries the PostScript name the platform matcher returned.
+  const fromKey = key.startsWith("sysfb:") ? key.slice("sysfb:".length) : null;
+  const meta = {
+    path: src?.path ?? spec?.path ?? null,
+    postscriptName: inst?.postscriptName ?? src?.postscriptName ?? spec?.postscriptName ?? fromKey,
+  };
+  if (cacheable) rs.faceCache.set(key, meta);
   return { key, path: meta.path, postscriptName: meta.postscriptName, covered };
 }
 
-function ourFaceFor(cp: number, rs: ResolvedStack): OurFace {
+export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefined): OurFace {
   const r = resolveFontForCodepoint(
     cp,
     rs.primary,
@@ -402,12 +476,12 @@ function ourFaceFor(cp: number, rs: ResolvedStack): OurFace {
     rs.spec.fontSize,
     rs.slant,
     undefined,
-    undefined,
+    lang,
     rs.chain,
   );
   // An uncovered codepoint has no resolved face of its own — the renderer draws
   // the run primary's `.notdef`, so THAT is the face to compare against Chrome.
-  return r.covered ? faceMeta(r.key, true) : { ...rs.notdefDonor, covered: false };
+  return r.covered ? faceFor(rs, r.key, true, r.fontOverride) : rs.notdefDonor;
 }
 
 // ---------------------------------------------------------------------------
@@ -811,7 +885,11 @@ async function main(): Promise<number> {
           const cp = cps[j];
           const chromeFaces = faces[j];
           const chrome = primaryChromeFace(chromeFaces);
-          const ours = ourFaceFor(cp, rs);
+          // Same `lang` both sides: it goes on the probe page's <html> element
+          // AND into `fallbackFontChain`, which routes Han by locale (zh-TW →
+          // PingFang TC, ja → Hiragino). Passing it to only one side would make
+          // `--lang ja` move Chrome's answer and not ours.
+          const ours = ourFaceFor(cp, rs, opts.lang);
 
           let verdict: Verdict;
           if (chrome == null) {

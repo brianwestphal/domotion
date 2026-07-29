@@ -15,16 +15,21 @@ import { join } from "node:path";
 import {
   allowlisted,
   buildUniverse,
+  faceFor,
   identifyFace,
   loadAllowlist,
   mismatchClass,
   needsIsolatedQuery,
   parseArgs,
+  prepareStack,
   primaryChromeFace,
   slantForStyle,
   type ChromeFace,
   type OurFace,
+  type StackSpec,
 } from "../tools/font-conformance.js";
+import { getFontInstance, getFontSourceInfo, resolveFontSpec } from "../src/render/font-resolution.js";
+import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 
 const ours = (o: Partial<OurFace>): OurFace =>
   ({ key: "x", path: null, postscriptName: null, covered: true, ...o });
@@ -125,6 +130,50 @@ describe("identifyFace", () => {
 
   it("refuses to identify a face from an unusably short name", () => {
     expect(identifyFace(chrome({ familyName: "" }), ours({ postscriptName: "Helvetica" }), false)).toBe(null);
+  });
+
+  it("will not read a shared FILE as a shared face when both sides are named", () => {
+    // Helvetica.ttc holds Regular, Bold, Oblique and Bold-Oblique behind ONE
+    // path. Accepting the file match here is precisely what let a wrong-cut
+    // pick score as agreement, so two differing PostScript names must lose even
+    // when the file is identical.
+    expect(identifyFace(
+      chrome({ postScriptName: "Helvetica-Bold", familyName: "Helvetica" }),
+      ours({ key: "helvetica", postscriptName: "Helvetica", path: "/System/Library/Fonts/Helvetica.ttc" }),
+      false,
+    )).toBe(null);
+  });
+
+  // Tier 2 needs the host's font matcher to resolve a real name to a real file,
+  // so it can only be exercised where a known-installed face is available.
+  const installed = (() => {
+    for (const name of ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans", "Times New Roman"]) {
+      try {
+        const f = resolveInstalledFont(name);
+        if (f != null && f.path !== "") return f;
+      } catch { /* helper unavailable on this host */ }
+    }
+    return null;
+  })();
+
+  it.skipIf(installed == null)("still uses the file when our side has no name of its own", () => {
+    // Path-table entries that declare no PostScript name are the case tier 2
+    // exists for; the guard above must not take that away.
+    expect(identifyFace(
+      chrome({ postScriptName: installed!.postscriptName, familyName: "whatever" }),
+      ours({ key: "k", postscriptName: null, path: installed!.path }),
+      false,
+    )).toBe("agree-same-file");
+  });
+
+  it.skipIf(installed == null)("drops to a mismatch once our side IS named and the names disagree", () => {
+    // Same file, same Chrome face as the test above — the only thing that
+    // changed is that we can now name our face, and it is a different one.
+    expect(identifyFace(
+      chrome({ postScriptName: installed!.postscriptName, familyName: "whatever" }),
+      ours({ key: "k", postscriptName: `${installed!.postscriptName}-SomeOtherCut`, path: installed!.path }),
+      false,
+    )).toBe(null);
   });
 
   it("never file-resolves a hidden `.`-prefixed system name (CoreText answers those with Times New Roman)", () => {
@@ -241,6 +290,122 @@ describe("parseArgs", () => {
   it("rejects an unknown option rather than silently sweeping something else", () => {
     expect(() => parseArgs(["--reange", "0000"])).toThrow(/unknown option/);
     expect(() => parseArgs(["--shard", "2"])).toThrow(/i\/N/);
+  });
+});
+
+/**
+ * The oracle's answer must be the face the RENDERER would load, which is the
+ * weight/slant-selected CUT — not the family's base entry in the path table.
+ *
+ * These assert an INVARIANT rather than a hardcoded face name: which families
+ * ship which cuts is a property of the host's installed fonts (macOS
+ * Helvetica.ttc vs Linux Liberation vs Windows Arial), so the fixed expectation
+ * is "whatever `getFontInstance` loaded", which is true everywhere. Where the
+ * host has no cut-routed family at all, the walk simply finds nothing and the
+ * test says so instead of silently passing on zero cases.
+ */
+describe("faceFor reports the cut the renderer would load", () => {
+  const stack = (o: Partial<StackSpec>): StackSpec =>
+    ({ fontFamily: "sans-serif", fontSize: 32, fontWeight: 400, fontStyle: "normal", fixtures: 1, example: "x.html", ...o });
+
+  /** Faces that route to a different cut somewhere on this host, if any. */
+  const CUT_FAMILIES = ["sans-serif", "serif", "monospace", "Helvetica", "Arial", "Times", "Georgia", "Courier", "Menlo"];
+
+  const cutCases = CUT_FAMILIES.flatMap((fontFamily) =>
+    [{ fontWeight: 700, fontStyle: "normal" }, { fontWeight: 400, fontStyle: "italic" }, { fontWeight: 100, fontStyle: "normal" }]
+      .map((v) => stack({ fontFamily, ...v })))
+    .map((spec) => ({ spec, rs: prepareStack(spec) }))
+    .filter((c): c is { spec: StackSpec; rs: NonNullable<ReturnType<typeof prepareStack>> } => c.rs != null)
+    .filter((c) => {
+      const base = resolveFontSpec(c.rs.primaryKey);
+      const real = getFontSourceInfo(c.rs.primary);
+      return (base?.path ?? null) !== (real?.path ?? null)
+        || (base?.postscriptName ?? null) !== (real?.postscriptName ?? null)
+        || c.rs.primary.postscriptName != null;
+    });
+
+  it("finds at least one cut-routed family on this host to assert against", () => {
+    expect(cutCases.length).toBeGreaterThan(0);
+  });
+
+  it.each(cutCases.map((c) => [`${c.spec.fontFamily} ${c.spec.fontWeight}/${c.spec.fontStyle}`, c] as const))(
+    "%s names the loaded face, not the family base entry",
+    (_label, c) => {
+      const face = faceFor(c.rs, c.rs.primaryKey, true, null);
+      const loaded = getFontSourceInfo(c.rs.primary);
+      // The path is the file the instance came from…
+      if (loaded?.path != null) expect(face.path).toBe(loaded.path);
+      // …and the name is the face fontkit actually opened, when it has one.
+      if (c.rs.primary.postscriptName != null) expect(face.postscriptName).toBe(c.rs.primary.postscriptName);
+    },
+  );
+
+  it("does not serve one stack's cut to another — the cache is per stack, and weight decides", () => {
+    // Two stacks over the SAME family that differ only in weight. A cache keyed
+    // on the font key alone (which is what the oracle used to have, at module
+    // scope) would answer the second from the first and hide every cut defect
+    // in every stack after the first.
+    const light = prepareStack(stack({ fontWeight: 100 }));
+    const bold = prepareStack(stack({ fontWeight: 900 }));
+    if (light == null || bold == null) return; // no sans-serif on this host
+    expect(light.faceCache).not.toBe(bold.faceCache);
+    const lightFace = faceFor(light, light.primaryKey, true, null);
+    const boldFace = faceFor(bold, bold.primaryKey, true, null);
+    // Same key, and yet the answers track the instances rather than the key.
+    expect(light.primaryKey).toBe(bold.primaryKey);
+    expect(lightFace.postscriptName ?? lightFace.path)
+      .toBe(getFontSourceInfo(light.primary)?.postscriptName ?? light.primary.postscriptName ?? getFontSourceInfo(light.primary)?.path);
+    expect(boldFace.postscriptName ?? boldFace.path)
+      .toBe(getFontSourceInfo(bold.primary)?.postscriptName ?? bold.primary.postscriptName ?? getFontSourceInfo(bold.primary)?.path);
+    // On any host whose sans-serif ships a bold sibling these are two faces.
+    const differentInstances = light.primary !== bold.primary;
+    if (differentInstances && light.primary.postscriptName !== bold.primary.postscriptName) {
+      expect(lightFace.postscriptName).not.toBe(boldFace.postscriptName);
+    }
+  });
+
+  it("hands an uncovered codepoint the primary's CUT as the tofu donor", () => {
+    const rs = prepareStack(stack({ fontWeight: 700 }));
+    if (rs == null) return;
+    // The renderer draws the primary INSTANCE's `.notdef` for anything nothing
+    // covers, and that instance is the bold cut — reporting the family's
+    // regular face here would disagree with Chrome on most of Unicode, since
+    // the uncovered bucket is the largest one in any sweep.
+    expect(rs.notdefDonor.covered).toBe(false);
+    expect(rs.notdefDonor.path).toBe(getFontSourceInfo(rs.primary)?.path ?? rs.notdefDonor.path);
+    if (rs.primary.postscriptName != null) {
+      expect(rs.notdefDonor.postscriptName).toBe(rs.primary.postscriptName);
+    }
+  });
+
+  it("falls back to the path table for a key with no loadable instance", () => {
+    const rs = prepareStack(stack({}));
+    if (rs == null) return;
+    // An unknown key resolves to no instance at all; the oracle must still say
+    // what it can rather than crash mid-sweep.
+    const face = faceFor(rs, "no-such-font-key", true, null);
+    expect(face.key).toBe("no-such-font-key");
+    expect(face.path).toBe(null);
+    expect(face.postscriptName).toBe(null);
+  });
+
+  it("reads a `sysfb:` key's embedded PostScript name when nothing else names the face", () => {
+    const rs = prepareStack(stack({}));
+    if (rs == null) return;
+    const face = faceFor(rs, "sysfb:NoSuchInstalledFace-Regular", true, null);
+    expect(face.postscriptName).toBe("NoSuchInstalledFace-Regular");
+  });
+
+  it("prefers a per-codepoint override's own face over the key's", () => {
+    const rs = prepareStack(stack({}));
+    if (rs == null) return;
+    const other = getFontInstance("times", 400, 32, 0);
+    if (other == null || getFontSourceInfo(other) == null) return;
+    const face = faceFor(rs, rs.primaryKey, true, other);
+    expect(face.path).toBe(getFontSourceInfo(other)!.path);
+    // …and an override must never be written into the per-key cache, or the
+    // next codepoint on the same key inherits it.
+    expect(faceFor(rs, rs.primaryKey, true, null).path).toBe(getFontSourceInfo(rs.primary)?.path ?? null);
   });
 });
 

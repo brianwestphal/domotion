@@ -167,7 +167,7 @@ shortest possible map:
   `resolveFontForCodepoint`, over every assigned Unicode codepoint × every font
   stack in the fixture corpus (`tools/font-conformance-stacks.json`), non-zero
   exit on any mismatch. Logic pinned by `tests/font-conformance.test.ts`; see
-  `docs/100-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
+  `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
 
 ## Debugging a render-fidelity bug
