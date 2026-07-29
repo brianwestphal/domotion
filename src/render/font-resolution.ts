@@ -1275,15 +1275,52 @@ function registerDynamicSystemFont(
   resolvedSpecCache.delete(key); // in case a prior null was cached
 }
 
+/**
+ * Relocate a table entry whose declared file is not on this host.
+ *
+ * The path tables hardcode where a system font lived when the entry was
+ * written, and the OS moves them: on current macOS all eight PingFang keys
+ * declare `/System/Library/Fonts/PingFang.ttc`, which no longer exists — the
+ * faces now ship inside `FontServices.framework/…/Reserved/PingFangUI.ttc`.
+ * Nothing looked broken because those entries are `extractor: "native"`, so the
+ * helper opens them by PostScript name through CoreText and the declared path
+ * is never dereferenced on the happy path. But `resolveFontSpec(key).path` is
+ * read directly elsewhere — the embedded-subset builder reads those bytes, and
+ * mistaking the base entry for the rendered face was the conformance oracle's
+ * own instrument bug — so a path that cannot be opened is a live hazard, not
+ * cosmetic.
+ *
+ * Rather than swap one machine's literal for another's, ask the OS: when the
+ * declared file is absent and we know the PostScript name, take the path
+ * CoreText reports for that face. Self-healing across OS relocations, and it
+ * keeps the table honest about what it actually points at.
+ *
+ * No-op where it cannot help: platforms without the native helper get `null`
+ * from `resolveInstalledFont` and keep the declared entry unchanged, which is
+ * exactly the previous behavior.
+ */
+function relocateMissingSpec(spec: FontPath | null): FontPath | null {
+  if (spec?.path == null || spec.path === "" || spec.postscriptName == null) return spec;
+  if (existsSync(spec.path)) return spec;
+  const installed = resolveInstalledFont(spec.postscriptName);
+  if (installed?.path == null || !existsSync(installed.path)) return spec;
+  return { ...spec, path: installed.path };
+}
+
 export function resolveFontSpec(key: string): FontPath | null {
   if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
   let resolved: FontPath | null;
   if (key.startsWith("sysfb:")) {
+    // Already discovered on this host by the live resolver — its path came from
+    // the OS, so there is nothing to relocate.
     resolved = dynamicSystemFontPaths.get(key) ?? null;
-  } else switch (process.platform) {
-    case "linux": resolved = resolveLinuxSpec(key); break;
-    case "win32": resolved = resolveWin32Spec(key); break;
-    default:      resolved = FONT_PATHS[key] ?? null; break; // darwin + any other Unix with macOS-style paths
+  } else {
+    switch (process.platform) {
+      case "linux": resolved = resolveLinuxSpec(key); break;
+      case "win32": resolved = resolveWin32Spec(key); break;
+      default:      resolved = FONT_PATHS[key] ?? null; break; // darwin + any other Unix with macOS-style paths
+    }
+    resolved = relocateMissingSpec(resolved);
   }
   resolvedSpecCache.set(key, resolved);
   return resolved;
