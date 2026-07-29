@@ -697,8 +697,12 @@ function singleFontMarkup(
     for (let gi = 0; gi < run.glyphs.length; gi++) {
       const glyph = run.glyphs[gi];
       const pos = run.positions[gi];
-      const skipNotdefHere = glyph.id === 0 && glyph.codePoints != null && glyph.codePoints.length > 0
-        && glyph.codePoints.every((cp: number) => isPrivateUseCodepoint(cp));
+      // DM-1849: this test is GATED on `glyph.id === 0`, so the `codePoints` it
+      // used to read were always the shared `.notdef`'s — i.e. the decision was
+      // always made on whichever uncovered codepoint happened to come first in
+      // the process, never on this one. Read the source text instead.
+      const srcCpHere = textIdx < text.length ? text.codePointAt(textIdx) : undefined;
+      const skipNotdefHere = glyph.id === 0 && srcCpHere != null && isPrivateUseCodepoint(srcCpHere);
       const dCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
       if (textIdx < xOffsets.length && dCmds.length > 0 && !skipNotdefHere) {
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds);
@@ -1609,12 +1613,37 @@ function renderTextAsEmbedded(
     // walking even when surrounded by Latin.
     let runIsRtl = false;
     if (run.text.length >= 2 && layout.glyphs.length >= 1) {
-      const firstGlyphCp = layout.glyphs[0].codePoints?.[0];
       const firstTextCp = run.text.codePointAt(0);
       const lastTextCp = run.text.codePointAt(run.text.length - (run.text.codePointAt(run.text.length - 2)! > 0xFFFF ? 2 : 1));
-      if (firstGlyphCp != null && firstGlyphCp === lastTextCp && firstTextCp !== lastTextCp) {
-        runIsRtl = true;
+      // DM-1849: a `.notdef` (id 0) never identifies a codepoint. fontkit
+      // memoizes ONE Glyph per glyph id, so every uncovered codepoint in a font
+      // shares one `.notdef` instance whose `codePoints` is whichever codepoint
+      // materialized it FIRST in this process — process-global state wearing the
+      // costume of per-glyph data. Asking it "which char are you?" breaks BOTH
+      // ways here: a stale value that happens to equal `lastTextCp` fakes RTL on
+      // an LTR run, and a genuinely RTL run whose first glyph is tofu fails the
+      // test and gets walked LTR. Either mis-anchors every glyph in the run, and
+      // neither reproduces in a single-fixture run because the first miss is
+      // then the fixture's own.
+      const firstGlyph = layout.glyphs[0];
+      if (firstGlyph.id !== 0) {
+        const firstGlyphCp = firstGlyph.codePoints?.[0];
+        if (firstGlyphCp != null && firstGlyphCp === lastTextCp && firstTextCp !== lastTextCp) {
+          runIsRtl = true;
+        }
+      } else if (layout.clusters != null && layout.clusters.length >= 1) {
+        // Source-derived and trustworthy: an RTL shaper emits the LAST cluster
+        // first, so the first glyph's source index is past the start.
+        runIsRtl = layout.clusters[0] > 0;
       }
+      // No `else`: with a `.notdef` first glyph and no cluster data there is no
+      // sound signal here, so the LTR default stands — same as before this
+      // change, since the old comparison against a stale codepoint would have
+      // failed too. Deliberately NOT falling back to `isRtlScriptCodepoint`,
+      // which is SMP-only (`RTL_SMP_SCRIPT_RANGES`) and answers false for BMP
+      // Hebrew and Arabic — it would have walked the most common RTL text as
+      // LTR while looking like a fix. The residual case is a genuinely RTL run
+      // whose first glyph is tofu AND which was shaped without clusters.
     }
     // Walk the shaped glyph stream. For each glyph: convert its cluster's
     // first-codepoint xOffset to a CSS pixel x, OR fall back to the
@@ -1690,7 +1719,10 @@ function renderTextAsEmbedded(
         // cjkTrimShiftFontUnits). Only at a cluster's first glyph, gated on the
         // captured advance to the next char being trimmed (~half em).
         let trimShiftFU = 0;
-        const cpCl = glyph.codePoints?.[0] ?? text.codePointAt(wholeTextIdx);
+        // DM-1849: source first. `wholeTextIdx` is this cluster's first source
+        // char, which is exactly what the trim logic wants, and it cannot be
+        // aliased by a shared Glyph the way `codePoints` can.
+        const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
         if (cpCl != null && isTrimmableCjkPunct(cpCl) && xOffsets != null) {
           const nextCharIdx = wholeTextIdx + (cpCl > 0xFFFF ? 2 : 1);
           if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
@@ -1722,7 +1754,8 @@ function renderTextAsEmbedded(
           xCss = xOffsets[wholeTextIdx];
           // DM-1184: nudge trimmed fullwidth-punctuation ink (see
           // cjkTrimShiftFontUnits) in the fontkit-shaped embedded path too.
-          const cp0 = glyph.codePoints?.[0] ?? text.codePointAt(wholeTextIdx);
+          // DM-1849: source first, as above.
+          const cp0 = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
           if (cp0 != null && isTrimmableCjkPunct(cp0)) {
             const nextCharIdx = wholeTextIdx + (cp0 > 0xFFFF ? 2 : 1);
             if (xOffsets[nextCharIdx] != null) {
@@ -2489,13 +2522,17 @@ export function computeSkipInkGaps(
       }
     }
     xCursor += pos.xAdvance * scale;
-    // advance the char cursor by this glyph's source characters (UTF-16 units)
+    // Advance the char cursor by this glyph's source characters (UTF-16 units),
+    // measured against the SOURCE TEXT.
+    //
+    // DM-1849: this is a THIRD source-span walk of the kind DM-1804 fixed — it
+    // was summing `cp > 0xFFFF ? 2 : 1` over the glyph's own `codePoints`, so a
+    // shared Glyph decided whether this position consumed one UTF-16 unit or
+    // two. `.notdef` is always shared, and its cached codepoint is BMP whenever
+    // the first miss in the process was BMP, so an astral character silently
+    // advanced by 1 and every later cursor in the run was off by one.
     const cps: number[] | undefined = (glyph as { codePoints?: number[] }).codePoints;
-    if (cps != null && cps.length > 0) {
-      for (const cp of cps) charCursor += cp > 0xFFFF ? 2 : 1;
-    } else {
-      charCursor += 1;
-    }
+    charCursor += sourceClusterSpan(text, charCursor, cps != null && cps.length > 0 ? cps.length : 1, false);
   }
   if (rawGaps.length === 0) return [];
   // When every intercepting glyph could be anchored at a captured offset, use

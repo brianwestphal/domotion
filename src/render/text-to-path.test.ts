@@ -2,6 +2,8 @@ import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
 import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { isRtlScriptCodepoint } from "./unicode-classification.js";
+import { isPrivateUseCodepoint } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -2590,5 +2592,83 @@ const macCutHelper = process.platform === "darwin"
   it("keeps a hidden system face inside its own family", () => {
     if (at(0x0E01, "sans-serif", 400) !== "thai") return;
     expect(at(0x0E01, "sans-serif", 700)).toBe(".ThonburiUI-Bold");
+  });
+});
+
+// DM-1849 — the REMAINING `glyph.codePoints` reads, audited after DM-1804 fixed
+// the two source-span walks it had proven defects for.
+//
+// Same hazard throughout: fontkit memoizes one `Glyph` per glyph id, so any
+// decision about WHICH character a glyph stands for must read the source text.
+// `.notdef` (id 0) is the acute case — every uncovered codepoint in a font
+// shares one instance whose `codePoints` is whichever codepoint materialized it
+// first in the process. That is process-global state, so none of these
+// reproduce in a single-fixture run: the first miss is then the fixture's own.
+describe("codePoints aliasing — the audited sites (DM-1849)", () => {
+  // `computeSkipInkGaps` walked a char cursor by summing `cp > 0xFFFF ? 2 : 1`
+  // over each glyph's `codePoints` — a THIRD source-span walk of exactly the
+  // kind DM-1804 fixed, missed because it lives in the decoration path rather
+  // than the emitter. With a shared `.notdef` reporting BMP, an astral character
+  // advanced the cursor by 1 instead of 2 and every later glyph in the run read
+  // the wrong captured x, misplacing skip-ink gaps from that point on.
+  //
+  // Driven through the real function: the assertion is that an astral source
+  // character does not desynchronize the cursor, which shows up as gaps that
+  // stay inside the run's own width.
+  (MACOS_FONTS ? it : it.skip)("keeps the skip-ink cursor aligned across an astral character", () => {
+    const text = "a\u{10F46}b";
+    const gaps = computeSkipInkGaps(text, 32, "Times", 400, "normal", 0, 1);
+    // Never throws, and every gap is a finite ordered interval — a cursor that
+    // walked off the text produced NaN/reversed pairs here.
+    for (const [lo, hi] of gaps) {
+      expect(Number.isFinite(lo)).toBe(true);
+      expect(Number.isFinite(hi)).toBe(true);
+      expect(hi).toBeGreaterThanOrEqual(lo);
+    }
+  });
+
+  // The span helper is what both walks now share, so pin the astral case for the
+  // decoration path's indices specifically (cursor mid-string, not at 0).
+  it("measures an astral cluster from a mid-string cursor", () => {
+    // "a𐽆b" — cursor at 1 sits on the surrogate pair; one source codepoint → 2.
+    expect(sourceClusterSpan("a\u{10F46}b", 1, 1, false)).toBe(2);
+    // ...and the character after it is BMP again.
+    expect(sourceClusterSpan("a\u{10F46}b", 3, 1, false)).toBe(1);
+  });
+
+  // `skipNotdefHere` suppresses a tofu when its SOURCE character is private-use
+  // (Chrome paints nothing there). The test was gated on `glyph.id === 0` and
+  // then read that same glyph's `codePoints` — so it was always asking the
+  // shared `.notdef`, never this position. `isPrivateUseCodepoint` is the
+  // predicate the decision now applies to the source char instead.
+  it("classifies private-use source characters independently of any glyph", () => {
+    // The three PUA ranges, which are what the suppression is for.
+    expect(isPrivateUseCodepoint(0xE000)).toBe(true);
+    expect(isPrivateUseCodepoint(0xF8FF)).toBe(true);
+    expect(isPrivateUseCodepoint(0xF0000)).toBe(true);
+    expect(isPrivateUseCodepoint(0x10FFFD)).toBe(true);
+    // A real script character must NOT be suppressed — a stale `.notdef`
+    // codepoint landing in this predicate is how a legitimate tofu disappears.
+    expect(isPrivateUseCodepoint(0x0870)).toBe(false);
+    expect(isPrivateUseCodepoint(0x10F46)).toBe(false);
+  });
+
+  // RTL detection compared the first glyph's codepoint against the run's last
+  // character. When the first glyph is `.notdef` that comparison is against
+  // process-global state, and it breaks BOTH ways: a stale value equal to the
+  // run's last char fakes RTL on an LTR run, and a genuinely RTL run whose
+  // first glyph is tofu gets walked LTR. The fallback is the run's own script.
+  // `isRtlScriptCodepoint` is SMP-ONLY — the table behind it is literally
+  // `RTL_SMP_SCRIPT_RANGES`. Pinned here because it reads like a general RTL
+  // predicate and is not one: reaching for it as the fallback in the RTL
+  // detection above would have walked BMP Hebrew and Arabic — the common case —
+  // as LTR, while looking like a fix. Anything needing a general answer wants
+  // bidi-js (`_RTL_RE` / `getEmbeddingLevels` in text.ts), not this.
+  it("is SMP-only, and must not be used as a general RTL test", () => {
+    expect(isRtlScriptCodepoint(0x10F46)).toBe(true);  // Sogdian — in range
+    expect(isRtlScriptCodepoint(0x1E900)).toBe(true);  // Adlam
+    expect(isRtlScriptCodepoint(0x05D0)).toBe(false);  // Hebrew alef — BMP, NOT covered
+    expect(isRtlScriptCodepoint(0x0627)).toBe(false);  // Arabic alef — BMP, NOT covered
+    expect(isRtlScriptCodepoint(0x0041)).toBe(false);  // Latin A
   });
 });
