@@ -202,7 +202,7 @@ flowchart TD
   G1 -->|"localalias:&lt;family&gt;"| GL["pickLocalFontAliasVariant()<br/>→ recurse getFontInstance(baseKey,<br/>declared weight/italic)"]
   G1 -->|"plain / sysfb: / u- / un-"| G2["effectiveKey = key"]
 
-  G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/hiragino-jp/korean/<br/>pingfang-* → -bold when weight≥600<br/>lucida-grande → -bold when weight≥450"]
+  G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
@@ -368,7 +368,7 @@ lacking that font.
 | `cjk(-bold)` | Hiragino Sans GB.ttc (W3/W6) | sans CJK fallback |
 | `cjk-serif(-bold)` | Supplemental/Songti.ttc (STSongti-SC-Light/Bold) | serif-primary CJK |
 | `pingfang-{sc,tc,hk,mo}(-bold)` | PingFang.ttc | Han ideographs; **`extractor: native`** (hvgl) |
-| `hiragino-jp(-bold)` | ヒラギノ角ゴシック (HiraKakuProN W3/W6) | JP kana + wide symbols |
+| `hiragino-jp` + `hiragino-jp-w0…w9` | ヒラギノ角ゴシック W0–W9 (**HiraginoSans-W\***) | JP kana + wide symbols. Chrome picks the cut whose `OS/2.usWeightClass` matches the CSS weight exactly — measured 100→W0 200→W1 300→W3 400→W4 500→W5 600→W6 700→W7 800→W8 900→W9 (W2 is usWeightClass 250, unreachable from CSS). The base key is **W4**. Previously pinned to `HiraKakuProN-W3`, which is a different FAMILY (Hiragino Kaku Gothic ProN) that merely shares the W3 `.ttc` container — wrong at all nine weights, and wrong in family besides. DM-1854. |
 | `hiragino-mincho(-bold)` | ヒラギノ明朝 ProN | JP serif, explicit-name only |
 | `korean(-bold)` | AppleSDGothicNeo.ttc | Hangul |
 | `thai` | ThonburiUI.ttc | |
