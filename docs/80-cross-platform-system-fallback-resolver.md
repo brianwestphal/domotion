@@ -14,11 +14,25 @@ the host actually has a font that covers it and the browser would have painted a
 real glyph.
 
 macOS already closes that gap with a **live, per-codepoint resolver**:
-`resolveSystemFallbackKeyForCp(cp)` asks CoreText (`CTFontCreateForString`, via
-the native Swift helper) which on-disk font it would pick for `cp`, registers
-that face under a dynamic `sysfb:<postscriptName>` key
-(`registerDynamicSystemFont`), and returns the key so the normal chain walker
+`resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)` asks CoreText
+(`CTFontCreateForString`, via the native Swift helper) which on-disk font it
+would pick for `cp`, registers that face under a dynamic `sysfb:<postscriptName>`
+key (`registerDynamicSystemFont`), and returns the key so the normal chain walker
 opens it. Each first-seen codepoint costs one resolution; results are memoized.
+
+The resolver takes the run's CSS description because on macOS the answer depends
+on it. `CTFontCreateForString` nominates one member of a family regardless of the
+requested weight, and Blink then re-selects within that family at the requested
+traits + weight before painting — so the same character resolves to Songti SC
+Regular at weight 400 and Songti SC Black at 900. The helper performs that second
+step with the same `CTFontCreateWithFontDescriptor` call Blink makes; without it
+every fallback family was pinned to the nominated cut, which is the wrong face
+for 29% of codepoints at weight 700. See the "macOS: the fallback answer is
+weight-dependent" section of
+[the font-resolution diagram](font-resolution-diagram.md) for the transcription
+and its Chromium citations. Windows does not yet close the equivalent gap: the
+win32 helper still passes `DWRITE_FONT_WEIGHT_NORMAL` to
+`IDWriteFontFallback::MapCharacters` where Blink passes the run's real weight.
 
 Linux and Windows had no equivalent — the resolver was hard-gated
 `process.platform !== "darwin" → null`. So on those platforms an
@@ -26,12 +40,13 @@ out-of-table codepoint always tofu'd, regardless of what the system could paint.
 
 ## Design — symmetric per-platform backend behind one entry point
 
-`resolveSystemFallbackKeyForCp(cp)` is the single entry point. It memoizes per
-codepoint, then dispatches by platform:
+`resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)` is the single entry
+point. It memoizes per codepoint **and CSS description** (the macOS answer is
+weight- and style-dependent), then dispatches by platform:
 
 | Platform | Backend | Status |
 |---|---|---|
-| macOS | CoreText `CTFontCreateForString` (native helper) | shipped, always on |
+| macOS | CoreText `CTFontCreateForString` + in-family cut re-selection (native helper) | shipped, always on |
 | Linux | fontconfig `fc-match :charset=<hex>` | shipped, **default-on** (DM-1416) |
 | Windows | DirectWrite `IDWriteFontFallback::MapCharacters` | shipped, **default-on** (DM-1424) |
 

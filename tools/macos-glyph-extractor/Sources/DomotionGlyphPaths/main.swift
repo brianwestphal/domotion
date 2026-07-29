@@ -446,6 +446,70 @@ func runFamilyQuery(_ query: [String: Any]) -> [String: Any] {
 
 // MARK: - System fallback resolution (CTFontCreateForString)
 
+// The CoreText weight trait of a font, defaulting to CoreText's "normal" (0.0)
+// when the font declares none. Transcribed from the `get_ct_font_weight` lambda
+// in `GetAlternateFontPlatformData`, font_cache_mac.mm:214-226 (Chromium
+// 7d859f27).
+let kCTNormalWeightValue: Float = 0.0
+
+func ctFontWeightTrait(_ font: CTFont) -> Float {
+    guard let traits = CTFontCopyTraits(font) as? [CFString: Any],
+          let n = traits[kCTFontWeightTrait] as? NSNumber else {
+        return kCTNormalWeightValue
+    }
+    return n.floatValue
+}
+
+// CSS weight → CoreText weight trait. Transcribed verbatim from
+// `ToCTFontWeight`, font_matcher_mac.mm:871-887 (Chromium 7d859f27), whose own
+// ranges come from `GetFontWeightFromCTFont` in ui/gfx/platform_font_mac.mm.
+func toCTFontWeight(_ cssWeight: Int) -> Float {
+    if cssWeight <= 50 || cssWeight >= 950 { return 0.0 }
+    let weights: [Float] = [
+        -0.80,  // Thin (Hairline)
+        -0.60,  // Extra Light (Ultra Light)
+        -0.40,  // Light
+        0.0,    // Normal (Regular)
+        0.23,   // Medium
+        0.30,   // Semi Bold (Demi Bold)
+        0.40,   // Bold
+        0.56,   // Extra Bold (Ultra Bold)
+        0.62,   // Black (Heavy)
+    ]
+    return weights[(cssWeight - 50) / 100]
+}
+
+// Only the typeface bits matter; some fonts carry appearance information in the
+// upper 16 bits (Times Roman = 1 << 28, Helvetica = 1 << 30). Transcribed from
+// `TraitsMask` / `TraitsMismatch`, font_cache_mac.mm:71-72 and 195-198.
+let kTraitsMask: CTFontSymbolicTraits = [.traitItalic, .traitBold, .traitCondensed, .traitExpanded]
+
+func traitsMismatch(_ desired: CTFontSymbolicTraits, _ found: CTFontSymbolicTraits) -> Bool {
+    return desired.intersection(kTraitsMask) != found.intersection(kTraitsMask)
+}
+
+// Find the face WITHIN the substitute's own family that best matches the
+// requested symbolic traits + weight. Transcribed from
+// `CreateCopyWithTraitsAndWeightFromFont`, font_cache_mac.mm:74-109. Blink uses
+// `CTFontCreateWithFontDescriptor` rather than `CTFontCreateCopyWithAttributes`
+// because the latter hands back the same face instead of the better style match.
+func createCopyWithTraitsAndWeightFromFont(
+    _ font: CTFont, _ traits: CTFontSymbolicTraits, _ weight: Float, _ size: CGFloat
+) -> CTFont? {
+    // Broken fonts may lack a family name (name ID 1); Blink bails out there.
+    guard let familyName = CTFontCopyFamilyName(font) as String? else { return nil }
+    let traitsDict: [CFString: Any] = [
+        kCTFontSymbolicTrait: NSNumber(value: traits.rawValue),
+        kCTFontWeightTrait: NSNumber(value: weight),
+    ]
+    let attributes: [CFString: Any] = [
+        kCTFontFamilyNameAttribute: familyName,
+        kCTFontTraitsAttribute: traitsDict,
+    ]
+    let descriptor = CTFontDescriptorCreateWithAttributes(attributes as CFDictionary)
+    return CTFontCreateWithFontDescriptor(descriptor, size, nil)
+}
+
 // Mirror Chrome-on-macOS's per-character font fallback. Blink's
 // `font_cache_mac.mm::PlatformFallbackFontForCharacter` → `GetSubstituteFont`
 // calls `CTFontCreateForString(baseFont, string, range)` to walk CoreText's
@@ -456,6 +520,16 @@ func runFamilyQuery(_ query: [String: Any]) -> [String: Any] {
 // per-block table. For each requested codepoint we return the resolved font's
 // PostScript name + on-disk file URL (so the existing path-based open works),
 // or null when CoreText falls through to LastResort.
+//
+// CTFontCreateForString is only the FIRST half of what Blink does. The cascade
+// answers with one nominated face per family — Songti SC Light for Han, Euphemia
+// UCAS Regular for Canadian Aboriginal — regardless of the weight the CSS asked
+// for. `GetAlternateFontPlatformData` (font_cache_mac.mm:200-280) then re-selects
+// within that family at the requested traits + weight, which is why Chrome paints
+// STSongti-SC-Regular at weight 400 and STSongti-SC-Black at 900 for the same
+// character. Omitting that step pinned every fallback family to whichever cut
+// CoreText happened to nominate. The `cssWeight` / `bold` / `italic` query fields
+// carry the CSS description in; without them the query behaves as before.
 func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String: Any] {
     // Base font drives the cascade list + trait matching. Use the caller's
     // primary font when provided (matches Chrome, which starts from the
@@ -467,6 +541,20 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
         baseFont = CTFontCreateWithName("Helvetica" as CFString, 16.0, nil)
     }
     let cps = (query["cps"] as? [NSNumber])?.map { $0.uint32Value } ?? []
+    let size = CTFontGetSize(baseFont)
+
+    // The CSS description drives the in-family re-selection below. `cssWeight`
+    // absent → no re-selection (the pre-DM-1854 behavior), so an older caller
+    // keeps working.
+    let cssWeight = (query["cssWeight"] as? NSNumber)?.intValue
+    // Blink starts from the traits of the run's CURRENT font and ORs in the
+    // synthetic ones the platform data carries (font_cache_mac.mm:230-240):
+    // a bold request satisfied by faux-bold still asks the fallback family for
+    // its bold cut. Our base font stands in for the run primary at its regular
+    // cut, so the requested bold / italic arrive as those synthetic flags.
+    var desiredTraits = CTFontGetSymbolicTraits(baseFont)
+    if (query["bold"] as? NSNumber)?.boolValue == true { desiredTraits.insert(.traitBold) }
+    if (query["italic"] as? NSNumber)?.boolValue == true { desiredTraits.insert(.traitItalic) }
 
     // LastResort detection: CTFontCreateForString returns the LastResort font
     // for codepoints nothing in the cascade covers. Compare PostScript names.
@@ -479,13 +567,38 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
         }
         let s = String(scalar) as NSString
         let range = CFRangeMake(0, s.length)
-        let substitute = CTFontCreateForString(baseFont, s as CFString, range)
-        let psName = (CTFontCopyPostScriptName(substitute) as String?) ?? ""
-        let familyName = (CTFontCopyFamilyName(substitute) as String?) ?? ""
+        var substitute = CTFontCreateForString(baseFont, s as CFString, range)
+        var psName = (CTFontCopyPostScriptName(substitute) as String?) ?? ""
         if psName == lastResortName || psName.isEmpty {
             out.append(["cp": Int(cp), "found": false])
             continue
         }
+        // In-family weight / traits re-selection — `GetAlternateFontPlatformData`,
+        // font_cache_mac.mm:242-267. Blink's `|| !ct_font` disjuncts only fire for
+        // FreeType-backed web fonts, which never reach this helper, so they are
+        // omitted rather than transcribed as dead branches.
+        if let cssWeight {
+            let desiredWeight = toCTFontWeight(cssWeight)
+            let substituteTraits = CTFontGetSymbolicTraits(substitute)
+            let substituteWeight = ctFontWeightTrait(substitute)
+            if traitsMismatch(desiredTraits, substituteTraits) || desiredWeight != substituteWeight {
+                if let best = createCopyWithTraitsAndWeightFromFont(substitute, desiredTraits, desiredWeight, size) {
+                    let bestTraits = CTFontGetSymbolicTraits(best)
+                    let bestWeight = ctFontWeightTrait(best)
+                    // Only adopt a face that actually moved AND still covers the
+                    // character — a family's bold cut can have a narrower cmap
+                    // than the regular one CoreText nominated.
+                    if bestTraits != substituteTraits || bestWeight != substituteWeight {
+                        let charSet = CTFontCopyCharacterSet(best)
+                        if CFCharacterSetIsLongCharacterMember(charSet, UTF32Char(cp)) {
+                            substitute = best
+                            psName = (CTFontCopyPostScriptName(substitute) as String?) ?? psName
+                        }
+                    }
+                }
+            }
+        }
+        let familyName = (CTFontCopyFamilyName(substitute) as String?) ?? ""
         // Resolve the on-disk file URL so the renderer can open it by path
         // through the same fontkit / helper machinery it uses elsewhere.
         var pathStr = ""

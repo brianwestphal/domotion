@@ -212,7 +212,10 @@ interface HelperRequest {
   queries: Array<
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
-    | { type: "fallback"; fontRef: string; cps: number[] }
+    // `cssWeight` / `bold` / `italic` drive the in-family re-selection the macOS
+    // helper performs after the cascade walk (Blink's
+    // `GetAlternateFontPlatformData`). Absent → the nominated face stands.
+    | { type: "fallback"; fontRef: string; cps: number[]; cssWeight?: number; bold?: boolean; italic?: boolean }
     | { type: "family"; name: string }
     | { type: "shape"; fontRef: string; text: string }
   >;
@@ -797,13 +800,34 @@ export interface SystemFallbackFont {
   resolvedAxes?: Record<string, number>;
 }
 
-// Keyed on `<basePostscriptName>\u0000<cp>`, NOT on the codepoint alone.
-// CoreText's cascade depends on the font you ask FROM — asking for U+20BF from
-// SF Pro Text answers SF Pro Text, while asking from Helvetica answers
-// .NewYork. A cp-only key therefore served whichever base happened to ask
-// first to every later caller, silently, for the rest of the process.
+// Keyed on `<basePostscriptName>\u0000<cp>\u0000<weight>\u0000<italic>\u0000<size>`,
+// NOT on the codepoint alone. CoreText's cascade depends on the font you ask
+// FROM — asking for U+20BF from SF Pro Text answers SF Pro Text, while asking
+// from Helvetica answers .NewYork. A cp-only key therefore served whichever base
+// happened to ask first to every later caller, silently, for the rest of the
+// process. The CSS description joins the key for the same reason: the in-family
+// re-selection below makes the answer weight- and style-dependent.
 const _systemFallbackCache = new Map<string, SystemFallbackFont | null>();
-const fallbackCacheKey = (base: string, cp: number): string => `${base}\u0000${cp}`;
+const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest): string =>
+  req == null
+    ? `${base}\u0000${cp}`
+    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}`;
+
+/** The CSS description the fallback answer depends on. CoreText nominates one
+ *  face per family for a character; Blink then re-selects WITHIN that family at
+ *  the requested traits + weight (`GetAlternateFontPlatformData`,
+ *  font_cache_mac.mm), so two runs differing only in weight resolve to different
+ *  cuts of the same family. Measured: at weight 700 that moves 8,121 of a
+ *  27,790-codepoint stride (29%) off the face CoreText nominated. */
+export interface SystemFallbackRequest {
+  /** CSS `font-weight` (1..1000). */
+  weight: number;
+  /** CSS `font-style: italic | oblique`. */
+  italic: boolean;
+  /** Computed pixel size — what Blink hands CoreText for both the cascade walk
+   *  and the in-family re-selection. */
+  fontSize: number;
+}
 
 /** Authoritative per-codepoint system font fallback, matching Chrome-on-macOS.
  *
@@ -814,6 +838,16 @@ const fallbackCacheKey = (base: string, cp: number): string => `${base}\u0000${c
  *  exposes the same call so the renderer can resolve fallback fonts the way
  *  Chrome actually does, instead of relying on the sampled per-block table.
  *
+ *  `GetSubstituteFont` is only half of what Blink does: the cascade nominates
+ *  one face per family regardless of the weight the CSS asked for, and
+ *  `GetAlternateFontPlatformData` then re-selects within that family at the
+ *  requested traits + weight. Pass `req` to get that second half — the helper
+ *  runs the same `CTFontCreateWithFontDescriptor` call Blink runs, so a
+ *  weight-700 run resolves Songti SC Bold where a weight-400 run resolves Songti
+ *  SC Regular. Omitting `req` keeps the nominated face (the pre-DM-1854
+ *  behavior), which is what the Windows helper — whose DirectWrite path does its
+ *  own weight matching — still wants.
+ *
  *  Returns a map from codepoint to the resolved font (or null for LastResort).
  *  Results are memoized process-wide; `basePostscriptName` selects the cascade
  *  base (defaults to Helvetica — a neutral sans base whose system cascade is
@@ -822,20 +856,29 @@ const fallbackCacheKey = (base: string, cp: number): string => `${base}\u0000${c
 export function resolveSystemFallbackFonts(
   cps: number[],
   basePostscriptName: string = "Helvetica",
+  req?: SystemFallbackRequest,
 ): Map<number, SystemFallbackFont | null> {
   const out = new Map<number, SystemFallbackFont | null>();
   if (!isGlyphHelperAvailable()) return out;
   const need: number[] = [];
   for (const cp of cps) {
-    if (_systemFallbackCache.has(fallbackCacheKey(basePostscriptName, cp))) out.set(cp, _systemFallbackCache.get(fallbackCacheKey(basePostscriptName, cp))!);
+    if (_systemFallbackCache.has(fallbackCacheKey(basePostscriptName, cp, req))) out.set(cp, _systemFallbackCache.get(fallbackCacheKey(basePostscriptName, cp, req))!);
     else need.push(cp);
   }
   if (need.length === 0) return out;
   let resp: HelperResponse;
   try {
     resp = callHelper({
-      fonts: [{ ref: "base", postscriptName: basePostscriptName, size: 16 }],
-      queries: [{ type: "fallback", fontRef: "base", cps: need }],
+      fonts: [{ ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16 }],
+      queries: [{
+        type: "fallback", fontRef: "base", cps: need,
+        ...(req != null
+          // `bold` mirrors Blink's `platform_data.synthetic_bold_` OR: our base
+          // font stands in for the run primary at its regular cut, so a bold
+          // request arrives as the synthetic trait rather than in the face.
+          ? { cssWeight: req.weight, bold: req.weight >= 600, italic: req.italic }
+          : {}),
+      }],
     });
   } catch {
     // Helper failure → treat all as unresolved this call (don't poison cache).
@@ -851,7 +894,7 @@ export function resolveSystemFallbackFonts(
     const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
       ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes }
       : null;
-    _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp), resolved);
+    _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp, req), resolved);
     out.set(e.cp, resolved);
   }
   return out;

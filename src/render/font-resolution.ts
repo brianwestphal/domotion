@@ -1292,7 +1292,10 @@ export function resolveFontSpec(key: string): FontPath | null {
 // DM-1018: per-codepoint memo of the resolved `sysfb:` key (or null when the
 // CoreText cascade falls through to LastResort — Chrome paints its placeholder
 // there, handled by the primary-`.notdef` terminal).
-const systemFallbackKeyCache = new Map<number, string | null>();
+// Keyed `<cp>|<weight>|<italic>|<size>`, not on the codepoint alone: on macOS
+// the answer is weight- and style-dependent, because Blink re-selects the cut
+// within the substitute family (see `resolveSystemFallbackFonts`).
+const systemFallbackKeyCache = new Map<string, string | null>();
 
 // DM-1018: gate for the per-codepoint live system-fallback resolution. Each
 // first-seen uncovered codepoint costs one resolver round-trip (memoized after).
@@ -1368,13 +1371,18 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
  * `IDWriteFontFallback::MapCharacters` via the win32 helper (DM-1403, calibrated +
  * default-on in DM-1424).
  */
-function resolveSystemFallbackKeyForCp(cp: number): string | null {
-  if (systemFallbackKeyCache.has(cp)) return systemFallbackKeyCache.get(cp)!;
+function resolveSystemFallbackKeyForCp(
+  cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
+): string | null {
+  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
+  if (systemFallbackKeyCache.has(cacheKey)) return systemFallbackKeyCache.get(cacheKey)!;
   let key: string | null = null;
   try {
     if (process.platform === "darwin") {
-      // CoreText CTFontCreateForString via the native helper (always on).
-      const resolved = resolveSystemFallbackFonts([cp]).get(cp);
+      // CoreText CTFontCreateForString via the native helper (always on), THEN
+      // the in-family re-selection at the requested traits + weight that Blink
+      // runs on the nominated face (font_cache_mac.mm:242-267).
+      const resolved = resolveSystemFallbackFonts([cp], "Helvetica", { weight, italic: slant !== 0, fontSize }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
@@ -1403,7 +1411,7 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
       }
     }
   } catch { key = null; }
-  systemFallbackKeyCache.set(cp, key);
+  systemFallbackKeyCache.set(cacheKey, key);
   return key;
 }
 
@@ -1465,8 +1473,10 @@ function fontFileCoversCodepoint(path: string, postscriptName: string | undefine
 /** Test-only: drive the per-codepoint live system-fallback resolver directly
  *  (DM-1403). Honors the platform routing + the `DOMOTION_SYSTEM_FALLBACK`
  *  opt-in, so a Linux/Docker probe can confirm fontconfig resolution end to end. */
-export function __resolveSystemFallbackKeyForCpForTest(cp: number): string | null {
-  return resolveSystemFallbackKeyForCp(cp);
+export function __resolveSystemFallbackKeyForCpForTest(
+  cp: number, weight = 400, slant = 0, fontSize = 16,
+): string | null {
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize);
 }
 
 /** Test-only window into the platform path resolver (DM-258). */
@@ -1828,13 +1838,31 @@ function lookupWin32UnicodeFontRange(codepoint: number): string | null {
   return binarySearchRange(UNICODE_FONT_RANGES_WIN32, codepoint);
 }
 
-export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
+/**
+ * `css` carries the run's CSS description. It is consulted only where the chain
+ * reaches the LIVE per-codepoint system-fallback resolver, whose answer is
+ * weight- and style-dependent on macOS: CoreText nominates one face per family
+ * and Blink then re-selects the cut within it (see `resolveSystemFallbackFonts`).
+ * Omitted → weight 400 / upright / 16 px, which is what the pure family-routing
+ * callers (and the calibration unit tests) want.
+ */
+export function fallbackFontChain(
+  codepoint: number, primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+): string[] {
   // Platform-aware routing (DM-259 / DM-260). Each platform's Chromium cascades
   // through entirely different faces (CoreText vs fontconfig vs DirectWrite), so
   // each has its own empirically-probed chain.
   if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
   if (process.platform === "win32") return win32FallbackChain(codepoint, primaryKey, lang);
-  return darwinFallbackChain(codepoint, primaryKey, lang);
+  return darwinFallbackChain(codepoint, primaryKey, lang, css);
+}
+
+/** The parts of a run's CSS font description that change which FACE the live
+ *  macOS system-fallback resolver answers with. */
+export interface CssFallbackDescription {
+  weight: number;
+  slant: number;
+  fontSize: number;
 }
 
 
@@ -1880,7 +1908,9 @@ function decomposeMathAlphaRun(
  * must call this function (not `fallbackFontChain`) to validate macOS routing
  * regardless of the host platform (DM-842).
  */
-export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
+export function darwinFallbackChain(
+  codepoint: number, primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+): string[] {
   // When the primary family is a serif (Apple Times / Times New Roman /
   // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
   // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
@@ -2344,11 +2374,11 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // 0 broken, 0 made worse. The route is still what supplies the chain when the
   // two AGREE, and it remains the fallback when the OS has no answer.
   if (generatedKeyRaw != null && generatedRouteUsable(generatedKeyRaw)) {
-    const live = resolveSystemFallbackKeyForCp(codepoint);
+    const live = resolveSystemFallbackKeyForCp(codepoint, css?.weight, css?.slant, css?.fontSize);
     if (live != null && live !== generatedKeyRaw) liveOverride = live;
   }
   if (generatedKeyRaw != null && liveOverride == null && !generatedRouteUsable(generatedKeyRaw)) {
-    liveOverride = resolveSystemFallbackKeyForCp(codepoint);
+    liveOverride = resolveSystemFallbackKeyForCp(codepoint, css?.weight, css?.slant, css?.fontSize);
     // If the OS has no answer either, keep the generated route: a face Chrome
     // might not pick still beats a guaranteed `last-resort` tofu.
     generatedKey = liveOverride != null ? null : generatedKeyRaw;
@@ -3869,14 +3899,14 @@ export function codepointResolvesToNotdef(
     const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
     if (v != null && glyphIdForCp(v, cp) !== 0) return false;
   }
-  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
+  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
     if (candidate === "last-resort") continue;
     const cf = getFontInstance(candidate, weight, fontSize, slant);
     if (cf != null && cf.glyphForCodePoint != null
         && glyphIdForCp(cf, cp) !== 0) return false;
   }
   if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(cp);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null && sf.glyphForCodePoint != null
@@ -4117,7 +4147,7 @@ export function resolveFontForCodepoint(
   }
 
   // 2a. kSystemFonts — the calibrated static fallback table (literal only).
-  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
+  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
     if (candidate === "last-resort") continue;
     const cf = getFontInstance(candidate, weight, fontSize, slant);
     if (cf != null && glyphIdForCp(cf, cp) !== 0) return cover(candidate, null);
@@ -4125,7 +4155,7 @@ export function resolveFontForCodepoint(
 
   // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).
   if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(cp);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null) {
@@ -4138,7 +4168,7 @@ export function resolveFontForCodepoint(
   }
 
   // 3. Math-Alphanumeric decomposition (NFKD compatibility axis).
-  const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang), weight, fontSize);
+  const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize }), weight, fontSize);
   if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
 
   // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.

@@ -446,10 +446,10 @@ flowchart TD
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
   F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
-  F2A -->|"none"| F3["2a. kSystemFonts: fallbackFontChain(cp, primaryKey, lang)<br/>(§7 static per-block calibrated table, literal only)"]
+  F2A -->|"none"| F3["2a. kSystemFonts: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)"]
   F3 -->|"first covering key (skip 'last-resort')"| F3H["cover(candidate)"]
   F3 -->|"none"| F4{"_systemFallbackResolutionEnabled?"}
-  F4 -->|"yes"| F4A["2b. kSystemFonts: resolveSystemFallbackKeyForCp(cp)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
+  F4 -->|"yes"| F4A["2b. kSystemFonts: resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
   F4A -->|"hit"| F4H["cover(sysfb:key)"]
   F4A -->|"none"| F5
   F4 -->|"no"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
@@ -505,7 +505,7 @@ Doc [80](80-cross-platform-system-fallback-resolver.md).
 
 ```mermaid
 flowchart TD
-  FB0["fallbackFontChain(codepoint, primaryKey, lang)"] --> FB1{"process.platform"}
+  FB0["fallbackFontChain(codepoint, primaryKey, lang, css?)"] --> FB1{"process.platform"}
   FB1 -->|"linux"| FBL["linuxFallbackChain"]
   FB1 -->|"win32"| FBW["win32FallbackChain"]
   FB1 -->|"default"| FBD["darwinFallbackChain"]
@@ -532,7 +532,7 @@ table. `serifPrimary` = primaryKey ∈ {`times`, `times-new-roman`, `georgia`};
 
 ```mermaid
 flowchart TD
-  D0["darwinFallbackChain(cp, primaryKey, lang)"] --> DH["Hebrew → [lucida-grande, sf-hebrew]"]
+  D0["darwinFallbackChain(cp, primaryKey, lang, css?)"] --> DH["Hebrew → [lucida-grande, sf-hebrew]"]
   DH --> DA["Arabic → [sf-arabic] (Geeza Pro)"]
   DA --> DDev["Devanagari → [devanagari]"]
   DDev --> DT["Thai → [thai]"]
@@ -601,13 +601,17 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp)"] --> SR1{"systemFallbackKeyCache hit? (memoized per cp)"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)"] --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size)"}
   SR1 -->|"yes"| SRC["return cached key or null"]
   SR1 -->|"no"| SR2{"process.platform"}
-  SR2 -->|"darwin (always on)"| SRD["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)"]
+  SR2 -->|"darwin (always on)"| SRD0["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)<br/>→ the NOMINATED face"]
+  SRD0 --> SRD{"traits or weight differ<br/>from the request?"}
+  SRD -->|"yes"| SRD1["in-family re-selection:<br/>CTFontCreateWithFontDescriptor(family + traits + ToCTFontWeight(weight))<br/>adopt if it moved AND still covers cp"]
+  SRD -->|"no"| SRDN["keep the nominated face"]
   SR2 -->|"linux (default-on, DM-1416)"| SRL["resolveLinuxSystemFallbackKeyForCp:<br/>fc-match ':charset=&lt;hex&gt;'"]
   SR2 -->|"win32 (default-on, DM-1424)"| SRW["DirectWrite IDWriteFontFallback::MapCharacters<br/>via win32 glyph helper (resolveSystemFallbackFonts)"]
-  SRD --> SRG{"resolved & path ≠ ''?"}
+  SRD1 --> SRG{"resolved & path ≠ ''?"}
+  SRDN --> SRG
   SRL --> SRLG{"coverage guard:<br/>fontFileCoversCodepoint(path, ps, cp)?<br/>(fc-match returns a default even when nothing covers)"}
   SRW --> SRG
   SRG -->|"yes"| SRR["registerDynamicSystemFont('sysfb:'+ps, path, ps)<br/>→ return key"]
@@ -617,6 +621,48 @@ flowchart TD
   SRR --> SRcache["cache & return"]
   SRNull --> SRcache
 ```
+
+### 8a. macOS: the fallback answer is weight-dependent
+
+Asking CoreText which font renders a character is only the first half of what
+Blink does. `CTFontCreateForString` nominates one member of a family — Songti SC
+Light for Han from a serif primary, Euphemia UCAS Regular for Canadian Aboriginal
+— no matter what weight the CSS asked for. Blink then re-selects **within that
+family** at the requested symbolic traits and weight, building a descriptor from
+the family name plus `kCTFontSymbolicTrait` / `kCTFontWeightTrait` and resolving
+it with `CTFontCreateWithFontDescriptor`; it adopts the result only when the
+face actually moved and still covers the character. So the same character in the
+same stack resolves to Songti SC Regular at weight 400 and Songti SC Black at
+900.
+
+Transcribed from `GetAlternateFontPlatformData` and
+`CreateCopyWithTraitsAndWeightFromFont` in
+`third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm:74-109` and
+`:200-280`, with the CSS-weight→CoreText-weight table from `ToCTFontWeight` in
+`mac/font_matcher_mac.mm:871-887` (Chromium checkout `7d859f27`, 2026-06-27).
+The helper runs the re-selection itself, so the arguments and the API call are
+Blink's, not an approximation of them. Skipping it pinned every fallback family
+to whichever cut CoreText nominated: at weight 700 that is the wrong face for
+8,121 of a 27,790-codepoint stride (29%).
+
+Two consequences worth holding onto:
+
+- **The CSS description is part of the cache key**, not just the codepoint —
+  `systemFallbackKeyCache` and the helper's own memo both carry weight, italic
+  and size. A codepoint-only key served whichever weight asked first.
+- **This is NOT the same matcher as the declared-family path.** Chrome resolves
+  `font-family: "Euphemia UCAS"; font-weight: 500` to the regular face but a
+  *fallback* to the same family at weight 500 to `EuphemiaUCAS-Bold`; declared
+  `"Songti SC"` at 500 is Regular where the fallback is Bold. The declared path
+  runs CSS font matching (which `SUB_BOLD_WEIGHT_CUTS` and `HIRAGINO_CUTS`
+  mirror); this path runs CoreText's nearest-weight descriptor match. Merging
+  the two would be wrong at several weights in both directions.
+
+Windows has the same shape of gap and does not yet close it: the win32 helper
+passes `DWRITE_FONT_WEIGHT_NORMAL` to `IDWriteFontFallback::MapCharacters`, where
+Blink's `font_fallback_win.cc` passes the run's real weight and style. The
+renderer-side plumbing (the CSS description reaching the helper) is in place; the
+C++ side is not.
 
 Gated by `_systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
 default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with
@@ -736,7 +782,7 @@ then shear when both apply (bold-italic on a no-bold-no-italic face).
 |---|---|---|
 | `fontInstanceCache` (key-weight-size-slant-fvs → instance) | process | never (immutable system fonts) |
 | `resolvedSpecCache` (key → FontPath) | process | never |
-| `systemFallbackKeyCache` (cp → sysfb key\|null) | process | never |
+| `systemFallbackKeyCache` (cp + weight + italic + size → sysfb key\|null) | process | never |
 | `dynamicSystemFontPaths` (sysfb: → FontPath) | process | never (grows as resolver fires) |
 | `helperFontCache` / `helperOutlineCache` | process | `__clearGlyphFallbackCaches` (test) |
 | `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |

@@ -10,7 +10,8 @@ import {
   createGlyphHelperFont,
   isGlyphHelperAvailable,
   measureOutlineOffsetY,
-  OFFSET_PROBE_GLYPHS
+  OFFSET_PROBE_GLYPHS,
+  resolveSystemFallbackFonts
 } from "./glyph-helper.js";
 
 // DM-385 / DM-387: validates the Swift CoreText helper.
@@ -660,5 +661,52 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
     const ys: number[] = [];
     for (const c of glyph.path.commands) for (let i = 1; i < c.args.length; i += 2) ys.push(c.args[i]);
     expect(Math.min(...ys)).toBe(0);
+  });
+});
+
+// The system-fallback answer is not one face per character: CoreText nominates a
+// FAMILY member and Blink then re-selects the cut within it at the requested
+// traits + weight. Every expectation below is Chrome's own answer, read off
+// `CSS.getPlatformFontsForNode` for a `font-family: sans-serif` cell at that CSS
+// weight — so a regression here is a regression against the browser, not against
+// a table we wrote.
+(darwinHelper ? describe : describe.skip)("system-fallback in-family cut re-selection", () => {
+  afterEach(() => clearGlyphHelperCache());
+
+  const ask = (cp: number, weight: number, italic = false): string | null =>
+    resolveSystemFallbackFonts([cp], "Helvetica", { weight, italic, fontSize: 32 }).get(cp)?.postscriptName ?? null;
+
+  // [codepoint, regular-weight face, [weight, face] …]. The regular-weight face
+  // doubles as an availability guard: a machine without that font resolves the
+  // codepoint somewhere else entirely, and the case is skipped rather than
+  // asserted against a font that isn't there.
+  const CASES: Array<[string, number, string, Array<[number, string]>]> = [
+    ["Euphemia UCAS (Canadian Aboriginal)", 0x1401, "EuphemiaUCAS", [[100, "EuphemiaUCAS"], [500, "EuphemiaUCAS-Bold"], [900, "EuphemiaUCAS-Bold"]]],
+    ["Kefa (Ethiopic)", 0x1200, "KefaIII-Regular", [[100, "KefaIII-Light"], [500, "KefaIII-Bold"], [900, "KefaIII-ExtraBold"]]],
+    ["Tamil Sangam MN", 0x0B85, "TamilSangamMN", [[400, "TamilSangamMN"], [500, "TamilSangamMN-Bold"]]],
+    ["Mukta Mahee (Gurmukhi)", 0x0A05, "MuktaMahee-Regular", [[300, "MuktaMahee-Light"], [700, "MuktaMahee-Bold"]]],
+    ["Noto Sans Myanmar", 0x1000, "NotoSansMyanmar-Regular", [[200, "NotoSansMyanmar-Thin"], [900, "NotoSansMyanmar-Black"]]],
+  ];
+
+  for (const [label, cp, regular, expectations] of CASES) {
+    it(`${label}: takes the cut Chrome takes at each weight`, () => {
+      if (ask(cp, 400) !== regular) return; // family not installed on this host
+      for (const [weight, want] of expectations) {
+        expect(ask(cp, weight), `weight ${weight}`).toBe(want);
+      }
+    });
+  }
+
+  it("memoizes per CSS description, not per codepoint", () => {
+    if (ask(0x1401, 400) !== "EuphemiaUCAS") return;
+    // Asking at 400 first must not pin the 700 answer to the 400 answer.
+    expect(ask(0x1401, 700)).toBe("EuphemiaUCAS-Bold");
+    expect(ask(0x1401, 400)).toBe("EuphemiaUCAS");
+  });
+
+  it("keeps the nominated face when no CSS description is supplied", () => {
+    const nominated = resolveSystemFallbackFonts([0x1401]).get(0x1401)?.postscriptName ?? null;
+    if (nominated == null) return;
+    expect(nominated).toBe("EuphemiaUCAS");
   });
 });

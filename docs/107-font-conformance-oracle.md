@@ -166,17 +166,28 @@ First measured run, on a developer Mac (macOS arm64, Unicode 16.0, native glyph 
 
 A separate three-stack run — `--max-stacks 12 --stack-shard 3/4`, which selects `system-ui …` 20/700 plus the two 32 px CJK stacks the Unicode fixtures use — swept 877,398 comparisons and returned **318,978 mismatches across 153 distinct routes**, 36.4%, with agreement splitting 6.3% exact / 8.2% same-file / 1.2% alias / 48.1% shared tofu. That flag pair is the reproducer for every number in this section.
 
-What actually disagrees, in descending order of blast radius:
+### Current measured baselines
 
-1. **`HiraginoSans-W4` → `HiraKakuProN-W3`, 225,424 rows (70.7% of that run).** Chrome resolves CSS `font-family:"Hiragino Sans"` at weight 400 to `HiraginoSans-W4` (`ヒラギノ角ゴシック W4.ttc`); the `hiragino-jp` key is pinned to `HiraKakuProN-W3` (`ヒラギノ角ゴシック W3.ttc`) — a different family *and* a different weight cut. Because it is the run primary, every uncovered codepoint in the stack inherits it. One decision, a fifth of a million failing rows.
-2. **The macOS `.SF*` script faces.** Chrome cascades into the hidden system faces (`.SFDevanagari-Regular`, `.SFArabic-Bold`, `.SFHebrew-Bold`, `.SFArmenian-Bold`, `.SFTamil-Regular`, …) where we route to the Kohinoor / Noto / *SangamMN* families. A per-script family of routing defects, a few hundred codepoints each.
-3. **CJK regional variants** — `.PingFangUIDisplaySC-Bold` → `PingFangSC-Regular`, `HiraginoSansGB-W3` → `PingFangSC-Regular`, `PingFangSC-Regular` → `PingFangHK-Regular` — tens of thousands of rows.
-4. **Bold cuts we do not take**: `Arimo-Bold` → `Arimo-Regular`, `NotoSansKR-Bold` → `NotoSansKR-Regular`, `Menlo-Bold` → `symbols`. Small counts, and the class the `same-family-different-cut` label exists to isolate.
-5. **Latin-Extended and symbol routing in the `Times` stack**: `TimesNewRomanPSMT` → `Helvetica` / `LucidaGrande`, `Kokonor` → `Kailasa` (Tibetan), `ITFDevanagari-Book` → `KohinoorDevanagari-Regular`.
+Same machine, full 292,466-codepoint universe per stack, 877,398 comparisons per run. Both slices are named so a later number can be compared against a like-for-like run — a mismatch count without its slice means nothing.
+
+| Slice | mismatches | distinct routes | same-family-other-cut |
+| --- | --- | --- | --- |
+| `--max-stacks 12 --stack-shard 3/4` (`system-ui` 20/700, the two 32 px CJK fixture stacks) | 93,553 | 153 | — |
+| `Times` 16/400 + `Menlo …` 17/400 + `sans-serif` 32/700 | 99,261 | 211 | 20,136 |
+
+What still disagrees, in descending order of blast radius:
+
+1. **CJK family selection in the static chain.** `PingFangSC-Semibold → PingFangSC-Regular`, `HiraginoSans-W3/W6 → PingFangSC-Regular`, `PingFangSC-Regular → PingFangHK-Regular`, `AppleMyungjo → AppleSDGothicNeo-Regular` — tens of thousands of rows each. These are the hand-tuned per-block CJK routes in `darwinFallbackChain`, which name a family directly and never consult the live resolver, so the family (and, where the route pins a non-regular cut, the cut) is whatever was sampled.
+2. **The macOS `.SF*` script faces.** Chrome cascades into the hidden system faces (`.SFDevanagari-Regular`, `.SFArabic-Bold`, `.SFHebrew-Bold`, `.SFArmenian-Bold`, `.SFTamil-Regular`, …) where we route to the Kohinoor / Noto / *SangamMN* families. CoreText refuses by-name lookup of `.`-prefixed faces, so these cannot be reached by asking for them; a per-script family of routing defects, a few hundred codepoints each.
+3. **The system-fallback BASE font.** `resolveSystemFallbackKeyForCp` always asks CoreText from Helvetica, where Blink asks from the run's own primary — and the macOS cascade genuinely depends on the base (Han from Times answers Songti SC, from Helvetica answers PingFang SC). Every live-resolver answer for a non-Helvetica-ish primary inherits that.
+4. **Latin-Extended and symbol routing in the `Times` stack**: `TimesNewRomanPSMT` → `Helvetica` / `LucidaGrande`, `Kokonor` → `Kailasa` (Tibetan), `ITFDevanagari-Book` → `KohinoorDevanagari-Regular`.
 
 Note the shape of the number: the raw mismatch count is dominated by a handful of primary-family decisions, so it should fall in large steps rather than gradually. Track `distinctMismatchPairs` to see real progress.
 
 ### Where that baseline stands now
+
+> **Two independent measurements of `--max-stacks 12 --stack-shard 3/4` disagree, and neither has been reconciled.** The instrument audit recorded 93,553 → 95,617 mismatches / 153 → 171 routes on that slice. The subsequent cut-selection work measured **93,553 / 153** for the same flags and could not reproduce 95,617/171, noting that the slice contains no `Times` stack — so the 29,420-row Songti pair, which drives much of the increase above, cannot arise in it. One of the two runs is mislabelled as to which stacks it actually swept. **Re-derive the slice from `tools/font-conformance-stacks.json` before quoting either number**, and prefer a slice you have selected explicitly (`--stacks <file>`) over a shard index, which is sensitive to corpus ordering.
+
 
 Two things happened to it. Routing the `hiragino-jp` key to the weight cut Chrome picks removed item 1 above outright. Correcting the instrument (previous section) then re-scored what remained. Same slice, same host, same 877,398 comparisons:
 
