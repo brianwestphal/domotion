@@ -1,0 +1,4350 @@
+{
+  "generatedAt": "2026-07-30T07:02:05.998Z",
+  "platform": "linux",
+  "sources": [
+    "external/html-test",
+    "../html-test/unicode"
+  ],
+  "stacks": [
+    {
+      "fontFamily": "\"Times New Roman\"",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1114,
+      "example": "external/html-test/01-structure-base.html"
+    },
+    {
+      "fontFamily": "Menlo, Consolas, \"DejaVu Sans Mono\", monospace",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 818,
+      "example": "../html-test/unicode/0000-007F-basic-latin.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 818,
+      "example": "../html-test/unicode/0000-007F-basic-latin.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 818,
+      "example": "../html-test/unicode/0000-007F-basic-latin.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 448,
+      "example": "../html-test/unicode/0530-058F-armenian.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 198,
+      "example": "external/html-test/01-structure-base.html"
+    },
+    {
+      "fontFamily": "\"Arial Unicode MS\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 191,
+      "example": "../html-test/unicode/0590-05FF-hebrew.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Sans GB\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 179,
+      "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.0.html"
+    },
+    {
+      "fontFamily": "\"Heiti SC\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 174,
+      "example": "../html-test/unicode/1800-18AF-mongolian.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 163,
+      "example": "external/html-test/01-structure-base.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Sans\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 152,
+      "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.0.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 116,
+      "example": "external/html-test/01-structure-base.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 76,
+      "example": "external/html-test/01-structure-external-css.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 74,
+      "example": "external/html-test/06-deep-color-scheme-forms.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 66,
+      "example": "external/html-test/02-deep-bidi-isolate.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 66,
+      "example": "external/html-test/06-deep-color-scheme-forms.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 63,
+      "example": "external/html-test/02-deep-bidi-isolate.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 24,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 62,
+      "example": "external/html-test/02-text-headings.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans KR\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 56,
+      "example": "../html-test/unicode/1100-11FF-hangul-jamo.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 26,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 53,
+      "example": "external/html-test/06-deep-field-sizing.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 48,
+      "example": "external/html-test/01-structure-meta.html"
+    },
+    {
+      "fontFamily": "\"Apple SD Gothic Neo\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 46,
+      "example": "../html-test/unicode/1100-11FF-hangul-jamo.html"
+    },
+    {
+      "fontFamily": "\"SF Pro Text\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 41,
+      "example": "../html-test/unicode/0000-007F-basic-latin.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 40,
+      "example": "external/html-test/06-deep-color-scheme-forms.html"
+    },
+    {
+      "fontFamily": "\"Apple Symbols\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 39,
+      "example": "../html-test/unicode/02B0-02FF-spacing-modifier-letters.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 34,
+      "example": "external/html-test/06-deep-input-baseline.html"
+    },
+    {
+      "fontFamily": "\"Helvetica Neue\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 31,
+      "example": "../html-test/unicode/0100-017F-latin-extended-a.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 24,
+      "example": "external/html-test/06-deep-field-sizing.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 23,
+      "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
+    },
+    {
+      "fontFamily": "Arial, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 21,
+      "example": "../html-test/unicode/0180-024F-latin-extended-b.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 16,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 19,
+      "example": "external/html-test/06-forms-datalist.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 18,
+      "example": "external/html-test/06-deep-input-baseline.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 18,
+      "example": "external/html-test/06-deep-color-scheme-forms.html"
+    },
+    {
+      "fontFamily": "\"Songti SC\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 17,
+      "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.10.html"
+    },
+    {
+      "fontFamily": "\"STIX Two Math\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 17,
+      "example": "../html-test/unicode/1D400-1D7FF-mathematical-alphanumeric-symbols.0.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 17,
+      "example": "external/html-test/02-text-emphasis.html"
+    },
+    {
+      "fontFamily": "ui-monospace, monospace",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 17,
+      "example": "external/html-test/07-deep-image-rendering.html"
+    },
+    {
+      "fontFamily": "\"Apple Color Emoji\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 16,
+      "example": "../html-test/unicode/1F100-1F1FF-enclosed-alphanumeric-supplement.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 14,
+      "example": "external/html-test/02-deep-icon-font-pua.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 19,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 14,
+      "example": "external/html-test/02-deep-line-breaking.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 14,
+      "example": "external/html-test/06-forms-style-checkbox-radio.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 12,
+      "example": "external/html-test/02-deep-icon-font-pua.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 12,
+      "example": "external/html-test/02-text-emphasis.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 12,
+      "example": "external/html-test/07-deep-svg-use-href.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 12,
+      "example": "external/html-test/06-forms-style-buttons.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 8,
+      "example": "external/html-test/07-deep-svg-markers-strokes.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 19,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 8,
+      "example": "external/html-test/08-deep-popover-backdrop.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 7,
+      "example": "external/html-test/11-box-units.html"
+    },
+    {
+      "fontFamily": "\"Geeza Pro\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 6,
+      "example": "../html-test/unicode/0600-06FF-arabic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Cuneiform\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 6,
+      "example": "../html-test/unicode/12000-123FF-cuneiform.0.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Yi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 6,
+      "example": "../html-test/unicode/A000-A48F-yi-syllables.0.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 13,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 6,
+      "example": "external/html-test/07-deep-svg-markers-strokes.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 11,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 6,
+      "example": "external/html-test/06-forms-style-buttons.html"
+    },
+    {
+      "fontFamily": "\"Euphemia UCAS\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "../html-test/unicode/11AB0-11ABF-unified-canadian-aboriginal-syllabics-extended-a.html"
+    },
+    {
+      "fontFamily": "\"Kefa III\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "../html-test/unicode/1200-137F-ethiopic.0.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Egyptian Hieroglyphs\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "../html-test/unicode/13000-1342F-egyptian-hieroglyphs.0.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "external/html-test/20-deep-first-letter-line.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "external/html-test/02-deep-line-breaking.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 28,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "external/html-test/02-text-ruby.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "external/html-test/05-links-states.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "external/html-test/15-deep-flex-baseline.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 13,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 5,
+      "example": "external/html-test/06-forms-style-buttons.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Kaku Gothic ProN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Bamum\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "../html-test/unicode/16800-16A3F-bamum-supplement.0.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 23,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/08-deep-popover-backdrop.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/11-box-basic.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/02-text-entities.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 36,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/02-text-sub-sup.html"
+    },
+    {
+      "fontFamily": "serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 13,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/06-forms-style-fieldset.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 11,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/06-forms-style-fieldset.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 4,
+      "example": "external/html-test/11-deep-viewport-units.html"
+    },
+    {
+      "fontFamily": "\"Dela Gothic One\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "../html-test/unicode/3000-303F-cjk-symbols-and-punctuation.html"
+    },
+    {
+      "fontFamily": "\"Grantha Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "../html-test/unicode/11000-1107F-brahmi.html"
+    },
+    {
+      "fontFamily": "\"Noto Nastaliq Urdu\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "../html-test/unicode/0600-06FF-arabic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Coptic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Myanmar\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "../html-test/unicode/1000-109F-myanmar.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/06-forms-buttons.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/20-deep-first-letter-line.html"
+    },
+    {
+      "fontFamily": "Inter, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "../html-test/unicode/1F100-1F1FF-enclosed-alphanumeric-supplement.html"
+    },
+    {
+      "fontFamily": "math",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "serif",
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/20-font-style-variant.html"
+    },
+    {
+      "fontFamily": "serif",
+      "fontSize": 24,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/20-font-style-variant.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 14,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/06-forms-style-buttons.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 12,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/06-forms-style-select.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/06-forms-style-select.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/06-forms-style-select.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 22,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 3,
+      "example": "external/html-test/07-deep-svg-textpath-filters.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 14,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 18,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "\"Khmer Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/1780-17FF-khmer.html"
+    },
+    {
+      "fontFamily": "\"New Peninim MT\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/0590-05FF-hebrew.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Buginese\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/1A00-1A1F-buginese.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Buhid\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/1720-173F-hanunoo.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Glagolitic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/1E000-1E02F-glagolitic-supplement.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Linear A\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/10600-1077F-linear-a.0.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Linear B\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/10000-1007F-linear-b-syllabary.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Meetei Mayek\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/AAE0-AAFF-meetei-mayek-extensions.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Meroitic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/10980-1099F-meroitic-hieroglyphs.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Mongolian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/11660-1167F-mongolian-supplement.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Sundanese\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/1B80-1BBF-sundanese.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Vai\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/A500-A63F-vai.0.html"
+    },
+    {
+      "fontFamily": "\"Tamil Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/0B80-0BFF-tamil.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/06-forms-buttons.html"
+    },
+    {
+      "fontFamily": "Galvji, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/13A0-13FF-cherokee.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-first-letter-line.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 22,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 22,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/07-deep-svg-textpath-filters.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/33-columns-basic.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/33-deep-columns-break.html"
+    },
+    {
+      "fontFamily": "math",
+      "fontSize": 22,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/34-mathml-basic.html"
+    },
+    {
+      "fontFamily": "math",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/34-mathml-basic.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/02-text-symbols.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/02-text-symbols.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/03-lists-ul-ol.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/06-forms-style-focus.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/08-dialog.html"
+    },
+    {
+      "fontFamily": "Mshtakan, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/0530-058F-armenian.html"
+    },
+    {
+      "fontFamily": "Mukta, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "../html-test/unicode/1CD0-1CFF-vedic-extensions.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 11,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/02-text-headings.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/02-text-ruby.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 10,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 40,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/28-layer.html"
+    },
+    {
+      "fontFamily": "serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-font-style-variant.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 15,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/06-forms-style-fieldset.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 15,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/06-forms-style-input-groups.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/08-deep-popover-backdrop.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 12,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/11-deep-env-safe-area.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 28,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/11-deep-viewport-units.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 72,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-text-stroke.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-wavy-underline-descenders.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 24,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-wavy-underline-descenders.html"
+    },
+    {
+      "fontFamily": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/20-deep-tab-size.html"
+    },
+    {
+      "fontFamily": "ui-monospace, monospace",
+      "fontSize": 10,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 2,
+      "example": "external/html-test/21-deep-transform-box.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 11,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 44,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 17,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 28,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 12,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 56,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 10,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 48,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 24,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 16,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"Segoe UI\", sans-serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 14,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 11,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 28,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 11,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 22,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 18,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 13,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 12,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 13,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "-apple-system, system-ui, \"SF Pro Text\", \"Segoe UI\", sans-serif",
+      "fontSize": 10,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-mobile-app-frame.html"
+    },
+    {
+      "fontFamily": "\"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", emoji",
+      "fontSize": 48,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "\"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", emoji",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "\"Big Caslon\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10190-101CF-ancient-symbols.html"
+    },
+    {
+      "fontFamily": "\"Custom Icons\", system-ui",
+      "fontSize": 28,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-deep-icon-font-pua.html"
+    },
+    {
+      "fontFamily": "\"Gurmukhi Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0A00-0A7F-gurmukhi.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Kaku Gothic Pro\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/FE30-FE4F-cjk-compatibility-forms.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Mincho ProN\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Mincho ProN\", serif",
+      "fontSize": 22,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-text-underline-position.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Sans\", system-ui",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/svg-view-switch.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Sans\", system-ui",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/text-box-trim.html"
+    },
+    {
+      "fontFamily": "\"Hiragino Sans\", system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-hanging-punctuation.html"
+    },
+    {
+      "fontFamily": "\"Inter Variable\", system-ui, sans-serif",
+      "fontSize": 26,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"opsz\" 32, \"wdth\" 120, \"wght\" 700",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "\"Inter Variable\", system-ui, sans-serif",
+      "fontSize": 26,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"opsz\" 14, \"wdth\" 80, \"wght\" 300",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "\"ITF Devanagari\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0900-097F-devanagari.html"
+    },
+    {
+      "fontFamily": "\"Kannada Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0C80-0CFF-kannada.html"
+    },
+    {
+      "fontFamily": "\"Kohinoor Bangla\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0980-09FF-bengali.html"
+    },
+    {
+      "fontFamily": "\"Kohinoor Gujarati\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0A80-0AFF-gujarati.html"
+    },
+    {
+      "fontFamily": "\"Kohinoor Telugu\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0C00-0C7F-telugu.html"
+    },
+    {
+      "fontFamily": "\"Lao Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0E80-0EFF-lao.html"
+    },
+    {
+      "fontFamily": "\"Lucida Grande\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/2150-218F-number-forms.html"
+    },
+    {
+      "fontFamily": "\"M PLUS 1\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.109.html"
+    },
+    {
+      "fontFamily": "\"Malayalam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0D00-0D7F-malayalam.html"
+    },
+    {
+      "fontFamily": "\"Malayalam Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0D00-0D7F-malayalam.html"
+    },
+    {
+      "fontFamily": "\"Material Symbols Outlined\"",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-deep-icon-font-pua.html"
+    },
+    {
+      "fontFamily": "\"Mplus 1p\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1B000-1B0FF-kana-supplement.html"
+    },
+    {
+      "fontFamily": "\"Mukta Mahee\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A830-A83F-common-indic-number-forms.html"
+    },
+    {
+      "fontFamily": "\"Myanmar Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1000-109F-myanmar.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Adlam\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1E900-1E95F-adlam.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Armenian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0530-058F-armenian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Avestan\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10B00-10B3F-avestan.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Bassa Vah\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/16AD0-16AFF-bassa-vah.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Batak\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1BC0-1BFF-batak.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Bhaiksuki\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11C00-11C6F-bhaiksuki.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Brahmi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11000-1107F-brahmi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Carian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/102A0-102DF-carian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Caucasian Albanian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10530-1056F-caucasian-albanian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Chakma\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11100-1114F-chakma.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Cham\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/AA00-AA5F-cham.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Cypriot\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10800-1083F-cypriot-syllabary.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Duployan\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1BC00-1BC9F-duployan.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Elbasan\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10500-1052F-elbasan.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Gothic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10330-1034F-gothic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Gunjala Gondi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11D60-11DAF-gunjala-gondi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Hanifi Rohingya\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10D00-10D3F-hanifi-rohingya.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Hanunoo\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1720-173F-hanunoo.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Hatran\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/108E0-108FF-hatran.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Imperial Aramaic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10840-1085F-imperial-aramaic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Inscriptional Pahlavi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10B60-10B7F-inscriptional-pahlavi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Inscriptional Parthian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10B40-10B5F-inscriptional-parthian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Javanese\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A980-A9DF-javanese.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Kaithi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11080-110CF-kaithi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Kannada Condensed\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0C80-0CFF-kannada.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Kayah Li\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A900-A92F-kayah-li.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Kharoshthi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10A00-10A5F-kharoshthi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Khojki\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11200-1124F-khojki.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Khudawadi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/112B0-112FF-khudawadi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Lepcha\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1C00-1C4F-lepcha.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Limbu\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1900-194F-limbu.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Lisu\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A4D0-A4FF-lisu.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Lycian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10280-1029F-lycian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Lydian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10920-1093F-lydian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Mahajani\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11150-1117F-mahajani.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Mandaic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0840-085F-mandaic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Manichaean\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10AC0-10AFF-manichaean.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Marchen\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11C70-11CBF-marchen.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Masaram Gondi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11D00-11D5F-masaram-gondi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Mende Kikakui\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1E800-1E8DF-mende-kikakui.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Miao\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/16F00-16F9F-miao.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Modi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11600-1165F-modi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Mro\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/16A40-16A6F-mro.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Multani\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11280-112AF-multani.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Nabataean\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10880-108AF-nabataean.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Nag Mundari\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1E4D0-1E4FF-nag-mundari.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans New Tai Lue\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1980-19DF-new-tai-lue.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Newa\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11400-1147F-newa.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans NKo\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/07C0-07FF-nko.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Ol Chiki\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1C50-1C7F-ol-chiki.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old Hungarian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10C80-10CFF-old-hungarian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old Italic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10300-1032F-old-italic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old North Arabian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10A80-10A9F-old-north-arabian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old Permic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10350-1037F-old-permic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old Persian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/103A0-103DF-old-persian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old South Arabian\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10A60-10A7F-old-south-arabian.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Old Turkic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10C00-10C4F-old-turkic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Osage\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/104B0-104FF-osage.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Osmanya\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10480-104AF-osmanya.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Pahawh Hmong\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/16B00-16B8F-pahawh-hmong.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Palmyrene\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10860-1087F-palmyrene.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Pau Cin Hau\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11AC0-11AFF-pau-cin-hau.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans PhagsPa\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A840-A87F-phags-pa.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Phoenician\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10900-1091F-phoenician.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Psalter Pahlavi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10B80-10BAF-psalter-pahlavi.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Rejang\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A930-A95F-rejang.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Samaritan\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0800-083F-samaritan.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Saurashtra\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A880-A8DF-saurashtra.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Sharada\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11180-111DF-sharada.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Siddham\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11580-115FF-siddham.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Sora Sompeng\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/110D0-110FF-sora-sompeng.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Syloti Nagri\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/A800-A82F-syloti-nagri.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Syriac\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0700-074F-syriac.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tagalog\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1700-171F-tagalog.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tagbanwa\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1760-177F-tagbanwa.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tai Le\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1950-197F-tai-le.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tai Tham\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1A20-1AAF-tai-tham.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tai Viet\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/AA80-AADF-tai-viet.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Takri\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11680-116CF-takri.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Thaana\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0780-07BF-thaana.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tifinagh\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/2D30-2D7F-tifinagh.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Tirhuta\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11480-114DF-tirhuta.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Ugaritic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10380-1039F-ugaritic.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Wancho\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1E2C0-1E2FF-wancho.html"
+    },
+    {
+      "fontFamily": "\"Noto Sans Warang Citi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/118A0-118FF-warang-citi.html"
+    },
+    {
+      "fontFamily": "\"Noto Serif Ahom\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/11700-1174F-ahom.html"
+    },
+    {
+      "fontFamily": "\"Noto Serif Balinese\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1B00-1B7F-balinese.html"
+    },
+    {
+      "fontFamily": "\"Noto Serif Hmong Nyiakeng\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1E100-1E14F-nyiakeng-puachue-hmong.html"
+    },
+    {
+      "fontFamily": "\"Noto Serif Yezidi\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/10E80-10EBF-yezidi.html"
+    },
+    {
+      "fontFamily": "\"Oriya Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0B00-0B7F-oriya.html"
+    },
+    {
+      "fontFamily": "\"Plantagenet Cherokee\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/13A0-13FF-cherokee.html"
+    },
+    {
+      "fontFamily": "\"SF Arabic\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/08A0-08FF-arabic-extended-a.html"
+    },
+    {
+      "fontFamily": "\"SF Compact\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1D800-1DAAF-sutton-signwriting.0.html"
+    },
+    {
+      "fontFamily": "\"Sinhala Sangam MN\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0D80-0DFF-sinhala.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Sukhumvit Set\", \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0E00-0E7F-thai.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\"",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/10-deep-attr-quoting.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\"",
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\", serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\", serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\", serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-palette.html"
+    },
+    {
+      "fontFamily": "Alexandria, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/FB50-FDFF-arabic-presentation-forms-a.0.html"
+    },
+    {
+      "fontFamily": "AppleGothic, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/FE10-FE1F-vertical-forms.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-deep-icon-font-pua.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-buttons.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-news-card.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/text-box-trim.html"
+    },
+    {
+      "fontFamily": "Arial",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/text-box-trim.html"
+    },
+    {
+      "fontFamily": "cursive",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "DoesNotExist, Georgia, \"Times New Roman\", serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "emoji",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "fangsong",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "fantasy",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "Geneva, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/2150-218F-number-forms.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 44,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"wght\" 100",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"wght\" 900",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"wdth\" 50",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"wdth\" 200",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"opsz\" 8",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"opsz\" 144",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "\"slnt\" -10",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 44,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-news-card.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-news-card.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-news-card.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-style-textarea.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 20,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/07-deep-svg-textpath-filters.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 24,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-hanging-punctuation.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-text-underline-position.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/28-deep-scope.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 22,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-news-card.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 18,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-pricing-table.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 15,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/33-columns-basic.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/33-columns-basic.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/33-deep-columns-break.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/text-box-trim.html"
+    },
+    {
+      "fontFamily": "Georgia, serif",
+      "fontSize": 48,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/text-box-trim.html"
+    },
+    {
+      "fontFamily": "Helvetica, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/2600-26FF-miscellaneous-symbols.html"
+    },
+    {
+      "fontFamily": "Kailasa, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
+    },
+    {
+      "fontFamily": "Kokonor, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
+    },
+    {
+      "fontFamily": "Menlo, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/2700-27BF-dingbats.html"
+    },
+    {
+      "fontFamily": "Menlo, Consolas, monospace",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/index.html"
+    },
+    {
+      "fontFamily": "Menlo, monospace",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/08-deep-popover-backdrop.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 10,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/10-deep-form-state-pseudos.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/24-deep-initial-letter.html"
+    },
+    {
+      "fontFamily": "monospace",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/28-layer.html"
+    },
+    {
+      "fontFamily": "Mynerve, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/1F780-1F7FF-geometric-shapes-extended.html"
+    },
+    {
+      "fontFamily": "Overpass, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/2B00-2BFF-miscellaneous-symbols-and-arrows.html"
+    },
+    {
+      "fontFamily": "Raanana, \"Arial Unicode MS\", \"Apple Symbols\", \"Apple Color Emoji\", \"Noto Sans\", \"Noto Serif\", sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/0590-05FF-hebrew.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 18,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-text-emoji.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-text-emphasis.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 13,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-text-headings.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 15,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-text-sub-sup.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 90,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/07-svg-text-gradient.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 48,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/07-svg-text-gradient.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/10-deep-attr-quoting.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 14,
+      "fontWeight": 700,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/10-deep-attr-quoting.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 12,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/13-deep-stacking-context-creators.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 64,
+      "fontWeight": 900,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/17-deep-bg-clip-text.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 72,
+      "fontWeight": 900,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/17-deep-bg-clip-text.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 36,
+      "fontWeight": 900,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/17-deep-bg-clip-text.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 48,
+      "fontWeight": 900,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/18-deep-shadow-stacking.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 48,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 9,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 100,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 300,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 500,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 22,
+      "fontWeight": 900,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-size-weight.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "50%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "62.5%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "75%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "87.5%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "112.5%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "125%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "150%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "200%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-stretch.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 56,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/22-blend-modes.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 15,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/28-container.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 25,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/28-container.html"
+    },
+    {
+      "fontFamily": "sans-serif",
+      "fontSize": 19,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/28-deep-container-types.html"
+    },
+    {
+      "fontFamily": "serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-text-symbols.html"
+    },
+    {
+      "fontFamily": "serif",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/02-text-symbols.html"
+    },
+    {
+      "fontFamily": "system-ui",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/07-deep-svg-markers-strokes.html"
+    },
+    {
+      "fontFamily": "system-ui",
+      "fontSize": 10,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/07-deep-svg-markers-strokes.html"
+    },
+    {
+      "fontFamily": "system-ui",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "system-ui",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/21-deep-transform-box.html"
+    },
+    {
+      "fontFamily": "system-ui",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/svg-view-switch.html"
+    },
+    {
+      "fontFamily": "system-ui",
+      "fontSize": 20,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/svg-view-switch.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 22,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/index.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/index.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 14,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/index.html"
+    },
+    {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "../html-test/unicode/index.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 22,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-deep-input-baseline.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 20,
+      "fontWeight": 600,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-style-buttons.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 28,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-style-file.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 18,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-style-select.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-style-select.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 60,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/07-deep-svg-markers-strokes.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 16,
+      "fontWeight": 500,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/08-deep-details-accordion.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 56,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/13-deep-sticky-condensing-header.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 72,
+      "fontWeight": 800,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-text-stroke.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 64,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-text-stroke.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 48,
+      "fontWeight": 800,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-text-stroke.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-text-underline-position.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 36,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-wavy-underline-descenders.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 48,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/22-deep-filter-paint-bounds.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 17,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/24-deep-initial-letter.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 15,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/25-deep-line-clamp.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 19,
+      "fontWeight": 700,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/28-deep-scope.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 10,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-news-card.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 21,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/shadow-dom-declarative.html"
+    },
+    {
+      "fontFamily": "system-ui, sans-serif",
+      "fontSize": 32,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/text-box-trim.html"
+    },
+    {
+      "fontFamily": "TestMono, monospace",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-face.html"
+    },
+    {
+      "fontFamily": "TestSerif, serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-face.html"
+    },
+    {
+      "fontFamily": "TestSerif, serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-face.html"
+    },
+    {
+      "fontFamily": "TestSerif, serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-face.html"
+    },
+    {
+      "fontFamily": "TestSerif, serif",
+      "fontSize": 16,
+      "fontWeight": 700,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-face.html"
+    },
+    {
+      "fontFamily": "ui-monospace",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "fontSize": 10,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-tab-size.html"
+    },
+    {
+      "fontFamily": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/32-real-world-blog-post.html"
+    },
+    {
+      "fontFamily": "ui-monospace, Menlo, Consolas, monospace",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/06-forms-style-textarea.html"
+    },
+    {
+      "fontFamily": "ui-monospace, monospace",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/11-deep-env-safe-area.html"
+    },
+    {
+      "fontFamily": "ui-monospace, monospace",
+      "fontSize": 13,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/30-deep-resize-overflow.html"
+    },
+    {
+      "fontFamily": "ui-monospace, monospace",
+      "fontSize": 12,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/niche/contrast-color.html"
+    },
+    {
+      "fontFamily": "ui-rounded",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "ui-sans-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
+      "fontFamily": "ui-serif",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    }
+  ]
+}

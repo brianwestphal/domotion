@@ -894,7 +894,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   from a passing fixture sweep. The allowlist ships empty by design. Our
   side is materialized through the renderer's own call
   (`getFontInstance`), so the face compared is the weight/slant-selected
-  cut rather than the family's base path-table entry.
+  cut rather than the family's base path-table entry. **Now runs on all
+  three platforms**, each with its own stack corpus, recorded font
+  inventory and committed baseline
+  (`tests/baselines/font-conformance-<os>.json`) — the numbers are not
+  comparable across platforms (different Blink code, different font sets,
+  different ICU universes) and the CI gate is regression-relative rather
+  than absolute-zero.
 - **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
   always-in-sync Mermaid flow diagram of the *entire* font-resolution
   system, synthesizing docs 03/30/40/42/51/52/80: family-stack→key, the

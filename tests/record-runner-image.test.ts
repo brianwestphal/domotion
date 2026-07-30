@@ -18,6 +18,17 @@ describe("computeRunnerImage", () => {
     expect(computeRunnerImage({ imageOS: "Win22", runnerArch: "X64" })).toBe("win22-x64");
   });
 
+  it("labels a non-runner host by its own platform, not as a Playwright container", () => {
+    // Seeding a baseline from a developer Mac or the Windows VM: no ImageOS and
+    // no /etc/os-release. Falling through to the container branch stamped a
+    // macOS baseline `playwright-v1.59.1-linux-unknown`, which would let a
+    // macOS run and a Linux run compare as though they shared an environment.
+    expect(computeRunnerImage({ runnerArch: "arm64", osRelease: null, playwrightVersion: "1.59.1", platform: "darwin" }))
+      .toBe("darwin-local-arm64");
+    expect(computeRunnerImage({ runnerArch: "x64", osRelease: null, playwrightVersion: "1.59.1", platform: "win32" }))
+      .toBe("win32-local-x64");
+  });
+
   it("derives a Playwright-versioned id inside the Linux container (the DM-1426 fix)", () => {
     const id = computeRunnerImage({
       runnerArch: "X64",

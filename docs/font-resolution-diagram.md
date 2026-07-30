@@ -935,9 +935,10 @@ rather than mismatching.
 One divergence in the same call remains open and is tracked separately: Blink
 passes the run's primary family name as `MapCharacters`' `baseFamilyName`
 (`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
-what lets a family's own font linking participate; we still pass null. It is left
-alone rather than changed blind, because Windows has no conformance-oracle
-baseline yet and the effect is unmeasurable today.
+what lets a family's own font linking participate; we still pass null. It is now
+measurable — a Windows conformance-oracle baseline exists (doc
+[107](107-font-conformance-oracle.md)) — so the change can be scored against it
+rather than made blind, which is the order it should happen in.
 
 Gated by `_systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
 default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with
@@ -1186,10 +1187,17 @@ The residual per-platform gap is unhinted-outline-vs-native-raster hinting, not
 missing routing. See doc [42](42-cross-platform-fallback-calibration.md) and the
 "Platform support" section of `CLAUDE.md`.
 
-One caveat on reading that table: the Linux and Windows columns are backed by
-**visual fixture suites**, not by a conformance oracle. Only macOS has an
-exhaustive per-codepoint agreement measurement (doc
-[107](107-font-conformance-oracle.md)). The Windows stage in §7c is correct **by
-construction** — it is Blink's algorithm, transcribed with citations — but it is
-not yet *scored*, and until a Windows oracle baseline exists that distinction
-should stay visible rather than be rounded up to a checkmark.
+All three columns are now backed by an exhaustive per-codepoint agreement
+measurement, not only by the visual fixture suites: the conformance oracle (doc
+[107](107-font-conformance-oracle.md)) runs on macOS, Linux and Windows, each
+with its own stack corpus, its own font inventory and its own committed baseline
+under `tests/baselines/font-conformance-<os>.json`. The Windows stage in §7c is
+correct **by construction** — it is Blink's algorithm, transcribed with
+citations — and is now also *scored*.
+
+Two things about those numbers that must not be rounded away. They are **not
+comparable across platforms**: the three columns run different Blink code over
+different font sets and even different ICU codepoint universes, so a macOS
+number says nothing about Linux. And the gate on each is **regression-relative,
+not absolute** — no platform measures zero, and the baseline records what "no
+worse than last time" means for that platform's own environment.

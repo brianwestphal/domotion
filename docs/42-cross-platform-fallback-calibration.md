@@ -628,6 +628,32 @@ inflation**, and Domotion now mirrors it:
 With the model in place the fixture's Linux diff drops from 1.60% / 54 regions
 to ~0.02% coverage / a handful of sub-region AA nits; macOS stays pixel-clean.
 
+## Every platform is now scored by the conformance oracle, not only by fixtures
+
+Everything above is *calibration* measured through visual fixtures — the weakest
+evidence available for a font-selection claim, because fixtures sample and a
+wrong-font bug lives comfortably in the codepoints none of them covers. The
+exhaustive check is the conformance oracle
+([doc 107](107-font-conformance-oracle.md)), which asks Chrome (CDP
+`CSS.getPlatformFontsForNode`) and Domotion the same question for every assigned
+Unicode codepoint crossed with the fixture corpus's own font stacks.
+
+That oracle now runs on **all three platforms**, each with its own stack corpus,
+its own recorded font inventory and its own committed baseline
+(`tests/baselines/font-conformance-<os>.json`). Three consequences worth keeping
+straight while reading the calibration numbers above:
+
+- **The three numbers are not comparable.** Per-codepoint fallback is different
+  Blink code per platform, over different font sets, on different ICU codepoint
+  universes. A macOS agreement rate is not a prediction about Linux.
+- **The gate is regression-relative.** No platform measures zero; the baseline
+  records what "no worse than last time on this image" means for that platform.
+- **A hinting floor is not a selection defect.** The rasterization gap described
+  in "Per-platform visual-gate hinting floor" below is a *different* concern from
+  the matching mechanism the oracle measures — a platform can be pixel-imperfect
+  and font-selection-perfect at the same time, and the two must not be traded
+  against each other.
+
 ## Acceptance criteria
 
 - **DM-259**: probe results documented per Unicode block on Linux; `linuxFallbackChain`
