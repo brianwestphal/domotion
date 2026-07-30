@@ -1,38 +1,50 @@
 name: Font conformance oracle
 
-run-name: Font conformance · shards=${{ inputs.shards }}${{ inputs.range != '' && format(' · range={0}', inputs.range) || '' }}${{ inputs.max_stacks != '' && format(' · max-stacks={0}', inputs.max_stacks) || '' }}
+run-name: Font conformance · os=${{ inputs.os }} · shards=${{ inputs.shards }}${{ inputs.range != '' && format(' · range={0}', inputs.range) || '' }}${{ inputs.max_stacks != '' && format(' · max-stacks={0}', inputs.max_stacks) || '' }}
 
 # Exhaustive font-selection parity check: for every assigned Unicode codepoint
 # crossed with every font stack the fixture corpus uses, ask Chrome (CDP
 # `CSS.getPlatformFontsForNode`) and Domotion's `resolveFontForCodepoint` which
-# face paints it, and fail on any disagreement. See docs/107.
+# face paints it, and report every disagreement. See docs/107.
+#
+# THREE PLATFORMS, THREE DIFFERENT QUESTIONS. Per-codepoint fallback is not one
+# procedure with three font sets behind it — Blink runs different code on each
+# (macOS `font_cache_mac.mm` asks CoreText with the run's own font as the base;
+# Linux `font_cache_linux.cc` asks fontconfig keyed on locale with no base font;
+# Windows `font_cache_skia_win.cc` consults a hardcoded per-script table before
+# falling through to DirectWrite). So each platform gets its own sweep, its own
+# stack corpus, and its own baseline, and a number from one says nothing about
+# another.
 #
 # Sharded on STACKS rather than codepoints: the resolver memoizes each
 # first-seen uncovered codepoint's platform-fallback lookup, so a stack shard
 # pays the cold-cache cost once and every later stack in the same job is several
 # times faster. A codepoint shard would re-pay it in every shard.
 #
-# Manual dispatch. The full cross product is ~122M comparisons — hours of work
-# fanned across runners, not a per-PR gate. Scope it with `range` / `max_stacks`
-# when a change is confined to one script or one family, and read the report's
-# `meta` block, which records exactly what was swept.
-#
-# macOS only for now: the oracle compares against the host platform's font
-# matcher, and the macOS CoreText path is the calibrated one. Linux (fontconfig)
-# and Windows (DirectWrite) work the same way and can be added as separate jobs
-# once their baselines are meaningful.
+# Manual dispatch. The full cross product is ~122M comparisons PER PLATFORM —
+# hours of work fanned across runners, not a per-PR gate. The DEFAULT inputs
+# sweep the canonical baseline slice (the six most-used corpus stacks, full
+# codepoint universe, one stack per shard), which is what the committed
+# per-platform baselines record and what the gate can compare. Widen it with
+# `max_stacks` / `shards` for a deeper run — and read the report's `meta` block,
+# which records exactly what was swept, before quoting any number.
 
 on:
   workflow_dispatch:
     inputs:
+      os:
+        description: 'Platform to sweep — each has its own corpus and baseline'
+        type: choice
+        options: [macos, linux, windows, all]
+        default: macos
       shards:
         description: 'Number of stack shards to fan out across'
-        default: '20'
+        default: '6'
+      max_stacks:
+        description: 'Cap on the number of corpus stacks (most-used first). Empty = the whole corpus (~14h per platform, sharded).'
+        default: '6'
       range:
         description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'
-        default: ''
-      max_stacks:
-        description: 'Optional cap on the number of corpus stacks (most-used first)'
         default: ''
       no_pua:
         description: 'Skip private-use codepoints (137k of 292k) for a faster run'
@@ -42,12 +54,16 @@ on:
         description: 'Treat the documented macOS system-font naming alias as a mismatch'
         type: boolean
         default: false
+      update_baseline:
+        description: 'Write this run back as the platform baseline instead of gating on it (artifact only — commit it by hand)'
+        type: boolean
+        default: false
 
 env:
   NODE_VERSION: '22.21.0'
 
 concurrency:
-  group: font-conformance-${{ github.ref_name }}
+  group: font-conformance-${{ github.ref_name }}-${{ inputs.os }}
   cancel-in-progress: true
 
 jobs:
@@ -55,15 +71,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
+      os_list: ${{ steps.m.outputs.os_list }}
+      macos_on: ${{ steps.m.outputs.macos_on }}
+      linux_on: ${{ steps.m.outputs.linux_on }}
+      windows_on: ${{ steps.m.outputs.windows_on }}
     steps:
       - id: m
         run: |
           n="${{ inputs.shards }}"
           list=$(seq 1 "$n" | paste -sd, -)
           echo "matrix={\"shard\":[$list],\"total\":[$n]}" >> "$GITHUB_OUTPUT"
+          sel="${{ inputs.os }}"
+          on() { [ "$sel" = "$1" ] || [ "$sel" = "all" ] && echo true || echo false; }
+          echo "macos_on=$(on macos)" >> "$GITHUB_OUTPUT"
+          echo "linux_on=$(on linux)" >> "$GITHUB_OUTPUT"
+          echo "windows_on=$(on windows)" >> "$GITHUB_OUTPUT"
+          if [ "$sel" = "all" ]; then
+            echo 'os_list=["macos","linux","windows"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "os_list=[\"$sel\"]" >> "$GITHUB_OUTPUT"
+          fi
 
-  sweep:
+  sweep-macos:
     needs: setup
+    if: needs.setup.outputs.macos_on == 'true'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -86,101 +117,131 @@ jobs:
       - name: Font env probe (diagnostic — grep FONTPROBE in this step's log)
         run: npx tsx tools/font-env-probe.mjs
       - name: Sweep
-        # Exit 1 means "mismatches found" and must NOT cancel the other shards —
-        # the aggregate job re-derives the verdict from the merged reports.
-        # Anything else means the shard DIED (DM-1860: a full sweep could exhaust
-        # the heap partway through). A dead shard writes no report.json, and the
-        # aggregate would then compute its verdict over the survivors alone — so
-        # a blanket `|| true` here can turn a red run green by losing data. Allow
-        # only the two exit codes the tool actually defines.
-        run: |
-          set +e
-          npx tsx tools/font-conformance.ts \
-            --stack-shard ${{ matrix.shard }}/${{ matrix.total }} \
-            --out "tests/output/font-conformance" \
-            ${{ inputs.range != '' && format('--range {0}', inputs.range) || '' }} \
-            ${{ inputs.max_stacks != '' && format('--max-stacks {0}', inputs.max_stacks) || '' }} \
-            ${{ inputs.no_pua && '--no-pua' || '' }} \
-            ${{ inputs.strict_alias && '--strict-alias' || '' }}
-          code=$?
-          set -e
-          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
-            echo "::error::conformance shard ${{ matrix.shard }} died with exit $code (not a mismatch exit) — its report is missing, so the aggregate would under-count"
-            exit "$code"
-          fi
-          echo "shard exited $code (0 = full agreement, 1 = mismatches found)"
+        run: bash scripts/ci-font-conformance-shard.sh
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ matrix.total }}
+          RANGE: ${{ inputs.range }}
+          MAX_STACKS: ${{ inputs.max_stacks }}
+          NO_PUA: ${{ inputs.no_pua }}
+          STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
         with:
-          name: font-conformance-shard-${{ matrix.shard }}
+          name: font-conformance-macos-shard-${{ matrix.shard }}
+          path: tests/output/font-conformance/
+          retention-days: 14
+
+  sweep-linux:
+    needs: setup
+    if: needs.setup.outputs.linux_on == 'true'
+    runs-on: ubuntu-latest
+    # The pinned Playwright image, not a bare ubuntu-latest: the Linux fallback
+    # answer IS the container's fontconfig set (Liberation / DejaVu / Noto /
+    # WenQuanYi), and a different image is a different oracle. It is also the
+    # image the Linux fidelity suites already calibrate against.
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+        # No glyph-helper build here, deliberately: the Linux per-codepoint
+        # resolver shells out to fontconfig (`fc-match :charset=…`) rather than
+        # to a built helper, so there is nothing to silently fall off. The only
+        # thing the absent helper costs is `resolveInstalledFont`, which on
+        # Linux is always null — so Chrome-face file resolution (the
+        # `agree-same-file` tier) never fires here. Recorded in docs/107.
+      - name: Sweep
+        run: bash scripts/ci-font-conformance-shard.sh
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ matrix.total }}
+          RANGE: ${{ inputs.range }}
+          MAX_STACKS: ${{ inputs.max_stacks }}
+          NO_PUA: ${{ inputs.no_pua }}
+          STRICT_ALIAS: ${{ inputs.strict_alias }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-conformance-linux-shard-${{ matrix.shard }}
+          path: tests/output/font-conformance/
+          retention-days: 14
+
+  sweep-windows:
+    needs: setup
+    if: needs.setup.outputs.windows_on == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+        # Same reasoning as macOS: without the DirectWrite helper the Windows
+        # resolver cannot run either of Blink's fallback stages live and drops
+        # to the static per-block table.
+      - name: Build the DirectWrite glyph helper (fallback resolver)
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Sweep
+        shell: bash
+        run: bash scripts/ci-font-conformance-shard.sh
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ matrix.total }}
+          RANGE: ${{ inputs.range }}
+          MAX_STACKS: ${{ inputs.max_stacks }}
+          NO_PUA: ${{ inputs.no_pua }}
+          STRICT_ALIAS: ${{ inputs.strict_alias }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-conformance-windows-shard-${{ matrix.shard }}
           path: tests/output/font-conformance/
           retention-days: 14
 
   aggregate:
-    needs: sweep
-    if: always()
+    needs: [setup, sweep-macos, sweep-linux, sweep-windows]
+    if: always() && needs.setup.result == 'success'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.setup.outputs.os_list) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}' }
       - uses: actions/download-artifact@v4
-        with: { path: shards, pattern: font-conformance-shard-* }
+        with:
+          path: shards
+          pattern: 'font-conformance-${{ matrix.os }}-shard-*'
       - name: Merge shard reports
         run: |
-          node -e '
-            const fs = require("node:fs");
-            const dirs = fs.readdirSync("shards");
-            let comparisons = 0, mismatch = 0, allowed = 0;
-            const pairs = new Map();
-            const buckets = {};
-            // A missing report is FATAL, not a line of log (DM-1860). Summing
-            // the survivors and gating on that total is how a run where the
-            // mismatch-bearing shards died reports zero mismatches and passes.
-            const missing = [];
-            for (const d of dirs) {
-              const f = `shards/${d}/report.json`;
-              if (!fs.existsSync(f)) { missing.push(d); continue; }
-              const r = JSON.parse(fs.readFileSync(f, "utf-8"));
-              comparisons += r.summary.comparisons;
-              mismatch += r.summary.mismatchTotal;
-              allowed += r.summary.allowlisted;
-              for (const [k, v] of Object.entries(r.summary)) {
-                if (k.startsWith("agree") || k.startsWith("mismatch")) buckets[k] = (buckets[k] ?? 0) + v;
-              }
-              for (const p of r.topMismatchPairs) pairs.set(p.pair, (pairs.get(p.pair) ?? 0) + p.count);
-            }
-            const top = [...pairs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 60);
-            const out = [];
-            out.push(`## Font conformance`);
-            out.push("");
-            out.push(`| metric | value |`, `| --- | --- |`);
-            out.push(`| comparisons | ${comparisons.toLocaleString()} |`);
-            for (const [k, v] of Object.entries(buckets)) out.push(`| ${k} | ${v.toLocaleString()} |`);
-            out.push(`| allowlisted | ${allowed.toLocaleString()} |`);
-            out.push("", `**mismatches: ${mismatch.toLocaleString()}**`, "");
-            if (top.length) {
-              out.push(`### Top disagreeing pairs (chrome → ours)`, "", `| count | pair |`, `| --- | --- |`);
-              for (const [p, c] of top) out.push(`| ${c} | \`${p}\` |`);
-            }
-            const expected = Number("${{ inputs.shards }}");
-            if (missing.length || dirs.length !== expected) {
-              out.push("", `> **INCOMPLETE — verdict withheld.** expected ${expected} shard reports, merged ${dirs.length - missing.length}.`
-                + (missing.length ? ` Missing: ${missing.join(", ")}.` : ""));
-            }
-            fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n", { flag: "a" });
-            fs.writeFileSync("mismatch-total", String(mismatch));
-            fs.writeFileSync("shards-missing", String(missing.length + Math.max(0, expected - dirs.length)));
-          '
-      - name: Gate
-        run: |
-          total=$(cat mismatch-total)
-          absent=$(cat shards-missing)
-          echo "mismatch total: $total"
-          echo "shards absent:  $absent"
-          # Order matters: an incomplete merge must fail on its own terms rather
-          # than being judged by a total that was summed over the survivors.
-          if [ "$absent" -ne 0 ]; then
-            echo "::error::$absent shard report(s) absent — the merged total covers only part of the sweep and is not a verdict"
-            exit 1
-          fi
-          test "$total" -eq 0
+          node scripts/merge-font-conformance-shards.mjs \
+            --shards shards \
+            --os ${{ matrix.os }} \
+            --expected ${{ inputs.shards }} \
+            --out merged.json
+      # Baseline-relative, not absolute-zero: Linux and Windows have never been
+      # measured before, so an absolute gate would fail identically on every run
+      # and grade nothing. A regression against the platform's OWN last recorded
+      # measurement is the signal; the absolute number is reported and tracked.
+      - name: Gate vs this platform's committed baseline
+        run: >
+          node scripts/diff-font-conformance-baseline.mjs
+          --results merged.json
+          --baseline tests/baselines/font-conformance-${{ matrix.os }}.json
+          --label "${{ matrix.os }} / font-conformance"
+          ${{ inputs.update_baseline && '--update-baseline' || '--strict' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: font-conformance-${{ matrix.os }}-merged
+          path: |
+            merged.json
+            tests/baselines/font-conformance-${{ matrix.os }}.json
+          retention-days: 30

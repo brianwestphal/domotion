@@ -30,8 +30,9 @@
  *   npx tsx tools/font-conformance.ts --shard 2/8           # one CI shard
  *   npx tsx tools/font-conformance.ts --extract-stacks      # re-derive the corpus stacks
  *
- *   --stacks <file>      stack corpus            (tools/font-conformance-stacks.json)
+ *   --stacks <file>      stack corpus  (tools/font-conformance-stacks.<platform>.json)
  *   --extract-stacks     re-derive it and exit
+ *   --allow-foreign-corpus  sweep a corpus extracted on another platform
  *   --source a,b         fixture dirs to extract from
  *   --range 0000-2FFF    restrict the codepoint universe (comma-separated, repeatable)
  *   --no-pua             drop private-use codepoints (137k of 292k)
@@ -103,6 +104,19 @@ export interface StackSpec {
 
 interface StackCorpus {
   generatedAt: string;
+  /**
+   * The platform the corpus was extracted on. Load-bearing, not bookkeeping:
+   * a stack corpus is NOT portable between platforms, because the computed
+   * `font-family` of an element that declares none is Chrome's per-platform
+   * default-font preference. The corpus's single largest entry — 1,114 of the
+   * 1,115 fixtures — computes as `Times` on macOS, `"Times New Roman"` on
+   * Linux, and could differ again on Windows. Sweeping a macOS corpus on Linux
+   * therefore asks Chrome about a stack no Linux page ever renders, which is
+   * a different question than the one the renderer faces. Optional so a corpus
+   * file written before the split still parses; absent is treated as unknown
+   * and warned about rather than silently trusted.
+   */
+  platform?: string;
   sources: string[];
   stacks: StackSpec[];
 }
@@ -632,7 +646,18 @@ export function primaryChromeFace(faces: ChromeFace[]): ChromeFace | null {
 // Stack corpus extraction
 // ---------------------------------------------------------------------------
 
-const DEFAULT_STACKS_FILE = "tools/font-conformance-stacks.json";
+/**
+ * The stack corpus for a platform.
+ *
+ * One file per platform rather than one shared file — see `StackCorpus.platform`
+ * for why they genuinely differ. The name uses `process.platform`'s own spelling
+ * (`darwin` / `linux` / `win32`) so the file and the guard can never drift.
+ */
+export function stacksFileFor(platform: string): string {
+  return `tools/font-conformance-stacks.${platform}.json`;
+}
+
+const DEFAULT_STACKS_FILE = stacksFileFor(process.platform);
 
 function walkHtml(dir: string): string[] {
   const out: string[] = [];
@@ -705,7 +730,12 @@ async function extractStacks(browser: Browser, dirs: string[], outFile: string):
   const stacks: StackSpec[] = Array.from(tally.values())
     .map((v) => ({ ...v.spec, fixtures: v.fixtures, example: v.example }))
     .sort((a, b) => b.fixtures - a.fixtures || a.fontFamily.localeCompare(b.fontFamily));
-  const corpus: StackCorpus = { generatedAt: new Date().toISOString(), sources: dirs, stacks };
+  const corpus: StackCorpus = {
+    generatedAt: new Date().toISOString(),
+    platform: process.platform,
+    sources: dirs,
+    stacks,
+  };
   writeFileSync(outFile, `${JSON.stringify(corpus, null, 2)}\n`);
   return corpus;
 }
@@ -767,6 +797,8 @@ export interface Options {
   maxRows: number;
   lang: string;
   resetEvery: number;
+  /** Sweep a corpus whose recorded platform is not this one. See `StackCorpus.platform`. */
+  allowForeignCorpus: boolean;
 }
 
 export function parseArgs(argv: string[]): Options {
@@ -787,6 +819,7 @@ export function parseArgs(argv: string[]): Options {
     maxRows: 20_000,
     lang: "en",
     resetEvery: 1,
+    allowForeignCorpus: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -830,6 +863,7 @@ export function parseArgs(argv: string[]): Options {
       case "--max-stacks": o.maxStacks = parseInt(next(), 10); break;
       case "--max-rows": o.maxRows = parseInt(next(), 10); break;
       case "--reset-every": o.resetEvery = parseInt(next(), 10); break;
+      case "--allow-foreign-corpus": o.allowForeignCorpus = true; break;
       case "--lang": o.lang = next(); break;
       case "-h":
       case "--help":
@@ -861,10 +895,31 @@ async function main(): Promise<number> {
     }
 
     if (!existsSync(opts.stacksFile)) {
-      process.stderr.write(`no stack corpus at ${opts.stacksFile} — run with --extract-stacks first\n`);
+      process.stderr.write(
+        `no stack corpus at ${opts.stacksFile} — run with --extract-stacks first `
+        + `(the corpus is per-platform; see --allow-foreign-corpus)\n`,
+      );
       return 2;
     }
     const corpus = JSON.parse(readFileSync(opts.stacksFile, "utf-8")) as StackCorpus;
+    // A corpus from another platform describes stacks this platform's Chrome
+    // never computes, so a sweep over it measures the wrong question rather
+    // than measuring badly. Refuse by default; the escape hatch is explicit and
+    // is recorded in the report's `meta`.
+    if (corpus.platform !== process.platform) {
+      const what = corpus.platform ?? "(unrecorded)";
+      if (!opts.allowForeignCorpus) {
+        process.stderr.write(
+          `stack corpus ${opts.stacksFile} was extracted on ${what}, this host is ${process.platform}.\n`
+          + `A corpus is not portable: the computed font-family of an element that declares none is\n`
+          + `Chrome's per-platform default-font preference (macOS "Times" vs Linux "Times New Roman"),\n`
+          + `so sweeping it here would ask about stacks no page on this platform renders.\n`
+          + `Re-extract with --extract-stacks, or pass --allow-foreign-corpus to sweep it anyway.\n`,
+        );
+        return 2;
+      }
+      process.stderr.write(`WARNING: sweeping a ${what} corpus on ${process.platform} (--allow-foreign-corpus)\n`);
+    }
     let stacks = corpus.stacks;
     if (opts.maxStacks != null) stacks = stacks.slice(0, opts.maxStacks);
     // Two independent stride shards. `--stack-shard` splits the corpus across
@@ -910,6 +965,29 @@ async function main(): Promise<number> {
     let mismatchRowsSeen = 0;
     const pairCounts = new Map<string, number>();
     const stackCounts = new Map<string, number>();
+    /**
+     * The per-stack tally's key.
+     *
+     * The whole spec, not just the family: the corpus holds three separate
+     * `system-ui, -apple-system, sans-serif` entries (13/400/normal,
+     * 13/400/italic, 20/700/normal) that resolve to different faces and can
+     * regress independently. Keying on the family alone collapses them into one
+     * number, where one stack getting worse and another getting better cancel
+     * out — and a baseline built on that key cannot see either.
+     */
+    const stackKey = (s: StackSpec): string =>
+      `${s.fontFamily} @${s.fontSize}/${s.fontWeight}/${s.fontStyle}`
+      + (s.fontStretch != null && s.fontStretch !== "100%" ? `/${s.fontStretch}` : "")
+      + (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "");
+    /**
+     * Every distinct face Chrome named during the sweep, with how often.
+     *
+     * This is the sweep's own record of the host's font inventory — the thing
+     * the answers actually depend on. A runner image that rotates its font set
+     * changes this list, which is what makes a stale per-platform baseline
+     * visible as a changed inventory rather than as an unexplained score move.
+     */
+    const chromeFaceTally = new Map<string, number>();
     const classCounts = { "different-family": 0, "same-family-different-cut": 0 };
     let allowlistedCount = 0;
     let skippedStacks = 0;
@@ -955,6 +1033,10 @@ async function main(): Promise<number> {
           const cp = cps[j];
           const chromeFaces = faces[j];
           const chrome = primaryChromeFace(chromeFaces);
+          if (chrome != null) {
+            const cf = chrome.postScriptName ?? chrome.familyName;
+            chromeFaceTally.set(cf, (chromeFaceTally.get(cf) ?? 0) + 1);
+          }
           // Same `lang` both sides: it goes on the probe page's <html> element
           // AND into `fallbackFontChain`, which routes Han by locale (zh-TW →
           // PingFang TC, ja → Hiragino). Passing it to only one side would make
@@ -987,7 +1069,8 @@ async function main(): Promise<number> {
               classCounts[cls]++;
               const pair = `${chromeName} → ${ourName}`;
               pairCounts.set(pair, (pairCounts.get(pair) ?? 0) + 1);
-              stackCounts.set(spec.fontFamily, (stackCounts.get(spec.fontFamily) ?? 0) + 1);
+              const sk = stackKey(spec);
+              stackCounts.set(sk, (stackCounts.get(sk) ?? 0) + 1);
               if (mismatches.length < opts.maxRows) {
                 mismatches.push({
                   cp,
@@ -1046,6 +1129,8 @@ async function main(): Promise<number> {
         icu: process.versions.icu,
         stacksFile: opts.stacksFile,
         stackCorpusGeneratedAt: corpus.generatedAt,
+        stackCorpusPlatform: corpus.platform ?? null,
+        allowForeignCorpus: opts.allowForeignCorpus,
         codepoints: universe.length,
         stacks: stacks.length - skippedStacks,
         skippedStacks,
@@ -1081,6 +1166,9 @@ async function main(): Promise<number> {
       rowsRetained: mismatches.length,
       rowsTruncated: mismatchRowsSeen - mismatches.length,
       mismatchesByStack: topStacks.map(([stack, count]) => ({ stack, count })),
+      chromeFaces: Array.from(chromeFaceTally.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([face, count]) => ({ face, count })),
       topMismatchPairs: topPairs.map(([pair, count]) => ({ pair, count })),
       allowlist: allowlist.entries.map((e, i) => ({
         cp: e.lo === e.hi ? `0x${e.lo.toString(16)}` : `0x${e.lo.toString(16)}-0x${e.hi.toString(16)}`,
@@ -1095,6 +1183,8 @@ async function main(): Promise<number> {
     const lines: string[] = [];
     const pct = (n: number): string => `${((n / Math.max(1, comparisons)) * 100).toFixed(3)}%`;
     lines.push(`font-conformance — ${process.platform} ${process.arch}, Unicode ${process.versions.unicode}`);
+    lines.push(`corpus             ${opts.stacksFile} (extracted on ${corpus.platform ?? "?"})`);
+    lines.push(`chrome faces seen  ${chromeFaceTally.size}`);
     lines.push(`comparisons        ${comparisons.toLocaleString()}  (${universe.length.toLocaleString()} cps × ${stacks.length - skippedStacks} stacks)`);
     lines.push(`wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`);
     lines.push(`throughput         ${Math.round((comparisons / wallMs) * 1000).toLocaleString()} comparisons/s`);

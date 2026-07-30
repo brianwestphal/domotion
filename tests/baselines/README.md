@@ -52,6 +52,62 @@ Commit the refreshed `features-<os>.json` after reviewing the newly-passing /
 newly-failing diff the seed script prints. (macOS isn't gated this way — it stays
 the strict local `regionCount === 0` check.)
 
+## Font-conformance baselines — one per platform, and not comparable across them
+
+`font-conformance-<os>.json` records the [font-resolution conformance
+oracle](../../docs/107-font-conformance-oracle.md)'s measurement on one platform.
+These are a different shape from the visual-suite baselines above, and for a
+reason worth stating plainly: **a conformance number from one platform says
+nothing about another.** Per-codepoint fallback is not one procedure with three
+font sets behind it — Blink runs different code on each (macOS asks CoreText with
+the run's own font as the base, Linux asks fontconfig keyed on locale with no
+base font, Windows consults a hardcoded per-script table before falling through
+to DirectWrite). macOS reaching agreement on a codepoint is not evidence about
+Linux or Windows.
+
+The gate is therefore **regression-relative, never absolute**: a stack whose
+mismatch count rose, a stack that newly disagrees, or a new disagreeing route
+fails the run; the absolute count is reported and tracked, not enforced. An
+absolute-zero gate on platforms that have never been measured would fail
+identically on every run and grade nothing.
+
+`font-conformance-<os>.json` — `{ meta, summary, byStack, byPair, chromeFaces }`:
+
+- `meta.image` — as above, the runner image.
+- `meta.fontInventory` — `{ digest, count, source }` from `tools/font-inventory.mjs`.
+  The answers ARE a function of the installed fonts, so an inventory change
+  invalidates the baseline; the comparator refuses to judge across one rather
+  than reading the move as a regression.
+- `meta.unicode` / `meta.icu` — the host's ICU decides which codepoints exist at
+  all, so it decides the denominator.
+- `meta.corpus` — which per-platform stack corpus was swept
+  (`tools/font-conformance-stacks.<platform>.json`) and when it was extracted.
+  Also not portable: an element declaring no `font-family` computes to Chrome's
+  per-platform default-font preference, so the corpus's largest stack is `Times`
+  on macOS and `"Times New Roman"` on Linux.
+- `meta.slice` — codepoint count, stack count, PUA inclusion, `lang`. A mismatch
+  count without its slice means nothing.
+- `summary` / `byStack` / `byPair` — the merged counters, per-stack mismatch
+  counts, and per-route counts the comparator diffs.
+- `chromeFaces` — the sorted set of faces Chrome named during the sweep: the
+  operative font inventory, as observed rather than as installed.
+
+Seed or refresh one from a reviewed run:
+
+```sh
+gh workflow run font-conformance.yml -f os=linux -f update_baseline=true
+# then download the `font-conformance-linux-merged` artifact and commit its
+# tests/baselines/font-conformance-linux.json
+```
+
+Locally, from a merged sweep:
+
+```sh
+node scripts/merge-font-conformance-shards.mjs --shards <dir> --os macos --expected 6 --out merged.json
+node scripts/diff-font-conformance-baseline.mjs --results merged.json \
+  --baseline tests/baselines/font-conformance-macos.json --update-baseline
+```
+
 ## Files
 
 `<suite>-<os>.json` — `{ meta, fixtures }`:

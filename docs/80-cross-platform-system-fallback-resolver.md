@@ -55,8 +55,9 @@ the run's primary family name as `MapCharacters`' `baseFamilyName`
 (`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
 what lets a family's own font linking participate in the answer; we pass null. See
 the calibration note further down — the null-base choice is what the DM-1424
-sweep measured, and re-measuring it needs a Windows conformance baseline that does
-not exist yet.
+sweep measured. Re-measuring it is now possible: the conformance oracle runs on
+Windows with its own committed baseline (`tests/baselines/font-conformance-windows.json`,
+doc 107), so the base-family change can be scored rather than argued.
 
 **Windows also asks a question BEFORE this resolver.**
 `FontCache::PlatformFallbackFontForCharacter` consults Blink's hardcoded
@@ -261,9 +262,10 @@ static win32 chain already owns**:
 > intercepted it. Two of the three ingredients have since changed — the style is
 > now the run's real one, and Blink's own first stage now runs ahead of the
 > resolver as it does in Chrome. The base-family argument is the remaining one.
-> Re-running this comparison needs a Windows conformance-oracle baseline; the
-> numbers below should be read as a record of the DM-1424 flip decision, not as a
-> current measurement.
+> Re-running this comparison needed a Windows conformance-oracle baseline, which
+> now exists (`tests/baselines/font-conformance-windows.json`, doc 107) — but it
+> has not been re-run. The numbers below should be read as a record of the
+> DM-1424 flip decision, not as a current measurement.
 
 So **0 of 4,899 sampled codepoints move under the flip** — even cleaner than Linux,
 because the win32 static table (derived from a full Chromium CDP sweep in DM-987) is
