@@ -1454,6 +1454,13 @@ function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?:
  *  walks the cascade Blink walks. Off by default pending the corpus sweep. */
 const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE === "1";
 
+/** DM-1868, armed by `DOMOTION_LIVE_FALLBACK_FIRST=1`. Put the two kSystemFonts
+ *  stages in Blink's order — OS first, static chain only as the net for what the
+ *  OS declines. Off by default pending the corpus sweep; see the step-2 comment
+ *  in `resolveFontForCodepoint` for the source citation and the measured cost of
+ *  the current order. */
+const _liveFallbackFirst = process.env.DOMOTION_LIVE_FALLBACK_FIRST === "1";
+
 /**
  * Does this family stack's PRIMARY resolve through Blink's system-ui path?
  *
@@ -4375,32 +4382,66 @@ export function resolveFontForCodepoint(
     }
   }
 
-  // 2a. kSystemFonts — the calibrated static fallback table (literal only).
-  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
-    if (candidate === "last-resort") continue;
-    const cf = getFontInstance(candidate, weight, fontSize, slant);
-    if (cf != null && glyphIdForCp(cf, cp) !== 0) {
-      const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
-      if (cut != null) {
-        const cutFont = getFontInstance(cut, weight, fontSize, slant);
-        if (cutFont != null && glyphIdForCp(cutFont, cp) !== 0) return cover(cut, null);
-      }
-      return cover(candidate, null);
-    }
-  }
-
-  // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).
-  if (_systemFallbackResolutionEnabled) {
+  // 2. kSystemFonts.
+  //
+  // Blink has exactly ONE stage here, and it is the OS. `FontFallbackIterator::Next`
+  // (font_fallback_iterator.cc:120-157, Chromium rev 7d859f27) runs
+  // kFontGroupFonts / kSegmentedFace → (kFallbackPriorityFonts, one-shot) →
+  // **kSystemFonts = `UniqueSystemFontForHintList`** → kFirstCandidateForNotdefGlyph
+  // → kOutOfLuck. There is no static per-Unicode-block table anywhere in that
+  // walk; `UniqueSystemFontForHintList` goes straight to the platform fallback
+  // (`CTFontCreateForString` on macOS).
+  //
+  // Our static `fallbackFontChain` is therefore an EXTRA stage, sitting exactly
+  // where Blink asks the OS — so on every codepoint it covers, we answer before
+  // Chrome's question is ever asked (docs/106). Measured cost of that shadowing:
+  // the DM-1859 UI-font base, verified 18/18 against Chrome, moved the CJK slice
+  // by 55 rows out of an expected 83,838, purely because `[pingfang-sc, cjk]`
+  // covers Han and the walk stopped there.
+  //
+  // `DOMOTION_LIVE_FALLBACK_FIRST=1` puts the stages in Blink's order: ask the OS
+  // first, and keep the static chain only as the net for what the OS declines —
+  // which is where it still earns its keep (no helper on the host, a platform
+  // whose live resolver is flagged off, or a codepoint the OS has no answer for,
+  // all of which would otherwise drop straight to tofu).
+  const liveFallback = (): FontResolution | null => {
+    if (!_systemFallbackResolutionEnabled) return null;
     const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary);
-    if (sysKey != null) {
-      const sf = getFontInstance(sysKey, weight, fontSize, slant);
-      if (sf != null) {
-        if (glyphIdForCp(sf, cp) !== 0) return cover(sysKey, null);
-        if (singleton != null && glyphIdForCp(sf, singleton) !== 0) {
-          return cover(sysKey, null, String.fromCodePoint(singleton), true);
+    if (sysKey == null) return null;
+    const sf = getFontInstance(sysKey, weight, fontSize, slant);
+    if (sf == null) return null;
+    if (glyphIdForCp(sf, cp) !== 0) return cover(sysKey, null);
+    if (singleton != null && glyphIdForCp(sf, singleton) !== 0) {
+      return cover(sysKey, null, String.fromCodePoint(singleton), true);
+    }
+    return null;
+  };
+  const staticChain = (): FontResolution | null => {
+    for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
+      if (candidate === "last-resort") continue;
+      const cf = getFontInstance(candidate, weight, fontSize, slant);
+      if (cf != null && glyphIdForCp(cf, cp) !== 0) {
+        const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
+        if (cut != null) {
+          const cutFont = getFontInstance(cut, weight, fontSize, slant);
+          if (cutFont != null && glyphIdForCp(cutFont, cp) !== 0) return cover(cut, null);
         }
+        return cover(candidate, null);
       }
     }
+    return null;
+  };
+
+  if (_liveFallbackFirst) {
+    const live = liveFallback();
+    if (live != null) return live;
+    const stat = staticChain();
+    if (stat != null) return stat;
+  } else {
+    const stat = staticChain();
+    if (stat != null) return stat;
+    const live = liveFallback();
+    if (live != null) return live;
   }
 
   // 3. Math-Alphanumeric decomposition (NFKD compatibility axis).
