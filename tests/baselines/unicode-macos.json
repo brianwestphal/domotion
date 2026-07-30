@@ -3,11 +3,11 @@
     "suite": "unicode",
     "os": "macos",
     "image": "macos26-arm64",
-    "commit": "d200e1f0bf1caf045b0aa9635d554b761bab3b34",
-    "capturedAt": "2026-07-30T07:36:03Z",
+    "commit": "4271c1af5c856063b381549b7a46cf10b08c9a22",
+    "capturedAt": "2026-07-30T09:10:32Z",
     "counts": {
-      "passed": 807,
-      "failed": 11,
+      "passed": 806,
+      "failed": 12,
       "skipped": 0,
       "total": 818
     }
@@ -2212,11 +2212,11 @@
       "regionCount": 0
     },
     "20000-2A6DF-cjk-unified-ideographs-extension-b.111": {
-      "pass": true,
+      "pass": false,
       "skipped": false,
-      "diffPct": 0.05017842941282217,
-      "worstTilePct": 0.15931372549019607,
-      "regionCount": 0
+      "diffPct": 0.051937734220426156,
+      "worstTilePct": 0.7495595894607835,
+      "regionCount": 1
     },
     "20000-2A6DF-cjk-unified-ideographs-extension-b.112": {
       "pass": true,
@@ -3684,8 +3684,8 @@
     "2B820-2CEAF-cjk-unified-ideographs-extension-e.7": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.05181020434831829,
-      "worstTilePct": 0.23705575980392138,
+      "diffPct": 0.05101617983563762,
+      "worstTilePct": 0.09794347426470588,
       "regionCount": 0
     },
     "2B820-2CEAF-cjk-unified-ideographs-extension-e.8": {
