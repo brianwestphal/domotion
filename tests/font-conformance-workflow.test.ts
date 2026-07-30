@@ -37,6 +37,19 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     return out;
   })();
 
+  it("puts no `${{ … }}` expression inside a YAML flow mapping", () => {
+    // `with: { pattern: font-conformance-${{ matrix.os }}-shard-* }` is not
+    // valid YAML — the braces close the flow mapping early ("missed comma
+    // between flow collection entries"). GitHub's response to an unparseable
+    // workflow is not an error about the syntax: it reports that the workflow
+    // "does not have a 'workflow_dispatch' trigger", because it could not read
+    // one. That is a long way from the actual mistake, so it is pinned here.
+    const bad = yaml
+      .split("\n")
+      .filter((l) => /^\s*\w[\w-]*:\s*\{.*\$\{\{/.test(l));
+    expect(bad, `quote the expression or use a block mapping:\n${bad.join("\n")}`).toEqual([]);
+  });
+
   it("parses the workflow into jobs (guard is not vacuous)", () => {
     expect(Object.keys(jobs)).toEqual(
       expect.arrayContaining(["setup", "sweep-macos", "sweep-linux", "sweep-windows", "aggregate"]),
