@@ -30,9 +30,43 @@ every fallback family was pinned to the nominated cut, which is the wrong face
 for 29% of codepoints at weight 700. See the "macOS: the fallback answer is
 weight-dependent" section of
 [the font-resolution diagram](font-resolution-diagram.md) for the transcription
-and its Chromium citations. Windows does not yet close the equivalent gap: the
-win32 helper still passes `DWRITE_FONT_WEIGHT_NORMAL` to
-`IDWriteFontFallback::MapCharacters` where Blink passes the run's real weight.
+and its Chromium citations.
+
+**Windows is style-dependent too, but through one step rather than two.**
+DirectWrite selects the cut *inside* `MapCharacters`, so there is nothing to
+re-select afterwards — the style has to be in the call. The win32 helper takes the
+run's `cssWeight` / `italic` (optionally `cssSlant` / `cssStretch`) and converts
+them with `dwriteWeightFromCss` / `dwriteSlantFromCss` / `dwriteStretchFromCss`,
+which transcribe `FontDescription::SkiaFontStyle()`
+(`fonts/font_description.cc:477-521`, plus the nine width boundaries in
+`fonts/font_selection_types.h:221-245`) and Skia's `DWriteStyle`
+(`third_party/skia/src/utils/win/SkDWrite.h:83-97`) — Skia being how Blink reaches
+`MapCharacters` at all (`win/font_cache_skia_win.cc:238-240` →
+`SkFontMgr_win_dw.cpp:621-653` → `:928-939`). Chromium rev `7d859f27`.
+
+The call previously hardcoded `NORMAL/NORMAL/NORMAL`, so a bold or italic run
+resolved the regular upright cut and the result was reported as Chrome's pick.
+Every style field is optional and defaults to the old value, so an older helper
+binary or an older Node side degrades to the previous behavior rather than
+mismatching.
+
+One divergence in the same call is still open (tracked separately): Blink passes
+the run's primary family name as `MapCharacters`' `baseFamilyName`
+(`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
+what lets a family's own font linking participate in the answer; we pass null. See
+the calibration note further down — the null-base choice is what the DM-1424
+sweep measured, and re-measuring it needs a Windows conformance baseline that does
+not exist yet.
+
+**Windows also asks a question BEFORE this resolver.**
+`FontCache::PlatformFallbackFontForCharacter` consults Blink's hardcoded
+per-script table first and only falls through to
+`GetDWriteFallbackFamily`/`MapCharacters` on a miss
+(`win/font_cache_skia_win.cc:286-296`). That first stage is transcribed in
+`src/render/win-font-fallback.ts` and reached through `win32FallbackChain`, i.e.
+the static chain the walker runs *ahead* of this resolver — which puts the two
+stages in Blink's order. See
+[the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
 
 Linux and Windows had no equivalent — the resolver was hard-gated
 `process.platform !== "darwin" → null`. So on those platforms an
@@ -196,6 +230,24 @@ static win32 chain already owns**:
 | Divergence on a **static-owned** cp | 2,200 | The static chain (block routes + the DM-987 generated per-block table) wins first, so the resolver **never fires** there — e.g. CJK Ext-B `SimSun-ExtB` (static) vs `MingLiU-ExtB` (null-base MapCharacters); CJK BMP `Microsoft YaHei` (static) vs `Yu Gothic UI`. The difference is purely null-base-family-vs-CSS-base-family and is moot. |
 | MapCharacters-tofu on a **static-owned** cp | 549 | All Latin/symbol cps Chromium paints with Arial; the static chain routes them to `helvetica` (Arial) and paints exactly what Chromium does. (Pure system fallback with a null base family doesn't resolve a basic-Latin cp to Arial — a base family, not a fallback target — but the static chain already handles these, so the resolver never runs.) |
 | Divergence/tofu on a cp the static chain **misses** (resolver fires) | **0** | None in the sample. |
+
+> **This sweep's conclusion has been partly invalidated by design, on purpose.**
+> Its "safe" column rests on the static chain *owning* those codepoints — i.e. on
+> the DM-987 per-block table answering first and the resolver never firing. That
+> table is no longer the static chain: `win32FallbackChain` now transcribes Blink's
+> hardcoded stage instead, and the generated table has moved *behind* the live
+> resolver. So the shadowing this sweep relied on is gone, and the resolver now
+> fires on many of those 2,200 codepoints.
+>
+> That is the correction, not a regression: the sweep was measuring
+> `MapCharacters` **with a null base family and NORMAL weight** against Chromium's
+> painted family, and calling the disagreement "moot" because a sampled table
+> intercepted it. Two of the three ingredients have since changed — the style is
+> now the run's real one, and Blink's own first stage now runs ahead of the
+> resolver as it does in Chrome. The base-family argument is the remaining one.
+> Re-running this comparison needs a Windows conformance-oracle baseline; the
+> numbers below should be read as a record of the DM-1424 flip decision, not as a
+> current measurement.
 
 So **0 of 4,899 sampled codepoints move under the flip** — even cleaner than Linux,
 because the win32 static table (derived from a full Chromium CDP sweep in DM-987) is

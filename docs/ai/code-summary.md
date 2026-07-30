@@ -45,6 +45,14 @@ shortest possible map:
   resolver→glyph emission, with all platform branching + specific fonts) is
   mapped in `docs/font-resolution-diagram.md` — a canonical always-in-sync
   Mermaid reference; keep it current with any font-routing change.**
+  `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows
+  per-script fallback stage** — the 74-row `InitializeScriptFontMap` table,
+  `GetFontBasedOnUnicodeBlock`, the emoji/math font lists, the Han locale
+  disambiguation, plane routing, and the pan-Unicode probe lists — which Chrome
+  consults BEFORE DirectWrite (`win/font_cache_skia_win.cc:286-296`);
+  `win32FallbackChain` is a thin adapter over it, and `IsFontPresent` is answered
+  live by the win32 helper's DirectWrite `FindFamilyName` rather than a baked
+  filename table;
   `unicode-classification.ts` owns the Unicode predicates;
   `embolden-outline.ts` bakes synthetic (faux) bold + oblique into embedded glyph
   outlines when the resolved face lacks the requested weight/style — a float port

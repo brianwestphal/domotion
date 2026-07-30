@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { isPrivateUseCodepoint } from "./font-resolution.js";
 import { existsSync } from "node:fs";
@@ -1586,34 +1586,97 @@ describe("linuxFallbackChain: Chromium-on-Linux calibration (DM-259)", () => {
   });
 });
 
-// These test `win32FallbackChain` directly so they run identically on any host
-// (the win32 chain is exercised only on windows-latest CI otherwise). DM-836.
-describe("win32FallbackChain: Chromium-on-Windows calibration (DM-836)", () => {
-  it("routes symbol/math/geometric/box/arrow blocks to Arial (Chromium paints them there)", () => {
-    // Probe-proven: Chromium-on-Windows paints these in Arial itself, not a
-    // dedicated symbol face — so `helvetica` (Arial) leads, Segoe UI Symbol /
-    // Cambria Math only mop up the residue.
-    expect(win32FallbackChain(0x2211)).toEqual(["helvetica", "stix-math"]);   // ∑ math operator
-    expect(win32FallbackChain(0x25A0)).toEqual(["helvetica", "symbols"]);     // ■ geometric
-    expect(win32FallbackChain(0x2190)).toEqual(["helvetica", "symbols"]);     // ← arrow
-    expect(win32FallbackChain(0x2500)).toEqual(["helvetica", "symbols"]);     // ─ box-drawing, sans primary
-    expect(win32FallbackChain(0x2500, "menlo")).toEqual(["menlo", "sf-mono"]); // box-drawing, mono primary → Consolas
-    expect(win32FallbackChain(0x2702)).toEqual(["symbols"]);                  // ✂ dingbat → Segoe UI Symbol
+// DM-1864: `win32FallbackChain` is now a thin adapter over the transcribed Blink
+// stage, and its family→key step needs DirectWrite — so the calibration
+// assertions live in `win-font-fallback.test.ts`, driven against synthetic font
+// inventories. What stays here is the adapter's own contract, which IS
+// host-independent once the family resolver is injected.
+describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1864)", () => {
+  afterEach(() => __setWin32FamilyKeyResolverForTest(null));
+
+  /**
+   * The measured desktop-Windows-11 inventory (see the fuller note in
+   * `win-font-fallback.test.ts`): the 34 of Blink's 101 named families that a
+   * default install actually has, per the win32 helper's DirectWrite
+   * `FindFamilyName` — the call Blink's `IsFontPresent` makes.
+   */
+  const MEASURED_WIN11 = new Set([
+    "cambria math", "courier new", "ebrima", "gadugi", "javanese text",
+    "leelawadee ui", "lucida sans unicode", "malgun gothic", "microsoft himalaya",
+    "microsoft jhenghei", "microsoft new tai lue", "microsoft phagspa",
+    "microsoft sans serif", "microsoft tai le", "microsoft yahei",
+    "microsoft yi baiti", "mongolian baiti", "ms pgothic", "mv boli",
+    "myanmar text", "nirmala ui", "palatino linotype", "pmingliu-extb",
+    "segoe ui", "segoe ui emoji", "segoe ui historic", "segoe ui symbol",
+    "simsun", "simsun-extb", "simsun-extg", "sylfaen", "tahoma",
+    "times new roman", "yu gothic",
+  ]);
+
+  const injectInventory = (present: Set<string>): void =>
+    __setWin32FamilyKeyResolverForTest((family) =>
+      present.has(family.toLowerCase()) ? `winfam:${family}` : null);
+
+  it("emits the ONE family Blink nominates, then the pan-Unicode probe list", () => {
+    injectInventory(MEASURED_WIN11);
+    // Georgian: `kGeorgianFonts` = {Sylfaen, Segoe UI}. Sylfaen is installed, so it
+    // is the single nomination — the second slot must NOT appear, because Blink
+    // goes to the pan-Unicode list on a coverage miss, not to the script list's
+    // next slot.
+    const georgian = win32FallbackChain(0x10D0);
+    expect(georgian[0]).toBe("winfam:Sylfaen");
+    expect(georgian[1]).toBe("winfam:tahoma"); // head of kCommonFonts
+    expect(georgian).not.toContain("winfam:Segoe UI");
   });
 
-  it("routes Math-Alphanumeric to Cambria Math", () => {
-    expect(win32FallbackChain(0x1D400)).toEqual(["stix-math", "helvetica"]);  // 𝐀 → Cambria Math
+  it("routes Arabic + monospace to Courier New only for the monospace generic", () => {
+    injectInventory(MEASURED_WIN11);
+    // `FindMonospaceFontForScript` (Arabic/Hebrew + kMonospaceFamily). The
+    // `monospace` generic resolves to the `courier` key on Windows.
+    expect(win32FallbackChain(0x0628, "courier")[0]).toBe("winfam:courier new");
+    // Any other primary is kStandardFamily → the Arabic script list (Tahoma first).
+    expect(win32FallbackChain(0x0628, "helvetica")[0]).toBe("winfam:Tahoma");
+    expect(win32FallbackChain(0x0628)[0]).toBe("winfam:Tahoma");
   });
 
-  it("routes CJK / Hangul / RTL / Indic / Thai to the Windows system faces", () => {
-    expect(win32FallbackChain(0x4E00)).toEqual(["cjk"]);                      // Han → Microsoft YaHei
-    expect(win32FallbackChain(0x4E00, undefined, "ja")).toEqual(["hiragino-jp", "cjk"]); // Han, ja → Yu Gothic
-    expect(win32FallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]); // Han, serif → SimSun
-    expect(win32FallbackChain(0xAC00)).toEqual(["korean", "cjk"]);            // Hangul → Malgun Gothic
-    expect(win32FallbackChain(0x0628)).toEqual(["sf-arabic"]);               // Arabic → Segoe UI
-    expect(win32FallbackChain(0x05D0)).toEqual(["sf-hebrew"]);               // Hebrew → Segoe UI
-    expect(win32FallbackChain(0x0928)).toEqual(["devanagari"]);             // Devanagari → Nirmala UI
-    expect(win32FallbackChain(0x0E01)).toEqual(["tahoma", "thai"]);         // Thai → Tahoma (painted-font confirmed)
+  it("carries the generated per-block net only behind the live DirectWrite resolver", () => {
+    // Off-Windows `win32DeferOrStatic` never defers, so the generated key is the
+    // tail of the chain — the net for a host with no helper binary.
+    injectInventory(MEASURED_WIN11);
+    const chain = win32FallbackChain(0x1208); // Ethiopic — generated route: Ebrima
+    expect(chain[chain.length - 1]).toBe("u-ebrima");
+  });
+
+  it("degrades to the generated net alone when no family is installed", () => {
+    // `IsFontPresent` false for everything: `GetFallbackFamily` still returns
+    // `lucida sans unicode`, but that family doesn't resolve either, so the whole
+    // Blink stage contributes nothing and only the net remains.
+    injectInventory(new Set());
+    expect(win32FallbackChain(0x1208)).toEqual(["u-ebrima"]);
+    expect(win32FallbackChain(0x05D0)).toEqual(["u-arial"]);
+  });
+
+  it("re-reads the inventory when it changes (no stale presence cache)", () => {
+    // Transition: a host WITH the Hebrew pack (David), then the same process asked
+    // about a default host without it, then back. The family→key cache must not
+    // serve the first answer to the second — the injected-resolver seam clears it,
+    // and the real resolver's cache is only ever populated from one host.
+    const withDavid = new Set([...MEASURED_WIN11, "david"]);
+    injectInventory(withDavid);
+    expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:David");
+    injectInventory(MEASURED_WIN11);
+    expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:Segoe UI");
+    injectInventory(withDavid);
+    expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:David");
+  });
+
+  it("never emits a duplicate key, and never an empty-string key", () => {
+    injectInventory(MEASURED_WIN11);
+    for (const cp of [0x0041, 0x0628, 0x05D0, 0x0E01, 0x4E00, 0xAC00, 0x2211,
+      0x2500, 0x2702, 0x1D400, 0x1F600, 0x10330, 0x2EBF0, 0x30000, 0xFF01]) {
+      const chain = win32FallbackChain(cp);
+      expect(new Set(chain).size, `duplicate key for U+${cp.toString(16)}`).toBe(chain.length);
+      for (const k of chain) expect(k.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -1642,9 +1705,11 @@ describe("win32 generated Unicode-block routing well-formedness (DM-987)", () =>
     }
   });
 
-  it("win32FallbackChain now routes tail scripts that the hand-coded rules don't cover", () => {
-    // Each of these returned [] before DM-987 (no hand-coded rule, no generated
-    // table) — i.e. tofu. They now route to the swept DirectWrite face.
+  it("stays the tail of the chain, so every script still routes rather than tofuing", () => {
+    // The generated table is the net BEHIND Blink's stage and the live
+    // DirectWrite resolver (DM-1864), so on a host where no family resolves it is
+    // the whole chain — which is what keeps these tail scripts off tofu when no
+    // helper binary is available.
     const tail: Array<[number, string]> = [
       [0x1208, "u-ebrima"],              // Ethiopic → Ebrima
       [0x13A0, "u-gadugi"],              // Cherokee → Gadugi
@@ -1660,17 +1725,8 @@ describe("win32 generated Unicode-block routing well-formedness (DM-987)", () =>
     for (const [cp, key] of tail) {
       const chain = win32FallbackChain(cp);
       expect(chain.length, `U+${cp.toString(16)} should route, not tofu`).toBeGreaterThan(0);
-      expect(chain).toEqual([key]);
+      expect(chain[chain.length - 1]).toBe(key);
     }
-  });
-
-  it("hand-coded rules still win over the generated table where they overlap", () => {
-    // Han / Hangul / Arabic / Devanagari have dedicated hand-coded routes; the
-    // generated last-resort lookup must not override them.
-    expect(win32FallbackChain(0x4E00)).toEqual(["cjk"]);        // Han, not a u-... key
-    expect(win32FallbackChain(0xAC00)).toEqual(["korean", "cjk"]);
-    expect(win32FallbackChain(0x0628)).toEqual(["sf-arabic"]);
-    expect(win32FallbackChain(0x0928)).toEqual(["devanagari"]);
   });
 });
 

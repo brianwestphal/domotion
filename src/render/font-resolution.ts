@@ -33,6 +33,10 @@ import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_PATHS_NOTO_LINUX, UNICODE_FONT_RANGES_NOTO_LINUX } from "./unicode-font-routing.noto-linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
+// Blink's hardcoded Windows per-script fallback stage, transcribed from
+// `platform/fonts/win/font_fallback_win.cc` + `font_cache_skia_win.cc` (DM-1864).
+import { blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
+export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
@@ -1310,9 +1314,11 @@ function relocateMissingSpec(spec: FontPath | null): FontPath | null {
 export function resolveFontSpec(key: string): FontPath | null {
   if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
   let resolved: FontPath | null;
-  if (key.startsWith("sysfb:")) {
-    // Already discovered on this host by the live resolver — its path came from
-    // the OS, so there is nothing to relocate.
+  if (key.startsWith("sysfb:") || key.startsWith("winfam:")) {
+    // Already discovered on this host — by the live per-codepoint resolver
+    // (`sysfb:`) or by resolving one of Blink's hardcoded Windows family names
+    // through DirectWrite (`winfam:`). Either way the path came from the OS, so
+    // there is nothing to relocate.
     resolved = dynamicSystemFontPaths.get(key) ?? null;
   } else {
     switch (process.platform) {
@@ -1535,7 +1541,20 @@ function resolveSystemFallbackKeyForCp(
       // coverage guard reports found:false for a non-covering pick, so a face only
       // registers when it actually covers `cp`. Default-on (DM-1424); the flag
       // honors DOMOTION_SYSTEM_FALLBACK=0.
-      const resolved = resolveSystemFallbackFonts([cp]).get(cp);
+      //
+      // DM-1864: the run's weight and slant travel with the query. Blink hands
+      // DirectWrite `font_description.SkiaFontStyle()` — the run's real style —
+      // via Skia's `matchFamilyStyleCharacter`
+      // (`win/font_cache_skia_win.cc:238-240` → `SkFontMgr_win_dw.cpp:928-939`),
+      // and asking `MapCharacters` with NORMAL weight is a different question:
+      // DirectWrite selects the cut, so a bold run was answered with the regular
+      // one. Unlike macOS there is no second in-family re-selection step to
+      // recover it — the weight has to be in the call. `fontSize` is passed for
+      // the request's cache key, not to the matcher (DirectWrite's family match
+      // is size-independent).
+      const resolved = resolveSystemFallbackFonts([cp], "Helvetica", {
+        weight, italic: slant !== 0, fontSize,
+      }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
         // DM-1721: carry DirectWrite's resolved axis values (variable faces
@@ -1739,17 +1758,22 @@ export function pingfangKeyForLang(lang: string | undefined): string | null {
 /**
  * Shared Unicode script-block boundaries for the platform fallback chains.
  *
- * `darwinFallbackChain` / `linuxFallbackChain` / `win32FallbackChain` are three
- * parallel routers over the SAME Unicode ranges; only the font KEY chosen per
- * block legitimately differs per platform (CoreText vs fontconfig vs
- * DirectWrite). The boundaries themselves used to be copy-pasted into all three
- * — so they could silently drift apart, and the range (not the key) is what
- * decides which script a codepoint routes as, making any drift a cross-platform
- * correctness bug. Defining each block ONCE here keeps the three chains in
- * lockstep on WHERE a script starts/ends while leaving each free to pick its
+ * `darwinFallbackChain` and `linuxFallbackChain` are parallel routers over the
+ * SAME Unicode ranges; only the font KEY chosen per block legitimately differs
+ * per platform (CoreText vs fontconfig). The boundaries themselves used to be
+ * copy-pasted into each — so they could silently drift apart, and the range (not
+ * the key) is what decides which script a codepoint routes as, making any drift a
+ * cross-platform correctness bug. Defining each block ONCE here keeps the chains
+ * in lockstep on WHERE a script starts/ends while leaving each free to pick its
  * own per-block keys. Granularity is the individual Unicode block so the darwin
  * chain (which groups several blocks into one branch) can compose them; every
  * range below is byte-for-byte the boundary the chains previously inlined.
+ *
+ * `win32FallbackChain` no longer routes off these ranges. It is a transcription
+ * of Blink's own Windows stage, which keys on the ICU Script property plus its
+ * own list of `UBlockCode`s — a different partition, deliberately, because that
+ * is the partition Chrome-on-Windows uses. Those ranges live with the
+ * transcription in `win-font-fallback.ts` rather than being force-fit here.
  */
 const isHebrewBlock = (cp: number): boolean =>
   (cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F);
@@ -1940,88 +1964,148 @@ function lookupNotoLinuxUnicodeFontRange(codepoint: number): string | null {
 }
 
 /**
- * Windows (DirectWrite) per-Unicode-block fallback routing. DM-260 / DM-836.
+ * Resolve one of Blink's hardcoded Windows family names to a logical font key.
  *
- * Keys resolve through `WIN32_FONT_PATHS` (DM-258) to real Windows faces:
- * `helvetica`→Arial, `times`→Times New Roman, `sf-mono`/`menlo`→Consolas,
- * `cjk`→Microsoft YaHei, `hiragino-jp`→Yu Gothic, `cjk-serif`→SimSun,
- * `korean`→Malgun Gothic, `sf-arabic`/`sf-hebrew`→Segoe UI, `devanagari`→Nirmala
- * UI, `thai`→Leelawadee UI, `symbols`/`zapf-dingbats`→Segoe UI Symbol,
- * `stix-math`→Cambria Math.
+ * This is `IsFontPresent` and the path lookup in one call, because on Windows
+ * they are the same DirectWrite question. Blink's `IsFontPresent` is
+ * `SkFontMgr::matchFamilyStyle(name, SkFontStyle())`, which on Windows reduces
+ * to an exact `IDWriteFontCollection::FindFamilyName`
+ * (`third_party/skia/src/ports/SkFontMgr_win_dw.cpp:381-385` → `:1057-1067`) —
+ * and that is exactly what the win32 glyph helper's `family` query runs. So this
+ * is the identical API call, not a filename table sampled off one machine's
+ * `C:\Windows\Fonts` listing.
  *
- * Calibration basis (run 26430174100 painted-advance probe):
- * - **Proven from the probe**: Chromium-on-Windows paints the symbol / math /
- *   geometric-shape / box-drawing / arrow codepoints in **Arial itself** (the
- *   sans default covers them — `sans-serif` painted width == Arial's exactly),
- *   not in a dedicated symbol face. So those blocks route to `helvetica` (Arial)
- *   first, with Segoe UI Symbol / Cambria Math only as the residue fallback.
- *   This is the key correction over the previous darwin-fallthrough, which sent
- *   them to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or
- *   don't exist on Windows.
- * - **Painted-font-confirmed (run 26430730227, via `getPlatformFontsForNode`)**:
- *   Han → Microsoft YaHei, Hangul → Malgun Gothic, Thai → Tahoma.
- * - **First cut, pending confirmation**: Arabic / Hebrew → Segoe UI, Devanagari
- *   → Nirmala UI (advance width can't fingerprint these — every such sample
- *   measures one em — and they weren't isolated in the painted-font check yet).
+ * Returns a `winfam:<postscriptName>` key registered in the dynamic-spec
+ * registry (like the live resolver's `sysfb:` keys), or null when the family is
+ * not installed — which is precisely `IsFontPresent` answering false.
+ *
+ * Returns null everywhere the helper is unavailable (non-Windows hosts, and a
+ * Windows host with no built helper binary). That is the honest degradation:
+ * without the helper there is no DirectWrite to ask, so the generated
+ * per-block net carries the whole answer, exactly as it did before.
+ */
+const win32FamilyKeyCache = new Map<string, string | null>();
+let _win32FamilyKeyOverride: ((family: string) => string | null) | null = null;
+
+function win32FamilyKey(family: string): string | null {
+  if (_win32FamilyKeyOverride != null) return _win32FamilyKeyOverride(family);
+  const cacheKey = family.toLowerCase();
+  if (win32FamilyKeyCache.has(cacheKey)) return win32FamilyKeyCache.get(cacheKey)!;
+  let key: string | null = null;
+  const installed = resolveInstalledFont(family);
+  if (installed != null && installed.path !== "" && installed.postscriptName !== "") {
+    key = `winfam:${installed.postscriptName}`;
+    registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes);
+  }
+  win32FamilyKeyCache.set(cacheKey, key);
+  return key;
+}
+
+/**
+ * Test seam for the Windows family-presence lookup.
+ *
+ * The Blink stage's whole shape depends on WHICH families a host has installed,
+ * and that is unreachable from a macOS unit run — the helper's `family` query
+ * needs DirectWrite. Injecting the predicate lets the suite drive the
+ * transcription against a synthetic Windows font inventory (stock Windows 11, a
+ * Noto-CJK-equipped host, a stripped host with nothing installed) and assert the
+ * exact family Blink would nominate in each. Pass null to restore the real
+ * lookup.
+ */
+export function __setWin32FamilyKeyResolverForTest(
+  fn: ((family: string) => string | null) | null,
+): void {
+  _win32FamilyKeyOverride = fn;
+  win32FamilyKeyCache.clear();
+}
+
+/**
+ * Defer a Windows fallback route to the live DirectWrite resolver (step 2b) when
+ * it covers `cp`, exactly as `linuxDeferOrStatic` does for fc-match.
+ *
+ * The generated per-block table is a SAMPLE of DirectWrite's answers, frozen off
+ * one Windows 11 host's CDP sweep. `IDWriteFontFallback::MapCharacters` is
+ * DirectWrite itself. Where both can answer, the live call wins by construction,
+ * so the sampled table must not pre-empt it — it stays only as the net for a
+ * host with no helper binary, a resolver flagged off, or a codepoint DirectWrite
+ * declines.
+ */
+function win32DeferOrStatic(cp: number, fallback: string[]): string[] {
+  if (process.platform === "win32" && _systemFallbackResolutionEnabled
+      && resolveSystemFallbackKeyForCp(cp) != null) {
+    return [];
+  }
+  return fallback;
+}
+
+/**
+ * Windows fallback routing — Blink's **hardcoded per-script stage**, transcribed.
+ *
+ * `FontCache::PlatformFallbackFontForCharacter` on Windows asks a hardcoded
+ * table BEFORE DirectWrite and only falls through on a miss
+ * (`platform/fonts/win/font_cache_skia_win.cc:286-296`, Chromium rev
+ * `7d859f27`). So a Windows implementation built only on
+ * `IDWriteFontFallback::MapCharacters` answers Chrome's SECOND question, and on
+ * a machine with a complete font set Chrome never asks it — whole scripts
+ * diverge with no font-set explanation available.
+ *
+ * The stage order this produces, matching Blink's:
+ *
+ * 1. **this chain** — `GetFallbackFamilyNameFromHardcodedChoices`: the ONE family
+ *    `GetFallbackFamily` nominates (color/text emoji → Unicode-block specials →
+ *    the 74-entry per-script table → plane 1/2/3 routing → `lucida sans unicode`),
+ *    then the pan-Unicode probe list. `src/render/win-font-fallback.ts` carries
+ *    the transcription and its per-symbol citations.
+ * 2. **the live DirectWrite resolver** (`resolveSystemFallbackKeyForCp`), which
+ *    the per-codepoint walker runs after this chain — Blink's
+ *    `GetDWriteFallbackFamily` fall-through.
+ * 3. **the generated per-block net**, deferred behind (2) via
+ *    `win32DeferOrStatic` so a frozen sample cannot pre-empt the live API.
+ *
+ * Coverage is deliberately NOT tested here: `FontContainsCharacter` is the
+ * walker's `glyphIdForCp` check, and leaving it there reproduces Blink's control
+ * flow exactly — the script table contributes at most one family, and a coverage
+ * miss on it goes to the pan-Unicode list rather than to the script list's second
+ * slot.
+ *
+ * What this REPLACES: a per-block routing table calibrated by probing painted
+ * advance widths and `CSS.getPlatformFontsForNode` on one Windows 11 host. It
+ * scored well on the blocks it had been probed against, and that was the defect
+ * — it was a curve fit to sampled outputs standing in for a stage of Blink that
+ * simply wasn't implemented. Two divergences it baked in, both now gone by
+ * construction: it sent Hebrew to Segoe UI where Blink nominates David first,
+ * and Thai to Tahoma-then-Leelawadee-UI as a pair where Blink nominates exactly
+ * one family and then probes pan-Unicode.
+ *
+ * `primaryKey` supplies `FontDescription::GenericFamily()`, which changes an
+ * answer only through `FindMonospaceFontForScript` (monospace + Arabic/Hebrew →
+ * Courier New). The `monospace` generic resolves to the `courier` key on
+ * Windows, so that is the test. An author who names `"Courier New"` explicitly
+ * lands on the same key while Blink would see `kStandardFamily` — a documented
+ * residual of the key model (the same information loss `system-ui` has), not a
+ * behavior choice, and it can only differ for Arabic or Hebrew text in an
+ * explicitly-Courier-New run.
  */
 export function win32FallbackChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
-  const cp = codepoint;
-  // Hebrew — Segoe UI covers it.
-  if (isHebrewBlock(cp)) return ["sf-hebrew"];
-  // Arabic core + presentation forms — Segoe UI.
-  if (isArabicBlock(cp)) {
-    return ["sf-arabic"];
+  const families = blinkWinHardcodedFamilies(codepoint, {
+    generic: primaryKey === "courier" ? "monospace" : "standard",
+    lang,
+    priority: winFallbackPriorityForTextRun(codepoint),
+  }, (family) => win32FamilyKey(family) != null);
+
+  const keys: string[] = [];
+  for (const family of families) {
+    const key = win32FamilyKey(family);
+    if (key != null) keys.push(key);
   }
-  // Devanagari — Nirmala UI.
-  if (isDevanagariBlock(cp)) return ["devanagari"];
-  // Thai — Tahoma (painted-font probe DM-836 confirms Chromium falls back to
-  // Tahoma under sans-serif), Leelawadee UI as a secondary.
-  if (isThaiBlock(cp)) return ["tahoma", "thai"];
-  // Hangul — Malgun Gothic (painted-font probe confirmed); YaHei last resort.
-  if (isHangulBlock(cp)) return ["korean", "cjk"];
-  // Math Alphanumeric — Cambria Math carries the whole block; the
-  // `mathAlphaToBase` decomposition handles any residue.
-  if (isMathAlphanumericBlock(cp)) return ["stix-math", "helvetica"];
-  // CJK Han / Kana / CJK Symbols & Punctuation. Serif primary → SimSun;
-  // Japanese-tagged → Yu Gothic; otherwise Microsoft YaHei.
-  if (isCjkBmpBlock(cp)) {
-    const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
-    if (serifPrimary) return ["cjk-serif", "cjk"];
-    if (lang != null && /^ja\b/i.test(lang)) return ["hiragino-jp", "cjk"];
-    return ["cjk"];
-  }
-  // Box Drawing / Block Elements — mono primary keeps its own cell-width glyphs
-  // (Consolas), then Consolas as a safety net; non-mono falls to Arial (the
-  // probe paints `─ ┼ ┬` at Arial's width for sans-serif).
-  if (isBoxDrawingBlock(cp)) {
-    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
-      || primaryKey === "monaco" || primaryKey === "sf-mono";
-    return monoPrimary ? [primaryKey!, "sf-mono"] : ["helvetica", "symbols"];
-  }
-  // Dingbats — Arial lacks most; Segoe UI Symbol covers them.
-  if (isDingbatsBlock(cp)) return ["symbols"];
-  // Geometric Shapes / Misc Symbols / Arrows — Arial covers the common ones
-  // (probe: ■ ● ◆ ★ ✒ ← → at Arial's width); Segoe UI Symbol for the residue.
-  if ((cp >= 0x2190 && cp <= 0x21FF) || (cp >= 0x25A0 && cp <= 0x25FF) || (cp >= 0x2600 && cp <= 0x26FF)) {
-    return ["helvetica", "symbols"];
-  }
-  // Superscripts / Subscripts, Letterlike, Math Operators — Arial carries the
-  // common members (probe: ∑ ∏ ≠ ∫ at Arial's width); Cambria Math for the rest.
-  if (isSuperSubscriptBlock(cp)) return ["helvetica"];
-  if (isLetterlikeBlock(cp) || isMathOperatorsBlock(cp)) return ["helvetica", "stix-math"];
-  // Pictographs not caught by the color-emoji raster path — Segoe UI Symbol
-  // monochrome as a last resort.
-  if (isPictographResidueBlock(cp)) return ["symbols"];
-  // DM-987: per-Unicode-block fallback derived from a Chrome CDP sweep on a
-  // Windows 11 host — `CSS.getPlatformFontsForNode` for every block in
-  // ../html-test/unicode/*.html. Resolved to C:\Windows\Fonts faces by
-  // tools/probe-983-genroutes-win32.mjs (Segoe UI Historic for ancient
-  // scripts, SimSun-ExtB/-ExtG for rare ideographs, Ebrima / Gadugi / Yi Baiti
-  // / Myanmar Text / … for the per-script UI faces). Consulted as a LAST
-  // resort so the hand-tuned routes above still win where they match.
+
+  // DM-987's generated per-block table: a Chrome CDP `CSS.getPlatformFontsForNode`
+  // sweep over every Unicode block on a Windows 11 host, resolved to
+  // C:\Windows\Fonts faces. Kept ONLY as the net behind the live DirectWrite
+  // resolver — see `win32DeferOrStatic`.
   const generatedKey = lookupWin32UnicodeFontRange(codepoint);
-  if (generatedKey != null) return [generatedKey];
-  return [];
+  if (generatedKey != null) keys.push(...win32DeferOrStatic(codepoint, [generatedKey]));
+  return keys;
 }
 
 /** Binary-search the generated `UNICODE_FONT_RANGES_WIN32` for a codepoint. */
@@ -3904,6 +3988,7 @@ export function clearFontResolutionCaches(): void {
   helperOutlineCache.clear();
   fileFaceInfoCache.clear();
   _famAvailCache.clear();
+  win32FamilyKeyCache.clear();
 }
 
 /**

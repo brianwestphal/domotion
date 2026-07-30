@@ -64,10 +64,12 @@ export function fallbackFontChain(cp, primaryKey?, lang?): string[] {
 
 - The existing function body becomes `darwinFallbackChain` **unchanged** — zero
   risk to the calibrated macOS baseline (the project's top fidelity priority).
-- `linuxFallbackChain` / `win32FallbackChain` are populated from the probe
-  results. Until a platform is calibrated, its function may delegate to
-  `darwinFallbackChain` (the post-DM-258 status quo: macOS routing over local
-  fonts) so the platform still renders *something*.
+- `linuxFallbackChain` is populated from the probe results.
+- `win32FallbackChain` is **not** populated from probe results — it transcribes
+  Blink's hardcoded Windows stage instead. See "Windows: superseded by Blink's own
+  hardcoded stage" below; the emitted keys there are dynamic
+  `winfam:<postscriptName>` keys resolved live through DirectWrite, not entries in
+  `WIN32_FONT_PATHS`.
 - The logical keys (`cjk`, `symbols`, `stix-math`, …) are the same; DM-258's
   `resolveFontSpec` already maps them to the right per-platform files.
 
@@ -189,7 +191,94 @@ Closing it would need a bundled pixel-faithful math font (bundled-fonts work,
 DM-261) or matching Chromium's exact FreeSans `𝑟` glyph/hinting; marginal
 (legible, Linux-only, anti-alias-level).
 
-### Windows (DirectWrite) — DM-260
+### Windows: superseded by Blink's own hardcoded stage
+
+> **Read this before the Windows subsections below.** Everything from
+> "Windows (DirectWrite) — DM-260" through the DM-987 sweep describes a per-block
+> routing table built by *probing Chromium-on-Windows and curve-fitting the
+> answers*. That table has been **replaced** by a transcription of the stage
+> Blink actually runs on Windows: `src/render/win-font-fallback.ts`, wired in
+> through `win32FallbackChain`, documented in
+> [the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
+>
+> The reason is structural, not a scoring loss. On Windows,
+> `FontCache::PlatformFallbackFontForCharacter` consults a **hardcoded per-script
+> table first** and only falls through to DirectWrite when it produces nothing
+> usable (`platform/fonts/win/font_cache_skia_win.cc:286-296`, Chromium rev
+> `7d859f27`). Domotion implemented only the fall-through — the question Chrome
+> asks *second*, and on a machine with a complete font set never asks at all. The
+> probed table was standing in for a stage that was simply missing, and it scored
+> well precisely on the blocks it had been fitted to.
+>
+> This is the inverse of the usual instinct here: **a hardcoded table is the
+> correct thing on Windows because Blink has one.** The mistake in
+> `unicode-font-routing.darwin.generated.ts` was never that a table existed — it
+> was that ours was sampled from one machine's answers rather than transcribed
+> from Chromium.
+>
+> Two divergences the probed table had baked in, now gone by construction:
+> Hebrew routed to Segoe UI where Blink nominates **David** first, and Thai routed
+> to Tahoma-then-Leelawadee-UI as a pair where Blink nominates exactly one family
+> and then probes its pan-Unicode list.
+>
+> **What survives, and why:** the generated per-block table
+> (`unicode-font-routing.win32.generated.ts`) is retained as the *net behind* the
+> live DirectWrite resolver — reached only when the resolver cannot answer (no
+> helper binary on the host, resolver flagged off, or a codepoint DirectWrite
+> declines). It must never pre-empt the live call, since it is a frozen sample of
+> that same call's answers; `win32DeferOrStatic` enforces that. Its regen runbook
+> below therefore still applies. The historical sections are kept for provenance —
+> they record how the Windows font set and DirectWrite's answers were measured, and
+> both facts remain useful — but they are **no longer the routing contract.**
+
+#### What the transcription measured on a real desktop Windows 11
+
+Two things were measured on the desktop Windows 11 VM (MSVC-built win32 helper,
+DirectWrite), because both are facts about the host rather than about the code:
+
+**1. `IsFontPresent` for all 101 families Blink's Windows table names.** 34 exist
+on a default desktop install. Absent — and therefore causing a documented
+fall-through in some Blink row — are: **David** (Hebrew supplemental pack), all
+eight Noto CJK families, every third-party face in the Ethiopic / Lao / Myanmar /
+Syriac / Tibetan lists (Nyala, Abyssinica SIL, Ethiopia Jiret, Visual Geez
+Unicode, GF Zemen Unicode, DokChampa, Saysettha OT, Phetsarath OT, Padauk,
+Parabaik, Myanmar3, Estrangelo Edessa/Nisibin, Jomolhari, Tibetan Machine Uni),
+the legacy Indic faces the Nirmala UI rows supersede (Mangal, Latha, Gautami,
+Tunga, Shruti, Raavi, Vrinda, Kartika, Iskoola Pota, Kalinga), `code2000`,
+`code2001`, `arial unicode ms`, `gulim`, `pmingliu`, `Plantagenet`, `Euphemia`,
+Meiryo, and Chromium's truncated `pmingli`. The measured set is pinned in
+`src/render/win-font-fallback.test.ts` so the transcription's assertions are
+grounded in a real machine rather than a guess, and the same file carries the
+Hebrew-pack variant that makes the David divergence explicit.
+
+It also confirmed a real risk in passing Blink's literals through verbatim:
+`courier new`, `lucida sans unicode`, `simsun-extb`, `simsun-extg` and
+`pmingliu-extb` all resolve, i.e. DirectWrite family matching is case-insensitive
+as assumed.
+
+**2. The probed table was recording the PRIMARY font, not the fallback.** Where
+Blink nominates Cambria Math for the Arrows / Geometric Shapes / Misc Technical
+blocks and Times New Roman for Latin / Cyrillic / Greek, the generated table says
+`u-arial` for all of them. The generated entries are not wrong about what
+`getPlatformFontsForNode` reported — Arial *is* what Chrome painted, because Arial
+was the `sans-serif` primary and it covers those codepoints, so Chrome never
+entered fallback at all. But a fallback chain is consulted only for codepoints the
+primary *lacks*, which makes "fall back to Arial" a route to a font that by
+construction cannot cover the character. That conflation is invisible in a
+per-block paint sweep and structural in it.
+
+**3. Measured effect of the `MapCharacters` style fix.** Asking the same six
+codepoints at weight 400 and weight 700 through the rebuilt helper: at 400 every
+resolvable one answered its regular cut, at 700 every one answered its bold cut —
+`YuGothicUI-Regular`→`YuGothicUI-Bold`, `SegoeUI`→`SegoeUI-Bold`,
+`NirmalaUI`→`NirmalaUI-Bold`, `LeelawadeeUI`→`LeelawadeeUI-Bold`,
+`MalgunGothic`→`MalgunGothicBold`. 5 of 5. Before the fix all five answered the
+regular cut at every weight, and that was reported as Chrome's pick. Omitting the
+style fields entirely reproduces the pre-fix answer byte-for-byte, which is what
+keeps an older helper binary or an older Node side self-consistent rather than
+mismatched.
+
+### Windows (DirectWrite) — DM-260 (historical: the probed table)
 
 | Unicode block | Candidate faces (probe order) |
 | --- | --- |

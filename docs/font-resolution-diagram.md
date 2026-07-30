@@ -11,7 +11,9 @@ per-codepoint route.
 > fallback chains, the family→key map, the per-codepoint resolver, the live
 > system-fallback backends, or the render-text-mode branch **must update the
 > matching diagram + prose here in the same commit**. The authoritative source is
-> `src/render/font-resolution.ts` (routing tables + resolvers), `src/render/glyph-helper.ts`
+> `src/render/font-resolution.ts` (routing tables + resolvers),
+> `src/render/win-font-fallback.ts` (Blink's hardcoded Windows stage, transcribed),
+> `src/render/glyph-helper.ts`
 > (native CoreText / FreeType / DirectWrite backends), `src/render/text-to-path.ts`
 > (the shaping / run-splitting callers), `src/render/embedded-font-builder.ts`
 > (embedded-mode subset builder), and `src/capture/index.ts`
@@ -532,14 +534,19 @@ flowchart TD
   FBLN -->|"no"| FBLBare["bare per-block routes + UNICODE_FONT_RANGES_LINUX"]
 ```
 
-Each platform chain is a **parallel router over the SAME Unicode block boundaries**
-(shared predicates `isHebrewBlock` / `isArabicBlock` / `isDevanagariBlock` /
-`isThaiBlock` / `isHangulBlock` / `isCjkBmpBlock` / `isBoxDrawingBlock` /
-`isDingbatsBlock` / `isMathAlphanumericBlock` / `isSuperSubscriptBlock` /
-`isLetterlikeBlock` / `isMathOperatorsBlock` / `isPictographResidueBlock`); only
-the per-block KEY differs by platform (CoreText vs fontconfig vs DirectWrite).
-Every chain ends by consulting its generated per-block table (binary-searched
-`UNICODE_FONT_RANGES*`), then a platform terminal.
+The **darwin and linux** chains are parallel routers over the SAME Unicode block
+boundaries (shared predicates `isHebrewBlock` / `isArabicBlock` /
+`isDevanagariBlock` / `isThaiBlock` / `isHangulBlock` / `isCjkBmpBlock` /
+`isBoxDrawingBlock` / `isDingbatsBlock` / `isMathAlphanumericBlock` /
+`isSuperSubscriptBlock` / `isLetterlikeBlock` / `isMathOperatorsBlock` /
+`isPictographResidueBlock`); only the per-block KEY differs (CoreText vs
+fontconfig). Each ends by consulting its generated per-block table
+(binary-searched `UNICODE_FONT_RANGES*`), then a platform terminal.
+
+**`win32FallbackChain` is not one of those routers.** It is a transcription of
+Blink's own Windows fallback stage, which keys on the ICU **Script** property plus
+its own list of `UBlockCode`s — a different partition, deliberately, because that
+is the partition Chrome-on-Windows uses. See §7c.
 
 ### 7a. `darwinFallbackChain` — block dispatch order (first match returns)
 
@@ -593,20 +600,105 @@ Arrows→`[helvetica, free-sans]` · Geometric→`[helvetica, cjk]` · Misc Symb
 Math Alpha→`[free-sans, free-serif]` · Letterlike/Math Ops→`[free-sans, helvetica]` · CJK BMP→`[cjk]` ·
 Pictograph residue→`[free-sans]` · else generated `UNICODE_FONT_RANGES_LINUX` → `[]`.
 
-### 7c. `win32FallbackChain` — key routes
+### 7c. `win32FallbackChain` — Blink's hardcoded Windows stage, transcribed
 
-Hebrew→`[sf-hebrew]`(Segoe UI) · Arabic→`[sf-arabic]`(Segoe UI) · Devanagari→`[devanagari]`(Nirmala UI) ·
-Thai→`[tahoma, thai]` · Hangul→`[korean, cjk]`(Malgun Gothic) · Math Alpha→`[stix-math, helvetica]`(Cambria Math) ·
-CJK BMP→serif `[cjk-serif, cjk]`(SimSun) / ja `[hiragino-jp, cjk]`(Yu Gothic) / else `[cjk]`(YaHei) ·
-Box Drawing→mono `[primary, sf-mono]`(Consolas) / else `[helvetica, symbols]`(Arial) · Dingbats→`[symbols]` ·
-Geometric/Misc/Arrows→`[helvetica, symbols]`(Arial covers common) · Super/Subscripts→`[helvetica]` ·
-Letterlike/Math Ops→`[helvetica, stix-math]` · Pictograph residue→`[symbols]` ·
-else generated `UNICODE_FONT_RANGES_WIN32` → `[]`.
+On Windows, `FontCache::PlatformFallbackFontForCharacter` asks a **hardcoded
+table first** and only falls through to DirectWrite when that table produces
+nothing usable (`platform/fonts/win/font_cache_skia_win.cc:286-296`, Chromium rev
+`7d859f27`). An implementation built only on
+`IDWriteFontFallback::MapCharacters` therefore answers Chrome's *second* question,
+and on a machine with a complete font set Chrome never asks it — whole scripts can
+diverge with no font-set explanation available.
+
+`src/render/win-font-fallback.ts` carries the transcription, with a per-symbol
+citation for every piece; `win32FallbackChain` is a thin adapter over it. The
+stage order that produces, matching Blink's:
+
+1. **`blinkWinHardcodedFamilies`** — `GetFallbackFamilyNameFromHardcodedChoices`.
+2. **the live DirectWrite resolver** (§8), run by the walker after this chain —
+   Blink's `GetDWriteFallbackFamily` fall-through.
+3. **the generated per-block net** (`UNICODE_FONT_RANGES_WIN32`), deferred behind
+   (2) by `win32DeferOrStatic` so a frozen sample of DirectWrite's answers cannot
+   pre-empt DirectWrite itself.
+
+```mermaid
+flowchart TD
+  W0["win32FallbackChain(cp, primaryKey, lang)"] --> WP{"FontFallbackPriority<br/>(winFallbackPriorityForTextRun: any \p{Emoji} cp → emoji-text,<br/>SystemFallbackEmojiVSSupport is status:stable)"}
+  WP -->|"emoji-emoji"| WCE["FirstAvailableFont(Segoe UI Emoji, Segoe UI Symbol)"]
+  WP -->|"emoji-text"| WME["FirstAvailableFont(Segoe UI Symbol, Segoe UI Emoji)"]
+  WP -->|"text"| WB{"GetFontBasedOnUnicodeBlock(ublock_getCode(cp))"}
+  WB -->|"Emoticons / Encl. Alnum Supp"| WME
+  WB -->|"Playing Cards, Misc Symbols, Misc Sym+Arrows,<br/>Misc Sym+Pictographs, Transport, Alchemical,<br/>Dingbats, Gothic"| WSYM["'Segoe UI Symbol' literal"]
+  WB -->|"Arrows, Math Ops, Misc Technical, Geometric Shapes,<br/>Misc Math A/B, Suppl. Arrows A/B, Suppl. Math Ops,<br/>Math Alnum, Arabic Math Alnum, Geometric Ext"| WMATH["FirstAvailableFont(Cambria Math, Segoe UI Symbol, Code2000)"]
+  WB -->|"default"| WS["script = GetScript(cp)<br/>(ICU Script property; Common/Inherited → GetScriptBasedOnUnicodeBlock)"]
+  WS --> WFW["U+FF01-FF5E full-width ASCII → script = Han"]
+  WFW --> WHAN{"script == Han?"}
+  WHAN -->|"yes"| WHANL["LocaleForHan(lang) then host locale → Hans / Hant / Hrkt / Hangul;<br/>null leaves script = Han (→ CJK pan-Unicode list),<br/>and the HAN slot carries GetSystem().GetScriptForHan()'s list"]
+  WHAN -->|"no"| WBMP
+  WHANL --> WBMP{"cp &lt;= 0xFFFF?"}
+  WBMP -->|"yes"| WTAB["GetFontFamilyForScript:<br/>monospace + Arabic/Hebrew → 'courier new';<br/>else FirstAvailableFont(WIN_SCRIPT_FONT_FAMILIES[script])<br/>(74 rows, verbatim from InitializeScriptFontMap)"]
+  WBMP -->|"no / table miss"| WPL{"plane"}
+  WPL -->|"1"| WP1["'code2001'"]
+  WPL -->|"2, U+2EBF0-2EE5F"| WP2E["'simsun-extg' (GB18030-2022 Ext I)"]
+  WPL -->|"2, zh-TW default locale"| WP2T["'pmingliu-extb'"]
+  WPL -->|"2"| WP2S["'simsun-extb'"]
+  WPL -->|"3"| WP3["'simsun-extg' (Ext G/H)"]
+  WPL -->|"0"| WLR["'lucida sans unicode' (last resort)"]
+  WTAB --> WONE["the ONE nominated family"]
+  WCE --> WONE
+  WME --> WONE
+  WSYM --> WONE
+  WMATH --> WONE
+  WP1 --> WONE
+  WP2E --> WONE
+  WP2T --> WONE
+  WP2S --> WONE
+  WP3 --> WONE
+  WLR --> WONE
+  WONE --> WPAN["+ pan-Unicode probe list:<br/>kCjkFonts when script_out is still Han, else kCommonFonts"]
+  WPAN --> WKEY["each family → winfam:&lt;psName&gt; via the win32 helper's<br/>DirectWrite FindFamilyName ( == Blink's IsFontPresent);<br/>not-installed families drop out"]
+  WKEY --> WNET["+ UNICODE_FONT_RANGES_WIN32 key, unless the live<br/>DirectWrite resolver already covers cp (win32DeferOrStatic)"]
+```
+
+Two properties of the adapter that are load-bearing rather than incidental:
+
+- **The script table contributes at most ONE family.** Blink takes the first
+  *installed* entry, then checks `FontContainsCharacter`, and on a coverage miss
+  goes to the **pan-Unicode probe list** — not to the script list's second slot.
+  Emitting one key preserves that control flow, because the walker's own
+  `glyphIdForCp` check is `FontContainsCharacter`.
+- **`IsFontPresent` is asked, never tabulated.** Blink's `IsFontPresent` is
+  `SkFontMgr::matchFamilyStyle(name, SkFontStyle())`, which on Windows reduces to
+  an exact `IDWriteFontCollection::FindFamilyName`
+  (`third_party/skia/src/ports/SkFontMgr_win_dw.cpp:381-385` → `:1057-1067`) —
+  exactly the win32 helper's `family` query. A baked-in `C:\Windows\Fonts`
+  filename table would reintroduce the defect that made the sampled darwin
+  routing wrong: one machine's inventory frozen into source. Where the helper is
+  unavailable (non-Windows, or a Windows host with no built binary) every family
+  reads as absent, the Blink stage contributes nothing, and the generated net
+  carries the whole answer — the same behavior as before this stage existed.
+
+**What this replaced:** a per-block table calibrated by probing painted advance
+widths and `CSS.getPlatformFontsForNode` on one Windows 11 host. It scored well on
+the blocks it had been probed against, and that was the defect — a curve fit to
+sampled outputs standing in for a stage of Blink that simply was not implemented.
+Two divergences it baked in, now gone by construction: Hebrew went to Segoe UI
+where Blink nominates **David** first, and Thai went to Tahoma-then-Leelawadee-UI
+as a pair where Blink nominates exactly one family and then probes pan-Unicode.
+
+**Known residual:** `FontDescription::GenericFamily()` reaches the transcription
+only as "is the primary key `courier`", because the logical-key model does not
+carry the CSS generic separately (the same information loss `system-ui` has —
+see §7's `stackPrimaryIsSystemUi` note). It can only differ for Arabic or Hebrew
+text in a run that names `"Courier New"` explicitly, where Blink would see
+`kStandardFamily` and we see the monospace generic.
 
 **Source of truth:** `fallbackFontChain` / `darwinFallbackChain` /
 `linuxFallbackChain` / `linuxNotoFallbackChain` / `win32FallbackChain` /
-`pingfangKeyForLang` / the `is*Block` predicates / `binarySearchRange` in
-`src/render/font-resolution.ts`. Doc [42](42-cross-platform-fallback-calibration.md).
+`win32FamilyKey` / `win32DeferOrStatic` / `pingfangKeyForLang` / the `is*Block`
+predicates / `binarySearchRange` in `src/render/font-resolution.ts`, and the whole
+of `src/render/win-font-fallback.ts`. Doc
+[42](42-cross-platform-fallback-calibration.md).
 
 ---
 
@@ -694,11 +786,27 @@ Three consequences worth holding onto:
   mirror); this path runs CoreText's nearest-weight descriptor match. Merging
   the two would be wrong at several weights in both directions.
 
-Windows has the same shape of gap and does not yet close it: the win32 helper
-passes `DWRITE_FONT_WEIGHT_NORMAL` to `IDWriteFontFallback::MapCharacters`, where
-Blink's `font_fallback_win.cc` passes the run's real weight and style. The
-renderer-side plumbing (the CSS description reaching the helper) is in place; the
-C++ side is not.
+Windows had the same shape of gap and now closes it, though by a different
+mechanism. There is no second in-family re-selection step on Windows — DirectWrite
+picks the cut inside `MapCharacters` — so the style has to be *in the call*. It
+now is: `resolveSystemFallbackKeyForCp` passes the run's weight and slant, and the
+win32 helper converts them with `dwriteWeightFromCss` / `dwriteSlantFromCss` /
+`dwriteStretchFromCss`, which transcribe `FontDescription::SkiaFontStyle()`
+(`fonts/font_description.cc:477-521` plus the nine width boundaries in
+`fonts/font_selection_types.h:221-245`) and Skia's `DWriteStyle`
+(`third_party/skia/src/utils/win/SkDWrite.h:83-97`). Previously the call was
+hardcoded `NORMAL/NORMAL/NORMAL` while Blink passes
+`font_description.SkiaFontStyle()`, so a bold run resolved the regular cut and it
+was reported as Chrome's pick. Absent style fields keep the old defaults, so an
+older helper binary and an older Node side each degrade to the previous behavior
+rather than mismatching.
+
+One divergence in the same call remains open and is tracked separately: Blink
+passes the run's primary family name as `MapCharacters`' `baseFamilyName`
+(`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
+what lets a family's own font linking participate; we still pass null. It is left
+alone rather than changed blind, because Windows has no conformance-oracle
+baseline yet and the effect is unmeasurable today.
 
 Gated by `_systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
 default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with
@@ -863,8 +971,16 @@ output bytes. See doc
 |---|---|---|---|
 | macOS (CoreText) | ✅ `FONT_PATHS` | ✅ pixel-exact (`regionCount === 0`) | ✅ always on |
 | Linux (fontconfig) | ✅ `LINUX_FONT_PATHS` + `fc-match` | ✅ within ≤1% native-hinting floor (bare + Noto profiles) | ✅ default-on (DM-1416) |
-| Windows (DirectWrite) | ✅ `WIN32_FONT_PATHS` | ✅ within ≤4% native-hinting floor | ✅ default-on (DM-1424) |
+| Windows (DirectWrite) | ✅ `WIN32_FONT_PATHS` | ✅ Blink's hardcoded stage transcribed (§7c), then DirectWrite | ✅ default-on, now style-aware |
 
 The residual per-platform gap is unhinted-outline-vs-native-raster hinting, not
 missing routing. See doc [42](42-cross-platform-fallback-calibration.md) and the
 "Platform support" section of `CLAUDE.md`.
+
+One caveat on reading that table: the Linux and Windows columns are backed by
+**visual fixture suites**, not by a conformance oracle. Only macOS has an
+exhaustive per-codepoint agreement measurement (doc
+[107](107-font-conformance-oracle.md)). The Windows stage in §7c is correct **by
+construction** — it is Blink's algorithm, transcribed with citations — but it is
+not yet *scored*, and until a Windows oracle baseline exists that distinction
+should stay visible rather than be rounded up to a checkmark.

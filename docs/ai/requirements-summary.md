@@ -786,7 +786,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   Chromium divergence is on a static-table-owned cp). `DOMOTION_SYSTEM_FALLBACK=0`
   forces it off on Linux/Windows. The chain walker's `glyphForCodePoint` check
   makes a non-covering backend result harmless (falls through to tofu, never a
-  wrong glyph).
+  wrong glyph). **DM-1864 updates the Windows half twice over:** the
+  `MapCharacters` call now carries the run's real weight/slant/stretch (a
+  transcription of `FontDescription::SkiaFontStyle()` — measured 5/5 faces moving
+  to their bold cut at weight 700, where before every weight got the regular cut),
+  and Blink's hardcoded per-script stage now runs *ahead* of the resolver as it does
+  in Chrome. That invalidates the DM-1424 sweep's "0 codepoints move" reasoning,
+  which rested on the sampled table shadowing the resolver — read those numbers as
+  a record of the flip decision, not a current measurement. The remaining known
+  divergence in the same call is `baseFamilyName` (Blink passes the run's primary
+  family; we pass null), tracked separately.
 - **Doc 61 (`docs/61-overlay-resolution-primitive.md`, DM-1132)** — `resolveOverlays(
   page, overlays)` lowers an overlay's selector `anchor` + typing `maxWidth:
   "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.
@@ -841,6 +850,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   mature / most-validated; Linux + Windows native glyph extractors and CI
   are partially landed (docs 41 / 45 / 49–52). Treat macOS as the reference
   and re-probe the others when their font set changes.
+- **Windows no longer routes off a probed table (DM-1864).**
+  `win32FallbackChain` is a transcription of the hardcoded per-script stage Blink
+  consults BEFORE DirectWrite (`win/font_cache_skia_win.cc:286-296`) —
+  `src/render/win-font-fallback.ts`: the 74-row `InitializeScriptFontMap` table,
+  `GetFontBasedOnUnicodeBlock`, the emoji/math lists, the Han locale
+  disambiguation, plane routing, and the pan-Unicode probe lists.
+  `IsFontPresent` is asked live through the win32 helper's DirectWrite
+  `FindFamilyName` (the identical call), never tabulated. The generated
+  `unicode-font-routing.win32.generated.ts` survives only as the net *behind* the
+  live DirectWrite resolver. Same change made the resolver style-aware: the helper
+  now passes the run's real weight/slant/stretch to `MapCharacters`, transcribing
+  `FontDescription::SkiaFontStyle()`, where it previously hardcoded
+  `NORMAL/NORMAL/NORMAL`. See doc `font-resolution-diagram.md` §7c and doc 42's
+  "Windows: superseded by Blink's own hardcoded stage".
 - New font / fallback / metric routing must be designed platform-aware
   from the start — `process.platform` based, not assumed `darwin`.
 

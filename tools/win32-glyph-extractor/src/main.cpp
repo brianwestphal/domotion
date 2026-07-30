@@ -90,6 +90,7 @@ struct JsonValue {
     return type == Type::String ? string : def;
   }
   double asNumber(double def = 0) const { return type == Type::Number ? number : def; }
+  bool asBool(bool def = false) const { return type == Type::Bool ? boolean : def; }
 };
 
 class JsonParser {
@@ -786,18 +787,84 @@ static std::string faceResolvedAxesJson(IDWriteFontFace* face) {
   return out;
 }
 
+// DM-1864: the DWRITE style triple Blink hands `MapCharacters`, transcribed.
+//
+// Blink reaches DirectWrite through Skia:
+// `FontCache::GetDWriteFallbackFamily` (win/font_cache_skia_win.cc:238-240)
+// calls `matchFamilyStyleCharacter(..., font_description.SkiaFontStyle(), ...)`;
+// Skia's `SkFontMgr_DirectWrite::onMatchFamilyStyleCharacter` wraps that
+// `SkFontStyle` in `DWriteStyle` and passes its three fields straight to
+// `MapCharacters` (SkFontMgr_win_dw.cpp:621-653 → :928-939), where `DWriteStyle`
+// is a plain cast of weight and width plus a slant switch
+// (src/utils/win/SkDWrite.h:83-97). So the values below are exactly what Chrome
+// asks with — where this helper previously asked with NORMAL/NORMAL/NORMAL, i.e.
+// it asked a different question and then reported the answer as Chrome's.
+//
+// `FontDescription::SkiaFontStyle()` (fonts/font_description.cc:477-521,
+// Chromium rev 7d859f27) is the CSS→SkFontStyle conversion being mirrored:
+// weight passes through when it is inside [1, 1000] and is 400 otherwise; stretch
+// collapses to the nine named widths at the boundaries in
+// `fonts/font_selection_types.h:221-245`; slant is upright at 0, italic up to the
+// `kItalicThreshold` of 14 degrees, oblique beyond.
+static DWRITE_FONT_WEIGHT dwriteWeightFromCss(double cssWeight) {
+  if (cssWeight >= 1 && cssWeight <= 1000) {
+    return static_cast<DWRITE_FONT_WEIGHT>(static_cast<int>(cssWeight));
+  }
+  return DWRITE_FONT_WEIGHT_NORMAL;  // SkFontStyle::kNormal_Weight
+}
+
+static DWRITE_FONT_STRETCH dwriteStretchFromCss(double cssStretch) {
+  // Written in Blink's own cascading-if order so the boundary behavior matches:
+  // each test overwrites the previous, so an exact 50 lands on ULTRA_CONDENSED
+  // and an exact 200 on ULTRA_EXPANDED.
+  DWRITE_FONT_STRETCH width = DWRITE_FONT_STRETCH_NORMAL;
+  if (cssStretch <= 87.5) width = DWRITE_FONT_STRETCH_SEMI_CONDENSED;
+  if (cssStretch <= 75) width = DWRITE_FONT_STRETCH_CONDENSED;
+  if (cssStretch <= 62.5) width = DWRITE_FONT_STRETCH_EXTRA_CONDENSED;
+  if (cssStretch <= 50) width = DWRITE_FONT_STRETCH_ULTRA_CONDENSED;
+  if (cssStretch >= 112.5) width = DWRITE_FONT_STRETCH_SEMI_EXPANDED;
+  if (cssStretch >= 125) width = DWRITE_FONT_STRETCH_EXPANDED;
+  if (cssStretch >= 150) width = DWRITE_FONT_STRETCH_EXTRA_EXPANDED;
+  if (cssStretch >= 200) width = DWRITE_FONT_STRETCH_ULTRA_EXPANDED;
+  return width;
+}
+
+static DWRITE_FONT_STYLE dwriteSlantFromCss(double cssSlant, bool italic) {
+  // `cssSlant` is the `font-style` angle Blink calls `Style()`. The renderer's
+  // slant channel is an italic FLAG rather than an angle, so it sends `italic`
+  // and leaves `cssSlant` at 0 — which resolves to ITALIC, matching every
+  // italic-but-not-`oblique <angle>` run. A caller that does know the angle gets
+  // Blink's three-way split.
+  if (cssSlant > 14) return DWRITE_FONT_STYLE_OBLIQUE;  // kItalicThreshold
+  if (cssSlant > 0) return DWRITE_FONT_STYLE_ITALIC;
+  return italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL;
+}
+
 // DM-1403: per-codepoint live system-fallback resolution via DirectWrite's
 // IDWriteFontFallback::MapCharacters — the same API Chrome-on-Windows
 // (FontFallback::MapCharacters in font_fallback_win.cc) uses to pick the
 // substitute font for a character the primary lacks. Mirrors the macOS helper's
 // `runFallbackQuery` (CTFontCreateForString) byte-for-byte in protocol shape:
-//   in : { type:"fallback", cps:[...] }
+//   in : { type:"fallback", cps:[...], cssWeight?, italic?, cssSlant?, cssStretch? }
 //   out: { type:"fallback", fonts:[ {cp,found:true,postscriptName,familyName,path} | {cp,found:false} ] }
 // We pass a null base family so MapCharacters performs pure system fallback (the
 // codepoint reaching here is one the primary couldn't render), and verify the
 // mapped font actually covers the cp (HasCharacter) so a non-covering result is
 // reported found:false — the renderer then keeps its own last-resort, matching
 // the macOS LastResort handling and the Linux coverage guard.
+//
+// DM-1864: the style triple is now the RUN's, from the query's optional
+// `cssWeight` / `italic` / `cssSlant` / `cssStretch`, converted by
+// `dwriteWeightFromCss` & co. Previously it was hardcoded NORMAL/NORMAL/NORMAL
+// while Blink passes `font_description.SkiaFontStyle()`, so a bold or italic run
+// resolved the regular upright cut and was reported as what Chrome picked.
+//
+// KNOWN REMAINING DIVERGENCE (tracked separately): Blink passes the run's primary
+// family name as `MapCharacters`' `baseFamilyName`
+// (`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
+// what lets a family's own font-linking participate in the answer. We still pass
+// null. Left alone deliberately rather than changed blind: Windows has no
+// conformance-oracle baseline yet, so the effect is unmeasurable today.
 //
 // DM-1721: when the mapped face is a variable-font instance, each found entry
 // additionally carries `"axes":{...}` — the axis location DirectWrite resolved
@@ -818,6 +885,14 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
     factory->GetSystemFontCollection(&systemFonts, FALSE);
   }
 
+  // DM-1864: the run's real style, not NORMAL/NORMAL/NORMAL. Absent fields keep
+  // the previous defaults, so an older Node side (or a caller that has no style
+  // to offer) gets exactly the pre-existing behavior.
+  const DWRITE_FONT_WEIGHT dwWeight = dwriteWeightFromCss(query.at("cssWeight").asNumber(400));
+  const DWRITE_FONT_STYLE dwSlant =
+      dwriteSlantFromCss(query.at("cssSlant").asNumber(0), query.at("italic").asBool(false));
+  const DWRITE_FONT_STRETCH dwStretch = dwriteStretchFromCss(query.at("cssStretch").asNumber(100));
+
   const JsonArray& cps = query.at("cps").asArray();
   for (size_t i = 0; i < cps.size(); i++) {
     if (i > 0) out << ",";
@@ -834,7 +909,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
       HRESULT hr = fallback->MapCharacters(
           source, 0, static_cast<UINT32>(s.size()), systemFonts,
           nullptr,  // null base family → pure system fallback
-          DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+          dwWeight, dwSlant, dwStretch,
           &mappedLength, &mappedFont, &scale);
       if (SUCCEEDED(hr) && mappedFont && mappedLength > 0) {
         BOOL covers = FALSE;
