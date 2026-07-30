@@ -30,6 +30,13 @@
  *   escapes overflow clips entirely, mirroring the render path.
  * - `visibility: hidden` needs no handling — the capture script omits those
  *   elements from the tree entirely.
+ * - One place this is deliberately flatter than the renderer: the renderer
+ *   emits each in-flow block subtree twice (box decorations, then inline
+ *   content) with the context's floats in between, so a float paints under
+ *   text it overlaps. A hit sequence has one entry per element and can't hold
+ *   both positions, so it keeps the float AFTER the block content — which is
+ *   also what a browser hit-test does with an overlapping float (the float box
+ *   is hit, even where the text paints on top of it).
  *
  * The flattened sequence is memoized per tree (WeakMap on the roots array):
  * the cursor-timeline builder samples hundreds of points with bisection

@@ -122,36 +122,48 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
 }
 
 /**
- * Does `el` paint its own floated children locally, ahead of its own inline
- * text, rather than letting them hoist to the enclosing stacking context's
- * float bucket?
- *
- * Per CSS 2.1 Appendix E a stacking context paints non-positioned floats at
- * step 4 and in-flow inline-level content at step 5, so a float always paints
- * BENEATH the text of the stacking context it belongs to. `renderElement`
- * approximates that for the case it matters most — a text-bearing block whose
- * own float lets text wrap over the float's border box (`shape-outside`) — by
- * emitting the float before the block's text.
- *
- * `gatherStackingContextChildren` consults the same predicate so it does NOT
- * also hoist those floats into the stacking context's flat paint list: a float
- * that is painted locally AND hoisted is emitted twice, and the hoisted copy
- * (which sorts after the text-bearing block) covers the very text it was
- * supposed to paint under. Keeping both call sites on one predicate keeps them
- * from drifting apart.
- */
-export function paintsOwnFloatsBeforeText(el: CapturedElement): boolean {
-  return el.text !== "";
-}
-
-/**
- * Is `c` a non-positioned floated child (the shape both the local float paint
- * in `renderElement` and the stacking-context float hoist select on)?
+ * Is `c` a non-positioned floated child — the shape the stacking-context
+ * float hoist selects on, so the float paints in its context's step-5 float
+ * phase rather than wherever its parent happens to sit in document order?
  */
 export function isNonPositionedFloat(c: CapturedElement): boolean {
   const pos = c.styles.position;
   const positioned = pos != null && pos !== "static";
   return !positioned && (c.styles.float ?? "none") !== "none";
+}
+
+/**
+ * Is this `display` value inline-level?
+ *
+ * Inline-level boxes paint their background, border AND content together in
+ * the inline phase (CSS 2.1 Appendix E step 5, walking each line box), unlike
+ * block-level boxes whose background + border paint in the earlier block phase
+ * (step 3). The renderer's phased walk uses this to decide whether a child is
+ * split across the two phases (block-level) or painted as one atomic unit in
+ * the inline phase (inline-level).
+ */
+export function isInlineLevelDisplay(display: string | undefined | null): boolean {
+  if (display == null || display === "") return false;
+  return display === "inline" || display.startsWith("inline-")
+      || display === "ruby" || display.startsWith("ruby-");
+}
+
+/**
+ * Does `el` paint as one atomic inline-level box — CSS 2.1 Appendix E step 5's
+ * "treat the element as if it created a new stacking context"?
+ *
+ * True for an inline-level box (`inline-block`, `inline-flex`, …) and for a
+ * flex/grid item (CSS Flexbox 1 §5.4: "flex items paint exactly the same as
+ * inline blocks"). Such a box owns the floats in its subtree: they paint in ITS
+ * internal float step, not the enclosing stacking context's, so the float hoist
+ * must stop here. Hoisting them out paints them beneath the atomic box's own
+ * background, which erases them — an `inline-block` wrapper around a
+ * `float: left` swatch loses the swatch entirely.
+ */
+export function paintsAtomicallyAsInlineBox(el: CapturedElement, parentDisplay: string | undefined): boolean {
+  if (isInlineLevelDisplay(el.styles.display)) return true;
+  const positioned = el.styles.position != null && el.styles.position !== "static";
+  return !positioned && isFlexOrGridContainerDisplay(parentDisplay);
 }
 
 /**
@@ -276,17 +288,12 @@ export function gatherStackingContextChildren(
       // Real-world hit: 14-deep-float-bfc section 1's float-left FL extends
       // ~60 px below the .frame and is covered by section 2's gray bar.
       //
-      // The hoist is skipped when `parent` paints its own floats locally
-      // (`paintsOwnFloatsBeforeText`): a text-bearing block emits its floats
-      // ahead of its own text so the text wins z, exactly as CSS 2.1 Appendix
-      // E orders step 4 (floats) before step 5 (inline content). Hoisting such
-      // a float as well emitted it TWICE, and the hoisted copy sorted into the
-      // stacking context's float bucket — after the text-bearing block — so it
-      // painted back over the text. Visible on `shape-outside`, where the
-      // wrapped text legitimately overlaps the float's border box: the first
-      // glyph of each wrapped line disappeared under the float.
-      const isFloat = !positioned && (c.styles.float ?? "none") !== "none"
-        && !paintsOwnFloatsBeforeText(parent);
+      // EVERY non-positioned float hoists — including one whose parent has
+      // inline content of its own. The context-wide float phase is what makes
+      // the float paint above every block background (step 3) and below every
+      // piece of inline content (step 5), its own parent's text included, so
+      // there is no case left where a float is better off painted in place.
+      const isFloat = !positioned && (c.styles.float ?? "none") !== "none";
       // DM-683: per CSS Flexbox 1 §5.4 ("Flex items paint exactly the same
       // as inline blocks"), flex items paint at CSS 2.1 Appendix E step 5
       // (in-flow inline-level non-positioned descendants) — AFTER block
@@ -342,7 +349,7 @@ export function gatherStackingContextChildren(
         // positioned z=auto/0 element — its descendants' floats paint with
         // it atomically, not at the parent SC. Existing float-block state
         // propagates downward too.
-        const cBlocks = positioned && !hasExplicitZ;
+        const cBlocks = (positioned && !hasExplicitZ) || paintsAtomicallyAsInlineBox(c, childParentDisplay);
         const nextOverflowAncestor = cIsOverflowOnly ? c : currentOverflowAncestor;
         collectFromNonSC(c, floatHoistBlocked || cBlocks, nextOverflowAncestor);
       }
@@ -359,10 +366,11 @@ export function gatherStackingContextChildren(
       const cPositioned = c.styles.position != null && c.styles.position !== "static";
       const cZRaw = c.styles.zIndex;
       const cHasExplicitZ = cZRaw != null && cZRaw !== "" && cZRaw !== "auto";
+      const cBlocksFloats = (cPositioned && !cHasExplicitZ) || paintsAtomicallyAsInlineBox(c, parentDisplay);
       // DM-673: if `c` is an overflow-only SC, mark `c` as the overflow
       // ancestor for any positioned descendant we hoist out of it.
       const nextOverflowAncestor = cIsOverflowOnly ? c : null;
-      collectFromNonSC(c, cPositioned && !cHasExplicitZ, nextOverflowAncestor);
+      collectFromNonSC(c, cBlocksFloats, nextOverflowAncestor);
     }
   }
   return out;
@@ -466,6 +474,28 @@ export function isFixedContainingBlock(el: CapturedElement): boolean {
 }
 
 /**
+ * One stacking context's children grouped by paint step (CSS 2.1 Appendix E).
+ * `sortChildrenByPaintOrder` concatenates these into the flat paint order;
+ * the renderer's phased walk needs them separated, because the `base` group
+ * paints in TWO passes (block backgrounds before the floats, inline content
+ * after them) rather than one.
+ */
+export interface PaintOrderBuckets {
+  /** Step 2 — child stacking contexts with a negative z-index, ascending. */
+  negative: CapturedElement[];
+  /** Steps 3 + 5 — in-flow, non-positioned children, in document order. */
+  base: CapturedElement[];
+  /** Step 4 — non-positioned floats, in document order. */
+  floats: CapturedElement[];
+  /** Step 5 — flex/grid items, which paint as inline blocks. */
+  inlines: CapturedElement[];
+  /** Step 6 — positioned children with `z-index: auto` / `0`, plus non-positioned stacking contexts. */
+  zeroOrAuto: CapturedElement[];
+  /** Step 7 — child stacking contexts with a positive z-index, ascending. */
+  positive: CapturedElement[];
+}
+
+/**
  * Sort children into approximate paint order (CSS 2.1 §9.9 + §9.5):
  *   1. Positioned children with negative z-index (ascending).
  *   2. Non-positioned, non-floating children in DOM order (the 'block' layer).
@@ -478,6 +508,24 @@ export function isFixedContainingBlock(el: CapturedElement): boolean {
  * own background rect. Promoting floats to layer 3 matches CSS painting rules.
  */
 export function sortChildrenByPaintOrder(
+  children: CapturedElement[],
+  parentDisplay?: string,
+  parentFlexDirection?: string,
+  paintAsInline?: Set<CapturedElement>,
+  paintAsZSorted?: Set<CapturedElement>,
+  directChildren?: Set<CapturedElement>,
+): CapturedElement[] {
+  const b = paintOrderBuckets(children, parentDisplay, parentFlexDirection, paintAsInline, paintAsZSorted, directChildren);
+  return [...b.negative, ...b.base, ...b.floats, ...b.inlines, ...b.zeroOrAuto, ...b.positive];
+}
+
+/**
+ * Bucket one stacking context's children by CSS 2.1 Appendix E paint step —
+ * the classification behind `sortChildrenByPaintOrder`, exposed separately so
+ * the renderer can emit the `base` bucket in two phases with the `floats`
+ * bucket between them.
+ */
+export function paintOrderBuckets(
   children: CapturedElement[],
   parentDisplay?: string,
   parentFlexDirection?: string,
@@ -512,7 +560,7 @@ export function sortChildrenByPaintOrder(
    * giving the original element-wise behavior.
    */
   directChildren?: Set<CapturedElement>,
-): CapturedElement[] {
+): PaintOrderBuckets {
   // DM-525: flex/grid items with z-index ≠ auto sort as if position:relative
   // even when position:static (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
   const isFlexGrid = isFlexOrGridContainerDisplay(parentDisplay);
@@ -613,5 +661,12 @@ export function sortChildrenByPaintOrder(
   }
   negative.sort((a, b) => a.z - b.z || a.idx - b.idx);
   positive.sort((a, b) => a.z - b.z || a.idx - b.idx);
-  return [...negative.map((x) => x.el), ...base, ...floats, ...inlines, ...zeroOrAuto, ...positive.map((x) => x.el)];
+  return {
+    negative: negative.map((x) => x.el),
+    base,
+    floats,
+    inlines,
+    zeroOrAuto,
+    positive: positive.map((x) => x.el),
+  };
 }

@@ -1225,6 +1225,49 @@ export const tests: FeatureTest[] = [
     width: 420,
     height: 360,
   },
+  {
+    // CSS 2.1 Appendix E paint order is CONTEXT-WIDE for floats: a stacking
+    // context paints every in-flow block descendant's background + border
+    // (step 3), THEN every non-positioned float (step 4), THEN all in-flow
+    // inline content — text, inline boxes, replaced content (step 5). Steps 4
+    // and 5 span the whole stacking context, so a float belonging to the first
+    // paragraph paints below the text of the third paragraph, and above the
+    // background of a later block sibling.
+    //
+    // Both rows below make the float's painted box overlap content it does
+    // NOT push out of the way — `margin-right: -140px` zeroes the float's
+    // outer width so line boxes are never shortened (the `shape-outside`
+    // spelling of the same trick produces the same overlap). Without a
+    // three-phase walk the renderer gets one row wrong whichever local
+    // approximation it picks:
+    //   Row 1 — the float's parent has no text of its own, so it is hoisted
+    //     into the stacking context's float bucket. It must still paint
+    //     BELOW the following paragraph's text.
+    //   Row 2 — the float's parent does have its own text, and a later
+    //     block sibling's background is pulled up over the float by a
+    //     negative margin. The float must paint ABOVE that background and
+    //     BELOW that block's text.
+    //   Row 3 — the float sits inside an `inline-block`, which CSS paints
+    //     atomically ("as if it created a new stacking context"). Its floats
+    //     stay with it: pulled out into the enclosing context's float step
+    //     they would paint under the wrapper's own background and vanish.
+    name: "float-paint-order-context-wide",
+    html: `<div style="font-family:-apple-system,sans-serif;font-size:14px;line-height:20px;color:#0d1117;background:#fff;padding:16px;">
+      <div style="width:380px;margin-bottom:24px;">
+        <div><span style="float:left;width:140px;height:72px;margin-right:-140px;background:#f85149;"></span></div>
+        <p style="margin:0;">Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.</p>
+      </div>
+      <div style="width:380px;">
+        <p style="margin:0;"><span style="float:left;width:140px;height:84px;margin-right:-140px;background:#f85149;"></span>Alpha beta gamma delta epsilon zeta eta theta iota kappa.</p>
+        <div style="background:#2ea043;color:#fff;margin-top:-24px;padding:2px 4px;">Later sibling background</div>
+      </div>
+      <div style="display:inline-block;width:380px;background:#dbeafe;padding:6px;margin-top:8px;">
+        <span style="float:left;width:60px;height:40px;background:#f85149;"></span>Inline-block wrapper keeps its float.
+      </div>
+    </div>`,
+    width: 420,
+    height: 320,
+  },
 ];
 
 // Only auto-run the suite when invoked directly (not when the fixtures are

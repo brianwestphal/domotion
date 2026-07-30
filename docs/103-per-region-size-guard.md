@@ -54,12 +54,27 @@ guard decide each region on its own.
 
 ## The decision procedure
 
-The trigger `compressedBytes / rawBytes > COMPRESS_SIZE_GUARD_RATIO` is free (the
-compressor already reports both sides) and only **arms** the guard — it never
-decides. The choice is made on **real bytes** among three pixel-identical
-candidates, and only for runs the *automatic* pass created (`wasAutoCollapsed`);
-a hand-authored `states:` block or `compress: true` marker is never silently
-rewritten (it gets a warning pointing at `compress: false`).
+The trigger `compressedBytes / rawBytes` is free (the compressor already reports
+both sides) and only **arms** the guard — it never decides. The choice is made on
+**real bytes** among three pixel-identical candidates, and only for runs the
+*automatic* pass created (`wasAutoCollapsed`); a hand-authored `states:` block or
+`compress: true` marker is never silently rewritten (it gets a warning pointing
+at `compress: false`).
+
+The arming ratio differs by who asked for the run:
+
+| Run | Constant | Ratio | Why |
+|---|---|---|---|
+| automatic (`wasAutoCollapsed`) | `COMPRESS_SIZE_GUARD_AUTO_RATIO` | `> 1` | Any failure to shrink the chrome is reason to price the alternatives. Since the decision is on measured bytes and ties keep the compressed form, arming can only find wins, never cost output — it costs a few speculative composes. |
+| author-written (`states:` / `compress: true`) | `COMPRESS_SIZE_GUARD_RATIO` | `> 1.02` | This path only warns, so the 2% cushion keeps a run that merely ties on bytes from drawing a warning. |
+
+The automatic path used the 2% cushion too until it was found to leave large
+wins on the table: a mixed-pane scene (a well-pairing code pane beside a
+wholesale-change slide pane) compressed to 1.008× — under the cushion, so nothing
+armed and it shipped 69.9 KB, where demoting the slide pane into the chrome union
+measured 57.3 KB. Whether a scene lands at 1.008× or 1.02× also moves with
+unrelated renderer changes (any few-hundred-byte shift in the uncompressed chrome
+re-scales the ratio), which made a 12 KB decision hinge on an arbitrary cushion.
 
 Each candidate is **sized in a speculative trial** bracketed by
 `snapshotGeneration()` / `restoreGeneration()` (doc 99 § speculative composition,

@@ -35,6 +35,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [ ] **layout-grid**: CSS Grid layout
 - [ ] **layout-absolute**: Absolute positioning
 - [x] **layout-padding**: Padding affecting content position
+- [x] **float-paint-order-context-wide** (doc 01 § Stacking): a stacking context paints in CSS 2.1 Appendix E phases — every in-flow block's background + border (step 3), then every non-positioned float (step 4), then all inline content (step 5). So a float paints above a later block sibling's background and below the text of every paragraph in the context, and an `inline-block` / flex item keeps its own floats (it paints atomically).
 
 ### Components
 - [x] **comp-button**: Button with background, border, padding, text

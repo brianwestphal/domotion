@@ -67,6 +67,8 @@
   <rect x="28.5" y="69.5" width="663" height="289" rx="11.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
   <g clip-path="url(#f0-ov2)">
     <polygon points="691,107 29,107 29,106 691,106" fill="rgb(48,54,61)" />
+  </g>
+  <g clip-path="url(#f0-ov2)">
       <g role="img" aria-label="(items) {"><title>(items) {</title><text x="162.44 170.53 178.63 186.73 194.83 202.94 211.03 227.23" y="141" font-family="dmf1" font-size="13.5" fill="rgb(230,237,243)"></text></g>
 <g role="img" aria-label=" = "><title> = </title><text x="130.03" y="164.94" font-family="dmf1" font-size="13.5" fill="rgb(230,237,243)"></text></g>
 <g role="img" aria-label=";"><title>;</title><text x="154.36" y="164.94" font-family="dmf1" font-size="13.5" fill="rgb(230,237,243)"></text></g>
@@ -89,19 +91,11 @@
         <g role="img" aria-label="0"><title>0</title><text x="170.55" y="188.88" font-family="dmf1" font-size="13.5" fill="rgb(121,192,255)"></text></g>
         <g role="img" aria-label="if"><title>if</title><text x="81.41 89.5" y="212.81" font-family="dmf1" font-size="13.5" fill="rgb(255,123,114)"></text></g>
         <g role="img" aria-label="return"><title>return</title><text x="65.2 73.3 81.39 89.5 97.59 105.7" y="308.56" font-family="dmf1" font-size="13.5" fill="rgb(255,123,114)"></text></g>
+    <rect x="45" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,95,86)" />
+    <rect x="64" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,189,46)" />
+    <rect x="83" y="82.5" width="11" height="11" rx="5.5" fill="rgb(39,201,63)" />
+    <g role="img" aria-label="totals.js"><title>totals.js</title><text x="110 117.41 124.83 132.25 139.67 147.08 154.5 161.92 169.34" y="92" font-family="dmf2" font-size="12" fill="rgb(139,148,158)"></text></g>
   </g>
-  </g>
-  <g clip-path="url(#f0-ov2)">
-  <rect x="45" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,95,86)" />
-  </g>
-  <g clip-path="url(#f0-ov2)">
-  <rect x="64" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,189,46)" />
-  </g>
-  <g clip-path="url(#f0-ov2)">
-  <rect x="83" y="82.5" width="11" height="11" rx="5.5" fill="rgb(39,201,63)" />
-  </g>
-  <g clip-path="url(#f0-ov2)">
-  <g role="img" aria-label="totals.js"><title>totals.js</title><text x="110 117.41 124.83 132.25 139.67 147.08 154.5 161.92 169.34" y="92" font-family="dmf2" font-size="12" fill="rgb(139,148,158)"></text></g>
   </g>
   </g></g>
   <g class="f f-1"><clipPath id="fc-1"><rect width="720" height="400" /></clipPath><g clip-path="url(#fc-1)" class="fp fp-1">
@@ -114,6 +108,8 @@
   <rect x="28.5" y="69.5" width="663" height="218" rx="11.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
   <g clip-path="url(#f1-ov2)">
     <polygon points="691,107 29,107 29,106 691,106" fill="rgb(48,54,61)" />
+  </g>
+  <g clip-path="url(#f1-ov2)">
       <g role="img" aria-label=" = (items) =&gt;"><title> = (items) =&gt;</title><text x="146.23 162.44 170.53 178.64 186.73 194.84 202.94 211.05 227.25 235.34" y="141" font-family="dmf1" font-size="13.5" fill="rgb(230,237,243)"></text></g>
 <g role="img" aria-label="  items"><title>  items</title><text x="65.19 73.3 81.39 89.5 97.59" y="164.94" font-family="dmf1" font-size="13.5" fill="rgb(230,237,243)"></text></g>
 <g role="img" aria-label="    ."><title>    .</title><text x="81.39" y="188.88" font-family="dmf1" font-size="13.5" fill="rgb(230,237,243)"></text></g>
@@ -127,19 +123,11 @@
         <g role="img" aria-label="reduce"><title>reduce</title><text x="89.52 97.61 105.7 113.81 121.91 130.02" y="212.81" font-family="dmf1" font-size="13.5" fill="rgb(210,168,255)"></text></g>
         <g role="img" aria-label="0"><title>0</title><text x="364.97" y="212.81" font-family="dmf1" font-size="13.5" fill="rgb(121,192,255)"></text></g>
         <g role="img" aria-label="// 8 lines → 4, and no mutable state."><title>// 8 lines → 4, and no mutable state.</title><text x="49 57.09 73.3 89.5 97.59 105.7 113.8 121.91" y="260.69" font-family="dmf1" font-size="13.5" fill="rgb(139,148,158)"></text><text x="138.11" y="260.69" font-family="dmf3" font-size="13.5" fill="rgb(139,148,158)"></text><text x="154.33 162.44 178.64 186.73 194.84 211.05 219.14 235.34 243.45 251.55 259.66 267.75 275.86 283.95 300.16 308.27 316.36 324.47 332.56 340.67" y="260.69" font-family="dmf1" font-size="13.5" fill="rgb(139,148,158)"></text></g>
+    <rect x="45" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,95,86)" />
+    <rect x="64" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,189,46)" />
+    <rect x="83" y="82.5" width="11" height="11" rx="5.5" fill="rgb(39,201,63)" />
+    <g role="img" aria-label="totals.js"><title>totals.js</title><text x="110 117.41 124.83 132.25 139.67 147.08 154.5 161.92 169.34" y="92" font-family="dmf2" font-size="12" fill="rgb(139,148,158)"></text></g>
   </g>
-  </g>
-  <g clip-path="url(#f1-ov2)">
-  <rect x="45" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,95,86)" />
-  </g>
-  <g clip-path="url(#f1-ov2)">
-  <rect x="64" y="82.5" width="11" height="11" rx="5.5" fill="rgb(255,189,46)" />
-  </g>
-  <g clip-path="url(#f1-ov2)">
-  <rect x="83" y="82.5" width="11" height="11" rx="5.5" fill="rgb(39,201,63)" />
-  </g>
-  <g clip-path="url(#f1-ov2)">
-  <g role="img" aria-label="totals.js"><title>totals.js</title><text x="110 117.41 124.83 132.25 139.67 147.08 154.5 161.92 169.34" y="92" font-family="dmf2" font-size="12" fill="rgb(139,148,158)"></text></g>
   </g>
   </g></g>
   </g>

@@ -59,16 +59,16 @@
   <g class="tf0_f tf0_f-0">
   <defs><clipPath id="tf0_f0-cp0"><rect x="24" y="244.5" width="348" height="142.5"/></clipPath><filter id="tf0_f0-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter><clipPath id="tf0_f0-ov2"><rect x="48" y="268.5" width="300" height="88.5" rx="10"  /></clipPath><clipPath id="tf0_f0-ct3"><rect x="76" y="282.5" width="182" height="34.5" /></clipPath><clipPath id="tf0_f0-ct4"><rect x="76" y="321" width="182" height="20" /></clipPath><clipPath id="tf0_f0-cp5"><rect x="286" y="290.8" width="44" height="44"/></clipPath></defs>
   <rect x="0" y="0" width="720" height="405" rx="0" fill="rgb(11,16,32)" />
-  <g clip-path="url(#tf0_f0-cp0)">
-  <g class="tf0_anim-f0a0">
-  <rect x="48" y="274.5" width="300" height="88.5" rx="10" fill="rgba(0,0,0,0.5)" filter="url(#tf0_f0-sh1)" />
-  <rect x="48" y="268.5" width="300" height="88.5" rx="10" fill="rgba(17,19,24,0.9)" />
-  <g clip-path="url(#tf0_f0-ov2)">
-    <rect x="48" y="268.5" width="6" height="88.5" rx="0" fill="rgb(249,115,22)" />
-      <g role="img" aria-label="Acme Cloud"><title>Acme Cloud</title><text x="76 98.44 114.08 144.25 168.42 189.58 199.61 218.38 238.38" y="309.5" font-family="tf0_dmf0" font-size="30" font-weight="700" fill="rgb(245,247,250)"></text></g>
-      <g role="img" aria-label="One brand, every frame"><title>One brand, every frame</title><text x="76 88.64 98.69 111 120.53 127.48 136.06 146.09 155.86 164.55 172.77 181.2 189.42 196.39 208.86 214.39 221.34 229.91 244.89" y="337" font-family="tf0_dmf1" font-size="17" font-weight="500" fill="rgb(174,182,194)"></text></g>
-    <g clip-path="url(#tf0_f0-cp5)">
-    <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="286" y="290.8" width="44" height="44" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+    <g clip-path="url(#tf0_f0-cp0)">
+    <g class="tf0_anim-f0a0">
+    <rect x="48" y="274.5" width="300" height="88.5" rx="10" fill="rgba(0,0,0,0.5)" filter="url(#tf0_f0-sh1)" />
+    <rect x="48" y="268.5" width="300" height="88.5" rx="10" fill="rgba(17,19,24,0.9)" />
+    <g clip-path="url(#tf0_f0-ov2)">
+      <rect x="48" y="268.5" width="6" height="88.5" rx="0" fill="rgb(249,115,22)" />
+        <g role="img" aria-label="Acme Cloud"><title>Acme Cloud</title><text x="76 98.44 114.08 144.25 168.42 189.58 199.61 218.38 238.38" y="309.5" font-family="tf0_dmf0" font-size="30" font-weight="700" fill="rgb(245,247,250)"></text></g>
+        <g role="img" aria-label="One brand, every frame"><title>One brand, every frame</title><text x="76 88.64 98.69 111 120.53 127.48 136.06 146.09 155.86 164.55 172.77 181.2 189.42 196.39 208.86 214.39 221.34 229.91 244.89" y="337" font-family="tf0_dmf1" font-size="17" font-weight="500" fill="rgb(174,182,194)"></text></g>
+      <g clip-path="url(#tf0_f0-cp5)">
+      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="286" y="290.8" width="44" height="44" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
     <title>logo</title>
     <defs>
         <linearGradient x1="50%" y1="0%" x2="50%" y2="100%" id="tf0_f0-svgimg6linearGradient-1">
@@ -138,10 +138,10 @@
         </g>
     </g>
 </svg>
+      </g>
     </g>
-  </g>
-  </g>
-  </g>
+    </g>
+    </g>
   </g>
   </g>
 </svg>

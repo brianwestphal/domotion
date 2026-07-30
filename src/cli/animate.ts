@@ -2253,7 +2253,7 @@ async function buildStatesRunContent(
   const ratio = rawBytes > 0 ? compressedBytes / rawBytes : 1;
   let svg = run.svg;
   let periodMs = run.durationMs;
-  if (ratio > COMPRESS_SIZE_GUARD_RATIO) {
+  if (ratio > (guarded ? COMPRESS_SIZE_GUARD_AUTO_RATIO : COMPRESS_SIZE_GUARD_RATIO)) {
     const pct = `${((ratio - 1) * 100).toFixed(0)}%`;
     if (guarded) {
       // Decide on REAL BYTES among three pixel-identical candidates, each sized
@@ -2334,15 +2334,30 @@ async function buildStatesRunContent(
 }
 
 /**
- * DM-1764: the size-regression guard's TRIGGER — `compressedBytes / rawBytes`
- * above this builds the uncompressed alternative and picks on real bytes.
- * Measured shapes fall either side by a wide margin (a per-char typing run
- * lands at 0.61x, a row-append run at 0.50x, a wholesale-change slideshow at
- * 2.36x), so the exact threshold is not load-bearing; the 2% cushion just means
- * a run that ties on bytes skips the extra work and keeps the compressed form,
- * which still wins on live-DOM node count.
+ * DM-1764: the size-regression guard's TRIGGER for an AUTHOR-written run —
+ * `compressedBytes / rawBytes` above this warns that compressing grew the
+ * payload (an author's run is never silently rewritten). Measured shapes fall
+ * either side by a wide margin (a per-char typing run lands at 0.61x, a
+ * row-append run at 0.50x, a wholesale-change slideshow at 2.36x), so the exact
+ * threshold is not load-bearing; the 2% cushion keeps a run that merely ties on
+ * bytes from drawing a warning.
  */
 const COMPRESS_SIZE_GUARD_RATIO = 1.02;
+
+/**
+ * The same trigger for an AUTOMATICALLY collapsed run, where the guard doesn't
+ * warn but picks among candidates on real bytes. Any ratio above 1 means
+ * compressing failed to shrink the chrome at all, which is reason enough to
+ * price the alternatives: the decision itself is made on measured bytes with
+ * ties keeping the compressed form, so arming more often can only FIND wins,
+ * never cost output — it costs a few speculative composes.
+ *
+ * The 2% cushion used to apply here too, and it silently left large wins on the
+ * table: a mixed-pane scene that compressed to 1.008x armed nothing and shipped
+ * 69.9 KB, where demoting the wholesale pane into the chrome union was 57.3 KB.
+ * A run whose chrome is a byte smaller compressed still short-circuits.
+ */
+const COMPRESS_SIZE_GUARD_AUTO_RATIO = 1;
 
 /**
  * DM-1764: the uncompressed counterpart to `composeCompressedRun` — the same N

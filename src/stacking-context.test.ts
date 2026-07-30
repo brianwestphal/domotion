@@ -1088,21 +1088,23 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
   });
 });
 
-describe("float paint order — a text-bearing block paints its own floats beneath its text", () => {
+describe("float paint order — floats paint above every block box and below every piece of inline content", () => {
   /**
-   * CSS 2.1 Appendix E orders a stacking context's non-positioned floats at
-   * step 4 and its in-flow inline-level content at step 5, so a float paints
-   * BENEATH the text of the stacking context it belongs to. That matters
-   * whenever `shape-outside` shrinks a float's exclusion area below its border
-   * box: the wrapped text then legitimately overlaps the painted float and has
-   * to win z.
+   * CSS 2.1 Appendix E paints a stacking context in phases: every in-flow
+   * block-level descendant's background + border (step 3), then every
+   * non-positioned float (step 4), then all in-flow inline content (step 5).
+   * Steps 3-5 are CONTEXT-WIDE, so a float paints above the background of any
+   * block-level sibling — including one that follows it in document order —
+   * and below the text of every paragraph in the context, not just its own.
    *
-   * The renderer emits a text-bearing block's floats ahead of that block's own
-   * text for exactly this reason. The stacking-context float hoist (which lifts
-   * floats to the enclosing context's float bucket so they paint over earlier
-   * block backgrounds) used to fire on the SAME float, emitting it a second
-   * time AFTER the whole text-bearing block — so the hoisted copy covered the
-   * first glyph of every wrapped line. Both call sites now share one predicate.
+   * Being below the text matters whenever `shape-outside` (or a negative
+   * margin) shrinks a float's exclusion area below its border box: the
+   * overlapping text is then painted over the float, whichever block it
+   * belongs to.
+   *
+   * The renderer implements this by walking each stacking context's in-flow
+   * block descendants twice — once emitting only box decorations, once only
+   * inline content — with the context's floats emitted between the passes.
    */
   function floatInParagraphTree(parentText: string) {
     // The root is `position: static` so the floats resolve against the
@@ -1140,6 +1142,150 @@ describe("float paint order — a text-bearing block paints its own floats benea
     expect(floatIdx).toBeLessThan(textIdx);
   });
 
+  /**
+   * The context-wide half of step 4: three paragraphs, the float in the FIRST
+   * one, tall enough to reach the third. Every paragraph's text has to paint
+   * over it, not just the float's own parent's — the case a per-parent
+   * approximation gets wrong, whichever way it leans.
+   */
+  function floatUnderLaterParagraphsTree() {
+    return [makeElement({
+      x: 0, y: 0, width: 400, height: 300,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          tag: "p", text: "first paragraph",
+          x: 0, y: 0, width: 400, height: 20,
+          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+          children: [
+            makeElement({
+              tag: "span",
+              x: 0, y: 0, width: 140, height: 200,
+              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+            }),
+          ],
+        }),
+        makeElement({
+          tag: "p", text: "second paragraph",
+          x: 0, y: 20, width: 400, height: 20,
+          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+        }),
+        makeElement({
+          tag: "p", text: "third paragraph",
+          x: 0, y: 40, width: 400, height: 20,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
+        }),
+      ],
+    })];
+  }
+
+  it("paints the float below the text of EVERY paragraph in the context, not just its own parent's", () => {
+    const svg = elementTreeToSvgInner(floatUnderLaterParagraphsTree(), 400, 300);
+    const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
+    expect(floatIdx).toBeGreaterThanOrEqual(0);
+    for (const text of ["first paragraph", "second paragraph", "third paragraph"]) {
+      expect(svg.indexOf(text), text).toBeGreaterThan(floatIdx);
+    }
+  });
+
+  it("paints the float above a later paragraph's background while staying below that paragraph's text", () => {
+    const svg = elementTreeToSvgInner(floatUnderLaterParagraphsTree(), 400, 300);
+    const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
+    // The third paragraph's background is a block box (step 3) → below the
+    // float; its text is inline content (step 5) → above it.
+    expect(svg.indexOf('fill="rgb(221,221,221)"')).toBeLessThan(floatIdx);
+    expect(svg.indexOf("third paragraph")).toBeGreaterThan(floatIdx);
+  });
+
+  it("keeps a float inside an atomic positioned ancestor rather than hoisting it to the outer context", () => {
+    // A `position: relative; z-index: auto` element paints atomically at step
+    // 6, so the floats in its subtree belong to ITS internal paint order — not
+    // the parent context's step 4. Hoisting past it would paint the float
+    // beneath the ancestor's own content.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 300,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          tag: "p", text: "later block text",
+          x: 0, y: 0, width: 400, height: 40,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
+        }),
+        makeElement({
+          x: 0, y: 0, width: 400, height: 200,
+          styles: { ...makeElement().styles, position: "relative", zIndex: "auto", backgroundColor: "rgb(30,41,59)" },
+          children: [
+            makeElement({
+              x: 0, y: 0, width: 140, height: 200,
+              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 300);
+    const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
+    expect(svg.split('fill="rgb(147,197,253)"').length - 1).toBe(1);
+    // Inside the atomic group: after the group's own background, and after the
+    // step-5 text of the outer context's earlier block (which the whole atomic
+    // group paints above).
+    expect(floatIdx).toBeGreaterThan(svg.indexOf('fill="rgb(30,41,59)"'));
+    expect(floatIdx).toBeGreaterThan(svg.indexOf("later block text"));
+  });
+
+  it("keeps a float inside an inline-block wrapper, above that wrapper's own background", () => {
+    // An inline-block paints atomically at step 5 ("as if it created a new
+    // stacking context"), so the floats inside it belong to ITS float step.
+    // Hoisting them to the enclosing context's step 4 puts them BEFORE the
+    // wrapper's own background, which then erases them — the failure mode a
+    // `display: inline-block` BFC wrapper around a float swatch shows.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 400, height: 120,
+          styles: { ...makeElement().styles, display: "inline-block", backgroundColor: "rgb(224,231,255)" },
+          children: [
+            makeElement({
+              x: 0, y: 0, width: 80, height: 80,
+              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 200);
+    const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
+    expect(floatIdx).toBeGreaterThanOrEqual(0);
+    expect(floatIdx).toBeGreaterThan(svg.indexOf('fill="rgb(224,231,255)"'));
+  });
+
+  it("keeps a float inside a flex item, above that item's own background", () => {
+    // CSS Flexbox 1 §5.4: "flex items paint exactly the same as inline blocks"
+    // — so a flex item owns its floats for the same reason an inline-block does.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)", display: "flex" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 400, height: 120,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(224,231,255)" },
+          children: [
+            makeElement({
+              x: 0, y: 0, width: 80, height: 80,
+              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 200);
+    const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
+    expect(floatIdx).toBeGreaterThanOrEqual(0);
+    expect(floatIdx).toBeGreaterThan(svg.indexOf('fill="rgb(224,231,255)"'));
+  });
+
   it("still hoists the float over a later block sibling's background when the parent has no own text", () => {
     // The hoist exists so a float that overflows its (often zero-height,
     // because floats are out of flow) parent paints on top of block content
@@ -1170,5 +1316,163 @@ describe("float paint order — a text-bearing block paints its own floats benea
     const floatFill = 'fill="rgb(147,197,253)"';
     expect(svg.split(floatFill).length - 1).toBe(1);
     expect(svg.indexOf(floatFill)).toBeGreaterThan(svg.indexOf('fill="rgb(221,221,221)"'));
+  });
+});
+
+describe("block / inline paint phases", () => {
+  /**
+   * The block and inline phases are two separate passes over the same in-flow
+   * subtree, so every element in it is visited TWICE. These pin the invariants
+   * that split visit has to preserve: nothing that allocates an id or mutates
+   * shared state may run in both passes, and content resolved in one pass has
+   * to survive into the other.
+   */
+
+  it("paints a later block's background below an earlier block's text", () => {
+    // Step 3 (all block backgrounds) precedes step 5 (all inline content), so
+    // a negative-margin section pulled up over the previous paragraph cannot
+    // cover its text — the same seam the float phase sits in.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          tag: "p", text: "earlier paragraph text",
+          x: 0, y: 0, width: 400, height: 40,
+          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+        }),
+        makeElement({
+          x: 0, y: 20, width: 400, height: 60,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(190,18,60)" },
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 200);
+    expect(svg.indexOf('fill="rgb(190,18,60)"')).toBeLessThan(svg.indexOf("earlier paragraph text"));
+  });
+
+  it("paints an inline-level child atomically, above an earlier sibling's text", () => {
+    // An inline box's background, border and content paint together while
+    // walking line boxes (step 5) — it is NOT split across the phases, so its
+    // background stays above the inline content that precedes it.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          tag: "p", text: "earlier paragraph text",
+          x: 0, y: 0, width: 400, height: 40,
+          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+        }),
+        makeElement({
+          tag: "span", text: "inline chip",
+          x: 0, y: 20, width: 120, height: 20,
+          styles: { ...makeElement().styles, display: "inline-block", backgroundColor: "rgb(190,18,60)" },
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 200);
+    expect(svg.indexOf('fill="rgb(190,18,60)"')).toBeGreaterThan(svg.indexOf("earlier paragraph text"));
+  });
+
+  it("mints one clipPath for a split element's overflow clip, and clips both phases with it", () => {
+    // The scroller is a plain in-flow block, so it is visited in both phases;
+    // each pass wraps its own half of the child paint in the SAME clip.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          text: "scroller text",
+          x: 0, y: 0, width: 200, height: 100,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)", overflowX: "hidden", overflowY: "hidden" },
+          children: [
+            makeElement({
+              text: "child text",
+              x: 0, y: 0, width: 200, height: 400,
+              styles: { ...makeElement().styles, backgroundColor: "rgb(30,41,59)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 200);
+    const ovIds = [...svg.matchAll(/<clipPath id="(ov\d+)"/g)].map((m) => m[1]);
+    expect(ovIds).toHaveLength(1);
+    // Both the child's box (block phase) and its text (inline phase) are
+    // wrapped in a group referencing that one id.
+    const refs = svg.split(`<g clip-path="url(#${ovIds[0]})">`).length - 1;
+    expect(refs).toBe(2);
+    expect(svg.indexOf('fill="rgb(30,41,59)"')).toBeLessThan(svg.indexOf("child text"));
+  });
+
+  it("carries a split element's background-clip:text fill from the block phase into its text", () => {
+    // The gradient paint server is built with the background layers (block
+    // phase) but consumed as the glyph fill (inline phase). Losing it across
+    // the phase boundary would paint the headline in its plain text color.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 200,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          tag: "h1", text: "gradient headline",
+          x: 0, y: 0, width: 400, height: 40,
+          styles: {
+            ...makeElement().styles,
+            backgroundColor: "rgba(0, 0, 0, 0)",
+            backgroundImage: "linear-gradient(90deg, rgb(2,132,199) 0%, rgb(190,18,60) 100%)",
+            backgroundClip: "text",
+            webkitTextFillColor: "rgba(0, 0, 0, 0)",
+            fontSize: "32px",
+          },
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 200);
+    const gradIds = [...svg.matchAll(/<linearGradient id="(bg\d+)"/g)].map((m) => m[1]);
+    expect(gradIds).toHaveLength(1);
+    // The gradient reaches the glyphs as a rect masked by the text shapes —
+    // emitted by the text pass, from the fill the background pass stashed.
+    expect(svg).toMatch(new RegExp(`<rect[^>]*fill="url\\(#${gradIds[0]}\\)" mask="url\\(#[^"]+\\)"`));
+  });
+
+  it("does not double-emit an element whose subtree is walked in both phases", () => {
+    // Every fill in this tree must appear exactly once: the phase split
+    // multiplies the number of VISITS, not the number of emissions.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 300,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+      children: [
+        makeElement({
+          text: "section",
+          x: 0, y: 0, width: 400, height: 120,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)" },
+          children: [
+            makeElement({
+              text: "nested",
+              x: 10, y: 10, width: 200, height: 60,
+              styles: { ...makeElement().styles, backgroundColor: "rgb(30,41,59)" },
+              children: [
+                makeElement({
+                  x: 20, y: 20, width: 40, height: 40,
+                  styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+                }),
+                makeElement({
+                  x: 80, y: 20, width: 40, height: 40,
+                  styles: { ...makeElement().styles, position: "absolute", zIndex: "3", backgroundColor: "rgb(234,179,8)" },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 400, 300);
+    for (const fill of ["rgb(255,255,255)", "rgb(241,245,249)", "rgb(30,41,59)", "rgb(147,197,253)", "rgb(234,179,8)"]) {
+      expect(svg.split(`fill="${fill}"`).length - 1, fill).toBe(1);
+    }
+    for (const text of ["section", "nested"]) {
+      expect(svg.split(`>${text}<`).length - 1, text).toBeLessThanOrEqual(1);
+    }
   });
 });

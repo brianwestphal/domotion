@@ -44,13 +44,13 @@
   <rect x="77" y="96" width="566" height="62" rx="17" fill="rgba(121,184,255,0.2)" />
   <rect x="80" y="99" width="560" height="56" rx="14" fill="rgb(22,27,34)" />
   <rect x="80.5" y="99.5" width="559" height="55" rx="13.5" fill="none" stroke="rgb(121,184,255)" stroke-width="1" />
-  <g clip-path="url(#f0-cp2)">
-  <g transform="translate(99, 117)" color="rgb(139, 148, 158)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="rgb(139, 148, 158)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" font-family="-apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif" width="20" height="20">
+    <g clip-path="url(#f0-cp2)">
+    <g transform="translate(99, 117)" color="rgb(139, 148, 158)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="rgb(139, 148, 158)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" font-family="-apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif" width="20" height="20">
         <circle cx="11" cy="11" r="7" fill="none" stroke="rgb(139, 148, 158)" stroke-width="2px" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="1" fill-opacity="1" opacity="1" x="0" y="0"></circle><line x1="21" y1="21" x2="16.65" y2="16.65" fill="none" stroke="rgb(139, 148, 158)" stroke-width="2px" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="1" fill-opacity="1" opacity="1" cx="0" cy="0" r="0" x="0" y="0"></line>
       </svg></g>
-  </g>
-  <rect x="590.5" y="117.5" width="30" height="19" rx="5.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
-  <g role="img" aria-label="⌘K"><title>⌘K</title><text x="598.16 605.56" y="131" font-family="dmf1" font-size="12" fill="rgb(110,118,129)"></text></g>
+    </g>
+    <rect x="590.5" y="117.5" width="30" height="19" rx="5.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+    <g role="img" aria-label="⌘K"><title>⌘K</title><text x="598.16 605.56" y="131" font-family="dmf1" font-size="12" fill="rgb(110,118,129)"></text></g>
   <g role="img" aria-label="Search the guides, API reference, and CSS support tables…"><title>Search the guides, API reference, and CSS support tables…</title><text x="180.42 188.63 195.97 203.06 207.75 214.95 226.11 230.75 238.33 249.25 257.09 264.61 267.75 275.66 283 289.73 297.09 305.78 313.97 320.94 325.63 332.98 337.33 344.67 349.36 356.7 364.22 371.42 378.77 386.13 393.22 400.73 412.22 421.45 429.66 441.45 448.17 455.69 463.55 471.41 479.02 484.02 492.23 496.89 503.98 511.89 515.09 522.45 529.19" y="184" font-family="dmf0" font-size="13" fill="rgb(110,118,129)"></text></g>
   </g>
   <defs><clipPath id="t0-clip0"><rect class="t0-rev0" x="133" y="116" width="0.01px" height="20" /></clipPath></defs>

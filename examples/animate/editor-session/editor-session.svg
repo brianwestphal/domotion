@@ -204,9 +204,19 @@
     <g clip-path="url(#cr0_cr0c-ov2)">
       <rect x="16" y="16" width="608" height="28" rx="0" fill="rgb(15,23,42)" />
       <g role="img" aria-label="my-app — editor"><title>my-app — editor</title><text x="78 88.2 94.59 100.27 106.88 114.2 124.91 138.77 145.63 153 155.95 160.23 167.31" y="34.5" font-family="dmf0" font-size="12" fill="rgb(148,163,184)"></text></g>
+          <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
+          <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
+          <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
       <rect x="16" y="44" width="608" height="26" rx="0" fill="rgb(15,23,42)" />
+        <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
       <g clip-path="url(#cr0_cr0c-cp4)">
       <g clip-path="url(#cr0_cr0c-ov5)">
+      </g>
+      <g clip-path="url(#cr0_cr0c-ov5)">
+        <g class="cr0_anim-cr0c0">
+        </g>
+        <g class="cr0_anim-cr0c1">
+        </g>
         <g class="cr0_anim-cr0c2">
         </g>
         <g class="cr0_anim-cr0c5">
@@ -235,20 +245,6 @@
           <g class="cr0_anim-cr0c14">
           </g>
         </g>
-      </g>
-      </g>
-      <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
-      <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
-      <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
-      <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
-      <g clip-path="url(#cr0_cr0c-ov5)">
-      </g>
-      <g clip-path="url(#cr0_cr0c-ov5)">
-      <g class="cr0_anim-cr0c0">
-      </g>
-      </g>
-      <g clip-path="url(#cr0_cr0c-ov5)">
-      <g class="cr0_anim-cr0c1">
       </g>
       </g>
     </g>
@@ -401,87 +397,39 @@
     <g clip-path="url(#cr1_cr1c-ov2)">
       <rect x="16" y="16" width="608" height="28" rx="0" fill="rgb(15,23,42)" />
       <g role="img" aria-label="my-app — editor"><title>my-app — editor</title><text x="78 88.2 94.59 100.27 106.88 114.2 124.91 138.77 145.63 153 155.95 160.23 167.31" y="34.5" font-family="dmf0" font-size="12" fill="rgb(148,163,184)"></text></g>
+          <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
+          <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
+          <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
       <rect x="16" y="44" width="608" height="26" rx="0" fill="rgb(15,23,42)" />
+        <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
       <g clip-path="url(#cr1_cr1c-cp4)">
       <g clip-path="url(#cr1_cr1c-ov5)">
       </g>
-      </g>
-      <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
-      <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
-      <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
-      <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
       <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c0">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c1">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c2">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c3">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c4">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c5">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c6">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c7">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c8">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c9">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c10">
-      </g>
-      </g>
-      <g clip-path="url(#cr1_cr1c-ov5)">
-      <g class="cr1_anim-cr1c11">
+        <g class="cr1_anim-cr1c0">
+        </g>
+        <g class="cr1_anim-cr1c1">
+        </g>
+        <g class="cr1_anim-cr1c2">
+        </g>
+        <g class="cr1_anim-cr1c3">
+        </g>
+        <g class="cr1_anim-cr1c4">
+        </g>
+        <g class="cr1_anim-cr1c5">
+        </g>
+        <g class="cr1_anim-cr1c6">
+        </g>
+        <g class="cr1_anim-cr1c7">
+        </g>
+        <g class="cr1_anim-cr1c8">
+        </g>
+        <g class="cr1_anim-cr1c9">
+        </g>
+        <g class="cr1_anim-cr1c10">
+        </g>
+        <g class="cr1_anim-cr1c11">
+        </g>
       </g>
       </g>
     </g>
@@ -611,7 +559,7 @@
   </g></svg>
   </g>
   <g class="f f-2">
-  <defs><clipPath id="f2-cp0"><rect x="-14" y="-14" width="668" height="398"/></clipPath><filter id="f2-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter><clipPath id="f2-ov2"><rect x="16" y="16" width="608" height="328" rx="10"  /></clipPath><clipPath id="f2-ct3"><rect x="16" y="16" width="608" height="28" /></clipPath><clipPath id="f2-cp4"><rect x="16" y="70" width="608" height="274"/></clipPath><clipPath id="f2-ov5"><rect x="16" y="70" width="608" height="274" rx="0"  /></clipPath><clipPath id="f2-ct6"><rect x="26" y="46" width="76.5" height="24" /></clipPath><clipPath id="f2-ct7"><rect x="16" y="80" width="36" height="19" /></clipPath><clipPath id="f2-ct8"><rect x="52" y="80" width="572" height="19" /></clipPath><clipPath id="f2-ct9"><rect x="52" y="82" width="45.2" height="15" /></clipPath><clipPath id="f2-ct10"><rect x="104.7" y="82" width="7.5" height="15" /></clipPath><clipPath id="f2-ct11"><rect x="300.4" y="82" width="7.5" height="15" /></clipPath><clipPath id="f2-ct12"><rect x="315.4" y="82" width="30.1" height="15" /></clipPath><clipPath id="f2-ct13"><rect x="353.1" y="82" width="60.2" height="15" /></clipPath><clipPath id="f2-ct14"><rect x="16" y="99" width="36" height="19" /></clipPath><clipPath id="f2-ct15"><rect x="16" y="118" width="36" height="19" /></clipPath><clipPath id="f2-ct16"><rect x="52" y="118" width="572" height="19" /></clipPath><clipPath id="f2-ct17"><rect x="52" y="120" width="37.6" height="15" /></clipPath><clipPath id="f2-ct18"><rect x="210.1" y="120" width="7.5" height="15" /></clipPath><clipPath id="f2-ct19"><rect x="16" y="137" width="36" height="19" /></clipPath><clipPath id="f2-ct20"><rect x="16" y="156" width="36" height="19" /></clipPath><clipPath id="f2-ct21"><rect x="52" y="156" width="572" height="19" /></clipPath><clipPath id="f2-ct22"><rect x="164.9" y="158" width="15.1" height="15" /></clipPath><clipPath id="f2-ct23"><rect x="16" y="175" width="36" height="19" /></clipPath><clipPath id="f2-ct24"><rect x="52" y="175" width="572" height="19" /></clipPath><clipPath id="f2-ct25"><rect x="74.6" y="177" width="45.2" height="15" /></clipPath><clipPath id="f2-ct26"><rect x="127.3" y="177" width="37.6" height="15" /></clipPath><clipPath id="f2-ct27"><rect x="172.4" y="177" width="37.6" height="15" /></clipPath><clipPath id="f2-ct28"><rect x="277.8" y="177" width="52.7" height="15" /></clipPath><clipPath id="f2-ct29"><rect x="390.7" y="177" width="45.2" height="15" /></clipPath><clipPath id="f2-ct30"><rect x="16" y="194" width="36" height="19" /></clipPath><clipPath id="f2-ct31"><rect x="52" y="194" width="572" height="19" /></clipPath></defs>
+  <defs><clipPath id="f2-cp0"><rect x="-14" y="-14" width="668" height="398"/></clipPath><filter id="f2-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter><clipPath id="f2-ov2"><rect x="16" y="16" width="608" height="328" rx="10"  /></clipPath><clipPath id="f2-ct3"><rect x="16" y="16" width="608" height="28" /></clipPath><clipPath id="f2-ct4"><rect x="26" y="46" width="76.5" height="24" /></clipPath><clipPath id="f2-cp5"><rect x="16" y="70" width="608" height="274"/></clipPath><clipPath id="f2-ov6"><rect x="16" y="70" width="608" height="274" rx="0"  /></clipPath><clipPath id="f2-ct7"><rect x="16" y="80" width="36" height="19" /></clipPath><clipPath id="f2-ct8"><rect x="52" y="80" width="572" height="19" /></clipPath><clipPath id="f2-ct9"><rect x="52" y="82" width="45.2" height="15" /></clipPath><clipPath id="f2-ct10"><rect x="104.7" y="82" width="7.5" height="15" /></clipPath><clipPath id="f2-ct11"><rect x="300.4" y="82" width="7.5" height="15" /></clipPath><clipPath id="f2-ct12"><rect x="315.4" y="82" width="30.1" height="15" /></clipPath><clipPath id="f2-ct13"><rect x="353.1" y="82" width="60.2" height="15" /></clipPath><clipPath id="f2-ct14"><rect x="16" y="99" width="36" height="19" /></clipPath><clipPath id="f2-ct15"><rect x="16" y="118" width="36" height="19" /></clipPath><clipPath id="f2-ct16"><rect x="52" y="118" width="572" height="19" /></clipPath><clipPath id="f2-ct17"><rect x="52" y="120" width="37.6" height="15" /></clipPath><clipPath id="f2-ct18"><rect x="210.1" y="120" width="7.5" height="15" /></clipPath><clipPath id="f2-ct19"><rect x="16" y="137" width="36" height="19" /></clipPath><clipPath id="f2-ct20"><rect x="16" y="156" width="36" height="19" /></clipPath><clipPath id="f2-ct21"><rect x="52" y="156" width="572" height="19" /></clipPath><clipPath id="f2-ct22"><rect x="164.9" y="158" width="15.1" height="15" /></clipPath><clipPath id="f2-ct23"><rect x="16" y="175" width="36" height="19" /></clipPath><clipPath id="f2-ct24"><rect x="52" y="175" width="572" height="19" /></clipPath><clipPath id="f2-ct25"><rect x="74.6" y="177" width="45.2" height="15" /></clipPath><clipPath id="f2-ct26"><rect x="127.3" y="177" width="37.6" height="15" /></clipPath><clipPath id="f2-ct27"><rect x="172.4" y="177" width="37.6" height="15" /></clipPath><clipPath id="f2-ct28"><rect x="277.8" y="177" width="52.7" height="15" /></clipPath><clipPath id="f2-ct29"><rect x="390.7" y="177" width="45.2" height="15" /></clipPath><clipPath id="f2-ct30"><rect x="16" y="194" width="36" height="19" /></clipPath><clipPath id="f2-ct31"><rect x="52" y="194" width="572" height="19" /></clipPath></defs>
   <rect x="0" y="0" width="640" height="360" rx="0" fill="rgb(232,234,238)" />
     <g clip-path="url(#f2-cp0)">
     <rect x="16" y="26" width="608" height="328" rx="10" fill="rgba(15,23,42,0.3)" filter="url(#f2-sh1)" />
@@ -619,75 +567,49 @@
     <g clip-path="url(#f2-ov2)">
       <rect x="16" y="16" width="608" height="28" rx="0" fill="rgb(15,23,42)" />
       <g role="img" aria-label="my-app — editor"><title>my-app — editor</title><text x="78 88.2 94.59 100.27 106.88 114.2 124.91 138.77 145.63 153 155.95 160.23 167.31" y="34.5" font-family="dmf0" font-size="12" fill="rgb(148,163,184)"></text></g>
+          <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
+          <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
+          <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
       <rect x="16" y="44" width="608" height="26" rx="0" fill="rgb(15,23,42)" />
-      <g clip-path="url(#f2-cp4)">
-      <g clip-path="url(#f2-ov5)">
+        <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
+        <g role="img" aria-label="app.tsx"><title>app.tsx</title><text x="40 46.92 53.84 60.77 67.69 74.61 81.53" y="62" font-family="dmf1" font-size="11.5" fill="rgb(226,232,240)"></text></g>
+      <g clip-path="url(#f2-cp5)">
+      <g clip-path="url(#f2-ov6)">
       </g>
-      </g>
-      <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
-      <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
-      <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
-      <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
-      <g role="img" aria-label="app.tsx"><title>app.tsx</title><text x="40 46.92 53.84 60.77 67.69 74.61 81.53" y="62" font-family="dmf1" font-size="11.5" fill="rgb(226,232,240)"></text></g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="1"><title>1</title><text x="32.47" y="94" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label=" signal, computed, mount "><title> signal, computed, mount </title><text x="119.73 127.27 134.78 142.31 149.84 157.36 164.89 179.94 187.47 195 202.52 210.05 217.56 225.09 232.63 240.14 255.2 262.72 270.25 277.78 285.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+      <g clip-path="url(#f2-ov6)">
+        <g role="img" aria-label="1"><title>1</title><text x="32.47" y="94" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" signal, computed, mount "><title> signal, computed, mount </title><text x="119.73 127.27 134.78 142.31 149.84 157.36 164.89 179.94 187.47 195 202.52 210.05 217.56 225.09 232.63 240.14 255.2 262.72 270.25 277.78 285.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=";"><title>;</title><text x="413.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="import"><title>import</title><text x="52 59.52 67.05 74.56 82.09 89.63" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="{"><title>{</title><text x="104.69" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="}"><title>}</title><text x="300.38" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="from"><title>from</title><text x="315.44 322.95 330.48 338" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="'kerfjs'"><title>'kerfjs'</title><text x="353.08 360.59 368.13 375.64 383.17 390.7 398.22 405.75" y="94" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="2"><title>2</title><text x="32.47" y="113" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="3"><title>3</title><text x="32.47" y="132" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label=" count = signal("><title> count = signal(</title><text x="97.16 104.69 112.2 119.73 127.27 142.31 157.36 164.89 172.42 179.94 187.47 194.98 202.52" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="import"><title>import</title><text x="52 59.52 67.05 74.56 82.09 89.63" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="{"><title>{</title><text x="104.69" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="}"><title>}</title><text x="300.38" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="from"><title>from</title><text x="315.44 322.95 330.48 338" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="'kerfjs'"><title>'kerfjs'</title><text x="353.08 360.59 368.13 375.64 383.17 390.7 398.22 405.75" y="94" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+        <g role="img" aria-label="2"><title>2</title><text x="32.47" y="113" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="3"><title>3</title><text x="32.47" y="132" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" count = signal("><title> count = signal(</title><text x="97.16 104.69 112.2 119.73 127.27 142.31 157.36 164.89 172.42 179.94 187.47 194.98 202.52" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=");"><title>);</title><text x="217.59 225.11" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="132" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="0"><title>0</title><text x="210.06" y="132" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="4"><title>4</title><text x="32.47" y="151" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="5"><title>5</title><text x="32.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="mount(root, () "><title>mount(root, () </title><text x="52 59.52 67.05 74.56 82.09 89.63 97.14 104.67 112.2 119.72 127.25 142.3 149.83" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="132" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="0"><title>0</title><text x="210.06" y="132" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+        <g role="img" aria-label="4"><title>4</title><text x="32.47" y="151" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="5"><title>5</title><text x="32.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="mount(root, () "><title>mount(root, () </title><text x="52 59.52 67.05 74.56 82.09 89.63 97.14 104.67 112.2 119.72 127.25 142.3 149.83" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" ("><title> (</title><text x="187.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="164.89 172.41" y="170" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="6"><title>6</title><text x="32.47" y="189" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="  &lt;"><title>  &lt;</title><text x="67.05" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="164.89 172.41" y="170" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+        <g role="img" aria-label="6"><title>6</title><text x="32.47" y="189" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="  &lt;"><title>  &lt;</title><text x="67.05" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="="><title>=</title><text x="164.91" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="&gt;Clicked "><title>&gt;Clicked </title><text x="210.08 217.59 225.13 232.64 240.17 247.7 255.22 262.75" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" times&lt;/"><title> times&lt;/</title><text x="338.02 345.55 353.06 360.59 368.13 375.64 383.17" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="&gt;"><title>&gt;</title><text x="435.88" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="button"><title>button</title><text x="74.58 82.09 89.63 97.14 104.67 112.2" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
-        <g role="img" aria-label="class"><title>class</title><text x="127.27 134.78 142.31 149.83 157.36" y="189" font-family="dmf1" font-size="12.5" fill="rgb(125,211,252)"></text></g>
-        <g role="img" aria-label="&quot;btn&quot;"><title>&quot;btn&quot;</title><text x="172.44 179.95 187.48 195 202.53" y="189" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-        <g role="img" aria-label="{count}"><title>{count}</title><text x="277.81 285.33 292.86 300.38 307.91 315.44 322.95" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="button"><title>button</title><text x="390.72 398.23 405.77 413.28 420.81 428.34" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+          <g role="img" aria-label="button"><title>button</title><text x="74.58 82.09 89.63 97.14 104.67 112.2" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+          <g role="img" aria-label="class"><title>class</title><text x="127.27 134.78 142.31 149.83 157.36" y="189" font-family="dmf1" font-size="12.5" fill="rgb(125,211,252)"></text></g>
+          <g role="img" aria-label="&quot;btn&quot;"><title>&quot;btn&quot;</title><text x="172.44 179.95 187.48 195 202.53" y="189" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+          <g role="img" aria-label="{count}"><title>{count}</title><text x="277.81 285.33 292.86 300.38 307.91 315.44 322.95" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="button"><title>button</title><text x="390.72 398.23 405.77 413.28 420.81 428.34" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+        <g role="img" aria-label="7"><title>7</title><text x="32.47" y="208" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="));"><title>));</title><text x="52 59.52 67.05" y="208" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
       </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="7"><title>7</title><text x="32.47" y="208" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f2-ov5)">
-      <g role="img" aria-label="));"><title>));</title><text x="52 59.52 67.05" y="208" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
       </g>
     </g>
     </g>
@@ -696,7 +618,7 @@
   <g class="t2-text" clip-path="url(#t2-clip0)"><g transform="translate(52,151)" fill="#e2e8f0" role="img" aria-label="const cls = computed(() =&gt; count.value &gt;= 5 ? 'btn hot' : 'btn');"><title>const cls = computed(() =&gt; count.value &gt;= 5 ? 'btn hot' : 'btn');</title><g transform="scale(0.0061,-0.0061)"><use href="#g21" x="0" y="0"/><use href="#g3" x="1233" y="0"/><use href="#g9" x="2466" y="0"/><use href="#g7" x="3699" y="0"/><use href="#g5" x="4932" y="0"/><use href="#g21" x="7398" y="0"/><use href="#g11" x="8631" y="0"/><use href="#g7" x="9864" y="0"/><use href="#g22" x="12330" y="0"/><use href="#g21" x="14796" y="0"/><use href="#g3" x="16029" y="0"/><use href="#g1" x="17262" y="0"/><use href="#g2" x="18495" y="0"/><use href="#g13" x="19728" y="0"/><use href="#g5" x="20961" y="0"/><use href="#g18" x="22194" y="0"/><use href="#g31" x="23427" y="0"/><use href="#g23" x="24660" y="0"/><use href="#g23" x="25893" y="0"/><use href="#g25" x="27126" y="0"/><use href="#g22" x="29592" y="0"/><use href="#g26" x="30825" y="0"/><use href="#g21" x="33291" y="0"/><use href="#g3" x="34524" y="0"/><use href="#g13" x="35757" y="0"/><use href="#g9" x="36990" y="0"/><use href="#g5" x="38223" y="0"/><use href="#g33" x="39456" y="0"/><use href="#g34" x="40689" y="0"/><use href="#g10" x="41922" y="0"/><use href="#g11" x="43155" y="0"/><use href="#g13" x="44388" y="0"/><use href="#g18" x="45621" y="0"/><use href="#g26" x="48087" y="0"/><use href="#g22" x="49320" y="0"/><use href="#g35" x="51786" y="0"/><use href="#g36" x="54252" y="0"/><use href="#g16" x="56718" y="0"/><use href="#g28" x="57951" y="0"/><use href="#g5" x="59184" y="0"/><use href="#g9" x="60417" y="0"/><use href="#g37" x="62883" y="0"/><use href="#g3" x="64116" y="0"/><use href="#g5" x="65349" y="0"/><use href="#g16" x="66582" y="0"/><use href="#g38" x="69048" y="0"/><use href="#g16" x="71514" y="0"/><use href="#g28" x="72747" y="0"/><use href="#g5" x="73980" y="0"/><use href="#g9" x="75213" y="0"/><use href="#g16" x="76446" y="0"/><use href="#g25" x="77679" y="0"/><use href="#g20" x="78912" y="0"/></g></g></g>
   <rect class="t2-caret" x="52" y="139.40" width="2" height="15" fill="#e2e8f0" />
   <g class="f f-3">
-  <defs><clipPath id="f3-cp0"><rect x="-14" y="-14" width="668" height="398"/></clipPath><filter id="f3-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter><clipPath id="f3-ov2"><rect x="16" y="16" width="608" height="328" rx="10"  /></clipPath><clipPath id="f3-ct3"><rect x="16" y="16" width="608" height="28" /></clipPath><clipPath id="f3-cp4"><rect x="16" y="70" width="608" height="274"/></clipPath><clipPath id="f3-ov5"><rect x="16" y="70" width="608" height="274" rx="0"  /></clipPath><clipPath id="f3-ct6"><rect x="26" y="46" width="76.5" height="24" /></clipPath><clipPath id="f3-ct7"><rect x="16" y="80" width="36" height="19" /></clipPath><clipPath id="f3-ct8"><rect x="52" y="80" width="572" height="19" /></clipPath><clipPath id="f3-ct9"><rect x="52" y="82" width="45.2" height="15" /></clipPath><clipPath id="f3-ct10"><rect x="104.7" y="82" width="7.5" height="15" /></clipPath><clipPath id="f3-ct11"><rect x="300.4" y="82" width="7.5" height="15" /></clipPath><clipPath id="f3-ct12"><rect x="315.4" y="82" width="30.1" height="15" /></clipPath><clipPath id="f3-ct13"><rect x="353.1" y="82" width="60.2" height="15" /></clipPath><clipPath id="f3-ct14"><rect x="16" y="99" width="36" height="19" /></clipPath><clipPath id="f3-ct15"><rect x="16" y="118" width="36" height="19" /></clipPath><clipPath id="f3-ct16"><rect x="52" y="118" width="572" height="19" /></clipPath><clipPath id="f3-ct17"><rect x="52" y="120" width="37.6" height="15" /></clipPath><clipPath id="f3-ct18"><rect x="210.1" y="120" width="7.5" height="15" /></clipPath><clipPath id="f3-ct19"><rect x="16" y="137" width="36" height="19" /></clipPath><clipPath id="f3-ct20"><rect x="52" y="137" width="572" height="19" /></clipPath><clipPath id="f3-ct21"><rect x="52" y="139" width="37.6" height="15" /></clipPath><clipPath id="f3-ct22"><rect x="232.6" y="139" width="15.1" height="15" /></clipPath><clipPath id="f3-ct23"><rect x="368.1" y="139" width="7.5" height="15" /></clipPath><clipPath id="f3-ct24"><rect x="398.2" y="139" width="67.7" height="15" /></clipPath><clipPath id="f3-ct25"><rect x="488.5" y="139" width="37.6" height="15" /></clipPath><clipPath id="f3-ct26"><rect x="16" y="156" width="36" height="19" /></clipPath><clipPath id="f3-ct27"><rect x="52" y="156" width="572" height="19" /></clipPath><clipPath id="f3-ct28"><rect x="164.9" y="158" width="15.1" height="15" /></clipPath><clipPath id="f3-ct29"><rect x="16" y="175" width="36" height="19" /></clipPath><clipPath id="f3-ct30"><rect x="52" y="175" width="572" height="19" /></clipPath><clipPath id="f3-ct31"><rect x="74.6" y="177" width="45.2" height="15" /></clipPath><clipPath id="f3-ct32"><rect x="127.3" y="177" width="37.6" height="15" /></clipPath><clipPath id="f3-ct33"><rect x="277.8" y="177" width="52.7" height="15" /></clipPath><clipPath id="f3-ct34"><rect x="390.7" y="177" width="45.2" height="15" /></clipPath><clipPath id="f3-ct35"><rect x="172.4" y="177" width="37.6" height="15" /></clipPath><clipPath id="f3-ct36"><rect x="16" y="194" width="36" height="19" /></clipPath><clipPath id="f3-ct37"><rect x="52" y="194" width="572" height="19" /></clipPath></defs>
+  <defs><clipPath id="f3-cp0"><rect x="-14" y="-14" width="668" height="398"/></clipPath><filter id="f3-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter><clipPath id="f3-ov2"><rect x="16" y="16" width="608" height="328" rx="10"  /></clipPath><clipPath id="f3-ct3"><rect x="16" y="16" width="608" height="28" /></clipPath><clipPath id="f3-ct4"><rect x="26" y="46" width="76.5" height="24" /></clipPath><clipPath id="f3-cp5"><rect x="16" y="70" width="608" height="274"/></clipPath><clipPath id="f3-ov6"><rect x="16" y="70" width="608" height="274" rx="0"  /></clipPath><clipPath id="f3-ct7"><rect x="16" y="80" width="36" height="19" /></clipPath><clipPath id="f3-ct8"><rect x="52" y="80" width="572" height="19" /></clipPath><clipPath id="f3-ct9"><rect x="52" y="82" width="45.2" height="15" /></clipPath><clipPath id="f3-ct10"><rect x="104.7" y="82" width="7.5" height="15" /></clipPath><clipPath id="f3-ct11"><rect x="300.4" y="82" width="7.5" height="15" /></clipPath><clipPath id="f3-ct12"><rect x="315.4" y="82" width="30.1" height="15" /></clipPath><clipPath id="f3-ct13"><rect x="353.1" y="82" width="60.2" height="15" /></clipPath><clipPath id="f3-ct14"><rect x="16" y="99" width="36" height="19" /></clipPath><clipPath id="f3-ct15"><rect x="16" y="118" width="36" height="19" /></clipPath><clipPath id="f3-ct16"><rect x="52" y="118" width="572" height="19" /></clipPath><clipPath id="f3-ct17"><rect x="52" y="120" width="37.6" height="15" /></clipPath><clipPath id="f3-ct18"><rect x="210.1" y="120" width="7.5" height="15" /></clipPath><clipPath id="f3-ct19"><rect x="16" y="137" width="36" height="19" /></clipPath><clipPath id="f3-ct20"><rect x="52" y="137" width="572" height="19" /></clipPath><clipPath id="f3-ct21"><rect x="52" y="139" width="37.6" height="15" /></clipPath><clipPath id="f3-ct22"><rect x="232.6" y="139" width="15.1" height="15" /></clipPath><clipPath id="f3-ct23"><rect x="368.1" y="139" width="7.5" height="15" /></clipPath><clipPath id="f3-ct24"><rect x="398.2" y="139" width="67.7" height="15" /></clipPath><clipPath id="f3-ct25"><rect x="488.5" y="139" width="37.6" height="15" /></clipPath><clipPath id="f3-ct26"><rect x="16" y="156" width="36" height="19" /></clipPath><clipPath id="f3-ct27"><rect x="52" y="156" width="572" height="19" /></clipPath><clipPath id="f3-ct28"><rect x="164.9" y="158" width="15.1" height="15" /></clipPath><clipPath id="f3-ct29"><rect x="16" y="175" width="36" height="19" /></clipPath><clipPath id="f3-ct30"><rect x="52" y="175" width="572" height="19" /></clipPath><clipPath id="f3-ct31"><rect x="74.6" y="177" width="45.2" height="15" /></clipPath><clipPath id="f3-ct32"><rect x="127.3" y="177" width="37.6" height="15" /></clipPath><clipPath id="f3-ct33"><rect x="277.8" y="177" width="52.7" height="15" /></clipPath><clipPath id="f3-ct34"><rect x="390.7" y="177" width="45.2" height="15" /></clipPath><clipPath id="f3-ct35"><rect x="172.4" y="177" width="37.6" height="15" /></clipPath><clipPath id="f3-ct36"><rect x="16" y="194" width="36" height="19" /></clipPath><clipPath id="f3-ct37"><rect x="52" y="194" width="572" height="19" /></clipPath></defs>
   <rect x="0" y="0" width="640" height="360" rx="0" fill="rgb(232,234,238)" />
     <g clip-path="url(#f3-cp0)">
     <rect x="16" y="26" width="608" height="328" rx="10" fill="rgba(15,23,42,0.3)" filter="url(#f3-sh1)" />
@@ -704,87 +626,61 @@
     <g clip-path="url(#f3-ov2)">
       <rect x="16" y="16" width="608" height="28" rx="0" fill="rgb(15,23,42)" />
       <g role="img" aria-label="my-app — editor"><title>my-app — editor</title><text x="78 88.2 94.59 100.27 106.88 114.2 124.91 138.77 145.63 153 155.95 160.23 167.31" y="34.5" font-family="dmf0" font-size="12" fill="rgb(148,163,184)"></text></g>
+          <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
+          <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
+          <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
       <rect x="16" y="44" width="608" height="26" rx="0" fill="rgb(15,23,42)" />
-      <g clip-path="url(#f3-cp4)">
-      <g clip-path="url(#f3-ov5)">
+        <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
+        <g role="img" aria-label="app.tsx"><title>app.tsx</title><text x="40 46.92 53.84 60.77 67.69 74.61 81.53" y="62" font-family="dmf1" font-size="11.5" fill="rgb(226,232,240)"></text></g>
+      <g clip-path="url(#f3-cp5)">
+      <g clip-path="url(#f3-ov6)">
       </g>
-      </g>
-      <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
-      <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
-      <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
-      <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
-      <g role="img" aria-label="app.tsx"><title>app.tsx</title><text x="40 46.92 53.84 60.77 67.69 74.61 81.53" y="62" font-family="dmf1" font-size="11.5" fill="rgb(226,232,240)"></text></g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="1"><title>1</title><text x="32.47" y="94" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label=" signal, computed, mount "><title> signal, computed, mount </title><text x="119.73 127.27 134.78 142.31 149.84 157.36 164.89 179.94 187.47 195 202.52 210.05 217.56 225.09 232.63 240.14 255.2 262.72 270.25 277.78 285.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+      <g clip-path="url(#f3-ov6)">
+        <g role="img" aria-label="1"><title>1</title><text x="32.47" y="94" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" signal, computed, mount "><title> signal, computed, mount </title><text x="119.73 127.27 134.78 142.31 149.84 157.36 164.89 179.94 187.47 195 202.52 210.05 217.56 225.09 232.63 240.14 255.2 262.72 270.25 277.78 285.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=";"><title>;</title><text x="413.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="import"><title>import</title><text x="52 59.52 67.05 74.56 82.09 89.63" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="{"><title>{</title><text x="104.69" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="}"><title>}</title><text x="300.38" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="from"><title>from</title><text x="315.44 322.95 330.48 338" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="'kerfjs'"><title>'kerfjs'</title><text x="353.08 360.59 368.13 375.64 383.17 390.7 398.22 405.75" y="94" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="2"><title>2</title><text x="32.47" y="113" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="3"><title>3</title><text x="32.47" y="132" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label=" count = signal("><title> count = signal(</title><text x="97.16 104.69 112.2 119.73 127.27 142.31 157.36 164.89 172.42 179.94 187.47 194.98 202.52" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="import"><title>import</title><text x="52 59.52 67.05 74.56 82.09 89.63" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="{"><title>{</title><text x="104.69" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="}"><title>}</title><text x="300.38" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="from"><title>from</title><text x="315.44 322.95 330.48 338" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="'kerfjs'"><title>'kerfjs'</title><text x="353.08 360.59 368.13 375.64 383.17 390.7 398.22 405.75" y="94" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+        <g role="img" aria-label="2"><title>2</title><text x="32.47" y="113" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="3"><title>3</title><text x="32.47" y="132" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" count = signal("><title> count = signal(</title><text x="97.16 104.69 112.2 119.73 127.27 142.31 157.36 164.89 172.42 179.94 187.47 194.98 202.52" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=");"><title>);</title><text x="217.59 225.11" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="132" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="0"><title>0</title><text x="210.06" y="132" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="4"><title>4</title><text x="32.47" y="151" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label=" cls = computed(() "><title> cls = computed(() </title><text x="97.16 104.69 112.2 127.27 142.31 149.84 157.36 164.89 172.42 179.94 187.47 194.98 202.52 210.05 217.56" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="132" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="0"><title>0</title><text x="210.06" y="132" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+        <g role="img" aria-label="4"><title>4</title><text x="32.47" y="151" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" cls = computed(() "><title> cls = computed(() </title><text x="97.16 104.69 112.2 127.27 142.31 149.84 157.36 164.89 172.42 179.94 187.47 194.98 202.52 210.05 217.56" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" count.value &gt;= "><title> count.value &gt;= </title><text x="255.22 262.75 270.27 277.8 285.33 292.84 300.38 307.91 315.42 322.95 330.48 345.53 353.05" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" ? "><title> ? </title><text x="383.17" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" : "><title> : </title><text x="473.48" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=");"><title>);</title><text x="526.19 533.7" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="232.64 240.16" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="5"><title>5</title><text x="368.13" y="151" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="'btn hot'"><title>'btn hot'</title><text x="398.23 405.75 413.28 420.8 435.86 443.38 450.91 458.44" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-        <g role="img" aria-label="'btn'"><title>'btn'</title><text x="488.55 496.06 503.59 511.11 518.64" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="5"><title>5</title><text x="32.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="mount(root, () "><title>mount(root, () </title><text x="52 59.52 67.05 74.56 82.09 89.63 97.14 104.67 112.2 119.72 127.25 142.3 149.83" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="232.64 240.16" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="5"><title>5</title><text x="368.13" y="151" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="'btn hot'"><title>'btn hot'</title><text x="398.23 405.75 413.28 420.8 435.86 443.38 450.91 458.44" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+          <g role="img" aria-label="'btn'"><title>'btn'</title><text x="488.55 496.06 503.59 511.11 518.64" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+        <g role="img" aria-label="5"><title>5</title><text x="32.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="mount(root, () "><title>mount(root, () </title><text x="52 59.52 67.05 74.56 82.09 89.63 97.14 104.67 112.2 119.72 127.25 142.3 149.83" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" ("><title> (</title><text x="187.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="164.89 172.41" y="170" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="6"><title>6</title><text x="32.47" y="189" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="  &lt;"><title>  &lt;</title><text x="67.05" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="164.89 172.41" y="170" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+        <g role="img" aria-label="6"><title>6</title><text x="32.47" y="189" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="  &lt;"><title>  &lt;</title><text x="67.05" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="="><title>=</title><text x="164.91" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="&gt;Clicked "><title>&gt;Clicked </title><text x="210.08 217.59 225.13 232.64 240.17 247.7 255.22 262.75" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" times&lt;/"><title> times&lt;/</title><text x="338.02 345.55 353.06 360.59 368.13 375.64 383.17" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="&gt;"><title>&gt;</title><text x="435.88" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="button"><title>button</title><text x="74.58 82.09 89.63 97.14 104.67 112.2" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
-        <g role="img" aria-label="class"><title>class</title><text x="127.27 134.78 142.31 149.83 157.36" y="189" font-family="dmf1" font-size="12.5" fill="rgb(125,211,252)"></text></g>
-        <g role="img" aria-label="{count}"><title>{count}</title><text x="277.81 285.33 292.86 300.38 307.91 315.44 322.95" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="button"><title>button</title><text x="390.72 398.23 405.77 413.28 420.81 428.34" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
-        <g class="anim-f3tt0">
-        <g role="img" aria-label="&quot;btn&quot;"><title>&quot;btn&quot;</title><text x="172.44 179.95 187.48 195 202.53" y="189" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-        </g>
+          <g role="img" aria-label="button"><title>button</title><text x="74.58 82.09 89.63 97.14 104.67 112.2" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+          <g role="img" aria-label="class"><title>class</title><text x="127.27 134.78 142.31 149.83 157.36" y="189" font-family="dmf1" font-size="12.5" fill="rgb(125,211,252)"></text></g>
+          <g role="img" aria-label="{count}"><title>{count}</title><text x="277.81 285.33 292.86 300.38 307.91 315.44 322.95" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="button"><title>button</title><text x="390.72 398.23 405.77 413.28 420.81 428.34" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+          <g class="anim-f3tt0">
+          <g role="img" aria-label="&quot;btn&quot;"><title>&quot;btn&quot;</title><text x="172.44 179.95 187.48 195 202.53" y="189" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+          </g>
+        <g role="img" aria-label="7"><title>7</title><text x="32.47" y="208" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="));"><title>));</title><text x="52 59.52 67.05" y="208" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
       </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="7"><title>7</title><text x="32.47" y="208" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f3-ov5)">
-      <g role="img" aria-label="));"><title>));</title><text x="52 59.52 67.05" y="208" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
       </g>
     </g>
     </g>
@@ -836,69 +732,31 @@
     <g clip-path="url(#cr4_cr4c-ov2)">
       <rect x="16" y="16" width="608" height="28" rx="0" fill="rgb(15,23,42)" />
       <g role="img" aria-label="my-app — editor"><title>my-app — editor</title><text x="78 88.2 94.59 100.27 106.88 114.2 124.91 138.77 145.63 153 155.95 160.23 167.31" y="34.5" font-family="dmf0" font-size="12" fill="rgb(148,163,184)"></text></g>
+          <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
+          <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
+          <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
       <rect x="16" y="44" width="608" height="26" rx="0" fill="rgb(15,23,42)" />
+        <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
       <g clip-path="url(#cr4_cr4c-cp4)">
       <g clip-path="url(#cr4_cr4c-ov5)">
       </g>
-      </g>
-      <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
-      <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
-      <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
-      <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
       <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c0">
-        <g class="cr4_anim-f3tt0">
+        <g class="cr4_anim-cr4c0">
+          <g class="cr4_anim-f3tt0">
+          </g>
         </g>
-      </g>
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c1">
-      </g>
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c2">
-      </g>
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c3">
-      </g>
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c4">
-      </g>
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c5">
-      </g>
-      </g>
-      <g clip-path="url(#cr4_cr4c-ov5)">
-      <g class="cr4_anim-cr4c6">
+        <g class="cr4_anim-cr4c1">
+        </g>
+        <g class="cr4_anim-cr4c2">
+        </g>
+        <g class="cr4_anim-cr4c3">
+        </g>
+        <g class="cr4_anim-cr4c4">
+        </g>
+        <g class="cr4_anim-cr4c5">
+        </g>
+        <g class="cr4_anim-cr4c6">
+        </g>
       </g>
       </g>
     </g>
@@ -1022,7 +880,7 @@
   </g></svg>
   </g>
   <g class="f f-5">
-  <defs><clipPath id="f5-cp0"><rect x="-14" y="-14" width="668" height="398"/></clipPath><filter id="f5-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter><clipPath id="f5-ov2"><rect x="16" y="16" width="608" height="328" rx="10"  /></clipPath><clipPath id="f5-ct3"><rect x="16" y="16" width="608" height="28" /></clipPath><clipPath id="f5-cp4"><rect x="16" y="70" width="608" height="274"/></clipPath><clipPath id="f5-ov5"><rect x="16" y="70" width="608" height="274" rx="0"  /></clipPath><clipPath id="f5-ct6"><rect x="26" y="46" width="76.5" height="24" /></clipPath><clipPath id="f5-ct7"><rect x="16" y="80" width="36" height="19" /></clipPath><clipPath id="f5-ct8"><rect x="52" y="80" width="572" height="19" /></clipPath><clipPath id="f5-ct9"><rect x="52" y="82" width="45.2" height="15" /></clipPath><clipPath id="f5-ct10"><rect x="104.7" y="82" width="7.5" height="15" /></clipPath><clipPath id="f5-ct11"><rect x="300.4" y="82" width="7.5" height="15" /></clipPath><clipPath id="f5-ct12"><rect x="315.4" y="82" width="30.1" height="15" /></clipPath><clipPath id="f5-ct13"><rect x="353.1" y="82" width="60.2" height="15" /></clipPath><clipPath id="f5-ct14"><rect x="16" y="99" width="36" height="19" /></clipPath><clipPath id="f5-ct15"><rect x="16" y="118" width="36" height="19" /></clipPath><clipPath id="f5-ct16"><rect x="52" y="118" width="572" height="19" /></clipPath><clipPath id="f5-ct17"><rect x="52" y="120" width="37.6" height="15" /></clipPath><clipPath id="f5-ct18"><rect x="210.1" y="120" width="7.5" height="15" /></clipPath><clipPath id="f5-ct19"><rect x="16" y="137" width="36" height="19" /></clipPath><clipPath id="f5-ct20"><rect x="52" y="137" width="572" height="19" /></clipPath><clipPath id="f5-ct21"><rect x="52" y="139" width="37.6" height="15" /></clipPath><clipPath id="f5-ct22"><rect x="232.6" y="139" width="15.1" height="15" /></clipPath><clipPath id="f5-ct23"><rect x="368.1" y="139" width="7.5" height="15" /></clipPath><clipPath id="f5-ct24"><rect x="398.2" y="139" width="67.7" height="15" /></clipPath><clipPath id="f5-ct25"><rect x="488.5" y="139" width="37.6" height="15" /></clipPath><clipPath id="f5-ct26"><rect x="16" y="156" width="36" height="19" /></clipPath><clipPath id="f5-ct27"><rect x="52" y="156" width="572" height="19" /></clipPath><clipPath id="f5-ct28"><rect x="164.9" y="158" width="15.1" height="15" /></clipPath><clipPath id="f5-ct29"><rect x="16" y="175" width="36" height="19" /></clipPath><clipPath id="f5-ct30"><rect x="52" y="175" width="572" height="19" /></clipPath><clipPath id="f5-ct31"><rect x="74.6" y="177" width="45.2" height="15" /></clipPath><clipPath id="f5-ct32"><rect x="127.3" y="177" width="37.6" height="15" /></clipPath><clipPath id="f5-ct33"><rect x="172.4" y="177" width="37.6" height="15" /></clipPath><clipPath id="f5-ct34"><rect x="277.8" y="177" width="52.7" height="15" /></clipPath><clipPath id="f5-ct35"><rect x="390.7" y="177" width="45.2" height="15" /></clipPath><clipPath id="f5-ct36"><rect x="16" y="194" width="36" height="19" /></clipPath><clipPath id="f5-ct37"><rect x="52" y="194" width="572" height="19" /></clipPath></defs>
+  <defs><clipPath id="f5-cp0"><rect x="-14" y="-14" width="668" height="398"/></clipPath><filter id="f5-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter><clipPath id="f5-ov2"><rect x="16" y="16" width="608" height="328" rx="10"  /></clipPath><clipPath id="f5-ct3"><rect x="16" y="16" width="608" height="28" /></clipPath><clipPath id="f5-ct4"><rect x="26" y="46" width="76.5" height="24" /></clipPath><clipPath id="f5-cp5"><rect x="16" y="70" width="608" height="274"/></clipPath><clipPath id="f5-ov6"><rect x="16" y="70" width="608" height="274" rx="0"  /></clipPath><clipPath id="f5-ct7"><rect x="16" y="80" width="36" height="19" /></clipPath><clipPath id="f5-ct8"><rect x="52" y="80" width="572" height="19" /></clipPath><clipPath id="f5-ct9"><rect x="52" y="82" width="45.2" height="15" /></clipPath><clipPath id="f5-ct10"><rect x="104.7" y="82" width="7.5" height="15" /></clipPath><clipPath id="f5-ct11"><rect x="300.4" y="82" width="7.5" height="15" /></clipPath><clipPath id="f5-ct12"><rect x="315.4" y="82" width="30.1" height="15" /></clipPath><clipPath id="f5-ct13"><rect x="353.1" y="82" width="60.2" height="15" /></clipPath><clipPath id="f5-ct14"><rect x="16" y="99" width="36" height="19" /></clipPath><clipPath id="f5-ct15"><rect x="16" y="118" width="36" height="19" /></clipPath><clipPath id="f5-ct16"><rect x="52" y="118" width="572" height="19" /></clipPath><clipPath id="f5-ct17"><rect x="52" y="120" width="37.6" height="15" /></clipPath><clipPath id="f5-ct18"><rect x="210.1" y="120" width="7.5" height="15" /></clipPath><clipPath id="f5-ct19"><rect x="16" y="137" width="36" height="19" /></clipPath><clipPath id="f5-ct20"><rect x="52" y="137" width="572" height="19" /></clipPath><clipPath id="f5-ct21"><rect x="52" y="139" width="37.6" height="15" /></clipPath><clipPath id="f5-ct22"><rect x="232.6" y="139" width="15.1" height="15" /></clipPath><clipPath id="f5-ct23"><rect x="368.1" y="139" width="7.5" height="15" /></clipPath><clipPath id="f5-ct24"><rect x="398.2" y="139" width="67.7" height="15" /></clipPath><clipPath id="f5-ct25"><rect x="488.5" y="139" width="37.6" height="15" /></clipPath><clipPath id="f5-ct26"><rect x="16" y="156" width="36" height="19" /></clipPath><clipPath id="f5-ct27"><rect x="52" y="156" width="572" height="19" /></clipPath><clipPath id="f5-ct28"><rect x="164.9" y="158" width="15.1" height="15" /></clipPath><clipPath id="f5-ct29"><rect x="16" y="175" width="36" height="19" /></clipPath><clipPath id="f5-ct30"><rect x="52" y="175" width="572" height="19" /></clipPath><clipPath id="f5-ct31"><rect x="74.6" y="177" width="45.2" height="15" /></clipPath><clipPath id="f5-ct32"><rect x="127.3" y="177" width="37.6" height="15" /></clipPath><clipPath id="f5-ct33"><rect x="172.4" y="177" width="37.6" height="15" /></clipPath><clipPath id="f5-ct34"><rect x="277.8" y="177" width="52.7" height="15" /></clipPath><clipPath id="f5-ct35"><rect x="390.7" y="177" width="45.2" height="15" /></clipPath><clipPath id="f5-ct36"><rect x="16" y="194" width="36" height="19" /></clipPath><clipPath id="f5-ct37"><rect x="52" y="194" width="572" height="19" /></clipPath></defs>
   <rect x="0" y="0" width="640" height="360" rx="0" fill="rgb(232,234,238)" />
     <g clip-path="url(#f5-cp0)">
     <rect x="16" y="26" width="608" height="328" rx="10" fill="rgba(15,23,42,0.3)" filter="url(#f5-sh1)" />
@@ -1030,85 +888,59 @@
     <g clip-path="url(#f5-ov2)">
       <rect x="16" y="16" width="608" height="28" rx="0" fill="rgb(15,23,42)" />
       <g role="img" aria-label="my-app — editor"><title>my-app — editor</title><text x="78 88.2 94.59 100.27 106.88 114.2 124.91 138.77 145.63 153 155.95 160.23 167.31" y="34.5" font-family="dmf0" font-size="12" fill="rgb(148,163,184)"></text></g>
+          <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
+          <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
+          <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
       <rect x="16" y="44" width="608" height="26" rx="0" fill="rgb(15,23,42)" />
-      <g clip-path="url(#f5-cp4)">
-      <g clip-path="url(#f5-ov5)">
+        <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
+        <g role="img" aria-label="app.tsx"><title>app.tsx</title><text x="40 46.92 53.84 60.77 67.69 74.61 81.53" y="62" font-family="dmf1" font-size="11.5" fill="rgb(226,232,240)"></text></g>
+      <g clip-path="url(#f5-cp5)">
+      <g clip-path="url(#f5-ov6)">
       </g>
-      </g>
-      <rect x="28" y="25" width="10" height="10" rx="5" fill="rgb(255,95,87)" />
-      <rect x="44" y="25" width="10" height="10" rx="5" fill="rgb(254,188,46)" />
-      <rect x="60" y="25" width="10" height="10" rx="5" fill="rgb(40,200,64)" />
-      <path d="M32,46 L96.5,46 A6,6 0 0 1 102.5,52 L102.5,70 L26,70 L26,52 A6,6 0 0 1 32,46 Z" fill="rgb(30,41,59)" />
-      <g role="img" aria-label="app.tsx"><title>app.tsx</title><text x="40 46.92 53.84 60.77 67.69 74.61 81.53" y="62" font-family="dmf1" font-size="11.5" fill="rgb(226,232,240)"></text></g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="1"><title>1</title><text x="32.47" y="94" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label=" signal, computed, mount "><title> signal, computed, mount </title><text x="119.73 127.27 134.78 142.31 149.84 157.36 164.89 179.94 187.47 195 202.52 210.05 217.56 225.09 232.63 240.14 255.2 262.72 270.25 277.78 285.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+      <g clip-path="url(#f5-ov6)">
+        <g role="img" aria-label="1"><title>1</title><text x="32.47" y="94" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" signal, computed, mount "><title> signal, computed, mount </title><text x="119.73 127.27 134.78 142.31 149.84 157.36 164.89 179.94 187.47 195 202.52 210.05 217.56 225.09 232.63 240.14 255.2 262.72 270.25 277.78 285.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=";"><title>;</title><text x="413.3" y="94" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="import"><title>import</title><text x="52 59.52 67.05 74.56 82.09 89.63" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="{"><title>{</title><text x="104.69" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="}"><title>}</title><text x="300.38" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="from"><title>from</title><text x="315.44 322.95 330.48 338" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="'kerfjs'"><title>'kerfjs'</title><text x="353.08 360.59 368.13 375.64 383.17 390.7 398.22 405.75" y="94" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="2"><title>2</title><text x="32.47" y="113" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="3"><title>3</title><text x="32.47" y="132" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label=" count = signal("><title> count = signal(</title><text x="97.16 104.69 112.2 119.73 127.27 142.31 157.36 164.89 172.42 179.94 187.47 194.98 202.52" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="import"><title>import</title><text x="52 59.52 67.05 74.56 82.09 89.63" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="{"><title>{</title><text x="104.69" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="}"><title>}</title><text x="300.38" y="94" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="from"><title>from</title><text x="315.44 322.95 330.48 338" y="94" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="'kerfjs'"><title>'kerfjs'</title><text x="353.08 360.59 368.13 375.64 383.17 390.7 398.22 405.75" y="94" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+        <g role="img" aria-label="2"><title>2</title><text x="32.47" y="113" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="3"><title>3</title><text x="32.47" y="132" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" count = signal("><title> count = signal(</title><text x="97.16 104.69 112.2 119.73 127.27 142.31 157.36 164.89 172.42 179.94 187.47 194.98 202.52" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=");"><title>);</title><text x="217.59 225.11" y="132" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="132" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="0"><title>0</title><text x="210.06" y="132" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="4"><title>4</title><text x="32.47" y="151" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label=" cls = computed(() "><title> cls = computed(() </title><text x="97.16 104.69 112.2 127.27 142.31 149.84 157.36 164.89 172.42 179.94 187.47 194.98 202.52 210.05 217.56" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="132" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="0"><title>0</title><text x="210.06" y="132" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+        <g role="img" aria-label="4"><title>4</title><text x="32.47" y="151" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label=" cls = computed(() "><title> cls = computed(() </title><text x="97.16 104.69 112.2 127.27 142.31 149.84 157.36 164.89 172.42 179.94 187.47 194.98 202.52 210.05 217.56" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" count.value &gt;= "><title> count.value &gt;= </title><text x="255.22 262.75 270.27 277.8 285.33 292.84 300.38 307.91 315.42 322.95 330.48 345.53 353.05" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" ? "><title> ? </title><text x="383.17" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" : "><title> : </title><text x="473.48" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=");"><title>);</title><text x="526.19 533.7" y="151" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="232.64 240.16" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-        <g role="img" aria-label="5"><title>5</title><text x="368.13" y="151" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="'btn hot'"><title>'btn hot'</title><text x="398.23 405.75 413.28 420.8 435.86 443.38 450.91 458.44" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-        <g role="img" aria-label="'btn'"><title>'btn'</title><text x="488.55 496.06 503.59 511.11 518.64" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="5"><title>5</title><text x="32.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="mount(root, () "><title>mount(root, () </title><text x="52 59.52 67.05 74.56 82.09 89.63 97.14 104.67 112.2 119.72 127.25 142.3 149.83" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="const"><title>const</title><text x="52 59.52 67.05 74.56 82.09" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="232.64 240.16" y="151" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+          <g role="img" aria-label="5"><title>5</title><text x="368.13" y="151" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="'btn hot'"><title>'btn hot'</title><text x="398.23 405.75 413.28 420.8 435.86 443.38 450.91 458.44" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+          <g role="img" aria-label="'btn'"><title>'btn'</title><text x="488.55 496.06 503.59 511.11 518.64" y="151" font-family="dmf1" font-size="12.5" fill="rgb(134,239,172)"></text></g>
+        <g role="img" aria-label="5"><title>5</title><text x="32.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="mount(root, () "><title>mount(root, () </title><text x="52 59.52 67.05 74.56 82.09 89.63 97.14 104.67 112.2 119.72 127.25 142.3 149.83" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" ("><title> (</title><text x="187.47" y="170" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="164.89 172.41" y="170" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="6"><title>6</title><text x="32.47" y="189" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="  &lt;"><title>  &lt;</title><text x="67.05" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
+          <g role="img" aria-label="=&gt;"><title>=&gt;</title><text x="164.89 172.41" y="170" font-family="dmf1" font-size="12.5" fill="rgb(147,197,253)"></text></g>
+        <g role="img" aria-label="6"><title>6</title><text x="32.47" y="189" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="  &lt;"><title>  &lt;</title><text x="67.05" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="="><title>=</title><text x="164.91" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="&gt;Clicked "><title>&gt;Clicked </title><text x="210.08 217.59 225.13 232.64 240.17 247.7 255.22 262.75" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label=" times&lt;/"><title> times&lt;/</title><text x="338.02 345.55 353.06 360.59 368.13 375.64 383.17" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
 <g role="img" aria-label="&gt;"><title>&gt;</title><text x="435.88" y="189" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
-        <g role="img" aria-label="button"><title>button</title><text x="74.58 82.09 89.63 97.14 104.67 112.2" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
-        <g role="img" aria-label="class"><title>class</title><text x="127.27 134.78 142.31 149.83 157.36" y="189" font-family="dmf1" font-size="12.5" fill="rgb(125,211,252)"></text></g>
-        <g role="img" aria-label="{cls}"><title>{cls}</title><text x="172.44 179.95 187.48 195 202.53" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="{count}"><title>{count}</title><text x="277.81 285.33 292.86 300.38 307.91 315.44 322.95" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
-        <g role="img" aria-label="button"><title>button</title><text x="390.72 398.23 405.77 413.28 420.81 428.34" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+          <g role="img" aria-label="button"><title>button</title><text x="74.58 82.09 89.63 97.14 104.67 112.2" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+          <g role="img" aria-label="class"><title>class</title><text x="127.27 134.78 142.31 149.83 157.36" y="189" font-family="dmf1" font-size="12.5" fill="rgb(125,211,252)"></text></g>
+          <g role="img" aria-label="{cls}"><title>{cls}</title><text x="172.44 179.95 187.48 195 202.53" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="{count}"><title>{count}</title><text x="277.81 285.33 292.86 300.38 307.91 315.44 322.95" y="189" font-family="dmf1" font-size="12.5" fill="rgb(251,191,36)"></text></g>
+          <g role="img" aria-label="button"><title>button</title><text x="390.72 398.23 405.77 413.28 420.81 428.34" y="189" font-family="dmf1" font-size="12.5" fill="rgb(249,168,212)"></text></g>
+        <g role="img" aria-label="7"><title>7</title><text x="32.47" y="208" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
+        <g role="img" aria-label="));"><title>));</title><text x="52 59.52 67.05" y="208" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
       </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="7"><title>7</title><text x="32.47" y="208" font-family="dmf1" font-size="12.5" fill="rgb(71,85,105)"></text></g>
-      </g>
-      <g clip-path="url(#f5-ov5)">
-      <g role="img" aria-label="));"><title>));</title><text x="52 59.52 67.05" y="208" font-family="dmf1" font-size="12.5" fill="rgb(226,232,240)"></text></g>
       </g>
     </g>
     </g>

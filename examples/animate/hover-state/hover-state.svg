@@ -44,10 +44,10 @@
   <rect x="0" y="0" width="460" height="320" rx="0" fill="rgb(13,17,23)" />
   <rect x="80" y="64" width="300" height="192" rx="14" fill="rgb(22,27,34)" />
   <rect x="81" y="65" width="298" height="190" rx="13" fill="none" stroke="rgb(48,54,61)" stroke-width="2" />
+    <rect x="108" y="182" width="244" height="44" rx="9" fill="rgb(35,134,54)" />
     <g role="img" aria-label="PRO PLAN"><title>PRO PLAN</title><text x="108 117.45 127.41 142.97 152.44 160.7 170.17" y="106" font-family="dmf0" font-size="13" fill="rgb(139,148,158)"></text></g>
     <g role="img" aria-label="$49"><title>$49</title><text x="108 130.23 152.47" y="154" font-family="dmf1" font-size="40" font-weight="700" fill="rgb(230,237,243)"></text></g>
       <g role="img" aria-label=" / mo"><title> / mo</title><text x="178.89 188.06 200.86" y="154" font-family="dmf0" font-size="15" fill="rgb(139,148,158)"></text></g>
-    <rect x="108" y="182" width="244" height="44" rx="9" fill="rgb(35,134,54)" />
     <g role="img" aria-label="Start free trial"><title>Start free trial</title><text x="177.97 188.64 193.97 202.86 209.09 218.86 224.19 230.42 239.31 252.66 257.98 264.22 268.66 277.56" y="209" font-family="dmf2" font-size="16" font-weight="600" fill="rgb(255,255,255)"></text></g>
   </g>
   <g class="f f-1">
@@ -55,11 +55,11 @@
   <rect x="0" y="0" width="460" height="320" rx="0" fill="rgb(13,17,23)" />
   <rect x="80" y="64" width="300" height="192" rx="14" fill="rgb(27,35,48)" />
   <rect x="81" y="65" width="298" height="190" rx="13" fill="none" stroke="rgb(47,129,247)" stroke-width="2" />
+    <rect x="104" y="178" width="252" height="52" rx="13" fill="rgba(46,160,67,0.3)" />
+    <rect x="108" y="182" width="244" height="44" rx="9" fill="rgb(46,160,67)" />
     <g role="img" aria-label="PRO PLAN"><title>PRO PLAN</title><text x="108 117.45 127.41 142.97 152.44 160.7 170.17" y="106" font-family="dmf0" font-size="13" fill="rgb(139,148,158)"></text></g>
     <g role="img" aria-label="$49"><title>$49</title><text x="108 130.23 152.47" y="154" font-family="dmf1" font-size="40" font-weight="700" fill="rgb(230,237,243)"></text></g>
       <g role="img" aria-label=" / mo"><title> / mo</title><text x="178.89 188.06 200.86" y="154" font-family="dmf0" font-size="15" fill="rgb(139,148,158)"></text></g>
-    <rect x="104" y="178" width="252" height="52" rx="13" fill="rgba(46,160,67,0.3)" />
-    <rect x="108" y="182" width="244" height="44" rx="9" fill="rgb(46,160,67)" />
     <g role="img" aria-label="Start free trial"><title>Start free trial</title><text x="177.97 188.64 193.97 202.86 209.09 218.86 224.19 230.42 239.31 252.66 257.98 264.22 268.66 277.56" y="209" font-family="dmf2" font-size="16" font-weight="600" fill="rgb(255,255,255)"></text></g>
   </g>
   <g class="cursor-overlay" pointer-events="none">

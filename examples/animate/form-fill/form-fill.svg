@@ -170,6 +170,8 @@
   <rect x="61" y="28" width="438" height="448" rx="16" fill="rgba(0,0,0,0.4)" filter="url(#f1-sh0)" />
   <rect x="61" y="16" width="438" height="448" rx="16" fill="rgb(22,27,34)" />
   <rect x="61.5" y="16.5" width="437" height="447" rx="15.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+    <rect x="90" y="395" width="380" height="42" rx="9" fill="rgba(86,211,100,0.1)" />
+    <rect x="90.5" y="395.5" width="379" height="41" rx="8.5" fill="none" stroke="rgba(86,211,100,0.4)" stroke-width="1" />
     <g role="img" aria-label="Create your account"><title>Create your account</title><text x="90 104.97 112.88 124.77 136.44 144.19 160.66 171.92 184.2 196.59 209.38 221.05 232.69 244.33 256.61 269 281.41" y="63" font-family="dmf0" font-size="21" font-weight="700" fill="rgb(230,237,243)"></text></g>
     <g role="img" aria-label="Start shipping demos in under a minute."><title>Start shipping demos in under a minute.</title><text x="90 98.2 102.84 109.94 114.94 123.17 129.91 137.47 140.61 148.47 156.33 159.47 166.97 178.39 186.31 193.66 204.89 212.5 222.8 225.94 237.03 244.53 252.05 259.95 267.31 275.77 286.44 297.67 300.81 308.31 315.83 320.38 327.73" y="84" font-family="dmf1" font-size="13" fill="rgb(139,148,158)"></text></g>
     <g role="img" aria-label="Full name"><title>Full name</title><text x="90 96.86 103.86 106.89 113.31 120.31 126.94 137.38" y="119" font-family="dmf1" font-size="12" fill="rgb(139,148,158)"></text></g>
@@ -192,8 +194,6 @@
     </g>
     <rect x="90" y="338" width="380" height="41" rx="9" fill="url(#f1-bg12)" />
     <g role="img" aria-label="Create account"><title>Create account</title><text x="227.33 237.55 243.31 251.58 259.69 265.27 276.98 285.09 293.17 301.23 309.77 318.41 327.03" y="364" font-family="dmf2" font-size="14" font-weight="700" fill="rgb(13,17,23)"></text></g>
-    <rect x="90" y="395" width="380" height="42" rx="9" fill="rgba(86,211,100,0.1)" />
-    <rect x="90.5" y="395.5" width="379" height="41" rx="8.5" fill="none" stroke="rgba(86,211,100,0.4)" stroke-width="1" />
     <g role="img" aria-label="✓ Account created — check your inbox to verify."><title>✓ Account created — check your inbox to verify.</title><text x="105 119.94 128.75 136.19 143.63 151.48 159.38 167.27 175.72 183.16 188.33 195.94 203.36 208.36 215.97 227.58 242.52 249.97 257.92 265.52 272.95 283.83 291 298.86 306.75 315.47 318.95 326.84 335.08 342.56 353.17 358.19 369.41 376.47 384.06 389.41 392.89 397.92 404.47" y="421" font-family="dmf4" font-size="13" font-weight="600" fill="rgb(86,211,100)"></text></g>
   </g>
   </g>

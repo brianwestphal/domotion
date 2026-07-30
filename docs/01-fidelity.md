@@ -100,10 +100,12 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 - [x] z-index for positioned siblings (paint order sorted: negative, base, auto/0, positive)
 - [~] Nested stacking contexts (trapped z-index inside opacity/transform context) — flattened; may paint above outside sibling
-- [~] Float paint order (CSS 2.1 Appendix E step 4) — approximated in two places, and the approximation is deliberately split by whether the float's parent has inline content of its own:
-  - A float whose parent has **no** own text hoists into the enclosing stacking context's float bucket, so it paints above the backgrounds of block-level siblings that follow it in document order (the common "float overflows its zero-height wrapper" case).
-  - A float whose parent **does** have own text is painted by that parent, immediately before the parent's text, so the text wins z. This is what `shape-outside` needs: shrinking the exclusion area below the float's border box makes the wrapped text legitimately overlap the painted float, and CSS orders inline content (step 5) above floats (step 4).
-  - Not yet modeled: a float paints below the text of the *whole* stacking context, so text in a later paragraph should also paint above an earlier paragraph's float. We only order a float against its own parent's text.
+- [x] Float paint order (CSS 2.1 Appendix E step 4), context-wide. A stacking context is painted in the spec's phases rather than in document order: every in-flow block-level descendant's background + border (step 3), then every non-positioned float (step 4), then all in-flow inline content — text, inline boxes, replaced content (step 5), then the positioned / stacking-context children (steps 6-7). Steps 3-5 span the whole context, so:
+  - A float paints **above** the background of any block-level sibling, including ones that follow it in document order (the "float overflows its zero-height wrapper, later section's background covers it" case).
+  - A float paints **below** every piece of inline content in the context — its own parent's text and any other paragraph's text. This is what `shape-outside` needs: shrinking the exclusion area below the float's border box makes the wrapped text legitimately overlap the painted float, and the overlapping text has to win z whichever paragraph it belongs to.
+  - Because the block and inline phases are separate passes, a later block's background can no longer cover an earlier block's text either.
+  - Fixture: `float-paint-order-context-wide` in the feature suite covers both directions (a hoisted float under a following paragraph's text; a float above a later sibling's negative-margin background).
+  - Two constructs opt out of the phase split and paint atomically, matching CSS: an inline-level box (its background, border and content paint together while walking line boxes), and a `transform-style: preserve-3d` container (children sort by translateZ, which cuts across the paint-step buckets).
 
 ### Rasterized as static snapshot
 
