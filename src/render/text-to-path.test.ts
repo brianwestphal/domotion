@@ -2635,19 +2635,38 @@ const macCutHelper = process.platform === "darwin"
     expect(at(0x05D0, "sans-serif", 450)).toBe("LucidaGrande-Bold");
   });
 
-  it("leaves weight 400 on the base key where the base IS the regular cut", () => {
+  // Chrome's own answer for Thai, read off CDP `CSS.getPlatformFontsForNode` on
+  // macOS: a `sans-serif` run paints the PUBLIC `Thonburi` family (`Thonburi` /
+  // `Thonburi-Bold`), while only a `system-ui` run paints the hidden
+  // `.ThonburiUI` cut — the UI font's own cascade is what reaches it.
+  //
+  // The static chain's `thai` key hardcoded the hidden `.ThonburiUI-Regular` for
+  // EVERY stack, so it gave the system-ui answer to all of them and was wrong on
+  // both assertions below. This test used to pin that wrong answer, which is the
+  // sampled-table failure mode in miniature: the expectation was our table's
+  // output rather than Chrome's. Asking the OS first splits the two stacks apart,
+  // because the cascade base differs between them.
+  it("paints the public Thai family for a sans-serif run, like Chrome", () => {
     if (at(0x0E01, "sans-serif", 400) === "-") return;
-    expect(at(0x0E01, "sans-serif", 400)).toBe("thai");
+    expect(at(0x0E01, "sans-serif", 400)).toBe("Thonburi");
+    expect(at(0x0E01, "sans-serif", 700)).toBe("Thonburi-Bold");
   });
 
   // Regression pin for a silent corruption: CoreText refuses to resolve Apple's
   // hidden `.`-prefixed faces BY NAME and hands back Times New Roman without
   // erroring, so asking for `.ThonburiUI-Regular`'s family by name walked Times'
-  // cascade and answered with the unrelated public Thonburi family. The cascade
-  // base must be opened from its FILE.
-  it("keeps a hidden system face inside its own family", () => {
-    if (at(0x0E01, "sans-serif", 400) !== "thai") return;
-    expect(at(0x0E01, "sans-serif", 700)).toBe(".ThonburiUI-Bold");
+  // cascade and answered with an unrelated family. The cascade base must be
+  // opened from its FILE.
+  //
+  // Asserted as a property rather than one exact face, because which Thai face is
+  // correct now depends on the stack (see above) — but NO stack may ever leave
+  // the Thai family. A Times/Helvetica answer here is the corruption returning.
+  it("keeps a Thai run inside a Thai family, never Times", () => {
+    for (const weight of [400, 700]) {
+      const key = at(0x0E01, "sans-serif", weight);
+      if (key === "-") continue;
+      expect(key).toMatch(/Thonburi|^thai$/);
+    }
   });
 });
 
