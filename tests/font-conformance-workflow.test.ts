@@ -44,9 +44,11 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     // workflow is not an error about the syntax: it reports that the workflow
     // "does not have a 'workflow_dispatch' trigger", because it could not read
     // one. That is a long way from the actual mistake, so it is pinned here.
+    // Quoting it is the fix, so quoted segments are removed before looking.
     const bad = yaml
       .split("\n")
-      .filter((l) => /^\s*\w[\w-]*:\s*\{.*\$\{\{/.test(l));
+      .filter((l) => /^\s*\w[\w-]*:\s*\{/.test(l))
+      .filter((l) => /\$\{\{/.test(l.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""')));
     expect(bad, `quote the expression or use a block mapping:\n${bad.join("\n")}`).toEqual([]);
   });
 
