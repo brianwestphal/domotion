@@ -24,6 +24,7 @@ import {
   prepareStack,
   primaryChromeFace,
   slantForStyle,
+  stacksFileFor,
   type ChromeFace,
   type OurFace,
   type StackSpec,
@@ -263,14 +264,26 @@ describe("allowlist", () => {
 });
 
 describe("parseArgs", () => {
-  it("defaults to the whole universe and the committed corpus", () => {
+  it("defaults to the whole universe and THIS PLATFORM's committed corpus", () => {
     const o = parseArgs([]);
     expect(o.ranges).toBe(null);
     expect(o.includePua).toBe(true);
     expect(o.shard).toBe(null);
     expect(o.stackShard).toBe(null);
-    expect(o.stacksFile).toBe("tools/font-conformance-stacks.json");
+    // Per-platform, not shared: an element that declares no font-family
+    // computes to Chrome's per-platform default-font preference, so the
+    // corpus's largest stack is `Times` on macOS and `"Times New Roman"` on
+    // Linux. Defaulting to one shared file would sweep stacks the host's
+    // Chrome never computes.
+    expect(o.stacksFile).toBe(`tools/font-conformance-stacks.${process.platform}.json`);
     expect(o.allowlistFile).toBe("tools/font-conformance-allowlist.json");
+    expect(o.allowForeignCorpus).toBe(false);
+  });
+
+  it("names the corpus file after the platform's own spelling", () => {
+    expect(stacksFileFor("darwin")).toBe("tools/font-conformance-stacks.darwin.json");
+    expect(stacksFileFor("linux")).toBe("tools/font-conformance-stacks.linux.json");
+    expect(stacksFileFor("win32")).toBe("tools/font-conformance-stacks.win32.json");
   });
 
   it("parses ranges, shards and flags", () => {
@@ -409,11 +422,18 @@ describe("faceFor reports the cut the renderer would load", () => {
   });
 });
 
-describe("the committed stack corpus", () => {
-  const corpus = JSON.parse(readFileSync("tools/font-conformance-stacks.json", "utf-8")) as {
+describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (platform) => {
+  const corpus = JSON.parse(readFileSync(stacksFileFor(platform), "utf-8")) as {
+    platform?: string;
     sources: string[];
     stacks: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string; fixtures: number; example: string }>;
   };
+
+  it("records the platform it was extracted on", () => {
+    // Without this the guard in the sweep cannot fire, and a corpus from the
+    // wrong platform sweeps stacks the host's Chrome never computes.
+    expect(corpus.platform).toBe(platform);
+  });
 
   it("covers the corpus rather than a handful of hand-picked stacks", () => {
     expect(corpus.stacks.length).toBeGreaterThan(100);

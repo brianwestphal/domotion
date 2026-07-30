@@ -26,11 +26,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * @returns {string} lowercased `<image>-<arch>` (never an empty string)
  */
 export function computeRunnerImage(inputs = {}) {
-  const { imageOS, runnerArch, osRelease, playwrightVersion } = inputs;
+  const { imageOS, runnerArch, osRelease, playwrightVersion, platform } = inputs;
   const arch = (String(runnerArch ?? "").trim() || "unknown");
   // Host runners (macOS / Windows): the runner exposes ImageOS directly.
   if (imageOS != null && String(imageOS).trim() !== "") {
     return `${String(imageOS).trim()}-${arch}`.toLowerCase();
+  }
+  // Off a runner entirely — a developer Mac or the Windows VM — there is no
+  // ImageOS and no /etc/os-release. Falling through to the container branch
+  // below labelled a macOS baseline `playwright-v1.59.1-linux-unknown`, which
+  // is not merely untidy: the image id is what tells a comparator that two
+  // measurements were taken in the same environment, so a wrong one lets a
+  // macOS run and a Linux run look comparable.
+  if (osRelease == null && platform != null && platform !== "linux") {
+    return `${platform}-local-${arch}`.toLowerCase();
   }
   // Container (Linux): no host ImageOS. Identify by the Ubuntu codename
   // (/etc/os-release) + the Playwright version, so a noble or Playwright bump
@@ -70,9 +79,10 @@ function main() {
   }
   const id = computeRunnerImage({
     imageOS: process.env.ImageOS,
-    runnerArch: process.env.RUNNER_ARCH,
+    runnerArch: process.env.RUNNER_ARCH ?? process.arch,
     osRelease,
     playwrightVersion,
+    platform: process.platform,
   });
   if (outPath) writeFileSync(outPath, id + "\n");
   else process.stdout.write(id + "\n");

@@ -24,8 +24,9 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 
 | Flag | Meaning |
 | --- | --- |
-| `--stacks <file>` | Stack corpus (default `tools/font-conformance-stacks.json`). |
+| `--stacks <file>` | Stack corpus (default `tools/font-conformance-stacks.<platform>.json` — one per platform, see below). |
 | `--extract-stacks` | Re-derive the corpus from the fixtures and exit. |
+| `--allow-foreign-corpus` | Sweep a corpus extracted on another platform. Refused by default. |
 | `--source a,b` | Fixture directories to extract from (default `external/html-test`, `../html-test/unicode`). |
 | `--range 0000-2FFF` | Restrict the codepoint universe; repeatable / comma-separated. |
 | `--no-pua` | Drop `\p{Private_Use}` — 137k of the 292k codepoints. Makes the run a subset; the report records it. |
@@ -53,9 +54,23 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 
 That leaves **292,466** codepoints, of which 137,468 are private use.
 
-**Stacks.** Extracted from the fixture corpus rather than invented — inventing them would reintroduce the sampling problem one level up. `--extract-stacks` loads all 1,115 fixtures under `external/html-test/` and `../html-test/unicode/` and records the *computed* `font-family` / `font-size` / `font-weight` / `font-style` of every element that directly contains text. On the current corpus that is **418 distinct combinations over 205 distinct family stacks**, cached in `tools/font-conformance-stacks.json` with the fixture count and one example fixture per entry, so any disagreement can be reproduced by hand. Re-run `--extract-stacks` when the corpus changes.
+**Stacks.** Extracted from the fixture corpus rather than invented — inventing them would reintroduce the sampling problem one level up. `--extract-stacks` loads all 1,115 fixtures under `external/html-test/` and `../html-test/unicode/` and records the *computed* `font-family` / `font-size` / `font-weight` / `font-style` / `font-stretch` / `font-variation-settings` of every element that directly contains text. On the current corpus that is **434 distinct combinations**, cached with the fixture count and one example fixture per entry, so any disagreement can be reproduced by hand. Re-run `--extract-stacks` when the corpus changes.
 
 Size is part of the key, not collapsed away: macOS optical cuts mean Chrome genuinely reports a different face at 16 px than at 32 px for the same family.
+
+### The corpus is per-platform, and this was measured rather than assumed
+
+There is one corpus file per platform — `tools/font-conformance-stacks.darwin.json`, `…linux.json`, `…win32.json` — and the sweep refuses a corpus whose recorded `platform` is not the host's unless `--allow-foreign-corpus` says otherwise.
+
+That is not tidiness. A stack corpus records *computed* style, and the computed `font-family` of an element that declares none is **Chrome's per-platform default-font preference**, not a platform-neutral keyword. Extracting the same 1,115 fixtures on macOS and inside the pinned Linux container produces 434 stacks either way, and three of them differ — including the single largest entry in the whole corpus:
+
+| macOS | Linux | fixtures |
+| --- | --- | --- |
+| `Times` 16/400/normal | `"Times New Roman"` 16/400/normal | 1,114 |
+| `Times` 16/400/italic | `"Times New Roman"` 16/400/italic | 1 |
+| `Times` 32/700/normal | `"Times New Roman"` 32/700/normal | 1 |
+
+Sweeping the macOS corpus on Linux would therefore ask Chrome-on-Linux about a stack no page on Linux ever computes, for the stack that covers **1,114 of 1,115 fixtures**. It would not have failed; it would have produced a clean-looking number for the wrong question — the same instrument failure that has already cost this area twice (a table sampled from one machine's font inventory, and a Windows probe that recorded the run's primary font rather than the fallback). The guard exists so a future run cannot make that mistake quietly.
 
 ## How the probe page is built
 
@@ -103,6 +118,8 @@ The instrument is only worth its exit code if its blind spots are written down r
 - **`font-feature-settings` is still not extracted**, so a fixture using it is swept as though it did not.
 - **One face per cell.** When a codepoint decomposes across two faces the oracle compares the one with the most glyphs; the full list survives in `chromeAllFaces`.
 - **Synthetic vs real cuts are compared by face, not by synthesis.** If Chrome synthesizes bold from a regular face it reports the regular face, so our picking a real bold sibling shows up — correctly — as a mismatch. That is the intended reading, but it means a `same-family-different-cut` row can mean either "we took the wrong cut" or "Chrome faked one".
+- **On Linux the `agree-same-file` tier can never fire.** That tier resolves Chrome's reported PostScript name to a file through `resolveInstalledFont`, and the Linux glyph helper implements no `family` query — the function is documented as always returning `null` there. So on Linux every agreement must be proven by name at the strongest tier or it is a mismatch. That makes the Linux number *stricter* than the macOS one in this respect, not weaker, but it is a difference between the platforms' instruments and not only between their fonts.
+- **`FACE_ALIASES` is a macOS list.** Its single entry reconciles Chrome's `SF Pro Text` naming with the SFNS file we load. Nothing analogous is claimed for Linux or Windows, so `agree-alias` is structurally zero on those platforms.
 
 ### `font-stretch` and `font-variation-settings` — closed, and measured (DM-1858)
 
@@ -151,6 +168,35 @@ The full cross product — 292,466 codepoints × 418 stacks = **122.2 million co
 
 Whatever the scope, the report's `meta` block records exactly what was swept — codepoint count, stack count, ranges, shards, PUA inclusion — so a number can never be quoted without its scope.
 
+## Three platforms, three oracles
+
+Reaching agreement on macOS says nothing about Linux or Windows, because per-codepoint fallback is not one procedure with three font sets behind it. Blink runs different code on each (`external/chromium` at `7d859f27`, 2026-06-27):
+
+| Platform | Blink's path | Shape |
+| --- | --- | --- |
+| macOS | `platform/fonts/mac/font_cache_mac.mm` → `CTFontCreateForString` | base is the run's current font; the answer depends on it |
+| Linux | `platform/fonts/linux/font_cache_linux.cc` → `gfx::GetFallbackFontForChar(c, locale, …)` | keyed on locale; there is no base font |
+| Windows | `platform/fonts/win/font_cache_skia_win.cc` → hardcoded per-script table, then `GetDWriteFallbackFamily` | the table wins whenever it matches |
+
+So each platform gets its own sweep job, its own stack corpus, its own font inventory, and its own committed baseline. `.github/workflows/font-conformance.yml` takes an `os` input (`macos` / `linux` / `windows` / `all`); all three run the same `scripts/ci-font-conformance-shard.sh`, so the slice, the exit-code discipline and the recorded environment cannot drift between them.
+
+Per-platform environment notes that the jobs encode:
+
+- **macOS** builds the CoreText helper (`swift build`). Without it the resolver cannot ask CoreText and silently drops to the static chain — answering a different question than the one reported.
+- **Windows** builds the DirectWrite helper (`build.ps1`), for the same reason.
+- **Linux** builds nothing, deliberately: its per-codepoint resolver shells out to `fc-match`, so there is no helper to fall off. The only cost of the absent helper is `resolveInstalledFont`, hence the dead `agree-same-file` tier noted above.
+- **Linux runs in the pinned `mcr.microsoft.com/playwright:v<ver>-noble` container**, not on a bare `ubuntu-latest`. The Linux fallback answer *is* the container's fontconfig set, so a different image is a different oracle — the same reasoning the Linux fidelity suites already run on.
+
+### The gate is regression-relative, and can refuse to judge
+
+Two behaviors, both of which exist because the alternative is a confident number about nothing:
+
+**Baseline-relative, not absolute zero.** macOS does not measure zero after years of work; Linux and Windows had never been measured at all. A gate demanding zero fails identically on every run and therefore grades nothing. `scripts/diff-font-conformance-baseline.mjs` fails on a *regression* against the platform's own last recorded measurement — a stack whose mismatch count rose, a stack that newly disagrees, or a new disagreeing route. The absolute count is reported and tracked, never enforced. This is the same model as the per-platform visual-fidelity gates (`tests/baselines/README.md`).
+
+**A run can be refused rather than judged.** The oracle's answers are a function of the runner's installed fonts, the host ICU's codepoint universe, and which stacks were swept. If any of those moved, the two numbers are not measuring the same thing, and comparing them anyway yields a confident regression or a confident all-clear, both meaningless. So the baseline records the runner image, the font-inventory digest (`tools/font-inventory.mjs`), the Unicode/ICU versions, the corpus identity, and the slice — and on any difference the comparator withholds the verdict and says which field moved. A runner image rotation is then a visible environment change to re-seed against, not an unexplained score move.
+
+**A missing shard is fatal, not a log line.** `scripts/merge-font-conformance-shards.mjs` counts the reports it merged against the requested shard count and marks the merge incomplete if any is absent; the comparator refuses to judge an incomplete merge. A shard that dies writes no report, and a total summed over the survivors is smaller — which reads exactly like an improvement.
+
 ### Memory: why the sweep resets its own caches
 
 A sweep is unusual for this codebase in that it drives the resolver across the *entire* codepoint space in one process. The font-resolution memos are keyed by codepoint, and — the part that actually dominates — **fontkit memoizes a `Glyph` object per glyph id for the life of a `Font`**, so every `Font` held in `fontInstanceCache` accumulates one retained `Glyph` for each codepoint ever probed through it. Nothing is collectable, because the cache holds the fonts.
@@ -172,10 +218,10 @@ Each batch's resident size is printed alongside progress, and the peak lands in 
 
 The sharded workflow (`.github/workflows/font-conformance.yml`) previously ran each shard with `|| true` — intended so one shard's *mismatches* wouldn't cancel its siblings. But a shard that **dies** writes no `report.json`, the aggregate step skipped missing reports with a log line, and the gate then tested a mismatch total summed over the survivors. A run whose mismatch-bearing shards ran out of memory would therefore report zero mismatches and go green.
 
-Two changes close that:
+Two changes close that, and both now live in scripts rather than inline in the workflow so they are unit-tested (`tests/font-conformance-baseline.test.ts`) and identical on all three platforms:
 
-- The sweep step accepts only the exit codes the tool defines — `0` (full agreement) and `1` (mismatches found). Anything else is a dead shard and fails the job.
-- The aggregate counts the reports it merged against the requested shard count and **withholds the verdict** if any is absent, failing on that rather than on a partial total.
+- `scripts/ci-font-conformance-shard.sh` accepts only the exit codes the tool defines — `0` (full agreement) and `1` (mismatches found). Anything else is a dead shard and fails the job.
+- `scripts/merge-font-conformance-shards.mjs` counts the reports it merged against the requested shard count and marks the merge `complete: false` if any is absent; `scripts/diff-font-conformance-baseline.mjs` **withholds the verdict** on an incomplete merge, failing on that rather than on a partial total.
 
 ## Instrument corrections, 2026-07-29
 

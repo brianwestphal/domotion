@@ -1,12 +1,13 @@
 {
-  "generatedAt": "2026-07-29T23:19:22.108Z",
+  "generatedAt": "2026-07-30T07:02:05.998Z",
+  "platform": "linux",
   "sources": [
     "external/html-test",
     "../html-test/unicode"
   ],
   "stacks": [
     {
-      "fontFamily": "Times",
+      "fontFamily": "\"Times New Roman\"",
       "fontSize": 16,
       "fontWeight": 400,
       "fontStyle": "normal",
@@ -2996,6 +2997,26 @@
       "example": "../html-test/unicode/0E00-0E7F-thai.html"
     },
     {
+      "fontFamily": "\"Times New Roman\"",
+      "fontSize": 16,
+      "fontWeight": 400,
+      "fontStyle": "italic",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/10-deep-attr-quoting.html"
+    },
+    {
+      "fontFamily": "\"Times New Roman\"",
+      "fontSize": 32,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-font-family.html"
+    },
+    {
       "fontFamily": "\"Times New Roman\", serif",
       "fontSize": 16,
       "fontWeight": 400,
@@ -4204,26 +4225,6 @@
       "fontVariationSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
-    },
-    {
-      "fontFamily": "Times",
-      "fontSize": 16,
-      "fontWeight": 400,
-      "fontStyle": "italic",
-      "fontStretch": "100%",
-      "fontVariationSettings": "normal",
-      "fixtures": 1,
-      "example": "external/html-test/10-deep-attr-quoting.html"
-    },
-    {
-      "fontFamily": "Times",
-      "fontSize": 32,
-      "fontWeight": 700,
-      "fontStyle": "normal",
-      "fontStretch": "100%",
-      "fontVariationSettings": "normal",
-      "fixtures": 1,
-      "example": "external/html-test/20-font-family.html"
     },
     {
       "fontFamily": "ui-monospace",
