@@ -772,10 +772,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   run-splitters.
 - **Doc 80 (`docs/80-cross-platform-system-fallback-resolver.md`, DM-1403)** —
   **macOS / Linux / Windows all Shipped + default-on.** The per-codepoint live
-  system-fallback resolver (macOS CoreText `CTFontCreateForString`) that catches
-  codepoints the static per-block table misses — previously hard-gated
-  `process.platform !== "darwin" → null` — is now one platform-dispatched entry
-  point (`resolveSystemFallbackKeyForCp`). Linux backend via fontconfig
+  system-fallback resolver (macOS CoreText `CTFontCreateForString`) — previously
+  hard-gated `process.platform !== "darwin" → null` — is now one
+  platform-dispatched entry point (`resolveSystemFallbackKeyForCp`). **DM-1868
+  changed WHEN it fires on macOS + Linux:** it is no longer the catcher for
+  codepoints the static per-block table misses, it is the stage that *answers*,
+  with `fallbackFontChain` demoted to the net below it — Blink's own
+  `kSystemFonts` order, since neither `mac/font_cache_mac.mm` nor
+  `linux/font_cache_linux.cc` has a static stage preceding the OS call. Windows
+  keeps chain-first, because there Blink's hardcoded per-script table genuinely
+  is the first answer and `win32FallbackChain` transcribes it.
+  `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old order for an A/B. Linux backend via fontconfig
   `fc-match :charset=<hex>` (`resolveLinuxSystemFallbackKeyForCp`, reusing the
   existing `fcMatch` — no new native code), calibrated against Chromium-on-noble
   and flipped default-on in DM-1416 (with a `fontFileCoversCodepoint` coverage

@@ -68,6 +68,22 @@ the static chain the walker runs *ahead* of this resolver — which puts the two
 stages in Blink's order. See
 [the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
 
+> **Ordering correction (DM-1868) — Windows is now the only platform that runs
+> the static chain first.** On macOS and Linux this resolver is consulted
+> **before** `fallbackFontChain`, because Blink has no static stage there:
+> `mac/font_cache_mac.mm` goes straight to `CTFontCreateForString`, and
+> `linux/font_cache_linux.cc:89-97` straight to fontconfig. Windows keeps
+> chain-first for the reason described just above — there, the hardcoded table
+> genuinely is Chrome's first answer.
+>
+> This invalidates a phrase repeated in the validation records below: *"the
+> resolver only fires on otherwise-tofu codepoints, so covered text is
+> byte-identical."* That was true of the DM-1416 / DM-1424 flips as measured, and
+> it remains the right description of **Windows**. It is no longer true of macOS
+> or Linux, where the resolver now answers first for every codepoint it can
+> resolve. Read those records as history of what each platform flip measured at
+> the time, not as a current statement of when the resolver fires.
+
 Linux and Windows had no equivalent — the resolver was hard-gated
 `process.platform !== "darwin" → null`. So on those platforms an
 out-of-table codepoint always tofu'd, regardless of what the system could paint.
