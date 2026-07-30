@@ -82,6 +82,18 @@ So we keep **two baselines** rather than pretend one count is authoritative:
 
 Establish / refresh a baseline from a reviewed known-good run: `node tools/run-ci-visual-tests.mjs --suite <suite> --update-baseline` (writes `tests/baselines/<suite>-<os>.json` for you to commit). The aggregate job's **Baseline diff** Step-Summary section, and `--strict` on `scripts/diff-against-baseline.mjs`, gate on regressions/new-failures vs that baseline. When the runner image rotates (`macos-15` → a future `macos-N`), the `meta.image` mismatch signals it's time to refresh.
 
+### A baseline "regression" can be the ORACLE moving, not the renderer
+
+The baseline diff compares one number per fixture — the diff between Chrome's `expected.png` and Domotion's `actual.svg`. That number rises whenever *either side* moves, and the report cannot tell you which. On the CI runners it is sometimes Chrome.
+
+The measured case: `2070-209F-superscripts-and-subscripts` reported a worst-tile jump 0.07% → 2.17% on one sweep. Re-running the **same commit** on the **same runner image** reproduced the baseline value, and a fresh full sweep on `main` reproduced it again. Comparing the two runs' artifacts directly showed Domotion's `actual.png` essentially unchanged while Chrome's `expected.png` differed by 607 px, confined to the four cells for U+2090–U+2093 — Chrome had painted those codepoints from a different face in one run than the other. Domotion was stable and correct in both.
+
+Why those cells are exposed: the fixture's stack is `"SF Pro Text", "Arial Unicode MS", "Apple Symbols", "Apple Color Emoji", "Noto Sans", "Noto Serif", sans-serif`, and a bare macOS runner has neither SF Pro nor Noto installed. The declared list therefore thins to `Arial Unicode MS → Apple Symbols → Apple Color Emoji → sans-serif`, and U+2090–U+2093 are covered only by the last entry (`sans-serif` → Helvetica, which carries designed low subscript forms). A font-poor environment leaves almost no margin, so any wobble in the platform's answer shows up as a "regression".
+
+The correct paint there is Helvetica: Blink exhausts the declared family list (`kFontGroupFonts`, which ends at the generic) before it ever consults the platform's per-character fallback (`kSystemFonts`) — see `third_party/blink/renderer/platform/fonts/font_fallback_iterator.h:72-80`, Chromium checkout `7d859f27`. Chrome's own `CSS.getPlatformFontsForNode` reports `Helvetica` for those cells, and the glyph outlines Domotion embeds match Helvetica's `U+2090`/`U+2091` bounding boxes exactly.
+
+**So: before bisecting a single-fixture baseline regression, re-run the same ref.** Attribution by per-commit sweeps is wasted effort if the delta is not reproducible in the first place, and a `--only <fixture>` arm that "passes" proves nothing on its own — the fixture may be order-dependent (see the `--only` caveat in `CLAUDE.md`). The cheap discriminator is to compare the two runs' `*-expected.png` against **each other**: if Chrome's own paint moved, the renderer is not the story.
+
 ## Other-platform caveats
 
 - **Linux is expected to differ** from macOS by design (separate fallback calibration + the runner's Linux text-hinting/coverage floor — see `test-linux.yml`). Use it to catch tofu/missing-font regressions, not to match macOS pixels. It carries its own `tests/baselines/<suite>-linux.json` once established.
