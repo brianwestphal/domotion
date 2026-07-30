@@ -57,6 +57,9 @@ on:
       fallback_base:
         description: 'DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (OFF, hardcoded Helvetica cascade base); 1 = ask CoreText from the run''s own primary. Both arms of the A/B run from ONE ref so the only difference is the flag.'
         default: ''
+      live_fallback_first:
+        description: 'DOMOTION_LIVE_FALLBACK_FIRST override (DM-1868). Empty = renderer default (static fallback chain answers first); 1 = Blink''s order, OS first and the static chain only as the net.'
+        default: ''
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
@@ -164,6 +167,7 @@ jobs:
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
+          DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -206,6 +210,7 @@ jobs:
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
+          DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -257,6 +262,7 @@ jobs:
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
+          DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()

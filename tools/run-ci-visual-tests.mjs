@@ -44,6 +44,8 @@ const hintedSubset = process.argv.includes("--no-hinted-subset") ? "0" : "";
 // diffing an armed run against the committed baseline instead would conflate it
 // with whatever landed on main since that baseline was taken.
 const fallbackBase = process.argv.includes("--fallback-base") ? "1" : "";
+// DM-1868: Blink's kSystemFonts order (OS first, static chain as the net).
+const liveFallbackFirst = process.argv.includes("--live-fallback-first") ? "1" : "";
 let ref = arg("--ref", null);
 // DM-1661: by default the review staging is METADATA-ONLY — download just the
 // tiny pre-merged `visual-tests-merged` artifact (results-<os>.json) and let the
@@ -105,12 +107,13 @@ if (runIdOverride != null) {
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
   console.log(`Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`);
 } else {
-  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "1" ? " fallback-base=ARMED" : ""}`);
+  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "1" ? " fallback-base=ARMED" : ""}${liveFallbackFirst === "1" ? " live-fallback-first=ARMED" : ""}`);
   const dispatchAt = new Date();
   sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
     "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`,
     "-f", `hinted_subset=${hintedSubset}`,
-    "-f", `fallback_base=${fallbackBase}`]);
+    "-f", `fallback_base=${fallbackBase}`,
+    "-f", `live_fallback_first=${liveFallbackFirst}`]);
   runId = await findRunId(dispatchAt);
   if (runId == null) die("could not find the dispatched run — check `gh run list` / Actions tab.");
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
