@@ -242,11 +242,16 @@ step_release_notes() {
   local generated=""
   local gg_args=(--yes gitgist)
   [[ -n "$gg_range" ]] && gg_args+=("$gg_range")
-  [[ -f "$template" ]] && gg_args+=(--template "$template")
+
+  # --template only applies to the AI path: gitgist rejects "--template … --no-ai"
+  # outright ("--template requires AI; remove --no-ai"), so passing it to the offline
+  # fallback made that fallback exit non-zero and silently produce no draft at all.
+  local gg_ai_args=("${gg_args[@]}")
+  [[ -f "$template" ]] && gg_ai_args+=(--template "$template")
 
   if command -v claude &>/dev/null; then
     info "Drafting release notes with gitgist (claude-cli, commits since ${last_tag:-start})..."
-    generated=$(npx "${gg_args[@]}" --provider claude-cli 2>/dev/null || true)
+    generated=$(npx "${gg_ai_args[@]}" --provider claude-cli 2>/dev/null || true)
   fi
   if [[ -z "$generated" ]]; then
     info "Drafting release notes with gitgist (offline --no-ai, commits since ${last_tag:-start})..."
