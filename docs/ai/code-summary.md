@@ -175,8 +175,19 @@ shortest possible map:
 - **Font parity** — `tools/font-conformance.ts` (`npm run fonts:conformance`) is
   the conformance oracle: Chrome's `CSS.getPlatformFontsForNode` vs
   `resolveFontForCodepoint`, over every assigned Unicode codepoint × every font
-  stack in the fixture corpus (`tools/font-conformance-stacks.json`), non-zero
-  exit on any mismatch. Logic pinned by `tests/font-conformance.test.ts`; see
+  stack in the fixture corpus, non-zero exit on any mismatch. Runs on **all
+  three platforms**, each with its own corpus
+  (`tools/font-conformance-stacks.<darwin|linux|win32>.json` — a corpus is not
+  portable, since an element declaring no family computes to Chrome's
+  per-platform default) and its own committed baseline
+  (`tests/baselines/font-conformance-<os>.json`). CI:
+  `.github/workflows/font-conformance.yml` (`os` input) →
+  `scripts/ci-font-conformance-shard.sh` →
+  `scripts/merge-font-conformance-shards.mjs` →
+  `scripts/diff-font-conformance-baseline.mjs` (regression-relative gate).
+  `tools/font-inventory.mjs` records the per-platform installed-font set the
+  answers depend on. Logic pinned by `tests/font-conformance.test.ts` +
+  `tests/font-conformance-baseline.test.ts`; see
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
 
