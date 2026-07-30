@@ -1449,15 +1449,50 @@ function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?:
   return { name: spec.postscriptName, path: spec.path };
 }
 
+/** DM-1859, armed by `DOMOTION_SYSTEM_UI_BASE=1`. Route a `system-ui` run's
+ *  per-codepoint fallback through the helper's UI-font base mode, so CoreText
+ *  walks the cascade Blink walks. Off by default pending the corpus sweep. */
+const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE === "1";
+
+/**
+ * Does this family stack's PRIMARY resolve through Blink's system-ui path?
+ *
+ * Blink splits what `matchFamilyNameToKey` merges. `system-ui` and
+ * `BlinkMacSystemFont` go to `MatchSystemUIFont` — the platform UI font, built
+ * by `CTFontCreateUIFontForLanguage` with its own cascade list — while an
+ * explicitly-named `"SF Pro"` / `"SF Pro Text"` goes to `MatchFontFamily`
+ * (`mac/font_cache_mac.mm:409-417`). All of them land on our single `sf-pro`
+ * key, so the key alone cannot distinguish them.
+ *
+ * Deliberately NOT fixed by splitting the key: `sf-pro`'s Latin metrics are
+ * load-bearing (DM-291 measured SF Pro's advances ~3% wider than Helvetica's,
+ * which is why bare `-apple-system` is excluded from that mapping in the first
+ * place), and a second key would have to reproduce every one of its entries
+ * across three platform tables plus the italic sibling to stay metric-identical.
+ * The distinction only matters for the fallback BASE, so it travels as its own
+ * signal.
+ *
+ * Matches on the FIRST family in the stack, since that is the one whose primary
+ * the cascade is walked from. `-apple-system` is excluded on purpose, matching
+ * `matchFamilyNameToKey`: Chrome resolves it to the UA standard font, not to the
+ * UI font, so it falls through the stack rather than becoming the primary.
+ */
+export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean {
+  if (fontFamily == null || fontFamily === "") return false;
+  const first = fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "").toLowerCase();
+  return first === "system-ui" || first === "blinkmacsystemfont";
+}
+
 function resolveSystemFallbackKeyForCp(
   cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
-  primaryKey?: string,
+  primaryKey?: string, systemUiPrimary: boolean = false,
 ): string | null {
+  const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
   const base = fallbackBaseFor(primaryKey);
   // The base joins the cache key for the same reason the CSS description does:
   // the answer is a function of the font you ask FROM, so a base-blind key would
   // serve whichever base asked first to every later caller (the a72e557 lesson).
-  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}`;
+  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}`;
   if (systemFallbackKeyCache.has(cacheKey)) return systemFallbackKeyCache.get(cacheKey)!;
   let key: string | null = null;
   try {
@@ -1465,7 +1500,15 @@ function resolveSystemFallbackKeyForCp(
       // CoreText CTFontCreateForString via the native helper (always on), THEN
       // the in-family re-selection at the requested traits + weight that Blink
       // runs on the nominated face (font_cache_mac.mm:242-267).
-      const resolved = resolveSystemFallbackFonts([cp], base.name, { weight, italic: slant !== 0, fontSize, basePath: base.path }).get(cp);
+      const resolved = resolveSystemFallbackFonts([cp], base.name, {
+        weight, italic: slant !== 0, fontSize, basePath: base.path,
+        // DM-1859: a `system-ui` run's cascade is walked from the platform UI
+        // font, which the helper builds with `CTFontCreateUIFontForLanguage` the
+        // way `MatchSystemUIFont` does. Not expressible as a path — the UI font
+        // carries its own cascade list, and that list is what reaches Apple's
+        // hidden `.…UI` variants.
+        ...(useSystemUiBase ? { systemUi: true } : {}),
+      }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
@@ -4190,6 +4233,10 @@ export function resolveFontForCodepoint(
   variationSettings: Record<string, number> | undefined,
   lang: string | undefined,
   fontKeyChain: string[],
+  /** DM-1859: the run's primary is the CSS `system-ui` keyword rather than a
+   *  named family. Both land on the `sf-pro` key, so the key cannot carry this;
+   *  see `stackPrimaryIsSystemUi` for why it travels separately. */
+  systemUiPrimary: boolean = false,
 ): FontResolution {
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
@@ -4344,7 +4391,7 @@ export function resolveFontForCodepoint(
 
   // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).
   if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null) {

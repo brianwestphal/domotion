@@ -811,7 +811,10 @@ const _systemFallbackCache = new Map<string, SystemFallbackFont | null>();
 const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest): string =>
   req == null
     ? `${base}\u0000${cp}`
-    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}`;
+    // DM-1859: `systemUi` and `stretch` join the key for the same reason the rest
+    // of the description did — they change which base the cascade is walked FROM,
+    // so a key blind to them would serve a named-family answer to a system-ui run.
+    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -833,6 +836,26 @@ export interface SystemFallbackRequest {
    *  would silently walk the wrong font's cascade. With a path the helper opens
    *  the exact face out of the file. */
   basePath?: string;
+  /** DM-1859: the run's primary is the CSS `system-ui` / `BlinkMacSystemFont`
+   *  keyword, i.e. the platform UI font.
+   *
+   *  Blink does not resolve that through family matching — `CreateFontPlatformData`
+   *  routes it to `MatchSystemUIFont` (`mac/font_cache_mac.mm:409-412`), which
+   *  builds the base with `CTFontCreateUIFontForLanguage`. The UI font carries its
+   *  OWN cascade list, the one that reaches Apple's hidden `.…UI` variants, and
+   *  only that API returns it: measured, opening `/System/Library/Fonts/SFNS.ttf`
+   *  by path answers U+6F22 with `PingFangSC-Regular` at every size, while Chrome
+   *  answers `.PingFangUITextSC-Regular` at 13px and `.PingFangUIDisplaySC-Regular`
+   *  at 20px. So this is not expressible as a `basePath` — it needs the helper's
+   *  `systemUI` base mode.
+   *
+   *  `stretch` rides along because `MatchSystemUIFont` takes it: at weight 400 and
+   *  width 100 it returns the traited font directly, and otherwise applies clamped
+   *  `wght`/`wdth` variation axes. */
+  systemUi?: boolean;
+  /** CSS `font-stretch` as a percentage (100 = normal). Only consulted for the
+   *  `systemUi` base, mirroring `MatchSystemUIFont`'s `desired_width`. */
+  stretch?: number;
 }
 
 /** Authoritative per-codepoint system font fallback, matching Chrome-on-macOS.
@@ -878,6 +901,18 @@ export function resolveSystemFallbackFonts(
       fonts: [{
         ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
         ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
+        // DM-1859: the platform UI font, built the way `MatchSystemUIFont` builds
+        // it. The helper derives the symbolic traits from these CSS values itself
+        // (Blink's `kBoldThreshold` is 600 and lives on that side), so pass the
+        // numbers rather than pre-computed booleans.
+        ...(req?.systemUi === true
+          ? {
+            systemUI: true,
+            cssWeight: req.weight,
+            cssSlant: req.italic ? 1 : 0,
+            cssWidth: req.stretch ?? 100,
+          }
+          : {}),
       }],
       queries: [{
         type: "fallback", fontRef: "base", cps: need,

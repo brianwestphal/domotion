@@ -68,6 +68,7 @@ import {
   resolveFontKey,
   resolveFontKeyChain,
   resolveFontSpec,
+  stackPrimaryIsSystemUi,
 } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 
@@ -515,6 +516,12 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
     undefined,
     lang,
     rs.chain,
+    // DM-1859: the oracle must ask the question the RENDERER asks, and the
+    // renderer distinguishes a `system-ui` primary from an explicitly-named
+    // "SF Pro" even though both share the `sf-pro` key. Omitting this would
+    // measure a different code path than the one that paints — the exact
+    // instrument defect this tool was corrected for once already.
+    stackPrimaryIsSystemUi(rs.spec.fontFamily),
   );
   // An uncovered codepoint has no resolved face of its own — the renderer draws
   // the run primary's `.notdef`, so THAT is the face to compare against Chrome.

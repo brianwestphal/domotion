@@ -63,6 +63,7 @@ import {
   setRenderTextMode,
   syntheticMarkCenteringOffsetPx,
   win,
+  stackPrimaryIsSystemUi,
 } from "./font-resolution.js";
 export * from "./font-resolution.js";
 
@@ -234,7 +235,7 @@ export function textToPathMarkup(
       // webfont variant → chain → system fallback → math-alpha → NFD). This path
       // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
       // (the substituted base char) rather than the per-char source index.
-      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily));
       // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
       // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
       // placing one on a system color font here would split it out of the
@@ -1085,6 +1086,10 @@ function splitTextIntoFontRuns(
   variationSettings: Record<string, number> | undefined,
   lang: string | undefined,
   fontKeyChain: string[],
+  /** DM-1859: the run's primary is the CSS `system-ui` keyword. Passed rather
+   *  than derived, because `system-ui` and an explicitly-named "SF Pro" share
+   *  the `sf-pro` key — see `stackPrimaryIsSystemUi`. */
+  systemUiPrimary: boolean = false,
 ): FontRun[] {
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
@@ -1221,7 +1226,7 @@ function splitTextIntoFontRuns(
     // `.notdef` (glyph 0) — which is exactly what `covered: false` returns
     // (key=primary / override=null / emitCh=source), preserving DM-1018.
     // (`decomposed` is unused here — the embedded loop always renders run.text.)
-    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary);
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;
     const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
@@ -1329,7 +1334,7 @@ function renderTextAsEmbedded(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily));
   if (runs.length === 0) return null;
 
   // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
@@ -2287,7 +2292,7 @@ export function measureInkMetrics(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const fontKeyChain = resolveFontKeyChain(fontFamily);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily));
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
