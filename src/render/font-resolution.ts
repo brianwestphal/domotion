@@ -1455,10 +1455,60 @@ function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?:
   return { name: spec.postscriptName, path: spec.path };
 }
 
-/** DM-1859, armed by `DOMOTION_SYSTEM_UI_BASE=1`. Route a `system-ui` run's
- *  per-codepoint fallback through the helper's UI-font base mode, so CoreText
- *  walks the cascade Blink walks. Off by default pending the corpus sweep. */
-const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE === "1";
+/** DM-1859. Route a `system-ui` run's per-codepoint fallback through the
+ *  helper's UI-font base mode, so CoreText walks the cascade Blink walks.
+ *
+ *  A `system-ui` family does not go through Blink's normal family matcher at all
+ *  — `mac/font_cache_mac.mm:409-412` sends it to `MatchSystemUIFont`, which
+ *  builds the base with `CTFontCreateUIFontForLanguage(kCTFontUIFontSystem,
+ *  size, nullptr)` (`mac/font_matcher_mac.mm:540-588`). Per-codepoint fallback
+ *  then walks FROM that font, and Blink's own comment names the consequence
+ *  (`mac/font_cache_mac.mm:156-159`): the system API "might also return '.Apple
+ *  Color Emoji UI' when starting from system-ui". Apple's hidden `.…UI` variants
+ *  are reachable only that way — the UI font carries its own cascade list, and
+ *  opening `SFNS.ttf` by path instead gives a plain font with the default
+ *  cascade (measured: `PingFangSC-Regular` at every size and weight).
+ *
+ *  DEFAULT-ON as of the measurement below; set `DOMOTION_SYSTEM_UI_BASE=0` to
+ *  restore the old hardcoded-base behavior for an A/B.
+ *
+ *  Measured before flipping, as a 2×2 against `_liveFallbackFirst` — because
+ *  neither flag can be scored alone. Conformance oracle, CJK slice (8 corpus
+ *  stacks × 28,309 codepoints = 226,472 comparisons), all four cells run at one
+ *  revision with one instrument:
+ *
+ *              | chain-first        | OS-first (default)
+ *    ----------|--------------------|-------------------
+ *    base OFF  | 113,963 / 27 rts   | 113,407 / 16 rts
+ *    base ON   | 113,908 / 23 rts   |  29,025 /  4 rts
+ *
+ *  Read the interaction, not the margins. Against the all-off cell: this base fix
+ *  alone is **−55** rows, `_liveFallbackFirst` alone is **−556**, and both
+ *  together are **−84,938 (−75%)**. Only 611 of that is explained by the two
+ *  flags separately — the remaining **84,327 rows exist only when both are on**.
+ *  Asking CoreText the right question cannot pay while the static per-block chain
+ *  answers first, and asking in the right order cannot pay while the question
+ *  names the wrong base font.
+ *
+ *  What moves is the concentration this ticket was filed for: all three
+ *  `.PingFangUI*` routes — 83,838 rows, 73% of the slice's mismatch mass — go to
+ *  zero, taking the `system-ui` stack from 84,567 mismatches to 185.
+ *
+ *  That interaction is also why `_liveFallbackFirst`'s own comment quotes 29,025
+ *  as its result: that figure was measured with this flag armed, and is not
+ *  reproducible from `_liveFallbackFirst` alone. The honest attribution is the
+ *  table above.
+ *
+ *  The mechanism itself is verified against Chrome independently of any corpus
+ *  score — CDP `CSS.getPlatformFontsForNode`, `font-family: system-ui`, U+6F22,
+ *  **18/18 exact** across 9 CSS weights × 2 sizes, including the two rows that
+ *  prove it has to be a call rather than a lookup: at 13px only weights 400 and
+ *  700 stay in the Text cut (every other weight jumps to Display), and adding
+ *  `font-style: italic` at 13px moves the answer from Text to Display because
+ *  PingFang has no italic. No table would have carried those rules, and a
+ *  sampled one that happened to capture them would be freezing one OS version's
+ *  behavior into source. */
+const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE !== "0";
 
 /** DM-1868. Put the two kSystemFonts stages in Blink's order — ask the OS first,
  *  and keep the static per-block chain only as the net for what the OS declines.
@@ -1502,6 +1552,15 @@ const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE === "1";
  *     wrong `→ PingFangHK-Regular` route (2,139 rows on the largest alone)
  *     collapses to zero — we were painting the Hong Kong regional variant where
  *     Chrome paints SC.
+ *
+ *     **Attribution correction (DM-1859).** That 29,025 was measured with the
+ *     `system-ui` cascade base armed, which was still off by default when this
+ *     was written, so the figure is not reproducible from this flag alone. Re-run
+ *     as a 2×2 at one revision: this flag alone moves 113,963 → **113,407**, and
+ *     the two together give 29,025. The `.PingFangUI*` collapse needs both — see
+ *     the table on `_systemUiBaseEnabled`. Neither flag is scoreable in
+ *     isolation, which is the general hazard: a fix to a stage another stage
+ *     shadows measures as worthless until the shadow is lifted.
  *   - Full 818-fixture macOS unicode sweep, both arms from ONE pushed ref so the
  *     flag was the only difference: only 4 of 818 fixtures moved at all, one
  *     improved, and the single threshold crossing is documented below.

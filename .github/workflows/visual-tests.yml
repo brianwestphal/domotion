@@ -60,6 +60,9 @@ on:
       live_fallback_first:
         description: 'DOMOTION_LIVE_FALLBACK_FIRST override (DM-1868). Empty = renderer default (ON — Blink''s kSystemFonts order, OS first and the static chain only as the net); 0 = force the old static-chain-first order for A/B.'
         default: ''
+      system_ui_base:
+        description: 'DOMOTION_SYSTEM_UI_BASE override (DM-1859). Empty = renderer default (ON — a system-ui run''s cascade is walked from the CoreText UI font, the way MatchSystemUIFont builds it); 0 = force the old non-UI base for A/B. Only meaningful together with live_fallback_first ON, since the static chain otherwise answers first.'
+        default: ''
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
@@ -168,6 +171,7 @@ jobs:
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
           DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
+          DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -211,6 +215,7 @@ jobs:
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
           DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
+          DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -263,6 +268,7 @@ jobs:
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
           DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
+          DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()

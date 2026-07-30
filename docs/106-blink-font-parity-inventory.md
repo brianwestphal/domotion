@@ -78,11 +78,16 @@ The measurement that justified the flip, against the conformance oracle rather t
 
 | CJK slice (8 corpus stacks × 28,309 codepoints) | mismatches | routes | agree-exact |
 |---|---|---|---|
-| chain-first (old) | 113,963 | 27 | 49.4% |
+| chain-first, named cascade base (both old) | 113,963 | 27 | 49.4% |
 | chain-first + UI-font cascade base | 113,908 | 23 | — |
-| **OS-first (now default)** | **29,025** | **4** | **86.9%** |
+| OS-first, named cascade base | 113,407 | 16 | — |
+| **OS-first + UI-font cascade base (both now default)** | **29,025** | **4** | **86.9%** |
 
-Two things that middle row demonstrates, and they are the point of this whole entry: fixing the cascade base — a change verified 18/18 against Chrome — moved **55 rows out of an expected 83,838**, because `[pingfang-sc, cjk]` covered Han and the walk stopped before the OS was asked. A correct fix to a shadowed stage is worth almost nothing. And the two changes only pay off together: all three `.PingFangUI*` routes collapse to zero only with both.
+Completed as a full 2×2 in DM-1859, when the UI-font cascade base became the default too; all four cells are one revision measured with one instrument.
+
+Two things this demonstrates, and they are the point of this whole entry. **A correct fix to a shadowed stage is worth almost nothing:** fixing the cascade base — verified 18/18 against Chrome — moved **55 rows out of an expected 83,838**, because `[pingfang-sc, cjk]` covered Han and the walk stopped before the OS was asked. **And neither change is scoreable alone:** separately they are −55 and −556; together they are −84,938, so 84,327 rows exist only when both are on, and all three `.PingFangUI*` routes collapse to zero only with both.
+
+That is also a reporting hazard worth naming, because this entry fell into it: the 29,025 figure was first recorded as the ordering flag's own result, when it in fact required a second flag that was still off by default. When two stages shadow each other, an A/B of either one measures near zero and reads as "not the problem".
 
 The full 818-fixture macOS unicode sweep moved 4 fixtures out of 818. The one that moved the wrong way is instructive: on the cell in question Chrome paints PingFang SC, the old order painted PingFang **HK** (the wrong regional variant), and the new order paints SC — yet the tile's pixel diff went *up*, because the wrong face's outline happened to rasterize nearer Chrome's Skia-hinted raster than the correct face's does. That is the §6 rasterization floor masquerading as a regression, and it is precisely why parity is gated on the oracle: a pixel metric cannot distinguish "right font" from "lucky wrong font".
 

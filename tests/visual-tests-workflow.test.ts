@@ -106,4 +106,60 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     // forgets the copy leaves the resolver seeing nothing.
     expect(jobs["test-macos"]).toMatch(/domotion-glyph-paths/);
   });
+
+  // DM-1859: every renderer A/B flag must be dispatchable AND reach all three
+  // sweep jobs. A flag with a workflow input but no `env:` wiring in some job
+  // produces the worst possible result: that job silently runs the RENDERER
+  // DEFAULT while the run is labelled as the other arm, and its report looks
+  // like a legitimate measurement. The A/B then "shows no difference" for a
+  // reason that has nothing to do with the code under test.
+  //
+  // Not hypothetical. DM-1868's landing note quoted a CJK-slice figure of 29,025
+  // as that flag's own result; re-measuring as a 2×2 showed the figure required
+  // a SECOND flag that was still off by default, and the flag alone accounts for
+  // 556 of the 84,382 rows. Wrong-arm measurements are the recurring failure in
+  // this area, so the wiring is pinned rather than trusted.
+  describe("renderer A/B flags are dispatchable and reach every sweep job", () => {
+    const AB_FLAGS = [
+      { input: "hinted_subset", env: "DOMOTION_HINTED_SUBSET" },
+      { input: "fallback_base", env: "DOMOTION_FALLBACK_BASE" },
+      { input: "live_fallback_first", env: "DOMOTION_LIVE_FALLBACK_FIRST" },
+      { input: "system_ui_base", env: "DOMOTION_SYSTEM_UI_BASE" },
+    ];
+
+    for (const { input, env } of AB_FLAGS) {
+      it(`${env} has a workflow input and is wired into macOS, Linux and Windows`, () => {
+        expect(yaml, `missing workflow_dispatch input \`${input}\``).toMatch(
+          new RegExp(`^ {6}${input}:`, "m"),
+        );
+        for (const job of ["test-macos", "test-linux", "test-windows"]) {
+          expect(
+            jobs[job]?.includes(`${env}: \${{ inputs.${input} }}`),
+            `${job} does not pass ${env} through — that job would silently run the renderer default`,
+          ).toBe(true);
+        }
+      });
+    }
+
+    it("every renderer DOMOTION_ env the workflow passes is dispatch-controlled, not a hardcoded arm", () => {
+      // Catches the inverse drift: a renderer flag pinned to a literal in the
+      // workflow, which makes one arm permanently unreachable and every future
+      // A/B against it silently a no-op.
+      //
+      // Allowlisted: settings that configure the RUNNER rather than the
+      // renderer's font/paint decisions. `DOMOTION_NO_NICE` disables the
+      // harness's `nice` self-throttling, which is correct to force on a CI box
+      // and is not an arm of anything.
+      const RUNNER_ENV = new Set(["DOMOTION_NO_NICE"]);
+      const passed = [...yaml.matchAll(/^\s+(DOMOTION_[A-Z0-9_]+): (.*)$/gm)];
+      expect(passed.length, "guard is vacuous — no DOMOTION_ envs found").toBeGreaterThan(0);
+      for (const [, name, value] of passed) {
+        if (RUNNER_ENV.has(name)) continue;
+        expect(
+          /^\$\{\{ (inputs|env)\./.test(value.trim()),
+          `${name} is hardcoded to \`${value.trim()}\` — that arm cannot be dispatched`,
+        ).toBe(true);
+      }
+    });
+  });
 });

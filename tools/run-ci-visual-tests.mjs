@@ -50,6 +50,13 @@ const fallbackBase = process.argv.includes("--no-fallback-base") ? "0" : "";
 // static-chain-first arm for A/B (--live-fallback-first is a no-op, kept for
 // backward compatibility with the pre-flip A/B invocations).
 const liveFallbackFirst = process.argv.includes("--no-live-fallback-first") ? "0" : "";
+// DM-1859: a `system-ui` run's per-codepoint cascade is walked from the CoreText
+// UI font (`CTFontCreateUIFontForLanguage`), the way `MatchSystemUIFont` builds
+// it. DEFAULT-ON in the renderer; --no-system-ui-base dispatches the old
+// non-UI-base arm for A/B. Only meaningful with live-fallback-first ON: with the
+// static per-block chain answering first, the OS is never asked, so the base it
+// would have been asked with cannot matter (measured: 55 rows out of 83,838).
+const systemUiBase = process.argv.includes("--no-system-ui-base") ? "0" : "";
 let ref = arg("--ref", null);
 // DM-1661: by default the review staging is METADATA-ONLY — download just the
 // tiny pre-merged `visual-tests-merged` artifact (results-<os>.json) and let the
@@ -111,13 +118,14 @@ if (runIdOverride != null) {
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
   console.log(`Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`);
 } else {
-  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "0" ? " fallback-base=OFF" : ""}${liveFallbackFirst === "0" ? " live-fallback-first=OFF" : ""}`);
+  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "0" ? " fallback-base=OFF" : ""}${liveFallbackFirst === "0" ? " live-fallback-first=OFF" : ""}${systemUiBase === "0" ? " system-ui-base=OFF" : ""}`);
   const dispatchAt = new Date();
   sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
     "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`,
     "-f", `hinted_subset=${hintedSubset}`,
     "-f", `fallback_base=${fallbackBase}`,
-    "-f", `live_fallback_first=${liveFallbackFirst}`]);
+    "-f", `live_fallback_first=${liveFallbackFirst}`,
+    "-f", `system_ui_base=${systemUiBase}`]);
   runId = await findRunId(dispatchAt);
   if (runId == null) die("could not find the dispatched run — check `gh run list` / Actions tab.");
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);

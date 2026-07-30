@@ -478,10 +478,15 @@ Notes:
   exactly where Blink asks the OS, so ordering it first meant answering before
   Chrome's question was ever asked — the structural divergence
   [doc 106](106-blink-font-parity-inventory.md) §4 names. Putting the OS first
-  moved the conformance oracle's CJK slice from **113,963 mismatches / 27 routes
-  to 29,025 / 4** (agree-exact 49.4% → 86.9%), collapsing every wrong
-  `→ PingFangHK-Regular` route to zero — we had been painting the Hong Kong
-  regional variant on ext-B where Chrome paints SC.
+  collapsed every wrong `→ PingFangHK-Regular` route to zero — we had been
+  painting the Hong Kong regional variant on ext-B where Chrome paints SC.
+
+  On the conformance oracle's CJK slice this ordering **alone** moves 113,963
+  mismatches / 27 routes → **113,407 / 16**. The larger figure this doc
+  previously reported for it (29,025 / 4, agree-exact 86.9%) is the combined
+  result with the `system-ui` cascade base armed, which was still off by default
+  when that was written — see the 2×2 in §8a. Neither flag is scoreable alone,
+  and 84,382 of the 84,938 rows require both.
 - **Step 2b is still load-bearing.** The static chain is the net for what the OS
   declines: a host with no glyph helper, a platform whose live resolver is
   flagged off, or a codepoint the platform engine has no answer for — each of
@@ -752,8 +757,11 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey)"] --> SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
-  SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE)"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary)"] --> SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
+  SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
+  SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
+  SRUIB --> SR1
+  SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag)"}
   SR1 -->|"yes"| SRC["return cached key or null"]
   SR1 -->|"no"| SR2{"process.platform"}
   SR2 -->|"darwin (always on)"| SRD0["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)<br/>→ the NOMINATED face"]
@@ -819,6 +827,55 @@ Three consequences worth holding onto:
   reported the unrelated public Thonburi family as its own bold cut. The
   `basePath` field on the request carries the file; the helper now errors on a
   named-but-unopenable `fontRef` instead of quietly substituting Helvetica.
+- **A `system-ui` run's base is the UI FONT, and it is not nameable** (DM-1859).
+  `system-ui` never enters the normal family matcher: `mac/font_cache_mac.mm:409-412`
+  routes it to `MatchSystemUIFont`, which builds the font with
+  `CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, nullptr)`, applies
+  bold/italic as symbolic traits, and — above weight 400 or width 100 — applies
+  `wght`/`wdth` variation axes clamped to the face's own ranges
+  (`mac/font_matcher_mac.mm:540-588`). Fallback then walks from *that* font, and
+  Blink's own comment names the consequence
+  (`mac/font_cache_mac.mm:156-159`): the system API "might also return '.Apple
+  Color Emoji UI' when starting from system-ui". That is why Chrome paints Apple's
+  hidden `.PingFangUITextSC-*` / `.PingFangUIDisplaySC-*` optical cuts for CJK on a
+  `system-ui` page where a named base yields plain `PingFangSC-*`.
+
+  Two things make this a **call, not a table**. Opening `SFNS.ttf` by path is not
+  equivalent — measured under four different PostScript names, it answers U+6F22
+  with `PingFangSC-Regular` at every size and weight, because the plain file
+  carries the default cascade while the UI font carries its own cascade list.
+  And CoreText's answer is not guessable: at 13px only weights 400 and 700 stay in
+  the **Text** cut (every other weight jumps to **Display**), and adding
+  `font-style: italic` at 13px moves Text → Display because PingFang has no
+  italic. Verified 18/18 exact against Chrome (CDP `getPlatformFontsForNode`,
+  9 weights × 2 sizes). A sampled table that happened to capture those rules would
+  be freezing one OS version's behavior into source.
+
+  The signal travels **beside** the font key, not derived from it:
+  `stackPrimaryIsSystemUi(fontFamily)` reads the stack's first family, because
+  `system-ui`, `BlinkMacSystemFont` and an explicitly-named `"SF Pro Text"` all
+  collapse onto the single `sf-pro` key while Blink sends the first two to
+  `MatchSystemUIFont` and the third to `MatchFontFamily`
+  (`mac/font_cache_mac.mm:409-417`). Splitting the key was rejected: `sf-pro`'s
+  Latin metrics are load-bearing (SF Pro's advances measure ~3% wider than
+  Helvetica's) and a second key would have to reproduce every entry across three
+  platform tables plus the italic sibling to stay metric-identical.
+
+  **This flag and `DOMOTION_LIVE_FALLBACK_FIRST` are only scoreable together**
+  (see §7). With the static per-block chain answering first, the OS is never asked,
+  so the base it would have been asked with cannot matter. Conformance oracle, CJK
+  slice (226,472 comparisons), one revision, one instrument:
+
+  |            | chain-first      | OS-first (default) |
+  | ---------- | ---------------- | ------------------ |
+  | base OFF   | 113,963 / 27 rts | 113,407 / 16 rts   |
+  | base ON    | 113,908 / 23 rts | **29,025 / 4 rts** |
+
+  Against the all-off cell: this base alone is −55 rows, the ordering alone is
+  −556, both together are **−84,938 (−75%)**. Only 611 of that is explained by
+  the two flags separately; the remaining **84,327 rows exist only when both are
+  on**. All three `.PingFangUI*` routes go to zero (the `system-ui` stack: 84,567
+  mismatches → 185).
 - **This is NOT the same matcher as the declared-family path.** Chrome resolves
   `font-family: "Euphemia UCAS"; font-weight: 500` to the regular face but a
   *fallback* to the same family at weight 500 to `EuphemiaUCAS-Bold`; declared
