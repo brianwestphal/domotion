@@ -702,8 +702,9 @@ flowchart TD
   WP3 --> WONE
   WLR --> WONE
   WONE --> WPAN["+ pan-Unicode probe list:<br/>kCjkFonts when script_out is still Han, else kCommonFonts"]
-  WPAN --> WKEY["each family → winfam:&lt;psName&gt; via the win32 helper's<br/>DirectWrite FindFamilyName ( == Blink's IsFontPresent);<br/>not-installed families drop out"]
-  WKEY --> WNET["+ UNICODE_FONT_RANGES_WIN32 key, unless the live<br/>DirectWrite resolver already covers cp (win32DeferOrStatic)"]
+  WPAN --> WKEY["presence probe: FindFamilyName, DEFAULT style<br/>( == Blink's IsFontPresent);<br/>not-installed families drop out"]
+  WKEY --> WCUT["then SELECT the cut: GetFirstMatchingFont(weight, stretch, slant)<br/>at the RUN'S style → winfam:&lt;psName of that cut&gt;<br/>( == matchFamilyStyle(name, SkiaFontStyle()))"]
+  WCUT --> WNET["+ UNICODE_FONT_RANGES_WIN32 key, unless the live<br/>DirectWrite resolver already covers cp (win32DeferOrStatic)"]
 ```
 
 Two properties of the adapter that are load-bearing rather than incidental:
@@ -723,6 +724,38 @@ Two properties of the adapter that are load-bearing rather than incidental:
   unavailable (non-Windows, or a Windows host with no built binary) every family
   reads as absent, the Blink stage contributes nothing, and the generated net
   carries the whole answer — the same behavior as before this stage existed.
+- **Presence and cut selection are two DIFFERENT calls with the same API, and the
+  argument is the difference** (DM-1878). `IsFontPresent` passes the **default**
+  `SkFontStyle()` — a bold run does not change whether a family is installed
+  (`win/font_fallback_win.cc:54-59`). Instantiating the nominated family passes the
+  **run's** style: `GetFontPlatformData(font_description, create_by_family)` →
+  `matchFamilyStyle(name, font_description.SkiaFontStyle())`
+  (`win/font_cache_skia_win.cc:170-176`, `fonts/skia/font_cache_skia.cc:293-295`),
+  which on Windows is `GetFirstMatchingFont(weight, stretch, slant)`.
+
+  We used to make only the first call and use its answer for both, so **every
+  weight-700 Windows stack resolved the regular cut** — 222,874 of the first
+  Windows conformance baseline's 259,152 mismatches were same-family-wrong-cut.
+  Unlike macOS there is no second in-family re-selection step to recover it
+  (§8a): DirectWrite decides inside the lookup, so the style has to be in the
+  call. The cut now travels in the key (`winfam:SegoeUI-Bold` vs `winfam:SegoeUI`),
+  so one family serves many weights without sibling table entries — and the style
+  joins the memo key, or whichever weight asked first would be served to all.
+
+  Verified on a Win11 host against the routes the oracle reported Chrome picking:
+
+  | asked | resolved |
+  |---|---|
+  | Segoe UI, no style | `SegoeUI` / `SEGOEUI.TTF` (unchanged) |
+  | Segoe UI @300 / @600 / @700 / @900 | `-Light` / `-Semibold` / `-Bold` / `Black` |
+  | Segoe UI @400 italic / @700 italic | `-Italic` / `-BoldItalic` |
+  | Microsoft YaHei / Malgun Gothic / Nirmala UI / Ebrima / Gadugi @700 | each family's real `-Bold` |
+
+  That ladder is also why a two-slot `-bold` sibling entry could not have been
+  made correct: Segoe UI ships six upright weights plus five italics, so a
+  regular/bold pair is wrong at 300, 350, 600 and 900 — the same defect measured
+  on macOS, where `hiragino-jp` pinned to one face was wrong at seven of nine
+  weights before its W0–W9 ladder landed.
 
 **What this replaced:** a per-block table calibrated by probing painted advance
 widths and `CSS.getPlatformFontsForNode` on one Windows 11 host. It scored well on

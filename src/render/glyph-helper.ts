@@ -226,7 +226,16 @@ interface HelperRequest {
     // helper performs after the cascade walk (Blink's
     // `GetAlternateFontPlatformData`). Absent → the nominated face stands.
     | { type: "fallback"; fontRef: string; cps: number[]; cssWeight?: number; bold?: boolean; italic?: boolean }
-    | { type: "family"; name: string }
+    // DM-1878: the style fields pick the CUT within the family — on Windows
+    // `GetFirstMatchingFont(weight, stretch, style)`, i.e. what
+    // `matchFamilyStyle(name, font_description.SkiaFontStyle())` bottoms out in.
+    // Absent → DirectWrite's default face, which is what Blink's presence probe
+    // `matchFamilyStyle(name, SkFontStyle())` asks for, so omitting them is the
+    // correct transcription for a presence check rather than just a fallback.
+    | {
+        type: "family"; name: string;
+        cssWeight?: number; italic?: boolean; cssSlant?: number; cssStretch?: number;
+      }
     | { type: "shape"; fontRef: string; text: string }
   >;
 }
@@ -1029,14 +1038,62 @@ function hiddenFamilies(): Set<string> {
   return new Set(raw.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s !== ""));
 }
 
-export function resolveInstalledFont(name: string): InstalledFont | null {
-  const key = name.toLowerCase();
-  if (hiddenFamilies().has(key)) return null;
+/**
+ * The run's CSS style, for callers that want the FACE a family resolves to
+ * rather than merely whether the family exists (DM-1878).
+ *
+ * These are two different Blink calls with the same API, and conflating them is
+ * what made a weight-700 Windows run paint the regular cut:
+ *
+ *  - `IsFontPresent` is `matchFamilyStyle(name, SkFontStyle())` — the DEFAULT
+ *    style (`win/font_fallback_win.cc:54-59`). Omit `style` for this.
+ *  - face selection is `matchFamilyStyle(name, font_description.SkiaFontStyle())`
+ *    — the run's real style (`fonts/skia/font_cache_skia.cc:293-295`, reached
+ *    from `CreateTypeface`). Pass `style` for this.
+ *
+ * Windows only in practice: DirectWrite picks the cut inside the family lookup,
+ * whereas the macOS helper's `family` query is a CoreText name resolution with
+ * its own in-family re-selection step downstream. (Chromium rev 7d859f27.)
+ */
+export interface InstalledFontStyle {
+  /** CSS `font-weight`, 1–1000. Blink clamps outside that to normal. */
+  weight?: number;
+  /** Italic FLAG, for the common case where the renderer has no angle. */
+  italic?: boolean;
+  /** CSS `font-style` angle when known; >0 italic, >14 oblique. */
+  slant?: number;
+  /** CSS `font-stretch` percentage; 100 is normal. */
+  stretch?: number;
+}
+
+export function resolveInstalledFont(
+  name: string, style?: InstalledFontStyle,
+): InstalledFont | null {
+  const nameKey = name.toLowerCase();
+  if (hiddenFamilies().has(nameKey)) return null;
+  // The style joins the cache key for the same reason the cascade base does in
+  // `systemFallbackKeyCache`: the answer is a function of the style you ask
+  // with, so a style-blind key would serve whichever style asked FIRST to every
+  // later caller — and the presence probe (no style) usually asks first.
+  const key = style == null
+    ? nameKey
+    : `${nameKey}|${style.weight ?? 400}|${style.italic === true ? 1 : 0}|${style.slant ?? 0}|${style.stretch ?? 100}`;
   if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
   let resolved: InstalledFont | null = null;
   if (isGlyphHelperAvailable()) {
     try {
-      const resp = callHelper({ fonts: [], queries: [{ type: "family", name }] });
+      const resp = callHelper({ fonts: [], queries: [{
+        type: "family", name,
+        // Omitted entirely when there is no style, so the request is
+        // byte-identical to the pre-DM-1878 one and an older helper binary
+        // behaves exactly as before.
+        ...(style != null ? {
+          cssWeight: style.weight ?? 400,
+          italic: style.italic === true,
+          cssSlant: style.slant ?? 0,
+          cssStretch: style.stretch ?? 100,
+        } : {}),
+      }] });
       const r = resp.results[0];
       if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
         resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path, resolvedAxes: r.axes };

@@ -2099,15 +2099,46 @@ function lookupNotoLinuxUnicodeFontRange(codepoint: number): string | null {
  * per-block net carries the whole answer, exactly as it did before.
  */
 const win32FamilyKeyCache = new Map<string, string | null>();
-let _win32FamilyKeyOverride: ((family: string) => string | null) | null = null;
+let _win32FamilyKeyOverride:
+  ((family: string, css?: CssFallbackDescription) => string | null) | null = null;
 
-function win32FamilyKey(family: string): string | null {
-  if (_win32FamilyKeyOverride != null) return _win32FamilyKeyOverride(family);
-  const cacheKey = family.toLowerCase();
+/**
+ * DM-1878: presence and face selection are two DIFFERENT Blink calls, and this
+ * function serves both — so the style is optional rather than always passed.
+ *
+ *  - `css == null` → `matchFamilyStyle(name, SkFontStyle())`, Blink's
+ *    `IsFontPresent` (`win/font_fallback_win.cc:54-59`). This is what the
+ *    hardcoded-table stage probes with while deciding which family to nominate,
+ *    and it is style-blind in Blink too — a bold run does not change whether
+ *    "David" is installed.
+ *  - `css != null` → `matchFamilyStyle(name, font_description.SkiaFontStyle())`,
+ *    which is how Blink instantiates the family it nominated
+ *    (`GetFontPlatformData(font_description, create_by_family)`,
+ *    `win/font_cache_skia_win.cc:170-176`). DirectWrite picks the cut inside that
+ *    call, so the run's weight/slant/stretch have to be IN it: there is no
+ *    second in-family re-selection step on Windows the way macOS has one.
+ *
+ * Passing NORMAL where Blink passes the run's style is what made every
+ * weight-700 Windows stack resolve the regular cut — 222,874 of the first
+ * Windows conformance baseline's 259,152 mismatches were same-family-wrong-cut.
+ * (Chromium rev 7d859f27, 2026-06-27.)
+ */
+function win32FamilyKey(family: string, css?: CssFallbackDescription): string | null {
+  if (_win32FamilyKeyOverride != null) return _win32FamilyKeyOverride(family, css);
+  const cacheKey = css == null
+    ? family.toLowerCase()
+    : `${family.toLowerCase()}|${css.weight}|${css.slant !== 0 ? 1 : 0}`;
   if (win32FamilyKeyCache.has(cacheKey)) return win32FamilyKeyCache.get(cacheKey)!;
   let key: string | null = null;
-  const installed = resolveInstalledFont(family);
+  const installed = resolveInstalledFont(
+    family,
+    css != null ? { weight: css.weight, italic: css.slant !== 0 } : undefined,
+  );
   if (installed != null && installed.path !== "" && installed.postscriptName !== "") {
+    // The cut travels in the KEY, since it is the PostScript name DirectWrite
+    // resolved — `winfam:SegoeUI-Bold` and `winfam:SegoeUI` are distinct keys
+    // pointing at distinct files, which is what lets one family serve several
+    // weights without the two-slot `-bold` sibling approximation.
     key = `winfam:${installed.postscriptName}`;
     registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes);
   }
@@ -2125,9 +2156,17 @@ function win32FamilyKey(family: string): string | null {
  * Noto-CJK-equipped host, a stripped host with nothing installed) and assert the
  * exact family Blink would nominate in each. Pass null to restore the real
  * lookup.
+ *
+ * DM-1878: the injected function receives the same optional `css` the real
+ * lookup does — **absent for the presence probe** (Blink's `IsFontPresent`,
+ * default `SkFontStyle()`) and **present for face selection** (the run's
+ * `SkiaFontStyle()`). A test can therefore assert not just which family is
+ * nominated but that the style reaches the cut-selecting call and NOT the
+ * presence one, which is the distinction the defect collapsed. A 1-argument
+ * lambda stays valid and simply ignores it.
  */
 export function __setWin32FamilyKeyResolverForTest(
-  fn: ((family: string) => string | null) | null,
+  fn: ((family: string, css?: CssFallbackDescription) => string | null) | null,
 ): void {
   _win32FamilyKeyOverride = fn;
   win32FamilyKeyCache.clear();
@@ -2200,16 +2239,25 @@ function win32DeferOrStatic(cp: number, fallback: string[]): string[] {
  * behavior choice, and it can only differ for Arabic or Hebrew text in an
  * explicitly-Courier-New run.
  */
-export function win32FallbackChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
+export function win32FallbackChain(
+  codepoint: number, primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+): string[] {
+  // Style-BLIND on purpose: this is Blink's `IsFontPresent`, which asks
+  // `matchFamilyStyle(name, SkFontStyle())` with the default style while choosing
+  // which family to nominate (`win/font_fallback_win.cc:54-65`). Whether a family
+  // is installed does not depend on the run's weight.
   const families = blinkWinHardcodedFamilies(codepoint, {
     generic: primaryKey === "courier" ? "monospace" : "standard",
     lang,
     priority: winFallbackPriorityForTextRun(codepoint),
   }, (family) => win32FamilyKey(family) != null);
 
+  // Style-CARRYING: instantiating the nominated family is
+  // `GetFontPlatformData(font_description, create_by_family)`, so the cut comes
+  // from the run's own description (DM-1878).
   const keys: string[] = [];
   for (const family of families) {
-    const key = win32FamilyKey(family);
+    const key = win32FamilyKey(family, css);
     if (key != null) keys.push(key);
   }
 
@@ -2242,7 +2290,10 @@ export function fallbackFontChain(
   // through entirely different faces (CoreText vs fontconfig vs DirectWrite), so
   // each has its own empirically-probed chain.
   if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
-  if (process.platform === "win32") return win32FallbackChain(codepoint, primaryKey, lang);
+  // DM-1878: win32 gets the description too. It used to be dropped here, so the
+  // nominated family was always instantiated at NORMAL weight — Blink passes the
+  // run's `SkiaFontStyle()` and lets DirectWrite pick the cut.
+  if (process.platform === "win32") return win32FallbackChain(codepoint, primaryKey, lang, css);
   return darwinFallbackChain(codepoint, primaryKey, lang, css);
 }
 

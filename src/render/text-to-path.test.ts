@@ -1669,6 +1669,82 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
     expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:David");
   });
 
+  // DM-1878: the cut inside the nominated family comes from the run's style,
+  // because on Windows DirectWrite picks it INSIDE the family lookup — Blink's
+  // `GetFontPlatformData(font_description, create_by_family)` →
+  // `matchFamilyStyle(name, font_description.SkiaFontStyle())` →
+  // `GetFirstMatchingFont(weight, stretch, style)`. There is no second in-family
+  // re-selection step on Windows the way macOS has one, so a style dropped here
+  // is a bold run painting the regular face: 222,874 of the first Windows
+  // conformance baseline's 259,152 mismatches were same-family-wrong-cut.
+  //
+  // The paired requirement is that PRESENCE stays style-blind — Blink's
+  // `IsFontPresent` is `matchFamilyStyle(name, SkFontStyle())` with the DEFAULT
+  // style (`win/font_fallback_win.cc:54-59`), since a bold run does not change
+  // whether a family is installed. Two calls, same API, different arguments;
+  // collapsing them either way is the bug.
+  describe("the run's style selects the cut, and only for selection (DM-1878)", () => {
+    /** Record every (family, css) the chain asks about, in order. */
+    const record = (): Array<{ family: string; css?: { weight: number; slant: number } }> => {
+      const calls: Array<{ family: string; css?: { weight: number; slant: number } }> = [];
+      __setWin32FamilyKeyResolverForTest((family, css) => {
+        calls.push({ family, css: css == null ? undefined : { weight: css.weight, slant: css.slant } });
+        if (!MEASURED_WIN11.has(family.toLowerCase())) return null;
+        // Stand in for DirectWrite's cut selection: name the face, not the family.
+        const cut = css == null ? "" : css.weight >= 600 ? "-Bold" : "";
+        return `winfam:${family}${cut}`;
+      });
+      return calls;
+    };
+
+    // These drive `win32FallbackChain` directly rather than through
+    // `fallbackFontChain`, which dispatches on `process.platform` and so cannot
+    // reach the win32 branch from a macOS run — the same reason
+    // `__resolveDarwinFontSpecForTest` exists. The dispatcher's one-line
+    // forwarding is covered by the Windows CI unit job.
+    it("asks with NO style while probing presence, and WITH the style when selecting", () => {
+      const calls = record();
+      win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 700, slant: 0, fontSize: 20 });
+      // Blink's stage probes candidate families first (`IsFontPresent`), then
+      // instantiates the one it nominated.
+      expect(calls.some((c) => c.css === undefined), "no style-blind presence probe happened").toBe(true);
+      const selecting = calls.filter((c) => c.css !== undefined);
+      expect(selecting.length, "the nominated family was never asked with the run's style").toBeGreaterThan(0);
+      for (const c of selecting) expect(c.css).toEqual({ weight: 700, slant: 0 });
+    });
+
+    it("resolves a different cut for a bold run than for a regular one", () => {
+      record();
+      const regular = win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 400, slant: 0, fontSize: 20 });
+      const bold = win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 700, slant: 0, fontSize: 20 });
+      expect(regular[0]).toBe("winfam:Sylfaen");
+      expect(bold[0]).toBe("winfam:Sylfaen-Bold");
+      // The cut rides in the KEY, so the two runs cannot collide in any
+      // downstream per-key cache or dynamic-spec registration.
+      expect(bold[0]).not.toBe(regular[0]);
+    });
+
+    it("carries an italic + heavy description through unchanged", () => {
+      // The description already existed on `fallbackFontChain` but was forwarded
+      // ONLY to darwin — win32 dropped it, which is how the style never arrived.
+      const calls = record();
+      win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 900, slant: 1, fontSize: 13 });
+      const selecting = calls.filter((c) => c.css !== undefined);
+      expect(selecting.length).toBeGreaterThan(0);
+      for (const c of selecting) expect(c.css).toEqual({ weight: 900, slant: 1 });
+    });
+
+    it("still resolves when the caller has no description to offer", () => {
+      // Callers without a style (the dotted-circle probe, the well-formedness
+      // guards) must keep working — they get the family's default face, which is
+      // exactly what the pre-change behavior was.
+      const calls = record();
+      const chain = win32FallbackChain(0x10D0, "helvetica");
+      expect(chain[0]).toBe("winfam:Sylfaen");
+      expect(calls.every((c) => c.css === undefined)).toBe(true);
+    });
+  });
+
   it("never emits a duplicate key, and never an empty-string key", () => {
     injectInventory(MEASURED_WIN11);
     for (const cp of [0x0041, 0x0628, 0x05D0, 0x0E01, 0x4E00, 0xAC00, 0x2211,
