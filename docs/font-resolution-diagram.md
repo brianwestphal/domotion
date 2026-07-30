@@ -448,15 +448,17 @@ flowchart TD
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
   F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
-  F2A -->|"none"| F3["2a. kSystemFonts: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)"]
+  F2A -->|"none"| FW{"_liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
+  FW -->|"no (win32)"| F3
+  FW -->|"yes"| F4{"_systemFallbackResolutionEnabled?"}
+  F4 -->|"yes"| F4A["2a. kSystemFonts — ASK THE OS FIRST:<br/>resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
+  F4A -->|"hit"| F4H["cover(sysfb:key)"]
+  F4A -->|"OS declines"| F3
+  F4 -->|"no (no helper on host / flagged off)"| F3["2b. THE NET: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)"]
   F3 -->|"first covering key (skip 'last-resort')"| F3C["macOS: fallbackFamilyCutKey(candidate, …)<br/>in-family cut re-selection at this weight/style"]
   F3C -->|"moved & still covers cp"| F3HC["cover(sysfb:cut)"]
   F3C -->|"unchanged / non-darwin"| F3H["cover(candidate)"]
-  F3 -->|"none"| F4{"_systemFallbackResolutionEnabled?"}
-  F4 -->|"yes"| F4A["2b. kSystemFonts: resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
-  F4A -->|"hit"| F4H["cover(sysfb:key)"]
-  F4A -->|"none"| F5
-  F4 -->|"no"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
+  F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
   F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(paths: last chain .notdef · embedded: primary .notdef)"]
 ```
@@ -465,7 +467,42 @@ Notes:
 - `instanceFor(key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
-- Step 2a names a **family**, not a face. Each `FONT_PATHS` entry can hold only
+- **Why the OS is asked first (step 2a before 2b).** Blink has exactly ONE stage
+  here and it is the OS. `FontFallbackIterator::Next`
+  (`font_fallback_iterator.cc:120-157`, Chromium rev `7d859f27`) runs
+  `kFontGroupFonts` / `kSegmentedFace` → (`kFallbackPriorityFonts`, one-shot,
+  emoji only) → **`kSystemFonts` = `UniqueSystemFontForHintList`** →
+  `kFirstCandidateForNotdefGlyph` → `kOutOfLuck`. There is no static
+  per-Unicode-block stage anywhere in that walk, and `UniqueSystemFontForHintList`
+  goes straight to the platform fallback. Our `fallbackFontChain` therefore sits
+  exactly where Blink asks the OS, so ordering it first meant answering before
+  Chrome's question was ever asked — the structural divergence
+  [doc 106](106-blink-font-parity-inventory.md) §4 names. Putting the OS first
+  moved the conformance oracle's CJK slice from **113,963 mismatches / 27 routes
+  to 29,025 / 4** (agree-exact 49.4% → 86.9%), collapsing every wrong
+  `→ PingFangHK-Regular` route to zero — we had been painting the Hong Kong
+  regional variant on ext-B where Chrome paints SC.
+- **Step 2b is still load-bearing.** The static chain is the net for what the OS
+  declines: a host with no glyph helper, a platform whose live resolver is
+  flagged off, or a codepoint the platform engine has no answer for — each of
+  which would otherwise drop straight to tofu. It is a fall-through, not a
+  competitor. `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order
+  for an A/B.
+- **Windows keeps 2b before 2a, and that is not an oversight.** `kSystemFonts`
+  bottoms out in `FontCache::PlatformFallbackFontForCharacter`, which is a
+  different procedure on each platform — so "ask the OS first" is Blink's order
+  on only two of the three. macOS goes straight to `CTFontCreateForString`, and
+  Linux straight to fontconfig (`linux/font_cache_linux.cc:89-97` — no table
+  stage precedes it). Windows calls
+  `GetFallbackFamilyNameFromHardcodedChoices` **first** and reaches
+  `GetDWriteFallbackFamily` only as the fall-through on a miss
+  (`win/font_cache_skia_win.cc:285-295`, rev `7d859f27`). Since §7c transcribes
+  that hardcoded table into `win32FallbackChain`, running the static chain ahead
+  of the live resolver is precisely what reproduces Chrome on Windows; flipping
+  the order there would put `MapCharacters` in front of the table and invert the
+  thing the transcription exists to match. The principle is not "no tables" — it
+  is transcribed-from-Chromium rather than sampled-from-a-machine.
+- Step 2b names a **family**, not a face. Each `FONT_PATHS` entry can hold only
   one PostScript name, and the `-bold` siblings beside it are a two-slot
   approximation of a ladder Chrome actually runs: Songti SC answers Light at
   100-300, Regular at 400, Bold at 500-700 and Black at 800-900 for the same
@@ -511,9 +548,13 @@ Notes:
   Mac cannot reproduce that, because SF Pro Text covers those codepoints and the
   walk never reaches Arial Unicode MS. Windows resolves these via its calibrated
   chain (Segoe UI Symbol).
-- `codepointResolvesToNotdef(cp, …)` is the read-only predicate that runs the same
-  chain (primary → webfont partition → `fallbackFontChain` → live resolver) to ask
-  "does anything cover `cp`?" without emitting.
+- `codepointResolvesToNotdef(cp, …)` is the read-only predicate that consults the
+  same sources (primary → webfont partition → `fallbackFontChain` → live resolver)
+  to ask "does anything cover `cp`?" without emitting. It deliberately does NOT
+  track step 2a/2b's ordering, and does not need to: it returns on the first
+  source that covers `cp` and otherwise consults them all, so its boolean is
+  order-invariant. Only `resolveFontForCodepoint` has to pick a WINNER, and only
+  the winner's identity depends on the order.
 
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
 `sfProCoverageOtfKey` / `decomposeMathAlphaRun` in `src/render/font-resolution.ts`.

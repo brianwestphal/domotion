@@ -1460,12 +1460,67 @@ function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?:
  *  walks the cascade Blink walks. Off by default pending the corpus sweep. */
 const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE === "1";
 
-/** DM-1868, armed by `DOMOTION_LIVE_FALLBACK_FIRST=1`. Put the two kSystemFonts
- *  stages in Blink's order — OS first, static chain only as the net for what the
- *  OS declines. Off by default pending the corpus sweep; see the step-2 comment
- *  in `resolveFontForCodepoint` for the source citation and the measured cost of
- *  the current order. */
-const _liveFallbackFirst = process.env.DOMOTION_LIVE_FALLBACK_FIRST === "1";
+/** DM-1868. Put the two kSystemFonts stages in Blink's order — ask the OS first,
+ *  and keep the static per-block chain only as the net for what the OS declines.
+ *
+ *  DEFAULT-ON **on macOS and Linux**; set `DOMOTION_LIVE_FALLBACK_FIRST=0` to
+ *  restore the old static-chain-first order for an A/B.
+ *
+ *  The order is not a tuning choice, it is what `FontFallbackIterator::Next`
+ *  does (`font_fallback_iterator.cc:120-157`, Chromium rev 7d859f27): there is no
+ *  static per-Unicode-block stage anywhere in Blink's walk, so our chain sits
+ *  exactly where Blink asks the OS and pre-empts it. See the step-2 comment in
+ *  `resolveFontForCodepoint`.
+ *
+ *  **Windows is deliberately excluded, and this asymmetry must not be
+ *  "simplified" away.** `kSystemFonts` bottoms out in
+ *  `FontCache::PlatformFallbackFontForCharacter`, which is a DIFFERENT procedure
+ *  per platform, so "ask the OS first" is only Blink's order on two of the three:
+ *
+ *   - macOS (`mac/font_cache_mac.mm`) → `CTFontCreateForString` directly.
+ *   - Linux (`linux/font_cache_linux.cc:89-97`) → `GetFontForCharacter` →
+ *     fontconfig directly. No table stage precedes it.
+ *   - Windows (`win/font_cache_skia_win.cc:285-295`) →
+ *     `GetFallbackFamilyNameFromHardcodedChoices` **first**, and
+ *     `GetDWriteFallbackFamily` only "fall through to running the API-based
+ *     fallback" on a miss.
+ *
+ *  On Windows the hardcoded per-script table IS Chrome's first answer, and we
+ *  transcribe it (`win-font-fallback.ts`, reached via `win32FallbackChain`), so
+ *  running our static chain BEFORE the live DirectWrite resolver is what matches
+ *  Blink there. Flipping this on win32 would put `MapCharacters` ahead of the
+ *  table and invert the very order it was transcribed to reproduce. The principle
+ *  is not "no tables" — it is transcribed-from-Chromium rather than
+ *  sampled-from-a-machine (docs/106 §4).
+ *
+ *  Measured before flipping, because the blast radius is every codepoint the
+ *  static chain covers:
+ *
+ *   - Conformance oracle, CJK slice, 8 corpus stacks × 28,309 codepoints:
+ *     mismatches **113,963 → 29,025**, routes 27 → 4, agree-exact 49.4% → 86.9%.
+ *     All three `.PingFangUI*` routes collapse to zero, and on ext-B every
+ *     wrong `→ PingFangHK-Regular` route (2,139 rows on the largest alone)
+ *     collapses to zero — we were painting the Hong Kong regional variant where
+ *     Chrome paints SC.
+ *   - Full 818-fixture macOS unicode sweep, both arms from ONE pushed ref so the
+ *     flag was the only difference: only 4 of 818 fixtures moved at all, one
+ *     improved, and the single threshold crossing is documented below.
+ *
+ *  The one fixture that moved the wrong way — a CJK ext-B tile, diffPct 0.0502 →
+ *  0.0519 — was run to ground and is NOT a defect: on the cell in question Chrome
+ *  paints PingFang SC, the old order painted PingFang HK (wrong), the new order
+ *  paints SC (right), our glyph x-positions match Chrome's exactly, and the
+ *  helper returns the requested face's own outline (glyph 40500, path length
+ *  4665 — distinct from the UI-Text cut's 4680 and Medium's 4617). What is left
+ *  is ours rasterizing ~4.8% lighter than Skia's stem-darkened raster at 17px,
+ *  i.e. the documented rasterization floor. The old arm scored closer by
+ *  coincidence: the WRONG face's outline happened to rasterize nearer Chrome's
+ *  hinted raster than the correct face's does. Closer-with-the-wrong-font is not
+ *  correctness, which is exactly the confusion a pixel metric cannot resolve and
+ *  the conformance oracle can. That fixture's committed CI baseline was refreshed
+ *  in this change to record the correct-face raster. */
+const _liveFallbackFirst =
+  process.platform !== "win32" && process.env.DOMOTION_LIVE_FALLBACK_FIRST !== "0";
 
 /**
  * Does this family stack's PRIMARY resolve through Blink's system-ui path?
@@ -4406,10 +4461,11 @@ export function codepointResolvesToNotdef(
  * (`splitTextIntoFontRuns`), and the math fence / radical renderers — previously
  * five drifting copies. Resolves which font + glyph to use for `cp`, trying in
  * order: the primary; a per-codepoint webfont variant (partitioned @font-face —
- * DM-557); the static `fallbackFontChain`; the CoreText system fallback (DM-1018,
- * the CTFontCreateForString font Blink would substitute); a Math-Alphanumeric
- * base-letter decomposition; and a canonical (NFD) decomposition (DM-1020/1021,
- * for CJK compatibility ideographs etc.).
+ * DM-557); the platform system fallback (DM-1018, the `CTFontCreateForString`
+ * font Blink would substitute — this is Blink's own `kSystemFonts` stage, so it
+ * answers first); the static `fallbackFontChain` as the net for what the OS
+ * declines; a Math-Alphanumeric base-letter decomposition; and a canonical (NFD)
+ * decomposition (DM-1020/1021, for CJK compatibility ideographs etc.).
  *
  * `covered` is false ONLY when nothing produced a real glyph — the caller then
  * applies its own terminal, which is the one place the callers legitimately
@@ -4645,17 +4701,18 @@ export function resolveFontForCodepoint(
   // (`CTFontCreateForString` on macOS).
   //
   // Our static `fallbackFontChain` is therefore an EXTRA stage, sitting exactly
-  // where Blink asks the OS — so on every codepoint it covers, we answer before
-  // Chrome's question is ever asked (docs/106). Measured cost of that shadowing:
-  // the DM-1859 UI-font base, verified 18/18 against Chrome, moved the CJK slice
+  // where Blink asks the OS — so whenever it answers first, Chrome's question is
+  // never asked (docs/106). Measured cost of that shadowing, back when it did:
+  // the UI-font cascade base, verified 18/18 against Chrome, moved the CJK slice
   // by 55 rows out of an expected 83,838, purely because `[pingfang-sc, cjk]`
   // covers Han and the walk stopped there.
   //
-  // `DOMOTION_LIVE_FALLBACK_FIRST=1` puts the stages in Blink's order: ask the OS
-  // first, and keep the static chain only as the net for what the OS declines —
-  // which is where it still earns its keep (no helper on the host, a platform
-  // whose live resolver is flagged off, or a codepoint the OS has no answer for,
-  // all of which would otherwise drop straight to tofu).
+  // So the OS goes first, and the static chain is the NET for what the OS
+  // declines — which is where it still earns its keep (no helper on the host, a
+  // platform whose live resolver is flagged off, or a codepoint the OS has no
+  // answer for, all of which would otherwise drop straight to tofu).
+  // `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
+  // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
     const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary);

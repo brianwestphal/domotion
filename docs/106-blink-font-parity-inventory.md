@@ -51,8 +51,8 @@ The Windows table is `win/font_fallback_win.cc` (609 lines): `GetFallbackFamily(
 | `kFallbackPriorityFonts` | emoji handling is spread across `isEmojiCp` in `fallbackFontChain` + the raster-overlay path | **No** — not modelled as a distinct one-shot stage |
 | `kFontGroupFonts` | `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` | **No** — probe-calibrated against Chrome-macOS, not transcribed |
 | `kSegmentedFace` | `webfontRegistry` + unicode-range partitioning (docs/30) | Plausibly; **unaudited** |
-| — | **`fallbackFontChain`** — static per-block chains + the generated `unicode-font-routing.*.generated.ts` tables | **No Blink counterpart at all** — see §4 |
-| `kSystemFonts` | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`) | **Same API, wrong argument** — we pass a hardcoded `"Helvetica"` base (DM-1852) |
+| — | **`fallbackFontChain`** — static per-block chains + the generated `unicode-font-routing.*.generated.ts` tables | **No Blink counterpart at all** — but no longer interposed; demoted to the net BELOW `kSystemFonts`, see §4 |
+| `kSystemFonts` | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`) | **Yes on macOS** — same API, and since DM-1852 the same argument (the run's own primary as cascade base) |
 | `GetLastResortFallbackFont` | `last-resort` key → bundled `LastResortHE-Regular.ttf` | **No** — Blink returns **Times** on macOS; ours paints Unicode LastResort's per-block frames |
 | `kFirstCandidateForNotdefGlyph` | paths mode pins the last chain entry's `.notdef`; embedded mode renders the primary's | **Partial** — Blink uses the **first** candidate; ours uses the last (paths) |
 
@@ -68,16 +68,34 @@ That single interposition is the root of the whole 2026-07 wrong-font cycle:
 
 Each was fixed as an instance. The structural fix is to stop interposing: let `kSystemFonts` be the stage that answers, as it is in Blink.
 
+### Status: fixed (DM-1868)
+
+`resolveFontForCodepoint` now runs the two stages in Blink's order **on macOS and Linux** — the live system-fallback resolver answers, and `fallbackFontChain` is consulted only for what the OS declines. The chain is **not removed**, because it is genuinely load-bearing as a fall-through: a host without the glyph helper, a platform whose live resolver is flagged off, or a codepoint the platform engine has no answer for would otherwise drop straight to tofu. It is a net, not a competitor. `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old order for an A/B.
+
+**Windows is excluded, which is the §4 asymmetry honored rather than simplified away.** `kSystemFonts` bottoms out in `FontCache::PlatformFallbackFontForCharacter`, and that is a different procedure per platform: macOS goes straight to `CTFontCreateForString`, Linux straight to fontconfig (`linux/font_cache_linux.cc:89-97`, no table stage before it), but Windows consults `GetFallbackFamilyNameFromHardcodedChoices` **first** and only "fall[s] through to running the API-based fallback" on a miss (`win/font_cache_skia_win.cc:285-295`). Since `win32FallbackChain` now transcribes that hardcoded table, running the static chain ahead of the live resolver is exactly what matches Chrome on Windows — flipping it there would put `MapCharacters` in front of the table and invert what the transcription was written to reproduce. Note that no macOS fixture sweep could have caught this; only reading the per-platform source could.
+
+The measurement that justified the flip, against the conformance oracle rather than fixture scores:
+
+| CJK slice (8 corpus stacks × 28,309 codepoints) | mismatches | routes | agree-exact |
+|---|---|---|---|
+| chain-first (old) | 113,963 | 27 | 49.4% |
+| chain-first + UI-font cascade base | 113,908 | 23 | — |
+| **OS-first (now default)** | **29,025** | **4** | **86.9%** |
+
+Two things that middle row demonstrates, and they are the point of this whole entry: fixing the cascade base — a change verified 18/18 against Chrome — moved **55 rows out of an expected 83,838**, because `[pingfang-sc, cjk]` covered Han and the walk stopped before the OS was asked. A correct fix to a shadowed stage is worth almost nothing. And the two changes only pay off together: all three `.PingFangUI*` routes collapse to zero only with both.
+
+The full 818-fixture macOS unicode sweep moved 4 fixtures out of 818. The one that moved the wrong way is instructive: on the cell in question Chrome paints PingFang SC, the old order painted PingFang **HK** (the wrong regional variant), and the new order paints SC — yet the tile's pixel diff went *up*, because the wrong face's outline happened to rasterize nearer Chrome's Skia-hinted raster than the correct face's does. That is the §6 rasterization floor masquerading as a regression, and it is precisely why parity is gated on the oracle: a pixel metric cannot distinguish "right font" from "lucky wrong font".
+
 **Note the asymmetry** this creates with Windows, and do not "simplify" it away: on Windows a hardcoded per-script table **is** Blink's behavior, consulted before DirectWrite. The principle is not "no tables" — it is **transcribed from Chromium, not sampled from a machine**.
 
 ## 5. Verdict summary
 
-Stages matching by construction today: **none of the font-selection stages**. The closest is `kSystemFonts` on macOS, which calls the identical CoreText function but with the wrong base argument and is usually pre-empted anyway.
+Stages matching by construction today: **`kSystemFonts` on macOS**. It calls the identical CoreText function, with the identical base argument, and — since the ordering fix — actually gets to answer. The remaining font-selection stages do not yet match.
 
 Ordered by expected impact:
 
-1. **Remove the interposed table** so `kSystemFonts` answers (macOS/Linux), keeping a transcribed table only where Blink has one (Windows).
-2. **Fix the macOS base-font argument** (DM-1852) — cheap, evidenced, and it makes the live path trustworthy enough to rely on for step 1.
+1. ~~**Remove the interposed table** so `kSystemFonts` answers (macOS/Linux), keeping a transcribed table only where Blink has one (Windows).~~ **Done** — reordered rather than removed, see §4. The table survives as the fall-through for what the OS declines.
+2. ~~**Fix the macOS base-font argument**~~ **Done** — the cascade base is the run's own primary, matching `CTFontCreateForString(ct_font, …)`.
 3. **Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.
 4. **Port the Windows table** ahead of our `MapCharacters` call.
 5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the *first* candidate.

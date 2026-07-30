@@ -55,10 +55,10 @@ on:
         description: 'DOMOTION_HINTED_SUBSET override. Empty = renderer default (hinting-preserving hb-subset embedded path ON); 0 = force the svg2ttf-only arm for A/B measurement.'
         default: ''
       fallback_base:
-        description: 'DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (OFF, hardcoded Helvetica cascade base); 1 = ask CoreText from the run''s own primary. Both arms of the A/B run from ONE ref so the only difference is the flag.'
+        description: 'DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (ON — ask CoreText from the run''s own primary); 0 = force the old hardcoded Helvetica cascade base for A/B. Both arms of the A/B run from ONE ref so the only difference is the flag.'
         default: ''
       live_fallback_first:
-        description: 'DOMOTION_LIVE_FALLBACK_FIRST override (DM-1868). Empty = renderer default (static fallback chain answers first); 1 = Blink''s order, OS first and the static chain only as the net.'
+        description: 'DOMOTION_LIVE_FALLBACK_FIRST override (DM-1868). Empty = renderer default (ON — Blink''s kSystemFonts order, OS first and the static chain only as the net); 0 = force the old static-chain-first order for A/B.'
         default: ''
 
 env:

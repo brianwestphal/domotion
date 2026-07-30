@@ -37,15 +37,19 @@ const only = arg("--only", "");
 // svg2ttf-only arm for A/B measurement; --hinted-subset is accepted as a no-op
 // for backward compatibility.
 const hintedSubset = process.argv.includes("--no-hinted-subset") ? "0" : "";
-// DM-1852: the per-codepoint CoreText fallback base. Default-OFF in the renderer
-// (hardcoded "Helvetica"); --fallback-base dispatches the armed arm, which asks
-// CoreText for a substitute FROM the run's own primary the way Blink does.
+// DM-1852: the per-codepoint CoreText fallback base — ask CoreText for a
+// substitute FROM the run's own primary the way Blink does. DEFAULT-ON in the
+// renderer; --no-fallback-base dispatches the old hardcoded-"Helvetica" arm for
+// A/B (--fallback-base is accepted as a no-op for backward compatibility).
 // Both arms run from the SAME pushed ref so the flag is the only difference —
 // diffing an armed run against the committed baseline instead would conflate it
 // with whatever landed on main since that baseline was taken.
-const fallbackBase = process.argv.includes("--fallback-base") ? "1" : "";
+const fallbackBase = process.argv.includes("--no-fallback-base") ? "0" : "";
 // DM-1868: Blink's kSystemFonts order (OS first, static chain as the net).
-const liveFallbackFirst = process.argv.includes("--live-fallback-first") ? "1" : "";
+// DEFAULT-ON in the renderer; --no-live-fallback-first dispatches the old
+// static-chain-first arm for A/B (--live-fallback-first is a no-op, kept for
+// backward compatibility with the pre-flip A/B invocations).
+const liveFallbackFirst = process.argv.includes("--no-live-fallback-first") ? "0" : "";
 let ref = arg("--ref", null);
 // DM-1661: by default the review staging is METADATA-ONLY — download just the
 // tiny pre-merged `visual-tests-merged` artifact (results-<os>.json) and let the
@@ -107,7 +111,7 @@ if (runIdOverride != null) {
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
   console.log(`Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`);
 } else {
-  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "1" ? " fallback-base=ARMED" : ""}${liveFallbackFirst === "1" ? " live-fallback-first=ARMED" : ""}`);
+  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "0" ? " fallback-base=OFF" : ""}${liveFallbackFirst === "0" ? " live-fallback-first=OFF" : ""}`);
   const dispatchAt = new Date();
   sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
     "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`,
