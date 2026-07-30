@@ -1408,17 +1408,33 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
  * `IDWriteFontFallback::MapCharacters` via the win32 helper (DM-1403, calibrated +
  * default-on in DM-1424).
  */
-/** DM-1852, armed by `DOMOTION_FALLBACK_BASE=1`. Blink asks CoreText for a
- *  substitute FROM the run's current font — `CTFontCreateForString(ct_font, …)`,
- *  font_cache_mac.mm:128-150 — and the cascade it gets back depends on that
- *  base. We pass a hardcoded "Helvetica" regardless of what the run paints in.
+/** DM-1852. Blink asks CoreText for a substitute FROM the run's current font —
+ *  `CTFontCreateForString(ct_font, …)`, font_cache_mac.mm:128-150 — and the
+ *  cascade it gets back depends on that base. We used to pass a hardcoded
+ *  "Helvetica" regardless of what the run paints in, i.e. the right API asked
+ *  the wrong question.
  *
- *  Off by default because the blast radius is every codepoint that reaches the
- *  live resolver, which needs the full 818-fixture sweep A/B before it can be
- *  the default (the way DM-1811 was measured). Armed, `resolveFontForCodepoint`
- *  and the darwin chain pass the run's primary key and the base is derived from
- *  it. */
-const _fallbackBaseFromPrimary = process.env.DOMOTION_FALLBACK_BASE === "1";
+ *  DEFAULT-ON as of the measurement below; set `DOMOTION_FALLBACK_BASE=0` to
+ *  restore the old hardcoded base for an A/B.
+ *
+ *  Measured before flipping, because the blast radius is every codepoint that
+ *  reaches the live resolver:
+ *
+ *   - Conformance oracle, 8 corpus stacks × 1,247 codepoints of Greek /
+ *     Cyrillic / Hebrew / Arabic / punctuation / currency / arrows / math:
+ *     mismatches 2,581 → 2,287. Row-level, 294 fixed, **0 broken**, 0 routes
+ *     worse.
+ *   - Full 818-fixture macOS unicode sweep, both arms dispatched from ONE
+ *     pushed ref so the flag was the only difference (CI runs 30500986491
+ *     unarmed / 30501906014 armed, env confirmed in each shard's log):
+ *     **0 regressions, 0 fixes, and not a single fixture's pixels moved.**
+ *
+ *  Those two together are the case for the default: strictly better agreement
+ *  with Chrome's font selection, and provably zero visual change on the corpus.
+ *  The affected decisions are concentrated in codepoints whose faces differ
+ *  without the pixels differing — largely uncovered codepoints where both sides
+ *  draw a notdef. */
+const _fallbackBaseFromPrimary = process.env.DOMOTION_FALLBACK_BASE !== "0";
 
 /** The cascade base to ask CoreText from, for a run whose primary is `primaryKey`.
  *

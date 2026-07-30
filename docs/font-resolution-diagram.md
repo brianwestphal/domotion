@@ -619,7 +619,8 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)"] --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size)"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey)"] --> SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
+  SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE)"}
   SR1 -->|"yes"| SRC["return cached key or null"]
   SR1 -->|"no"| SR2{"process.platform"}
   SR2 -->|"darwin (always on)"| SRD0["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)<br/>→ the NOMINATED face"]
@@ -665,9 +666,19 @@ to whichever cut CoreText nominated: at weight 700 that is the wrong face for
 
 Three consequences worth holding onto:
 
+- **The cascade base is the RUN'S OWN PRIMARY** (DM-1852), because that is what
+  Blink passes: `GetSubstituteFont` hands `CTFontCreateForString` the font the run
+  is currently painting in (`mac/font_cache_mac.mm:128-150`), and CoreText's
+  answer depends on it. We previously passed a hardcoded `"Helvetica"` — the right
+  API asked a different question. Measured before it became the default: 294
+  face-selection decisions fixed and 0 broken on the conformance oracle, with
+  **zero** pixels moved across the full 818-fixture macOS unicode sweep (both arms
+  dispatched from one ref, env verified per shard). `DOMOTION_FALLBACK_BASE=0`
+  restores the old base for an A/B.
 - **The CSS description is part of the cache key**, not just the codepoint —
-  `systemFallbackKeyCache` and the helper's own memo both carry weight, italic
-  and size. A codepoint-only key served whichever weight asked first.
+  `systemFallbackKeyCache` and the helper's own memo both carry weight, italic,
+  size **and the base**. A codepoint-only key served whichever weight (or base)
+  asked first to every later caller.
 - **A cascade base must be opened from its FILE, never looked up by name alone,
   whenever it may be one of Apple's hidden `.`-prefixed faces.** CoreText refuses
   those names and answers with Times New Roman *without erroring*, so a name-only
