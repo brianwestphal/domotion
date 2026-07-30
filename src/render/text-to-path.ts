@@ -392,10 +392,29 @@ export function textToPathMarkup(
       // Decomposed Math-Alpha runs render via the run-text branch too: their
       // `text` carries the substituted base letters, which don't line up with
       // the original astral codepoints the per-char branch reads from `text`.
+      // DM-1868: decide this from the run's SCRIPT, not from its routing key.
+      //
+      // The three key names below are the static fallback-table keys for Arabic /
+      // Devanagari / Thai. When the live system-fallback resolver answers instead
+      // — which is what `resolveFontForCodepoint` does for any codepoint the
+      // static chain misses, and what it does for ALL of them once the stages run
+      // in Blink's order — the key becomes `sysfb:GeezaPro` /
+      // `sysfb:KohinoorDevanagari-Regular`, these comparisons all go false, and
+      // the run silently drops to the per-char branch. Arabic contextual joining
+      // and Devanagari cluster reordering just stop happening: measured as 4 diff
+      // regions on `text-mixed-script`, with the FACE and the glyph positions
+      // both correct, because only the shaping was lost.
+      //
+      // `usesDedicatedShaper` is the same predicate the resolver already uses to
+      // decide which codepoints CoreText shapes correctly, so keying on it makes
+      // the two agree by construction instead of by a name that has to be kept
+      // in sync. The key checks stay as-is: they cost nothing and they keep the
+      // behavior identical for every run that still routes through a static key.
       const isShapingRequired = run.fontKey === "sf-arabic"
         || run.fontKey === "devanagari"
         || run.fontKey === "thai"
-        || run.decomposed === true;
+        || run.decomposed === true
+        || [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
 
       if (!isShapingRequired) {
         // Per-char anchoring — primary runs and any fallback that's 1:1 char→
