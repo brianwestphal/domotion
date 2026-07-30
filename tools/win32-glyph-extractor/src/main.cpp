@@ -953,7 +953,8 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 // collection — the win32 implementation of the `family` query the macOS
 // CoreText helper has had since DM-1018 (`CTFontCreateWithName` + name guard).
 // Protocol shape matches the macOS helper:
-//   in : { type:"family", name:"Segoe UI Variable Text" }
+//   in : { type:"family", name:"Segoe UI Variable Text",
+//          cssWeight?, italic?, cssSlant?, cssStretch? }
 //   out: { type:"family", found:true, postscriptName, familyName, path[, axes] }
 //        | { type:"family", found:false }
 // DirectWrite's FindFamilyName is an exact family-name lookup (no fuzzy
@@ -964,8 +965,33 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 // — for named optical subfamilies ("Segoe UI Variable Text"/"Display") this is
 // the ONLY correct source of the `opsz` pin, since DirectWrite pins it at the
 // subfamily's fixed value at every font size.
+//
+// DM-1878: the CUT is chosen by the run's style, which the caller now sends as
+// `cssWeight` / `italic` / `cssSlant` / `cssStretch` — the same four fields the
+// `fallback` query takes, converted by the same `dwriteWeightFromCss` & co.
+//
+// This mirrors two DIFFERENT Blink calls with the same API, and the difference
+// is the point:
+//
+//  - Face selection is `matchFamilyStyle(name, font_description.SkiaFontStyle())`
+//    (`fonts/skia/font_cache_skia.cc:293-295`, reached from `CreateTypeface`),
+//    i.e. the run's real style. On Windows that bottoms out in exactly this
+//    `GetFirstMatchingFont` call, so passing NORMAL/NORMAL/NORMAL asked Chrome's
+//    question with the wrong arguments: a weight-700 run resolved the regular
+//    cut. It is the same omission DM-1864 fixed one call over, in `MapCharacters`.
+//  - PRESENCE is `matchFamilyStyle(font_name, SkFontStyle())` — the DEFAULT
+//    style — because Blink's `IsFontPresent` only asks whether the family exists
+//    (`win/font_fallback_win.cc:54-59`). A caller probing presence therefore
+//    sends no style fields and correctly gets the family's default face.
+//
+// So absent fields keeping the old defaults is not merely backward compatibility;
+// for the presence probe it is the transcription. (Chromium rev 7d859f27.)
 static std::string runFamilyQuery(const JsonValue& query, IDWriteFactory* factory) {
   std::string name = query.at("name").asString();
+  const DWRITE_FONT_WEIGHT dwWeight = dwriteWeightFromCss(query.at("cssWeight").asNumber(400));
+  const DWRITE_FONT_STYLE dwSlant =
+      dwriteSlantFromCss(query.at("cssSlant").asNumber(0), query.at("italic").asBool(false));
+  const DWRITE_FONT_STRETCH dwStretch = dwriteStretchFromCss(query.at("cssStretch").asNumber(100));
   IDWriteFontCollection* systemFonts = nullptr;
   if (factory) factory->GetSystemFontCollection(&systemFonts, FALSE);
 
@@ -979,8 +1005,7 @@ static std::string runFamilyQuery(const JsonValue& query, IDWriteFactory* factor
       IDWriteFontFamily* family = nullptr;
       if (SUCCEEDED(systemFonts->GetFontFamily(index, &family)) && family) {
         IDWriteFont* font = nullptr;
-        if (SUCCEEDED(family->GetFirstMatchingFont(DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
-                                                   DWRITE_FONT_STYLE_NORMAL, &font)) && font) {
+        if (SUCCEEDED(family->GetFirstMatchingFont(dwWeight, dwStretch, dwSlant, &font)) && font) {
           IDWriteFontFace* face = nullptr;
           if (SUCCEEDED(font->CreateFontFace(&face)) && face) {
             psName = facePostScriptName(face);
