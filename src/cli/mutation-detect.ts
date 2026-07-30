@@ -25,7 +25,7 @@
 import type { Page } from "@playwright/test";
 import type { AnimationFrame } from "../animation/index.js";
 import { generateAnimatedSvg } from "../animation/index.js";
-import { captureElementTree } from "../capture/index.js";
+import { captureElementTreeSelfContained } from "../capture/index.js";
 import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
@@ -249,7 +249,10 @@ export async function buildJsRevealAnimation(
   }, spec.selector).catch(() => { /* selector may be absent; falls through to crossfade */ });
 
   // 1. REST — the page before the pointer event (tree + the target's style snapshot).
-  const restTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+  // Self-contained capture: both states here are rendered into the nested
+  // animated SVG this function returns, which lands in the animate output, so an
+  // un-inlined remote `<img>` would be a dead href there.
+  const restTree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, width, height });
   cullElementsOutsideViewBox(restTree, width, height, undefined, 0, 1);
   const rootBg = restTree[0]?.styles?.rootBgComputed;
   const restSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
@@ -299,7 +302,7 @@ export async function buildJsRevealAnimation(
       // 3. AFTER — the settled, mutated page. The `data-domotion-anim` tag still
       // rides the DOM, so strip it from this capture too — the crossfade never
       // uses the tween tag (byte-identical to the pre-feature output).
-      const afterTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+      const afterTree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, width, height });
       cullElementsOutsideViewBox(afterTree, width, height, undefined, 0, 1);
       clearAnimIds(afterTree);
       const afterSvg = elementTreeToSvgInner(afterTree, width, height, `${framePrefix}s1-`, true, 2, false);

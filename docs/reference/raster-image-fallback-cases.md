@@ -12,6 +12,8 @@ The fallback cases group into three buckets:
 
 Each entry below lists the trigger condition, the code path that captures the raster, the code path that emits the `<image>`, and the canonical doc that explains the design rationale.
 
+> **A raster may reach the output as `<use href="#dmiN">` rather than a literal `<image>`.** Every emit site below writes an `<image>` with its bytes inline, but a post-pass over the assembled document (`hoistDuplicateImagePayloads`, `src/post-processing/hoist-image-payloads.ts`) shares any payload that appears more than once at identical geometry: the bytes move to one `<image id="dmiN">` in a top-level `<defs>` and each occurrence becomes a `<use href="#dmiN">` (wrapped in a `<g>` when the original carried a `clip-path` / `mask` / `filter` / `transform`, since `x`/`y` on a `<use>` is a translate that would otherwise drag the clip along). Applied by `wrapSvg`, `generateAnimatedSvg`, and the scroll composer; the trigger is duplication, not the kind of fallback, so it can affect any entry below. When you're chasing "which fallback produced this raster?", follow the `<use>` to its def and read the def's geometry. See [26-self-contained-svgs.md](../26-self-contained-svgs.md).
+
 ---
 
 ## Glyph-level fallbacks

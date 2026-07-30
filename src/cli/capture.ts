@@ -313,6 +313,10 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       }
       log(`Running scroll pattern: ${values.scroll}`);
       const segments = await executeScrollPattern(page, pattern, {
+        // This path embeds the segments itself below — after the cull pass, so
+        // culled-away elements cost no fetch — and needs to honor
+        // `--no-embed-images` and time the step in the log.
+        embedImages: false,
         selector: values["scroll-selector"],
         viewportW: clip[2],
         viewportH: clip[3],

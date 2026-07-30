@@ -56,6 +56,7 @@ import {
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
 import { inlineImgSvg, prefixSvgClasses } from "./svg-inline.js";
+import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
@@ -82,6 +83,10 @@ export const _conicTileCache = new Map<string, Map<string, string>>();
  * `<svg>` document with the standard namespace, viewBox, and intrinsic size.
  * This is the boilerplate every standalone-capture user would otherwise write
  * themselves — call this when you want a self-contained SVG file.
+ *
+ * Also shares repeated raster payloads (`hoistDuplicateImagePayloads`): the
+ * `<image>` emit is per-element, so a logo used in six places used to serialize
+ * its bytes six times. No-op for a document with nothing repeated.
  */
 export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[]; title?: string; desc?: string }): string {
   const schemeAttr = opts?.tree != null ? rootSvgColorSchemeAttr(opts.tree) : "";
@@ -96,7 +101,9 @@ export function wrapSvg(inner: string, width: number, height: number, opts?: { t
   // and Chrome refuses to render past the first occurrence.
   const xlinkAttr = inner.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
   const a11y = rootSvgA11y(opts?.title, opts?.desc);
-  return `<svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}${a11y.roleAttr}>${a11y.markup}${rootBgRect}${inner}</svg>`;
+  return hoistDuplicateImagePayloads(
+    `<svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}${a11y.roleAttr}>${a11y.markup}${rootBgRect}${inner}</svg>`,
+  );
 }
 
 /**

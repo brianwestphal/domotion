@@ -20,6 +20,7 @@
 // follow-up; for now `src/index.ts` is the source of truth.)
 export {
   captureElementTree,
+  captureElementTreeSelfContained,
   captureElementTreeWithWarnings,
   DemoRecorder,
   launchChromium,

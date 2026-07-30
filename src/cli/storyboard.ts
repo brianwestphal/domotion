@@ -48,7 +48,7 @@ import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import {
   launchChromium,
-  captureElementTree,
+  captureElementTreeSelfContained,
   attachWebfontTracker,
   discoverAndRegisterWebfonts,
 } from "../capture/index.js";
@@ -263,7 +263,9 @@ async function captureSceneToSvg(
     clearWebfonts();
     await discoverAndRegisterWebfonts(page, tracker.urls);
     tracker.detach();
-    const tree = await captureElementTree(page, cap.selector ?? "body", {
+    // Self-contained capture: a storyboard scene renders straight into the
+    // published SVG, so an un-inlined remote `<img>` would be a dead href there.
+    const tree = await captureElementTreeSelfContained(page, cap.selector ?? "body", {
       x: 0, y: 0, width: canvasW, height: canvasH,
     });
     cullElementsOutsideViewBox(tree, canvasW, canvasH, undefined, 0, 1);

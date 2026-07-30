@@ -31,6 +31,7 @@ import {
   withRenderTextMode,
   type RenderTextMode,
 } from "../render/text-to-path.js";
+import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
 import type { Easing } from "./pattern.js";
@@ -462,8 +463,11 @@ function composeScrollSvgBody(
   const fontFaceCss = getEmbeddedFontFaceCss();
 
   // ── Compose final SVG ──
+  // Share each raster payload across the segments that show it (the `<image>`
+  // emit is per-element, and a scroll composite repeats a sticky header /
+  // background plate in every segment tree). No-op when nothing repeats.
   const a11y = rootSvgA11y(opts.title, opts.desc);
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  return hoistDuplicateImagePayloads(`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
@@ -486,7 +490,7 @@ ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${
       </svg>
     </g>
   </g>${overlayMarkup}
-</svg>`;
+</svg>`);
 }
 
 /** Small deterministic string hash (FNV-1a, 32-bit) → 6-char base36. Used to

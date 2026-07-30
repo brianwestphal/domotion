@@ -29,7 +29,7 @@ import type { AnimationFrame, AnimationOverlay } from "../animation/index.js";
 import type { BlinkOverlay } from "../animation/overlay-schema.js";
 import { generateAnimatedSvg } from "../animation/index.js";
 import { caretShapeRect, firstLineBaseline, type CaretShape } from "../animation/caret-metrics.js";
-import { captureElementTree } from "../capture/index.js";
+import { captureElementTreeSelfContained } from "../capture/index.js";
 import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
@@ -289,7 +289,7 @@ export async function buildTypeResampleAnimation(
   // DM-1581: `regionOnly` captures ONE full-page base (the static backdrop) and
   // then only the FIELD's subtree per keystroke — the flipbook overlays just the
   // changing field on that base, so the output is O(page + N·field) instead of
-  // O(N·page). `captureElementTree(selector)` renders the field at its own
+  // O(N·page). A capture of `selector` renders the field at its own
   // absolute coords (transparent elsewhere), so it drops cleanly over the base.
   let baseInner = "";
   for (let j = 0; j <= chars.length; j++) {
@@ -300,7 +300,7 @@ export async function buildTypeResampleAnimation(
     }
     if (spec.regionOnly && j === 0) {
       // Capture the full page ONCE (empty state) as the static base backdrop.
-      const baseTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+      const baseTree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, width, height });
       cullElementsOutsideViewBox(baseTree, width, height, undefined, 0, 1);
       rootBg = baseTree[0]?.styles?.rootBgComputed;
       baseInner = elementTreeToSvgInner(baseTree, width, height, `${framePrefix}base-`, true, 2, false);
@@ -308,7 +308,10 @@ export async function buildTypeResampleAnimation(
     // Per-keystroke capture: only the field's subtree when `regionOnly`, else the
     // whole page (so out-of-field changes animate too).
     const captureSel = spec.regionOnly ? spec.selector : "body";
-    const tree = await captureElementTree(page, captureSel, { x: 0, y: 0, width, height });
+    // Self-contained capture: these per-keystroke trees are rendered straight
+    // into the flipbook this function returns, which lands in the animate
+    // output, so an un-inlined remote `<img>` would be a dead href there.
+    const tree = await captureElementTreeSelfContained(page, captureSel, { x: 0, y: 0, width, height });
     cullElementsOutsideViewBox(tree, width, height, undefined, 0, 1);
     if (j === 0 && !spec.regionOnly) rootBg = tree[0]?.styles?.rootBgComputed;
     const svgContent = elementTreeToSvgInner(tree, width, height, `${framePrefix}s${j}-`, true, 2, false);

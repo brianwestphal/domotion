@@ -9,7 +9,7 @@ import { spawnSync } from "node:child_process";
 import sharp from "sharp";
 import { chromium, type Browser, type BrowserContext, type ElementHandle, type LaunchOptions, type Page } from "@playwright/test";
 import { elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
-import { embedRemoteImages } from "./embed.js";
+import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
@@ -939,6 +939,43 @@ export async function captureElementTree(
   opts?: { crossOriginFrames?: string },
 ): Promise<CapturedElement[]> {
   const { tree } = await captureElementTreeWithWarnings(page, selector, viewport, opts);
+  return tree;
+}
+
+/**
+ * `captureElementTree` + the remote-image embed pass, in one call. **Prefer this
+ * over bare `captureElementTree` for any tree whose render reaches output.**
+ *
+ * Inlining an `<img src="https://…">`'s bytes is not optional for a Domotion
+ * output: the whole contract is a self-contained SVG (fonts are embedded, glyph
+ * paths are embedded, conic gradients are rasterized), and a tree that skips
+ * this pass serializes the literal origin URL — which renders as blank space
+ * anywhere the origin is unreachable, silently and with no warning, looking
+ * correct until it is viewed somewhere else.
+ *
+ * It exists because that has now been found twice. `Capturer` runs the embed
+ * pass internally, but the several pipelines that call `captureElementTree`
+ * directly each had to remember to run it themselves, and each new capture site
+ * re-opened the same hole. Pairing the two calls in one entry point means the
+ * default is correct and skipping the embed has to be a deliberate choice
+ * (call `captureElementTree` directly, as the paths that embed later with their
+ * own warning collection / timing do).
+ */
+export async function captureElementTreeSelfContained(
+  page: Page,
+  selector: string = "body",
+  viewport: { x: number; y: number; width: number; height: number },
+  opts?: {
+    /** Forwarded to `captureElementTree`. */
+    crossOriginFrames?: string;
+    /** Forwarded to `embedRemoteImages` (fetch timeout / retries / warning sink). */
+    embed?: EmbedRemoteImagesOptions;
+  },
+): Promise<CapturedElement[]> {
+  const tree = await captureElementTree(page, selector, viewport, {
+    ...(opts?.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
+  });
+  await embedRemoteImages(tree, opts?.embed ?? {});
   return tree;
 }
 

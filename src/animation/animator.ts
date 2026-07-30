@@ -25,6 +25,7 @@ import { resolveEasingPreset } from "./motion-presets.js";
 import { buildShineSweep } from "./shine.js";
 import { barCaretHeightPx, caretShapeRect, type CaretShape } from "./caret-metrics.js";
 import { textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
+import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -1549,7 +1550,13 @@ ${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss +
 ${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n" + shineTransitionGroups.join("\n") : ""}${textTrackMarkupStr}${overlayMarkup}
   </g>
 </svg>`;
-  return out;
+  // Share each raster payload across the frames that show it. The `<image>` emit
+  // is per-element, so a static plate visible in every frame used to be
+  // re-encoded once per frame: three plates across 26 frames measured 137.3 KB
+  // raw, 47.5 KB once shared. Fonts and glyph paths are already shared this way
+  // (one `@font-face` block, one `<path id="gN">` per glyph); this gives images
+  // the same treatment. No-op when nothing repeats.
+  return hoistDuplicateImagePayloads(out);
 }
 
 /**

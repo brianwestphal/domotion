@@ -23,6 +23,7 @@ live DOM and produces a serializable element tree the renderer can consume.
 | Export | Kind | Description |
 | --- | --- | --- |
 | `captureElementTree` | function | Run the capture script in a Playwright `Page` and return the element tree for the given selector + viewport. |
+| `captureElementTreeSelfContained` | function | `captureElementTree` + the remote-image embed pass. **Prefer this whenever the tree's render reaches output** — a tree that skips the embed serializes the literal origin URL, which renders blank wherever that origin is unreachable. |
 | `captureElementTreeWithWarnings` | function | Same as above but returns `{ tree, warnings }` instead of mutating a global buffer. |
 | `getLastCaptureWarnings` | function | Read the warnings buffer populated by `captureElementTree`. Use when you can't switch to the `WithWarnings` form. |
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
@@ -170,6 +171,8 @@ string-out.
 | `optimizeSvg` | function | Run svgo on the output. Aggressive enough to shrink real-world demos ~30-40% without touching paths. |
 | `compressEmbeddedFontsToWoff2` | function | Async post-pass that re-compresses embedded TTF `@font-face` data URIs to WOFF2 (~40% off the font bytes; cross-browser-verified). Applied by the CLI `--optimize` step. |
 | `gzipSvg` | function | gzip the output (for serving as `.svgz`). |
+| `hoistDuplicateImagePayloads` | function | Serialize each repeated raster payload once, into a top-level `<defs>` `<image>` that every occurrence references with `<use>`. Already applied by `wrapSvg`, `generateAnimatedSvg`, and the scroll composer — exposed for callers that assemble a multi-frame document themselves. Returns the input unchanged when nothing repeats. |
+| `HoistImagePayloadsOptions` | type | Options for the above (`minPayloadChars`). |
 
 ## Declarative animate pipeline
 

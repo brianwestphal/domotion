@@ -60,8 +60,7 @@ import {
 // it needs each kind's default. Internal to the overlay-timing model — not part
 // of the published barrel (see the note in `../animation/index.ts`).
 import { OVERLAY_DEFAULT_DELAY_MS } from "../animation/animator.js";
-import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
-import { embedRemoteImages } from "../capture/embed.js";
+import { captureElementTreeSelfContained, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -1779,18 +1778,16 @@ async function buildCapturedFrame(
     svgContent = composed.replace(/^<\?xml[^>]*\?>\s*/, "");
     frameCullCss = "";
   } else {
-    const tree = await captureElementTree(page, fc.selector ?? "body", {
+    // Self-contained capture (capture + inline remote image bytes). `animate`
+    // doesn't go through `Capturer`, which is where the embed step used to live
+    // alone — so an `<img src="logo.png">` serialized with its literal origin
+    // URL and rendered blank anywhere that origin was unreachable. Silent, too:
+    // no warning, and the SVG looked fine until viewed elsewhere. Fonts, glyphs
+    // and conic gradients are all embedded here; images were the one asset class
+    // that was not.
+    const tree = await captureElementTreeSelfContained(page, fc.selector ?? "body", {
       x: 0, y: 0, width: cfg.width, height: cfg.height,
     });
-    // DM-1855: inline remote image bytes. `animate` calls `captureElementTree`
-    // directly rather than going through `Capturer`, which is where the embed
-    // step lives (`capture/index.ts`, gated on `selfContained`) — so an
-    // `<img src="logo.svg">` used to serialize with its literal origin URL and
-    // render blank anywhere that origin was unreachable. Silent, too: no
-    // warning, and the SVG looked fine until viewed elsewhere. Fonts, glyphs
-    // and conic gradients are all embedded here; images were the one asset
-    // class that was not.
-    await embedRemoteImages(tree);
     // Record which CSS properties each animation animates on its target
     // elements (`el.animatedProperties`) so the renderer can hand those
     // channels over to the animation — e.g. not bake the captured opacity
@@ -2096,11 +2093,10 @@ async function buildStatesRunContent(
     // an id the tree-side resolver can find them by (the same mechanism
     // `regions` / `textTracks` use — no CSS-selector engine over the tree).
     if (perRegionTiming) await stampAnchorTargets();
-    const tree = await captureElementTree(page, fc.selector ?? "body", {
+    // Self-contained, as above — the compressed-run state path captures its own trees.
+    const tree = await captureElementTreeSelfContained(page, fc.selector ?? "body", {
       x: 0, y: 0, width: cfg.width, height: cfg.height,
     });
-    // DM-1855, as above — the compressed-run state path captures its own trees.
-    await embedRemoteImages(tree);
     cullElementsOutsideViewBox(tree, cfg.width, cfg.height, undefined, 0, 1);
     return tree;
   };

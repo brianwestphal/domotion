@@ -108,10 +108,25 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "render.embed-images",
-    behavior: "Embed remote images as data URIs and resize oversized embeds to the target raster size.",
+    behavior: "Embed remote images as data URIs and resize oversized embeds to the target raster size. `captureElementTreeSelfContained` pairs the capture + embed so a new capture site can't omit it.",
     doc: "docs/26-self-contained-svgs.md",
-    exports: ["embedRemoteImages", "resizeEmbeddedImages"],
-    tests: ["src/embed-remote-images.test.ts", "src/tree-ops/resize-embedded-images.test.ts"],
+    exports: ["embedRemoteImages", "resizeEmbeddedImages", "captureElementTreeSelfContained"],
+    tests: [
+      "src/embed-remote-images.test.ts",
+      "src/tree-ops/resize-embedded-images.test.ts",
+      "tests/animate-embed-images.e2e.test.ts",
+    ],
+  },
+  {
+    id: "postprocess.hoist-image-payloads",
+    behavior: "Serialize each repeated raster payload once — one `<defs>` `<image id=dmiN>` referenced by `<use>` — instead of re-encoding it per frame / per element. Keyed on payload + width + height + preserveAspectRatio, since `<use>` can't override an `<image>` referent's geometry.",
+    doc: "docs/26-self-contained-svgs.md",
+    exports: ["hoistDuplicateImagePayloads"],
+    tests: [
+      "src/post-processing/hoist-image-payloads.test.ts",
+      "tests/hoist-image-payloads.e2e.test.ts",
+      "tests/animate-embed-images.e2e.test.ts",
+    ],
   },
   {
     id: "render.cull",

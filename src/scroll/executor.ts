@@ -22,7 +22,7 @@
 import type { Page } from "@playwright/test";
 
 import type { CapturedElement } from "../capture/types.js";
-import { captureElementTree } from "../render/element-tree-to-svg.js";
+import { captureElementTree, captureElementTreeSelfContained } from "../capture/index.js";
 import type {
   ScrollPattern, ScrollPatternSegment, FlatSegment, BracketedSegment,
   ScrollPatternAction, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
@@ -43,6 +43,17 @@ export interface ScrollExecutorOptions {
   prescroll?: boolean;
   /** Max execution time across the whole pattern. Default: 60 s. */
   maxTimeoutMs?: number;
+  /**
+   * Inline remote image bytes into every captured segment tree. Default true —
+   * the composed scroll SVG is a published artifact, so a segment that keeps a
+   * literal `https://…` href renders as blank space wherever that origin is
+   * unreachable.
+   *
+   * Pass `false` only when the caller runs `embedRemoteImages` on the segments
+   * itself — `domotion capture --scroll` does, after its cull pass, so it can
+   * honor `--no-embed-images` and time the step in its log.
+   */
+  embedImages?: boolean;
   /**
    * Optional progress callback — called with one-line status messages at
    * each milestone (pre-scroll start/end, every per-chunk capture, etc.).
@@ -310,6 +321,9 @@ export async function executeScrollPattern(
   const selector = opts.selector ?? null;
   const pageQuery = realPageQuery(page, selector);
   const log = opts.log ?? ((_msg: string): void => { /* silent */ });
+  // Capture entry point for this run: self-contained (inlines remote image
+  // bytes) unless the caller embeds the segments itself.
+  const capture = opts.embedImages === false ? captureElementTree : captureElementTreeSelfContained;
 
   if (prescroll) {
     log("  pre-scrolling page to wake lazy-loaded content...");
@@ -323,7 +337,7 @@ export async function executeScrollPattern(
   // Capture the initial state.
   const initialSnap = await pageQuery.snapshot();
   log(`  captured frame 1 at scrollY=${initialSnap.scrollY} (initial)`);
-  let prevTree = await captureElementTree(page, "body", {
+  let prevTree = await capture(page, "body", {
     x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
   });
   captures.push({
@@ -348,7 +362,7 @@ export async function executeScrollPattern(
       // Wait. Then check whether the DOM changed (lazy-load may fire).
       await page.waitForTimeout(op.durationMs);
       sceneTime += op.durationMs;
-      const nextTree = await captureElementTree(page, "body", {
+      const nextTree = await capture(page, "body", {
         x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
       });
       const diff = diffTrees(prevTree, nextTree);
@@ -413,7 +427,7 @@ export async function executeScrollPattern(
       await scrollTo(page, selector, chunkDestX, chunkDestY, chunkDur);
       sceneTime += chunkDur;
       const snap = await pageQuery.snapshot();
-      const nextTree = await captureElementTree(page, "body", {
+      const nextTree = await capture(page, "body", {
         x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
       });
       const diff = diffTrees(prevTree, nextTree);

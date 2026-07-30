@@ -46,6 +46,27 @@ The distributed-demo Domotion examples (`examples/showcase-rendering.ts`, `showc
 
 For end users who don't use `DemoRecorder` and want fine-grained control, the bare `embedRemoteImages(tree)` function is exported from the package root.
 
+### Which capture sites embed
+
+Skipping the pass is not a cosmetic difference: the output keeps the literal origin URL, which renders as blank space wherever that origin is unreachable — silently, with no warning, looking correct until it is viewed somewhere else. So **every pipeline whose captured tree reaches output embeds**, and the pairing is available as one call rather than two so a new capture site can't quietly omit it:
+
+```ts
+import { captureElementTreeSelfContained } from "domotion-svg";
+const tree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, width, height });
+```
+
+That entry point (capture + embed) is what `animate`'s frame and compressed-run captures, the storyboard `capture` scene, the per-keystroke `typeResample` re-captures, the `jsReveal` rest/settled captures, and the scroll executor all use. `Capturer` / `DemoRecorder` runs the pass internally when `selfContained` is set, as before.
+
+Two callers deliberately keep the two calls separate, because they need to control when the fetches happen or what happens to the warnings: `domotion capture --scroll` embeds the scroll segments *after* its viewBox-cull pass (so a culled element costs no fetch) and needs to honor `--no-embed-images`, and the real-world test harness supplies its own warning sink. Both pass `embedImages: false` to the scroll executor to suppress its default.
+
+### Repeated payloads are serialized once
+
+The `<image>` emit is per-element, so the same asset used in six places — or a static plate held across every frame of an animation — used to be re-encoded once per occurrence. `hoistDuplicateImagePayloads` (applied automatically by `wrapSvg`, `generateAnimatedSvg`, and the scroll composer) emits each distinct payload once into a top-level `<defs>` as `<image id="dmiN">` and references it from each occurrence with `<use href="#dmiN">` — the same sharing fonts (one `@font-face` block) and paths-mode glyphs (one `<path id="gN">`) already get.
+
+Measured on three plates held across 26 frames: **137.3 KB → 47.5 KB** raw. Compressed, the duplication was always cheap (10.8 → 10.1 KB gzip, 7.9 → 7.8 KB brotli), so the win is in raw size, parse time, and viewer memory rather than transfer.
+
+The dedupe key is `payload + width + height + preserveAspectRatio`, not the payload alone: `width`/`height` on a `<use>` do **not** override an `<image>` referent (they only apply to `<symbol>` / `<svg>` referents), so one payload shown at two sizes correctly gets one def per size. Payloads below 256 characters are left inline — a `<use>` costs ~35 bytes of its own.
+
 ## What gets fetched
 
 `embedRemoteImages` collects URLs from the following fields on every captured element:
@@ -72,6 +93,10 @@ A captured nytimes.com homepage: ~1.5 MB SVG with all images inline (vs. ~50 KB 
 ## Test fixtures
 
 `src/embed-remote-images.test.ts`: 5 unit tests using a `vi.fn()` `fetch` mock — covers `<img>` `imageSrc` inlining, CSS `background-image url(http://…)` inlining, dedup across consumers, fetch-failure pass-through, and short-circuit on `data:` / `file://` URLs.
+
+`tests/animate-embed-images.e2e.test.ts`: serves an `<img>` from a real local http server and drives each pipeline that captures its own trees — an `animate` run, a scroll frame, a `typeResample` frame, a `jsReveal` frame, a storyboard `capture` scene. Every case asserts the PAIR (bytes present AND origin absent), because checking only one would pass on an SVG that simply dropped the image, and every case uses more than one frame so embedding frame 0 alone fails. It also asserts the one-copy-not-one-per-frame property and the one-def-per-size property.
+
+`src/post-processing/hoist-image-payloads.test.ts` covers the rewrite's structure and its refusals; `tests/hoist-image-payloads.e2e.test.ts` rasterizes documents before and after the rewrite in real Chromium and requires byte-identical paint — including the cases that prove the rejected shortcuts (sizes on the `<use>`, clip left on the translated `<use>`) really do paint wrong.
 
 ## Follow-ups
 

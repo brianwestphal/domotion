@@ -152,7 +152,9 @@ shortest possible map:
   properties intra-frame animations animate on each target element so the
   renderer hands those channels to the animation, e.g. no baked wrapper
   opacity). (The old `frame-merge.ts` fast path was removed — see doc 08.)
-- **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`.
+- **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`, plus
+  `hoist-image-payloads.ts` (always-on: shares a raster payload repeated across
+  frames / elements as one `<defs>` `<image>` + `<use>` refs — see `docs/26`).
 - **`src/utils/`** — small shared helpers.
 - **`src/test-support/`** — shared test helpers (`close-browser-safely.ts`).
 - **`tests/`** — visual-regression suites (`features.ts`, `showcase.ts`,

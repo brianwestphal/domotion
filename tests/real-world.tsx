@@ -692,6 +692,9 @@ async function runJob(
         viewportH: viewport.height,
         // We already did the pre-scroll wake-up above; don't repeat it.
         prescroll: false,
+        // This harness embeds each segment itself below, with its own warning
+        // sink and the resize / conic passes in the right order.
+        embedImages: false,
       });
       // Per-segment post-processing: every tree needs the same passes the
       // single-capture path runs above (embed images, optional resize,

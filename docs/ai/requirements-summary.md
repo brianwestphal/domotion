@@ -343,6 +343,23 @@ they describe (see `CLAUDE.md` "Documentation"):
   surfaces (spec-faithful, not Chrome-pixel-compared). Committed demo
   `examples/animate/caret-shapes/`.
 
+- **Doc 26 (`docs/26-self-contained-svgs.md`)** — **Shipped**, extended twice in
+  DM-1855 / DM-1866. (a) Every pipeline whose captured tree reaches output inlines
+  remote image bytes; the pairing is one call, `captureElementTreeSelfContained`
+  (`src/capture/index.ts`), because the several sites that call
+  `captureElementTree` directly — animate frames + compressed-run states, the
+  scroll executor, storyboard `capture` scenes, `typeResample` re-captures,
+  `jsReveal` captures — each re-opened the same dead-href hole. `domotion capture
+  --scroll` and the real-world harness opt out (`embedImages: false`) because they
+  embed after their own cull pass / with their own warning sink. (b) A repeated
+  raster payload is serialized ONCE:
+  `hoistDuplicateImagePayloads` (`src/post-processing/hoist-image-payloads.ts`,
+  applied by `wrapSvg` / `generateAnimatedSvg` / the scroll composer) emits one
+  `<defs>` `<image id="dmiN">` per distinct (payload, width, height,
+  preserveAspectRatio) and references it with `<use>` — 137.3 KB → 47.5 KB raw on
+  three plates across 26 frames. Keyed on geometry because `<use width/height>`
+  does not override an `<image>` referent.
+
 - **Doc 96 (`docs/96-native-svg-image-inlining.md`, DM-1588)** — **Shipped.** An
   `<img src="*.svg">` inlines as a native, positioned, id-namespaced nested
   `<svg>` in the output instead of `<image href="data:image/svg+xml;base64,…">`.
