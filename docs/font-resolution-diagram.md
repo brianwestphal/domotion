@@ -842,7 +842,7 @@ flowchart TD
   E3 --> E5
   E5 -->|"paths"| E6["ensureGlyphDef(key) → &lt;path&gt; in &lt;defs&gt; · &lt;use href=#gN&gt;<br/>(getGlyphDefs / getGlyphDefsSince — live registry)"]
   E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
-  E7 --> E8{"entry pure?<br/>(one sfnt · one axis location ·<br/>no synthetic bake · has glyf)"}
+  E7 --> E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
   E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
   E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
 ```
@@ -883,8 +883,86 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the
    bundled wasm silently drops `CFF ` — an outline-less subset fails Chrome's
    OTS) and outline-less sources (PingFang `hvgl`) — both guarded by
-   `sfntHasSubsettableOutlines` — plus webfont buffers, mixed entries, or any
-   hb-subset failure.
+   `sfntHasSubsettableOutlines` — plus webfont buffers, mixed entries, an
+   **unnameable member index** (`FontSourceInfo.faceIndex === null`, below), or
+   any hb-subset failure.
+
+### Which member of a container, and how honestly it is reported
+
+`FontSourceInfo` (`getFontSourceInfo`) answers "where did these outlines come
+from" for the embedded-subset path. Two of its fields are only meaningful if the
+requested face can actually be located inside the file, so
+`resolveFaceInfoForFile` resolves the requested PostScript name in three tiers
+and reports which one applied:
+
+| Tier | Condition | `faceIndex` | `nameMatched` | Axis pin |
+|---|---|---|---|---|
+| Direct member | the name is a physical sfnt member | that member's index | `true` | CSS-derived (`resolveAxisLocationForFile`) |
+| **fvar named instance** | the name is a named instance of a member | the **owning member's** index | `true` | the **instance's own coordinates**, except `opsz` |
+| Unresolvable | neither | **`null`** | `false` | none (`null`) |
+
+The named-instance tier is not an edge case — it is how most Apple system faces
+are addressed. `PingFangSC-Regular` is instance 0 of member 20
+(`PingFangSC-Medium`) at `WDTH 500 / wght 400 / HGHT 500`, and
+`.ThonburiUI-Bold` is instance 2 of member 0 at `wght 700`. CoreText enumerates
+those instances as descriptors and loads them by name, so a member-name search
+alone misses them. Resolving them matters twice over:
+
+- **The index becomes usable.** `PingFangSC-Regular` and `PingFangHK-Regular`
+  resolve to members 20 and 22; a member-name search reports 0 for both, which
+  reads as "SC and HK resolved to the same face" and is what `hb_face_create`
+  would then subset.
+- **The axis pin becomes exact.** The instance's coordinates *are* the face, so
+  they replace a location re-derived from CSS weight, which only coincides when
+  the CSS weight happens to equal the cut's own. `opsz` is deliberately excluded:
+  CoreText applies automatic optical sizing on top of a named instance, and the
+  `opsz = fontSize` pin is what the macOS sweeps validate pixel-exact. Author
+  `font-variation-settings` still override on top (CSS cascade order), and on
+  Windows the matcher's own `resolvedAxes` continue to win.
+
+When neither tier matches, `faceIndex` is **`null`** rather than `0`, and
+`nameMatched` is `false`. Callers must check before using it as an index —
+treating `null` as `0` reads member zero, a face nobody asked for. The
+hinted-subset path therefore disqualifies such an entry and drops to svg2ttf,
+which emits the outlines the extractor actually produced. `variationAxes` is
+`null` in that state too, rather than describing member zero's axes.
+
+Note the two index spaces are different and must not be crossed: the macOS
+helper's `CTFontManagerCreateFontDescriptorsFromURL` enumeration is CoreText's
+**named-instance-expanded** list (SFIndia.ttc reports 81 descriptors for 9
+physical members; PingFangUI.ttc reports 268 for 32), so a position in it is not
+a TTC member index. That is why the helper reports no face index at all — the
+physical index comes from fontkit on the Node side, and is the only one valid for
+`hb_face_create` / `FT_New_Face`.
+
+### The extractor reports how it resolved a face
+
+The macOS helper's `openFont` (`tools/macos-glyph-extractor/…/main.swift`) returns
+`nameMatched` plus a `resolution` on the `meta` query, one of
+`nameMatchedInFile` · `firstFaceNoNameRequested` · `byNameVerified` ·
+`byNameUnverified` · `systemUI`. Only `byNameUnverified` is not guaranteed to be
+the requested face: it is the name-only route with no file to fall back on, where
+CoreText substitutes a default for a name it cannot resolve — notably it refuses
+Apple's dot-prefixed system names and returns `TimesNewRomanPSMT`
+(measured for `.SFDevanagari-Regular`, `.ThonburiUI-Regular`, `.SFBangla-Regular`).
+
+A named request that the given file cannot answer is reported **unavailable**
+rather than substituted with the file's first face. That substitution used to be
+silent, and it is a different face entirely: member zero of `SFIndia.ttc` is
+`.SFBangla-Ultralight`, so a missed `.SFDevanagari-Regular` would have painted
+Bangla outlines at ultralight for Devanagari text. Blink makes the same choice —
+`MatchUniqueFont` compares CoreText's answer against the request and returns
+`nullptr` when they differ, "it's not the exact match that is required"
+(`third_party/blink/renderer/platform/fonts/mac/font_matcher_mac.mm:451-481`,
+Chromium `7d859f27`). The failure is graceful: the font ref is simply absent from
+the response, so queries naming it report `fontRef missing or unknown` and the
+Node side routes to fontkit.
+
+`createGlyphHelperFont` uses this when deciding whether to trust the second,
+by-name handle it opens to measure `outlineOffsetY` (the Apple Color Emoji
+baseline correction CoreText only reports through the system-registered font):
+the probe is applied only when that handle is confirmed to be the requested face,
+so a face-wide baseline correction can never be read off a substituted font.
 
 **Synthetic (faux) bold bake (DM-1693):** when the resolved face has no variant
 at the requested weight, Chrome emboldens the outline algorithmically (Skia

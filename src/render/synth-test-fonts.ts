@@ -122,6 +122,12 @@ interface SynthOptions {
    *  +600 x, carrying the standard instruction bytecode, mapped from "C".
    *  For the gid-compaction tests (component walking + id rewriting). */
   withComposite?: boolean;
+  /** fvar NAMED INSTANCES to declare (variable font only), each with its own
+   *  PostScript name and `wght` coordinate. Models the shape most Apple system
+   *  faces actually have — `PingFangSC-Regular` and `.ThonburiUI-Bold` are named
+   *  instances of a member, not members — so the face resolver's
+   *  named-instance tier can be tested without depending on system fonts. */
+  namedInstances?: Array<{ postscriptName: string; wght: number; subfamily?: string }>;
 }
 
 /** Core tables shared by the static and variable synthesized fonts. */
@@ -277,28 +283,50 @@ export function buildStaticHintedFont(opts: SynthOptions = {}): Buffer {
  *  at wght=900 (normalized +1.0): "A" right edge/advance +100 units, "B" +200.
  *  Pinning wght=900 must bake those into the outline; wght=650 → half. */
 export function buildVariableHintedFont(opts: SynthOptions = {}): Buffer {
+  // Named instances need two name records each (subfamily + PostScript name),
+  // allocated from nameID 257 upward — 256 is the wght axis name.
+  const instances = opts.namedInstances ?? [];
+  const instanceNameRecords: Array<[number, string]> = [];
+  const instanceIds: Array<{ subfamilyId: number; psId: number; wght: number }> = [];
+  instances.forEach((inst, i) => {
+    const subfamilyId = 257 + i * 2;
+    const psId = 258 + i * 2;
+    instanceNameRecords.push([subfamilyId, inst.subfamily ?? inst.postscriptName]);
+    instanceNameRecords.push([psId, inst.postscriptName]);
+    instanceIds.push({ subfamilyId, psId, wght: inst.wght });
+  });
+
   const tables = coreTables({
     ...opts,
     // fontkit only decodes fvar axis names when a nameID ≥ 256 record exists
     // (its `records.fontFeatures` group) — provide the wght axis name.
-    extraNameRecords: [...(opts.extraNameRecords ?? []), [256, "Weight"]],
+    extraNameRecords: [...(opts.extraNameRecords ?? []), [256, "Weight"], ...instanceNameRecords],
   });
 
-  // fvar: one axis, no named instances
-  const fvar = Buffer.alloc(16 + 20);
+  // fvar: one `wght` axis, plus any requested named instances. Instance records
+  // carry a postScriptNameID, so instanceSize is 4 + axisCount*4 + 2.
+  const instanceSize = 4 + 1 * 4 + 2;
+  const fvar = Buffer.alloc(16 + 20 + instanceIds.length * instanceSize);
   fvar.writeUInt16BE(1, 0); fvar.writeUInt16BE(0, 2);   // version 1.0
   fvar.writeUInt16BE(16, 4);                            // axesArrayOffset
   fvar.writeUInt16BE(2, 6);                             // reserved
   fvar.writeUInt16BE(1, 8);                             // axisCount
   fvar.writeUInt16BE(20, 10);                           // axisSize
-  fvar.writeUInt16BE(0, 12);                            // instanceCount
-  fvar.writeUInt16BE(8, 14);                            // instanceSize
+  fvar.writeUInt16BE(instanceIds.length, 12);           // instanceCount
+  fvar.writeUInt16BE(instanceSize, 14);                 // instanceSize
   fvar.write("wght", 16, "latin1");
   fvar.writeInt32BE(100 << 16, 20);                     // min 100.0
   fvar.writeInt32BE(400 << 16, 24);                     // default 400.0
   fvar.writeInt32BE(900 << 16, 28);                     // max 900.0
   fvar.writeUInt16BE(0, 32);                            // flags
   fvar.writeUInt16BE(256, 34);                          // axisNameID
+  instanceIds.forEach((inst, i) => {
+    const o = 36 + i * instanceSize;
+    fvar.writeUInt16BE(inst.subfamilyId, o);            // subfamilyNameID
+    fvar.writeUInt16BE(0, o + 2);                       // flags
+    fvar.writeInt32BE(Math.round(inst.wght * 65536), o + 4); // coordinate (Fixed)
+    fvar.writeUInt16BE(inst.psId, o + 8);               // postScriptNameID
+  });
   tables.fvar = fvar;
 
   // gvar: per-glyph tuple variation data with one embedded-peak tuple at

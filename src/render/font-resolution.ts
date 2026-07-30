@@ -3086,14 +3086,21 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       // embedded subset must pin the same location or it would embed the
       // default master's outlines.
       if (hintedSubsetEnabled() && helperFaceInfo != null) {
-        const { faceIndex, fileAxes } = helperFaceInfo;
+        const { faceIndex, nameMatched, fileAxes, instanceAxes } = helperFaceInfo;
         fontSourceMap.set(instance as unknown as object, {
-          path: spec.path, postscriptName: spec.postscriptName, faceIndex,
+          path: spec.path, postscriptName: spec.postscriptName, faceIndex, nameMatched,
           // DM-1721: `spec.resolvedAxes` (DirectWrite's resolved axis values
           // for live-resolver / family-lookup picks) overrides the CSS-derived
           // opsz pin — named optical subfamilies don't re-vary opsz per size.
+          //
+          // `fileAxes` is null when the requested name is not a physical member
+          // (`nameMatched: false`), so no axis location is derived from a face
+          // nobody asked for. That used to report member zero's axes: every
+          // PingFang key, whatever its region, came back `{wght: 400}` off
+          // `.PingFangUITextSC-Default`, which read as evidence that SC and HK
+          // had resolved to the same face.
           variationAxes: fileAxes != null
-            ? (helperAxes ?? resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes))
+            ? (helperAxes ?? resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes, instanceAxes))
             : null,
         });
       }
@@ -3109,6 +3116,14 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // (defensive against OS font updates renaming members).
   let font: any = null;
   let faceIndex = 0;
+  // Whether `font` is the face `spec.postscriptName` names. False when a
+  // collection had no member of that name and the line below fell back to
+  // member zero — in which case member zero is genuinely what gets shaped, so
+  // `faceIndex` stays truthful about the loaded face while `nameMatched: false`
+  // records that it is not the requested one. (Contrast the native-helper branch
+  // above, where CoreText loads the requested face by name and it is the INDEX
+  // that cannot be named — there `faceIndex` becomes null.)
+  let nameMatched = true;
   if (opened != null) {
     font = opened;
     if (opened.fonts != null && Array.isArray(opened.fonts)) {
@@ -3124,6 +3139,10 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       const psName = font?.postscriptName;
       const idx = psName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === psName) : -1;
       faceIndex = idx >= 0 ? idx : 0;
+      if (spec.postscriptName != null && psName !== spec.postscriptName) nameMatched = false;
+    } else if (spec.postscriptName != null && opened.postscriptName != null
+               && opened.postscriptName !== spec.postscriptName) {
+      nameMatched = false;
     }
   }
 
@@ -3182,7 +3201,7 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   const fileIsVariable = font?.variationAxes != null && Object.keys(font.variationAxes).length > 0;
   const appliedAxes = (instance as unknown as { _appliedVariationAxes?: Record<string, number> })._appliedVariationAxes;
   fontSourceMap.set(instance as unknown as object, {
-    path: spec.path, postscriptName: spec.postscriptName, faceIndex,
+    path: spec.path, postscriptName: spec.postscriptName, faceIndex, nameMatched,
     variationAxes: fileIsVariable ? (appliedAxes ?? {}) : null,
   });
   fontInstanceCache.set(cacheKey, instance);
@@ -3203,9 +3222,28 @@ export function getFontSourceInfo(font: FontInstance | null | undefined): FontSo
 export interface FontSourceInfo {
   path: string;
   postscriptName?: string;
-  faceIndex: number;
+  /** The file's PHYSICAL sfnt member index the outlines belong to, for
+   *  `hb_face_create`. **`null` means "unknown"** — the requested PostScript
+   *  name is not among the file's members, so no index can honestly be named.
+   *  Read it as an index only after checking it is non-null; treating null as 0
+   *  reads member zero, a face nobody asked for.
+   *
+   *  Why this can happen while the render is still correct: the native helper
+   *  resolves the face through CoreText, which enumerates a container's
+   *  NAMED INSTANCES (PingFangUI.ttc reports 268) while fontkit — and every
+   *  collection-indexing API — sees only its 32 physical members. A face
+   *  CoreText loads by name can therefore have no physical member of that name
+   *  at all: `PingFangSC-Regular` is one, and the members are the
+   *  `.PingFangUIText*-Default` / `*-Medium` cuts. The outlines are right; the
+   *  index simply does not exist. */
+  faceIndex: number | null;
+  /** False when the requested PostScript name was not found among the file's
+   *  members. `faceIndex` and `variationAxes` then describe nothing (both are
+   *  null) rather than silently describing member zero. */
+  nameMatched: boolean;
   /** Axis location the instance resolved to: Record ⇒ variable source file (pin
-   *  these tags, all others to default); null/absent ⇒ static file. */
+   *  these tags, all others to default); null/absent ⇒ static file, or an
+   *  unidentifiable member whose axes we decline to guess. */
   variationAxes?: Record<string, number> | null;
 }
 
@@ -3257,31 +3295,142 @@ function hintedSubsetEnabled(): boolean {
  *  fontkit's own index resolution but whose FILE we still want to subset.
  *  Cached per (path, postscriptName) — the helper branch hits this once per
  *  (weight, size) instance of the same file. */
-const fileFaceInfoCache = new Map<string, { faceIndex: number; fileAxes: Record<string, unknown> | null }>();
-function resolveFaceInfoForFile(path: string, postscriptName?: string): { faceIndex: number; fileAxes: Record<string, unknown> | null } {
+export interface FileFaceInfo {
+  /** Physical sfnt member index, or null when the requested name is neither a
+   *  member nor a named instance of one. */
+  faceIndex: number | null;
+  nameMatched: boolean;
+  fileAxes: Record<string, unknown> | null;
+  /** Set when the requested name is an fvar NAMED INSTANCE of `faceIndex`'s
+   *  member rather than a member itself: the instance's own axis coordinates.
+   *  These ARE the requested face, so they beat a CSS-derived pin. */
+  instanceAxes?: Record<string, number> | null;
+}
+
+/** Find `postscriptName` among a variable member's fvar NAMED INSTANCES.
+ *
+ *  Many system faces are not physical sfnt members at all. `PingFangSC-Regular`
+ *  is instance 0 of member 20 (`PingFangSC-Medium`) at WDTH 500 / wght 400 /
+ *  HGHT 500; `.ThonburiUI-Bold` is instance 2 of member 0 at wght 700. CoreText
+ *  enumerates those instances as descriptors and loads them by name, so they are
+ *  ordinary requests — but a member-name search misses every one of them.
+ *
+ *  Resolving them is what makes both reported fields correct rather than merely
+ *  honest: the member index becomes usable (member 20 for SC, 22 for HK — the
+ *  two used to both report 0, which read as "SC and HK resolved to one face"),
+ *  and the axis location becomes the instance's own coordinates instead of a
+ *  location re-derived from CSS that happens to coincide.
+ *
+ *  fontkit's own `namedVariations` accessor cannot be used here: it reads
+ *  `instance.name.en` and throws on faces whose instance name records carry no
+ *  English entry, which includes these Apple system fonts. The underlying
+ *  `fvar.instance[]` records are fine, so read those and resolve the
+ *  `postscriptNameID` through the name table directly. */
+function findNamedInstanceAxes(member: any, postscriptName: string): Record<string, number> | null {
+  const instances = member?.fvar?.instance;
+  const axisRecords = member?.fvar?.axis;
+  if (!Array.isArray(instances) || !Array.isArray(axisRecords)) return null;
+  // nameID → string. IDs ≥ 256 land in fontkit's `fontFeatures` group; the
+  // standard PostScript-name slot (6) is the member's own name.
+  const records = member?.name?.records ?? {};
+  const extended: Record<string, Record<string, string> | undefined> = records.fontFeatures ?? {};
+  const nameFor = (id: number): string | null => {
+    if (id === 6) return pickNameString(records.postscriptName);
+    return pickNameString(extended[String(id)]);
+  };
+  for (const inst of instances) {
+    const psId = inst?.postscriptNameID;
+    if (typeof psId !== "number") continue;
+    if (nameFor(psId) !== postscriptName) continue;
+    const coord = inst?.coord;
+    if (!Array.isArray(coord)) return null;
+    const axes: Record<string, number> = {};
+    for (let i = 0; i < axisRecords.length && i < coord.length; i++) {
+      const tag = axisRecords[i]?.axisTag;
+      const v = coord[i];
+      if (typeof tag === "string" && typeof v === "number" && isFinite(v)) axes[tag] = v;
+    }
+    return Object.keys(axes).length > 0 ? axes : null;
+  }
+  return null;
+}
+
+/** One string out of a fontkit localized-name record, preferring English. */
+function pickNameString(rec: unknown): string | null {
+  if (typeof rec === "string") return rec;
+  if (rec == null || typeof rec !== "object") return null;
+  const map = rec as Record<string, unknown>;
+  const en = map.en;
+  if (typeof en === "string") return en;
+  for (const v of Object.values(map)) if (typeof v === "string") return v;
+  return null;
+}
+
+const fileFaceInfoCache = new Map<string, FileFaceInfo>();
+function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFaceInfo {
   const cacheKey = `${path}#${postscriptName ?? ""}`;
   const cached = fileFaceInfoCache.get(cacheKey);
   if (cached != null) return cached;
-  let result: { faceIndex: number; fileAxes: Record<string, unknown> | null } = { faceIndex: 0, fileAxes: null };
+  let result: FileFaceInfo = { faceIndex: 0, nameMatched: true, fileAxes: null };
   try {
     const opened: any = fontkit.openSync(path);
-    let f: any = opened;
-    let faceIndex = 0;
     if (opened?.fonts != null && Array.isArray(opened.fonts)) {
-      f = (postscriptName != null && opened.getFont != null)
-        ? (opened.getFont(postscriptName) ?? opened.fonts[0])
-        : opened.fonts[0];
       // Match by postscriptName — getFont() returns a NEW object, so indexOf()
       // is always -1 (see the same fix in getFontInstance).
-      const psName = f?.postscriptName;
-      const idx = psName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === psName) : -1;
-      faceIndex = idx >= 0 ? idx : 0;
+      const idx = postscriptName != null
+        ? opened.fonts.findIndex((m: any) => m?.postscriptName === postscriptName)
+        : -1;
+      if (idx >= 0) {
+        const axes = opened.fonts[idx]?.variationAxes;
+        result = { faceIndex: idx, nameMatched: true, fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null };
+      } else if (postscriptName == null) {
+        // No name to match: member zero IS the request, so index 0 is honest.
+        const axes = opened.fonts[0]?.variationAxes;
+        result = { faceIndex: 0, nameMatched: true, fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null };
+      } else {
+        // Not a physical member. Before giving up, check whether it is an fvar
+        // NAMED INSTANCE of one — the usual shape for a CoreText-resolved face,
+        // and resolvable to a real member index plus exact axis coordinates.
+        let found: FileFaceInfo | null = null;
+        for (let i = 0; i < opened.fonts.length; i++) {
+          const instanceAxes = findNamedInstanceAxes(opened.fonts[i], postscriptName);
+          if (instanceAxes == null) continue;
+          const axes = opened.fonts[i]?.variationAxes;
+          found = {
+            faceIndex: i, nameMatched: true,
+            fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+            instanceAxes,
+          };
+          break;
+        }
+        // Neither a member nor a named instance of one. Member zero is a
+        // DIFFERENT face, so neither its index nor its variation axes describe
+        // what the caller asked for — say "unknown" rather than reporting member
+        // zero's as though they were the requested face's. A caller needing an
+        // index then fails loudly instead of silently subsetting member zero.
+        result = found ?? { faceIndex: null, nameMatched: false, fileAxes: null };
+      }
+    } else {
+      // Not a collection: index 0 is the file's only face. It may still not be
+      // the requested name (a relocated / stub file), which callers can see.
+      const axes = opened?.variationAxes;
+      const psName = opened?.postscriptName;
+      result = {
+        faceIndex: 0,
+        nameMatched: postscriptName == null || psName == null || psName === postscriptName,
+        fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+      };
     }
-    const axes = f?.variationAxes;
-    result = { faceIndex, fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null };
-  } catch { /* unreadable → single static face */ }
+  } catch { /* unreadable → leave the single-static-face default */ }
   fileFaceInfoCache.set(cacheKey, result);
   return result;
+}
+
+/** Test-only view of the member-index resolver (not part of the package's public
+ *  barrel), so the honest-reporting contract can be pinned against synthetic
+ *  collections instead of whichever fonts a given host happens to ship. */
+export function __resolveFaceInfoForFileForTest(path: string, postscriptName?: string): FileFaceInfo {
+  return resolveFaceInfoForFile(path, postscriptName);
 }
 
 /** DM-1716: the axis location a run resolved to on a variable file whose
@@ -3309,11 +3458,29 @@ export function resolveAxisLocationForFile( // exported for unit testing (not in
   fileAxes: Record<string, unknown>, weight: number, fontSize: number, slant: number,
   variationSettings?: Record<string, number>,
   resolvedAxes?: Record<string, number>,
+  instanceAxes?: Record<string, number> | null,
 ): Record<string, number> {
   const axes: Record<string, number> = {};
   if (fileAxes.wght != null) axes.wght = weight;
   if (fileAxes.opsz != null) axes.opsz = fontSize;
   if (slant !== 0 && fileAxes.slnt != null) axes.slnt = slant;
+  // When the requested PostScript name is an fvar NAMED INSTANCE rather than a
+  // physical member, the instance's coordinates ARE the face — that is what the
+  // platform loads by that name — so they replace the CSS-derived guess for the
+  // tags they cover. Without this, a request for `PingFangSC-Regular` (instance
+  // wght 400) at CSS weight 500 would pin wght 500 and paint a face nobody asked
+  // for; the two only coincide when the CSS weight happens to equal the cut's.
+  //
+  // `opsz` is deliberately excluded: CoreText applies automatic optical sizing on
+  // top of a named instance, so the `opsz = fontSize` pin stays — it is what the
+  // full macOS sweeps validate pixel-exact, and an instance's frozen opsz would
+  // override it at every size.
+  if (instanceAxes != null) {
+    for (const tag of Object.keys(instanceAxes)) {
+      if (tag === "opsz" || fileAxes[tag] == null) continue;
+      axes[tag] = instanceAxes[tag];
+    }
+  }
   if (resolvedAxes != null) {
     for (const tag of Object.keys(resolvedAxes)) {
       if (fileAxes[tag] == null) continue;

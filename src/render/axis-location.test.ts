@@ -84,3 +84,57 @@ describe("resolveAxisLocationForFile: DirectWrite resolved axes (DM-1721)", () =
       .toEqual({ wght: 400, opsz: 16 });
   });
 });
+
+// The requested PostScript name is often an fvar NAMED INSTANCE rather than a
+// physical member — `PingFangSC-Regular` is instance 0 of member 20,
+// `.ThonburiUI-Bold` is instance 2 of member 0. The instance's own coordinates
+// ARE the face the platform loads under that name, so they beat the CSS-derived
+// guess, which only coincides when the CSS weight happens to equal the cut's own.
+describe("resolveAxisLocationForFile: fvar named-instance coordinates", () => {
+  /** ThonburiUI's shape: one wght axis, 300..400..700. */
+  const THONBURI_AXES = { wght: { name: "Weight", min: 300, default: 400, max: 700 } };
+
+  it("takes the instance's wght over the CSS-derived one", () => {
+    // The cut is Bold (wght 700) even when the CSS weight that selected it is 600.
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 600, 16, 0, undefined, undefined, { wght: 700 }))
+      .toEqual({ wght: 700 });
+  });
+
+  it("keeps the CSS-derived opsz pin, which the instance must not freeze", () => {
+    // CoreText applies automatic optical sizing on top of a named instance, and
+    // the opsz=fontSize pin is what the macOS sweeps validate pixel-exact. An
+    // instance's frozen opsz would override it at every size.
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, undefined, undefined, { wght: 700, opsz: 8 }))
+      .toEqual({ wght: 700, opsz: 24 });
+  });
+
+  it("carries instance axes the CSS derivation knows nothing about", () => {
+    // PingFang instances pin WDTH and HGHT as well as wght; nothing in CSS
+    // derives those, so without the instance they were simply absent.
+    const axes = { wght: { min: 100, max: 900 }, WDTH: { min: 1, max: 1000 }, HGHT: { min: 1, max: 1000 } };
+    expect(resolveAxisLocationForFile(axes, 400, 16, 0, undefined, undefined, { WDTH: 500, wght: 400, HGHT: 500 }))
+      .toEqual({ wght: 400, WDTH: 500, HGHT: 500 });
+  });
+
+  it("drops instance tags the file's fvar does not expose", () => {
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, undefined, undefined, { wght: 700, wdth: 50 }))
+      .toEqual({ wght: 700 });
+  });
+
+  it("author font-variation-settings still override the instance (CSS cascade order)", () => {
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, { wght: 500 }, undefined, { wght: 700 }))
+      .toEqual({ wght: 500 });
+  });
+
+  it("clamps an instance coordinate to the fvar range", () => {
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, undefined, undefined, { wght: 900 }))
+      .toEqual({ wght: 700 });
+  });
+
+  it("null / absent instance axes leave the CSS-derived behavior untouched", () => {
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0, undefined, undefined, null))
+      .toEqual({ wght: 500 });
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0))
+      .toEqual({ wght: 500 });
+  });
+});

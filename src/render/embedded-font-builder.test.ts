@@ -253,4 +253,39 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("fpgm")).toBe(false);
   });
+
+  // A null faceIndex means "the requested PostScript name is not a member of
+  // this file, so no index can be named" — the state a CoreText-resolved face
+  // reaches, because CoreText loads named INSTANCES that have no physical member
+  // of that name. hb_face_create has no way to express that, and given 0 it
+  // would subset member zero: a different face, silently. So the entry must fall
+  // back to svg2ttf, which emits the outlines actually extracted.
+  it("refuses the hinted path when the source member cannot be named (faceIndex null)", () => {
+    trackGlyphInEmbedFont("hinted-unnamed|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: null, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    // No hinting tables ⇒ this did NOT come from hb-subset of the source file.
+    expect(tags(bytes).has("fpgm")).toBe(false);
+    expect(tags(bytes).has("prep")).toBe(false);
+    // And the emitted outline is the TRACKED one, not the source font's glyph 1
+    // rectangle (xMax 550) — proof no member was subset in its place.
+    const font = fontkit.create(bytes) as unknown as {
+      glyphForCodePoint(cp: number): { bbox: { maxX: number } };
+    };
+    expect(font.glyphForCodePoint(0xe000).bbox.maxX).not.toBe(550);
+  });
+
+  it("disqualifies an entry when a later glyph's member cannot be named", () => {
+    // Mixed sequence: a nameable member establishes the entry, then an
+    // unnameable one arrives. The subset's gid↔source identity is broken, so the
+    // WHOLE entry must drop to svg2ttf rather than subsetting member zero for
+    // the glyphs that had no index.
+    const KEY = "hinted-mixed|w=400|s=0";
+    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 2, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: null, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(tags(bytes).has("fpgm")).toBe(false);
+  });
 });

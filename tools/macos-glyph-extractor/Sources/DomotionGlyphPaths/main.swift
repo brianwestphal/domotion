@@ -122,11 +122,37 @@ func matchSystemUIFont(weight: Double, slant: Double, width: Double, size: CGFlo
 
 // MARK: - Font open
 
+/// How `openFont` arrived at the CTFont it returns.
+///
+/// Reported verbatim on the `meta` query so a caller can tell "we loaded exactly
+/// the face you named" apart from "we loaded something and hoped". Before this
+/// existed, both looked identical from the outside, and a reported face index of
+/// 0 was twice mistaken for evidence of which member had been opened.
+enum FontResolution: String {
+    /// `systemUI: true` — resolved through CTFontCreateUIFontForLanguage.
+    case systemUI
+    /// A descriptor in the requested file carried exactly the requested PostScript name.
+    case nameMatchedInFile
+    /// No PostScript name was requested, so the file's first face IS the request.
+    case firstFaceNoNameRequested
+    /// The file lookup missed, but a system-wide by-name resolution returned a
+    /// face whose PostScript name equals the request (verified).
+    case byNameVerified
+    /// No file was supplied; resolved by name alone, WITHOUT verifying that
+    /// CoreText returned the requested face (it substitutes a default when the
+    /// name is unknown). The one route whose face is not guaranteed.
+    case byNameUnverified
+}
+
 struct FontEntry {
     let ref: String
     let font: CTFont
     let pointSize: CGFloat
     let unitsPerEm: Int
+    /// True when the returned face is guaranteed to be the requested PostScript
+    /// name (or no name was requested). False only for `byNameUnverified`.
+    let nameMatched: Bool
+    let resolution: FontResolution
 }
 
 func openFont(spec: [String: Any]) throws -> FontEntry {
@@ -174,14 +200,26 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
             ])
         }
         return FontEntry(ref: ref, font: f, pointSize: CGFloat(size),
-                         unitsPerEm: Int(CTFontGetUnitsPerEm(f)))
+                         unitsPerEm: Int(CTFontGetUnitsPerEm(f)),
+                         nameMatched: true, resolution: .systemUI)
     }
+
+    var resolution: FontResolution = .byNameUnverified
+    // Set when a file WAS supplied, a name WAS requested, and no descriptor in
+    // the file carried it. Nothing in the file can answer the request, so member
+    // zero must not stand in for it (see the throw below).
+    var nameAbsentFromFile = false
 
     if let path = fontPath {
         let url = URL(fileURLWithPath: path) as CFURL
-        // CTFontManagerCreateFontDescriptorsFromURL returns every face in the file
-        // (e.g. all 32 subfonts for PingFang.ttc). Pick the one matching postscriptName,
-        // or the first if no name was supplied.
+        // CTFontManagerCreateFontDescriptorsFromURL returns every face in the file.
+        // Note it reports CoreText's NAMED-INSTANCE-EXPANDED list, not the file's
+        // physical sfnt members: SFIndia.ttc has 9 physical members but reports 81
+        // descriptors (9 scripts x 9 named weights), and PingFangUI.ttc reports 268
+        // for 32 members. So this loop's index is NOT a TTC member index and must
+        // never be handed to a collection-indexing API (hb_face_create and
+        // FT_New_Face take the physical index; the Node side resolves that
+        // separately through fontkit). That is why no face index is reported here.
         if let array = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor] {
             var picked: CTFontDescriptor? = nil
             if let want = postscriptName {
@@ -190,11 +228,17 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
                        name == want {
                         picked = d
                         pickedNameMatch = true
+                        resolution = .nameMatchedInFile
                         break
                     }
                 }
+                if picked == nil { nameAbsentFromFile = true }
+            } else {
+                // No name was requested, so the file's first face IS what was
+                // asked for — not a fallback.
+                picked = array.first
+                resolution = .firstFaceNoNameRequested
             }
-            if picked == nil { picked = array.first }
             if let d = picked {
                 baseFont = CTFontCreateWithFontDescriptor(d, CGFloat(size), nil)
             }
@@ -221,10 +265,48 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
         let resolvedName = CTFontCopyPostScriptName(byName) as String
         if resolvedName == name {
             baseFont = byName
+            pickedNameMatch = true
+            resolution = .byNameVerified
+            nameAbsentFromFile = false
         }
     }
+
+    // A named request that the file could not answer and by-name could not verify
+    // has no correct answer available. Report it unavailable rather than
+    // substituting the file's first face.
+    //
+    // This used to fall back to `array.first` above, which is a different face
+    // entirely: for a requested `.SFDevanagari-Regular` that the descriptor walk
+    // missed, member zero of SFIndia.ttc is `.SFBangla-Ultralight` — Bangla
+    // outlines, at ultralight, painted for Devanagari text. Nor can the by-name
+    // second chance rescue that class of name: CoreText refuses to resolve
+    // dot-prefixed system font names by name and returns TimesNewRomanPSMT
+    // (measured), which the verification above correctly rejects. So the choice
+    // is between a silently wrong face and an honest failure.
+    //
+    // Blink makes the same choice. `MatchUniqueFont` asks CoreText by name,
+    // compares the result's PostScript / full name against the request, and
+    // returns nullptr when they differ — "it's not the exact match that is
+    // required" (font_matcher_mac.mm:451-481, Chromium 7d859f27). The systemUI
+    // branch above already mirrors that; this makes the by-path branch agree.
+    //
+    // The caller sees a graceful failure, not a crash: `handleEnvelope` uses
+    // `try?`, so the font ref is simply absent and queries naming it report
+    // "fontRef missing or unknown", which routes the Node side to fontkit.
+    if nameAbsentFromFile, let name = postscriptName {
+        throw NSError(domain: "domotion", code: 4, userInfo: [
+            NSLocalizedDescriptionKey:
+                "requested PostScript name \"\(name)\" is not a face in \(fontPath ?? "<no path>") "
+                + "and did not verify by name; refusing to substitute the file's first face",
+        ])
+    }
+
     if baseFont == nil, let name = postscriptName {
+        // No file was supplied (or it yielded no descriptors) — a name-only
+        // request, where CoreText's substitution is all there is. Recorded as
+        // unverified so the caller knows the face is not guaranteed.
         baseFont = CTFontCreateWithName(name as CFString, CGFloat(size), nil)
+        resolution = .byNameUnverified
     }
     guard var font = baseFont else {
         throw NSError(domain: "domotion", code: 2, userInfo: [NSLocalizedDescriptionKey: "could not open font \(postscriptName ?? "<none>") at \(fontPath ?? "<no path>")"])
@@ -249,7 +331,9 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     }
 
     let upem = Int(CTFontGetUnitsPerEm(font))
-    return FontEntry(ref: ref, font: font, pointSize: CGFloat(size), unitsPerEm: upem)
+    return FontEntry(ref: ref, font: font, pointSize: CGFloat(size), unitsPerEm: upem,
+                     nameMatched: pickedNameMatch || postscriptName == nil,
+                     resolution: resolution)
 }
 
 // MARK: - Path walking
@@ -520,7 +604,16 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
         "type": "meta",
         "unitsPerEm": upem,
         "ascent": ascentUnits,
-        "descent": descentUnits
+        "descent": descentUnits,
+        // How the face was arrived at. `nameMatched: false` means the returned
+        // outlines are NOT guaranteed to be the requested PostScript name, so a
+        // caller must not read them as evidence of which face was loaded.
+        // Deliberately no face index: this helper's descriptor enumeration is
+        // CoreText's named-instance-expanded list, not the file's physical sfnt
+        // member order, so any index from here would be wrong for hb_face_create.
+        "nameMatched": entry.nameMatched,
+        "resolution": entry.resolution.rawValue,
+        "postscriptName": (CTFontCopyPostScriptName(font) as String?) ?? ""
     ]
     if let v = underlinePos { result["underlinePosition"] = v }
     if let v = underlineThick { result["underlineThickness"] = v }

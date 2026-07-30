@@ -101,6 +101,16 @@ interface MetaResponse {
   underlineThickness?: number;
   strikeoutPosition?: number;
   strikeoutThickness?: number;
+  /** False when the helper could not guarantee the face is the requested
+   *  PostScript name — the by-name-only route, where the platform substitutes a
+   *  default for an unknown name rather than failing. Absent from older helper
+   *  binaries, so treat only an explicit `false` as a negative. */
+  nameMatched?: boolean;
+  /** How the face was resolved: `nameMatchedInFile` | `firstFaceNoNameRequested`
+   *  | `byNameVerified` | `byNameUnverified` | `systemUI`. Diagnostic. */
+  resolution?: string;
+  /** The PostScript name of the face actually opened. */
+  postscriptName?: string;
 }
 
 interface GlyphResponse {
@@ -502,15 +512,38 @@ export function createGlyphHelperFont(spec: {
       queries: [
         { type: "meta" as const, fontRef: "f" },
         ...(spec.postscriptName != null && spec.variations == null
-          ? [{ type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) }]
+          ? [
+            // Ask what the by-NAME handle actually resolved to before trusting
+            // its geometry — see the guard below.
+            { type: "meta" as const, fontRef: "n" },
+            { type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) },
+          ]
           : [])
       ]
     });
     const r = probe.results[0];
     if (r.type !== "meta") throw new Error("unexpected response shape");
     metaResp = r;
-    const r1 = probe.results[1];
-    if (r1 != null && r1.type === "glyphs") offsetProbe = r1.glyphs;
+    const nMeta = probe.results[1];
+    const r1 = probe.results[2];
+    // The by-name handle is opened WITHOUT a file, so the platform substitutes a
+    // default when it cannot resolve the name rather than failing. CoreText
+    // refuses to resolve Apple's dot-prefixed system names that way and returns
+    // TimesNewRomanPSMT — measured for `.SFDevanagari-Regular`,
+    // `.ThonburiUI-Regular`, `.SFBangla-Regular` and every sibling. Reading a
+    // face-wide baseline correction off Times and applying it to a Devanagari
+    // face would translate every glyph in the run by a wrong amount, so use this
+    // probe only when the handle is confirmed to BE the requested face.
+    //
+    // In practice the existing unanimity + 1%-of-em guards in
+    // `measureOutlineOffsetY` currently zero those readings out, so this is
+    // defense in depth rather than a fix for a live misrender — but it removes
+    // the dependence on two thresholds happening to absorb a wrong font's
+    // geometry.
+    const byNameIsRequestedFace = nMeta != null && nMeta.type === "meta"
+      && nMeta.nameMatched !== false
+      && (nMeta.postscriptName == null || nMeta.postscriptName === spec.postscriptName);
+    if (byNameIsRequestedFace && r1 != null && r1.type === "glyphs") offsetProbe = r1.glyphs;
   } catch {
     return null;
   }

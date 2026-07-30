@@ -60,7 +60,11 @@ interface EmbeddedGlyph {
  *  the axis location the run resolved to (`axes`; null/absent ⇒ static file). */
 export interface HintedSource {
   path: string;
-  faceIndex: number;
+  /** Physical sfnt member index to subset. **`null` = unknown** — the requested
+   *  PostScript name is not a member of this file, so no index can be named and
+   *  the entry is disqualified from the hb-subset path rather than silently
+   *  subsetting member zero. */
+  faceIndex: number | null;
   /** Axis location to pin when instancing a variable source file (possibly
    *  empty = all defaults); null/absent ⇒ static file. Field name matches
    *  font-resolution's FontSourceInfo so the resolver's return value can be
@@ -316,7 +320,12 @@ export function trackGlyphInEmbedFont(
   // (In practice the instanceKey already separates them; this is the guard.)
   const isSynthetic = Boolean(variant.emboldenStrengthFU) || Boolean(variant.shearFactor);
   const glyphSource = variant.hintedSource ?? null;
+  // A null faceIndex means the requested PostScript name is not a physical
+  // member of the file, so there is no index to subset by — hb_face_create would
+  // silently take member zero, a face nobody asked for. Disqualify instead; the
+  // svg2ttf path renders the outlines the helper actually extracted.
   if (isSynthetic || glyphSource == null || entry.hintedSource == null
+      || glyphSource.faceIndex == null || entry.hintedSource.faceIndex == null
       || glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex
       || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes)) {
     entry.hintedSourceDisqualified = true;
@@ -441,7 +450,9 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
   // applies the same gvar deltas fontkit shaped with, and hinting survives its
   // instancer. Any failure falls through to the proven svg2ttf path so a bad
   // font never breaks a render.
-  if (hintedSubsetEnabled() && entry.hintedSource != null && !entry.hintedSourceDisqualified) {
+  if (hintedSubsetEnabled() && entry.hintedSource != null && entry.hintedSource.faceIndex != null
+      && !entry.hintedSourceDisqualified) {
+    const srcFaceIndex = entry.hintedSource.faceIndex;
     try {
       const gids = [...entry.puaForGlyphId.keys()];
       const puaToGid = new Map<number, number>();
@@ -451,8 +462,8 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       // producing an outline-less font Chrome's OTS rejects → tofu) and
       // outline-less files (PingFang's Apple-private hvgl). Those keep the
       // svg2ttf path by design — a quiet skip, not a failure.
-      if (sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) {
-        const retained = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
+      if (sfntHasSubsettableOutlines(bytes, srcFaceIndex)) {
+        const retained = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
         // DM-1718: compact the RETAIN_GIDS id space (padded to the source's max
         // gid — ~356 KB of loca+hmtx for a CJK font) down to the kept glyphs,
         // and translate the PUA map through the old→new gid mapping.
@@ -475,7 +486,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         }
         const out = injectPuaCmap(subset, puaToGid, { weight: entry.weightMin, italic: entry.italic });
         if (process.env.DOMOTION_HINTED_DEBUG === "1") {
-          console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${entry.hintedSource.faceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
+          console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${srcFaceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
         }
         return out;
       }

@@ -536,6 +536,152 @@ describeHelper("CoreText glyph extractor", () => {
   });
 });
 
+// How the helper says WHICH face it opened.
+//
+// `openFont` used to fall back to the container's first descriptor whenever no
+// descriptor carried the requested PostScript name, and reported nothing about
+// having done so — a caller could not tell "we loaded the face you named" from
+// "we loaded member zero and hoped". For a missed `.SFDevanagari-Regular` that
+// substitute is `.SFBangla-Ultralight`: Bangla outlines, at ultralight, for
+// Devanagari text. Nor can the by-name second chance rescue that class of name —
+// CoreText refuses dot-prefixed system names and returns Times New Roman.
+//
+// So a named request the file cannot answer is now reported unavailable rather
+// than substituted, matching what Blink does: `MatchUniqueFont` compares
+// CoreText's answer against the request and returns nullptr when they differ
+// (font_matcher_mac.mm:451-481, Chromium 7d859f27).
+describeHelper("font-resolution reporting", () => {
+  const HELVETICA_TTC = "/System/Library/Fonts/Helvetica.ttc";
+
+  function metaFor(spec: Record<string, unknown>) {
+    const resp = callHelper({
+      fonts: [{ ref: "f", size: 17, ...spec }],
+      queries: [{ type: "meta", fontRef: "f" }],
+    });
+    return resp.results[0] as {
+      type: string; error?: string; nameMatched?: boolean;
+      resolution?: string; postscriptName?: string;
+    };
+  }
+
+  it("reports a name matched inside the requested file", () => {
+    const m = metaFor({ postscriptName: "Helvetica-Bold", fontPath: HELVETICA_TTC });
+    expect(m.error).toBeUndefined();
+    expect(m.nameMatched).toBe(true);
+    expect(m.resolution).toBe("nameMatchedInFile");
+    expect(m.postscriptName).toBe("Helvetica-Bold");
+  });
+
+  it("reports the first face as the request when no name was asked for", () => {
+    // Not a fallback: nothing was named, so member zero IS what was requested.
+    const m = metaFor({ fontPath: HELVETICA_TTC });
+    expect(m.nameMatched).toBe(true);
+    expect(m.resolution).toBe("firstFaceNoNameRequested");
+  });
+
+  it("verifies a by-name rescue when the requested file does not hold the face", () => {
+    // The face exists on the system, just not in the file we pointed at.
+    const m = metaFor({ postscriptName: "Helvetica", fontPath: "/System/Library/Fonts/Monaco.ttf" });
+    expect(m.nameMatched).toBe(true);
+    expect(m.resolution).toBe("byNameVerified");
+    expect(m.postscriptName).toBe("Helvetica");
+  });
+
+  it("flags a name-only resolution it could not verify", () => {
+    // CoreText substitutes a default for an unknown name rather than failing.
+    // The substitution still happens (a name-only request has nothing else to
+    // fall back to), but it is now labeled instead of passing as a match.
+    const m = metaFor({ postscriptName: "ThisFontDoesNotExist98765" });
+    expect(m.nameMatched).toBe(false);
+    expect(m.resolution).toBe("byNameUnverified");
+    expect(m.postscriptName).not.toBe("ThisFontDoesNotExist98765");
+  });
+
+  it("refuses to substitute the first face for a name absent from the file", () => {
+    // The regression this contract exists for. Previously this returned member
+    // zero's outlines under a successful-looking response.
+    const m = metaFor({ postscriptName: "NoSuchFaceInThisFile", fontPath: HELVETICA_TTC });
+    expect(m.error).toBeTruthy();
+    expect(m.nameMatched).toBeUndefined();
+  });
+
+  it("refuses a dot-prefixed system name absent from the file, which by-name cannot rescue", () => {
+    const m = metaFor({ postscriptName: ".SFNoSuchFace-Regular", fontPath: HELVETICA_TTC });
+    expect(m.error).toBeTruthy();
+  });
+
+  it("does not return the first face's outlines for a name absent from the file", () => {
+    // Asserted on OUTLINES, not on the report: the reported metadata is exactly
+    // what proved untrustworthy, so the guarantee has to be checked downstream
+    // of it. Helvetica's "H" differs from Helvetica-Bold's.
+    const bad = callHelper({
+      fonts: [{ ref: "f", postscriptName: "NoSuchFaceInThisFile", fontPath: HELVETICA_TTC, size: 100 }],
+      queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }] }],
+    });
+    const r = bad.results[0] as { error?: string; glyphs: GlyphResult[] };
+    expect(r.error).toBeTruthy();
+    expect(r.glyphs).toEqual([]);
+
+    // ...while the member-zero face, asked for by name, still works.
+    const good = callHelper({
+      fonts: [{ ref: "f", postscriptName: "Helvetica", fontPath: HELVETICA_TTC, size: 100 }],
+      queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }] }],
+    });
+    expect((good.results[0] as { glyphs: GlyphResult[] }).glyphs[0].d.length).toBeGreaterThan(0);
+  });
+
+  it("keeps distinct faces from one file distinct, and reports each honestly", () => {
+    // Guards against a shared-cache collapse: every face here lives in the same
+    // container, so a key that ignored the requested name would return one
+    // face's outlines for all of them.
+    const names = ["Helvetica", "Helvetica-Bold", "Helvetica-Light", "Helvetica-Oblique"];
+    const seen = new Map<string, string>();
+    for (const postscriptName of names) {
+      const resp = callHelper({
+        fonts: [{ ref: "f", postscriptName, fontPath: HELVETICA_TTC, size: 100 }],
+        queries: [{ type: "meta", fontRef: "f" }, { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }] }],
+      });
+      const m = resp.results[0] as { nameMatched: boolean; resolution: string; postscriptName: string };
+      expect(m.nameMatched, postscriptName).toBe(true);
+      expect(m.resolution, postscriptName).toBe("nameMatchedInFile");
+      expect(m.postscriptName, postscriptName).toBe(postscriptName);
+      seen.set(postscriptName, (resp.results[1] as { glyphs: GlyphResult[] }).glyphs[0].d);
+    }
+    expect(new Set(seen.values()).size).toBe(names.length);
+  });
+
+  it("does not read a face-wide baseline correction off a substituted font", () => {
+    // `createGlyphHelperFont` opens a SECOND, by-NAME handle purely to measure a
+    // baseline correction CoreText only reports through the system-registered
+    // font. With no file to fall back on, CoreText substitutes Times New Roman
+    // for any dot-prefixed Apple system name, so that handle can be a completely
+    // different face — and its geometry must not be applied to the real one.
+    const m = metaFor({ postscriptName: ".SFDevanagari-Regular" });
+    expect(m.nameMatched).toBe(false);
+    expect(m.resolution).toBe("byNameUnverified");
+    expect(m.postscriptName).toBe("TimesNewRomanPSMT");
+
+    // The by-PATH handle for the same face is unaffected and correct, so the
+    // outlines a caller renders from still come from .SF Devanagari.
+    const byPath = metaFor({ postscriptName: ".SFDevanagari-Regular", fontPath: "/System/Library/Fonts/SFIndia.ttc" });
+    expect(byPath.nameMatched).toBe(true);
+    expect(byPath.postscriptName).toBe(".SFDevanagari-Regular");
+    // Different faces, so a correction measured on one cannot describe the other.
+    expect(byPath.postscriptName).not.toBe(m.postscriptName);
+  });
+
+  it("survives an interleaved sequence of failing and succeeding opens in one process", () => {
+    // The serve-mode font cache is keyed on the request spec; a throwing open
+    // must not poison a later good one for the same file (or vice versa).
+    for (let i = 0; i < 2; i++) {
+      expect(metaFor({ postscriptName: "NoSuchFaceInThisFile", fontPath: HELVETICA_TTC }).error).toBeTruthy();
+      expect(metaFor({ postscriptName: "Helvetica-Bold", fontPath: HELVETICA_TTC }).nameMatched).toBe(true);
+      expect(metaFor({ fontPath: HELVETICA_TTC }).resolution).toBe("firstFaceNoNameRequested");
+      expect(metaFor({ postscriptName: "Helvetica", fontPath: HELVETICA_TTC }).resolution).toBe("nameMatchedInFile");
+    }
+  });
+});
+
 // DM-1031: the persistent `--serve` protocol. Spawn the binary once, stream
 // newline-delimited request envelopes on stdin, read one response per line on
 // stdout — fonts are reused across requests so the per-call cost drops from

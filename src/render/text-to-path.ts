@@ -1568,7 +1568,15 @@ function renderTextAsEmbedded(
     // DIFFERENT faces (Regular vs the Bold TTC member), and collapsing those
     // into one `w=*` entry made first-seen-file glyphs win for every weight
     // (a 400-weight body line rendered from the Bold face's gids).
-    const staticWeightShared = srcInfo != null && srcInfo.variationAxes?.wght == null && !emboldenStrengthFU;
+    // Source-file identity requires a NAMED member: when the requested
+    // PostScript name is not a physical member of the file, `faceIndex` is null,
+    // and `path#null` is the same string for every face in that container —
+    // which would collapse e.g. PingFang SC and HK (same .ttc, different
+    // outlines: measured 4665 vs 4680 path chars for the same glyph id) into one
+    // shared entry, the exact first-seen-face-wins bug the comment above
+    // describes. Fall back to per-weight keying when the member can't be named.
+    const staticWeightShared = srcInfo != null && srcInfo.nameMatched && srcInfo.faceIndex != null
+      && srcInfo.variationAxes?.wght == null && !emboldenStrengthFU;
     const weightPart = staticWeightShared
       ? `w=*|src=${srcInfo!.path}#${srcInfo!.faceIndex}`
       : `w=${weight}`;
