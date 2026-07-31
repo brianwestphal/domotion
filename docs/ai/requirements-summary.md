@@ -802,7 +802,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   which rested on the sampled table shadowing the resolver — read those numbers as
   a record of the flip decision, not a current measurement. The remaining known
   divergence in the same call is `baseFamilyName` (Blink passes the run's primary
-  family; we pass null), tracked separately.
+  family; we pass null), tracked separately. **DM-1889 corrects the Windows half
+  again, and more fundamentally: the resolver never actually ran there.** The Node
+  side declared a base font (`"Helvetica"`, no path) that DirectWrite does not take
+  and the helper cannot open by name, and one-shot mode — Windows's only transport,
+  since the persistent channel was disabled for want of a real pipe fd — treats an
+  unopenable declared font as fatal. Every call returned an error envelope, read as
+  "no fallback font" for every codepoint, so Windows was scoring its static chain
+  alone while reporting a stable plausible number. Fixed by declaring no base font
+  on Windows, plus a named-pipe persistent channel (~83x cheaper per call). Any
+  pre-DM-1889 Windows conformance figure describes the static chain and is not
+  comparable to a later one.
 - **Doc 61 (`docs/61-overlay-resolution-primitive.md`, DM-1132)** — `resolveOverlays(
   page, overlays)` lowers an overlay's selector `anchor` + typing `maxWidth:
   "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.

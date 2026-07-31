@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, openSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
@@ -201,9 +201,13 @@ describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
       // `-1` (no real OS fd), so `writeSync(-1)` threw "fd out of range". Async
       // stream I/O works on every platform and verifies the SAME property — the
       // helper's `--serve` loop emits output byte-identical to one-shot, with
-      // faces reused across requests. (Production drives serve via sync fds on
-      // macOS/Linux and falls back to one-shot on Windows where the fd is
-      // unusable — see glyph-helper.ts startPersistent, DM-1421.)
+      // faces reused across requests.
+      //
+      // DM-1889 UPDATE: production no longer falls back to one-shot on Windows.
+      // The fd `-1` limitation is real but specific to *spawned stdio*; a NAMED
+      // pipe opened with `fs.openSync` yields a real fd, so Windows now drives
+      // the same protocol over `--serve-pipe` (exercised by the test below).
+      // This case still covers plain `--serve`, which macOS/Linux use.
       const child = spawn(HELPER, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
       child.stdout!.setEncoding("utf-8");
       let leftover = "";
@@ -230,4 +234,75 @@ describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
       }
     }, 30_000);
   });
+});
+
+// DM-1889: the named-pipe serve transport — the one Windows production actually
+// uses. The `--serve` case above drives ASYNC streams because a spawned pipe has
+// no usable fd on Windows; this case drives SYNCHRONOUS writeSync/readSync
+// exactly as `src/render/glyph-helper.ts` does, which is the whole point. A
+// named pipe opened by path yields a real fd where spawned stdio does not, and
+// that is what let Windows have a persistent channel at all.
+//
+// Before this, Windows spawned the binary once per helper call — ~42 ms measured
+// against ~0.5 ms over the pipe. It also meant one-shot was the only path, which
+// is how an unopenable declared base font silently disabled the entire live
+// fallback resolver on the platform (see src/render/win32-fallback-envelope.test.ts).
+describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
+  it("answers over a named pipe, byte-identically to one-shot, driven synchronously", () => {
+    // No base font declared: DirectWrite's MapCharacters takes none, and
+    // declaring an unopenable one is fatal in one-shot mode. This envelope is
+    // the shape production sends.
+    const env = {
+      fonts: [],
+      queries: [{
+        type: "fallback", fontRef: "base", cps: [0x4e00, 0x0600, 0x0e01],
+        cssWeight: 400, bold: false, italic: false,
+      }],
+    };
+    const body = JSON.stringify(env);
+
+    const oneShot = spawnSync(HELPER, [], { input: body + "\n", encoding: "utf-8", maxBuffer: 1 << 26 });
+    // The one-shot path must SUCCEED on this envelope. It did not before
+    // DM-1889, and that failure was invisible because the caller read the
+    // resulting error envelope as an ordinary "no fallback font" answer.
+    expect(oneShot.status, oneShot.stderr).toBe(0);
+    const reference = oneShot.stdout.trim();
+    expect(reference).toContain("\"type\":\"fallback\"");
+
+    const name = String.raw`\\.\pipe\domotion-test-` + process.pid;
+    const child = spawn(HELPER, ["--serve-pipe", name], { stdio: ["ignore", "ignore", "inherit"] });
+    let fd: number | undefined;
+    try {
+      const deadline = Date.now() + 10_000;
+      for (;;) {
+        try { fd = openSync(name, "r+"); break; }
+        catch {
+          if (Date.now() > deadline) throw new Error("helper never created the named pipe");
+          // Synchronous sleep: the connect loop cannot yield, by design.
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+        }
+      }
+
+      const roundTrip = (payload: string): string => {
+        const line = Buffer.from(payload + "\n", "utf-8");
+        let off = 0;
+        while (off < line.length) off += writeSync(fd!, line, off, line.length - off);
+        const tmp = Buffer.allocUnsafe(1 << 20);
+        let acc = "";
+        while (!acc.includes("\n")) {
+          const n = readSync(fd!, tmp, 0, tmp.length, null);
+          if (n <= 0) throw new Error("helper closed the pipe");
+          acc += tmp.toString("utf-8", 0, n);
+        }
+        return acc.slice(0, acc.indexOf("\n"));
+      };
+
+      expect(roundTrip(body)).toBe(reference);
+      // A second round-trip on the same channel: this is the property the whole
+      // transport exists for — the process is reused rather than respawned.
+      expect(roundTrip(body)).toBe(reference);
+    } finally {
+      child.kill();
+    }
+  }, 30_000);
 });

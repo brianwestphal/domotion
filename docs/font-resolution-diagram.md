@@ -803,8 +803,8 @@ flowchart TD
   SRD0 --> SRD{"traits or weight differ<br/>from the request?"}
   SRD -->|"yes"| SRD1["in-family re-selection:<br/>CTFontCreateWithFontDescriptor(family + traits + ToCTFontWeight(weight))<br/>adopt if it moved AND still covers cp"]
   SRD -->|"no"| SRDN["keep the nominated face"]
-  SR2 -->|"linux (default-on, DM-1416)"| SRL["resolveLinuxSystemFallbackKeyForCp:<br/>fc-match ':charset=&lt;hex&gt;'"]
-  SR2 -->|"win32 (default-on, DM-1424)"| SRW["DirectWrite IDWriteFontFallback::MapCharacters<br/>via win32 glyph helper (resolveSystemFallbackFonts)"]
+  SR2 -->|"linux (default-on, DM-1416)"| SRL["resolveLinuxSystemFallbackKeyForCp:<br/>helper 'fcfallback' query FIRST (DM-1886) —<br/>FcFontSort over an FC_LANG pattern + walk until covered,<br/>which is what gfx::GetFallbackFontForChar does<br/>· fall through to fc-match ':charset=&lt;hex&gt;' only<br/>when no helper (documented APPROXIMATION)"]
+  SR2 -->|"win32 (default-on, DM-1424;<br/>actually reaching DirectWrite only since DM-1889)"| SRW["DirectWrite IDWriteFontFallback::MapCharacters<br/>via win32 glyph helper (resolveSystemFallbackFonts)<br/>envelope declares NO base font — DirectWrite takes none,<br/>and declaring an unopenable one was FATAL one-shot"]
   SRD1 --> SRG{"resolved & path ≠ ''?"}
   SRDN --> SRG
   SRL --> SRLG{"coverage guard:<br/>fontFileCoversCodepoint(path, ps, cp)?<br/>(fc-match returns a default even when nothing covers)"}
@@ -816,6 +816,39 @@ flowchart TD
   SRR --> SRcache["cache & return"]
   SRNull --> SRcache
 ```
+
+### 8·0. How the question reaches the OS: the helper transport
+
+Every branch above is a round-trip to a native helper binary, and the *carrier*
+differs per platform in a way that has twice turned out to be load-bearing rather
+than incidental.
+
+| Platform | Transport | Per-call cost |
+| --- | --- | --- |
+| macOS | persistent `--serve` over spawned stdio | ~0.4 ms |
+| Linux | persistent `--serve` over spawned stdio | ~0.4 ms |
+| Windows | persistent `--serve-pipe` over a **named pipe** (DM-1889) | ~0.5 ms (was ~42 ms, one process per call) |
+
+The channel is synchronous — `writeSync`/`readSync` against a real file
+descriptor — because the whole resolution path is synchronous. On Windows, Node
+reports a spawned child's stdio pipes as fd `-1`, so that channel could not be
+driven there and every call fell back to spawning the binary afresh. The
+conclusion drawn at the time was that Windows cannot have a persistent channel.
+The narrower truth is that it cannot have one *over spawned stdio*: `fs.openSync`
+on a named-pipe path does yield a real fd. So the helper also serves over a named
+pipe it creates, with the parent connecting as client — same protocol, same font
+cache, byte-identical responses, ~83x cheaper per call as measured on a Windows 11
+host.
+
+**The envelope is not uniform across platforms, and must not be made so.**
+macOS and Linux declare a base font; Windows declares none. That is not an
+optimisation but a correctness requirement in both directions: `CTFontCreateForString`
+resolves *from* a base face, so dropping it changes every macOS answer; DirectWrite
+takes no base at all, and declaring an unopenable one is fatal in one-shot mode —
+which is precisely how the Windows resolver came to answer "no fallback font" for
+every codepoint while appearing healthy. Pinned by
+`src/render/win32-fallback-envelope.test.ts`; the full account is in doc 80's
+DM-1889 correction.
 
 ### 8a. macOS: the fallback answer is weight-dependent
 

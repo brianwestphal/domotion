@@ -1,6 +1,43 @@
 # 80 — Cross-platform live system-fallback resolver
 
-Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows shipped, default-on** (DirectWrite `IDWriteFontFallback::MapCharacters`, DM-1403, calibrated + flipped on in DM-1424).
+Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows shipped, default-on** (DirectWrite `IDWriteFontFallback::MapCharacters`, DM-1403, calibrated + flipped on in DM-1424) — **and genuinely reaching DirectWrite only since DM-1889; see the correction immediately below.**
+
+> ### Correction (DM-1889): the Windows resolver was inert from its flip until DM-1889
+>
+> Everything this document says about the Windows resolver's *design* held. What
+> did not hold is that it ran. Between the default-on flip and DM-1889, the
+> Windows path returned "no fallback font" for every codepoint, and the platform's
+> measured numbers were scoring the **static** `win32FallbackChain` alone.
+>
+> The mechanism was a two-part interaction, neither half visibly wrong on its own:
+>
+> 1. The request envelope declared a base font (`postscriptName: "Helvetica"`, no
+>    `fontPath`). On macOS that is essential — `CTFontCreateForString` resolves
+>    *from* a base face. On Windows it is meaningless: the helper's
+>    `runFallbackQuery(query, factory)` is not handed the envelope's font map at
+>    all, because `MapCharacters` takes no base font.
+> 2. It was not merely ignored. The helper cannot open a font by family name, and
+>    **one-shot mode treats an unopenable *declared* font as fatal** — it calls
+>    `die()` before running a single query. The persistent channel was disabled on
+>    Windows (a spawned pipe has no OS fd there), so one-shot was the only
+>    transport. Every call therefore came back as an error envelope with no
+>    `results`, which the caller correctly read as "no fallback font".
+>
+> **Why nothing caught it, which is the part worth carrying forward.** A resolver
+> that answers "nothing" everywhere does not look broken from outside. It looks
+> like a platform whose static chain does all the work, and it produces a stable,
+> plausible, reproducible number every run — including through the conformance
+> oracle, which is the instrument specifically built to catch wrong-font bugs. The
+> oracle was not at fault: it faithfully compared what the renderer does. The gap
+> is that neither it nor any fixture asserts that *a mechanism is in the loop at
+> all*. That is what CLAUDE.md's standing advice — disable the resolver and require
+> the answer to move — is for, and it was not run on Windows after the flip.
+>
+> Fixed in DM-1889 by declaring no base font on Windows, and separately by giving
+> Windows a working persistent channel over a named pipe. The two are independent:
+> the first makes the resolver answer at all, the second makes it ~83x cheaper per
+> call. Any Windows conformance figure recorded before DM-1889 describes the
+> static chain, not this resolver, and is not comparable to one recorded after.
 
 Related: [42 — cross-platform fallback-chain calibration](42-cross-platform-fallback-calibration.md).
 
@@ -187,6 +224,17 @@ compiles with MSVC (`cl /std:c++17 /O2 /EHsc /MT`, dwrite.lib) and resolves real
 covering faces in both one-shot and `--serve` modes — U+4E00→Yu Gothic UI,
 U+0905→Nirmala UI, U+0E01→Leelawadee UI, U+1000→Myanmar Text, U+1F600→Segoe UI
 Emoji (the *desktop* Windows 11 fonts, vs the narrower Server set CI exposes).
+
+> **This verification is the one that let DM-1889's inertness through, and how it
+> did is worth keeping.** Every claim in it is true. It exercises the *helper
+> binary*, driven by a hand-written envelope that declares no unopenable font — so
+> the binary answers correctly, as shown. What it never exercised is the envelope
+> the **Node side actually sends**, which declared a base font the binary could not
+> open and which one-shot mode treats as fatal. A component test of the far side of
+> an interface cannot see a defect that lives in what the near side puts on the
+> wire. The lesson generalises past this bug: verify the helper *through the caller*,
+> or at minimum assert on the exact bytes the caller emits — which is now pinned by
+> `src/render/win32-fallback-envelope.test.ts`.
 
 ## Calibration (DM-1416) — why the Linux flip is fidelity-safe
 
