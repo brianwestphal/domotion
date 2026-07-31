@@ -81,8 +81,6 @@ jobs:
         # so pre-existing residuals (background-clip-text-nested-child-wraps,
         # DM-1420) don't block but a NEW regression does. (pwsh: force success so
         # the advisory suite never fails the step — the gate step is next.)
-        env:
-          DOMOTION_SHAPE_DEBUG: '1'
         run: |
           npm run demos:test
           exit 0
