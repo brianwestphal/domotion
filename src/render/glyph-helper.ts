@@ -593,6 +593,18 @@ export interface GlyphHelperFontInstance {
   };
 }
 
+/**
+ * A shaped run: glyph ids with their positions and source-cluster mapping.
+ *
+ * Deliberately carries NO outlines. See `shapeFallback` — the point of this
+ * shape is that shaping and outline production can come from different engines.
+ */
+export interface ShapedRunFallback {
+  ids: number[];
+  positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+  clusters: number[];
+}
+
 export function createGlyphHelperFont(spec: {
   postscriptName?: string;
   fontPath?: string;
@@ -602,6 +614,32 @@ export function createGlyphHelperFont(spec: {
    *  the resolved location here; the helper applies it via
    *  IDWriteFontResource::CreateFontFace. Omitted on macOS. */
   variations?: Record<string, number>;
+  /**
+   * DM-1883: a shaper to use when THIS helper has no `shape` query.
+   *
+   * Not every platform helper implements `shape`. macOS does; the Windows
+   * DirectWrite helper implements only `fallback`/`family`/`glyphs`/`meta`. On a
+   * helper without it, `shapeText()` can never succeed, so every shaped run fell
+   * through to the naive per-codepoint branch below — one glyph per codepoint,
+   * zero offsets, no cluster map. For Arabic that is precisely isolated
+   * letterforms with correct advances, which is what Chromium-on-Windows
+   * comparisons showed: joining lost, ink 13–18% light, extents byte-identical.
+   *
+   * Injected rather than imported because this module is the engine-agnostic
+   * native-helper layer and deliberately has no fontkit dependency; both callers
+   * live in `font-resolution.ts`, which already imports it.
+   *
+   * It supplies ONLY ids, positions and clusters — the GSUB/GPOS work that is
+   * missing. Outlines still come from this helper by glyph id, which is what
+   * keeps DirectWrite's resolved variable-axis location (DM-1721) in the
+   * picture: handing the whole `layout()` to fontkit would trade an Arabic
+   * shaping bug for a variable-instance one. Glyph ids index the same gid space
+   * because it is the same file.
+   *
+   * Self-scoping by construction: it is consulted only where the helper's own
+   * `shape` query returned null, so a platform that has one is untouched.
+   */
+  shapeFallback?: (text: string) => ShapedRunFallback | null;
 }): GlyphHelperFontInstance | null {
   if (!isGlyphHelperAvailable()) return null;
 
@@ -913,6 +951,26 @@ export function createGlyphHelperFont(spec: {
           clusters.push(sg.cluster);
         }
         return { glyphs, positions, clusters };
+      }
+
+      // DM-1883: the helper could not shape. Before dropping to the naive path,
+      // let an injected shaper do the GSUB/GPOS work; outlines still come from
+      // this helper, by id. On a helper with no `shape` query (Windows) this is
+      // the difference between joined Arabic and isolated letterforms.
+      //
+      // Gated on `fullyCovered` for the same reason the helper shape is: an
+      // uncovered codepoint must reach the naive branch so the renderer's own
+      // `.notdef` handling applies, rather than having a shaper substitute a
+      // different tofu.
+      if (fullyCovered && spec.shapeFallback != null) {
+        let ext: ShapedRunFallback | null = null;
+        // A shaper is an optimisation of correctness, never a correctness
+        // requirement: if it throws, the naive path below still renders text.
+        try { ext = spec.shapeFallback(text); } catch { ext = null; }
+        if (ext != null && ext.ids.length > 0 && ext.ids.length === ext.positions.length) {
+          const glyphs: GlyphHelperGlyph[] = ext.ids.map((id) => fetchById(id));
+          return { glyphs, positions: ext.positions, clusters: ext.clusters };
+        }
       }
 
       // Fallback: naive per-codepoint mapping (CoreText shaping unavailable).

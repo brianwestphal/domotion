@@ -3373,7 +3373,13 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     const helperAxes = (process.platform === "win32" && helperFaceInfo?.fileAxes != null)
       ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes)
       : undefined;
-    const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes });
+    const helper = createGlyphHelperFont({
+      postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes,
+      // DM-1883: only consulted when the helper's own `shape` query fails, which
+      // on Windows is always — its helper has no such query, so without this a
+      // shaped run silently degrades to isolated letterforms.
+      shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName, helperAxes),
+    });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
       // Native-helper instances carry no name of their own. Stamp the resolved
@@ -3457,7 +3463,10 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
 
   const fontkitHasOutlines = font != null && fontHasOutlineTable(font);
   if (helperEligible && !fontkitHasOutlines && isGlyphHelperAvailable()) {
-    const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
+    const helper = createGlyphHelperFont({
+      postscriptName: spec.postscriptName, fontPath: spec.path,
+      shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName),
+    });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
       instance.postscriptName ??= spec.postscriptName;
@@ -3673,6 +3682,73 @@ function pickNameString(rec: unknown): string | null {
   if (typeof en === "string") return en;
   for (const v of Object.values(map)) if (typeof v === "string") return v;
   return null;
+}
+
+/**
+ * DM-1883: a fontkit-backed shaper for a helper that has no `shape` query.
+ *
+ * Windows' DirectWrite helper implements `fallback`/`family`/`glyphs`/`meta` and
+ * no `shape`, so `layout()` on a helper-backed face could never shape and every
+ * run took the naive one-glyph-per-codepoint path. For Arabic that is isolated
+ * letterforms — joining silently lost, with correct advances, which is exactly
+ * how it presented against Chromium-on-Windows.
+ *
+ * This returns only ids/positions/clusters; the outlines stay with the helper,
+ * so DirectWrite's resolved variable-axis pin (DM-1721) is preserved. Glyph ids
+ * index the same gid space because both engines read the same file.
+ *
+ * `variations` matters and is not optional politeness: when the helper was
+ * opened at a non-default fvar location, a fontkit instance at the file default
+ * would return advances for a DIFFERENT instance, so the run would shape
+ * correctly and measure wrong. `getVariation()` puts both engines on the same
+ * instance.
+ *
+ * Returns null (rather than throwing) whenever fontkit cannot open, cannot find
+ * the requested collection member, or produces nothing — the caller then keeps
+ * its existing naive path, which still renders text.
+ */
+export function makeFontkitShaper(
+  path: string, postscriptName?: string, variations?: Record<string, number>,
+): ((text: string) => { ids: number[]; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters: number[] } | null) | undefined {
+  if (path === "") return undefined;
+  let font: any | null | undefined; // undefined = not yet opened, null = unopenable
+  const open = (): any | null => {
+    if (font !== undefined) return font;
+    font = null;
+    try {
+      const opened: any = fontkit.openSync(path);
+      let f: any = opened;
+      // TTC: pick the requested member, mirroring `getFontInstance`'s selection.
+      if (opened?.fonts != null && Array.isArray(opened.fonts)) {
+        f = (postscriptName != null && opened.getFont != null)
+          ? (opened.getFont(postscriptName) ?? opened.fonts[0])
+          : opened.fonts[0];
+      }
+      if (f != null && variations != null && Object.keys(variations).length > 0 && f.getVariation != null) {
+        try { f = f.getVariation(variations) ?? f; } catch { /* keep the base face */ }
+      }
+      font = f ?? null;
+    } catch { font = null; }
+    return font;
+  };
+  return (text: string) => {
+    const f = open();
+    if (f?.layout == null) return null;
+    const run: any = f.layout(text);
+    const glyphs: any[] = run?.glyphs ?? [];
+    const positions: any[] = run?.positions ?? [];
+    if (glyphs.length === 0 || glyphs.length !== positions.length) return null;
+    return {
+      ids: glyphs.map((g) => g.id as number),
+      positions: positions.map((p) => ({
+        xAdvance: p.xAdvance ?? 0, yAdvance: p.yAdvance ?? 0,
+        xOffset: p.xOffset ?? 0, yOffset: p.yOffset ?? 0,
+      })),
+      // fontkit reports each glyph's source cluster as a code UNIT index into
+      // the run, which is the same convention the helper's `shape` query uses.
+      clusters: glyphs.map((g) => (g.cluster as number) ?? 0),
+    };
+  };
 }
 
 const fileFaceInfoCache = new Map<string, FileFaceInfo>();
