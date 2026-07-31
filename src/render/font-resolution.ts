@@ -42,7 +42,15 @@ import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, i
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 export interface FontInstance {
-  layout(text: string, features?: string[]): {
+  /**
+   * DM-1894: `script`/`language`/`direction` mirror fontkit's own signature, and
+   * `direction` is the one that matters — Blink passes direction into the shaper
+   * explicitly (`HarfBuzzShaper::Shape(font, direction, …)`) rather than letting
+   * it be inferred from content, because inference reads an RTL stretch inside an
+   * otherwise-LTR run as left-to-right. Callers that shape a single-script
+   * segment should pass it; omitting it preserves the previous infer-it behavior.
+   */
+  layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl"): {
     glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>;
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
   };
@@ -3709,7 +3717,7 @@ function pickNameString(rec: unknown): string | null {
  */
 export function makeFontkitShaper(
   path: string, postscriptName?: string, variations?: Record<string, number>,
-): ((text: string) => { ids: number[]; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters: number[] } | null) | undefined {
+): ((text: string, direction?: "ltr" | "rtl") => { ids: number[]; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters: number[] } | null) | undefined {
   if (path === "") return undefined;
   let font: any | null | undefined; // undefined = not yet opened, null = unopenable
   const open = (): any | null => {
@@ -3731,10 +3739,13 @@ export function makeFontkitShaper(
     } catch { font = null; }
     return font;
   };
-  return (text: string) => {
+  return (text: string, direction?: "ltr" | "rtl") => {
     const f = open();
     if (f?.layout == null) return null;
-    const run: any = f.layout(text);
+    // Direction passed through explicitly when the caller knows it (a
+    // single-script segment), the way Blink hands it to HarfBuzz rather than
+    // letting content inference decide.
+    const run: any = f.layout(text, undefined, undefined, undefined, direction);
     const glyphs: any[] = run?.glyphs ?? [];
     const positions: any[] = run?.positions ?? [];
     if (glyphs.length === 0 || glyphs.length !== positions.length) return null;

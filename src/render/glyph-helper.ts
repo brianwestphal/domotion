@@ -639,7 +639,7 @@ export function createGlyphHelperFont(spec: {
    * Self-scoping by construction: it is consulted only where the helper's own
    * `shape` query returned null, so a platform that has one is untouched.
    */
-  shapeFallback?: (text: string) => ShapedRunFallback | null;
+  shapeFallback?: (text: string, direction?: "ltr" | "rtl") => ShapedRunFallback | null;
 }): GlyphHelperFontInstance | null {
   if (!isGlyphHelperAvailable()) return null;
 
@@ -885,7 +885,14 @@ export function createGlyphHelperFont(spec: {
       return fetchById(id);
     },
 
-    layout(text: string): {
+    layout(
+      text: string,
+      _features?: string[], _script?: string, _language?: string,
+      // DM-1894: forwarded to the injected shaper. Blink passes direction into
+      // the shaper rather than letting it be inferred from content, and a
+      // helper-backed face is exactly where that inference used to happen.
+      direction?: "ltr" | "rtl",
+    ): {
       glyphs: GlyphHelperGlyph[];
       positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
       clusters?: number[];
@@ -966,7 +973,7 @@ export function createGlyphHelperFont(spec: {
         let ext: ShapedRunFallback | null = null;
         // A shaper is an optimisation of correctness, never a correctness
         // requirement: if it throws, the naive path below still renders text.
-        try { ext = spec.shapeFallback(text); } catch { ext = null; }
+        try { ext = spec.shapeFallback(text, direction); } catch { ext = null; }
         if (ext != null && ext.ids.length > 0 && ext.ids.length === ext.positions.length) {
           const glyphs: GlyphHelperGlyph[] = ext.ids.map((id) => fetchById(id));
           return { glyphs, positions: ext.positions, clusters: ext.clusters };

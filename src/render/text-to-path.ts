@@ -26,6 +26,7 @@ import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
+import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
@@ -386,6 +387,12 @@ export function textToPathMarkup(
   if (xOffsets != null && xOffsets.length === text.length) {
     const groups: string[] = [];
     let rightEdge = 0;
+    // DM-1894: per-code-unit bidi embedding levels for the whole text, computed
+    // once. This is the outer of Blink's two segmentation levels — it shapes each
+    // BIDI RUN with its own direction (harfbuzz_shaper.cc:1145-1148) and splits
+    // by script within it. `undefined` when the text is unidirectional, which
+    // lets the segmenter take its cheap path.
+    const bidiLevels = bidiLevelsFor(text);
     for (const run of runs) {
       const runScale = fontSize / run.font.unitsPerEm;
       const sc = Number(runScale.toFixed(5));
@@ -519,36 +526,68 @@ export function textToPathMarkup(
           i += ch.length;
         }
       } else {
-        // Shaping fallback — shape the whole run together. Anchor at the
-        // visual-leftmost captured x: for LTR that's xOffsets[startIdx], for
-        // RTL that's xOffsets[endIdx-1] (last logical char paints leftmost).
-        // Math.min covers both directions and any embedded BiDi.
-        let runMinX = Infinity;
-        for (let i = run.startIdx; i < run.endIdx; i++) {
-          if (xOffsets[i] < runMinX) runMinX = xOffsets[i];
-        }
-        const layout = features != null && features.length > 0
-          ? run.font.layout(run.text, features)
-          : run.font.layout(run.text);
-        const uses: string[] = [];
-        let runFontUnits = 0;
-        for (let gi = 0; gi < layout.glyphs.length; gi++) {
-          const glyph = layout.glyphs[gi];
-          const pos = layout.positions[gi];
-          const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
-          if (glyphCmds.length > 0) {
-            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
-            const tx = runFontUnits + pos.xOffset;
-            const ty = -pos.yOffset;
-            uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
+        // Shaping fallback — shape by SEGMENT, not by whole run.
+        //
+        // A run is split on font boundaries only, so a face covering several
+        // scripts leaves a mixed-script line in one run. Shaping that as a unit
+        // makes the shaper choose ONE script and direction for all of it, and an
+        // RTL stretch inside an LTR run then comes back in logical order and
+        // paints mirrored. Chromium does not do this: `HarfBuzzShaper::Shape`
+        // takes direction per BIDI RUN (harfbuzz_shaper.cc:1145-1148 → :341) and
+        // segments by SCRIPT within it via RunSegmenter (:1168-1177). See
+        // `segmentForShaping`, which mirrors both levels.
+        //
+        // `needsSegmentation` keeps the common case free — the analogue of
+        // Blink's 8-bit shortcut (:1157-1161), which skips segmentation for
+        // Latin-1 because it cannot hold a script or direction boundary.
+        const segments = needsSegmentation(run.text, bidiLevels)
+          ? segmentForShaping(run.text, bidiLevels)
+          : [{ start: 0, end: run.text.length, script: "", rtl: false }];
+
+        for (const seg of segments) {
+          const segText = run.text.slice(seg.start, seg.end);
+          if (segText === "") continue;
+          // Anchor each segment at its OWN visual-leftmost captured x, rather
+          // than accumulating advances across segments. Chrome already decided
+          // where each character sits, so this reuses its positioning instead of
+          // re-deriving it — and it is what keeps a mirrored RTL segment landing
+          // in the right place. Math.min covers both directions.
+          let segMinX = Infinity;
+          for (let i = run.startIdx + seg.start; i < run.startIdx + seg.end && i < xOffsets.length; i++) {
+            if (xOffsets[i] < segMinX) segMinX = xOffsets[i];
           }
-          runFontUnits += pos.xAdvance;
-        }
-        if (uses.length > 0) {
-          const cssX = Number(runMinX.toFixed(3));
-          groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
-          const runRight = runMinX + runFontUnits * runScale;
-          if (runRight > rightEdge) rightEdge = runRight;
+          if (!Number.isFinite(segMinX)) continue;
+
+          // Direction is passed EXPLICITLY, the way Blink passes it, rather than
+          // left for the shaper to infer from content — inference is what
+          // produced an LTR reading of an Arabic stretch in the first place.
+          // Script stays undefined so fontkit derives it from the segment, which
+          // is now single-script by construction; it reads the same
+          // `unicode-properties` table the segmenter does, so the two agree.
+          const dir = seg.rtl ? "rtl" : "ltr";
+          const layout = features != null && features.length > 0
+            ? run.font.layout(segText, features, undefined, undefined, dir)
+            : run.font.layout(segText, undefined, undefined, undefined, dir);
+          const uses: string[] = [];
+          let segFontUnits = 0;
+          for (let gi = 0; gi < layout.glyphs.length; gi++) {
+            const glyph = layout.glyphs[gi];
+            const pos = layout.positions[gi];
+            const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+            if (glyphCmds.length > 0) {
+              const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
+              const tx = segFontUnits + pos.xOffset;
+              const ty = -pos.yOffset;
+              uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
+            }
+            segFontUnits += pos.xAdvance;
+          }
+          if (uses.length > 0) {
+            const cssX = Number(segMinX.toFixed(3));
+            groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
+            const segRight = segMinX + segFontUnits * runScale;
+            if (segRight > rightEdge) rightEdge = segRight;
+          }
         }
       }
     }
