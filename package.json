@@ -62,6 +62,7 @@
     "demos:test:all": "npm run build:capture-script && (tsx tests/features.ts ; tsx tests/snapshot-isolation.tsx ; tsx tests/showcase.tsx ; tsx tests/animate-examples.tsx ; tsx tests/html-test-suite.tsx ; tsx tests/real-world.tsx)",
     "demos:review": "tsx tests/review-server.tsx",
     "fonts:conformance": "tsx tools/font-conformance.ts",
+    "fonts:conformance:iterate": "node scripts/font-conformance-iterate.mjs",
     "fonts:conformance:stacks": "tsx tools/font-conformance.ts --extract-stacks",
     "fonts:inventory": "node tools/font-inventory.mjs",
     "fonts:shaping": "tsx tools/shaping-conformance.ts",
