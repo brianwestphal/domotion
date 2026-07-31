@@ -53,6 +53,11 @@
 #include <vector>
 
 #pragma comment(lib, "dwrite.lib")
+// DM-1881: SystemParametersInfoW, for the OS UI font family (`systemfont` query).
+// Declared as a pragma rather than only in the build scripts so every build path
+// — cmake, the direct-MSVC script, and CI — links it without a fourth place to
+// keep in sync.
+#pragma comment(lib, "user32.lib")
 
 // ───────────────────────────── JSON value ──────────────────────────────────
 // (verbatim from tools/linux-glyph-extractor/src/main.cpp)
@@ -986,6 +991,41 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 //
 // So absent fields keeping the old defaults is not merely backward compatibility;
 // for the presence probe it is the transcription. (Chromium rev 7d859f27.)
+// The OS's UI font family — what CSS `system-ui` resolves to on this host.
+//
+// Blink does not hardcode a name here. `FontCache::SystemFontFamily()` returns
+// `MenuFontFamily()` (`win/font_cache_skia_win.cc:130-133`, rev 7d859f27), and
+// `CreateTypeface` asserts `DCHECK_NE(family, font_family_names::kSystemUi)` —
+// `system-ui` never reaches font matching as a literal name, it is replaced by
+// whatever the OS reports first.
+//
+// The family is pushed into Blink from the browser side via
+// `WebFontRendering::SetMenuFontMetrics` (`core/layout/web_font_rendering_win.cc:29`).
+// The code that READS it from the OS lives outside the Blink tree and is not in
+// the local checkout, so — stated rather than glossed — the Blink half of this is
+// transcribed and cited, while the OS half is the standard Win32 call for the
+// non-client metrics and carries no Chromium line. Asking the OS is still
+// categorically better than baking in "Segoe UI", which would be correct on
+// current Windows 11 and wrong by construction: a sampled literal that survives
+// only until someone runs a differently-configured host.
+static std::string runSystemFontQuery() {
+  std::ostringstream out;
+  out << "{\"type\":\"systemfont\"";
+  NONCLIENTMETRICSW ncm;
+  ZeroMemory(&ncm, sizeof(ncm));
+  ncm.cbSize = sizeof(ncm);
+  if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0)) {
+    out << ",\"found\":true,\"family\":\"" << jsonEscape(fromWide(ncm.lfMenuFont.lfFaceName)) << "\"";
+    // The message font too: callers may want the distinction, and it costs
+    // nothing to report both from the one call.
+    out << ",\"messageFamily\":\"" << jsonEscape(fromWide(ncm.lfMessageFont.lfFaceName)) << "\"";
+  } else {
+    out << ",\"found\":false";
+  }
+  out << "}";
+  return out.str();
+}
+
 static std::string runFamilyQuery(const JsonValue& query, IDWriteFactory* factory) {
   std::string name = query.at("name").asString();
   const DWRITE_FONT_WEIGHT dwWeight = dwriteWeightFromCss(query.at("cssWeight").asNumber(400));
@@ -1116,6 +1156,8 @@ static std::string handleEnvelope(IDWriteFactory* factory, const JsonValue& enve
       response << runMetaQuery(queries[i], fonts);
     } else if (type == "fallback") {
       response << runFallbackQuery(queries[i], factory);  // DM-1403: DirectWrite MapCharacters
+    } else if (type == "systemfont") {
+      response << runSystemFontQuery();   // DM-1881: the OS UI font family (system-ui)
     } else if (type == "family") {
       response << runFamilyQuery(queries[i], factory);    // DM-1721: system-collection family lookup
     } else {
@@ -1243,7 +1285,7 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.3.0\n";
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.4.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {

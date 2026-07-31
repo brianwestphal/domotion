@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -2379,6 +2379,72 @@ let _win32FamilyKeyOverride:
  * Windows conformance baseline's 259,152 mismatches were same-family-wrong-cut.
  * (Chromium rev 7d859f27, 2026-06-27.)
  */
+/** Keys whose cut must NOT be re-resolved by family on Windows. */
+const WIN32_PRIMARY_CUT_SKIP = new Set([
+  // Already a resolved face rather than a logical key — re-asking by family
+  // would discard the very resolution that produced it.
+  // (`sysfb:` / `winfam:` / `webfont:` / `localalias:` are prefix-matched below.)
+  "last-resort",
+]);
+
+const win32PrimaryCutCache = new Map<string, string | null>();
+
+/**
+ * DM-1881: the Windows face for a logical key at a given weight/slant, resolved
+ * by asking DirectWrite for the family — the call Blink makes — rather than by
+ * picking a filename out of the table.
+ *
+ * Returns a `winfam:` key, or null to leave the caller on its existing path.
+ *
+ * The family name is READ FROM THE FILE the table already points at, so no
+ * key→family table is introduced; `system-ui` is the exception, since it has no
+ * literal name to read and the OS is asked instead.
+ */
+function win32PrimaryCutKey(key: string, weight: number, slant: number): string | null {
+  if (WIN32_PRIMARY_CUT_SKIP.has(key)) return null;
+  // Already-resolved or dynamically-registered faces: the key IS the answer.
+  if (key.startsWith("sysfb:") || key.startsWith("winfam:")
+      || key.startsWith("webfont:") || key.startsWith("localalias:")) return null;
+
+  const cacheKey = `${key}|${weight}|${slant !== 0 ? 1 : 0}`;
+  const cached = win32PrimaryCutCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let result: string | null = null;
+  try {
+    // `system-ui` never reaches font matching as a literal in Blink
+    // (`DCHECK_NE(family, kSystemUi)`), so it is asked of the OS.
+    const family = key === "sf-pro"
+      ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(key))
+      : fileFamilyNameForKey(key);
+    if (family != null && family !== "") {
+      const cut = win32FamilyKey(family, { weight, slant, fontSize: 16 });
+      // Only adopt a cut that actually resolves to a file; otherwise the table
+      // entry stands.
+      if (cut != null && resolveFontSpec(cut) != null) result = cut;
+    }
+  } catch { result = null; }
+  win32PrimaryCutCache.set(cacheKey, result);
+  return result;
+}
+
+/** The family name recorded inside the file a key maps to, or null. */
+function fileFamilyNameForKey(key: string): string | null {
+  const spec = resolveFontSpec(key);
+  if (spec?.path == null || spec.path === "") return null;
+  try {
+    const opened: any = fontkit.openSync(spec.path);
+    let f: any = opened;
+    if (opened?.fonts != null && Array.isArray(opened.fonts)) {
+      f = (spec.postscriptName != null && opened.getFont != null)
+        ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
+        : opened.fonts[0];
+    }
+    const fam = f?.familyName;
+    return typeof fam === "string" && fam !== "" ? fam : null;
+  } catch { return null; }
+}
+
 function win32FamilyKey(family: string, css?: CssFallbackDescription): string | null {
   if (_win32FamilyKeyOverride != null) return _win32FamilyKeyOverride(family, css);
   const cacheKey = css == null
@@ -3427,6 +3493,38 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   const fvsKey = variationSettings != null
     ? Object.keys(variationSettings).sort().map((t) => `${t}=${variationSettings[t]}`).join(",")
     : "";
+  // DM-1881: on Windows, resolve the CUT by asking DirectWrite for the family at
+  // the requested style, instead of picking a file out of `WIN32_FONT_PATHS`.
+  //
+  // That table answers two questions at once and only one of them is legitimate:
+  // "which family does this logical key mean here" (Blink has the same layer)
+  // and "which file to open" (sampled). Blink has no filename path on Windows at
+  // all — `CreateTypeface`'s by-file branch (`kCreateFontByFciIdAndTtcIndex` →
+  // `FromFilenameAndTtcIndex`) is inside `#if !BUILDFLAG(IS_WIN) && …`
+  // (`fonts/skia/font_cache_skia.cc:262-295`, rev 7d859f27), so on Windows it
+  // reduces to `MatchFamilyStyle(name, font_description.SkiaFontStyle())`.
+  //
+  // The visible cost of the sampled half: `sf-pro` mapped to `segoeui.ttf` with
+  // no bold sibling, so a weight-700 run took Segoe UI **Regular** and our
+  // synthetic-bold gate then dilated the outline. Chrome takes real Segoe UI
+  // Bold and synthesises nothing (`win/font_cache_skia_win.cc:481-489`), and a
+  // dilated Regular is not Bold — different stem contrast and different
+  // ADVANCES, so it shifts the line. That single route was 157,663 of 166,557
+  // rows on the Windows conformance baseline: 94.7% of the platform's mismatch
+  // mass in one defect.
+  //
+  // The family NAME is derived rather than curated: it comes from the file the
+  // table already points at, except for `system-ui`, which has no literal name
+  // to read and is asked of the OS (see `resolveSystemUiFamily`).
+  //
+  // Falls through to the table untouched when the helper is unavailable or the
+  // family does not resolve — a Windows host without the built binary still
+  // needs an answer, which is the existing degradation contract.
+  if (process.platform === "win32" && isGlyphHelperAvailable()) {
+    const cutKey = win32PrimaryCutKey(effectiveKey, weight, slant);
+    if (cutKey != null) effectiveKey = cutKey;
+  }
+
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 

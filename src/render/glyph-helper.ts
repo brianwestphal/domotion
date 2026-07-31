@@ -1350,6 +1350,46 @@ export interface InstalledFontStyle {
   stretch?: number;
 }
 
+let _systemUiFamily: string | null | undefined;
+
+/**
+ * The OS's UI font family — what CSS `system-ui` means on this host.
+ *
+ * DM-1881. Blink does not carry a literal here: `FontCache::SystemFontFamily()`
+ * returns `MenuFontFamily()` (`win/font_cache_skia_win.cc:130-133`, rev
+ * 7d859f27), and `CreateTypeface` asserts `DCHECK_NE(family, kSystemUi)` —
+ * `system-ui` never reaches font matching as a name, it is replaced by whatever
+ * the OS reports. So we ask the OS too, through the helper's `systemfont` query
+ * (`SystemParametersInfo(SPI_GETNONCLIENTMETRICS)`), rather than baking in
+ * "Segoe UI": that literal is correct on current Windows 11 and wrong by
+ * construction, surviving only until a differently-configured host runs it.
+ *
+ * Memoised for the process — the OS metric does not change under us mid-render.
+ * `null` when the helper cannot answer, which leaves the caller on its existing
+ * filename-table path rather than failing.
+ */
+export function resolveSystemUiFamily(): string | null {
+  if (_systemUiFamily !== undefined) return _systemUiFamily;
+  _systemUiFamily = null;
+  if (process.platform !== "win32" || !isGlyphHelperAvailable()) return _systemUiFamily;
+  try {
+    const resp = callHelper({ fonts: [], queries: [{ type: "systemfont" } as never] });
+    const r = resp.results[0] as unknown as { type?: string; found?: boolean; family?: string } | undefined;
+    if (r?.type === "systemfont" && r.found === true && typeof r.family === "string" && r.family !== "") {
+      _systemUiFamily = r.family;
+    }
+  } catch {
+    // An older helper answers "unknown query type"; keep null and let the
+    // caller degrade to the table, which is the pre-DM-1881 behaviour.
+  }
+  return _systemUiFamily;
+}
+
+/** Test seam: drop the memoised system-ui family. */
+export function __clearSystemUiFamilyForTest(): void {
+  _systemUiFamily = undefined;
+}
+
 export function resolveInstalledFont(
   name: string, style?: InstalledFontStyle,
 ): InstalledFont | null {
