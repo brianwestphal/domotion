@@ -1,0 +1,45 @@
+# DM-1851: score the dotted-circle oracles on a RUNNER's font inventory.
+#
+# This exists because the answer depends on which fonts the host has, and the CI
+# runner's set differs from a developer Mac's. Two candidate oracles tied at
+# 102/104 when scored locally; the one picked on that basis then regressed five
+# Unicode blocks here, because a dev Mac only exercises one of the two failure
+# modes. Scoring them locally cannot settle the question — so this runs the same
+# comparison where the fonts actually differ.
+#
+# Diagnostic only: it renders nothing, gates nothing and writes no baseline. Read
+# the result out of the job log — every line is prefixed `DOTCIRCLE`.
+name: Dotted-circle oracle probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Runner OS'
+        type: choice
+        options: [macos, linux, windows]
+        default: macos
+      stride:
+        description: 'Codepoint stride within each block (lower = denser sample)'
+        type: string
+        default: '2'
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  probe:
+    runs-on: ${{ inputs.os == 'macos' && 'macos-latest' || (inputs.os == 'windows' && 'windows-latest' || 'ubuntu-latest') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      # The inventory is the whole point of this job, so record it alongside the
+      # verdicts — a score is only interpretable against the fonts that produced
+      # it, and this is what makes a later re-run comparable to this one.
+      - name: Font inventory (the variable under test)
+        run: npx tsx tools/font-env-probe.mjs
+      - name: Score the oracles against Chrome's paint
+        run: node tools/probe-dotted-circle-oracles.mjs --stride ${{ inputs.stride }}
