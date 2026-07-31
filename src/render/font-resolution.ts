@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -1762,7 +1762,38 @@ function resolveSystemFallbackKeyForCp(
  * than registering a face that would only be rejected downstream. Net effect:
  * the resolver registers ONLY covering faces (doc 80, calibration step 3).
  */
-function resolveLinuxSystemFallbackKeyForCp(cp: number): string | null {
+function resolveLinuxSystemFallbackKeyForCp(cp: number, lang?: string): string | null {
+  // DM-1886: ask fontconfig the way Chrome does, when the helper can.
+  //
+  // Blink is `linux/font_cache_linux.cc:89-97` → `gfx::GetFallbackFontForChar(c,
+  // locale, …)`, which sets FC_LANG from the locale, runs FcConfigSubstitute /
+  // FcDefaultSubstitute, calls **FcFontSort**, and walks the sorted set taking
+  // the first font whose charset actually covers the character. The `fc-match`
+  // path below is `FcFontMatch` with the codepoint as a charset CONSTRAINT — a
+  // different question, which scores coverage as one weighted criterion and can
+  // therefore answer with a face that does not cover `cp` at all.
+  //
+  // So the two paths are NOT equivalent, and the coverage guard is the tell:
+  // this branch needs none (the helper filters by coverage while walking, and
+  // reports found:false when nothing covers), while the fall-through branch
+  // cannot do without one. Do not "simplify" them together.
+  const viaHelper = resolveFcFallbackFonts([cp], lang ?? "en").get(cp);
+  if (viaHelper !== undefined) {
+    if (viaHelper === null) return null; // no covering font — Chrome tofus too
+    // Name the TTC member by index, not by PostScript name: fontconfig answers
+    // with file + index (Blink builds the face from exactly that pair), and a
+    // `.ttc` member is not addressable by name here.
+    const base = viaHelper.family ?? viaHelper.path.split("/").pop() ?? "fallback";
+    const name = viaHelper.index > 0 ? `${base}#${viaHelper.index}` : base;
+    const key = `sysfb:${name}`;
+    registerDynamicSystemFont(key, viaHelper.path, name, "fontkit");
+    return key;
+  }
+
+  // Fall-through for a host with no built helper, or a helper predating the
+  // `fcfallback` query. Documented as an APPROXIMATION of Chrome's algorithm,
+  // not an equivalent of it — it is what shipped before DM-1886 and it keeps a
+  // helper-less Linux host working rather than dropping every codepoint to tofu.
   const matched = fcMatch(`:charset=${cp.toString(16)}`);
   if (matched == null) return null;
   // Coverage guard (DM-1416): fc-match returns a default even when nothing

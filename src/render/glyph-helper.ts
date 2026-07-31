@@ -237,6 +237,8 @@ interface HelperRequest {
         cssWeight?: number; italic?: boolean; cssSlant?: number; cssStretch?: number;
       }
     | { type: "shape"; fontRef: string; text: string }
+    // DM-1886 (Linux): per-codepoint fallback via fontconfig sort-and-walk.
+    | { type: "fcfallback"; lang: string; cps: number[] }
   >;
 }
 // DM-1028: one shaped glyph from the CoreText `shape` query. Coordinates are
@@ -924,6 +926,64 @@ export interface SystemFallbackRequest {
  *  base (defaults to Helvetica — a neutral sans base whose system cascade is
  *  what an un-styled element resolves through). Returns an empty map when the
  *  helper binary isn't available (non-macOS / unbuilt). */
+/** One fontconfig sort-and-walk answer (DM-1886, Linux only). */
+export interface FcFallbackFont {
+  path: string;
+  /** TTC member index. Blink creates the face by file + index, so a `.ttc`
+   *  member is only addressable with it (`font_cache_linux.cc:99-104`). */
+  index: number;
+  /** Blink reads these back and MUTATES the FontDescription with them — a bold
+   *  face raises a sub-bold request; a non-bold face under a bold request turns
+   *  on SYNTHETIC bold (`font_cache_linux.cc:106-129`). */
+  isBold: boolean;
+  isItalic: boolean;
+  family?: string;
+}
+
+/**
+ * Per-codepoint fallback via fontconfig, the way Chrome asks it (DM-1886).
+ *
+ * Linux only. Returns an empty map when the helper is unavailable OR when it is
+ * an older binary that doesn't know the query — the caller then keeps the
+ * `fc-match` path. Absence of an answer is never a reason to invent one: a
+ * codepoint no font covers reports `found:false` and maps to `null`, which is
+ * what Chrome does (`GetFontForCharacter` returns false → the caller keeps its
+ * last resort).
+ *
+ * The helper walks a locale-sorted set and filters by real charset coverage, so
+ * unlike `fc-match ":charset="` it cannot return a non-covering face — see the
+ * `fcfallback` comment in `tools/linux-glyph-extractor/src/main.cpp`.
+ */
+export function resolveFcFallbackFonts(
+  cps: number[], lang: string = "en",
+): Map<number, FcFallbackFont | null> {
+  const out = new Map<number, FcFallbackFont | null>();
+  if (process.platform !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return out;
+  try {
+    const resp = callHelper({ fonts: [], queries: [{ type: "fcfallback", lang, cps }] });
+    const r: any = resp.results[0];
+    // An older helper answers `{error:"unknown query type"}`; treat that as "no
+    // helper for this question" rather than as "no font", so the caller falls
+    // back instead of tofuing every codepoint.
+    if (r == null || r.type !== "fcfallback" || !Array.isArray(r.fonts)) return out;
+    for (const e of r.fonts) {
+      if (e == null || typeof e.cp !== "number") continue;
+      out.set(e.cp, e.found === true && typeof e.path === "string" && e.path !== ""
+        ? {
+            path: e.path,
+            index: typeof e.index === "number" ? e.index : 0,
+            isBold: e.isBold === true,
+            isItalic: e.isItalic === true,
+            family: typeof e.family === "string" ? e.family : undefined,
+          }
+        : null);
+    }
+  } catch {
+    return new Map();
+  }
+  return out;
+}
+
 export function resolveSystemFallbackFonts(
   cps: number[],
   basePostscriptName: string = "Helvetica",
