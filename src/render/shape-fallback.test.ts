@@ -61,6 +61,36 @@ describeArabic("fontkit shaper for helper-backed faces (DM-1883)", () => {
     expect(run.clusters.every((c) => Number.isFinite(c) && c >= 0)).toBe(true);
   });
 
+  it("maps RTL clusters in DESCENDING order, matching the platform helper", () => {
+    // The bug this pins is a silent one. fontkit exposes no `.cluster` — it
+    // exposes `codePoints` — so reading `.cluster` gives `undefined` and a map
+    // of all zeros. That is not obviously wrong to look at, and is badly wrong
+    // in effect: every glyph claims to start at source index 0.
+    //
+    // For a 5-character RTL word with no ligatures, the clusters must be
+    // 4,3,2,1,0 — fontkit returns glyphs in VISUAL order, so the first glyph is
+    // the LAST character. This exact sequence was verified against the macOS
+    // helper's own `shape` query for the same string and face.
+    const run = shape("مرحبا")!;
+    expect(run.clusters).toEqual([4, 3, 2, 1, 0]);
+  });
+
+  it("maps LTR clusters in ASCENDING order", () => {
+    const run = shape("Hello")!;
+    expect(run.clusters).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("never reports every glyph at cluster 0 for a multi-character run", () => {
+    // The explicit regression guard for the all-zeros failure, phrased so it
+    // holds for any script rather than for one expected sequence.
+    for (const text of ["مرحبا", "Hello", "نمستے"]) {
+      const run = shape(text);
+      if (run == null || run.ids.length < 2) continue;
+      expect(new Set(run.clusters).size, `all glyphs mapped to one cluster for ${text}`)
+        .toBeGreaterThan(1);
+    }
+  });
+
   it("returns one position per glyph", () => {
     // `layout()` rejects a shaped run whose arrays disagree, so a shaper that
     // returned mismatched lengths would silently fall back to naive rather than

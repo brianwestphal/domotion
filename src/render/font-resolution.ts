@@ -3744,11 +3744,46 @@ export function makeFontkitShaper(
         xAdvance: p.xAdvance ?? 0, yAdvance: p.yAdvance ?? 0,
         xOffset: p.xOffset ?? 0, yOffset: p.yOffset ?? 0,
       })),
-      // fontkit reports each glyph's source cluster as a code UNIT index into
-      // the run, which is the same convention the helper's `shape` query uses.
-      clusters: glyphs.map((g) => (g.cluster as number) ?? 0),
+      clusters: deriveClusters(text, glyphs, run?.direction),
     };
   };
+}
+
+/**
+ * Source code-unit index per shaped glyph — the cluster map.
+ *
+ * fontkit does NOT expose a `cluster` on its glyphs; it exposes `codePoints`,
+ * the source codepoints each glyph consumed. Reading a non-existent `.cluster`
+ * yields a map of all zeros, which is not obviously wrong at a glance and is
+ * badly wrong in effect: every glyph claims to start at source index 0, so the
+ * renderer's per-character x positioning collapses. Measured on Arabic against
+ * the macOS helper, which reports `4,3,2,1,0` where the naive read gave
+ * `0,0,0,0,0`.
+ *
+ * The walk must run in LOGICAL order, and fontkit hands back VISUAL order — for
+ * RTL those are reverses of each other, which is why `direction` is consulted
+ * rather than assumed. Consuming codepoints (rather than indexing by glyph
+ * position) is what keeps ligatures and marks honest: a ligature consumes
+ * several codepoints and correctly reports the first one's index, and a mark
+ * consumes its own.
+ */
+function deriveClusters(text: string, glyphs: any[], direction?: string): number[] {
+  // Code-unit index of each codepoint — NOT the codepoint's ordinal, because
+  // astral characters occupy two units and the cluster map is in units.
+  const unitOf: number[] = [];
+  for (let i = 0; i < text.length;) {
+    unitOf.push(i);
+    i += (text.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
+  }
+  const order = [...glyphs.keys()];
+  if (direction === "rtl") order.reverse();
+  const clusters = new Array<number>(glyphs.length).fill(0);
+  let consumed = 0;
+  for (const gi of order) {
+    clusters[gi] = unitOf[Math.min(consumed, unitOf.length - 1)] ?? 0;
+    consumed += glyphs[gi]?.codePoints?.length ?? 1;
+  }
+  return clusters;
 }
 
 const fileFaceInfoCache = new Map<string, FileFaceInfo>();
