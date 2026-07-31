@@ -790,7 +790,9 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary)"] --> SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary)"] --> SREM{"darwin AND<br/>Emoji_Presentation=Yes?"}
+  SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
+  SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
   SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
   SRUIB --> SR1
@@ -860,6 +862,32 @@ Three consequences worth holding onto:
   reported the unrelated public Thonburi family as its own bold cut. The
   `basePath` field on the request carries the file; the helper now errors on a
   named-but-unopenable `fontRef` instead of quietly substituting Helvetica.
+- **An emoji-presentation codepoint never reaches the cascade at all** (DM-1884).
+  `PlatformFallbackFontForCharacter` short-circuits at its very top
+  (`mac/font_cache_mac.mm:319-324`): if the run's fallback priority is emoji
+  presentation, Blink returns `GetFontData(font_description, "Apple Color Emoji")`
+  — a by-NAME family lookup (`kColorEmojiFontMac`, `:288`) — before
+  `font_data_to_substitute` is even read. So for emoji the cascade base is
+  irrelevant by construction.
+
+  We had no such stage, and its absence was **invisible while the base was a
+  named face**, because that face's cascade reaches plain `AppleColorEmoji`
+  anyway. It surfaced the moment the UI-font base was armed: the UI font's own
+  cascade list reaches the hidden `.AppleColorEmojiUI` variant instead — which
+  Blink's comment at `:156-159` predicts in so many words ("might also return
+  '.Apple Color Emoji UI' when starting from system-ui"). Measured as 3,558 rows
+  on the conformance oracle, entirely within the three `system-ui` stacks.
+
+  Deliberately **not** fixed by aliasing `.AppleColorEmojiUI` back to
+  `AppleColorEmoji`: that scores well while leaving the stage missing, so any
+  other face the UI cascade reaches first would still be wrong.
+
+  The gate is the Unicode property `Emoji_Presentation`, which is what Blink's
+  `kEmojiEmoji` priority derives from (`IsEmojiPresentationEmoji` = `kEmojiEmoji |
+  kEmojiEmojiWithVS`, `font_fallback_priority.h:45-48`). Derived, not curated —
+  `isEmojiCodepoint`'s hand-listed ranges miss ⌚ U+231A / ⌛ U+231B / ⏩ U+23E9 /
+  ⏪ U+23EA because nobody sampled Miscellaneous Technical, which is exactly the
+  block the defect showed up in.
 - **A `system-ui` run's base is the UI FONT, and it is not nameable** (DM-1859).
   `system-ui` never enters the normal family matcher: `mac/font_cache_mac.mm:409-412`
   routes it to `MatchSystemUIFont`, which builds the font with

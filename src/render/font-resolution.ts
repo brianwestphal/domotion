@@ -1455,6 +1455,10 @@ function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?:
   return { name: spec.postscriptName, path: spec.path };
 }
 
+/** `kColorEmojiFontMac[]` — `mac/font_cache_mac.mm:288`. The STANDARD face, not
+ *  the hidden `.AppleColorEmojiUI` variant the UI-font cascade reaches. */
+const COLOR_EMOJI_FONT_MAC = "Apple Color Emoji";
+
 /** DM-1859. Route a `system-ui` run's per-codepoint fallback through the
  *  helper's UI-font base mode, so CoreText walks the cascade Blink walks.
  *
@@ -1624,6 +1628,61 @@ function resolveSystemFallbackKeyForCp(
   let key: string | null = null;
   try {
     if (process.platform === "darwin") {
+      // DM-1884: an EMOJI-PRESENTATION codepoint never reaches the cascade at
+      // all. `PlatformFallbackFontForCharacter` short-circuits at its very top
+      // (`mac/font_cache_mac.mm:319-324`, rev 7d859f27):
+      //
+      //     if (IsEmojiPresentationEmoji(fallback_priority)) {
+      //       if (const SimpleFontData* emoji_font =
+      //               GetFontData(font_description, AtomicString(kColorEmojiFontMac)))
+      //         return emoji_font;
+      //     }
+      //
+      // with `kColorEmojiFontMac[] = "Apple Color Emoji"` (`:288`) — a by-NAME
+      // family lookup, before `font_data_to_substitute` is even read. So Chrome
+      // returns the STANDARD face and the cascade base is irrelevant for emoji.
+      //
+      // We had no such stage, so emoji fell through to `CTFontCreateForString`.
+      // That was invisible while the base was a named face — its cascade happens
+      // to reach plain `AppleColorEmoji` — and became visible the moment DM-1859
+      // armed the UI-font base, whose own cascade list reaches the hidden
+      // `.AppleColorEmojiUI` variant instead. Blink's comment at `:156-159` names
+      // exactly that: the system API "might also return '.Apple Color Emoji UI'
+      // when starting from system-ui". So DM-1859 did not break emoji routing; it
+      // removed the accident that was hiding this missing stage.
+      //
+      // Fixed here rather than by aliasing `.AppleColorEmojiUI` back to
+      // `AppleColorEmoji`: an alias would score well and leave the stage missing,
+      // so any OTHER face the UI cascade reaches first would still be wrong.
+      //
+      // `Emoji_Presentation` is the Unicode property Blink's kEmojiEmoji priority
+      // is derived from (`IsEmojiPresentationEmoji` = kEmojiEmoji |
+      // kEmojiEmojiWithVS, `font_fallback_priority.h:45-48`). Using the property
+      // escape keeps it DERIVED from Unicode data rather than curated — unlike
+      // `isEmojiCodepoint`'s hand-listed ranges, which miss ⌚ U+231A / ⌛ U+231B /
+      // ⏩ U+23E9 / ⏪ U+23EA precisely because nobody sampled that block.
+      //
+      // `Emoji_Modifier` (the five skin-tone modifiers U+1F3FB–U+1F3FF) is
+      // EXCLUDED, measured rather than assumed: Chrome answers those with
+      // `.AppleColorEmojiUI`, i.e. the early return does NOT fire for them and
+      // the cascade runs. That fits Blink's model — the priority is a property of
+      // the segmented RUN, and a lone modifier is a combining character rather
+      // than an emoji-presentation run of its own. Gating on the codepoint alone
+      // cannot reproduce run segmentation in general; this is the one place the
+      // difference is measurable, and without the exclusion the fix trades 1,698
+      // fixed rows for 15 newly-broken ones.
+      if (/\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))
+          && !/\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp))) {
+        const emoji = resolveInstalledFont(COLOR_EMOJI_FONT_MAC);
+        if (emoji != null && emoji.path !== "" && emoji.postscriptName !== "") {
+          const emojiKey = `sysfb:${emoji.postscriptName}`;
+          registerDynamicSystemFont(emojiKey, emoji.path, emoji.postscriptName);
+          systemFallbackKeyCache.set(cacheKey, emojiKey);
+          return emojiKey;
+        }
+        // Font absent (a stripped host): fall through to the cascade rather than
+        // tofu — Blink's own `if` only returns when GetFontData succeeds.
+      }
       // CoreText CTFontCreateForString via the native helper (always on), THEN
       // the in-family re-selection at the requested traits + weight that Blink
       // runs on the nominated face (font_cache_mac.mm:242-267).
@@ -1797,10 +1856,17 @@ const fallbackFamilyCutCache = new Map<string, string | null>();
 /** Test-only: drive the per-codepoint live system-fallback resolver directly
  *  (DM-1403). Honors the platform routing + the `DOMOTION_SYSTEM_FALLBACK`
  *  opt-in, so a Linux/Docker probe can confirm fontconfig resolution end to end. */
+/** DM-1884: `primaryKey` / `systemUiPrimary` are exposed because several
+ *  behaviors are only OBSERVABLE under the system-ui cascade base — with the
+ *  default named base, CoreText's cascade reaches plain `AppleColorEmoji` on its
+ *  own, so a test cannot tell a correct short-circuit from an incidental
+ *  agreement. That ambiguity is exactly what hid the emoji defect until the
+ *  conformance oracle measured it against a `system-ui` stack. */
 export function __resolveSystemFallbackKeyForCpForTest(
   cp: number, weight = 400, slant = 0, fontSize = 16,
+  primaryKey?: string, systemUiPrimary = false,
 ): string | null {
-  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize);
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary);
 }
 
 /** Test-only window into the platform path resolver (DM-258). */
