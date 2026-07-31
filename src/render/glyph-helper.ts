@@ -25,7 +25,7 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, readSync, writeSync } from "node:fs";
+import { existsSync, openSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { acquireGlyphHelperSync } from "./helper-acquire.js";
@@ -306,6 +306,104 @@ function fdOf(stream: unknown): number | undefined {
   return s?.fd ?? s?._handle?.fd;
 }
 
+let _pipeSeq = 0;
+
+/**
+ * Synchronously sleep, without burning a core.
+ *
+ * The connect loop below cannot yield to the event loop — the whole channel is
+ * synchronous by design, and the child's `exit` event would never be delivered
+ * anyway — so a plain spin would busy-wait. `Atomics.wait` on a private buffer
+ * blocks the thread properly instead.
+ */
+function sleepSync(ms: number): void {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    // SharedArrayBuffer unavailable (locked-down embedder): fall through and let
+    // the caller spin. Slower, still correct.
+  }
+}
+
+/**
+ * DM-1889: the persistent channel on Windows, carried over a named pipe.
+ *
+ * DM-1421 disabled `--serve` on Windows for a real reason: Node reports a
+ * spawned child's stdio pipes as fd `-1` there — no OS file descriptor — and
+ * this channel is driven by synchronous `writeSync`/`readSync`, which need one.
+ * The conclusion drawn then was that Windows cannot have the channel. The
+ * narrower truth is that it cannot have it *over spawned stdio*: `fs.openSync`
+ * on a named pipe path DOES return a real fd, and the existing loop drives it
+ * unchanged.
+ *
+ * That mattered more than it looked. Every helper call on Windows was a fresh
+ * process — ~59 ms measured, even for a request doing no work — which made the
+ * conformance oracle's Windows shards ~20x slower per codepoint than macOS's and
+ * the long pole of every three-platform run.
+ *
+ * The child is the pipe SERVER (only the server end can be created by name) and
+ * we connect as the client, so the handshake is: spawn, then retry the open
+ * until the child has created it. One fd serves both directions — the pipe is
+ * duplex, so `serverInFd` and `serverOutFd` are deliberately the same number.
+ *
+ * Degradation is preserved in both directions. A helper predating `--serve-pipe`
+ * dies on the unknown argument, the path never appears, the liveness check
+ * notices the child is gone, and we return false — reverting to one-shot
+ * spawning exactly as before.
+ */
+function startPersistentViaPipe(bin: string): boolean {
+  const name = `\\\\.\\pipe\\domotion-glyph-${process.pid}-${_pipeSeq++}`;
+  let proc: ChildProcess;
+  try {
+    // stdin/stdout are unused on this path; stderr stays inherited so a helper
+    // diagnostic still reaches the terminal.
+    proc = spawn(bin, ["--serve-pipe", name], { stdio: ["ignore", "ignore", "inherit"] });
+  } catch {
+    persistentDisabled = true;
+    return false;
+  }
+
+  const deadline = Date.now() + 10_000;
+  let fd: number | undefined;
+  for (;;) {
+    try {
+      // "r+" — read AND write on one duplex handle.
+      fd = openSync(name, "r+");
+      break;
+    } catch {
+      // Not there yet, or never will be. `kill(pid, 0)` is an existence probe
+      // that sends no signal; it is the only liveness check available here,
+      // because the event loop is blocked and `proc.exitCode` would stay null
+      // for a child that has already died.
+      let alive = true;
+      try {
+        if (proc.pid != null) process.kill(proc.pid, 0);
+        else alive = false;
+      } catch { alive = false; }
+      if (!alive || Date.now() > deadline) {
+        try { proc.kill(); } catch { /* ignore */ }
+        // The binary cannot serve this way. Don't retry per call.
+        persistentDisabled = true;
+        return false;
+      }
+      sleepSync(5);
+    }
+  }
+
+  proc.unref();
+  serverProc = proc;
+  serverInFd = fd;
+  serverOutFd = fd;
+  serverLeftover = "";
+  proc.on("error", () => { serverProc = null; });
+  proc.on("exit", () => { serverProc = null; });
+  if (!_persistentExitHookInstalled) {
+    _persistentExitHookInstalled = true;
+    process.once("exit", () => { try { serverProc?.kill(); } catch { /* ignore */ } });
+  }
+  return true;
+}
+
 function startPersistent(bin: string): boolean {
   if (persistentDisabled) return false;
   // macOS (CoreText, DM-1031), Linux (FreeType, DM-1034), and Windows
@@ -319,6 +417,10 @@ function startPersistent(bin: string): boolean {
     persistentDisabled = true;
     return false;
   }
+  // DM-1889: Windows gets the same channel over a different carrier. See
+  // `startPersistentViaPipe` — a spawned stdio pipe has no OS fd there, which is
+  // what DM-1421 hit, but a NAMED pipe opened by path does.
+  if (process.platform === "win32") return startPersistentViaPipe(bin);
   try {
     const proc = spawn(bin, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
     const inFd = fdOf(proc.stdin);
@@ -329,6 +431,7 @@ function startPersistent(bin: string): boolean {
     // unusable: kill the doomed child and disable serve for the session so we
     // fall back to one-shot `spawnSync` (correct + avoids re-spawning a serve
     // child every call). macOS/Linux expose real (>=0) fds and keep serve.
+    // Retained as a guard for any platform whose pipes behave the same way.
     if (inFd == null || outFd == null || inFd < 0 || outFd < 0) {
       try { proc.kill(); } catch { /* ignore */ }
       persistentDisabled = true;
@@ -1000,6 +1103,72 @@ export function resolveFcFallbackFonts(
   return out;
 }
 
+/**
+ * The request envelope for a per-codepoint system-fallback query.
+ *
+ * Split out and platform-parameterised so the one decision that differs between
+ * platforms — whether to declare a base font — is explicit and testable rather
+ * than an inline branch. That decision was wrong on Windows for a long time, in
+ * a way nothing caught (DM-1889).
+ *
+ * **macOS/Linux declare a base; Windows must not.** The platforms ask genuinely
+ * different questions. `CTFontCreateForString` resolves *from* a base face, so on
+ * macOS the answer depends on it and omitting it would change results. DirectWrite
+ * takes no base at all: the win32 helper's `runFallbackQuery(query, factory)` is
+ * not even handed the envelope's font map, so the entry could only ever be inert.
+ *
+ * It was worse than inert. The base is named ("Helvetica") with no `fontPath`,
+ * the win32 helper cannot open a font by family name, and one-shot mode treats an
+ * unopenable *declared* font as fatal — it dies before running a single query.
+ * With the persistent channel disabled on Windows because a spawned pipe has no
+ * OS fd there, one-shot was the ONLY path, so every call came back as an error
+ * envelope with no `results` and the caller read that as "no fallback font" for
+ * every codepoint.
+ *
+ * So the live DirectWrite per-codepoint resolver was shipped default-on and never
+ * actually answered on Windows; that platform's conformance numbers were scoring
+ * the static fallback chain alone. Verified on a Windows 11 host: the identical
+ * envelope answers correctly over the persistent channel — where an unopenable
+ * ref is merely absent — and errors out one-shot.
+ */
+export function buildFallbackEnvelope(
+  basePostscriptName: string,
+  cps: number[],
+  req: SystemFallbackRequest | undefined,
+  platform: NodeJS.Platform,
+): HelperRequest {
+  return {
+    fonts: platform === "win32" ? [] : [{
+      ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
+      ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
+      // DM-1859: the platform UI font, built the way `MatchSystemUIFont` builds
+      // it. The helper derives the symbolic traits from these CSS values itself
+      // (Blink's `kBoldThreshold` is 600 and lives on that side), so pass the
+      // numbers rather than pre-computed booleans.
+      ...(req?.systemUi === true
+        ? {
+          systemUI: true,
+          cssWeight: req.weight,
+          cssSlant: req.italic ? 1 : 0,
+          cssWidth: req.stretch ?? 100,
+        }
+        : {}),
+    }],
+    queries: [{
+      // `fontRef` is kept even on Windows, where no base is declared: the helper
+      // ignores it for this query, and the macOS/Linux helpers require it. One
+      // query shape for all three.
+      type: "fallback", fontRef: "base", cps,
+      ...(req != null
+        // `bold` mirrors Blink's `platform_data.synthetic_bold_` OR: our base
+        // font stands in for the run primary at its regular cut, so a bold
+        // request arrives as the synthetic trait rather than in the face.
+        ? { cssWeight: req.weight, bold: req.weight >= 600, italic: req.italic }
+        : {}),
+    }],
+  };
+}
+
 export function resolveSystemFallbackFonts(
   cps: number[],
   basePostscriptName: string = "Helvetica",
@@ -1015,33 +1184,7 @@ export function resolveSystemFallbackFonts(
   if (need.length === 0) return out;
   let resp: HelperResponse;
   try {
-    resp = callHelper({
-      fonts: [{
-        ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
-        ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
-        // DM-1859: the platform UI font, built the way `MatchSystemUIFont` builds
-        // it. The helper derives the symbolic traits from these CSS values itself
-        // (Blink's `kBoldThreshold` is 600 and lives on that side), so pass the
-        // numbers rather than pre-computed booleans.
-        ...(req?.systemUi === true
-          ? {
-            systemUI: true,
-            cssWeight: req.weight,
-            cssSlant: req.italic ? 1 : 0,
-            cssWidth: req.stretch ?? 100,
-          }
-          : {}),
-      }],
-      queries: [{
-        type: "fallback", fontRef: "base", cps: need,
-        ...(req != null
-          // `bold` mirrors Blink's `platform_data.synthetic_bold_` OR: our base
-          // font stands in for the run primary at its regular cut, so a bold
-          // request arrives as the synthetic trait rather than in the face.
-          ? { cssWeight: req.weight, bold: req.weight >= 600, italic: req.italic }
-          : {}),
-      }],
-    });
+    resp = callHelper(buildFallbackEnvelope(basePostscriptName, need, req, process.platform));
   } catch {
     // Helper failure → treat all as unresolved this call (don't poison cache).
     for (const cp of need) out.set(cp, null);

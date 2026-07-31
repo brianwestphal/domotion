@@ -1126,6 +1126,107 @@ static std::string handleEnvelope(IDWriteFactory* factory, const JsonValue& enve
   return response.str();
 }
 
+// Pipe buffer, and the read chunk. Sized to hold a whole typical response so a
+// batched `fallback` answer for thousands of codepoints comes back in one or two
+// reads; correctness does not depend on it, since both ends loop.
+static const DWORD kPipeBufBytes = 1u << 20;
+
+// Persistent serve over a NAMED PIPE rather than stdin/stdout.
+//
+// Why this exists at all, given `--serve` already works: the transport is fine,
+// but the parent cannot drive it on Windows. Node exposes a spawned pipe as fd
+// `-1` — no real OS file descriptor — and the parent's channel is synchronous
+// `readSync`/`writeSync`, which need one. So the Windows parent had to fall back
+// to spawning this binary fresh for every call. Measured at ~59 ms per spawn
+// even for a request that does no work, which made the conformance sweep's
+// Windows shards ~20x slower per codepoint than the macOS ones and the long pole
+// of every three-platform run.
+//
+// A named pipe fixes it from this side: the parent opens the path with
+// `fs.openSync`, which DOES yield a real fd, and its existing synchronous loop
+// then drives the channel unchanged. We are the SERVER because only the server
+// end can be created by name; the parent connects as a client.
+//
+// The protocol, the font cache and the responses are byte-for-byte what
+// `--serve` produces — this only swaps the bytes' carrier. A parent whose binary
+// predates this flag sees the child die on the unknown argument, never manages
+// to open the path, and reverts to one-shot spawning, so an old helper degrades
+// rather than hangs.
+static int servePipe(IDWriteFactory* factory, const std::string& pipeName) {
+  std::wstring wname(pipeName.begin(), pipeName.end());
+  // PIPE_TYPE_BYTE, not MESSAGE: the framing is the protocol's own trailing
+  // newline, exactly as over stdio. Message mode would impose a second framing
+  // on top and truncate any response larger than one message buffer.
+  HANDLE h = CreateNamedPipeW(
+      wname.c_str(), PIPE_ACCESS_DUPLEX,
+      PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+      1, kPipeBufBytes, kPipeBufBytes, 0, nullptr);
+  if (h == INVALID_HANDLE_VALUE) {
+    std::cerr << "could not create named pipe: " << pipeName << "\n";
+    return 1;
+  }
+  // The parent may connect between CreateNamedPipe and here, which surfaces as
+  // ERROR_PIPE_CONNECTED rather than success. That is a connected client, not a
+  // failure.
+  if (!ConnectNamedPipe(h, nullptr) && GetLastError() != ERROR_PIPE_CONNECTED) {
+    CloseHandle(h);
+    return 1;
+  }
+
+  std::map<std::string, FontEntry> fontCache;
+  std::string buf;
+  std::vector<char> chunk(kPipeBufBytes);
+  bool running = true;
+
+  while (running) {
+    size_t nl = buf.find('\n');
+    while (nl == std::string::npos) {
+      DWORD got = 0;
+      // A closed client end reports ERROR_BROKEN_PIPE; both that and a zero-byte
+      // read mean the parent is gone, which ends the session the way EOF on
+      // stdin ends the `--serve` loop.
+      if (!ReadFile(h, chunk.data(), static_cast<DWORD>(chunk.size()), &got, nullptr) || got == 0) {
+        running = false;
+        break;
+      }
+      buf.append(chunk.data(), got);
+      nl = buf.find('\n');
+    }
+    if (!running) break;
+
+    std::string line = buf.substr(0, nl);
+    buf.erase(0, nl + 1);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty()) continue;
+
+    JsonValue envelope;
+    std::string resp;
+    if (!JsonParser(line).parse(envelope) || !envelope.isObject()) {
+      resp = "{\"results\":[],\"error\":\"invalid JSON on input line\"}\n";
+    } else {
+      resp = handleEnvelope(factory, envelope, fontCache, /*dieOnOpenFail=*/false) + "\n";
+    }
+
+    // WriteFile is not obliged to take the whole buffer, and a short write would
+    // desync the parent's line framing for every subsequent response.
+    size_t off = 0;
+    while (off < resp.size()) {
+      DWORD wrote = 0;
+      if (!WriteFile(h, resp.data() + off, static_cast<DWORD>(resp.size() - off), &wrote, nullptr)) {
+        running = false;
+        break;
+      }
+      off += wrote;
+    }
+  }
+
+  for (auto& kv : fontCache) safeRelease(kv.second.face);
+  FlushFileBuffers(h);
+  DisconnectNamedPipe(h);
+  CloseHandle(h);
+  return 0;
+}
+
 int main(int argc, char** argv) {
   // Force LF-only binary stdio (DM-1035): Windows defaults stdin/stdout to text
   // mode, which translates CRLF↔LF. On the line-delimited `--serve` protocol that
@@ -1137,24 +1238,33 @@ int main(int argc, char** argv) {
   _setmode(_fileno(stdout), _O_BINARY);
 
   std::string inputPath;
+  std::string servePipeName;
   bool serve = false;
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.2.0\n";
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.3.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {
       std::cout << "Usage: domotion-glyph-paths.exe [--input <path>] [--serve]\n"
+                   "                                [--serve-pipe <\\\\.\\pipe\\name>]\n"
                    "Reads a JSON request envelope from stdin (default) or the given file.\n"
                    "Writes a JSON response to stdout.\n"
                    "--serve: persistent mode — read one request envelope per line on stdin,\n"
                    "         write one response per line on stdout, looping until EOF, reusing\n"
-                   "         opened fonts across requests (DM-1035).\n";
+                   "         opened fonts across requests (DM-1035).\n"
+                   "--serve-pipe: the same persistent protocol over a named pipe this process\n"
+                   "         creates and the parent connects to. Windows parents use this\n"
+                   "         because a spawned stdio pipe has no OS fd there, so their\n"
+                   "         synchronous channel cannot drive --serve.\n";
       return 0;
     }
     if (a == "--serve") {
       serve = true;
+    } else if (a == "--serve-pipe") {
+      if (i + 1 >= argc) die("--serve-pipe requires a pipe name");
+      servePipeName = argv[++i];
     } else if (a == "--input") {
       if (i + 1 >= argc) die("--input requires a path");
       inputPath = argv[++i];
@@ -1169,6 +1279,8 @@ int main(int argc, char** argv) {
       !factory) {
     die("DWriteCreateFactory failed");
   }
+
+  if (!servePipeName.empty()) return servePipe(factory, servePipeName);
 
   if (serve) {
     // DM-1035: persistent server. One request envelope per line in, one
