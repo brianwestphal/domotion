@@ -1672,13 +1672,25 @@ export function warmSystemFallbackForCodepoints(
 function resolveSystemFallbackKeyForCp(
   cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
   primaryKey?: string, systemUiPrimary: boolean = false,
+  // DM-1863: the content locale. Blink passes it on the Linux path —
+  // `font_description.LocaleOrDefault().Ascii().c_str()` reaches fontconfig as
+  // FC_LANG (`linux/font_cache_linux.cc:88-95`, rev 7d859f27) — and it decides
+  // Han unification: the same unified ideograph legitimately resolves to a
+  // Japanese face under `lang="ja"` and a Chinese one under `lang="zh"`. Asking
+  // without it produces a face that is wrong in a way that reads as a
+  // font-inventory problem rather than a dropped argument.
+  lang?: string,
 ): string | null {
   const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
   const base = fallbackBaseFor(primaryKey);
   // The base joins the cache key for the same reason the CSS description does:
   // the answer is a function of the font you ask FROM, so a base-blind key would
   // serve whichever base asked first to every later caller (the a72e557 lesson).
-  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}`;
+  // `lang` joins the key for the same reason the base does: the answer is a
+  // function of it, so a lang-blind key would serve whichever locale asked first
+  // to every later caller — and on a multilingual page that is silently wrong
+  // rather than loudly broken.
+  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}`;
   if (systemFallbackKeyCache.has(cacheKey)) return systemFallbackKeyCache.get(cacheKey)!;
   let key: string | null = null;
   try {
@@ -1759,7 +1771,7 @@ function resolveSystemFallbackKeyForCp(
       // by `_systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
       // Calibrated against Chromium-on-noble paint — see the flag comment above
       // and docs/80.
-      key = resolveLinuxSystemFallbackKeyForCp(cp);
+      key = resolveLinuxSystemFallbackKeyForCp(cp, lang);
     } else if (process.platform === "win32") {
       // DM-1403: DirectWrite IDWriteFontFallback::MapCharacters via the win32
       // glyph helper. The helper speaks the same platform-agnostic "fallback"
@@ -1817,6 +1829,43 @@ function resolveSystemFallbackKeyForCp(
  * than registering a face that would only be rejected downstream. Net effect:
  * the resolver registers ONLY covering faces (doc 80, calibration step 3).
  */
+/**
+ * A fontconfig `:lang=` pattern fragment for a CSS locale, or "" when there is
+ * none to pass.
+ *
+ * The tag is passed through whole (lower-cased), NOT reduced to its primary
+ * subtag. Measured against fontconfig on the pinned Playwright noble image, with
+ * Noto CJK installed so the answer can discriminate at all:
+ *
+ *     :lang=zh-cn    → Noto Sans CJK SC     ← the region is what discriminates
+ *     :lang=zh-tw    → Noto Sans CJK TC
+ *     :lang=zh       → WenQuanYi Zen Hei    ← truncating loses the distinction
+ *     :lang=zh-hans  → WenQuanYi Zen Hei    ← script subtags are NOT understood
+ *     :lang=ja-jp    → (matches; same face here, no Japanese Noto installed)
+ *
+ * So fontconfig speaks language-REGION (RFC-3066 style), and cutting `zh-CN`
+ * down to `zh` throws away precisely the Han-unification signal this argument
+ * exists to carry. An earlier revision of this function did that, on the
+ * assumption that a region-qualified tag "matches nothing" — measured false.
+ *
+ * A language-SCRIPT tag (`zh-Hans`) is passed through as-is and simply does not
+ * discriminate, which is the same outcome as sending no locale. Mapping script
+ * subtags onto regions (`Hans`→`cn`) would be inventing a table rather than
+ * transcribing one, and the file that would settle what Chrome does here —
+ * `ui/gfx/font_fallback_linux.cc` — is NOT in the local checkout (it carries the
+ * Blink tree, not `ui/gfx`). Left alone deliberately, and recorded on the ticket
+ * as the one open question rather than guessed at.
+ */
+export function fcLangProperty(lang?: string): string {
+  if (lang == null) return "";
+  const tag = lang.trim().toLowerCase().replace(/_/g, "-");
+  // Guard the pattern string: fontconfig tags are alphanumeric subtags joined by
+  // hyphens, and anything else would either match nothing or inject syntax into
+  // the pattern (`:`/`,` are meaningful there).
+  if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(tag)) return "";
+  return `:lang=${tag}`;
+}
+
 function resolveLinuxSystemFallbackKeyForCp(cp: number, lang?: string): string | null {
   // DM-1886: ask fontconfig the way Chrome does, when the helper can.
   //
@@ -1849,7 +1898,18 @@ function resolveLinuxSystemFallbackKeyForCp(cp: number, lang?: string): string |
   // `fcfallback` query. Documented as an APPROXIMATION of Chrome's algorithm,
   // not an equivalent of it — it is what shipped before DM-1886 and it keeps a
   // helper-less Linux host working rather than dropping every codepoint to tofu.
-  const matched = fcMatch(`:charset=${cp.toString(16)}`);
+  // DM-1863: the locale travels here too. `:lang=` is fontconfig's pattern-level
+  // equivalent of the FC_LANG that `gfx::GetFallbackFontForChar` sets from
+  // Blink's `font_description.LocaleOrDefault()`. Without it a unified CJK
+  // ideograph resolves by fontconfig's default preference order rather than by
+  // the page's language, which is the Han-unification trap: a `lang="ja"` page
+  // gets a Chinese face and it reads as a missing-font problem.
+  //
+  // fontconfig wants a bare language tag, so a CSS locale like `ja-JP` is cut at
+  // the region — `:lang=ja-jp` matches nothing and would silently widen the
+  // query back to no-locale.
+  const langProp = fcLangProperty(lang);
+  const matched = fcMatch(`:charset=${cp.toString(16)}${langProp}`);
   if (matched == null) return null;
   // Coverage guard (DM-1416): fc-match returns a default even when nothing
   // covers cp; only register a face that actually has a glyph for it.
@@ -1950,9 +2010,9 @@ const fallbackFamilyCutCache = new Map<string, string | null>();
  *  conformance oracle measured it against a `system-ui` stack. */
 export function __resolveSystemFallbackKeyForCpForTest(
   cp: number, weight = 400, slant = 0, fontSize = 16,
-  primaryKey?: string, systemUiPrimary = false,
+  primaryKey?: string, systemUiPrimary = false, lang?: string,
 ): string | null {
-  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary);
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang);
 }
 
 /** Test-only window into the platform path resolver (DM-258). */
@@ -5091,7 +5151,7 @@ export function resolveFontForCodepoint(
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang);
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
