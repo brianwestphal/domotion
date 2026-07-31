@@ -1039,7 +1039,32 @@ export function insertSyntheticDottedCircles(
     if (isMark || probeFlagged) {
       const orphaned = !clusterHasBase;
       const wantUncoveredCircle = coveredCircleSet != null ? probeFlagged : usesComplexShaperDottedCircle(cp);
-      if (orphaned && wantUncoveredCircle
+      // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED
+      // FOR THE RUN has a glyph for U+25CC. Transcribed from
+      // `hb_syllabic_insert_dotted_circles` (`external/harfbuzz/src/hb-ot-shaper-syllabic.cc:51-53`,
+      // rev 4de187d):
+      //
+      //     hb_codepoint_t dottedcircle_glyph;
+      //     if (!font->get_nominal_glyph (0x25CCu, &dottedcircle_glyph))
+      //       return false;
+      //
+      // Blink shapes with HarfBuzz on every platform, so this is Chrome's rule
+      // rather than an approximation of it. Note what it is NOT about: the
+      // MARK's coverage. Whether Chrome circles depends on U+25CC's coverage in
+      // the face the run was shaped with, and the two come apart exactly where
+      // this went wrong before — a mark nothing covers still gets a circle if
+      // the run's font has one, and a covered mark gets none if it does not.
+      //
+      // The run's font here is the primary: an uncovered codepoint paints the
+      // primary's `.notdef` (Blink's `kFirstCandidateForNotdefGlyph`), which is
+      // the same face HarfBuzz would have been handed.
+      //
+      // ANDed with the existing conditions rather than replacing them. The probe
+      // stands in for HarfBuzz's other requirement — a broken (base-less)
+      // syllable — which we cannot read off the font. So this can only ever
+      // REMOVE a circle we would otherwise have drawn, never add one.
+      const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;
+      if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
