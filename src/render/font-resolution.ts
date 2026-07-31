@@ -1767,6 +1767,50 @@ function resolveSystemFallbackKeyForCp(
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
       }
     } else if (process.platform === "linux") {
+      // DM-1863 stage 1 of 2: BEFORE asking fontconfig, retry the run's own
+      // family at standard style and weight. Transcribed from
+      // `linux/font_cache_linux.cc:80-87` (rev 7d859f27):
+      //
+      //     if (!IsEmojiPresentationEmoji(fallback_priority) &&
+      //         (font_description.Style() == kItalicSlopeValue ||
+      //          font_description.Weight() >= kBoldThreshold)) {
+      //       const SimpleFontData* font_data =
+      //           FallbackOnStandardFontStyle(font_description, c);
+      //       if (font_data) return font_data;
+      //     }
+      //
+      // and `FallbackOnStandardFontStyle` itself (`skia/font_cache_skia.cc:119-137`),
+      // which copies the description, sets style normal and weight normal, and
+      // accepts the result only when that face actually contains the character.
+      //
+      // Why it matters: a family's BOLD cut can lack a glyph its regular cut
+      // has. Without this stage such a codepoint leaves the family entirely and
+      // lands on whatever fontconfig prefers, where Chrome stays in the
+      // requested family and synthesises the bold. That is a family change, not
+      // a weight change — far more visible than the thing it is standing in for.
+      //
+      // Emoji-presentation runs are excluded exactly as Blink excludes them:
+      // their fallback is a color-emoji font, and retrying the text family at
+      // regular weight would find a monochrome glyph and stop there.
+      //
+      // `kBoldThreshold` is 600 (`font_description.h`), the same constant the
+      // helper already uses for the synthetic-bold trait.
+      const isEmojiPresentation = /\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))
+        && !/\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp));
+      if (!isEmojiPresentation && (slant !== 0 || weight >= 600) && primaryKey != null) {
+        // The standard-style face of the SAME family. `getFontInstance` is
+        // memoised, so this costs a map hit after the first bold codepoint.
+        const standard = getFontInstance(primaryKey, 400, fontSize, 0);
+        if (standard != null && glyphIdForCp(standard, cp) !== 0) {
+          // Blink returns the family's own face here and sets the synthetic-bold
+          // / synthetic-italic flags from the ORIGINAL description; our renderer
+          // derives those from the requested weight against the resolved face,
+          // so returning the key is sufficient and keeps that decision in one
+          // place rather than duplicating the predicate.
+          systemFallbackKeyCache.set(cacheKey, primaryKey);
+          return primaryKey;
+        }
+      }
       // DM-1403/DM-1416: fontconfig live fallback for Linux, default-on (gated
       // by `_systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
       // Calibrated against Chromium-on-noble paint — see the flag comment above
