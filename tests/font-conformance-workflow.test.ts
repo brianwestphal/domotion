@@ -76,10 +76,30 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     expect(build).toBeLessThan(run);
   });
 
-  it("Linux needs NO helper — its resolver shells out to fontconfig", () => {
-    // Stated so the asymmetry stays deliberate rather than being 'fixed' later
-    // by adding a build step for a helper the Linux resolver never calls.
-    expect(jobs["sweep-linux"]).not.toMatch(/linux-glyph-extractor/);
+  it("the Linux sweep builds its helper too, before sweeping", () => {
+    // INVERTED by DM-1886. This assertion previously said the opposite — that
+    // Linux needs no helper because its resolver shells out to `fc-match` — and
+    // was written specifically to stop someone "fixing" that asymmetry later.
+    // The premise changed: the Linux resolver now asks the helper's `fcfallback`
+    // query, which is Chrome's actual algorithm rather than an approximation of
+    // it, so the build is now required for the same reason macOS and Windows
+    // need theirs.
+    //
+    // The failure this guards is silent by construction: without the helper the
+    // resolver DEGRADES to `fc-match` instead of erroring, so the sweep goes
+    // green having measured a different algorithm — and a baseline captured
+    // from it would bake the old answers in as ground truth. That happened: a
+    // capture run sat at 14/19 after 117 minutes with every lagging job on
+    // Linux, because this step did not exist.
+    const job = jobs["sweep-linux"];
+    const build = job.indexOf("linux-glyph-extractor");
+    const run = job.indexOf("ci-font-conformance-shard.sh");
+    expect(build, "sweep-linux must build tools/linux-glyph-extractor").toBeGreaterThanOrEqual(0);
+    expect(build, "the helper must exist before the sweep asks fontconfig anything").toBeLessThan(run);
+    // libfontconfig is what the `fcfallback` query links against; CMake requires
+    // it, so a missing dev package fails the build rather than producing a
+    // helper that answers "unknown query type" and degrades invisibly.
+    expect(job).toMatch(/libfontconfig1-dev/);
   });
 
   it("Linux sweeps inside the pinned Playwright container, not a bare ubuntu image", () => {

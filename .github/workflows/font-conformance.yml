@@ -160,12 +160,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
-        # No glyph-helper build here, deliberately: the Linux per-codepoint
-        # resolver shells out to fontconfig (`fc-match :charset=…`) rather than
-        # to a built helper, so there is nothing to silently fall off. The only
-        # thing the absent helper costs is `resolveInstalledFont`, which on
-        # Linux is always null — so Chrome-face file resolution (the
-        # `agree-same-file` tier) never fires here. Recorded in docs/107.
+        # DM-1886 INVERTED the note that used to live here. The Linux
+        # per-codepoint resolver no longer merely shells out to `fc-match`: it
+        # asks the helper's `fcfallback` query, which is Chrome's actual
+        # algorithm (FcFontSort over a locale-keyed pattern, walked until a
+        # font's charset covers the character) rather than `FcFontMatch` with the
+        # codepoint as a scoring constraint.
+        #
+        # Without this build the resolver still WORKS — it degrades to the
+        # `fc-match` path — and that is precisely the hazard. The sweep goes
+        # green, ~350x slower, having measured a DIFFERENT algorithm than the one
+        # `main` runs on a developer's machine, and any baseline captured from it
+        # bakes the old answers in as ground truth. Observed: a run at 14/19 jobs
+        # after 117 minutes with every lagging job a Linux one.
+        #
+        # Same reasoning as the macOS/Windows helper builds above and the one in
+        # visual-tests.yml: a gitignored build artifact that changes which
+        # renderer CI measures has to be built by the job that measures.
+      - name: Build the Linux glyph helper (fontconfig fallback resolver)
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq build-essential cmake libfreetype-dev libfontconfig1-dev pkg-config
+          cmake -S tools/linux-glyph-extractor -B /tmp/lgx -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/lgx -j
+          cp /tmp/lgx/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
+          echo "helper built: $(file tools/linux-glyph-extractor/domotion-glyph-paths)"
       - name: Sweep
         run: bash scripts/ci-font-conformance-shard.sh
         env:
