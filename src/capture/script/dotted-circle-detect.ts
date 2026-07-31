@@ -11,12 +11,36 @@
 // emits just the bare mark for BOTH circle and no-circle cells. So the ONLY
 // reliable gate is Chrome itself.
 //
-// Detection: render `mark` and `"◌"+mark` to a canvas with the element's font.
-// When Chrome auto-inserts the circle for the bare mark, the two renderings are
-// the SAME cluster (◌+mark), so their ink matches in both pixel COUNT and WIDTH.
-// A spacing mark (own advance) that does NOT get a circle renders narrower bare
-// than combined, so the width check excludes it. Validated 43/43 against CDP
-// `getPlatformFontsForNode` glyph counts on the 1CD0-1CFF Vedic fixture.
+// DM-1851: the probe asks DOM LAYOUT, not canvas.
+//
+// It used to rasterise `mark` and `"◌"+mark` to a 2D canvas and compare ink. That
+// measured canvas correctly and answered the wrong question: canvas 2D text and
+// DOM layout do not shape an uncovered mark the same way. For a mark NO font in
+// the cascade covers, canvas draws ◌+tofu while DOM draws a bare tofu — so the
+// probe reported "Chrome auto-inserts a circle here" for exactly the cells where
+// Chrome paints none, and the renderer duly synthesised a circle that Chrome does
+// not paint. Reproduced at 12 regions / 0.41% on the Devanagari-Extended fixture,
+// and confirmed against CDP `CSS.getPlatformFontsForNode`, which reports a single
+// `.notdef` for those codepoints.
+//
+// The comparison itself was sound; only its oracle was wrong. So the same
+// bare-vs-combined test now runs against a laid-out DOM element, which is the
+// thing actually being captured.
+//
+// Measured against Chrome's own paint (CDP glyph counts) over 104 mark codepoints
+// strided across all 36 complex-shaper ranges:
+//
+//     canvas (before)                101/104
+//     DOM (this)                     102/104
+//     canvas + resolver-coverage     102/104
+//
+// The third of those was the considered alternative — keep the canvas probe and
+// suppress its verdict when our own resolver says nothing covers the codepoint.
+// It scores identically. DOM was chosen because it removes the oracle mismatch at
+// the source rather than patching one of its consequences, and because it keeps
+// this capture-time decision independent of a render-side coverage predicate
+// being correct. The two residual misses (U+0951, U+1B6B — Chrome circles, no
+// oracle detects it) are shared by all three and are not addressed here.
 //
 // Pre-filter `cp >= 0x0900`: scopes the probe to the Indic / Brahmic / SE-Asian
 // complex-shaper blocks where this matters. Latin / Cyrillic / Hebrew / Arabic
@@ -25,37 +49,29 @@
 // gates on the mark being ORPHANED (no base in its cluster).
 
 export const createDottedCircleDetect = () => {
-  let _cv = null;
-  let _ctx = null;
+  let _el = null;
   const _cache = new Map();
 
-  // Fixed 32px probe (independent of the element's font size): whether Chrome
-  // circles a mark is a property of the (mark, font) pair, not the size, and a
-  // fixed size keeps the pixel-count / width thresholds stable.
-  const inkStats = (s, font) => {
-    if (_ctx == null) {
-      _cv = document.createElement('canvas');
-      _cv.width = 96;
-      _cv.height = 64;
-      _ctx = _cv.getContext('2d', { willReadFrequently: true });
+  // A hidden, absolutely-positioned span, so measuring cannot perturb the layout
+  // being captured. `visibility:hidden` rather than `display:none` — a
+  // display:none element is not laid out and reports zero width. `white-space:pre`
+  // stops collapsing from affecting the measurement, and the element is kept out
+  // of the flow at a large negative offset so it cannot extend scroll bounds.
+  const measureWidth = (s, font) => {
+    if (_el == null) {
+      _el = document.createElement('span');
+      _el.setAttribute('data-domotion-probe', '1');
+      _el.style.cssText =
+        'position:absolute;left:-99999px;top:-99999px;visibility:hidden;'
+        + 'white-space:pre;pointer-events:none;margin:0;padding:0;border:0;';
+      document.body.appendChild(_el);
     }
-    _ctx.clearRect(0, 0, 96, 64);
-    _ctx.fillStyle = '#000';
-    _ctx.textBaseline = 'middle';
-    _ctx.font = '32px ' + font;
-    _ctx.fillText(s, 40, 32);
-    const data = _ctx.getImageData(0, 0, 96, 64).data;
-    let cnt = 0, minx = 1e9, maxx = -1;
-    for (let y = 0; y < 64; y++) {
-      for (let x = 0; x < 96; x++) {
-        if (data[(y * 96 + x) * 4 + 3] > 20) {
-          cnt++;
-          if (x < minx) minx = x;
-          if (x > maxx) maxx = x;
-        }
-      }
-    }
-    return { cnt, w: cnt > 0 ? (maxx - minx + 1) : 0 };
+    // Fixed 32px probe (independent of the element's font size): whether Chrome
+    // circles a mark is a property of the (mark, font) pair, not the size, and a
+    // fixed size keeps the ratio threshold stable.
+    _el.style.font = '32px ' + font;
+    _el.textContent = s;
+    return _el.getBoundingClientRect().width;
   };
 
   // Does Chrome auto-insert a U+25CC before this lone mark/cluster-letter in
@@ -63,8 +79,8 @@ export const createDottedCircleDetect = () => {
   // cluster-initial LETTERS — e.g. Soyombo U+11A84) AND category Lm (modifier
   // LETTERS the Universal Shaping Engine also circles when orphaned — e.g. Kirat
   // Rai U+16D6B/6C, length / vowel modifiers that paint "◌ □" when stranded).
-  // The ink heuristic below is the real gate (a normal letter renders WITHOUT a
-  // circle, so bare ≠ comb → false), so including Lo / Lm only widens what's
+  // The width heuristic below is the real gate (a normal letter lays out WITHOUT
+  // a circle, so bare ≠ comb → false), so including Lo / Lm only widens what's
   // probed, never forces a false positive.
   const markGetsDottedCircle = (cp, ch, font) => {
     if (cp < 0x0900) return false;
@@ -75,13 +91,18 @@ export const createDottedCircleDetect = () => {
     if (hit !== undefined) return hit;
     let res = false;
     try {
-      const bare = inkStats(ch, font);
-      const comb = inkStats('◌' + ch, font);
-      // Auto-inserted ⟺ the bare-mark render ALREADY contains the circle, so
-      // bare ≈ comb in count and width. Spacing marks make `comb` markedly
-      // wider (the explicit ◌ adds its advance) → excluded by the width ratio.
-      const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;
-      res = bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25;
+      const bare = measureWidth(ch, font);
+      const comb = measureWidth('◌' + ch, font);
+      // Auto-inserted ⟺ the bare mark ALREADY lays out as ◌+mark, so adding an
+      // explicit ◌ changes nothing and the two widths agree. When Chrome paints
+      // the mark alone — whether as a spacing mark with its own advance or as a
+      // lone tofu for an uncovered codepoint — the explicit circle adds its
+      // advance and `comb` is measurably wider.
+      //
+      // 5%: the two cases are far apart in practice (identical widths versus a
+      // whole extra advance, typically +60% or more), so the threshold is not a
+      // tuned constant — it only absorbs sub-pixel layout rounding.
+      res = bare > 0 && comb > 0 && Math.abs(comb - bare) / comb < 0.05;
     } catch (e) {
       res = false;
     }
