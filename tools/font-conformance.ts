@@ -1027,18 +1027,39 @@ async function main(): Promise<number> {
         batchNo++;
         const cps = universe.slice(i, i + opts.batch);
         // DM-1889: ask the platform helper about the whole batch ONCE, so the
-        // per-codepoint resolution below finds its answers already memoized.
-        // Chrome's side has always been batched (`facesFor(cps, …)`); ours asked
-        // one codepoint at a time, which on Windows is a process spawn EACH
-        // because the persistent channel is disabled there (DM-1421). Measured
-        // 8.24 ms/codepoint on Windows against macOS's 0.65.
+        // DM-1889: batch-warming the platform helper is DISABLED, off by default,
+        // because it moves macOS answers and nobody has yet explained why.
         //
-        // This changes no answer: it warms the helper memo only, and every
-        // resolution decision still runs per codepoint exactly as before.
-        warmSystemFallbackForCodepoints(
-          cps, rs.spec.fontWeight, rs.slant, rs.spec.fontSize, rs.primaryKey,
-          stackPrimaryIsSystemUi(rs.spec.fontFamily),
-        );
+        // The claim it shipped with — "this changes no answer: it warms the helper
+        // memo only, and every resolution decision still runs per codepoint
+        // exactly as before" — was reasoned from the code and checked against a
+        // local 5% codepoint slice, where warm and no-warm were byte-identical
+        // across all six stacks. At full slice on CI it is not. Measured, same
+        // corpus, same runner image, same font-inventory digest:
+        //
+        //     pre-warm commit   26,625 mismatches  (reproduces the baseline EXACTLY)
+        //     with the warm     27,397             (+772)
+        //     with the warm     27,043             (+418)
+        //
+        // Two things follow, and the second is the worse one. The warm moves
+        // answers; and it moves them *differently between runs of the same code*,
+        // where the pre-warm commit reproduces its baseline to the row. So it did
+        // not merely shift a result, it introduced non-determinism into the
+        // instrument the whole font programme is graded by.
+        //
+        // Not diagnosed here, and deliberately not left on while it is undiagnosed:
+        // a faster oracle that sometimes disagrees with itself is worth less than
+        // no speed-up at all. The Windows motivation is in any case largely gone —
+        // the named-pipe transport made helper calls ~83x cheaper there, which is
+        // what the 8.24 ms/codepoint problem actually needed. `warmSystemFallback-
+        // ForCodepoints` is retained, with its per-codepoint memo, for whoever
+        // picks up the diagnosis.
+        if (process.env.DOMOTION_FC_WARM === "1") {
+          warmSystemFallbackForCodepoints(
+            cps, rs.spec.fontWeight, rs.slant, rs.spec.fontSize, rs.primaryKey,
+            stackPrimaryIsSystemUi(rs.spec.fontFamily),
+          );
+        }
         const tc = Date.now();
         const faces = await oracle.facesFor(cps, spec);
         chromeMs += Date.now() - tc;
