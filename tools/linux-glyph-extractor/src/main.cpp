@@ -25,6 +25,8 @@
 // and fail the fontkit `H` parity test. (docs/45 originally said "negate y";
 // that was wrong — corrected to match the macOS helper + fontkit.)
 
+#include <fontconfig/fontconfig.h>
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
@@ -444,6 +446,125 @@ static FT_Long resolveFaceIndex(FT_Library lib, const std::string& path,
   return 0;
 }
 
+// ─────────────────── per-codepoint system fallback (fontconfig) ─────────────
+//
+// DM-1886. Transcribes what Chrome does on Linux, which is NOT what
+// `fc-match ":charset=<hex>"` does.
+//
+// Blink: `linux/font_cache_linux.cc:89-97` → `gfx::GetFallbackFontForChar(c,
+// locale, …)`. That implementation (`ui/gfx/font_fallback_linux.cc` — fetched
+// from chromium.googlesource.com, since the local checkout carries only
+// `third_party/blink/renderer/**`, so it cannot be pinned to our revision the
+// way Blink files can) does:
+//
+//     FcPatternAddString(pattern, FC_LANG, locale)
+//     FcConfigSubstitute(config, pattern, FcMatchPattern)
+//     FcDefaultSubstitute(pattern)
+//     FcFontSort(config, pattern, FcTrue, nullptr, &result)
+//     → walk the sorted set; take the FIRST font whose charset covers the char
+//     → read back FC_FILE and FC_INDEX
+//
+// **The character never enters the pattern.** The locale does. That is the
+// substantive difference from `fc-match :charset=`, which is `FcFontMatch` with
+// the codepoint as a charset CONSTRAINT: fontconfig then scores coverage as one
+// weighted criterion among many and returns a single best match — which is why
+// that path can return a font that does not cover the character at all, and why
+// the Node side needs a `fontFileCoversCodepoint` guard behind it. Here coverage
+// is a FILTER applied while walking a locale-sorted list, exactly as in Chrome,
+// so no such guard is required: a miss reports found:false.
+//
+// The sorted set depends only on the locale, not on the codepoint, so it is
+// built once per language and reused for every codepoint in the batch. That is
+// what makes this fast as well as faithful — the old path spawned `fc-match`
+// once per codepoint (~12.1 ms each, ~99% of a Linux conformance shard).
+//
+// `isBold` / `isItalic` are returned because Blink reads them back and MUTATES
+// the FontDescription with them (`font_cache_linux.cc:106-129`): a bold face
+// raises a sub-bold request, and a non-bold face under a bold request turns on
+// SYNTHETIC bold. The Node side cannot make that decision without them.
+//   in : { type:"fcfallback", cps:[...], lang?:"en" }
+//   out: { type:"fcfallback", fonts:[ {cp,found:true,path,index,isBold,isItalic,family}
+//                                   | {cp,found:false} ] }
+static FcFontSet* sortedSetForLang(const std::string& lang) {
+  // Keyed by language: FcFontSort's answer is a function of the pattern, and the
+  // only thing we put in the pattern is FC_LANG.
+  static std::map<std::string, FcFontSet*> cache;
+  auto it = cache.find(lang);
+  if (it != cache.end()) return it->second;
+
+  FcConfig* config = FcConfigGetCurrent();
+  FcPattern* pattern = FcPatternCreate();
+  if (pattern == nullptr) return nullptr;
+  FcPatternAddString(pattern, FC_LANG,
+                     reinterpret_cast<const FcChar8*>(lang.c_str()));
+  FcConfigSubstitute(config, pattern, FcMatchPattern);
+  FcDefaultSubstitute(pattern);
+
+  FcResult result;
+  // trim=FcTrue matches Chrome: the set keeps only fonts that add coverage.
+  FcFontSet* fonts = FcFontSort(config, pattern, FcTrue, nullptr, &result);
+  FcPatternDestroy(pattern);
+  cache[lang] = fonts;  // may be null; cached either way so we retry once only
+  return fonts;
+}
+
+static std::string runFcFallbackQuery(const JsonValue& query) {
+  std::string lang = query.at("lang").asString();
+  if (lang.empty()) lang = "en";
+
+  std::ostringstream out;
+  out << "{\"type\":\"fcfallback\",\"fonts\":[";
+
+  FcFontSet* fonts = sortedSetForLang(lang);
+  const JsonArray& cps = query.at("cps").asArray();
+  for (size_t i = 0; i < cps.size(); i++) {
+    if (i > 0) out << ",";
+    const FcChar32 cp = static_cast<FcChar32>(cps[i].asNumber());
+    bool emitted = false;
+
+    if (fonts != nullptr) {
+      for (int f = 0; f < fonts->nfont && !emitted; f++) {
+        FcPattern* font = fonts->fonts[f];
+        FcCharSet* charset = nullptr;
+        if (FcPatternGetCharSet(font, FC_CHARSET, 0, &charset) != FcResultMatch
+            || charset == nullptr || !FcCharSetHasChar(charset, cp)) {
+          continue;
+        }
+        FcChar8* file = nullptr;
+        if (FcPatternGetString(font, FC_FILE, 0, &file) != FcResultMatch || file == nullptr) {
+          continue;
+        }
+        int index = 0;
+        FcPatternGetInteger(font, FC_INDEX, 0, &index);
+        int weight = FC_WEIGHT_REGULAR;
+        FcPatternGetInteger(font, FC_WEIGHT, 0, &weight);
+        int slant = FC_SLANT_ROMAN;
+        FcPatternGetInteger(font, FC_SLANT, 0, &slant);
+        FcChar8* family = nullptr;
+        FcPatternGetString(font, FC_FAMILY, 0, &family);
+
+        out << "{\"cp\":" << static_cast<long>(cp) << ",\"found\":true"
+            << ",\"path\":\"" << jsonEscape(reinterpret_cast<const char*>(file)) << "\""
+            << ",\"index\":" << index
+            << ",\"isBold\":" << (weight >= FC_WEIGHT_BOLD ? "true" : "false")
+            << ",\"isItalic\":" << (slant != FC_SLANT_ROMAN ? "true" : "false");
+        if (family != nullptr) {
+          out << ",\"family\":\"" << jsonEscape(reinterpret_cast<const char*>(family)) << "\"";
+        }
+        out << "}";
+        emitted = true;
+      }
+    }
+    // No covering font in the whole sorted set — the honest answer, and the one
+    // Chrome gives (GetFontForCharacter returns false → nullptr → the caller
+    // keeps its last resort). NOT a reason to fall back to a non-covering pick.
+    if (!emitted) out << "{\"cp\":" << static_cast<long>(cp) << ",\"found\":false}";
+  }
+
+  out << "]}";
+  return out.str();
+}
+
 // Open the font described by `spec`. Returns true on success (populating
 // `out`); on failure returns false and sets `err` — the caller decides whether
 // to `die()` (one-shot mode, preserving the original fatal contract) or skip
@@ -652,6 +773,8 @@ static std::string handleEnvelope(FT_Library lib, const JsonValue& envelope,
       response << runGlyphsQuery(queries[i], fonts);
     } else if (type == "meta") {
       response << runMetaQuery(queries[i], fonts);
+    } else if (type == "fcfallback") {
+      response << runFcFallbackQuery(queries[i]);
     } else {
       response << "{\"type\":\"" << jsonEscape(type) << "\",\"error\":\"unknown query type\"}";
     }

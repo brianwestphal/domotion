@@ -37,3 +37,23 @@ else()
   find_package(Freetype REQUIRED)
   target_link_libraries(domotion-glyph-paths PRIVATE Freetype::Freetype)
 endif()
+
+# DM-1886: fontconfig backs the `fcfallback` query — Chrome's own per-codepoint
+# Linux fallback is `FcFontSort` + walk-until-covered (`ui/gfx/font_fallback_linux.cc`),
+# not the `fc-match` CLI we used to spawn per codepoint. REQUIRED rather than
+# optional: fontconfig is a hard dependency of every Linux distro we target and
+# of the Playwright container, and a helper silently built without it would
+# answer "unknown query type" — which the Node side would read as "no helper"
+# and quietly fall back to the slow, non-equivalent CLI path. Failing the build
+# is the honest outcome.
+if(PkgConfig_FOUND)
+  pkg_check_modules(FONTCONFIG QUIET fontconfig)
+endif()
+if(FONTCONFIG_FOUND)
+  target_include_directories(domotion-glyph-paths PRIVATE ${FONTCONFIG_INCLUDE_DIRS})
+  target_link_directories(domotion-glyph-paths PRIVATE ${FONTCONFIG_LIBRARY_DIRS})
+  target_link_libraries(domotion-glyph-paths PRIVATE ${FONTCONFIG_LIBRARIES})
+else()
+  find_package(Fontconfig REQUIRED)
+  target_link_libraries(domotion-glyph-paths PRIVATE Fontconfig::Fontconfig)
+endif()
