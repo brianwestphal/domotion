@@ -954,13 +954,27 @@ export interface FcFallbackFont {
  * unlike `fc-match ":charset="` it cannot return a non-covering face — see the
  * `fcfallback` comment in `tools/linux-glyph-extractor/src/main.cpp`.
  */
+const _fcFallbackCache = new Map<string, FcFallbackFont | null>();
+
 export function resolveFcFallbackFonts(
   cps: number[], lang: string = "en",
 ): Map<number, FcFallbackFont | null> {
   const out = new Map<number, FcFallbackFont | null>();
   if (process.platform !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return out;
+  // DM-1889: memoize per (lang, cp), and ask only about what is not already
+  // known. Without this a batch warm would query and discard, leaving the
+  // per-codepoint caller to re-ask for every one — the warm would look like it
+  // worked while buying nothing. Keyed on lang too because the sorted set the
+  // answer comes from is a function of the locale.
+  const need: number[] = [];
+  for (const cp of cps) {
+    const k = `${lang}\u0000${cp}`;
+    if (_fcFallbackCache.has(k)) out.set(cp, _fcFallbackCache.get(k)!);
+    else need.push(cp);
+  }
+  if (need.length === 0) return out;
   try {
-    const resp = callHelper({ fonts: [], queries: [{ type: "fcfallback", lang, cps }] });
+    const resp = callHelper({ fonts: [], queries: [{ type: "fcfallback", lang, cps: need }] });
     const r: any = resp.results[0];
     // An older helper answers `{error:"unknown query type"}`; treat that as "no
     // helper for this question" rather than as "no font", so the caller falls
@@ -968,7 +982,7 @@ export function resolveFcFallbackFonts(
     if (r == null || r.type !== "fcfallback" || !Array.isArray(r.fonts)) return out;
     for (const e of r.fonts) {
       if (e == null || typeof e.cp !== "number") continue;
-      out.set(e.cp, e.found === true && typeof e.path === "string" && e.path !== ""
+      const resolved = e.found === true && typeof e.path === "string" && e.path !== ""
         ? {
             path: e.path,
             index: typeof e.index === "number" ? e.index : 0,
@@ -976,7 +990,9 @@ export function resolveFcFallbackFonts(
             isItalic: e.isItalic === true,
             family: typeof e.family === "string" ? e.family : undefined,
           }
-        : null);
+        : null;
+      out.set(e.cp, resolved);
+      _fcFallbackCache.set(`${lang}\u0000${e.cp}`, resolved);
     }
   } catch {
     return new Map();
@@ -1209,5 +1225,6 @@ export function clearGlyphHelperCache(): void {
   helperAvailable = null;
   helperPath = undefined;
   _systemFallbackCache.clear();
+  _fcFallbackCache.clear();
   _installedFontCache.clear();
 }

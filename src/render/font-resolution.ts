@@ -1614,6 +1614,53 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean 
   return first === "system-ui" || first === "blinkmacsystemfont";
 }
 
+/**
+ * Pre-warm the platform system-fallback lookup for a batch of codepoints
+ * (DM-1889).
+ *
+ * `resolveSystemFallbackKeyForCp` asks about ONE codepoint at a time, and every
+ * helper protocol here already accepts an array (`cps: number[]`). On macOS and
+ * Linux the difference is one round-trip over a warm persistent channel and
+ * barely shows. On **Windows** the persistent channel is disabled — a spawned
+ * pipe there exposes fd `-1`, so the synchronous read/write loop cannot drive it
+ * (DM-1421) — and every call is therefore a fresh `spawnSync`. Measured at
+ * **8.24 ms/codepoint against macOS's 0.65**, which made Windows the long pole
+ * of a three-platform sweep once DM-1886 fixed Linux.
+ *
+ * This deliberately warms only the HELPER-LEVEL memo, not the key cache. Every
+ * resolution decision — the emoji-presentation short-circuit, the in-family cut
+ * re-selection, the cascade base, the cache keying — stays exactly where it is
+ * and runs per codepoint as before; those calls simply find the helper's answer
+ * already present instead of spawning for it. Duplicating that logic into a
+ * batch path is how a warm result and a lazy one start disagreeing, which is a
+ * far worse bug than the one being fixed.
+ *
+ * Best-effort by construction: a helper that cannot answer leaves the memo empty
+ * and the per-codepoint path behaves exactly as it does today.
+ */
+export function warmSystemFallbackForCodepoints(
+  cps: number[], weight = 400, slant = 0, fontSize = 16,
+  primaryKey?: string, systemUiPrimary = false,
+): void {
+  if (cps.length === 0 || !_systemFallbackResolutionEnabled) return;
+  try {
+    if (process.platform === "darwin") {
+      const base = fallbackBaseFor(primaryKey);
+      resolveSystemFallbackFonts(cps, base.name, {
+        weight, italic: slant !== 0, fontSize, basePath: base.path,
+        ...(systemUiPrimary && _systemUiBaseEnabled ? { systemUi: true } : {}),
+      });
+    } else if (process.platform === "win32") {
+      resolveSystemFallbackFonts(cps, "Helvetica", { weight, italic: slant !== 0, fontSize });
+    } else if (process.platform === "linux") {
+      resolveFcFallbackFonts(cps);
+    }
+  } catch {
+    // A warm is an optimisation, never a correctness step. Swallowing here keeps
+    // a helper hiccup from failing a sweep that would otherwise resolve lazily.
+  }
+}
+
 function resolveSystemFallbackKeyForCp(
   cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
   primaryKey?: string, systemUiPrimary: boolean = false,

@@ -70,6 +70,7 @@ import {
   resolveFontKeyChain,
   resolveFontSpec,
   stackPrimaryIsSystemUi,
+  warmSystemFallbackForCodepoints,
 } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 
@@ -1025,6 +1026,19 @@ async function main(): Promise<number> {
         }
         batchNo++;
         const cps = universe.slice(i, i + opts.batch);
+        // DM-1889: ask the platform helper about the whole batch ONCE, so the
+        // per-codepoint resolution below finds its answers already memoized.
+        // Chrome's side has always been batched (`facesFor(cps, …)`); ours asked
+        // one codepoint at a time, which on Windows is a process spawn EACH
+        // because the persistent channel is disabled there (DM-1421). Measured
+        // 8.24 ms/codepoint on Windows against macOS's 0.65.
+        //
+        // This changes no answer: it warms the helper memo only, and every
+        // resolution decision still runs per codepoint exactly as before.
+        warmSystemFallbackForCodepoints(
+          cps, rs.spec.fontWeight, rs.slant, rs.spec.fontSize, rs.primaryKey,
+          stackPrimaryIsSystemUi(rs.spec.fontFamily),
+        );
         const tc = Date.now();
         const faces = await oracle.facesFor(cps, spec);
         chromeMs += Date.now() - tc;
