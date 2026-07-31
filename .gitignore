@@ -40,4 +40,4 @@ tools/scratch/
 /.hotsheet/*
 !/.hotsheet/settings.json
 /.glassbox/*
-!/.glassbox/settings.json
+!/.glassbox/settings.jsonexternal/harfbuzz/
