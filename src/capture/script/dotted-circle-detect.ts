@@ -49,29 +49,37 @@
 // gates on the mark being ORPHANED (no base in its cluster).
 
 export const createDottedCircleDetect = () => {
-  let _el = null;
   const _cache = new Map();
 
-  // A hidden, absolutely-positioned span, so measuring cannot perturb the layout
-  // being captured. `visibility:hidden` rather than `display:none` — a
-  // display:none element is not laid out and reports zero width. `white-space:pre`
-  // stops collapsing from affecting the measurement, and the element is kept out
-  // of the flow at a large negative offset so it cannot extend scroll bounds.
+  // Measure in a span that is attached ONLY for the duration of the measurement.
+  //
+  // The canvas this replaced was a DETACHED element — it never touched the page.
+  // A DOM measurement has to be laid out, so it must be attached, and that makes
+  // it a mutation of the very document being captured. Leaving it in place (even
+  // hidden) leaves live text in the tree and an extra box in the layout, which is
+  // the one structural difference between this probe and the canvas one that
+  // could affect anything other than the verdict.
+  //
+  // So: attach, measure, detach — synchronously, within one call, so the document
+  // is never observably different from the outside. `visibility:hidden` rather
+  // than `display:none` because a display:none element is not laid out and
+  // reports zero width; the negative offset keeps it out of the flow while it is
+  // briefly present.
   const measureWidth = (s, font) => {
-    if (_el == null) {
-      _el = document.createElement('span');
-      _el.setAttribute('data-domotion-probe', '1');
-      _el.style.cssText =
-        'position:absolute;left:-99999px;top:-99999px;visibility:hidden;'
-        + 'white-space:pre;pointer-events:none;margin:0;padding:0;border:0;';
-      document.body.appendChild(_el);
-    }
+    const el = document.createElement('span');
+    el.style.cssText =
+      'position:absolute;left:-99999px;top:-99999px;visibility:hidden;'
+      + 'white-space:pre;pointer-events:none;margin:0;padding:0;border:0;';
     // Fixed 32px probe (independent of the element's font size): whether Chrome
-    // circles a mark is a property of the (mark, font) pair, not the size, and a
-    // fixed size keeps the ratio threshold stable.
-    _el.style.font = '32px ' + font;
-    _el.textContent = s;
-    return _el.getBoundingClientRect().width;
+    // circles a mark is a property of the (mark, font) pair, not the size.
+    el.style.font = '32px ' + font;
+    el.textContent = s;
+    document.body.appendChild(el);
+    try {
+      return el.getBoundingClientRect().width;
+    } finally {
+      el.remove();
+    }
   };
 
   // Does Chrome auto-insert a U+25CC before this lone mark/cluster-letter in
