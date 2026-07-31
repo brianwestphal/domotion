@@ -416,13 +416,6 @@ export function textToPathMarkup(
         || run.decomposed === true
         || [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
 
-      if (process.env.DOMOTION_SHAPE_DEBUG === "1" && [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!))) {
-        process.stderr.write(
-          `RUNDBG text=${JSON.stringify(run.text)} key=${run.fontKey}`
-          + ` shapingRequired=${isShapingRequired} decomposed=${run.decomposed}`
-          + ` fontCtor=${run.font?.constructor?.name} hasLayout=${typeof run.font?.layout}\n`,
-        );
-      }
       if (!isShapingRequired) {
         // Per-char anchoring — primary runs and any fallback that's 1:1 char→
         // glyph (no shaping reordering or contextual joining). Each codepoint
