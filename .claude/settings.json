@@ -3,7 +3,21 @@
     "allow": [
       "Bash(curl * http://localhost:417*/api/*)",
       "Bash(curl * http://localhost:418*/api/*)",
-      "Bash(curl * http://localhost:419*/api/*)"
+      "Bash(curl * http://localhost:419*/api/*)",
+      "Bash(gh api repos/brianwestphal/domotion/actions/*)",
+      "Bash(gh api /repos/brianwestphal/domotion/actions/*)",
+      "Bash(gh api repos/brianwestphal/domotion/commits/*)",
+      "Bash(gh run view *)",
+      "Bash(gh run list *)",
+      "Bash(gh run download *)",
+      "Bash(gh api repos/brianwestphal/domotion/pulls/*)",
+      "Bash(bash tools/ci-status.sh *)",
+      "Bash(bash tools/ci-status.sh)",
+      "Bash(tools/ci-status.sh *)",
+      "Bash(./tools/ci-status.sh *)"
     ]
+  },
+  "sandbox": {
+    "excludedCommands": ["gh"]
   }
 }
