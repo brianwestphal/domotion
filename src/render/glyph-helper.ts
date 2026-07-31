@@ -962,6 +962,13 @@ export function createGlyphHelperFont(spec: {
       // uncovered codepoint must reach the naive branch so the renderer's own
       // `.notdef` handling applies, rather than having a shaper substitute a
       // different tofu.
+      if (process.env.DOMOTION_SHAPE_DEBUG === "1" && text.trim() !== "") {
+        process.stderr.write(
+          `SHAPEDBG text=${JSON.stringify(text)} len=${[...text].length}`
+          + ` covered=${fullyCovered} helperShaped=${shaped != null && shaped.length > 0}`
+          + ` hasFallback=${spec.shapeFallback != null}\n`,
+        );
+      }
       if (fullyCovered && spec.shapeFallback != null) {
         let ext: ShapedRunFallback | null = null;
         // A shaper is an optimisation of correctness, never a correctness
