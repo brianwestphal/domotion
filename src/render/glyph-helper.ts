@@ -1116,6 +1116,35 @@ export function resolveInstalledFont(
  * hook (`_persistentExitHookInstalled`), reused across captures. A cache-clear
  * is not a shutdown, so the live serve process and its disabled-latch persist.
  */
+/**
+ * Test-only: the RAW `meta` response for a face, so a suite can tell a stale
+ * helper binary from a font regression (DM-1873).
+ *
+ * The binary is a gitignored build artifact, and `isGlyphHelperAvailable()`
+ * answers "is one resolvable", not "does it speak the interface this Node side
+ * reads" — a fresh worktree resolves the downloaded RELEASE ASSET, which can
+ * predate fields added since. When that happens the helper suites do not skip;
+ * they run and fail on missing data, and the failures read as a font regression.
+ * `--version` cannot distinguish them: it reports a binary version that was not
+ * bumped when `nameMatched` / `resolution` were added.
+ *
+ * Not part of the runtime contract — the renderer treats every field here as
+ * optional and degrades correctly on an older binary (see `MetaResponse`).
+ */
+export function __helperMetaForTest(postscriptName: string): MetaResponse | null {
+  if (!isGlyphHelperAvailable()) return null;
+  try {
+    const resp = callHelper({
+      fonts: [{ ref: "f", postscriptName, size: 16 }],
+      queries: [{ type: "meta", fontRef: "f" }],
+    });
+    const r = resp.results[0];
+    return r != null && r.type === "meta" ? (r as unknown as MetaResponse) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function clearGlyphHelperCache(): void {
   helperAvailable = null;
   helperPath = undefined;

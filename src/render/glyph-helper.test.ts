@@ -11,8 +11,7 @@ import {
   isGlyphHelperAvailable,
   measureOutlineOffsetY,
   OFFSET_PROBE_GLYPHS,
-  resolveSystemFallbackFonts
-} from "./glyph-helper.js";
+  resolveSystemFallbackFonts, __helperMetaForTest } from "./glyph-helper.js";
 
 // DM-385 / DM-387: validates the Swift CoreText helper.
 // Tests are skipped automatically when:
@@ -777,6 +776,47 @@ describe("measureOutlineOffsetY (DM-1831)", () => {
 // Gated on a RESOLVABLE helper (in-tree build or the downloaded release asset),
 // not just the in-tree binary, since either can serve these queries.
 const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
+
+// DM-1873: a STALE helper is worse than an absent one, and the suites below
+// cannot tell you which you have.
+//
+// Absence is already handled — the gate above skips. But `isGlyphHelperAvailable()`
+// answers "is a binary resolvable", not "does it speak the interface this Node
+// side expects", and the two diverge in a specific, recurring way: the helper is
+// a gitignored build artifact, so a fresh worktree resolves the DOWNLOADED
+// RELEASE ASSET, which can predate fields the current Node side reads. When that
+// happens the suites do not skip — they run and fail on missing data, and the
+// failures present as a *font regression*, the most expensive thing in this
+// codebase to chase. It has cost real time three separate times, and once
+// produced a wrong "pre-existing on this branch" claim in a ticket note.
+//
+// `--version` does not help: it reports a binary version that was not bumped when
+// `nameMatched` / `resolution` were added to `meta`. So probe the interface
+// itself, once, and fail with the remedy rather than with an assertion about a
+// glyph.
+//
+// This is a TEST-only guard on purpose. The runtime degrades correctly on its own
+// (`MetaResponse.nameMatched` is optional and only an explicit `false` is treated
+// as negative), so a consumer on an older release asset is fine; it is the test
+// suite's diagnosis that is misleading, and that is what this fixes.
+(darwinHelper ? describe : describe.skip)("helper interface freshness (DM-1873)", () => {
+  it("the resolvable helper speaks the meta interface these tests read", () => {
+    const meta = __helperMetaForTest("Helvetica");
+    expect(meta, "helper resolved but returned no meta for Helvetica").not.toBeNull();
+    // `unitsPerEm` proves the query answered at all; the two newer fields are the
+    // ones a pre-DM-1015 asset omits.
+    expect(meta!.unitsPerEm).toBeGreaterThan(0);
+    const stale = meta!.nameMatched === undefined || meta!.resolution === undefined;
+    expect(
+      stale,
+      "STALE HELPER BINARY — it resolved and answered, but its `meta` response is "
+      + "missing fields this Node side reads (nameMatched / resolution). This is "
+      + "an out-of-date build artifact, NOT a font regression; the suites below will "
+      + "fail on missing data if you keep going.\n"
+      + "Fix: bash tools/macos-glyph-extractor/build.sh",
+    ).toBe(false);
+  });
+});
 
 (darwinHelper ? describe : describe.skip)("Apple Color Emoji outline offset, live (DM-1831)", () => {
   afterEach(() => clearGlyphHelperCache());
