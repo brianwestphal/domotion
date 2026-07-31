@@ -191,6 +191,23 @@ shortest possible map:
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
 
+## Upstream source is checked out locally — read it
+
+Two gitignored checkouts under `external/`. Between them they answer essentially every "what does Chrome actually do here" question this project asks, and reading them beats probing every time it has been tested.
+
+| checkout | contains | ask it about |
+| --- | --- | --- |
+| `external/chromium` | `third_party/blink/renderer/` | font *selection* + fallback, glyph metrics, paint order, CSS parsing, layout |
+| `external/harfbuzz` | HarfBuzz `src/` (sparse) | **all *shaping*** — clusters, marks, ligatures, reordering, dotted circles |
+
+**Shaping goes to HarfBuzz first.** Blink delegates it entirely, so the Blink tree only shows the call site. `hb-ot-shaper-{indic,use,khmer,myanmar,arabic,hangul}.cc`, `hb-ot-shaper-syllabic.cc` (dotted circles), `hb-ot-shape.cc` (normalization, shaping plan).
+
+Quote the revision beside anything you transcribe — `git -C external/<repo> log -1 --format='%h %cd' --date=short`.
+
+**Neither is complete.** `ui/gfx` is absent, as is the browser-side code supplying Windows' menu font. When the file you need is missing, mark the claim un-transcribed rather than filling the gap with a plausible story; a fetched summary is not the file.
+
+Full rationale, worked examples of what skipping this costs, and the per-platform entry points are in `CLAUDE.md` → "Read the local source. Always. Before probing."
+
 ## Debugging a render-fidelity bug
 
 The shortest possible path, per `CLAUDE.md` "Debugging the generated output":

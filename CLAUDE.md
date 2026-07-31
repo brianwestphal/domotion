@@ -142,6 +142,32 @@ Keep **text search** (ripgrep / the Explore agent) for what it's best at: litera
 
 You have **standing permission to use Playwright freely** for any investigation, debugging, or experimentation — driving live pages, replaying cached HARs (`tests/cache/real-world/*.har`), dumping captured trees with computed styles, comparing painted output against captured rects, or any other interactive probe. Do NOT defer a ticket as "needs DOM access" or "blocked on interactive Playwright session" — write the probe script, run it, and proceed. Probes can land as throwaway scripts or be inlined directly in a Bash invocation; whatever's expedient. **Put reusable-but-uncommitted scratch scripts under `tools/scratch/` — it's gitignored**, so they persist locally without cluttering `git status` or risking an accidental commit (ES imports there are `../../src/...`). A committed, documented probe (referenced from docs/CLAUDE.md) belongs at `tools/` proper.
 
+### Read the local source. Always. Before probing.
+
+**Two upstream checkouts live under `external/`, and between them they contain the answer to essentially every "why does Chrome do X" question this project asks:**
+
+| checkout | contains | ask it about |
+| --- | --- | --- |
+| `external/chromium` | `third_party/blink/renderer/` | font *selection* and fallback, glyph metrics, paint order, CSS parsing, layout |
+| `external/harfbuzz` | HarfBuzz `src/` | *shaping* — clusters, marks, ligatures, reordering, dotted circles |
+
+**The rule: when you don't know what Chrome does, read it — do not probe-and-curve-fit, and do not reason by analogy from another platform.** Probing tells you what one machine's fonts produced on one day; the source tells you the decision procedure. This is not a style preference, it is the difference between the two outcomes this project keeps seeing:
+
+- A sampled table froze one Mac's font inventory into source and painted faces Chrome never picks.
+- A day was spent designing, scoring and CI-dispatching **three** heuristics for dotted-circle insertion, all approximations of a rule that is three readable lines (`hb-ot-shaper-syllabic.cc:51-53`).
+- A Linux "divergence" was argued from a macOS analogy and would have *introduced* a difference from Chrome; the source shows `GetFontForCharacter(c, locale, …)` takes no weight at all.
+
+Neither checkout is complete. **`ui/gfx` is absent** (so `GetFallbackFontForChar`'s fontconfig details are not readable locally) and so is the browser-side code that supplies Windows' menu font. When the file you need is missing, say so and mark the claim as un-transcribed rather than filling the gap with a plausible story — `chromium.googlesource.com` / `source.chromium.org` are in the sandbox allowlist for `WebFetch`, but **a fetched summary is not the file** and has already produced a wrong conclusion here.
+
+Both are git checkouts, so always quote the revision beside anything you transcribe:
+
+```sh
+git -C external/chromium log -1 --format='%h %cd' --date=short   # 7d859f27, 2026-06-27
+git -C external/harfbuzz log -1 --format='%h %cd' --date=short   # 4de187d,  2026-07-31
+```
+
+They drift from the Chrome that Playwright ships, and that variance is accepted. When a transcribed constant starts disagreeing with measured paint, suspect drift and re-read before assuming our logic is wrong.
+
 **HarfBuzz is checked out locally at `external/harfbuzz`** (sparse, `src/` only; `git -C external/harfbuzz log -1 --format='%h %cd' --date=short` for the revision — as of writing `4de187d`, 2026-07-31). Blink shapes with HarfBuzz on every platform, so **shaping behavior is decided here, not in the Blink tree** — the Chromium checkout carries `third_party/blink/renderer/` and does NOT vendor HarfBuzz. Read this before reverse-engineering any shaping question: cluster formation, mark positioning, ligature and reordering rules, and dotted-circle insertion all live in `hb-ot-shaper-*.cc`. Worked example: the rule for whether Chrome paints a U+25CC before an orphaned mark is three lines of `hb-ot-shaper-syllabic.cc:51-53` — the shaper inserts one only if **the font used for the run has a glyph for U+25CC** — after a session spent building and scoring three separate heuristics that were all approximations of it.
 
 **The Chromium source is checked out locally at `external/chromium`** — the full `third_party/blink/renderer/` tree. **Read it there first**; it is greppable, complete, and doesn't cost a fetch. `chromium.googlesource.com` and `source.chromium.org` remain in the sandbox allowlist via `WebFetch` for anything the checkout lacks, but prefer the local tree — a fetched *summary* of a file is not the file, and reading locally has already corrected conclusions drawn from one (the Windows fallback order, below).
@@ -175,7 +201,17 @@ The honest boundary, worth stating rather than eliding: font selection, glyph ch
 | Linux | `font_cache_linux.cc` → `gfx::GetFallbackFontForChar(c, locale, …)` (or `WebSandboxSupport::GetFallbackFontForCharacter` when sandboxed) | keyed on **locale**; there is no base font |
 | Windows | `font_cache_skia_win.cc` → hardcoded table first, `GetDWriteFallbackFamily` as fall-through | the table wins whenever it matches |
 
-Whenever a ticket investigation reaches "I'm not sure why Chrome does X here," go read the blink renderer code instead of probing-and-curve-fitting. Useful entry points (all under `external/chromium/`):
+Whenever a ticket investigation reaches "I'm not sure why Chrome does X here," go read the source instead of probing-and-curve-fitting.
+
+**Shaping questions go to `external/harfbuzz/src/` first, not to Blink** — Blink delegates all of it, so the Blink tree will only show you the call site:
+
+- `hb-ot-shaper-indic.cc`, `-use.cc`, `-khmer.cc`, `-myanmar.cc`, `-arabic.cc`, `-hangul.cc` — the per-script shapers
+- `hb-ot-shaper-syllabic.cc` — dotted-circle insertion for broken clusters
+- `hb-ot-shaper-vowel-constraints.cc` — the other dotted-circle path
+- `hb-ot-shape.cc` — normalization, the shaping plan, `has_glyph` fallbacks
+- `hb-ot-layout-gsub/gpos-table.hh` — how features are actually applied
+
+Everything else goes to Blink (all under `external/chromium/`):
 
 - `third_party/blink/renderer/platform/fonts/` — font fallback, glyph metrics, sbix / COLR painters, `font-palette` resolution
 - `third_party/blink/renderer/platform/fonts/shaping/` — `ShapeResult`, glyph offset / advance math
