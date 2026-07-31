@@ -112,9 +112,37 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     expect(job).toMatch(/tests\/baselines\/font-conformance-\$\{\{ matrix\.os \}\}\.json/);
   });
 
-  it("the aggregate is told how many shards to expect", () => {
+  it("the aggregate is told how many shards to expect, across BOTH axes", () => {
     // Without it a run whose shards died would merge the survivors and report a
     // smaller mismatch total, which reads as an improvement.
-    expect(jobs["aggregate"]).toMatch(/--expected \$\{\{ inputs\.shards \}\}/);
+    //
+    // DM-1887: the matrix is now `shards x cp_shards`, so `inputs.shards` alone
+    // would under-state the denominator — and under-stating it is precisely the
+    // failure this assertion exists to prevent: with cp_shards=5 the aggregate
+    // would accept 6 of 30 reports as complete. The count is computed once in
+    // `setup` and passed through, so the workflow has a single source of truth.
+    expect(jobs["aggregate"]).toMatch(/--expected \$\{\{ needs\.setup\.outputs\.expected \}\}/);
+    expect(jobs["setup"]).toMatch(/expected=\$\(\(n \* c\)\)/);
+  });
+
+  it("fans out on both axes, with unique artifact names per cell", () => {
+    // Two dimensions in the matrix; GitHub takes their cross product.
+    expect(jobs["setup"]).toMatch(/\\"shard\\":\[\$list\],\\"cp\\":\[\$cplist\]/);
+    // An artifact name that omitted the cp index would have every codepoint
+    // shard of a stack overwrite its siblings — the merge would then see one
+    // report per stack shard, silently sweeping a fraction of the universe while
+    // reporting `complete`.
+    for (const os of ["macos", "linux", "windows"]) {
+      expect(jobs[`sweep-${os}`]).toContain(
+        `name: font-conformance-${os}-shard-\${{ matrix.shard }}-cp\${{ matrix.cp }}`.replace(/\\/g, ""),
+      );
+    }
+  });
+
+  it("defaults the codepoint axis to 1, so the shipped shape is unchanged", () => {
+    // `cp_shards: 1` must keep the shard script from passing `--shard` at all —
+    // the merge keys its codepoint accounting off `meta.shard` being null, and a
+    // gratuitous `--shard 1/1` would make a 1-D run look 2-D.
+    expect(yaml).toMatch(/cp_shards:[\s\S]{0,400}?default: '1'/);
   });
 });

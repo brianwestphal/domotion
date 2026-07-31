@@ -27,6 +27,14 @@ import { pathToFileURL } from "node:url";
  * @param {Array<{name: string, report: object|null}>} shards
  * @param {{os?: string, expected?: number, image?: string, fontInventory?: object|null}} opts
  */
+/** Sum an iterable of numbers. Small, but it keeps the two axis totals in
+ *  `mergeShards` reading as the symmetric pair they are. */
+function sum(values) {
+  let t = 0;
+  for (const v of values) t += v;
+  return t;
+}
+
 export function mergeShards(shards, opts = {}) {
   const summary = {};
   const byStack = {};
@@ -35,16 +43,34 @@ export function mergeShards(shards, opts = {}) {
   const missingShards = [];
   let meta = null;
 
-  let stacksSwept = 0;
+  // DM-1887: the two axes must be accounted DIFFERENTLY, and getting either one
+  // wrong produces a slice that looks comparable and is not.
+  //
+  // A shard is identified by (stackShard, cpShard). Stacks are partitioned along
+  // the stack axis and the SAME stacks are re-swept by every codepoint shard;
+  // codepoints are partitioned along the codepoint axis and the same universe is
+  // re-swept by every stack shard. So:
+  //
+  //   stacks     = sum over DISTINCT stack-shard indices   (summing all reports
+  //                would multiply by the number of cp shards)
+  //   codepoints = sum over DISTINCT cp-shard indices      (taking one report's
+  //                value would understate the universe by that same factor)
+  //
+  // Keying by index rather than counting reports makes this correct for all
+  // three shapes without a special case: a stack-only run has every `shard` null
+  // (one cp bucket, the full universe), a codepoint-only run has every
+  // `stackShard` null (one stack bucket, all stacks), and a 2-D run has both.
+  const stacksByStackShard = new Map();
+  const cpsByCpShard = new Map();
   for (const { name, report } of shards) {
     if (report == null) { missingShards.push(name); continue; }
     // The first shard's meta describes the run; every shard shares the corpus,
-    // the universe and the flags, and differs only in WHICH stacks it swept —
-    // so the stack count is summed rather than taken from one shard, which
-    // would record a six-stack sweep as a one-stack slice and make it look
-    // comparable to a genuinely different run.
+    // the universe and the flags, and differs only in WHICH slice it swept.
     if (meta == null) meta = report.meta ?? null;
-    stacksSwept += report.meta?.stacks ?? 0;
+    const si = report.meta?.stackShard?.[0] ?? 0;
+    const ci = report.meta?.shard?.[0] ?? 0;
+    stacksByStackShard.set(si, report.meta?.stacks ?? 0);
+    cpsByCpShard.set(ci, report.meta?.codepoints ?? 0);
     for (const [k, v] of Object.entries(report.summary ?? {})) {
       if (typeof v === "number") summary[k] = (summary[k] ?? 0) + v;
     }
@@ -82,7 +108,11 @@ export function mergeShards(shards, opts = {}) {
         generatedAt: meta?.stackCorpusGeneratedAt ?? null,
         platform: meta?.stackCorpusPlatform ?? null,
       },
-      slice: { ...sliceOf(meta), stacks: stacksSwept },
+      slice: {
+        ...sliceOf(meta),
+        stacks: sum(stacksByStackShard.values()),
+        codepoints: sum(cpsByCpShard.values()),
+      },
       fontInventory: opts.fontInventory ?? null,
       shardsExpected: expected,
       shardsMerged: shards.length - missingShards.length,

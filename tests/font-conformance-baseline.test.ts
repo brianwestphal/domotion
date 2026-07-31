@@ -33,6 +33,68 @@ const report = (over: Record<string, unknown> = {}): Record<string, unknown> => 
 });
 
 describe("mergeShards", () => {
+  // DM-1887: with a 2-D matrix (stack shards x codepoint shards) the two axes
+  // must be folded DIFFERENTLY, and either mistake yields a slice that looks
+  // comparable to a baseline and is not — which the comparator would then judge
+  // against, since it compares slices rather than refusing on them.
+  //
+  //   stacks are PARTITIONED along the stack axis and RE-SWEPT by every cp shard
+  //   codepoints are PARTITIONED along the cp axis and RE-SWEPT by every stack shard
+  //
+  // So summing every report double-counts stacks by the cp-shard factor, and
+  // taking one report's codepoints understates the universe by the same factor.
+  const shard2d = (si: number, ci: number, stacks: number, cps: number) => ({
+    name: `s${si}c${ci}`,
+    report: {
+      meta: { stacks, codepoints: cps, stackShard: [si, 2], shard: [ci, 3] },
+      summary: { mismatchTotal: 10 },
+    },
+  });
+
+  it("folds a 2-D matrix without double-counting either axis", () => {
+    const shards = [];
+    for (let si = 1; si <= 2; si++) for (let ci = 1; ci <= 3; ci++) shards.push(shard2d(si, ci, 3, 100));
+    const m = mergeShards(shards as never, { expected: 6 });
+    // 2 stack shards x 3 stacks each. NOT 18 (which is what summing all six gives).
+    expect(m.meta.slice.stacks).toBe(6);
+    // 3 cp shards x 100 codepoints. NOT 100 (one report's value).
+    expect(m.meta.slice.codepoints).toBe(300);
+    // Row counts DO sum over every report — each swept a disjoint (stack, cp) cell.
+    expect(m.summary.mismatchTotal).toBe(60);
+    expect(m.meta.complete).toBe(true);
+  });
+
+  it("leaves a stack-only run's accounting exactly as before", () => {
+    // The shipped shape: `shard` is null because the shard script omits
+    // `--shard` unless cp_shards > 1. Codepoints must be the full universe.
+    const shards = [1, 2, 3].map((si) => ({
+      name: `s${si}`,
+      report: { meta: { stacks: 2, codepoints: 292466, stackShard: [si, 3], shard: null }, summary: {} },
+    }));
+    const m = mergeShards(shards as never, { expected: 3 });
+    expect(m.meta.slice.stacks).toBe(6);
+    expect(m.meta.slice.codepoints).toBe(292466);
+  });
+
+  it("folds a codepoint-only run, the mirror case", () => {
+    const shards = [1, 2].map((ci) => ({
+      name: `c${ci}`,
+      report: { meta: { stacks: 6, codepoints: 150, stackShard: null, shard: [ci, 2] }, summary: {} },
+    }));
+    const m = mergeShards(shards as never, { expected: 2 });
+    expect(m.meta.slice.stacks).toBe(6);
+    expect(m.meta.slice.codepoints).toBe(300);
+  });
+
+  it("still withholds the verdict when a 2-D shard is missing", () => {
+    // The shard-loss guard has to survive the bigger matrix: 30 jobs is 30
+    // chances to lose one, and a smaller denominator reads as fewer mismatches.
+    const shards = [shard2d(1, 1, 3, 100), { name: "s1c2", report: null }];
+    const m = mergeShards(shards as never, { expected: 6 });
+    expect(m.meta.complete).toBe(false);
+    expect(m.meta.missingShards).toContain("s1c2");
+  });
+
   it("sums the numeric summary fields across shards", () => {
     const m = mergeShards([
       { name: "s1", report: report() },

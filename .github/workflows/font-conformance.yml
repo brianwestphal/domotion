@@ -40,6 +40,9 @@ on:
       shards:
         description: 'Number of stack shards to fan out across'
         default: '6'
+      cp_shards:
+        description: 'DM-1887. Codepoint shards per stack shard (2nd matrix axis). 1 = the stack-only fan-out this workflow shipped with. Total jobs = shards x cp_shards, so mind the ~20-job concurrency ceiling. Widen for LINUX first: its per-job overhead is 49s against macOS''s 156s (36% of the job), so extra macOS jobs mostly buy more npm / Playwright / Swift setup.'
+        default: '1'
       max_stacks:
         description: 'Cap on the number of corpus stacks (most-used first). Empty = the whole corpus (~14h per platform, sharded).'
         default: '6'
@@ -71,6 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
+      expected: ${{ steps.m.outputs.expected }}
       os_list: ${{ steps.m.outputs.os_list }}
       macos_on: ${{ steps.m.outputs.macos_on }}
       linux_on: ${{ steps.m.outputs.linux_on }}
@@ -79,8 +83,15 @@ jobs:
       - id: m
         run: |
           n="${{ inputs.shards }}"
+          c="${{ inputs.cp_shards }}"
+          c="${c:-1}"
           list=$(seq 1 "$n" | paste -sd, -)
-          echo "matrix={\"shard\":[$list],\"total\":[$n]}" >> "$GITHUB_OUTPUT"
+          cplist=$(seq 1 "$c" | paste -sd, -)
+          # DM-1887: GitHub takes the cross product of matrix dimensions, so this
+          # fans out to `shards x cp_shards` jobs. `total` / `cp_total` are
+          # single-element dimensions carrying the denominators to the shard script.
+          echo "matrix={\"shard\":[$list],\"cp\":[$cplist],\"total\":[$n],\"cp_total\":[$c]}" >> "$GITHUB_OUTPUT"
+          echo "expected=$((n * c))" >> "$GITHUB_OUTPUT"
           sel="${{ inputs.os }}"
           on() { [ "$sel" = "$1" ] || [ "$sel" = "all" ] && echo true || echo false; }
           echo "macos_on=$(on macos)" >> "$GITHUB_OUTPUT"
@@ -121,13 +132,15 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           TOTAL: ${{ matrix.total }}
+          CP_SHARD: ${{ matrix.cp }}
+          CP_TOTAL: ${{ matrix.cp_total }}
           RANGE: ${{ inputs.range }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           NO_PUA: ${{ inputs.no_pua }}
           STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
         with:
-          name: font-conformance-macos-shard-${{ matrix.shard }}
+          name: font-conformance-macos-shard-${{ matrix.shard }}-cp${{ matrix.cp }}
           path: tests/output/font-conformance/
           retention-days: 14
 
@@ -158,13 +171,15 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           TOTAL: ${{ matrix.total }}
+          CP_SHARD: ${{ matrix.cp }}
+          CP_TOTAL: ${{ matrix.cp_total }}
           RANGE: ${{ inputs.range }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           NO_PUA: ${{ inputs.no_pua }}
           STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
         with:
-          name: font-conformance-linux-shard-${{ matrix.shard }}
+          name: font-conformance-linux-shard-${{ matrix.shard }}-cp${{ matrix.cp }}
           path: tests/output/font-conformance/
           retention-days: 14
 
@@ -193,13 +208,15 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           TOTAL: ${{ matrix.total }}
+          CP_SHARD: ${{ matrix.cp }}
+          CP_TOTAL: ${{ matrix.cp_total }}
           RANGE: ${{ inputs.range }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           NO_PUA: ${{ inputs.no_pua }}
           STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
         with:
-          name: font-conformance-windows-shard-${{ matrix.shard }}
+          name: font-conformance-windows-shard-${{ matrix.shard }}-cp${{ matrix.cp }}
           path: tests/output/font-conformance/
           retention-days: 14
 
@@ -224,7 +241,7 @@ jobs:
           node scripts/merge-font-conformance-shards.mjs \
             --shards shards \
             --os ${{ matrix.os }} \
-            --expected ${{ inputs.shards }} \
+            --expected ${{ needs.setup.outputs.expected }} \
             --out merged.json
       # Baseline-relative, not absolute-zero: Linux and Windows have never been
       # measured before, so an absolute gate would fail identically on every run

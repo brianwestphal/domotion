@@ -23,6 +23,13 @@ mkdir -p "$OUT_DIR"
 # not word-split in every shell this runs under, and a quoted one becomes one
 # argument containing spaces. Both silently disarm the flags.
 args=(--stack-shard "${SHARD}/${TOTAL}" --out "$OUT_DIR")
+# DM-1887: the second axis. Omitted entirely when CP_TOTAL is 1 or unset, so the
+# report's `meta.shard` stays null and a stack-only run is byte-identical to what
+# this script produced before — the merge keys its codepoint accounting off that
+# field, and an unnecessary `--shard 1/1` would make a 1-D run look 2-D.
+if [ -n "${CP_TOTAL:-}" ] && [ "${CP_TOTAL}" != "1" ]; then
+  args+=(--shard "${CP_SHARD}/${CP_TOTAL}")
+fi
 [ -n "${RANGE:-}" ] && args+=(--range "$RANGE")
 [ -n "${MAX_STACKS:-}" ] && args+=(--max-stacks "$MAX_STACKS")
 [ "${NO_PUA:-false}" = "true" ] && args+=(--no-pua)
