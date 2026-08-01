@@ -113,12 +113,22 @@ describeDarwin("system-ui CJK cascade picks Chrome's optical cut (DM-1879)", () 
     ]);
   });
 
-  it("keeps size and weight independent — italic must not leak either", () => {
-    // Same class, third parameter: `cssSlant` is also part of what the base is
-    // built from, so asking italic first must not answer for the upright.
-    const italicFirst = resolvedFace(13, 400, 1);
-    const uprightAfter = resolvedFace(13, 400, 0);
-    expect(italicFirst).toBe("sysfb:.PingFangUIDisplaySC-Regular");
-    expect(uprightAfter).toBe("sysfb:.PingFangUITextSC-Regular");
+  // DM-1902: `slant` is the third parameter the base is built from, and it has
+  // TWO sources on the helper side — an explicit `cssSlant`, or the older
+  // boolean `italic`. Keying on the raw fields would have to know that; the
+  // helper now keys on the RESOLVED value, from the same function that builds
+  // the face, so the key cannot drift from the derivation again.
+  //
+  // Asserted in both orders for the same reason as the weight case: the first
+  // ask at a given key is always correct, so a one-directional test proves
+  // nothing about a cache.
+  it("does not leak slant in either direction", () => {
+    const italicThenUpright = [resolvedFace(13, 400, 1), resolvedFace(13, 400, 0)];
+    const uprightThenItalic = [resolvedFace(13, 400, 0), resolvedFace(13, 400, 1)].reverse();
+    expect(italicThenUpright).toEqual(uprightThenItalic);
+    expect(italicThenUpright).toEqual([
+      "sysfb:.PingFangUIDisplaySC-Regular",   // PingFang has no italic → Display
+      "sysfb:.PingFangUITextSC-Regular",
+    ]);
   });
 });

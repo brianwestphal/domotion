@@ -77,6 +77,35 @@ func clampVariationValuesToFontAcceptableRange(_ font: CTFont,
     }
 }
 
+/// The CSS description a `systemUI` spec resolves to.
+///
+/// One function, used by BOTH `openFont` (to build the face) and `fontCacheKey`
+/// (to key it). That sharing is the point rather than a convenience: the cache
+/// key must be a function of exactly the inputs the face is derived from, and
+/// the previous bug in this file was the two drifting apart — the key omitted
+/// the `system-ui` CSS values entirely, so one cached base answered for every
+/// weight at a given size and the winner was whichever spec asked first.
+///
+/// `slant` in particular has TWO sources: an explicit `cssSlant`, or the older
+/// boolean `italic`. Keying on the raw fields would have to know that; keying
+/// on the resolved value cannot get it wrong.
+struct SystemUICSS: Equatable {
+    let weight: Double
+    let slant: Double
+    let width: Double
+}
+
+func systemUICSS(from spec: [String: Any]) -> SystemUICSS {
+    // CSS values, not booleans: Blink derives the traits from the numbers, so
+    // the thresholds have to live on this side to match it.
+    SystemUICSS(
+        weight: (spec["cssWeight"] as? NSNumber)?.doubleValue ?? kNormalWeightValue,
+        slant: (spec["cssSlant"] as? NSNumber)?.doubleValue
+            ?? (((spec["italic"] as? NSNumber)?.boolValue == true) ? 1.0 : kNormalSlopeValue),
+        width: (spec["cssWidth"] as? NSNumber)?.doubleValue ?? kNormalWidthValue,
+    )
+}
+
 /// The `system-ui` primary, as Blink builds it.
 ///
 /// Transcribed from `MatchSystemUIFont` (font_matcher_mac.mm:540-588). The
@@ -181,12 +210,8 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     // comment notes the same effect for emoji: the system API "might also return
     // '.Apple Color Emoji UI' when starting from system-ui" (font_cache_mac.mm:156-159).
     if (spec["systemUI"] as? NSNumber)?.boolValue == true {
-        // CSS values, not booleans: Blink derives the traits from the numbers,
-        // so the thresholds have to live on this side to match it.
-        let cssWeight = (spec["cssWeight"] as? NSNumber)?.doubleValue ?? kNormalWeightValue
-        let cssWidth = (spec["cssWidth"] as? NSNumber)?.doubleValue ?? kNormalWidthValue
-        let cssSlant = (spec["cssSlant"] as? NSNumber)?.doubleValue
-            ?? (((spec["italic"] as? NSNumber)?.boolValue == true) ? 1.0 : kNormalSlopeValue)
+        let css = systemUICSS(from: spec)
+        let cssWeight = css.weight, cssSlant = css.slant, cssWidth = css.width
         guard let f = matchSystemUIFont(weight: cssWeight, slant: cssSlant,
                                         width: cssWidth, size: CGFloat(size)) else {
             // Blink propagates this null: `CreateFontPlatformData` sees a null
@@ -863,10 +888,11 @@ func fontCacheKey(_ spec: [String: Any]) -> String {
     // Display cut purely according to sweep order.
     var uiKey = ""
     if (spec["systemUI"] as? NSNumber)?.boolValue == true {
-        let w = (spec["cssWeight"] as? NSNumber)?.stringValue ?? ""
-        let sl = (spec["cssSlant"] as? NSNumber)?.stringValue ?? ""
-        let wd = (spec["cssWidth"] as? NSNumber)?.stringValue ?? ""
-        uiKey = "|ui:\(w),\(sl),\(wd)"
+        // Keyed on the RESOLVED values, from the same function `openFont` uses,
+        // so the key cannot drift from the derivation. Keying on the raw fields
+        // would miss that `slant` also comes from the older boolean `italic`.
+        let css = systemUICSS(from: spec)
+        uiKey = "|ui:\(css.weight),\(css.slant),\(css.width)"
     }
     return "\(ps)|\(fp)|\(sz)|\(varKey)\(uiKey)"
 }
