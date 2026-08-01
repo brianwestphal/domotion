@@ -1647,11 +1647,20 @@ function renderTextAsEmbedded(
     const faceIsBold = faceNaturalWeight != null && faceNaturalWeight >= 600;
     const faceLacksWeight = run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
-      (process.platform === "darwin"
-        ? weight > 500 && !faceIsBold
-        : process.platform === "win32"
-          ? weight >= 600 && !faceIsBold
-          : weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA);
+      (process.platform === "win32"
+        // Windows only, for now. Linux keeps the delta because the delta IS its
+        // transcription. macOS is ALSO wrong today, and is deliberately left
+        // wrong rather than half-fixed: its rule tests CoreText's
+        // `kCTFontTraitBold` symbolic trait, and standing in
+        // `faceNaturalWeight >= 600` for that regressed
+        // `2070-209F-superscripts-and-subscripts` (0.0138 → 0.0574) with nothing
+        // gained across 818 fixtures. A face declaring weight 500 that carries
+        // the bold trait is treated as not-bold by the stand-in, so we synthesise
+        // where Chrome does not. Fixing it properly means plumbing the real trait
+        // out of the CoreText helper; until then the delta is the better wrong
+        // answer, and saying so beats shipping a transcription that measures worse.
+        ? weight >= 600 && !faceIsBold
+        : weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA);
     const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
     const fakeBoldStroke = resolveFakeBoldTextStroke({
       strokeWidthPx: (textStrokeWidth != null && textStrokeWidth > 0
