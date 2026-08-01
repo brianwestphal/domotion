@@ -3627,14 +3627,31 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     // matcher's resolved values — see resolveAxisLocationForFile) and pass it
     // to the helper as `variations`, so its outlines and advances come from
     // the SAME instance the embedded subset pins (e.g. "Segoe UI Variable
-    // Display" at opsz 36, not the file default). macOS stays untouched: no
-    // variations are sent there (CoreText named faces already resolve the
-    // optical instance; validated pixel-exact by the full macOS sweeps).
-    const helperFaceInfo = (hintedSubsetEnabled() || process.platform === "win32")
+    // Display" at opsz 36, not the file default).
+    //
+    // macOS needs it too, for the same reason and against the previous comment
+    // here, which claimed "CoreText named faces already resolve the optical
+    // instance". Measured on macOS 26.5.2 with the SF Indic faces
+    // (`.SFDevanagari-Regular` in `SFIndia.ttc`, U+0915, upem 1000): a handle
+    // opened by name/path reports NO variation and NO optical-size attribute at
+    // any size, and its advance is 802 — the face at its default `opsz` 28 —
+    // while Chrome paints 833 for a 13 px run. Chrome does not inherit
+    // CoreText's implicit sizing either; it OVERRIDES it, cloning the typeface
+    // at `opsz` = the specified size (see `resolveDarwinAxisLocation`). So the
+    // axes must be applied here rather than assumed.
+    //
+    // The two platforms resolve DIFFERENT axis sets, which is why this is not
+    // one call: Windows pins `wght` from the CSS weight because DirectWrite has
+    // not applied it, macOS must not because the CoreText trait/weight
+    // re-selection already has.
+    const helperFaceInfo = (hintedSubsetEnabled() || process.platform === "win32" || process.platform === "darwin")
       ? resolveFaceInfoForFile(spec.path, spec.postscriptName) : null;
-    const helperAxes = (process.platform === "win32" && helperFaceInfo?.fileAxes != null)
-      ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes)
-      : undefined;
+    const helperAxes = helperFaceInfo?.fileAxes == null ? undefined
+      : process.platform === "win32"
+        ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes)
+        : process.platform === "darwin"
+          ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings)
+          : undefined;
     const helper = createGlyphHelperFont({
       postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes,
       // DM-1883: only consulted when the helper's own `shape` query fails, which
@@ -4204,6 +4221,62 @@ export function resolveAxisLocationForFile( // exported for unit testing (not in
  *  the mixed-size demo growth). Clamping at the RECORDING site dedupes the
  *  keys without touching fidelity — the pinned outlines are unchanged by
  *  construction. */
+/**
+ * The macOS axis location, transcribed from Blink rather than from ours.
+ *
+ * `resolveAxisLocationForFile` above pins `wght` from the CSS weight, which is
+ * right for Windows (DirectWrite hands back the default fvar instance and the
+ * weight has nowhere else to come from) and wrong for macOS. Blink's loop —
+ * `mac/font_platform_data_mac.mm:169-185`, checkout `7d859f27` — sets exactly
+ * two things:
+ *
+ *   - `opsz`, to the CSS **specified** size, when `font-optical-sizing: auto`
+ *     (the default). The source comment is explicit that this is the specified
+ *     rather than the computed size, "in order to account for zoom".
+ *   - any axis named in `font-variation-settings`, which is allowed to override
+ *     the `opsz` just set.
+ *
+ * `wght` is deliberately absent: on macOS the weight is already baked into the
+ * face by the CoreText trait/weight re-selection that runs BEFORE this
+ * (`GetAlternateFontPlatformData` → `CreateCopyWithTraitsAndWeightFromFont`,
+ * `font_cache_mac.mm:242-267`), which the glyph helper transcribes. Pinning
+ * `wght` here as well would re-apply the CSS weight on top of a face that has
+ * already answered for it.
+ *
+ * Both Blink (`VariableAxisChangeEffective`, `:74-79`) and Skia
+ * (`SkTPin` in `ctvariation_from_SkFontArguments`, `src/ports/SkTypeface_mac_ct.cpp:1147`,
+ * checkout `ebf5052`) clamp the requested value into the axis range before
+ * applying it, so the clamp is not our rounding — it is the mechanism. It is
+ * what makes a 13 px run on a face whose `opsz` axis is `[17 .. 28]` resolve to
+ * 17, which is what Chrome reports (`opsz110000`, hex 16.16 → 17.0).
+ *
+ * Returns `undefined` when nothing moved off the file's defaults, mirroring
+ * Blink's `axes_reconfigured` guard: no clone, keep the base face.
+ */
+export function resolveDarwinAxisLocation( // exported for unit testing (not in the package barrel)
+  fileAxes: Record<string, unknown>, fontSize: number,
+  variationSettings?: Record<string, number>,
+): Record<string, number> | undefined {
+  const axes: Record<string, number> = {};
+  if (fileAxes.opsz != null) axes.opsz = fontSize;
+  if (variationSettings != null) {
+    for (const tag of Object.keys(variationSettings)) {
+      if (fileAxes[tag] != null) axes[tag] = variationSettings[tag];
+    }
+  }
+  if (Object.keys(axes).length === 0) return undefined;
+  clampAxesToFvarRange(axes, fileAxes);
+  // Drop any tag that landed back on the file's default — instancing there is a
+  // no-op, and an axis map that differs from `{}` only by default values would
+  // split otherwise byte-identical embedded subsets into separate @font-face
+  // entries (the reason `clampAxesToFvarRange` exists).
+  for (const tag of Object.keys(axes)) {
+    const def = (fileAxes[tag] as { default?: number } | undefined)?.default;
+    if (typeof def === "number" && axes[tag] === def) delete axes[tag];
+  }
+  return Object.keys(axes).length > 0 ? axes : undefined;
+}
+
 function clampAxesToFvarRange(axes: Record<string, number>, fileAxes: Record<string, unknown>): Record<string, number> {
   for (const tag of Object.keys(axes)) {
     const def = fileAxes[tag] as { min?: number; max?: number } | undefined;

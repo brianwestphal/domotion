@@ -5,7 +5,7 @@
 // CSS-derived opsz=fontSize pin is wrong for them).
 import { describe, expect, it } from "vitest";
 
-import { resolveAxisLocationForFile } from "./font-resolution.js";
+import { resolveAxisLocationForFile, resolveDarwinAxisLocation } from "./font-resolution.js";
 
 /** Segoe UI Variable's fvar shape (wght 300-700, opsz 8-36). */
 const SEGOE_AXES = {
@@ -136,5 +136,77 @@ describe("resolveAxisLocationForFile: fvar named-instance coordinates", () => {
       .toEqual({ wght: 500 });
     expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0))
       .toEqual({ wght: 500 });
+  });
+});
+
+/**
+ * DM-1885: the macOS axis location, which is a DIFFERENT rule from the Windows
+ * one above and had to be transcribed separately.
+ *
+ * The gap it closes: on macOS we were sending no variations at all, on the
+ * stated theory that "CoreText named faces already resolve the optical
+ * instance". Measured on macOS 26.5.2, that is false — a handle opened by
+ * name/path reports no variation and no optical-size attribute at any size, and
+ * paints `.SFDevanagari-Regular` U+0915 at 802 (the default `opsz` 28) where
+ * Chrome paints the `opsz` 17 instance for a 13 px run.
+ *
+ * Chrome does not inherit CoreText's implicit sizing either — it overrides it,
+ * cloning the typeface at `opsz` = the specified size
+ * (`mac/font_platform_data_mac.mm:169-185`, Chromium `7d859f27`), with the value
+ * clamped into the axis range by both Blink (`VariableAxisChangeEffective`,
+ * `:74-79`) and Skia (`SkTPin`, `src/ports/SkTypeface_mac_ct.cpp:1147`,
+ * Skia `ebf5052`).
+ */
+describe("resolveDarwinAxisLocation (DM-1885)", () => {
+  // The real SF Indic shape: an opsz axis that does NOT reach down to body sizes.
+  const SF_INDIC = {
+    opsz: { name: "Optical Size", min: 17, default: 28, max: 28 },
+    wght: { name: "Weight", min: 1, default: 400, max: 1000 },
+  };
+
+  it("CLAMPS a small size up to the axis minimum — the case Chrome's name encodes", () => {
+    // Chrome reports `opsz110000` for the 13px run: hex 16.16 fixed point,
+    // 0x110000 / 65536 = 17.0. Reading that as decimal 11 (below the axis min)
+    // is what made this look unsolvable for a session.
+    expect(resolveDarwinAxisLocation(SF_INDIC, 13)).toEqual({ opsz: 17 });
+    expect(resolveDarwinAxisLocation(SF_INDIC, 1)).toEqual({ opsz: 17 });
+  });
+
+  it("passes an in-range size straight through", () => {
+    // Chrome reports `opsz140000` = 0x140000 / 65536 = 20.0 for the 20px stack.
+    expect(resolveDarwinAxisLocation(SF_INDIC, 20)).toEqual({ opsz: 20 });
+  });
+
+  it("returns undefined when the resolved value IS the default — no clone", () => {
+    // Blink's `axes_reconfigured` guard: if nothing moved, keep the base face.
+    // Also keeps byte-identical embedded subsets from splitting on a no-op key.
+    expect(resolveDarwinAxisLocation(SF_INDIC, 28)).toBeUndefined();
+    expect(resolveDarwinAxisLocation(SF_INDIC, 40)).toBeUndefined(); // clamps to max 28 = default
+  });
+
+  it("returns undefined for a face with no opsz axis", () => {
+    expect(resolveDarwinAxisLocation({ wght: { min: 1, default: 400, max: 1000 } }, 13)).toBeUndefined();
+    expect(resolveDarwinAxisLocation({}, 13)).toBeUndefined();
+  });
+
+  it("does NOT pin wght from the CSS weight — unlike the Windows rule", () => {
+    // The divergence that makes this a separate function. On macOS the weight is
+    // already baked into the face by the CoreText trait/weight re-selection that
+    // runs first (`font_cache_mac.mm:242-267`), which the glyph helper
+    // transcribes; re-applying the CSS weight here would answer for it twice.
+    expect(resolveDarwinAxisLocation(SF_INDIC, 13)).not.toHaveProperty("wght");
+  });
+
+  it("lets font-variation-settings override the optical size", () => {
+    // Blink: "allow having it overridden by font-variation-settings in case it
+    // has 'opsz'" — the settings loop runs after the opsz assignment.
+    expect(resolveDarwinAxisLocation(SF_INDIC, 13, { opsz: 24 })).toEqual({ opsz: 24 });
+    // …and is clamped by the same mechanism.
+    expect(resolveDarwinAxisLocation(SF_INDIC, 13, { opsz: 99 })).toBeUndefined(); // clamps to 28 = default
+    expect(resolveDarwinAxisLocation(SF_INDIC, 13, { wght: 700 })).toEqual({ opsz: 17, wght: 700 });
+  });
+
+  it("ignores a variation setting for an axis the face does not have", () => {
+    expect(resolveDarwinAxisLocation(SF_INDIC, 13, { wdth: 75 })).toEqual({ opsz: 17 });
   });
 });
