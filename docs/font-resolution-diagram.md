@@ -1071,6 +1071,25 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    fontSize-derived `opsz` would embed the wrong instance), and the helper
    font itself is opened at the same location via the font spec's
    `variations` (DirectWrite yields the default `fvar` instance otherwise).
+
+   **macOS resolves a DIFFERENT axis set, via `resolveDarwinAxisLocation`.**
+   This path was previously win32-only, on the assumption that CoreText applies
+   optical sizing itself for named faces. It does not: a handle opened by
+   name/path reports no variation and no `kCTFontOpticalSizeAttribute` at any
+   size, and paints the face at its default `opsz`. Chrome does not rely on
+   CoreText for it either — it overrides it, cloning the typeface at `opsz` =
+   the CSS **specified** size, clamped into the axis range
+   (`mac/font_platform_data_mac.mm:169-185` + `:74-79`, Chromium `7d859f27`;
+   clamped again independently by Skia at
+   `src/ports/SkTypeface_mac_ct.cpp:1147`, Skia `ebf5052`). The macOS resolver
+   therefore sets **`opsz` plus any explicit `font-variation-settings` axis, and
+   deliberately NOT `wght`** — on macOS the weight is already baked in by the
+   CoreText trait/weight re-selection that runs first
+   (`font_cache_mac.mm:242-267`, mirrored in the glyph helper), whereas on
+   Windows DirectWrite has not applied it and the CSS weight must be pinned.
+   Both resolvers return no location when nothing moves off the file's
+   defaults, so an unvaried face is never needlessly cloned or split into a
+   duplicate embedded subset.
 2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the

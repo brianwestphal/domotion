@@ -150,6 +150,7 @@ You have **standing permission to use Playwright freely** for any investigation,
 | --- | --- | --- |
 | `external/chromium` | `third_party/blink/renderer/` | font *selection* and fallback, glyph metrics, paint order, CSS parsing, layout |
 | `external/harfbuzz` | HarfBuzz `src/` | *shaping* — clusters, marks, ligatures, reordering, dotted circles |
+| `external/skia` | Skia `src/ports/`, `src/core/`, `include/core/` | what Blink *hands off* — typeface cloning, variation-axis application, the platform scaler contexts |
 
 **The rule: when you don't know what Chrome does, read it — do not probe-and-curve-fit, and do not reason by analogy from another platform.** Probing tells you what one machine's fonts produced on one day; the source tells you the decision procedure. This is not a style preference, it is the difference between the two outcomes this project keeps seeing:
 
@@ -157,14 +158,19 @@ You have **standing permission to use Playwright freely** for any investigation,
 - A day was spent designing, scoring and CI-dispatching **three** heuristics for dotted-circle insertion, all approximations of a rule that is three readable lines (`hb-ot-shaper-syllabic.cc:51-53`).
 - A Linux "divergence" was argued from a macOS analogy and would have *introduced* a difference from Chrome; the source shows `GetFontForCharacter(c, locale, …)` takes no weight at all.
 
-Neither checkout is complete. **`ui/gfx` is absent** (so `GetFallbackFontForChar`'s fontconfig details are not readable locally) and so is the browser-side code that supplies Windows' menu font. When the file you need is missing, say so and mark the claim as un-transcribed rather than filling the gap with a plausible story — `chromium.googlesource.com` / `source.chromium.org` are in the sandbox allowlist for `WebFetch`, but **a fetched summary is not the file** and has already produced a wrong conclusion here.
+**Skia is where a Blink answer stops being a decision and becomes a font object.** Blink decides *which* face and *what* axis coordinates; Skia applies them and rasterizes. When a question is "what does the coordinate Blink set actually DO", it is answered in `src/ports/SkTypeface_{mac_ct,win_dw,FreeType}.cpp`, not in Blink. Worked example: Blink clamps an `opsz` request into the axis range (`VariableAxisChangeEffective`), and Skia clamps it *again* independently (`SkTPin` in `ctvariation_from_SkFontArguments`, `SkTypeface_mac_ct.cpp:1147`) before applying it via `CTFontCreateCopyWithAttributes` — so the clamp is the mechanism on both sides of the handoff, which is what makes a 13 px run on a `[17..28]` axis resolve to 17.
 
-Both are git checkouts, so always quote the revision beside anything you transcribe:
+No checkout is complete. **`ui/gfx` is absent** (so `GetFallbackFontForChar`'s fontconfig details are not readable locally) and so is the browser-side code that supplies Windows' menu font; the Skia checkout is sparse and excludes `src/gpu`, `src/pdf` and the rest. When the file you need is missing, say so and mark the claim as un-transcribed rather than filling the gap with a plausible story — `chromium.googlesource.com` / `source.chromium.org` are in the sandbox allowlist for `WebFetch`, but **a fetched summary is not the file** and has already produced a wrong conclusion here.
+
+All three are git checkouts, so always quote the revision beside anything you transcribe:
 
 ```sh
 git -C external/chromium log -1 --format='%h %cd' --date=short   # 7d859f27, 2026-06-27
 git -C external/harfbuzz log -1 --format='%h %cd' --date=short   # 4de187d,  2026-07-31
+git -C external/skia     log -1 --format='%h %cd' --date=short   # ebf5052,  2026-07-31
 ```
+
+To widen the Skia sparse set: `git -C external/skia sparse-checkout add <path>`.
 
 They drift from the Chrome that Playwright ships, and that variance is accepted. When a transcribed constant starts disagreeing with measured paint, suspect drift and re-read before assuming our logic is wrong.
 
