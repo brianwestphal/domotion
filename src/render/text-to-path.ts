@@ -788,11 +788,22 @@ function singleFontMarkup(
   const sc = Number(scale.toFixed(5));
   const uses: string[] = [];
   let x = 0;
+  // DM-1867: a source cursor, for the same reason the ligature loop above has
+  // one. `i` is a GLYPH index and cannot stand in for a text index — an astral
+  // codepoint is two UTF-16 units but one glyph, so the two run out of step the
+  // moment the text leaves the BMP. Advanced by `sourceClusterSpan` below.
+  let srcIdx = 0;
   for (let i = 0; i < run.glyphs.length; i++) {
     const glyph = run.glyphs[i];
     const pos = run.positions[i];
-    const skipNotdefHere = glyph.id === 0 && glyph.codePoints != null && glyph.codePoints.length > 0
-      && glyph.codePoints.every((cp: number) => isPrivateUseCodepoint(cp));
+    // DM-1867: gated on `glyph.id === 0`, so reading THIS glyph's `codePoints`
+    // read the shared `.notdef`'s — fontkit memoizes `Glyph` objects by glyph
+    // id, so the one `.notdef` reports whichever uncovered codepoint happened to
+    // be probed first in the process. The decision was therefore made on an
+    // unrelated character, and which one depended on fixture order. Read the
+    // source text, as the five sites fixed alongside this one now do.
+    const srcCpHere = srcIdx < text.length ? text.codePointAt(srcIdx) : undefined;
+    const skipNotdefHere = glyph.id === 0 && srcCpHere != null && isPrivateUseCodepoint(srcCpHere);
     const eCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
     if (eCmds.length > 0 && !skipNotdefHere) {
       const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds);
@@ -872,6 +883,12 @@ function singleFontMarkup(
       }
     }
     x += pos.xAdvance;
+    // DM-1867: advance the SOURCE cursor by this cluster's char span — 1 unit
+    // per BMP codepoint, 2 per astral one. Measured against the source text
+    // rather than the glyph's own `codePoints`, for the reason above: a shared
+    // memoized `Glyph` misreports them. Same call the ligature loop makes.
+    const srcCps = glyph.codePoints;
+    srcIdx += sourceClusterSpan(text, srcIdx, srcCps != null && srcCps.length > 0 ? srcCps.length : 1, false);
   }
   return {
     markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
@@ -1859,10 +1876,18 @@ function renderTextAsEmbedded(
       let xCss: number;
       let yCss = 0;
       let glyphScale: number;
+      // DM-1867: this glyph's index into the WHOLE captured text. Both branches
+      // below already compute it, but each in its own scope, so it was not
+      // reachable from the inkless check further down — which therefore read the
+      // glyph's `codePoints` and, for any glyph fontkit memoized, could get a
+      // different character's answer. Hoisted rather than recomputed so there is
+      // one derivation and the two cannot drift.
+      let glyphSrcIdx: number | undefined;
       if (clusters != null) {
         // CoreText-shaped run: cluster-aware anchoring + GPOS offsets.
         const srcIdx = clusters[i];
         const wholeTextIdx = run.startIdx + srcIdx;
+        glyphSrcIdx = wholeTextIdx;
         if (srcIdx !== prevCluster) {
           if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
             clusterAnchorCss = xOffsets[wholeTextIdx];
@@ -1912,6 +1937,7 @@ function renderTextAsEmbedded(
         // so the lookup index lands on the cluster's first char.
         if (runIsRtl) textIdx -= span;
         const wholeTextIdx = run.startIdx + textIdx;
+        glyphSrcIdx = wholeTextIdx;
         if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
           xCss = xOffsets[wholeTextIdx];
           // DM-1184: nudge trimmed fullwidth-punctuation ink (see
@@ -1960,8 +1986,19 @@ function renderTextAsEmbedded(
       // from the advance. (The glyph is still tracked above so cursor/textIdx
       // stay aligned; it's just left unreferenced — harmless, like any unused
       // subset glyph.) This also retires the DM-1689 variation-selector boxes.
-      const glyphInkless = glyph.codePoints != null && glyph.codePoints.length > 0
-        && glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp));
+      // DM-1867: decide from the SOURCE character at this glyph's position.
+      // Reading `glyph.codePoints` here was the same aliasing hazard the notdef
+      // checks had: fontkit memoizes `Glyph` objects by glyph id, so a glyph
+      // shared across codepoints reports whichever was probed first. Getting it
+      // wrong is not cosmetic in either direction — a stale INKLESS value drops
+      // a real tofu box, and a stale inkable one keeps a box Chrome never paints.
+      // Falls back to `codePoints` only when the index is out of range, which
+      // means the cluster map disagreed with the text.
+      const srcCpForInk = glyphSrcIdx != null ? text.codePointAt(glyphSrcIdx) : undefined;
+      const glyphInkless = srcCpForInk != null
+        ? isLegitimatelyInklessCodepoint(srcCpForInk)
+        : (glyph.codePoints != null && glyph.codePoints.length > 0
+          && glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp)));
       if (!glyphInkless) {
         perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
       }

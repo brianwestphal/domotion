@@ -72,6 +72,27 @@ export const tests: FeatureTest[] = [
     html: `<div style="padding: 20px; color: #e6edf3; font-family: system-ui;"><div style="font-size: 13px; font-weight: 400;">中文字体测试</div><div style="font-size: 13px; font-weight: 700;">中文字体测试</div><div style="font-size: 20px; font-weight: 400;">中文字体测试</div><div style="font-size: 20px; font-weight: 700;">中文字体测试</div><div style="font-size: 13px; font-weight: 400; font-style: italic;">中文字体测试</div></div>`,
   },
 
+  {
+    // DM-1867: the corpus had NO private-use fixture — `ls ../html-test/unicode/
+    // | grep -i private` returns nothing, because the 819-block set excludes the
+    // PUA ranges. So the notdef-suppression path could neither be regressed nor
+    // shown to work: a change there broke no fixture and proved nothing.
+    //
+    // The path being covered: for an uncovered PUA codepoint the renderer
+    // suppresses the font's `.notdef` outline (which would paint a giant tofu
+    // over neighbouring text) and emits a small hollow rectangle at the
+    // codepoint's advance instead, matching what Chrome draws.
+    //
+    // Deliberately mixes BMP PUA (U+E000, U+F8FF) with astral PUA (U+F0000,
+    // U+100000): the astral ones are two UTF-16 units per glyph, which is
+    // exactly the case where a glyph index cannot stand in for a text index —
+    // the bug this fixture accompanies. Latin on either side so a suppression
+    // that swallowed the wrong run would show as missing text, and so the
+    // advance is checked against neighbours rather than in isolation.
+    name: "text-private-use-tofu",
+    html: `<div style="padding: 20px; color: #e6edf3; font-family: Helvetica, sans-serif; font-size: 32px;"><div>A\u{E000}B\u{F8FF}C</div><div>D\u{F0000}E\u{100000}F</div><div>\u{E000}\u{E001}\u{E002}</div></div>`,
+  },
+
   // ── Backgrounds & Colors ──
   {
     name: "bg-solid",
