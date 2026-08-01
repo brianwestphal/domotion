@@ -1529,7 +1529,70 @@ export function __helperMetaForTest(postscriptName: string): MetaResponse | null
   }
 }
 
+/**
+ * CoreText's `kCTFontTraitBold` for a face, which is the exact bit Blink's
+ * macOS synthetic-bold rule tests: `Weight() > 500 && !(traits & kCTFontTraitBold)`
+ * (`mac/font_cache_mac.mm:424-427`, rev 7d859f27).
+ *
+ * This exists because OS/2 `fsSelection` bit 5 is NOT the same fact, however
+ * much it looks like it. `/System/Library/Fonts/Times.ttc` is the case that
+ * proved it: every face in the container — Roman, **Bold**, Italic, BoldItalic —
+ * reports `fsSelection.regular = true` and `fsSelection.bold = false`, which the
+ * OpenType spec forbids (REGULAR is mutually exclusive with BOLD and ITALIC).
+ * CoreText answers `traitBold: true` for `Times-Bold` regardless, because it
+ * derives the trait from the font's registered traits rather than from that bit.
+ *
+ * Reading the bit instead made every `serif` heading paint synthetic bold ON TOP
+ * of the real Times-Bold cut — visibly heavier than Chrome, 9 diff regions on
+ * `20-font-style-variant`.
+ *
+ * Returns null when the helper is unavailable or the face is unknown, so the
+ * caller keeps its previous signal rather than assuming "not bold".
+ *
+ * **The echoed name is checked, and that check is load-bearing.** CoreText
+ * restricts access to the dot-prefixed system faces and silently substitutes
+ * `TimesNewRomanPSMT` for them — passing the containing file's path does not
+ * lift the restriction. Measured: asking for `.LucidaGrandeUI-Bold`,
+ * `.HiraKakuInterface-W7` or `.PingFangUITextSC-Regular` returns Times New
+ * Roman's metrics under Times New Roman's name, with `traitBold: false`. Taking
+ * that at face value would report 17 genuinely-bold system faces as not-bold and
+ * synthesise bold over them — the same defect this function exists to fix, just
+ * pointed at a different set of faces. So an answer is only accepted when the
+ * helper hands back the face that was asked for.
+ */
+const _traitBoldCache = new Map<string, boolean | null>();
+export function resolveFaceTraitBold(
+  postscriptName: string, path?: string,
+): boolean | null {
+  if (postscriptName === "") return null;
+  const key = `${path ?? ""} ${postscriptName}`;
+  const hit = _traitBoldCache.get(key);
+  if (hit !== undefined) return hit;
+  let out: boolean | null = null;
+  if (isGlyphHelperAvailable()) {
+    try {
+      const resp = callHelper({
+        fonts: [{ ref: "f", postscriptName, ...(path != null && path !== "" ? { path } : {}), size: 16 }],
+        queries: [{ type: "meta", fontRef: "f" }],
+      });
+      const r = resp.results[0];
+      if (r != null && r.type === "meta") {
+        const meta = r as unknown as MetaResponse & { postscriptName?: string };
+        const got = meta.postscriptName;
+        // Only trust the trait when CoreText opened the face we named. A
+        // mismatch means it substituted (see the dot-prefixed note above).
+        if (got === postscriptName && typeof meta.traitBold === "boolean") {
+          out = meta.traitBold;
+        }
+      }
+    } catch { /* helper failed — keep null so the caller falls back */ }
+  }
+  _traitBoldCache.set(key, out);
+  return out;
+}
+
 export function clearGlyphHelperCache(): void {
+  _traitBoldCache.clear();
   helperAvailable = null;
   helperPath = undefined;
   _systemFallbackCache.clear();

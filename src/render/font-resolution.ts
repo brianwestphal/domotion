@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -3788,10 +3788,9 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     instance.naturalWeight = usWeight;
   }
   instance.hasWeightAxis = font?.variationAxes?.wght != null;
-  // DM-1880: OS/2 `fsSelection` bit 5 is the file's own BOLD flag — the same
-  // fact CoreText reports as `kCTFontTraitBold` and Skia as `isBold()`. Read
-  // from the ORIGINAL fontkit Font for the same reason the weight fields above
-  // are: a variation instance's OS/2 reflects the base face.
+  // The face's BOLD trait, which the macOS and Windows synthetic-bold rules
+  // both test. Read from the ORIGINAL fontkit Font for the same reason the
+  // weight fields above are: a variation instance's OS/2 reflects the base face.
   const fsSelection = font?.["OS/2"]?.fsSelection;
   if (fsSelection != null) {
     // fontkit may expose fsSelection as a parsed bitfield object or as a raw
@@ -3799,6 +3798,30 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     instance.faceIsBoldTrait = typeof fsSelection === "number"
       ? (fsSelection & 0x20) !== 0
       : fsSelection.bold === true;
+  }
+  // ...but on macOS, ASK CORETEXT, because OS/2 bit 5 is not the same fact and
+  // this was shipped as though it were. Blink tests
+  // `CTFontGetSymbolicTraits(ct_font) & kCTFontTraitBold`
+  // (`mac/font_cache_mac.mm:424-427`, rev 7d859f27) — a CoreText trait derived
+  // from the font's registered traits, not that bit.
+  //
+  // `/System/Library/Fonts/Times.ttc` is where they diverge, and it is not an
+  // exotic corner: EVERY face in the container (Roman, Bold, Italic, BoldItalic)
+  // reports `fsSelection.regular = true` with `bold = false`, which the spec
+  // forbids — REGULAR is mutually exclusive with BOLD and ITALIC. CoreText says
+  // `Times-Bold` is bold anyway. Trusting the bit made `weight > 500 && !bold`
+  // fire on the real Times-Bold cut, so every `serif` heading painted synthetic
+  // bold on top of an already-bold face.
+  //
+  // Only overrides when CoreText actually answers; a null (no helper on the
+  // host, unknown face) leaves the fsSelection reading in place rather than
+  // silently deciding "not bold", which is the direction that emboldens.
+  if (process.platform === "darwin") {
+    const ps = instance.postscriptName ?? font?.postscriptName;
+    if (ps != null && ps !== "") {
+      const ctTrait = resolveFaceTraitBold(ps, resolveFontSpec(key)?.path);
+      if (ctTrait != null) instance.faceIsBoldTrait = ctTrait;
+    }
   }
   // DM-1695: expose the face's italic angle + whether a slnt axis carried the
   // slant, for the embedded-font faux-italic decision. Read from the ORIGINAL
