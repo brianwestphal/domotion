@@ -172,72 +172,10 @@ function translateCommandsY(commands: PathCommand[], dy: number): PathCommand[] 
   });
 }
 
-/** Uniformly scale every coordinate in a path. Used to convert geometry that
- *  came back at a run's pixel size into the design-unit space callers expect. */
-function scaleCommands(commands: PathCommand[], k: number): PathCommand[] {
-  if (k === 1) return commands;
-  return commands.map((c) => ({ command: c.command, args: c.args.map((a) => a * k) }));
-}
-
-/**
- * Does this face's geometry change with the size it is opened at?
- *
- * Ordinary faces are size-invariant, so opening at `unitsPerEm` for design-unit
- * geometry is exact. Apple's system UI faces are not — CoreText applies optical
- * sizing from the requested point size, so opening at `unitsPerEm` pins them to
- * their largest optical cut regardless of the run (see `opticalSize` on
- * `createGlyphHelperFont` for the measured table).
- *
- * Decided by measurement, on this face, rather than by the `.`-prefix naming
- * convention. The prefix marks a face system-private, which correlates with
- * optical sizing without defining it — and a face that grows or loses the
- * behavior in a macOS update would silently fall out of a name-based rule.
- *
- * Compares one probe glyph's advance at the two sizes, both normalised to the
- * design-unit space. Any helper error answers `false`, which keeps the existing
- * path — the safe direction, since that is what shipped.
- */
-function faceGeometryIsSizeDependent(
-  spec: { postscriptName?: string; fontPath?: string; variations?: Record<string, number> },
-  unitsPerEm: number,
-  opticalSize: number,
-): boolean {
-  try {
-    const font = (ref: string, size: number) => ({
-      ref, postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size,
-    });
-    const resp = callHelper({
-      fonts: [font("big", unitsPerEm), font("run", opticalSize)],
-      queries: [
-        { type: "glyphs", fontRef: "big", glyphs: SIZE_PROBE_GLYPHS.map((id) => ({ id })) },
-        { type: "glyphs", fontRef: "run", glyphs: SIZE_PROBE_GLYPHS.map((id) => ({ id })) },
-      ],
-    });
-    const a = resp.results[0], b = resp.results[1];
-    if (a?.type !== "glyphs" || b?.type !== "glyphs") return false;
-    const k = unitsPerEm / opticalSize;
-    for (let i = 0; i < SIZE_PROBE_GLYPHS.length; i++) {
-      const big = a.glyphs[i]?.advance, run = b.glyphs[i]?.advance;
-      if (typeof big !== "number" || typeof run !== "number") continue;
-      if (big === 0 && run === 0) continue;                 // blank glyph, says nothing
-      // A whole design unit of disagreement. Comfortably above float noise from
-      // the divide, and far below the ~10-unit gaps optical sizing produces.
-      if (Math.abs(run * k - big) > 1) return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 /** Glyph ids sampled to measure a face's outline offset. Low ids so every font
  *  has them; a spread so a few blank ones (`.notdef`, space) still leave inked
  *  samples to compare. */
 export const OFFSET_PROBE_GLYPHS = [3, 4, 5, 6, 7, 8, 15, 20];
-
-/** Glyph ids sampled to decide whether a face is optically size-dependent. Low
- *  ids for the same reason as `OFFSET_PROBE_GLYPHS`; blank ones are skipped. */
-const SIZE_PROBE_GLYPHS = [3, 4, 5, 6, 7, 8];
 
 /**
  * DM-1831: the vertical offset between the outline CoreText hands us
@@ -684,38 +622,6 @@ export function createGlyphHelperFont(spec: {
    *  IDWriteFontResource::CreateFontFace. Omitted on macOS. */
   variations?: Record<string, number>;
   /**
-   * The run's CSS pixel size, when the caller knows it.
-   *
-   * Normally irrelevant: this layer opens the face at `size = unitsPerEm` so
-   * geometry arrives in design units, and for an ordinary face that is exactly
-   * equivalent to opening at any other size. Measured on macOS 26.5.2, advance
-   * of a probe glyph normalised to upem 1000, at sizes 13 / 17 / 28 / 1000:
-   *
-   *     Helvetica         556.2  556.2  556.2  556.2
-   *     Times New Roman   443.8  443.8  443.8  443.8
-   *     Arial Unicode     667.0  667.0  667.0  667.0
-   *
-   * Apple's system UI faces are NOT size-invariant — CoreText applies optical
-   * sizing as a function of the requested point size, on top of any explicit
-   * `opsz` variation:
-   *
-   *     .SFDevanagari     836.0  822.0  802.0  792.0
-   *     .SFNS             545.9  526.4  515.6  502.0
-   *
-   * So for those, opening at `unitsPerEm` silently selects the largest optical
-   * cut — the 792 / 502 column — no matter what size the run is. Chrome does not:
-   * its scaler context is created at the run's size, and its painted advance
-   * tracks the left-hand columns (verified against `Range.getBoundingClientRect`
-   * across 17 sizes; the full Blink pipeline is reproduced in
-   * `tools/scratch/dm1900-pipeline.swift`).
-   *
-   * When this is supplied AND the face is measured to be size-dependent, the
-   * face is re-opened here and geometry is scaled back into design units. A
-   * size-invariant face is left on the existing path untouched, so nothing that
-   * was correct changes.
-   */
-  opticalSize?: number;
-  /**
    * DM-1883: a shaper to use when THIS helper has no `shape` query.
    *
    * Not every platform helper implements `shape`. macOS does; the Windows
@@ -802,22 +708,35 @@ export function createGlyphHelperFont(spec: {
   }
 
   const unitsPerEm = metaResp.unitsPerEm;
-
-  // Open at the run's size instead of at `unitsPerEm` when — and only when — the
-  // face's geometry actually depends on the size (see `opticalSize` above).
-  // Detected by measuring rather than by the `.`-prefix naming convention: the
-  // prefix marks a face as system-private, which is correlated with optical
-  // sizing but does not define it, and a naming heuristic here would be exactly
-  // the sampled-table mistake this area keeps paying for.
+  // Opening at `unitsPerEm` (rather than at the run's pixel size) is deliberate,
+  // and the reason is subtler than "design-unit geometry" — it was tried the
+  // other way and reverted, so the trap is recorded here rather than rediscovered.
   //
-  // `geometryScale` converts the px geometry that comes back at that size into
-  // the design-unit space every caller expects. It is 1 on the untouched path.
-  const sizeDependent = spec.opticalSize != null
-    && spec.opticalSize > 0
-    && spec.opticalSize !== unitsPerEm
-    && faceGeometryIsSizeDependent(spec, unitsPerEm, spec.opticalSize);
-  const renderSize = sizeDependent ? spec.opticalSize! : unitsPerEm;
-  const geometryScale = unitsPerEm / renderSize;
+  // Apple's system UI faces ARE optically size-dependent: CoreText applies
+  // optical sizing from the requested point size, so the same face opened at 13
+  // and at 1000 reports different advances (`.SFDevanagari` 836 vs 792 per em,
+  // `.SFNS` 545.9 vs 502.0). Ordinary faces do not (Helvetica, Times New Roman
+  // and Arial Unicode are identical at every size). That much is real.
+  //
+  // What does NOT follow is that we should open at the run's size to match
+  // Chrome. Blink does not inherit CoreText's implicit sizing — it OVERRIDES it,
+  // cloning the typeface at `opsz` = the specified size, clamped to the axis
+  // range (`mac/font_platform_data_mac.mm:169-185`). When the clamp lands on the
+  // axis default, `VariableAxisChangeEffective` returns false and Blink does not
+  // clone at all, so Chrome paints the DEFAULT instance. Opening at the run size
+  // reintroduces CoreText's implicit sizing underneath that, which double-counts.
+  //
+  // Measured: a 32 px Gujarati run clamps `opsz` to 28 (= the default), so Chrome
+  // paints the default instance. Opening at 32 shifted our advance 592 -> 596 and
+  // moved every glyph in the row right; Chrome's `expected.png` was byte-identical
+  // across the two arms while ours moved, and three Indic blocks went from 0
+  // regions to 6 / 2 / 1. The verification that had argued for it was a
+  // `system-ui` run, where the explicit clone dominates and both models agree —
+  // a slice that could not distinguish them.
+  //
+  // So: apply the axis explicitly (`resolveDarwinAxisLocation`) and open at
+  // design size. Those are the same mechanism Blink uses, in the same order.
+  const renderSize = unitsPerEm;
 
   // Per-(cp, id) caches — each glyph is fetched at most once per Node process.
   const cpToGlyph = new Map<number, GlyphHelperGlyph>();
@@ -830,14 +749,8 @@ export function createGlyphHelperFont(spec: {
   /** Parse a helper outline into the renderer's command space, moved to where
    *  CoreText (and therefore Chrome) actually paints it. */
   function glyphCommands(d: string): PathCommand[] {
-    const parsed = parseSvgPath(d);
-    // Scale BEFORE the baseline translate: `outlineOffsetY` is already measured
-    // in design units (from the 1000-unit probe space), so translating first
-    // would put it through the scale a second time.
-    return translateCommandsY(geometryScale === 1 ? parsed : scaleCommands(parsed, geometryScale), outlineOffsetY);
+    return translateCommandsY(parseSvgPath(d), outlineOffsetY);
   }
-  /** Advance/offset values come back in the same px space as the outlines. */
-  const toDesignUnits = (v: number): number => geometryScale === 1 ? v : v * geometryScale;
   // DM-1028: per-run-text shape cache so identical runs shape once.
   const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();
 
@@ -864,7 +777,7 @@ export function createGlyphHelperFont(spec: {
       // splitTextIntoFontRuns).
       const glyph: GlyphHelperGlyph = {
         id: g.id,
-        advanceWidth: toDesignUnits(g.advance),
+        advanceWidth: g.advance,
         path: { commands: glyphCommands(g.d) },
         codePoints: [cp]
       };
@@ -901,7 +814,7 @@ export function createGlyphHelperFont(spec: {
     const g = r.glyphs[0];
     const glyph: GlyphHelperGlyph = {
       id: g.id,
-      advanceWidth: toDesignUnits(g.advance),
+      advanceWidth: g.advance,
       path: { commands: glyphCommands(g.d) }
     };
     idToGlyph.set(id, glyph);
@@ -926,17 +839,7 @@ export function createGlyphHelperFont(spec: {
         queries: [{ type: "shape", fontRef: "f", text }]
       });
       const r = resp.results[0];
-      if (r.type === "shape" && Array.isArray(r.glyphs)) {
-        // Advances and GPOS offsets come back in the same px space the outlines
-        // do, so an optically-sized face needs them converted too. Leaving them
-        // unscaled would place correctly-shaped glyphs at the wrong positions,
-        // which is worse than the metric error being fixed.
-        shaped = geometryScale === 1 ? r.glyphs : r.glyphs.map((g) => ({
-          ...g,
-          ax: g.ax * geometryScale, ay: g.ay * geometryScale,
-          dx: g.dx * geometryScale, dy: g.dy * geometryScale,
-        }));
-      }
+      if (r.type === "shape" && Array.isArray(r.glyphs)) shaped = r.glyphs;
     } catch {
       shaped = null;
     }

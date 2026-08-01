@@ -3654,11 +3654,6 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
           : undefined;
     const helper = createGlyphHelperFont({
       postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes,
-      // The run's size, so an optically size-dependent face (Apple's system UI
-      // faces) is opened the way Chrome's scaler context opens it rather than at
-      // `unitsPerEm`, which would pin it to its largest optical cut at every
-      // size. Inert for ordinary faces, which are size-invariant.
-      opticalSize: fontSize,
       // DM-1883: only consulted when the helper's own `shape` query fails, which
       // on Windows is always — its helper has no such query, so without this a
       // shaped run silently degrades to isolated letterforms.
