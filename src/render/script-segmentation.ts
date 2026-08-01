@@ -87,8 +87,36 @@ const _RTL_RE = /[֐-ࣿיִ-﷿ﹰ-﻿‏‫‮⁧]/;
  * this off the hot path: bidi resolution is not free, and text with no RTL
  * character has a single level by definition.
  */
-export function bidiLevelsFor(text: string): Uint8Array | undefined {
-  if (text === "" || !_RTL_RE.test(text)) return undefined;
+export function bidiLevelsFor(
+  text: string,
+  /**
+   * The element's `direction` + `unicode-bidi`. Only the OVERRIDE values change
+   * anything: CSS `unicode-bidi: bidi-override` / `isolate-override` is defined
+   * as treating every character as strong in the embedding direction, i.e. as
+   * suppressing the algorithm's inspection of the characters' own bidi types
+   * (css-writing-modes-4 §2.2). Since this function derives levels by running
+   * that very inspection, an override has to be applied here or it is lost.
+   *
+   * Concretely: `bidi-override; direction: ltr` around Hebrew or Arabic makes
+   * Chrome lay the letters out left-to-right in logical order, while the
+   * unmodified algorithm reports level 1 for them and the shaper reverses each
+   * run. The letters come out backwards — a fully unreadable line that moves
+   * the pixel diff by four hundredths of a percent, because the two words are
+   * about the same width.
+   */
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+): Uint8Array | undefined {
+  if (text === "") return undefined;
+  const ub = bidiOverride?.unicodeBidi;
+  if (ub === "bidi-override" || ub === "isolate-override") {
+    // Uniform level: even for ltr, odd for rtl. Every character strong in the
+    // embedding direction is exactly what a flat level array expresses, and it
+    // reaches both consumers (`needsSegmentation`, which then sees no direction
+    // boundary, and `segmentForShaping`'s per-segment `rtl` flag).
+    const level = bidiOverride!.direction === "rtl" ? 1 : 0;
+    return new Uint8Array(text.length).fill(level);
+  }
+  if (!_RTL_RE.test(text)) return undefined;
   try {
     return _bidi.getEmbeddingLevels(text, "ltr").levels;
   } catch {

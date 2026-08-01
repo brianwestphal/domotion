@@ -606,6 +606,13 @@ export const captureScript =
         fontVariantNumeric: cs.fontVariantNumeric,
         fontVariantLigatures: cs.fontVariantLigatures,
         direction: cs.direction,
+        // `unicode-bidi` decides whether the characters' OWN bidi types are
+        // honored or overridden. `bidi-override` / `isolate-override` tell the
+        // UBA to treat every character as strong in `direction`, which is the
+        // one case the renderer cannot reconstruct from the text: it derives
+        // levels by running the algorithm on the characters, and the override
+        // is precisely an instruction to ignore what the characters say.
+        unicodeBidi: cs.unicodeBidi,
         // Computed BCP-47 language tag from el.lang or nearest ancestor
         // [lang], falling back to document.documentElement.lang. Used by the
         // path renderer to route CJK Han fallback to the right PingFang

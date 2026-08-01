@@ -165,6 +165,9 @@ export function textToPathMarkup(
    *  (e.g. `{ opsz: 30, wght: 450 }` from framer.com's body P). Wins over the
    *  CSS-weight / font-size-derived defaults. DM-578. */
   variationSettings?: Record<string, number>,
+  /** The element's `direction` + `unicode-bidi`; only the override values act.
+   *  See `bidiLevelsFor`, which is where it is consumed and why. */
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -415,7 +418,7 @@ export function textToPathMarkup(
     // BIDI RUN with its own direction (harfbuzz_shaper.cc:1145-1148) and splits
     // by script within it. `undefined` when the text is unidirectional, which
     // lets the segmenter take its cheap path.
-    const bidiLevels = bidiLevelsFor(text);
+    const bidiLevels = bidiLevelsFor(text, bidiOverride);
     for (const run of runs) {
       const runScale = fontSize / run.font.unitsPerEm;
       const sc = Number(runScale.toFixed(5));
@@ -2120,6 +2123,18 @@ export function renderTextAsPath(
   /** DM-1126: UTF-16 indices (into `text`) of covered orphaned marks the capture
    *  layer detected Chrome auto-circles. Forwarded to `insertSyntheticDottedCircles`. */
   dottedCircleMarks?: number[],
+  /**
+   * The element's resolved `direction` and `unicode-bidi`. Only the OVERRIDE
+   * values matter here, and they matter because they are the one bidi input
+   * that cannot be recovered from the text: `bidi-override` /
+   * `isolate-override` instruct the algorithm to disregard each character's
+   * own bidi type and treat it as strong in `direction`. Running the UBA over
+   * the characters — which is what deriving levels from the text does — asks
+   * exactly the question the override says not to ask, so RTL text under
+   * `bidi-override; direction: ltr` shaped right-to-left where Chrome forces it
+   * left-to-right.
+   */
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -2174,7 +2189,7 @@ export function renderTextAsPath(
     if (embedded != null) return embedded;
   }
 
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride);
   if (result == null || result.markup === "") return null;
 
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);

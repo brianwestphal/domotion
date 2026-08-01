@@ -860,6 +860,20 @@ const _bidi = bidiFactory();
 const _RTL_RE = /[֐-ࣿיִ-ﻼ]/;
 
 /**
+ * The element's bidi override, in the shape `renderTextAsPath` wants. Only
+ * `bidi-override` / `isolate-override` change any behaviour downstream; every
+ * other `unicode-bidi` value leaves the algorithm to read the characters, which
+ * is what it should do. Returns undefined when there is nothing to force, so the
+ * common path stays byte-identical.
+ */
+function bidiOverrideFor(el: { styles: { direction?: string; unicodeBidi?: string } }):
+  { direction: "ltr" | "rtl"; unicodeBidi: string } | undefined {
+  const ub = el.styles.unicodeBidi;
+  if (ub !== "bidi-override" && ub !== "isolate-override") return undefined;
+  return { direction: el.styles.direction === "rtl" ? "rtl" : "ltr", unicodeBidi: ub };
+}
+
+/**
  * Apply BiDi paired-bracket mirroring. Capture preserves chars in DOM/logical
  * order with each char's visual x in xOffsets — positioning is already done
  * by Chrome, so we only need to mirror paired brackets on RTL embedding
@@ -1303,7 +1317,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       }
     }
   }
-  const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder, singleSeg?.dottedCircleMarks);
+  const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder, singleSeg?.dottedCircleMarks, bidiOverrideFor(el));
   if (result != null) {
     // baselineY = textTop + fontAscent. Using fontSize here would put the
     // underline ~1px too low (fontSize includes descent; baseline sits at
@@ -1552,7 +1566,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
     const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el));
     if (result != null) { segParts.push(result); }
     else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
@@ -1650,7 +1664,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder);
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el));
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
@@ -1659,7 +1673,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder);
+      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el));
       if (result != null) parts.push(`  ${result}`);
     }
   }
@@ -1717,12 +1731,12 @@ export function renderInputText(opts: RenderTextOpts): string {
     const segParts: string[] = [];
     for (const seg of el.textSegments) {
       const segXOffsetsRel = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-      const segResult = renderTextAsPath(seg.text, seg.x, seg.y, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, segXOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder);
+      const segResult = renderTextAsPath(seg.text, seg.x, seg.y, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, segXOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el));
       if (segResult != null) segParts.push(segResult);
     }
     if (segParts.length > 0) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`);
   }
-  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder);
+  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el));
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints
