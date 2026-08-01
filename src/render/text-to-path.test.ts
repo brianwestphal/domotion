@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
 import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
-import { isPrivateUseCodepoint } from "./font-resolution.js";
+import { getGlyphDefs, isNonCharacterCodepoint, isPrivateUseCodepoint } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -2787,21 +2787,112 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     expect(sourceClusterSpan("a\u{10F46}b", 3, 1, false)).toBe(1);
   });
 
-  // `skipNotdefHere` suppresses a tofu when its SOURCE character is private-use
-  // (Chrome paints nothing there). The test was gated on `glyph.id === 0` and
-  // then read that same glyph's `codePoints` — so it was always asking the
-  // shared `.notdef`, never this position. `isPrivateUseCodepoint` is the
-  // predicate the decision now applies to the source char instead.
+  // These two predicates are the gate on Blink's no-system-fallback rule
+  // (`platform/fonts/font_cache.cc:242-244`, rev 7d859f27): a private-use or
+  // noncharacter codepoint never reaches per-codepoint font fallback at all, so
+  // the run stays on its primary and paints that font's `.notdef`.
   it("classifies private-use source characters independently of any glyph", () => {
-    // The three PUA ranges, which are what the suppression is for.
+    // The three PUA ranges — `Character::IsPrivateUse` is general category Co.
     expect(isPrivateUseCodepoint(0xE000)).toBe(true);
     expect(isPrivateUseCodepoint(0xF8FF)).toBe(true);
     expect(isPrivateUseCodepoint(0xF0000)).toBe(true);
     expect(isPrivateUseCodepoint(0x10FFFD)).toBe(true);
-    // A real script character must NOT be suppressed — a stale `.notdef`
-    // codepoint landing in this predicate is how a legitimate tofu disappears.
+    // A real script character must NOT be gated — one landing in this predicate
+    // is how a legitimate system fallback would silently stop being asked for.
     expect(isPrivateUseCodepoint(0x0870)).toBe(false);
     expect(isPrivateUseCodepoint(0x10F46)).toBe(false);
+  });
+
+  // `Character::IsNonCharacter` is ICU's `U_IS_UNICODE_NONCHAR` (`character.cc:294`).
+  it("classifies noncharacters the way U_IS_UNICODE_NONCHAR does", () => {
+    // The contiguous Arabic-Presentation-Forms-A block of 32.
+    expect(isNonCharacterCodepoint(0xFDD0)).toBe(true);
+    expect(isNonCharacterCodepoint(0xFDEF)).toBe(true);
+    // ...and the last two codepoints of EVERY plane, not just the BMP. Blink
+    // names U+FFFE specifically (it appears on real pages as an encoding
+    // sentinel, and running fallback for it cost a memory regression).
+    expect(isNonCharacterCodepoint(0xFFFE)).toBe(true);
+    expect(isNonCharacterCodepoint(0xFFFF)).toBe(true);
+    expect(isNonCharacterCodepoint(0x1FFFE)).toBe(true);
+    expect(isNonCharacterCodepoint(0x10FFFF)).toBe(true);
+    // Immediately outside the FDD0..FDEF window, both sides.
+    expect(isNonCharacterCodepoint(0xFDCF)).toBe(false);
+    expect(isNonCharacterCodepoint(0xFDF0)).toBe(false);
+    // Ordinary characters, including one whose low bits look close.
+    expect(isNonCharacterCodepoint(0x0041)).toBe(false);
+    expect(isNonCharacterCodepoint(0xFFFD)).toBe(false);  // REPLACEMENT CHARACTER
+    expect(isNonCharacterCodepoint(0x1FFFD)).toBe(false);
+    // Out of range entirely.
+    expect(isNonCharacterCodepoint(0x110000)).toBe(false);
+  });
+
+  // The behavioural half: the resolver must not hand these codepoints to a
+  // system-fallback face. Pinned with the exact codepoints upstream's own
+  // `FontCacheTest.NoFallbackForPrivateUseArea` asserts null for
+  // (`font_cache_test.cc:44-61`), so a future change to our fallback ordering
+  // is measured against Chromium's list rather than against ours.
+  //
+  // U+100000 is the discriminating one and the reason this test exists: macOS
+  // CoreText answers `SFCompact-Regular` for it (Apple keeps SF Symbols in
+  // plane 16), so a resolver that simply asks the OS gets a real, plausible,
+  // WRONG face — and it renders as a glyph rather than as a tofu, which is why
+  // no pixel threshold flagged it. The rest of the list would pass against a
+  // resolver that merely fails to find anything.
+  it("performs no system fallback for private-use or noncharacter codepoints", () => {
+    for (const cp of [0xE000, 0xE401, 0xE402, 0xE403, 0xF0000, 0xFAAAA, 0x100000, 0x10AAAA,
+      0xFDD0, 0xFFFE, 0xFFFF, 0x10FFFF]) {
+      const r = __resolveFontForCodepointForTest(cp, "Helvetica, sans-serif");
+      expect(r, `U+${cp.toString(16)}`).not.toBeNull();
+      // `covered: false` is the kOutOfLuck terminal — the caller then paints the
+      // primary's `.notdef`, which is what Chrome paints.
+      expect(r!.covered, `U+${cp.toString(16)} must not be covered`).toBe(false);
+      // Never a live system-fallback face, and never the LastResort tail.
+      expect(r!.key, `U+${cp.toString(16)} key`).toBe("helvetica");
+    }
+  });
+
+  // The other side of the same rule, so the gate can't be "fixed" by disabling
+  // fallback wholesale: U+F8FF is private-use AND macOS Helvetica has a real
+  // glyph for it (the Apple logo). Blink skips only the SYSTEM-fallback stage;
+  // the declared families are still walked, so this one must still be covered.
+  it("still paints a private-use codepoint the DECLARED family covers", () => {
+    const r = __resolveFontForCodepointForTest(0xF8FF, "Helvetica, sans-serif");
+    expect(r).not.toBeNull();
+    expect(r!.covered).toBe(true);
+    expect(r!.key).toBe("helvetica");
+  });
+
+  // The RENDER half of the same rule, which the resolver assertions above
+  // cannot reach: the resolver already answered `helvetica`/uncovered for
+  // U+E000, and the glyph-path emitter then overrode that terminal with the
+  // fallback chain's LAST entry — LastResort, whose cmap covers every codepoint
+  // — so the run painted a rounded box with a `?` in it, 2253/2048 em wide
+  // against Helvetica's 1298. Since the ADVANCE came from the capture and was
+  // Chrome's, the extra ink ran over the following character.
+  //
+  // Asserted against the outline's own coordinate extremes rather than a
+  // literal `d`, so the path serializer stays free to change: Helvetica's
+  // `.notdef` is a hollow rect spanning y 0..1469, LastResort's descends to
+  // -200 and reaches 2047 — no threshold needed to tell them apart.
+  it.skipIf(!MACOS_FONTS)("paints the PRIMARY font's .notdef for an uncovered private-use codepoint", () => {
+    clearGlyphDefs();
+    setRenderTextMode("paths");
+    const out = renderTextAsPath("\u{E000}", 0, 0, 32, "Helvetica", "400", "#000");
+    expect(out).not.toBeNull();
+
+    const defs = getGlyphDefs();
+    const ds = [...defs.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
+    expect(ds.length).toBe(1);
+    const nums = ds[0].match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+
+    type Bbox = { minX: number; minY: number; maxX: number; maxY: number };
+    const ttc = fontkit.openSync("/System/Library/Fonts/Helvetica.ttc") as unknown as {
+      fonts: { postscriptName: string; getGlyph(id: number): { bbox: Bbox } }[];
+    };
+    const helvetica = ttc.fonts.find((f) => f.postscriptName === "Helvetica")!;
+    const notdef = helvetica.getGlyph(0);
+    expect(Math.min(...nums)).toBe(Math.min(notdef.bbox.minX, notdef.bbox.minY));
+    expect(Math.max(...nums)).toBe(Math.max(notdef.bbox.maxX, notdef.bbox.maxY));
   });
 
   // RTL detection compared the first glyph's codepoint against the run's last

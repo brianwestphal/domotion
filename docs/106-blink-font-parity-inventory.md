@@ -52,9 +52,10 @@ The Windows table is `win/font_fallback_win.cc` (609 lines): `GetFallbackFamily(
 | `kFontGroupFonts` | `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` | **No** — probe-calibrated against Chrome-macOS, not transcribed |
 | `kSegmentedFace` | `webfontRegistry` + unicode-range partitioning (docs/30) | Plausibly; **unaudited** |
 | — | **`fallbackFontChain`** — static per-block chains + the generated `unicode-font-routing.*.generated.ts` tables | **No Blink counterpart at all** — but no longer interposed; demoted to the net BELOW `kSystemFonts`, see §4 |
+| `FallbackFontForCharacter`'s PUA / noncharacter guard | `isPrivateUseCodepoint(cp) \|\| isNonCharacterCodepoint(cp)` gating both fallback stages in `resolveFontForCodepoint` | **Yes** — transcribed from `font_cache.cc:242-244`, predicates from `character.cc:290-296` |
 | `kSystemFonts` | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`) | **Yes on macOS** — same API, and since DM-1852 the same argument (the run's own primary as cascade base) |
 | `GetLastResortFallbackFont` | `last-resort` key → bundled `LastResortHE-Regular.ttf` | **No** — Blink returns **Times** on macOS; ours paints Unicode LastResort's per-block frames |
-| `kFirstCandidateForNotdefGlyph` | paths mode pins the last chain entry's `.notdef`; embedded mode renders the primary's | **Partial** — Blink uses the **first** candidate; ours uses the last (paths) |
+| `kFirstCandidateForNotdefGlyph` | embedded mode renders the primary's `.notdef`; paths mode does too for private-use / noncharacter codepoints, but still pins the last chain entry's otherwise | **Partial** — correct for the codepoints Blink reaches this stage with *directly*; the residual is the general uncovered case, where ours still uses the last candidate rather than the first |
 
 ## 4. The core structural divergence
 
@@ -95,7 +96,7 @@ The full 818-fixture macOS unicode sweep moved 4 fixtures out of 818. The one th
 
 ## 5. Verdict summary
 
-Stages matching by construction today: **`kSystemFonts` on macOS**. It calls the identical CoreText function, with the identical base argument, and — since the ordering fix — actually gets to answer. The remaining font-selection stages do not yet match.
+Stages matching by construction today: **`kSystemFonts` on macOS** and **its private-use / noncharacter guard**. The first calls the identical CoreText function, with the identical base argument, and — since the ordering fix — actually gets to answer. The second is the cheapest transcription in this document and closed two live wrong-glyph defects at once: it is a three-line early return, and not having it meant asking the OS a question Chrome never asks. Worth noting *why* it survived so long unnoticed — the private-use ranges are excluded from the 819-block unicode corpus, so no fixture had ever exercised the path. It became visible the day one fixture did. The remaining font-selection stages do not yet match.
 
 Ordered by expected impact:
 
@@ -103,7 +104,8 @@ Ordered by expected impact:
 2. ~~**Fix the macOS base-font argument**~~ **Done** — the cascade base is the run's own primary, matching `CTFontCreateForString(ct_font, …)`.
 3. **Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.
 4. **Port the Windows table** ahead of our `MapCharacters` call.
-5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the *first* candidate.
+5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the *first* candidate. Now done for the private-use / noncharacter codepoints (item 7 below), which is where Blink reaches the terminal *directly*; the general uncovered case still pins the chain's last entry in paths mode.
+7. ~~**Skip system fallback for private-use and noncharacter codepoints**~~ **Done** — `font_cache.cc:242-244`. Cost nothing to transcribe; the ranges are absent from the corpus, so measure it with a purpose-built fixture rather than expecting the sweep to speak.
 6. **Model `kFallbackPriorityFonts`** as the one-shot stage it is.
 
 Each has corpus-wide blast radius and needs a full-sweep A/B before landing, measured against the conformance oracle rather than fixture scores.

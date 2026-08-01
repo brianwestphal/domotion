@@ -448,7 +448,9 @@ flowchart TD
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
   F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
-  F2A -->|"none"| FW{"_liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
+  F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
+  FPUA -->|"yes — no system fallback at all"| F6
+  FPUA -->|"no"| FW{"_liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
   FW -->|"no (win32)"| F3
   FW -->|"yes"| F4{"_systemFallbackResolutionEnabled?"}
   F4 -->|"yes"| F4A["2a. kSystemFonts — ASK THE OS FIRST:<br/>resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
@@ -460,7 +462,7 @@ flowchart TD
   F3C -->|"unchanged / non-darwin"| F3H["cover(candidate)"]
   F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
-  F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(paths: last chain .notdef · embedded: primary .notdef)"]
+  F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(embedded: primary .notdef · paths: primary .notdef for<br/>private-use/noncharacter, else last chain .notdef)"]
 ```
 
 Notes:
@@ -487,6 +489,36 @@ Notes:
   result with the `system-ui` cascade base armed, which was still off by default
   when that was written — see the 2×2 in §8a. Neither flag is scoreable alone,
   and 84,382 of the 84,938 rows require both.
+- **Private-use and noncharacter codepoints skip system fallback entirely.**
+  Blink's `FontCache::FallbackFontForCharacter`
+  (`platform/fonts/font_cache.cc:229-244`, rev `7d859f27`) returns null before it
+  reaches `PlatformFallbackFontForCharacter` at all:
+
+  ```cpp
+  if (Character::IsPrivateUse(lookup_char) ||
+      Character::IsNonCharacter(lookup_char))
+    return nullptr;
+  ```
+
+  `IsPrivateUse` is general category `Co`; `IsNonCharacter` is ICU's
+  `U_IS_UNICODE_NONCHAR` — U+FDD0..U+FDEF plus the last two codepoints of every
+  plane (`character.cc:290-296`). Upstream pins it with
+  `FontCacheTest.NoFallbackForPrivateUseArea`, and Blink's own comment gives the
+  reason for the noncharacter half: some are encoding-detection sentinels that
+  really do appear on the web, and running fallback for U+FFFE cost a memory
+  regression (crbug.com/862352).
+
+  The gate covers **both** 2a and 2b, because both stand in for `kSystemFonts` —
+  so the walk falls straight through to `kOutOfLuck` and the run keeps painting
+  from its primary. Two live defects came from not having it: macOS CoreText
+  answers `SFCompact-Regular` for U+100000 (Apple keeps SF Symbols in plane 16),
+  so a private-use codepoint painted a real SF glyph; and the chain tail answered
+  LastResort for the rest, whose glyph is a rounded box with a `?` measuring
+  2253/2048 em against Helvetica's 1298 `.notdef` — wide enough to overhang the
+  next character, since the advance came from the capture and was Chrome's.
+  The declared-family stages are deliberately NOT gated: macOS Helvetica has a
+  real U+F8FF (the Apple logo), and an author's icon webfont covers its own PUA
+  range, both of which Chrome paints from the family that carries them.
 - **Step 2b is still load-bearing.** The static chain is the net for what the OS
   declines: a host with no glyph helper, a platform whose live resolver is
   flagged off, or a codepoint the platform engine has no answer for — each of

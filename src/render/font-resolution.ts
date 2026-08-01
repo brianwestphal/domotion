@@ -3312,6 +3312,27 @@ export function isPrivateUseCodepoint(cp: number): boolean {
   return false;
 }
 
+/**
+ * The OTHER half of Blink's no-system-fallback rule. Transcribed from
+ * `third_party/blink/renderer/platform/fonts/font_cache.cc:242-244`
+ * (rev 7d859f27, 2026-06-27):
+ *
+ *     if (Character::IsPrivateUse(lookup_char) ||
+ *         Character::IsNonCharacter(lookup_char))
+ *       return nullptr;
+ *
+ * `Character::IsNonCharacter` is `U_IS_UNICODE_NONCHAR(c)` (`character.cc:294-296`),
+ * i.e. ICU's noncharacter set: U+FDD0..U+FDEF plus the last two codepoints of
+ * every plane (U+xFFFE / U+xFFFF). Blink's own comment gives the reason — some
+ * of these are encoding-detection sentinels that really do appear on the web,
+ * and running fallback for U+FFFE cost a memory regression (crbug.com/862352).
+ */
+export function isNonCharacterCodepoint(cp: number): boolean {
+  if (cp > 0x10FFFF) return false;
+  if (cp >= 0xFDD0 && cp <= 0xFDEF) return true;
+  return (cp & 0xFFFE) === 0xFFFE;
+}
+
 export function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   // Misc Symbols block (U+2600..26FF) chars with default emoji presentation.
   if (cp === 0x2614 || cp === 0x2615 || (cp >= 0x2648 && cp <= 0x2653)
@@ -5455,6 +5476,40 @@ export function resolveFontForCodepoint(
     }
     return null;
   };
+
+  // Blink runs NO system fallback for private-use or noncharacter codepoints.
+  // `FontCache::FallbackFontForCharacter` returns null before it ever reaches
+  // `PlatformFallbackFontForCharacter` (`platform/fonts/font_cache.cc:229-244`,
+  // rev 7d859f27):
+  //
+  //     if (Character::IsPrivateUse(lookup_char) ||
+  //         Character::IsNonCharacter(lookup_char))
+  //       return nullptr;
+  //
+  // pinned upstream by `FontCacheTest.NoFallbackForPrivateUseArea`
+  // (`font_cache_test.cc:44-61`), which asserts null for exactly
+  // U+E000 / U+E401-E403 / U+F8FF / U+F0000 / U+FAAAA / U+100000 / U+10AAAA.
+  //
+  // Both stages below stand in for Blink's `kSystemFonts`: `liveFallback` is
+  // the CoreText / fontconfig / DirectWrite call itself, and the static
+  // `fallbackFontChain` is our extra table sitting in the same slot (docs/106).
+  // So the rule gates both. The DECLARED-family stages above are untouched —
+  // Blink still walks those, which is why an icon webfont, or macOS Helvetica's
+  // real U+F8FF  glyph, still paints from the family that actually carries it.
+  //
+  // Falling through to the uncovered terminal is what makes the rest correct:
+  // the run stays on the primary and paints ITS `.notdef`, at the advance
+  // Chrome measured. Reaching a substitute instead is visible twice over — the
+  // wrong glyph, and (because a substitute's `.notdef` advance is its own)
+  // ink wider than the advance the capture recorded, which overlaps the next
+  // character. Measured on macOS before this gate: CoreText answers
+  // `SFCompact-Regular` for U+100000 (Apple keeps SF Symbols in plane 16) and
+  // our chain tail answered LastResort for U+E000 / U+F0000, whose glyph is
+  // 35.20px wide against Helvetica's 20.28px `.notdef` at 32px.
+  const noSystemFallback = isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp);
+  if (noSystemFallback) {
+    return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
+  }
 
   if (_liveFallbackFirst) {
     const live = liveFallback();

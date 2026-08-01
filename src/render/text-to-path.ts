@@ -49,6 +49,7 @@ import {
   glyphPathIntercepts,
   haltInfoFor,
   isEmojiCodepoint,
+  isNonCharacterCodepoint,
   isPrivateUseCodepoint,
   mergeGaps,
   opticalCutOpszFor,
@@ -264,9 +265,24 @@ export function textToPathMarkup(
         // place the glyph-path terminal differs from the embedded path's
         // primary-`.notdef`; the system-fallback + NFD steps the resolver added
         // are the DM-1068 fidelity fix the glyph-path lacked.
-        const chain = fallbackFontChain(cp, primaryFontKey, lang);
+        // ...EXCEPT for private-use / noncharacter codepoints, where Blink's
+        // terminal is the first candidate's `.notdef` and nothing else: it runs
+        // no system fallback for them at all (`platform/fonts/font_cache.cc:242-244`,
+        // rev 7d859f27), so the iterator falls through kSystemFonts to
+        // `kFirstCandidateForNotdefGlyph` (`font_fallback_iterator.cc:159-164`).
+        // Pinning those to the chain tail painted LastResort's glyph — a rounded
+        // box with a `?`, 35.20px wide at 32px against Helvetica's 20.28px
+        // `.notdef` — so the ink ran over the following character while the
+        // ADVANCE (from the capture) stayed Chrome's. The rasterGlyph rationale
+        // above doesn't reach here: an overlay is only pinned for emoji, and a
+        // PUA or noncharacter codepoint is neither.
         emitCh = ch;
-        useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
+        if (isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp)) {
+          useKey = primaryFontKey;
+        } else {
+          const chain = fallbackFontChain(cp, primaryFontKey, lang);
+          useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
+        }
         useFontOverride = null;
         useDecomposed = false;
       }
@@ -756,14 +772,8 @@ function singleFontMarkup(
     for (let gi = 0; gi < run.glyphs.length; gi++) {
       const glyph = run.glyphs[gi];
       const pos = run.positions[gi];
-      // DM-1849: this test is GATED on `glyph.id === 0`, so the `codePoints` it
-      // used to read were always the shared `.notdef`'s — i.e. the decision was
-      // always made on whichever uncovered codepoint happened to come first in
-      // the process, never on this one. Read the source text instead.
-      const srcCpHere = textIdx < text.length ? text.codePointAt(textIdx) : undefined;
-      const skipNotdefHere = glyph.id === 0 && srcCpHere != null && isPrivateUseCodepoint(srcCpHere);
       const dCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
-      if (textIdx < xOffsets.length && dCmds.length > 0 && !skipNotdefHere) {
+      if (textIdx < xOffsets.length && dCmds.length > 0) {
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
         const ty = -pos.yOffset;
@@ -788,24 +798,28 @@ function singleFontMarkup(
   const sc = Number(scale.toFixed(5));
   const uses: string[] = [];
   let x = 0;
-  // DM-1867: a source cursor, for the same reason the ligature loop above has
-  // one. `i` is a GLYPH index and cannot stand in for a text index — an astral
-  // codepoint is two UTF-16 units but one glyph, so the two run out of step the
-  // moment the text leaves the BMP. Advanced by `sourceClusterSpan` below.
-  let srcIdx = 0;
+  // Every glyph the shaper produced is emitted, `.notdef` included. Chrome does
+  // the same: for a codepoint nothing covers, Blink's fallback iterator ends at
+  // `kFirstCandidateForNotdefGlyph` and paints the RUN'S OWN font's `.notdef`
+  // (`font_fallback_iterator.cc:159-164`, rev 7d859f27) — for macOS Helvetica a
+  // hollow rectangle, 1298/2048 em wide.
+  //
+  // There used to be a private-use exception here that suppressed the `.notdef`
+  // and drew a synthetic hollow rect (~0.7 × advance × 0.65 em) in its place.
+  // It was a workaround for a defect one layer up, not a behaviour of Chrome's:
+  // the terminal used to pin to the fallback chain's LAST entry, i.e. LastResort,
+  // whose glyph is a rounded box with a `?` measuring 2253/2048 em — so it
+  // overhung the following character, and suppressing it was the visible cure.
+  // With the terminal on the primary (where Blink has it), the `.notdef`'s
+  // advance IS the advance the capture recorded, so it cannot overhang, and
+  // painting it is both simpler and pixel-identical to Chrome. The synthetic
+  // rect never was: measured against Helvetica's real `.notdef` it is narrower
+  // (0.71 em vs 0.90), shorter (0.65 em vs 0.72) and far thinner in the stroke.
   for (let i = 0; i < run.glyphs.length; i++) {
     const glyph = run.glyphs[i];
     const pos = run.positions[i];
-    // DM-1867: gated on `glyph.id === 0`, so reading THIS glyph's `codePoints`
-    // read the shared `.notdef`'s — fontkit memoizes `Glyph` objects by glyph
-    // id, so the one `.notdef` reports whichever uncovered codepoint happened to
-    // be probed first in the process. The decision was therefore made on an
-    // unrelated character, and which one depended on fixture order. Read the
-    // source text, as the five sites fixed alongside this one now do.
-    const srcCpHere = srcIdx < text.length ? text.codePointAt(srcIdx) : undefined;
-    const skipNotdefHere = glyph.id === 0 && srcCpHere != null && isPrivateUseCodepoint(srcCpHere);
     const eCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
-    if (eCmds.length > 0 && !skipNotdefHere) {
+    if (eCmds.length > 0) {
       const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds);
       let tx: number;
       if (usePerChar) {
@@ -839,56 +853,8 @@ function singleFontMarkup(
       }
       const ty = -pos.yOffset;
       uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
-    } else if (skipNotdefHere) {
-      // DM-769: PUA codepoint with no glyph coverage in the host font. The
-      // glyph path is suppressed (to avoid painting a giant notdef tofu
-      // over surrounding text — DM-490 / DM-500) but Chrome paints a small
-      // hollow-rectangle tofu at the codepoint's advance width. Emit a
-      // matching tofu so positions like the inline `<span
-      // class="ic">&#xe5cd;</span>` rows aren't visually blank. Sized at
-      // ~0.7 × advance × ~0.65em centered in the advance, with a 1-device-
-      // pixel border thickness. Painted in font-units inside the wrapping
-      // `<g transform="scale(sc, -sc)">` (Y-up); the rect at y=0 height=H
-      // extends UP from the baseline after the Y-flip.
-      //
-      // To paint a hollow outline while inheriting the wrapping group's
-      // `fill="<textColor>"` (currentColor isn't available here — `fill`
-      // is the only color attribute that bubbles down), emit a `<path>`
-      // with TWO sub-rectangles and `fill-rule="evenodd"`: the outer rect
-      // fills, the inner rect punches a hole. Result is a rectangular
-      // ring filled in the text color.
-      const tx = usePerChar ? xOffsets![i] / scale : x;
-      const advanceFu = pos.xAdvance;
-      const tofuW = Math.max(2, advanceFu * 0.7);
-      const tofuH = font.unitsPerEm * 0.65;
-      const cornerInsetX = (advanceFu - tofuW) / 2;
-      // Border thickness in font units: target ~1 device pixel at the
-      // active fontSize. `scale = fontSize / unitsPerEm`, so 1 / scale =
-      // unitsPerEm / fontSize font units per device pixel. Clamped to a
-      // minimum so the border stays visible at very large font sizes.
-      const borderFu = Math.max(font.unitsPerEm / Math.max(4, fontSize), font.unitsPerEm * 0.03);
-      const x0 = tx + cornerInsetX;
-      const x1 = x0 + tofuW;
-      const y0 = 0;
-      const y1 = tofuH;
-      const ix0 = x0 + borderFu;
-      const ix1 = x1 - borderFu;
-      const iy0 = y0 + borderFu;
-      const iy1 = y1 - borderFu;
-      if (ix1 > ix0 && iy1 > iy0) {
-        uses.push(`<path d="M${r2(x0)} ${r2(y0)} L${r2(x1)} ${r2(y0)} L${r2(x1)} ${r2(y1)} L${r2(x0)} ${r2(y1)} Z M${r2(ix0)} ${r2(iy0)} L${r2(ix0)} ${r2(iy1)} L${r2(ix1)} ${r2(iy1)} L${r2(ix1)} ${r2(iy0)} Z" fill-rule="evenodd"/>`);
-      } else {
-        // Degenerate (very thin advance) — fall back to a solid filled rect.
-        uses.push(`<rect x="${r2(x0)}" y="${r2(y0)}" width="${r2(tofuW)}" height="${r2(tofuH)}"/>`);
-      }
     }
     x += pos.xAdvance;
-    // DM-1867: advance the SOURCE cursor by this cluster's char span — 1 unit
-    // per BMP codepoint, 2 per astral one. Measured against the source text
-    // rather than the glyph's own `codePoints`, for the reason above: a shared
-    // memoized `Glyph` misreports them. Same call the ligature loop makes.
-    const srcCps = glyph.codePoints;
-    srcIdx += sourceClusterSpan(text, srcIdx, srcCps != null && srcCps.length > 0 ? srcCps.length : 1, false);
   }
   return {
     markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
