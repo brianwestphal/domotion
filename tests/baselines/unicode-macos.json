@@ -3,11 +3,23 @@
     "suite": "unicode",
     "os": "macos",
     "image": "macos26-arm64",
-    "commit": "4271c1af5c856063b381549b7a46cf10b08c9a22",
-    "capturedAt": "2026-07-30T09:10:32Z",
+    "commit": "44a03f4b7c4a0e259b2ed0511b8d0c2f328c0819",
+    "capturedAt": null,
+    "env": {
+      "image": "macos26-arm64",
+      "imageVersion": "20260728.0273.1",
+      "osRelease": "25.5.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "node": "v22.21.0",
+      "fontInventory": {
+        "digest": "a8a5b567b046c5c5",
+        "count": 370
+      }
+    },
     "counts": {
-      "passed": 806,
-      "failed": 12,
+      "passed": 808,
+      "failed": 10,
       "skipped": 0,
       "total": 818
     }
@@ -3269,11 +3281,11 @@
       "regionCount": 0
     },
     "20A0-20CF-currency-symbols": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.015228130350858233,
-      "worstTilePct": 0.6458716299019607,
-      "regionCount": 1
+      "diffPct": 0.012110550311029786,
+      "worstTilePct": 0.07774203431372549,
+      "regionCount": 0
     },
     "20D0-20FF-combining-diacritical-marks-for-symbols": {
       "pass": true,
@@ -3710,11 +3722,11 @@
       "regionCount": 0
     },
     "2C60-2C7F-latin-extended-c": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.012917521535788611,
-      "worstTilePct": 0.42815563725490174,
-      "regionCount": 1
+      "diffPct": 0.010988730813770652,
+      "worstTilePct": 0.0707529105392157,
+      "regionCount": 0
     },
     "2C80-2CFF-coptic": {
       "pass": true,
@@ -3957,7 +3969,7 @@
     "2E00-2E7F-supplemental-punctuation": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03813915718068901,
+      "diffPct": 0.037802067592249466,
       "worstTilePct": 0.09976256127450982,
       "regionCount": 0
     },
@@ -5196,7 +5208,7 @@
     "A720-A7FF-latin-extended-d": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04740436325267522,
+      "diffPct": 0.04705056018331515,
       "worstTilePct": 1.2859987745098025,
       "regionCount": 1
     },
