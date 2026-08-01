@@ -35,6 +35,31 @@
  * are not necessarily identical; the tolerance is the point. It should never be
  * used to decide pass/fail, only to attribute a movement that some other metric
  * already found.
+ *
+ * ## The sensitivity floor, measured — read this before trusting a "same"
+ *
+ * DM-1897. On a 1024x768 fixture, perturbing scattered pixels by ±8 intensity
+ * (the magnitude CI antialiasing actually varies by) moves this many of the 256
+ * cells:
+ *
+ *     ~diffPct 0.007   →   0 cells    INVISIBLE
+ *     ~diffPct 0.036   →   2 cells
+ *     ~diffPct 0.18    →   3 cells
+ *     ~diffPct 1.45    →  21 cells
+ *
+ * So **below roughly 0.04 diffPct at AA magnitude, "same" means "not detected",
+ * not "identical"**. High-contrast changes are seen far sooner — 50 full-black
+ * pixels (0.006% of the image) already move a cell — but that is not the case
+ * that matters here, because AA jitter is exactly what the quantisation is
+ * built to swallow.
+ *
+ * The practical consequence: for a fixture whose metric moves by a few
+ * hundredths of a percent, `attributeMovement` returning `neither` is NOT
+ * evidence that the comparator is at fault. It is equally consistent with
+ * ordinary raster jitter that this digest cannot resolve. Both readings stay
+ * open, and saying so is the point — the alternative is a confident wrong
+ * attribution, which is the failure this whole mechanism exists to prevent.
+ * (I made exactly that misreading on first use.)
  */
 
 /** Grid the image is box-averaged down to. 16×16 = 256 cells = 128 hex chars. */
@@ -111,9 +136,13 @@ export function compareDigest(a: string | undefined, b: string | undefined): Sid
  *              regression. The thing that cost a bisect.
  *   `renderer` ours moved and Chrome's did not — the real signal.
  *   `both`     both moved; genuinely ambiguous.
- *   `neither`  neither moved, yet the metric changed — worth surfacing loudly,
- *              because it means the metric is not a function of the two images
- *              (a comparator change, or a digest too coarse to see it).
+ *   `neither`  neither digest moved, yet the metric changed. Two readings stay
+ *              open and the second is the likelier one for small movements:
+ *              the metric is not a function of the two images (a comparator
+ *              change), OR the change is real but below this digest's
+ *              sensitivity floor — see the measured table above, where an
+ *              AA-magnitude move worth ~0.007 diffPct registers as zero cells.
+ *              Do NOT read `neither` as "the images are identical".
  *   `unknown`  digests unavailable on one side.
  */
 export function attributeMovement(

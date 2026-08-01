@@ -181,10 +181,13 @@ function movedLabel(cur, base) {
   if (expMoved && actMoved) return "both";
   if (expMoved) return "**oracle**";
   if (actMoved) return "renderer";
-  // Neither image moved yet the metric did: the metric is not a pure function of
-  // the two images. A comparator change, or a digest too coarse to see this one.
-  // Worth surfacing loudly rather than rounding to "no change".
-  return "⚠︎ neither";
+  // Neither DIGEST moved yet the metric did. Two readings stay open, and for a
+  // small movement the second is likelier: a comparator that is not a pure
+  // function of the two images, OR a real change below the digest's sensitivity
+  // floor (measured: an AA-magnitude move worth ~0.007 diffPct registers as zero
+  // cells — see src/review/side-digest.ts). This label means "could not
+  // attribute", NOT "the images are identical".
+  return "⚠︎ unattributed";
 }
 
 const oracleSide = regressions.filter((r) => movedLabel(r.cur, r.base) === "**oracle**");
