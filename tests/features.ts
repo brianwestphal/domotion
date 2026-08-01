@@ -39,6 +39,38 @@ export const tests: FeatureTest[] = [
     name: "text-small",
     html: `<div style="padding: 20px;"><div style="font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; font-family: -apple-system, sans-serif;">LABEL TEXT</div><div style="font-size: 12px; color: #6e7681; font-family: -apple-system, sans-serif; margin-top: 4px;">Score: 42/100 · 1,234 downloads</div></div>`,
   },
+  {
+    // DM-1879: the ONLY fixture that paints non-Latin text under a `system-ui`
+    // primary, and therefore the only pixel ground truth for the whole UI-font
+    // cascade.
+    //
+    // Every unicode fixture declares `system-ui` on `body` and then overrides it
+    // on the glyph cells, so `system-ui` styles page chrome — which is Latin,
+    // where the primary covers the codepoint and per-codepoint fallback never
+    // runs. The cascade was consequently invisible to all 818 of them: the
+    // change that introduced the CoreText UI-font base moved 0 fixtures by even
+    // 1e-12 while moving the conformance oracle's CJK slice by −74%.
+    //
+    // That blindness was not theoretical. It also hid a 9.5% advance error on
+    // these faces (they are optically size-dependent, and we were pinning them
+    // to their largest optical cut at every size — DM-1900).
+    //
+    // Each row is a DISTINCT CoreText answer, verified against Chrome via CDP
+    // `CSS.getPlatformFontsForNode` on macOS 26.5.2 — so a regression that
+    // collapses the Text/Display or Regular/Bold distinction moves pixels here:
+    //
+    //     13px w400          -> .PingFangUITextSC-Regular
+    //     13px w700          -> .PingFangUITextSC-Bold
+    //     20px w400          -> .PingFangUIDisplaySC-Regular
+    //     20px w700          -> .PingFangUIDisplaySC-Bold
+    //     13px w400 italic   -> .PingFangUIDisplaySC-Regular   <- Text→Display,
+    //                                         because PingFang has no italic
+    //
+    // `font-family` is deliberately declared ONCE on the wrapper and inherited:
+    // restating it per row would be the same mistake the unicode corpus makes.
+    name: "text-system-ui-cjk-fallback",
+    html: `<div style="padding: 20px; color: #e6edf3; font-family: system-ui;"><div style="font-size: 13px; font-weight: 400;">中文字体测试</div><div style="font-size: 13px; font-weight: 700;">中文字体测试</div><div style="font-size: 20px; font-weight: 400;">中文字体测试</div><div style="font-size: 20px; font-weight: 700;">中文字体测试</div><div style="font-size: 13px; font-weight: 400; font-style: italic;">中文字体测试</div></div>`,
+  },
 
   // ── Backgrounds & Colors ──
   {
