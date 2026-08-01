@@ -898,6 +898,9 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
       dwriteSlantFromCss(query.at("cssSlant").asNumber(0), query.at("italic").asBool(false));
   const DWRITE_FONT_STRETCH dwStretch = dwriteStretchFromCss(query.at("cssStretch").asNumber(100));
 
+  // DM-1871: the run's primary family, when the caller knows it.
+  const std::wstring baseFamilyW = toWide(query.at("baseFamilyName").asString());
+
   const JsonArray& cps = query.at("cps").asArray();
   for (size_t i = 0; i < cps.size(); i++) {
     if (i > 0) out << ",";
@@ -911,9 +914,19 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
       UINT32 mappedLength = 0;
       IDWriteFont* mappedFont = nullptr;
       FLOAT scale = 1.0f;
+      // DM-1871: Blink passes the RUN'S PRIMARY FAMILY as `baseFamilyName`.
+      // `FontCache::GetDWriteFallbackFamily` takes
+      // `font_description.Family().FamilyName()` and Skia forwards it as this
+      // argument (`win/font_cache_skia_win.cc:234-240` →
+      // `SkFontMgr_win_dw.cpp:928-939`, Chromium rev 7d859f27).
+      //
+      // It is not cosmetic: the base family is what lets that family's own font
+      // linking participate in DirectWrite's answer, so passing null asks a
+      // different question than Chrome asks. Absent field keeps the previous
+      // nullptr behaviour, so an older Node side degrades rather than mismatches.
       HRESULT hr = fallback->MapCharacters(
           source, 0, static_cast<UINT32>(s.size()), systemFonts,
-          nullptr,  // null base family → pure system fallback
+          baseFamilyW.empty() ? nullptr : baseFamilyW.c_str(),
           dwWeight, dwSlant, dwStretch,
           &mappedLength, &mappedFont, &scale);
       if (SUCCEEDED(hr) && mappedFont && mappedLength > 0) {
@@ -1285,7 +1298,7 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.4.0\n";
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.5.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {

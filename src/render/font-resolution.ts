@@ -1853,8 +1853,18 @@ function resolveSystemFallbackKeyForCp(
       // recover it — the weight has to be in the call. `fontSize` is passed for
       // the request's cache key, not to the matcher (DirectWrite's family match
       // is size-independent).
+      // DM-1871: hand DirectWrite the run's primary family, the way Blink does.
+      // `fileFamilyNameForKey` reads it from the file the key resolves to, so
+      // this is derived rather than a second key→family table; `system-ui` has
+      // no literal name and comes from the OS.
+      const primaryFamily = primaryKey == null
+        ? undefined
+        : (primaryKey === "sf-pro"
+          ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(primaryKey))
+          : fileFamilyNameForKey(primaryKey)) ?? undefined;
       const resolved = resolveSystemFallbackFonts([cp], "Helvetica", {
         weight, italic: slant !== 0, fontSize,
+        ...(primaryFamily != null ? { baseFamilyName: primaryFamily } : {}),
       }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;

@@ -1036,7 +1036,11 @@ const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest)
     // DM-1859: `systemUi` and `stretch` join the key for the same reason the rest
     // of the description did — they change which base the cascade is walked FROM,
     // so a key blind to them would serve a named-family answer to a system-ui run.
-    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}`;
+    // DM-1871: `baseFamilyName` too — on Windows the answer is a function of the
+    // run's primary family, so a key blind to it would serve whichever primary
+    // asked first to every later caller. Same hazard the cascade base already
+    // documents, one platform over.
+    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -1045,6 +1049,19 @@ const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest)
  *  cuts of the same family. Measured: at weight 700 that moves 8,121 of a
  *  27,790-codepoint stride (29%) off the face CoreText nominated. */
 export interface SystemFallbackRequest {
+  /**
+   * DM-1871: the run's PRIMARY family name, for Windows.
+   *
+   * Blink passes it as `MapCharacters`' `baseFamilyName` —
+   * `GetDWriteFallbackFamily` takes `font_description.Family().FamilyName()`
+   * and Skia forwards it (`win/font_cache_skia_win.cc:234-240` →
+   * `SkFontMgr_win_dw.cpp:928-939`, rev 7d859f27). It is what lets the primary
+   * family's own font linking participate in DirectWrite's answer, so a null
+   * base asks a different question than Chrome asks.
+   *
+   * Ignored on macOS and Linux, whose fallback APIs take no such argument.
+   */
+  baseFamilyName?: string;
   /** CSS `font-weight` (1..1000). */
   weight: number;
   /** CSS `font-style: italic | oblique`. */
@@ -1238,7 +1255,12 @@ export function buildFallbackEnvelope(
         // `bold` mirrors Blink's `platform_data.synthetic_bold_` OR: our base
         // font stands in for the run primary at its regular cut, so a bold
         // request arrives as the synthetic trait rather than in the face.
-        ? { cssWeight: req.weight, bold: req.weight >= 600, italic: req.italic }
+        ? {
+          cssWeight: req.weight, bold: req.weight >= 600, italic: req.italic,
+          // DM-1871: Windows only — the macOS and Linux helpers ignore it.
+          ...(req.baseFamilyName != null && req.baseFamilyName !== ""
+            ? { baseFamilyName: req.baseFamilyName } : {}),
+        }
         : {}),
     }],
   };
