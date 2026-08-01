@@ -20,6 +20,13 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+// The SHARED attribute escaper. Two local copies used to live in this file and
+// escaped only the five XML metacharacters, so a codepoint the XML `Char`
+// production forbids (U+FFFE / U+FFFF, a stray control, an unpaired surrogate)
+// reached the accessible name verbatim and made the whole document unparseable
+// — the consumer showed a broken-image icon rather than the drawing. Import the
+// one implementation instead of restating it; see `esc` for the disposition.
+import { esc as escAttr } from "./format.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont, OBLIQUE_SHEAR, resolveFakeBoldTextStroke } from "./embolden-outline.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
@@ -1411,7 +1418,7 @@ function renderTextAsEmbedded(
   const baselineAscent = ascentOverride != null ? ascentOverride : Math.round(primaryFont.ascent * scale);
   const baselineY = y + baselineAscent;
 
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const esc = escAttr;
   // void: silence "unused" when the helper isn't called below (path varies).
   void esc;
   // DM-907: defer `<text>` emit until we've walked every run, so the
@@ -2116,7 +2123,7 @@ export function renderTextAsPath(
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const esc = escAttr;
 
   // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts
   // before an orphaned complex-shaper combining mark — for UNCOVERED marks

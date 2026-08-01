@@ -78,19 +78,65 @@ export const tests: FeatureTest[] = [
     // PUA ranges. So the notdef-suppression path could neither be regressed nor
     // shown to work: a change there broke no fixture and proved nothing.
     //
-    // The path being covered: for an uncovered PUA codepoint the renderer
-    // suppresses the font's `.notdef` outline (which would paint a giant tofu
-    // over neighbouring text) and emits a small hollow rectangle at the
-    // codepoint's advance instead, matching what Chrome draws.
+    // The path being covered: Blink runs NO per-codepoint font fallback for
+    // private-use codepoints (`platform/fonts/font_cache.cc:242-244`), so the
+    // run stays on its primary and paints THAT font's `.notdef` — for macOS
+    // Helvetica a hollow rectangle at 1298/2048 em. Verified against Chrome
+    // rather than inferred: CDP `CSS.getPlatformFontsForNode` names Helvetica
+    // for every one of these, and the measured advance is 20.28125px at 32px.
     //
     // Deliberately mixes BMP PUA (U+E000, U+F8FF) with astral PUA (U+F0000,
     // U+100000): the astral ones are two UTF-16 units per glyph, which is
     // exactly the case where a glyph index cannot stand in for a text index —
-    // the bug this fixture accompanies. Latin on either side so a suppression
-    // that swallowed the wrong run would show as missing text, and so the
-    // advance is checked against neighbours rather than in isolation.
+    // the bug this fixture originally accompanied. U+F8FF is load-bearing in
+    // the other direction: macOS Helvetica has a real glyph for it (the Apple
+    // logo), so it pins that the rule skips only the SYSTEM-fallback stage and
+    // still lets the declared family answer. Latin on either side so a wrong
+    // advance shows as a collision rather than having to be measured alone.
     name: "text-private-use-tofu",
     html: `<div style="padding: 20px; color: #e6edf3; font-family: Helvetica, sans-serif; font-size: 32px;"><div>A\u{E000}B\u{F8FF}C</div><div>D\u{F0000}E\u{100000}F</div><div>\u{E000}\u{E001}\u{E002}</div></div>`,
+  },
+
+  {
+    // The OTHER half of the same Blink rule, and the half with no coverage
+    // anywhere else: `FallbackFontForCharacter` skips fallback for
+    // `Character::IsNonCharacter` as well as private-use, but noncharacters are
+    // absent from the 819-block unicode corpus (`FFF0-FFFF-specials.html` and
+    // the Arabic-Presentation-Forms fixtures contain none) AND excluded from
+    // the conformance oracle's universe. So without this fixture the rule's
+    // noncharacter branch was asserted only by a unit test.
+    //
+    // Chrome paints a `.notdef` for these, same as for private-use — measured,
+    // not assumed: `getPlatformFontsForNode` reports Helvetica with a glyph per
+    // character, and "A<nonchar>B" measures 62.97px against 42.69px for "AB",
+    // a delta of exactly Helvetica's 20.28px `.notdef` advance.
+    //
+    // Covers both shapes the ICU predicate has: the contiguous U+FDD0..U+FDEF
+    // window, and the last two codepoints of a plane (U+FFFE/U+FFFF, plus an
+    // astral one so the per-plane arm is exercised rather than just the BMP).
+    //
+    // U+FFFE / U+FFFF are load-bearing for a second reason, found by this
+    // fixture: they are the two codepoints the XML `Char` production excludes,
+    // so carrying them into the accessible name made the whole SVG unparseable
+    // and the consumer rendered a broken-image icon. That is why `esc` drops
+    // XML-illegal codepoints \u2014 this row is its regression guard, and it fails
+    // loudly (97% of image) rather than subtly if that is ever undone.
+    //
+    // Row 3 avoids the letter `G` deliberately, and NOT to flatter the result:
+    // `G` beside a notdef box is the one Latin neighbour that trips the region
+    // detector on the paths-mode hinting floor (measured: `G`\u21921 region, while
+    // `A/B/C`, `D/E/F`, `J/K/L` \u2192 0, and the PUA sibling fixture shows the same
+    // 1 region when given `G`). That floor is real but unrelated to what this
+    // fixture asserts: Chrome's Skia HINTS Helvetica's `.notdef`, snapping its
+    // 2.875px strokes to whole pixels, where the unhinted outline anti-aliases
+    // both edges (scanline through the box: identical centres at 237, but edge
+    // pixels 153 vs Chrome's 235 \u2014 0.834 of the ink). Embedded-subset mode, the
+    // production default, preserves the hinting program and is pixel-exact here
+    // (0.000%, 0 regions); only `paths` mode, which the visual harness pins,
+    // carries it. Leaving `G` in would make a font-ROUTING fixture permanently
+    // red for a RASTERIZATION reason and conflate the two.
+    name: "text-noncharacter-tofu",
+    html: `<div style="padding: 20px; color: #e6edf3; font-family: Helvetica, sans-serif; font-size: 32px;"><div>A\uFDD0B\uFDEFC</div><div>D\uFFFEE\uFFFFF</div><div>J\u{1FFFE}K\u{10FFFF}L</div></div>`,
   },
 
   // ── Backgrounds & Colors ──
