@@ -51,14 +51,26 @@ function imageFor(os) {
   return null;
 }
 
+// merge-shard-results.mjs folded the per-shard environments into one record per
+// OS. It is null when the shards disagreed, which is deliberate: a run whose
+// shards straddled a runner-image rotation is not a single measurement, and
+// carrying "whatever shard 1 had" into the baseline is how that mix hides.
+function envPathFor(os) {
+  const p = join(input, `run-env-${os}.json`);
+  return existsSync(p) ? p : null;
+}
+
 let anyRegression = false;
 for (const os of oses) {
   const merged = join(input, `results-${os}.json`);
   const baseline = `tests/baselines/${suite}-${os}.json`;
+  const envPath = envPathFor(os);
   console.log(`\n=== baseline diff: ${os} / ${suite} (vs ${baseline}) ===`);
   try {
-    execFileSync("node", ["scripts/diff-against-baseline.mjs",
-      "--results", merged, "--baseline", baseline, "--label", `${os} / ${suite}`], { stdio: "inherit" });
+    const a = ["scripts/diff-against-baseline.mjs",
+      "--results", merged, "--baseline", baseline, "--label", `${os} / ${suite}`];
+    if (envPath) a.push("--env", envPath);
+    execFileSync("node", a, { stdio: "inherit" });
   } catch (e) {
     if (e.status === 1) anyRegression = true; // diff exits 1 only under --strict; here it won't, so this is defensive
     else throw e;
@@ -71,6 +83,7 @@ for (const os of oses) {
     if (image) a.push("--image", image);
     if (commit) a.push("--commit", commit);
     if (capturedAt) a.push("--captured-at", capturedAt);
+    if (envPath) a.push("--env", envPath);
     execFileSync("node", a, { stdio: "inherit" });
   }
 }

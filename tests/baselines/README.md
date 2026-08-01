@@ -112,13 +112,19 @@ node scripts/diff-font-conformance-baseline.mjs --results merged.json \
 
 `<suite>-<os>.json` — `{ meta, fixtures }`:
 
-- `meta`: `suite`, `os`, `image`, `commit`, `capturedAt`, and roll-up `counts`.
+- `meta`: `suite`, `os`, `image`, `commit`, `capturedAt`, `env`, and roll-up `counts`.
   `image` identifies the runner image so an image rotation shows up as a mismatch
   (recorded by `scripts/record-runner-image.mjs`, DM-1426). On the host runners
   it's the GitHub `ImageOS` + arch (`macos15-arm64`, `win22-x64`); the Linux job
   runs inside the pinned `mcr.microsoft.com/playwright:v<ver>-noble` container
   where `ImageOS` is unset, so it's the Playwright version + Ubuntu codename + arch
   (`playwright-v1.59.1-noble-x64`) — which rotates when the container tag bumps.
+- `meta.env` — the finer-grained environment fingerprint `image` is too coarse to
+  provide: `{ image, imageVersion, osRelease, platform, arch, node, fontInventory }`
+  from `scripts/run-env.mjs`. See the caveat at the end of "Checking a run against
+  the baseline" for why `image` alone was not enough. `null` on baselines captured before it
+  existed, which the comparator reports as "cannot confirm comparable" rather than
+  as agreement.
 - `fixtures`: `{ "<fixture-name>": { pass, skipped, diffPct, worstTilePct, regionCount } }`.
 
 Only the fields the comparator needs are stored, keyed by fixture name, so the
@@ -158,3 +164,22 @@ committed baseline prints a notice and exits 0.
 
 When the macOS runner image rotates (`macos-15` → a future `macos-N`), the
 `meta.image` mismatch is your signal to refresh the baseline on the new image.
+
+**`meta.image` only catches a MAJOR rotation, and that is not the only kind that
+matters.** It derives from `ImageOS`, which reads `macOS26` both before and after
+a point-release image bump — yet `macos-latest` moving from image `20260720.0258`
+(macOS 26.4) to `20260728.0273` (macOS 26.5.2) changed which face Chrome picks for
+U+2090–U+2093, swinging one fixture's metric 4x with no code change. That got
+attributed to five successive unrelated commits before it was traced.
+
+So the visual-sweep baselines also carry **`meta.env`** (`scripts/run-env.mjs`):
+`imageVersion` (GitHub's image build id), `osRelease` (`os.release()`), and a
+digest of the installed font set — the same shape of guard
+`font-conformance-<os>.json` already had via `meta.fontInventory`.
+`scripts/diff-against-baseline.mjs` leads its report with an environment-drift
+banner when they differ, and a baseline written before `meta.env` existed reports
+"predates environment recording" rather than a false all-clear. A run whose own
+shards disagreed (a rotation mid-sweep) is flagged by
+`scripts/merge-shard-results.mjs` and leaves the conflicting field `null`, so a
+blended run cannot be captured as a clean baseline. See doc 66, "The environment
+moves underneath you".

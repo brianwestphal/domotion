@@ -177,6 +177,14 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+      # The richer environment fingerprint the merge + baseline comparator use.
+      # runner-image.txt alone derives from ImageOS, which reads `macOS26` across
+      # an image rotation that DOES change Chrome's font selection; this records
+      # ImageVersion, os.release() and the installed-font digest as well.
+      - name: Record run environment
+        if: always()
+        shell: bash
+        run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
       - name: Drop SVGs from artifacts (lean, review needs only PNGs)
         if: ${{ always() && inputs.include_svg != true }}
         shell: bash
@@ -221,6 +229,14 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+      # The richer environment fingerprint the merge + baseline comparator use.
+      # runner-image.txt alone derives from ImageOS, which reads `macOS26` across
+      # an image rotation that DOES change Chrome's font selection; this records
+      # ImageVersion, os.release() and the installed-font digest as well.
+      - name: Record run environment
+        if: always()
+        shell: bash
+        run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
       - name: Drop SVGs from artifacts (lean, review needs only PNGs)
         if: ${{ always() && inputs.include_svg != true }}
         shell: bash
@@ -274,6 +290,14 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+      # The richer environment fingerprint the merge + baseline comparator use.
+      # runner-image.txt alone derives from ImageOS, which reads `macOS26` across
+      # an image rotation that DOES change Chrome's font selection; this records
+      # ImageVersion, os.release() and the installed-font digest as well.
+      - name: Record run environment
+        if: always()
+        shell: bash
+        run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
       - name: Drop SVGs from artifacts (lean, review needs only PNGs)
         if: ${{ always() && inputs.include_svg != true }}
         shell: bash

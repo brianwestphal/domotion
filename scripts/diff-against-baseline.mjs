@@ -16,7 +16,7 @@
 //
 // Usage:
 //   node scripts/diff-against-baseline.mjs --results <merged-results.json> \
-//        --baseline tests/baselines/<suite>-<os>.json [--summary <file>] [--strict] [--label <text>]
+//        --baseline tests/baselines/<suite>-<os>.json [--summary <file>] [--strict] [--label <text>] [--env <run-env.json>]
 //
 // --results   : a merged results array (scripts/merge-shard-results.mjs output) OR
 //               a baseline-wrapper object ({meta, fixtures}); both are accepted.
@@ -26,8 +26,15 @@
 // --strict    : exit 1 when there are regressions or new failing fixtures.
 // --summary   : write the Markdown report here (append if it's $GITHUB_STEP_SUMMARY).
 // --label     : a short label for the report heading (e.g. "macos / unicode").
+// --env       : this run's environment fingerprint (scripts/run-env.mjs). When it
+//               differs from the baseline's, the report says so FIRST — a
+//               difference measured across two environments is not evidence about
+//               the code, and reading it as one has cost this project five wrong
+//               attributions on a single fixture.
 
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
+
+import { envComparability } from "./run-env.mjs";
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(name);
@@ -130,6 +137,36 @@ if (meta.image) metaBits.push(`image \`${meta.image}\``);
 if (meta.commit) metaBits.push(`baseline commit \`${String(meta.commit).slice(0, 8)}\``);
 if (meta.capturedAt) metaBits.push(`captured ${meta.capturedAt}`);
 if (metaBits.length) md.push(`Baseline: ${metaBits.join(" · ")}`, "");
+
+// Environment drift comes FIRST, above the counts, because it changes what every
+// number below means. `macos-latest` rotating mid-rollout put one shard on macOS
+// 26.4 and the rest on 26.5.2; Chrome's fallback for U+2090-U+2093 differs
+// between them, so one fixture swung 4x with no code change and was blamed on
+// five successive commits. `meta.image` could not see it — `ImageOS` is
+// `macOS26` on both.
+const envPath = arg("--env", null);
+let runEnv = null;
+if (envPath != null && existsSync(envPath)) {
+  try { runEnv = JSON.parse(readFileSync(envPath, "utf8")); } catch { runEnv = null; }
+}
+const envReasons = envComparability(runEnv, meta.env ?? null);
+if (envReasons.length > 0) {
+  md.push(
+    "> ⚠️ **This run was measured in a DIFFERENT environment than the baseline.**",
+    "> Differences below may be environmental rather than code changes — Chrome's own",
+    "> font selection moves with the OS. Re-capture the baseline on the current image",
+    "> before attributing anything here to a commit.",
+    "",
+    ...envReasons.map((r) => `> - ${r}`),
+    "",
+  );
+} else if (runEnv != null && meta.env == null) {
+  md.push(
+    "> ℹ️ The baseline predates environment recording, so this run and it cannot be",
+    "> confirmed comparable. Re-capture the baseline to enable the check.",
+    "",
+  );
+}
 
 md.push(`**${curFails} failing now vs ${baseFails} in baseline.** ` +
   `${regressions.length} regression(s), ${fixes.length} fix(es), ` +

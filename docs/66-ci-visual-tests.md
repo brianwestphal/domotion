@@ -86,13 +86,38 @@ Establish / refresh a baseline from a reviewed known-good run: `node tools/run-c
 
 The baseline diff compares one number per fixture — the diff between Chrome's `expected.png` and Domotion's `actual.svg`. That number rises whenever *either side* moves, and the report cannot tell you which. On the CI runners it is sometimes Chrome.
 
-The measured case: `2070-209F-superscripts-and-subscripts` reported a worst-tile jump 0.07% → 2.17% on one sweep. Re-running the **same commit** on the **same runner image** reproduced the baseline value, and a fresh full sweep on `main` reproduced it again. Comparing the two runs' artifacts directly showed Domotion's `actual.png` essentially unchanged while Chrome's `expected.png` differed by 607 px, confined to the four cells for U+2090–U+2093 — Chrome had painted those codepoints from a different face in one run than the other. Domotion was stable and correct in both.
+The measured case: `2070-209F-superscripts-and-subscripts` reported a worst-tile jump 0.07% → 2.17% on one sweep. Re-running the **same commit** reproduced the baseline value, and a fresh full sweep on `main` reproduced it again. Comparing the two runs' artifacts directly showed Domotion's `actual.png` essentially unchanged while Chrome's `expected.png` differed by 607 px, confined to the four cells for U+2090–U+2093 — Chrome had painted those codepoints from a different face in one run than the other. Domotion was stable and correct in both.
+
+**That case was later traced to its cause, and the "same runner image" it was originally recorded against was not true** — see "The environment moves underneath you" below. `meta.image` said the two runs matched because it derives from `ImageOS`, which does not change across an image rotation within the same major macOS.
 
 Why those cells are exposed: the fixture's stack is `"SF Pro Text", "Arial Unicode MS", "Apple Symbols", "Apple Color Emoji", "Noto Sans", "Noto Serif", sans-serif`, and a bare macOS runner has neither SF Pro nor Noto installed. The declared list therefore thins to `Arial Unicode MS → Apple Symbols → Apple Color Emoji → sans-serif`, and U+2090–U+2093 are covered only by the last entry (`sans-serif` → Helvetica, which carries designed low subscript forms). A font-poor environment leaves almost no margin, so any wobble in the platform's answer shows up as a "regression".
 
 The correct paint there is Helvetica: Blink exhausts the declared family list (`kFontGroupFonts`, which ends at the generic) before it ever consults the platform's per-character fallback (`kSystemFonts`) — see `third_party/blink/renderer/platform/fonts/font_fallback_iterator.h:72-80`, Chromium checkout `7d859f27`. Chrome's own `CSS.getPlatformFontsForNode` reports `Helvetica` for those cells, and the glyph outlines Domotion embeds match Helvetica's `U+2090`/`U+2091` bounding boxes exactly.
 
 **So: before bisecting a single-fixture baseline regression, re-run the same ref.** Attribution by per-commit sweeps is wasted effort if the delta is not reproducible in the first place, and a `--only <fixture>` arm that "passes" proves nothing on its own — the fixture may be order-dependent (see the `--only` caveat in `CLAUDE.md`). The cheap discriminator is to compare the two runs' `*-expected.png` against **each other**: if Chrome's own paint moved, the renderer is not the story.
+
+### The environment moves underneath you — and `meta.image` could not see it
+
+The same fixture went on to look like a regression caused by five *more* unrelated changes, oscillating between exactly 0.0574 and 0.0138. Three of those five readings were wrong. The cause was not the renderer, not the oracle's own nondeterminism, and not the comparator:
+
+```
+run 30682135006:  shards 1-4 → runner image 20260728.0273 (macOS 26.5.2, kernel 25.5.0)
+                  shard  5   → runner image 20260720.0258 (macOS 26.4,   kernel 25.4.0)
+run 30682617339:  all shards → runner image 20260728.0273
+```
+
+`macos-latest` was mid-rollout. The shard carrying this fixture drew the older image in one run and the newer one in the other, and Chrome's per-codepoint fallback for U+2090–U+2093 differs between those macOS versions. Hash-comparing every PNG in that shard across the two runs: **162 of 163 fixtures byte-identical, and this one differing on both sides** (expected 688 px, actual 327 px, max channel delta 238 — full glyph contrast, not antialiasing).
+
+Two things made this invisible for months:
+
+- **`meta.image` is derived from `ImageOS`**, which reads `macOS26` on both images. The fields that actually moved — `ImageVersion` and `os.release()` — were not recorded at all. The documented "when the image rotates, `meta.image` signals it" contract only covers a *major* rotation.
+- **A single run's shards can straddle the rotation**, so a merged `results-<os>.json` is not necessarily one measurement. Capturing such a run as a baseline bakes the mix in.
+
+Both are now guarded. `scripts/run-env.mjs` records `ImageVersion`, `os.release()` and a digest of the installed font set per shard; `scripts/merge-shard-results.mjs` folds them, and when shards disagree it says so in the Step Summary, names the odd shard, and leaves the conflicting field `null` in `run-env-<os>.json` rather than adopting the majority value (`--strict-env` makes that a hard failure). `scripts/diff-against-baseline.mjs` compares this run's record against the baseline's `meta.env` and leads the report with an environment-drift banner *above* the counts, because it changes what those counts mean. A baseline written before this existed reports "predates environment recording" rather than a false all-clear.
+
+This mirrors the guard the font-conformance oracle already had (`comparability()` in `scripts/diff-font-conformance-baseline.mjs`, doc 107), which refuses to judge across a change in runner image, font inventory, ICU version or slice. The visual sweep simply never had one.
+
+**Practical rule:** a per-fixture difference between two sweeps is evidence about the code *only* if both were measured in the same environment. Check the Step Summary's environment line before attributing anything to a commit.
 
 ## Other-platform caveats
 

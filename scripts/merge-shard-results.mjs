@@ -21,6 +21,8 @@
 import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
 import { resolve, join, basename, dirname } from "node:path";
 
+import { mergeShardEnvs } from "./run-env.mjs";
+
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(name);
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
@@ -79,9 +81,19 @@ if (files.length === 0) {
   process.exit(1);
 }
 
+// Each shard writes `run-env.json` into its own artifact (scripts/run-env.mjs).
+// Read it from the SAME directory as that shard's results.json so a shard's
+// numbers and the machine that produced them cannot drift apart.
+function envBesideResults(resultsPath) {
+  const p = join(dirname(resultsPath), "run-env.json");
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+}
+
 // Group fixtures by OS, deduping by fixture name (a shard never overlaps, but be
 // defensive against a re-run / double download).
 const byOs = new Map();
+const envsByOs = new Map();
 for (const f of files) {
   const os = osFromPath(f);
   let arr;
@@ -91,6 +103,11 @@ for (const f of files) {
   }
   if (!Array.isArray(arr)) continue;
   const shard = shardFromPath(f);
+  const env = envBesideResults(f);
+  if (env != null) {
+    if (!envsByOs.has(os)) envsByOs.set(os, []);
+    envsByOs.get(os).push({ shard, env });
+  }
   if (!byOs.has(os)) byOs.set(os, new Map());
   const seen = byOs.get(os);
   for (const r of arr) {
@@ -105,6 +122,7 @@ for (const f of files) {
 
 const lines = ["## Visual-test results (merged across shards)", ""];
 let anyFailed = false;
+let anyHeterogeneous = false;
 
 for (const os of [...byOs.keys()].sort()) {
   const results = [...byOs.get(os).values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -119,6 +137,38 @@ for (const os of [...byOs.keys()].sort()) {
 
   lines.push(`### ${os}`, "");
   lines.push(`**${passed} passed, ${failed} failed, ${skipped} skipped** out of ${results.length}.`, "");
+
+  // The environment these numbers were measured in, folded across shards. A
+  // sweep is only ONE measurement if every shard ran on the same machine spec;
+  // when they didn't, say so here rather than letting the merged file imply it.
+  const shardEnvs = envsByOs.get(os) ?? [];
+  if (shardEnvs.length > 0) {
+    const { combined, heterogeneous, conflicts } = mergeShardEnvs(shardEnvs);
+    writeFileSync(resolve(outDir, `run-env-${os}.json`), JSON.stringify(combined, null, 2) + "\n");
+    if (heterogeneous) {
+      anyHeterogeneous = true;
+      lines.push(
+        `> ⚠️ **This run's shards did NOT all run on the same environment.** The merged`,
+        `> numbers above are a blend of ${conflicts[0].values.length}+ machine specs, so a`,
+        `> per-fixture difference vs another run may be environmental rather than a code`,
+        `> change — and capturing this run as a baseline would bake the mix in.`,
+        "",
+      );
+      for (const c of conflicts) {
+        const parts = c.values.map((v) => `\`${v.value}\` (shard${v.shards.length === 1 ? "" : "s"} ${v.shards.join(", ") || "?"})`);
+        lines.push(`> - **${c.field}**: ${parts.join(" vs ")}`);
+      }
+      lines.push("");
+      console.error(`merge-shard-results: WARNING ${os} shards disagree on: ${conflicts.map((c) => c.field).join(", ")}`);
+    } else {
+      const bits = [];
+      if (combined.image) bits.push(`image \`${combined.image}\``);
+      if (combined.imageVersion) bits.push(`build \`${combined.imageVersion}\``);
+      if (combined.osRelease) bits.push(`os \`${combined.osRelease}\``);
+      if (combined.fontInventory?.digest) bits.push(`fonts \`${combined.fontInventory.digest}\``);
+      if (bits.length) lines.push(`Environment (all ${shardEnvs.length} shard(s) agree): ${bits.join(" · ")}`, "");
+    }
+  }
 
   const fails = results
     .filter((r) => !r.pass && !r.skipped)
@@ -151,4 +201,10 @@ if (summaryTarget != null) {
 
 // Report-only by default (don't fail CI on a fidelity diff in a manual run); a
 // caller that wants a hard gate can check the exit code with --strict.
+//
+// A heterogeneous run is a separate failure from a fidelity diff: the numbers
+// may be perfectly fine, but they are not one measurement. `--strict-env` fails
+// on it so a baseline capture can refuse to bake in a blended run, without
+// making every ordinary sweep hard-fail during a routine image rotation.
+if (process.argv.includes("--strict-env") && anyHeterogeneous) process.exit(1);
 if (process.argv.includes("--strict") && anyFailed) process.exit(1);

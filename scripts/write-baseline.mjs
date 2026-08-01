@@ -12,7 +12,12 @@
 //   node scripts/write-baseline.mjs --results <merged-results.json> \
 //        --out tests/baselines/<suite>-<os>.json \
 //        --suite <unicode|html> --os <macos|linux|windows> \
-//        [--image <id>] [--commit <sha>] [--captured-at <iso>]
+//        [--image <id>] [--commit <sha>] [--captured-at <iso>] [--env <run-env.json>]
+//
+// `--env` records the environment fingerprint the run was measured in
+// (scripts/run-env.mjs). Without it, `--image` alone is too coarse to notice a
+// runner-image rotation: `ImageOS` reads `macOS26` both before and after, so two
+// different macOS builds — which DO select different fonts — look identical.
 //
 // Date.now()/new Date() are avoided so this stays deterministic under the
 // workflow harness; pass --captured-at / --commit explicitly (the workflow and
@@ -57,6 +62,15 @@ for (const r of arr.slice().sort((a, b) => a.name.localeCompare(b.name))) {
   else failed++;
 }
 
+const envPath = arg("--env", null);
+let env = null;
+if (envPath != null) {
+  try { env = JSON.parse(readFileSync(envPath, "utf8")); } catch (e) {
+    console.error(`write-baseline: could not read --env ${envPath}: ${e.message}`);
+    process.exit(2); // an unreadable env is worse than none: it looks recorded
+  }
+}
+
 const doc = {
   meta: {
     suite: arg("--suite", "unknown"),
@@ -64,6 +78,7 @@ const doc = {
     image: arg("--image", null),
     commit: arg("--commit", null),
     capturedAt: arg("--captured-at", null),
+    env,
     counts: { passed, failed, skipped, total: passed + failed + skipped },
   },
   fixtures,

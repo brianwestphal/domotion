@@ -1,0 +1,237 @@
+// The environment fingerprint a visual sweep is measured in.
+//
+// Why this exists, concretely. Two macOS unicode sweeps of the IDENTICAL commit
+// disagreed on exactly one fixture out of 818, by 4x:
+//
+//     2070-209F-superscripts-and-subscripts   run1 0.0574   run2 0.0138
+//
+// That fixture was blamed on five unrelated code changes in turn, three of them
+// wrongly, because nothing recorded said the two runs were not the same
+// measurement. They were not: `macos-latest` was mid-rollout, and the shard
+// carrying that fixture ran on runner image 20260720.0258 (macOS 26.4) in one
+// run and 20260728.0273 (macOS 26.5.2) in the other. Chrome's per-codepoint
+// fallback for U+2090-U+2093 differs between those two OS versions, so BOTH the
+// expected and the actual PNG changed — 688 px and 327 px respectively, at full
+// glyph contrast, not antialiasing.
+//
+// `scripts/record-runner-image.mjs` already recorded an image id, and it was
+// structurally incapable of seeing this: it derives from `ImageOS`, which is
+// `macOS26` on both images. The fields that moved — `ImageVersion` and
+// `os.release()` — were simply not read. So the guard is not "add a check", it
+// is "record the things that actually vary".
+//
+// Three fields carry the signal, and they are deliberately redundant because
+// they fail differently:
+//
+//   imageVersion   GitHub's image build id. Moves on every image rotation,
+//                  including ones that change nothing we care about.
+//   osRelease      the kernel version. What caught this case.
+//   fontInventory  the digest of the installed font set — the SEMANTIC ground
+//                  truth, since font selection is what a sweep measures. An
+//                  image rotation that leaves fonts alone keeps this stable.
+//
+// `image` is carried through unchanged from `record-runner-image.mjs` so the
+// existing `meta.image` contract — and every committed baseline keyed on it —
+// keeps its current meaning. This record sits ALONGSIDE it.
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { platform as osPlatform, release as osReleaseVersion, arch as osArch } from "node:os";
+import { pathToFileURL } from "node:url";
+
+import { computeRunnerImage, parseOsRelease } from "./record-runner-image.mjs";
+import { inventoryDocument } from "../tools/font-inventory.mjs";
+
+/**
+ * @typedef {object} RunEnv
+ * @property {string|null} image           the existing `meta.image` id, unchanged
+ * @property {string|null} imageVersion    GitHub's image build id (`ImageVersion`)
+ * @property {string|null} osRelease       `os.release()` — the kernel version
+ * @property {string|null} platform
+ * @property {string|null} arch
+ * @property {string|null} node
+ * @property {{digest: string|null, count: number|null}|null} fontInventory
+ */
+
+/**
+ * Pure: assemble the environment record from already-gathered inputs.
+ *
+ * Everything is optional and missing values become `null` rather than throwing
+ * or guessing — an absent field compares as "cannot tell", which is the safe
+ * direction. Inventing a plausible value here would manufacture exactly the
+ * false sameness this record exists to detect.
+ *
+ * @param {{image?: string|null, imageVersion?: string|null, osRelease?: string|null,
+ *          platform?: string|null, arch?: string|null, node?: string|null,
+ *          fontInventory?: {digest?: string|null, count?: number|null}|null}} [inputs]
+ * @returns {RunEnv}
+ */
+export function computeRunEnv(inputs = {}) {
+  const str = (v) => {
+    const s = v == null ? "" : String(v).trim();
+    return s === "" ? null : s;
+  };
+  const inv = inputs.fontInventory ?? null;
+  return {
+    image: str(inputs.image),
+    imageVersion: str(inputs.imageVersion),
+    osRelease: str(inputs.osRelease),
+    platform: str(inputs.platform),
+    arch: str(inputs.arch),
+    node: str(inputs.node),
+    fontInventory: inv == null ? null : {
+      digest: str(inv.digest),
+      count: typeof inv.count === "number" ? inv.count : null,
+    },
+  };
+}
+
+/** The fields compared between environments, in report order. */
+const ENV_FIELDS = [
+  ["image", (e) => e?.image],
+  ["runner image version", (e) => e?.imageVersion],
+  ["OS release", (e) => e?.osRelease],
+  ["platform", (e) => e?.platform],
+  ["arch", (e) => e?.arch],
+  ["font inventory digest", (e) => e?.fontInventory?.digest],
+];
+
+/**
+ * Do two environment records describe the same machine?
+ *
+ * Returns human-readable reasons they differ; empty means they agree as far as
+ * the recorded fields can tell. Mirrors `comparability()` in
+ * `scripts/diff-font-conformance-baseline.mjs`, which does the same job for the
+ * font-conformance oracle — the visual sweep simply never had one.
+ *
+ * A field absent on EITHER side is skipped rather than counted as a difference:
+ * an older baseline predates this record entirely, and reporting "everything
+ * changed" for it would train readers to ignore the warning.
+ */
+/**
+ * @param {RunEnv|null} runEnv
+ * @param {RunEnv|null} baseEnv
+ * @returns {string[]}
+ */
+export function envComparability(runEnv, baseEnv) {
+  const reasons = [];
+  if (runEnv == null || baseEnv == null) return reasons;
+  for (const [what, pick] of ENV_FIELDS) {
+    const a = pick(runEnv), b = pick(baseEnv);
+    if (a != null && b != null && String(a) !== String(b)) {
+      reasons.push(`${what}: run \`${a}\`, baseline \`${b}\``);
+    }
+  }
+  return reasons;
+}
+
+/**
+ * Fold the per-shard environments of ONE run into a single record, and say
+ * whether the shards actually agreed.
+ *
+ * This is the half that a baseline-vs-run check cannot provide, and it is the
+ * half that caught the real defect: within a single sweep, shard 5 ran on a
+ * different macOS than shards 1-4. A merged `results.json` is then not one
+ * measurement but a blend of two environments, and every downstream comparison
+ * — including capturing it as the new baseline — silently inherits the mix.
+ *
+ * When shards disagree the combined record reports the field as `null` (i.e.
+ * "no single value"), so a heterogeneous run cannot masquerade as a clean one
+ * by having the first shard's value stand for all of them.
+ *
+ * @param {Array<{shard?: number|null, env: RunEnv|null}>} entries
+ * @returns {{combined: RunEnv, heterogeneous: boolean, conflicts: Array<{field: string, values: Array<{value: string, shards: number[]}>}>}}
+ */
+export function mergeShardEnvs(entries) {
+  const present = (entries ?? []).filter((e) => e != null && e.env != null);
+  const conflicts = [];
+  const combined = computeRunEnv({});
+
+  const assign = (key, pick, apply) => {
+    const byValue = new Map();
+    for (const { shard, env } of present) {
+      const v = pick(env);
+      if (v == null) continue;
+      const k = String(v);
+      if (!byValue.has(k)) byValue.set(k, []);
+      byValue.get(k).push(typeof shard === "number" ? shard : -1);
+    }
+    if (byValue.size === 0) return;
+    if (byValue.size === 1) { apply([...byValue.keys()][0]); return; }
+    conflicts.push({
+      field: key,
+      values: [...byValue.entries()]
+        .map(([value, shards]) => ({ value, shards: shards.filter((s) => s >= 0).sort((a, b) => a - b) }))
+        .sort((a, b) => b.shards.length - a.shards.length),
+    });
+    // Leave the combined field null: there IS no single value, and picking one
+    // would be the exact silent blend this function exists to surface.
+  };
+
+  assign("image", (e) => e?.image, (v) => { combined.image = v; });
+  assign("runner image version", (e) => e?.imageVersion, (v) => { combined.imageVersion = v; });
+  assign("OS release", (e) => e?.osRelease, (v) => { combined.osRelease = v; });
+  assign("platform", (e) => e?.platform, (v) => { combined.platform = v; });
+  assign("arch", (e) => e?.arch, (v) => { combined.arch = v; });
+  assign("node", (e) => e?.node, (v) => { combined.node = v; });
+  assign("font inventory digest", (e) => e?.fontInventory?.digest, (v) => {
+    const counts = present.map((e) => e.env?.fontInventory?.count).filter((c) => typeof c === "number");
+    combined.fontInventory = { digest: v, count: counts.length > 0 ? counts[0] : null };
+  });
+
+  return { combined, heterogeneous: conflicts.length > 0, conflicts };
+}
+
+/** Gather the real environment on this machine. */
+export function captureRunEnv({ withInventory = true } = {}) {
+  let osRelease = null;
+  let playwrightVersion = null;
+  if (process.env.ImageOS == null || process.env.ImageOS.trim() === "") {
+    try { osRelease = parseOsRelease(readFileSync("/etc/os-release", "utf8")); } catch { /* not linux */ }
+    try {
+      const require = createRequire(import.meta.url);
+      playwrightVersion = require("@playwright/test/package.json").version;
+    } catch { /* playwright not resolvable */ }
+  }
+  const image = computeRunnerImage({
+    imageOS: process.env.ImageOS,
+    runnerArch: process.env.RUNNER_ARCH ?? process.arch,
+    osRelease,
+    playwrightVersion,
+    platform: process.platform,
+  });
+  let fontInventory = null;
+  if (withInventory) {
+    // Best-effort: an unreadable font directory must not fail the sweep. A null
+    // inventory degrades this field to "cannot tell", which the comparators skip.
+    try {
+      const doc = inventoryDocument();
+      fontInventory = { digest: doc.digest, count: doc.count };
+    } catch { /* leave null */ }
+  }
+  return computeRunEnv({
+    image,
+    // GitHub host runners expose the image BUILD id here. This is the field
+    // whose absence let two different macOS images read as the same runner.
+    imageVersion: process.env.ImageVersion,
+    osRelease: osReleaseVersion(),
+    platform: osPlatform(),
+    arch: osArch(),
+    node: process.version,
+    fontInventory,
+  });
+}
+
+function main() {
+  const outPath = process.argv[2];
+  const env = captureRunEnv();
+  const json = `${JSON.stringify(env, null, 2)}\n`;
+  if (outPath) writeFileSync(outPath, json);
+  else process.stdout.write(json);
+  console.error(
+    `run-env: image=${env.image ?? "?"} imageVersion=${env.imageVersion ?? "?"} ` +
+    `osRelease=${env.osRelease ?? "?"} fonts=${env.fontInventory?.digest ?? "?"}`,
+  );
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
