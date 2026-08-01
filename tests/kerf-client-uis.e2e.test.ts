@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
 
@@ -26,8 +27,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
 /** Spawn a server via tsx and resolve the URL it prints. */
-async function startServer(script: string, args: string[]): Promise<{ proc: ChildProcess; url: string } | null> {
-  const proc = spawn("npx", ["tsx", script, ...args], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+async function startServer(
+  script: string, args: string[], env?: NodeJS.ProcessEnv,
+): Promise<{ proc: ChildProcess; url: string } | null> {
+  const proc = spawn("npx", ["tsx", script, ...args], {
+    cwd: ROOT, stdio: ["ignore", "pipe", "pipe"],
+    ...(env != null ? { env: { ...process.env, ...env } } : {}),
+  });
   const url = await new Promise<string | null>((res) => {
     const timer = setTimeout(() => res(null), 60_000);
     const scan = (b: Buffer): void => {
@@ -61,12 +67,56 @@ try { browser = await chromium.launch(); } catch { browser = null; }
 const describeBrowser = browser ? describe : describe.skip;
 
 describeBrowser("kerf-driven client UIs (DM-1798)", () => {
-  // The review UI needs a results manifest to have anything to render; it is
-  // written by any visual-suite run. Skip rather than fail when absent.
-  const haveResults = existsSync(resolve(ROOT, "tests/output/features-results.json"));
+  // DM-1870: this test used to be gated on `tests/output/features-results.json`
+  // existing, and SKIP when it did not. That directory is gitignored, so in any
+  // fresh clone, worktree, or CI job that had not already run a visual suite the
+  // manifest was absent and this file reported "1 passed | 1 skipped" — green,
+  // and easy to read as "the guard passed" when `each()`, the keyed list
+  // reconciler this file exists to exercise, had never run at all.
+  //
+  // That is the same shape of gap the file was created to close: a kerfjs
+  // upgrade breaking every interactive path while the suite stayed green.
+  //
+  // So the manifest is SYNTHESISED. The review server already honours
+  // `REVIEW_OUTPUT_DIR`, so a temp root plus a hand-written manifest makes this
+  // self-contained and fast — no dependency on an ~8-minute visual suite having
+  // been run first, and no production code touched.
+  //
+  // The rows are shaped for what the test DRIVES rather than for realism: four
+  // of them, two distinct verdicts, and a spread of diffPct / regionCount, so
+  // the sort and filter dropdowns each have more than one option and a reorder
+  // actually reorders. A single-row or uniform manifest would let this pass
+  // without reconciling anything — the same failure mode one level down.
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "kerf-review-"));
+  // A 1x1 transparent PNG. The rows must have real image files behind them:
+  // the page requests expected/actual/diff per row, and this test asserts on an
+  // EMPTY console-error list, so a missing file would fail it as a 404 rather
+  // than as a reconciler bug — noise that looks like signal.
+  const PNG_1X1 = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  for (const n of ["alpha-fixture", "bravo-fixture", "charlie-fixture", "delta-fixture"]) {
+    for (const kind of ["expected", "actual", "diff"]) {
+      writeFileSync(join(fixtureRoot, `${n}-${kind}.png`), PNG_1X1);
+    }
+  }
+  writeFileSync(
+    join(fixtureRoot, "features-results.json"),
+    JSON.stringify({
+      suite: "features",
+      generatedAt: new Date(0).toISOString(),
+      results: [
+        { name: "alpha-fixture",   pass: true,  diffPct: 0.01, worstTilePct: 0.1, regionCount: 0, verdict: "clean" },
+        { name: "bravo-fixture",   pass: false, diffPct: 1.20, worstTilePct: 4.0, regionCount: 3, verdict: "major" },
+        { name: "charlie-fixture", pass: true,  diffPct: 0.05, worstTilePct: 0.3, regionCount: 0, verdict: "clean" },
+        { name: "delta-fixture",   pass: false, diffPct: 0.40, worstTilePct: 1.1, regionCount: 1, verdict: "minor" },
+      ],
+    }),
+  );
 
-  it.runIf(haveResults)("review UI: each() reconciles across reorder and filter, preserving row identity", async () => {
-    const started = await startServer("tests/review-server.tsx", []);
+  it("review UI: each() reconciles across reorder and filter, preserving row identity", async () => {
+    const started = await startServer("tests/review-server.tsx", [], { REVIEW_OUTPUT_DIR: fixtureRoot });
     expect(started, "review server failed to start").not.toBeNull();
     servers.push(started!.proc);
     const page = await browser!.newPage();
