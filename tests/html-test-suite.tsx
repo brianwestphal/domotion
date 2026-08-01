@@ -1139,6 +1139,11 @@ interface TestResult {
   sigPixelPct: number;
   /** Worst tile's average color distance as a %. */
   worstTilePct: number;
+  /** DM-1874: per-side perceptual fingerprints, so a baseline diff can attribute
+   *  a movement to the ORACLE or the RENDERER instead of only reporting that the
+   *  distance between them changed. */
+  expectedDigest?: string;
+  actualDigest?: string;
   /** Worst tile's fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   worstTileSignificantPct: number;
   /** Rect of the worst tile (x, y, w, h) in the image. */
@@ -1254,6 +1259,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let diffPct = 100;
   let sigPixelPct = 100;
   let worstTilePct = 100;
+  let expectedDigest: string | undefined;
+  let actualDigest: string | undefined;
   let worstTileSignificantPct = 100;
   let worstTileRect: { x: number; y: number; w: number; h: number } | undefined;
   let regionCount = Number.MAX_SAFE_INTEGER;
@@ -1473,6 +1480,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     diffPct = cmp.diffPct;
     sigPixelPct = cmp.sigPixelPct;
     worstTilePct = cmp.worstTilePct;
+    expectedDigest = cmp.expectedDigest;
+    actualDigest = cmp.actualDigest;
     worstTileSignificantPct = cmp.worstTileSignificantPct;
     worstTileRect = cmp.worstTileRect;
     regionCount = cmp.regionCount;
@@ -1502,6 +1511,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     diffPct,
     sigPixelPct,
     worstTilePct,
+    expectedDigest,
+    actualDigest,
     worstTileSignificantPct,
     worstTileRect,
     regionCount,

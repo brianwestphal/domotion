@@ -139,22 +139,62 @@ function table(title, rows, withBase) {
   if (rows.length === 0) return;
   md.push(`### ${title} (${rows.length})`, "");
   md.push(withBase
-    ? "| fixture | diff% now | worstTile% now | diff% base | worstTile% base |"
+    ? "| fixture | moved | diff% now | worstTile% now | diff% base | worstTile% base |"
     : "| fixture | diff% | worstTile% | regions |");
-  md.push(withBase ? "|---|---|---|---|---|" : "|---|---|---|---|");
+  md.push(withBase ? "|---|---|---|---|---|---|" : "|---|---|---|---|");
   for (const { name, cur, base } of rows) {
     const cd = (cur?.diffPct ?? 0).toFixed(3);
     const cw = (cur?.worstTilePct ?? 0).toFixed(2);
     if (withBase) {
       const bd = (base?.diffPct ?? 0).toFixed(3);
       const bw = (base?.worstTilePct ?? 0).toFixed(2);
-      md.push(`| ${name} | ${cd} | ${cw} | ${bd} | ${bw} |`);
+      md.push(`| ${name} | ${movedLabel(cur, base)} | ${cd} | ${cw} | ${bd} | ${bw} |`);
     } else {
       const reg = cur?.regionCount ?? "?";
       md.push(`| ${name} | ${cd} | ${cw} | ${reg} |`);
     }
   }
   md.push("");
+}
+
+// DM-1874: which SIDE moved.
+//
+// The stored number is the distance between Chrome's expected.png and our
+// actual — it rises when EITHER moves, and the report could not say which. One
+// investigation was spent bisecting a "regression" that turned out to be Chrome
+// painting U+2090–U+2093 from a different face on one CI run: our output was
+// unchanged, Chrome's differed by 607 px.
+//
+// The digests are deliberately lossy (see src/review/side-digest.ts) because CI
+// raster is not bit-stable — the same commit differed by 280 px of antialiasing
+// between two runs, so a content hash would report "changed" every time and
+// classify nothing.
+function movedLabel(cur, base) {
+  const eb = base?.expectedDigest, ea = cur?.expectedDigest;
+  const ab = base?.actualDigest, aa = cur?.actualDigest;
+  // A missing digest on either side means an older baseline, or the byte-equal
+  // fast path which records none. Report that as unknown rather than guessing —
+  // manufacturing confidence here is the exact failure this exists to remove.
+  if (!eb || !ea || !ab || !aa) return "—";
+  const expMoved = eb !== ea;
+  const actMoved = ab !== aa;
+  if (expMoved && actMoved) return "both";
+  if (expMoved) return "**oracle**";
+  if (actMoved) return "renderer";
+  // Neither image moved yet the metric did: the metric is not a pure function of
+  // the two images. A comparator change, or a digest too coarse to see this one.
+  // Worth surfacing loudly rather than rounding to "no change".
+  return "⚠︎ neither";
+}
+
+const oracleSide = regressions.filter((r) => movedLabel(r.cur, r.base) === "**oracle**");
+if (oracleSide.length > 0) {
+  md.push(
+    `> **${oracleSide.length} of ${regressions.length} regression(s) are ORACLE-SIDE** — Chrome's expected.png`
+    + " moved and our output did not, so these are not code regressions. Re-capturing the baseline is the fix;"
+    + " bisecting is not.", "",
+    "_" + oracleSide.map((r) => r.name).join(", ") + "_", "",
+  );
 }
 
 table("🔴 Regressions vs baseline", regressions, true);

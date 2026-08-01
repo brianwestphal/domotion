@@ -86,6 +86,13 @@ export function classifyDiff(regionCount: number, coveragePct: number): DiffVerd
 }
 
 export interface CompareResult {
+  /** DM-1874: perceptual fingerprint of Chrome's `expected.png`. Lets a baseline
+   *  diff say WHICH side moved — an oracle wobble and a renderer regression look
+   *  identical in the distance metric alone, and telling them apart has cost a
+   *  full bisect before. Deliberately lossy; see `side-digest.ts`. */
+  expectedDigest?: string;
+  /** DM-1874: the same fingerprint for our `actual`. */
+  actualDigest?: string;
   /** Pixels that differ AND are not classified as glyph anti-aliasing by the
    *  Yee detector. Diagnostic only since DM-715 — see `regionCount` for
    *  pass/fail. */
@@ -227,6 +234,11 @@ export async function comparePngs(
   // cached expected.png is reused unchanged across runs.
   if (expectedBytes.length === actualBytes.length && expectedBytes.equals(actualBytes)) {
     copyFileSync(expectedPath, diffPath);
+    // Byte-identical inputs: the two sides are the same image, so one digest
+    // describes both. Left EMPTY rather than faked — computing it here would
+    // mean decoding the PNG on the Node side purely to fill a field, and an
+    // absent digest already reads as "cannot attribute", which is the honest
+    // answer for a fixture that did not move at all.
     return {
       nonAaPixels: 0,
       nonAaPixelPct: 0,
@@ -607,7 +619,39 @@ export async function comparePngs(
       // surviving array is already sorted area-desc.
       const REGIONS_CAP = 32;
       const trimmedRegions = surviving.slice(0, REGIONS_CAP);
+      // DM-1874: a per-SIDE fingerprint, so a later report can say which image
+      // moved rather than only that the distance between them did. Deliberately
+      // lossy — see src/review/side-digest.ts for why a content hash is useless
+      // here (CI raster is not bit-stable; the same commit differed by 280 px of
+      // antialiasing between two runs). Kept inline rather than imported because
+      // this whole block is a page.evaluate string with no module scope.
+      function sideDigest(d) {
+        const G = 16, L = 16;
+        const sums = new Float64Array(G * G), counts = new Uint32Array(G * G);
+        for (let y = 0; y < h; y++) {
+          const gy = Math.min(G - 1, Math.floor((y * G) / h));
+          for (let x = 0; x < w; x++) {
+            const gx = Math.min(G - 1, Math.floor((x * G) / w));
+            const i = (y * w + x) * 4;
+            const a = d[i + 3] / 255;
+            const r = d[i] * a + 255 * (1 - a);
+            const g = d[i + 1] * a + 255 * (1 - a);
+            const b = d[i + 2] * a + 255 * (1 - a);
+            const c = gy * G + gx;
+            sums[c] += 0.299 * r + 0.587 * g + 0.114 * b;
+            counts[c]++;
+          }
+        }
+        let out = "";
+        for (let c = 0; c < G * G; c++) {
+          const mean = counts[c] > 0 ? sums[c] / counts[c] : 255;
+          out += Math.min(L - 1, Math.floor((mean / 256) * L)).toString(16);
+        }
+        return out;
+      }
       return {
+        expectedDigest: sideDigest(d1),
+        actualDigest: sideDigest(d2),
         nonAaPixels: totalNonAa,
         nonAaPixelPct: (totalNonAa / totalPixels) * 100,
         diffPct: (totalDist / totalPixels) * 100,
