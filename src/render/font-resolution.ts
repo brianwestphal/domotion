@@ -2744,7 +2744,17 @@ export function darwinFallbackChain(
     // mark ON the ◌ — the "soccer ball". Routing them here lets the DM-1215
     // dotted-circle HarfBuzz path resolve coverage and reproduce Chrome's spacing
     // layout. (`cjk` stays first so a future Hiragino that gains them still wins.)
-    if (codepoint >= 0x302A && codepoint <= 0x302F) return ["cjk", "u-arial-unicode-ms"];
+    // DM-1850: gated for the same reason `u-noto-sans` is below — a raw key
+    // bypasses the installed-family check, so `DOMOTION_HIDE_FAMILIES` cannot
+    // hide it and a machine that HAS the font reproduces a different chain than
+    // one that does not. Note the very same family IS already gated where it is
+    // reached as an author family (`authorFamilyAvailable("Arial Unicode MS")`),
+    // so this was the two paths disagreeing about one font.
+    if (codepoint >= 0x302A && codepoint <= 0x302F) {
+      return generatedRouteUsable("u-arial-unicode-ms")
+        ? ["cjk", "u-arial-unicode-ms"]
+        : ["cjk"];
+    }
     // DM-1117: author explicitly named Hiragino Mincho ProN — route its own
     // glyphs first so the `trad` / `fwid` / `jp78` East-Asian features land on a
     // font that carries them (Songti doesn't). Falls back to the generic serif
@@ -3172,10 +3182,25 @@ export function darwinFallbackChain(
     // might not pick still beats a guaranteed `last-resort` tofu.
     generatedKey = liveOverride != null ? null : generatedKeyRaw;
   }
+  // DM-1850: `u-noto-sans` is injected into these chains as a RAW KEY, which
+  // bypasses the installed-family check every GENERATED route already gets. The
+  // consequence is not cosmetic: `DOMOTION_HIDE_FAMILIES` exists so a developer
+  // Mac can reproduce a leaner machine's font choices, and it gates
+  // `resolveInstalledFont` — so it hides the CSS family "Noto Sans" while these
+  // three insertions still resolve straight to the file. A fixture then PASSES
+  // locally under the flag and FAILS on the runner, which is exactly the case
+  // the flag exists to prevent and which cost a full investigation once.
+  //
+  // `generatedRouteUsable` is the same predicate, so the raw key now answers to
+  // it too. On a machine without Noto Sans this is a no-op (the key resolves to
+  // nothing either way); on one with it, the flag finally works.
+  const notoUsable = generatedRouteUsable("u-noto-sans");
+  const noto: string[] = notoUsable ? ["u-noto-sans"] : [];
+
   if (liveOverride != null) {
     return isEmojiCp
-      ? [liveOverride, "symbols", "u-noto-sans"]
-      : [liveOverride, "symbols", "u-noto-sans", "last-resort"];
+      ? [liveOverride, "symbols", ...noto]
+      : [liveOverride, "symbols", ...noto, "last-resort"];
   }
   if (generatedKey != null) {
     // DM-1018: the DM-983 per-block generated table assigns ONE font per
@@ -3196,15 +3221,15 @@ export function darwinFallbackChain(
     // `u-noto-sans` that's also the generatedKey or lacks the glyph is a
     // harmless no-op.
     return isEmojiCp
-      ? [generatedKey, "symbols", "u-noto-sans"]
-      : [generatedKey, "symbols", "u-noto-sans", "last-resort"];
+      ? [generatedKey, "symbols", ...noto]
+      : [generatedKey, "symbols", ...noto, "last-resort"];
   }
   // No generated-table route matched (rare — the table covers most blocks).
   // Try Noto Sans before LastResort: a codepoint with no block route is
   // usually a letter Chrome resolves via its broad Latin/Greek/Cyrillic
   // cascade, which Noto Sans mirrors. DM-1018.
   if (!isEmojiCp) {
-    return ["u-noto-sans", "last-resort"];
+    return [...noto, "last-resort"];
   }
   // Final fallback: Apple LastResort.otf paints the block-frame placeholder
   // glyph (one per Unicode block) for every codepoint — matching what
