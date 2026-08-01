@@ -108,10 +108,50 @@ function baselineFrom(run) {
     summary: run.summary,
     byStack: run.byStack,
     byPair: run.byPair,
-    // The face list is the recorded font inventory the answers depend on; the
-    // per-face counts are not, and would churn the diff on every run.
+    // Kept as a sorted NAME LIST for the reason it always was: it is the record
+    // of which faces the answers depend on, so a stale per-platform baseline
+    // shows up as a changed inventory rather than as an unexplained score move.
     chromeFaces: Object.keys(run.chromeFaces ?? {}).sort(),
+    // …and the per-face COUNTS, which the name list cannot substitute for.
+    //
+    // The original note here said counts "would churn the diff on every run".
+    // Measured, they do not: across two runs of one commit only five faces'
+    // counts moved, and every one of those was the oracle changing its mind.
+    // The name list stayed byte-identical through all of it (291 faces both
+    // times) because the faces involved were already in use elsewhere.
+    //
+    // This tally comes solely from `primaryChromeFace(...)` — nothing our
+    // resolver does contributes to it — so ANY change in it is oracle movement
+    // by definition. That makes it the one signal that can separate "our answer
+    // changed" from "Chrome's answer changed", which is exactly the distinction
+    // a mismatch delta cannot express. See `oracleMovement`.
+    chromeFaceCounts: { ...(run.chromeFaces ?? {}) },
   };
+}
+
+/**
+ * How far the ORACLE moved between two runs.
+ *
+ * `chromeFaces` counts Chrome's own answers, so a non-zero total here means the
+ * two runs were not measuring against the same ground truth — whatever the code
+ * under test did. Returns the per-face deltas and their absolute total.
+ *
+ * Pure, so the rule is unit-testable without a runner. A baseline that predates
+ * `chromeFaceCounts` yields `comparable: false` rather than a fabricated zero:
+ * "cannot tell" and "did not move" are different answers and only one of them
+ * licenses a verdict.
+ */
+export function oracleMovement(runFaces, baseCounts) {
+  if (runFaces == null || baseCounts == null) return { comparable: false, total: 0, moved: [] };
+  const keys = new Set([...Object.keys(runFaces), ...Object.keys(baseCounts)]);
+  const moved = [];
+  let total = 0;
+  for (const face of keys) {
+    const delta = (runFaces[face] ?? 0) - (baseCounts[face] ?? 0);
+    if (delta !== 0) { moved.push({ face, delta }); total += Math.abs(delta); }
+  }
+  moved.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  return { comparable: true, total, moved };
 }
 
 function main() {
@@ -216,6 +256,50 @@ function main() {
     + `${newPairs.length} new route(s).`,
     "",
   );
+
+  // Did the ORACLE move? A mismatch delta is the distance between two answers,
+  // so it rises when either one changes — and the report has never been able to
+  // say which. Measured cost of that: a +108,464 swing between two runs of one
+  // commit, read as a regression in the change under test, when in fact Chrome
+  // had flipped `sans-serif` from Helvetica-Bold to Arial-BoldMT. A separate
+  // 60-row swing on the same instrument was credited to a cache fix that had
+  // nothing to do with it.
+  //
+  // `chromeFaces` counts only Chrome's answers, so any movement in it is the
+  // oracle changing its mind. When it moved at least as much as the delta being
+  // reported, the delta cannot be attributed to the code and the verdict is
+  // withheld — you cannot read a signal smaller than the noise under it.
+  const oracle = oracleMovement(run.chromeFaces ?? {}, base.chromeFaceCounts);
+  const mismatchDelta = Math.abs(total - baseTotal);
+  if (!oracle.comparable) {
+    md.push(
+      `> ℹ️ The baseline predates Chrome-side movement tracking, so oracle drift cannot be ruled out`,
+      `> for this comparison. Re-seed the baseline (\`--update-baseline\`) to enable the check.`,
+      "",
+    );
+  } else if (oracle.total > 0) {
+    const rows = oracle.moved.slice(0, 10)
+      .map((m) => `> - \`${m.face}\` ${m.delta >= 0 ? "+" : ""}${m.delta.toLocaleString()}`);
+    md.push(
+      `> ⚠️ **The oracle moved.** Chrome answered differently than in the baseline for`,
+      `> ${oracle.total.toLocaleString()} comparison(s), across ${oracle.moved.length} face(s):`,
+      "",
+      ...rows,
+      oracle.moved.length > 10 ? `> - …and ${oracle.moved.length - 10} more` : "",
+      "",
+    );
+    if (oracle.total >= mismatchDelta && mismatchDelta > 0) {
+      md.push(
+        `> **VERDICT WITHHELD.** Chrome's own answers moved by ${oracle.total.toLocaleString()},`,
+        `> which is at least the ${mismatchDelta.toLocaleString()} this run differs from the baseline by.`,
+        `> The delta is therefore not attributable to the code under test. Re-run the same ref before`,
+        `> concluding anything — a repeat that reproduces the baseline means the oracle wobbled, not the renderer.`,
+        "",
+      );
+      emit(md);
+      process.exit(strict ? 1 : 0);
+    }
+  }
 
   const table = (title, rows, cols) => {
     if (rows.length === 0) return;

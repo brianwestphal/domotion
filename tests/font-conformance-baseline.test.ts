@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { environmentConflicts, mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
-import { comparability, stackDelta } from "../scripts/diff-font-conformance-baseline.mjs";
+import { comparability, oracleMovement, stackDelta } from "../scripts/diff-font-conformance-baseline.mjs";
 
 const report = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   meta: {
@@ -312,5 +312,72 @@ describe("environment agreement across shards (DM-1898)", () => {
   it("an empty conflict list is not treated as a conflict", () => {
     const clean = { ...(report().meta as object), envConflicts: [] };
     expect(comparability(clean, clean)).toEqual([]);
+  });
+});
+
+/**
+ * DM-1903: telling "our answer changed" apart from "Chrome's answer changed".
+ *
+ * A mismatch delta is the distance between two answers, so it moves when either
+ * side does, and the report could not say which. Measured cost: two runs of ONE
+ * commit differed by +108,464 because Chrome flipped `sans-serif` from
+ * Helvetica-Bold to Arial-BoldMT; a third run on the same commit reproduced the
+ * baseline to the row. Separately, a 60-row swing on the same instrument was
+ * credited to a cache fix that had nothing to do with it — Chrome had simply
+ * stopped answering `.PingFangHK-Regular` for those codepoints.
+ *
+ * `chromeFaces` tallies only `primaryChromeFace(...)`, so nothing our resolver
+ * does contributes to it. Any movement in it is oracle drift by construction,
+ * which is what makes it the right signal — and why the face NAME list could
+ * not serve: across those two runs it was byte-identical (291 faces both times),
+ * because every face involved was already in use on some other stack.
+ */
+describe("oracle movement (DM-1903)", () => {
+  it("reports nothing when Chrome answered identically", () => {
+    const r = oracleMovement({ "Helvetica-Bold": 100, "Arial-BoldMT": 5 }, { "Helvetica-Bold": 100, "Arial-BoldMT": 5 });
+    expect(r).toEqual({ comparable: true, total: 0, moved: [] });
+  });
+
+  it("CATCHES the real sans-serif flip, which the name list could not", () => {
+    // Real counts from the two runs. Both faces appear on both sides, so the
+    // set of names is unchanged — only the distribution moved.
+    const before = { "Helvetica-Bold": 222883, "Arial-BoldMT": 110 };
+    const after = { "Helvetica-Bold": 114417, "Arial-BoldMT": 108576 };
+    expect(Object.keys(before).sort()).toEqual(Object.keys(after).sort());   // name list: blind
+    const r = oracleMovement(after, before);
+    expect(r.comparable).toBe(true);
+    expect(r.total).toBe(108466 + 108466);   // |−108,466| + |+108,466|
+    expect(r.moved[0].face).toBe("Helvetica-Bold");
+    expect(r.moved[0].delta).toBe(-108466);
+  });
+
+  it("catches the small drift that was mis-credited to a code fix", () => {
+    // -60 on .PingFangHK-Regular is exactly the 44 + 16 of the two routes that
+    // vanished, and it is on CHROME's side of the comparison.
+    const r = oracleMovement(
+      { ".PingFangHK-Regular": 4565, "HiraMinProN-W3": 1236 },
+      { ".PingFangHK-Regular": 4625, "HiraMinProN-W3": 1164 },
+    );
+    expect(r.moved.find((m) => m.face === ".PingFangHK-Regular")?.delta).toBe(-60);
+    expect(r.total).toBe(60 + 72);
+  });
+
+  it("counts a face that appears or disappears entirely", () => {
+    expect(oracleMovement({ A: 10 }, {}).moved).toEqual([{ face: "A", delta: 10 }]);
+    expect(oracleMovement({}, { A: 10 }).moved).toEqual([{ face: "A", delta: -10 }]);
+  });
+
+  it("sorts by magnitude, so the dominant flip leads the report", () => {
+    const r = oracleMovement({ A: 100, B: 2, C: 30 }, { A: 1, B: 1, C: 1 });
+    expect(r.moved.map((m) => m.face)).toEqual(["A", "C", "B"]);
+  });
+
+  it("says CANNOT TELL for a baseline that predates the field, not zero", () => {
+    // "did not move" and "cannot tell" are different answers, and only the
+    // first licenses a verdict. A fabricated zero here would restore exactly the
+    // false confidence this exists to remove.
+    expect(oracleMovement({ A: 1 }, undefined).comparable).toBe(false);
+    expect(oracleMovement({ A: 1 }, null).comparable).toBe(false);
+    expect(oracleMovement(undefined, { A: 1 }).comparable).toBe(false);
   });
 });
