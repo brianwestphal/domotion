@@ -613,7 +613,16 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
         // member order, so any index from here would be wrong for hb_face_create.
         "nameMatched": entry.nameMatched,
         "resolution": entry.resolution.rawValue,
-        "postscriptName": (CTFontCopyPostScriptName(font) as String?) ?? ""
+        "postscriptName": (CTFontCopyPostScriptName(font) as String?) ?? "",
+        // DM-1880: CoreText's own symbolic traits. Blink's macOS synthetic-bold
+        // rule is `Weight() > 500 && !(traits & kCTFontTraitBold)`
+        // (`mac/font_cache_mac.mm:424-427`) — it asks the TRAIT, not a numeric
+        // weight, and the two disagree. Standing in `usWeightClass >= 600` for
+        // the trait measurably regressed a fixture, so the trait itself has to
+        // travel. Italic ships alongside because the sibling rule at `:432-435`
+        // reads `kCTFontTraitItalic` the same way.
+        "traitBold": (CTFontGetSymbolicTraits(font).rawValue & CTFontSymbolicTraits.traitBold.rawValue) != 0,
+        "traitItalic": (CTFontGetSymbolicTraits(font).rawValue & CTFontSymbolicTraits.traitItalic.rawValue) != 0
     ]
     if let v = underlinePos { result["underlinePosition"] = v }
     if let v = underlineThick { result["underlineThickness"] = v }
