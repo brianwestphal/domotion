@@ -106,6 +106,13 @@ interface MetaResponse {
    *  default for an unknown name rather than failing. Absent from older helper
    *  binaries, so treat only an explicit `false` as a negative. */
   nameMatched?: boolean;
+  /** DM-1880: CoreText's `kCTFontTraitBold` / `kCTFontTraitItalic` symbolic
+   *  traits for the resolved face. macOS's synthetic-bold rule asks the TRAIT
+   *  rather than a weight number (`mac/font_cache_mac.mm:424-427`), and the two
+   *  disagree often enough that substituting a weight regressed a fixture.
+   *  Absent from helper binaries predating the field. */
+  traitBold?: boolean;
+  traitItalic?: boolean;
   /** How the face was resolved: `nameMatchedInFile` | `firstFaceNoNameRequested`
    *  | `byNameVerified` | `byNameUnverified` | `systemUI`. Diagnostic. */
   resolution?: string;
@@ -822,6 +829,9 @@ export function createGlyphHelperFont(spec: {
       yStrikeoutPosition: metaResp.strikeoutPosition,
       yStrikeoutSize: metaResp.strikeoutThickness
     },
+    // DM-1880: CoreText's own bold trait, so the macOS synthetic-bold rule can
+    // ask the question Blink asks instead of inferring it from a weight.
+    ...(metaResp.traitBold != null ? { faceIsBoldTrait: metaResp.traitBold } : {}),
     availableFeatures: [],
 
     warmGlyphs(cps: number[]): void {

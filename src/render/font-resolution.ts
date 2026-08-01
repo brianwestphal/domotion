@@ -82,6 +82,23 @@ export interface FontInstance {
   /** True when this instance baked the requested weight into a variable `wght`
    *  axis — its outline is ALREADY at the requested weight, so no faux-bold. */
   hasWeightAxis?: boolean;
+  /**
+   * DM-1880: whether the face DECLARES ITSELF bold, as a flag rather than as a
+   * weight number.
+   *
+   * macOS's synthetic-bold rule asks CoreText's `kCTFontTraitBold` symbolic
+   * trait (`mac/font_cache_mac.mm:424-427`), not a numeric weight, and the two
+   * genuinely disagree — substituting `usWeightClass >= 600` for the trait
+   * measurably regressed a fixture. So the flag travels rather than being
+   * inferred.
+   *
+   * Two sources, one per extractor, because they are the same fact recorded in
+   * two places: OS/2 `fsSelection` bit 5 for a fontkit-opened face (the file's
+   * own BOLD bit, which is what CoreText derives its trait from), and the
+   * CoreText trait itself for a helper-backed one. Undefined when neither is
+   * readable, and callers fall back to the weight comparison.
+   */
+  faceIsBoldTrait?: boolean;
   /** The resolved face's `post.italicAngle` in degrees (0 for an upright face,
    *  negative for a right-leaning italic). Drives the embedded-mode faux-italic
    *  decision (DM-1695): when italic is requested but the resolved face is
@@ -3698,6 +3715,18 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     instance.naturalWeight = usWeight;
   }
   instance.hasWeightAxis = font?.variationAxes?.wght != null;
+  // DM-1880: OS/2 `fsSelection` bit 5 is the file's own BOLD flag — the same
+  // fact CoreText reports as `kCTFontTraitBold` and Skia as `isBold()`. Read
+  // from the ORIGINAL fontkit Font for the same reason the weight fields above
+  // are: a variation instance's OS/2 reflects the base face.
+  const fsSelection = font?.["OS/2"]?.fsSelection;
+  if (fsSelection != null) {
+    // fontkit may expose fsSelection as a parsed bitfield object or as a raw
+    // number depending on version; accept either rather than assuming.
+    instance.faceIsBoldTrait = typeof fsSelection === "number"
+      ? (fsSelection & 0x20) !== 0
+      : fsSelection.bold === true;
+  }
   // DM-1695: expose the face's italic angle + whether a slnt axis carried the
   // slant, for the embedded-font faux-italic decision. Read from the ORIGINAL
   // fontkit Font (same rationale as the weight fields above).

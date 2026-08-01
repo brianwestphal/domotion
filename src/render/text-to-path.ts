@@ -1644,10 +1644,22 @@ function renderTextAsEmbedded(
     // `hasWeightAxis` has no counterpart in Blink and is kept: a variable face
     // is instanced at the requested axis location before it reaches here, so it
     // already reports itself at that weight and there is nothing to synthesise.
-    const faceIsBold = faceNaturalWeight != null && faceNaturalWeight >= 600;
+    // DM-1880: the face's own BOLD flag, which is what macOS and Windows both
+    // ask for. `faceIsBoldTrait` is the real thing — OS/2 `fsSelection` bit 5
+    // for a fontkit face, CoreText's `kCTFontTraitBold` for a helper-backed one.
+    // The weight comparison is only a fallback for a face that reports neither,
+    // and it is the substitution that measurably regressed a fixture when it was
+    // used as the primary signal, so it must not quietly become one again.
+    const faceIsBold = run.font.faceIsBoldTrait
+      ?? (faceNaturalWeight != null && faceNaturalWeight >= 600);
     const faceLacksWeight = run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
-      (process.platform === "win32"
+      (process.platform === "darwin"
+        // macOS: `desired_bold = Weight() > 500`, then `&& !(traits & kCTFontTraitBold)`
+        // (`mac/font_cache_mac.mm:424-427`). Note the threshold is 500, not the
+        // 600 Windows uses — they are different numbers in Blink, not a typo here.
+        ? weight > 500 && !faceIsBold
+        : process.platform === "win32"
         // Windows only, for now. Linux keeps the delta because the delta IS its
         // transcription. macOS is ALSO wrong today, and is deliberately left
         // wrong rather than half-fixed: its rule tests CoreText's
