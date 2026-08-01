@@ -47,6 +47,22 @@ const commit = get("--commit", process.env.GITHUB_SHA ?? "");
  */
 export function comparability(runMeta, baseMeta) {
   const reasons = [];
+
+  // A run whose own shards disagreed is not one measurement, so there is
+  // nothing for the field-by-field check below to compare — `meta` describes
+  // whichever shard was read first. This must be checked BEFORE those fields,
+  // because they would all match: a blended run presents one shard's
+  // environment and would otherwise sail through the guard.
+  //
+  // "Cannot tell" (a field absent, e.g. an older baseline) and "known blended"
+  // are different verdicts, and only the first is safe to skip.
+  for (const side of [["run", runMeta], ["baseline", baseMeta]]) {
+    for (const c of side[1]?.envConflicts ?? []) {
+      const parts = (c.values ?? []).map((v) => `${v.value} (${(v.shards ?? []).join(", ")})`);
+      reasons.push(`${side[0]}'s shards disagree on ${c.field}: ${parts.join(" vs ")}`);
+    }
+  }
+
   const cmp = (what, a, b) => {
     if (a != null && b != null && String(a) !== String(b)) reasons.push(`${what}: run ${a}, baseline ${b}`);
   };
@@ -133,6 +149,27 @@ function main() {
 
   if (update) {
     if (baselinePath == null) { process.stderr.write("--update-baseline needs --baseline\n"); process.exit(2); }
+    // Refuse to enshrine a run whose own shards disagreed. Everything after this
+    // point is graded against the baseline, so a blend poisons every later
+    // comparison — and it does so invisibly, because the merged `meta` presents
+    // one shard's environment and looks perfectly ordinary.
+    const blend = run.meta?.envConflicts ?? [];
+    if (blend.length > 0) {
+      md.push(
+        `> **REFUSING to write a baseline from this run.** Its shards did not all execute in the same environment:`,
+        "",
+        ...blend.map((c) => {
+          const parts = (c.values ?? []).map((v) => `\`${v.value}\` (${(v.shards ?? []).join(", ")})`);
+          return `> - **${c.field}**: ${parts.join(" vs ")}`;
+        }),
+        "",
+        `> The merged totals sum measurements taken on different machines, so they are not a baseline.`,
+        `> Re-dispatch — a runner-image rollout window is hours, not days.`,
+        "",
+      );
+      emit(md);
+      process.exit(1); // always fatal: this is a request to record something known-wrong
+    }
     writeFileSync(baselinePath, `${JSON.stringify(baselineFrom(run), null, 2)}\n`);
     md.push(`Baseline written to \`${baselinePath}\`.`, "");
     emit(md);

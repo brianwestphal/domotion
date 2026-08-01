@@ -229,6 +229,18 @@ Two behaviors, both of which exist because the alternative is a confident number
 
 **A missing shard is fatal, not a log line.** `scripts/merge-font-conformance-shards.mjs` counts the reports it merged against the requested shard count and marks the merge incomplete if any is absent; the comparator refuses to judge an incomplete merge. A shard that dies writes no report, and a total summed over the survivors is smaller — which reads exactly like an improvement.
 
+**A run whose shards disagree is also refused, and that is a different failure.** The environment fields above describe *the run* only if every shard measured in the same one — but a shard is a separate CI job on a separate runner, and they are not guaranteed to match. Measured on the sibling visual sweep: two runs of one commit fifteen minutes apart, and in the first, shard 5 of 5 executed on runner image `20260720.0258` (macOS 26.4) while shards 1–4 were on `20260728.0273` (macOS 26.5.2) — `macos-latest` mid-rollout. Chrome's per-codepoint fallback differs between those, which is precisely what this oracle measures.
+
+The merge previously read `meta` from the first non-null report and the image / inventory from the first shard directory that carried the file, on the stated assumption that shards "differ only in WHICH slice they swept". It now checks agreement across every shard (`environmentConflicts`) on platform, arch, node, Unicode, ICU, corpus `generatedAt`, runner image and font-inventory digest, and records any disagreement as `meta.envConflicts`.
+
+Three consequences, and the second is the load-bearing one:
+
+- the merge prints a warning naming the field and the odd shard;
+- `comparability()` refuses to judge a run carrying conflicts — checked **before** the field-by-field comparison, because a blended run presents one shard's environment and would otherwise pass every field;
+- `--update-baseline` hard-refuses (exit 1, nothing written). Enshrining a blend poisons every later comparison, invisibly.
+
+`icu` is the sharpest field here: it decides which codepoints exist at all, so a split means the merged totals are quoted against two different denominators.
+
 ### Memory: why the sweep resets its own caches
 
 A sweep is unusual for this codebase in that it drives the resolver across the *entire* codepoint space in one process. The font-resolution memos are keyed by codepoint, and — the part that actually dominates — **fontkit memoizes a `Glyph` object per glyph id for the life of a `Font`**, so every `Font` held in `fontInstanceCache` accumulates one retained `Glyph` for each codepoint ever probed through it. Nothing is collectable, because the cache holds the fonts.

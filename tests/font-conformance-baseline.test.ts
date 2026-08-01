@@ -14,7 +14,7 @@
  *    are compared anyway, yielding a confident verdict about nothing.
  */
 import { describe, expect, it } from "vitest";
-import { mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
+import { environmentConflicts, mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
 import { comparability, stackDelta } from "../scripts/diff-font-conformance-baseline.mjs";
 
 const report = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -215,5 +215,102 @@ describe("stackDelta", () => {
     const d = stackDelta({ a: 0 }, { a: 9 });
     expect(d.better).toEqual([{ stack: "a", now: 0, base: 9 }]);
     expect(d.added).toEqual([]);
+  });
+});
+
+/**
+ * DM-1898: a run's shards are separate CI jobs on separate runners, so "the run's
+ * environment" is only well-defined if they agree.
+ *
+ * They demonstrably can't be assumed to. Measured on the visual sweep: two runs
+ * of one commit 15 minutes apart, and in the first of them shard 5 of 5 executed
+ * on runner image 20260720.0258 (macOS 26.4) while shards 1-4 were on
+ * 20260728.0273 (macOS 26.5.2) — `macos-latest` mid-rollout. Chrome's fallback
+ * differs between those, which is a font-selection change, i.e. exactly what this
+ * oracle measures.
+ *
+ * Before this, `mergeShards` took `meta` from the first non-null report and the
+ * image / inventory from the first shard directory that had the file, on the
+ * stated assumption that shards "differ only in WHICH slice they swept". These
+ * pin the two halves of the fix: notice the disagreement, and refuse to grade or
+ * enshrine a run that has one.
+ */
+describe("environment agreement across shards (DM-1898)", () => {
+  const shard = (name: string, over: Record<string, unknown> = {}, env: unknown = undefined) => ({
+    name,
+    report: report({ meta: { ...(report().meta as object), ...over } }),
+    ...(env === undefined ? {} : { env }),
+  });
+
+  it("reports no conflict when every shard agrees", () => {
+    expect(environmentConflicts([shard("s1"), shard("s2"), shard("s3")])).toEqual([]);
+  });
+
+  it("catches an ICU split — the one that changes the codepoint DENOMINATOR", () => {
+    // `meta.icu` decides which codepoints exist at all, so the merged totals of a
+    // run whose shards disagree on it are quoted against two different universes.
+    const conflicts = environmentConflicts([
+      shard("s1"), shard("s2"), shard("s3", { icu: "77.1" }),
+    ]);
+    const icu = conflicts.find((c) => c.field === "ICU version");
+    expect(icu).toBeDefined();
+    expect(icu!.values[0]).toEqual({ value: "76.1", shards: ["s1", "s2"] });
+    expect(icu!.values[1]).toEqual({ value: "77.1", shards: ["s3"] });
+  });
+
+  it("catches a font-inventory split, which is the semantic ground truth here", () => {
+    const conflicts = environmentConflicts([
+      shard("s1", {}, { image: "macos26-arm64", fontInventory: { digest: "aaaa" } }),
+      shard("s2", {}, { image: "macos26-arm64", fontInventory: { digest: "bbbb" } }),
+    ]);
+    expect(conflicts.map((c) => c.field)).toEqual(["font inventory digest"]);
+  });
+
+  it("ignores a field absent on one shard rather than crying wolf", () => {
+    // An older shard artifact predates a field. That is "cannot tell", not
+    // "different" — and a warning that fires spuriously gets ignored.
+    expect(environmentConflicts([
+      shard("s1", {}, { image: "macos26-arm64", fontInventory: { digest: "aaaa" } }),
+      shard("s2", {}, { image: null, fontInventory: null }),
+    ])).toEqual([]);
+  });
+
+  it("skips shards whose report is missing entirely", () => {
+    expect(environmentConflicts([shard("s1"), { name: "s2", report: null }])).toEqual([]);
+  });
+
+  it("mergeShards records the conflicts on the merged doc", () => {
+    const doc = mergeShards([shard("s1"), shard("s2", { unicode: "17.0" })]);
+    expect(doc.meta.envConflicts.map((c: { field: string }) => c.field)).toContain("Unicode version");
+  });
+
+  it("comparability REFUSES a blended run even though every meta field matches", () => {
+    // The load-bearing case. A blend presents one shard's environment, so the
+    // field-by-field checks below it all pass — the guard has to look at the
+    // conflict list, not at the fields.
+    const clean = report().meta as Record<string, unknown>;
+    const blended = {
+      ...clean,
+      envConflicts: [{ field: "ICU version", values: [
+        { value: "76.1", shards: ["s1"] }, { value: "77.1", shards: ["s2"] },
+      ] }],
+    };
+    expect(comparability(clean, clean)).toEqual([]);           // identical, comparable
+    const reasons = comparability(blended, clean);
+    expect(reasons.join(" ")).toMatch(/run's shards disagree on ICU version/);
+    expect(reasons.join(" ")).toContain("s2");
+  });
+
+  it("comparability also refuses when the BASELINE was a blend", () => {
+    const clean = report().meta as Record<string, unknown>;
+    const blended = { ...clean, envConflicts: [{ field: "runner image", values: [
+      { value: "a", shards: ["s1"] }, { value: "b", shards: ["s2"] },
+    ] }] };
+    expect(comparability(clean, blended).join(" ")).toMatch(/baseline's shards disagree/);
+  });
+
+  it("an empty conflict list is not treated as a conflict", () => {
+    const clean = { ...(report().meta as object), envConflicts: [] };
+    expect(comparability(clean, clean)).toEqual([]);
   });
 });

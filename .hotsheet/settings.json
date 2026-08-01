@@ -17,17 +17,17 @@
     {
       "type": "category",
       "key": "feature",
-      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nAdd a new requirements document.\n\nAsk clarifying questions as needed.\n\nBe sure to create follow up tickets as needed as well."
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nAdd a new requirements document.\n\nAsk clarifying questions as needed.\n\nBe sure to create follow up tickets as needed as well.\n\nMake sure to reference the Chromium and Harfbuzz source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
     },
     {
       "type": "category",
       "key": "requirement_change",
-      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nUpdate requirements documents as appropriate.\n\nAsk clarifying questions as needed.\n"
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nUpdate requirements documents as appropriate.\n\nAsk clarifying questions as needed.\n\nMake sure to reference the Chromium and Harfbuzz source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
     },
     {
       "type": "category",
       "key": "bug",
-      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nEvaluate current tests and add unit tests or test automation to protected against this kind of bug going forward, if applicable.\n"
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nEvaluate current tests and add unit tests or test automation to protected against this kind of bug going forward, if applicable.\n\nMake sure to reference the Chromium and Harfbuzz source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
     },
     {
       "type": "tag",
@@ -37,7 +37,7 @@
     {
       "type": "tag",
       "key": "fable",
-      "text": "Use a subagent running the Fable model for this ticket."
+      "text": "Use a subagent running the Fable model for this ticket.\n\nMake sure to reference the Chromium and Harfbuzz source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
     }
   ],
   "custom_commands": [

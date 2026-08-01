@@ -35,6 +35,66 @@ function sum(values) {
   return t;
 }
 
+/**
+ * The environment fields every shard of one run must agree on, and where each
+ * is read from. A shard is one CI job on its own runner, so "the run's
+ * environment" is only well-defined if they match.
+ *
+ * This was previously first-wins — `meta` was taken from the first non-null
+ * report and the image / inventory from the first shard directory that had the
+ * file — on the stated assumption that shards "differ only in WHICH slice they
+ * swept". The visual sweep disproved that assumption: `macos-latest` rotated
+ * mid-run and shard 5 of 5 executed on macOS 26.4 while shards 1-4 were on
+ * 26.5.2. `icu` is the sharp one here, because it decides which codepoints
+ * exist at all — i.e. the denominator the merged totals are quoted against.
+ */
+const ENV_FIELDS = [
+  ["platform", (s) => s.report?.meta?.platform],
+  ["arch", (s) => s.report?.meta?.arch],
+  ["node", (s) => s.report?.meta?.node],
+  ["Unicode version", (s) => s.report?.meta?.unicode],
+  ["ICU version", (s) => s.report?.meta?.icu],
+  ["stack corpus generatedAt", (s) => s.report?.meta?.stackCorpusGeneratedAt],
+  ["runner image", (s) => s.env?.image],
+  ["font inventory digest", (s) => s.env?.fontInventory?.digest],
+];
+
+/**
+ * Check every shard of a run reports the same environment.
+ *
+ * Returns the conflicts only; the caller keeps using the first shard's values
+ * for the non-conflicting fields (they agree, so "first" is "all"). A field
+ * absent on a shard is skipped rather than counted as disagreement — an older
+ * shard artifact predates a field, and crying wolf there would train readers to
+ * ignore the warning.
+ *
+ * @param {Array<{name: string, report: object|null, env?: object|null}>} shards
+ * @returns {Array<{field: string, values: Array<{value: string, shards: string[]}>}>}
+ */
+export function environmentConflicts(shards) {
+  const conflicts = [];
+  const present = (shards ?? []).filter((s) => s != null && s.report != null);
+  for (const [field, pick] of ENV_FIELDS) {
+    const byValue = new Map();
+    for (const s of present) {
+      const v = pick(s);
+      if (v == null || String(v) === "") continue;
+      const k = String(v);
+      if (!byValue.has(k)) byValue.set(k, []);
+      byValue.get(k).push(s.name);
+    }
+    if (byValue.size > 1) {
+      conflicts.push({
+        field,
+        values: [...byValue.entries()]
+          .map(([value, names]) => ({ value, shards: names.sort() }))
+          .sort((a, b) => b.shards.length - a.shards.length),
+      });
+    }
+  }
+  return conflicts;
+}
+
 export function mergeShards(shards, opts = {}) {
   const summary = {};
   const byStack = {};
@@ -91,6 +151,7 @@ export function mergeShards(shards, opts = {}) {
 
   const expected = opts.expected ?? shards.length;
   const merged = missingShards.length === 0 && shards.length >= expected;
+  const envConflicts = environmentConflicts(shards);
 
   return {
     meta: {
@@ -117,6 +178,12 @@ export function mergeShards(shards, opts = {}) {
       shardsExpected: expected,
       shardsMerged: shards.length - missingShards.length,
       missingShards,
+      /**
+       * Fields the shards did NOT agree on. Non-empty ⇒ this run is a blend of
+       * more than one environment, so `meta` above describes one shard rather
+       * than the run, and the comparator must refuse to judge it.
+       */
+      envConflicts,
       /** False ⇒ the numbers below describe part of the sweep and are not a verdict. */
       complete: merged,
     },
@@ -163,30 +230,47 @@ function main() {
 
   // The runner image and font inventory describe the SWEEP host, not this one —
   // the aggregate job runs on a different (Linux) runner than the macOS or
-  // Windows sweep it is merging. Each shard drops both next to its report, so
-  // they are read from a shard rather than measured here.
-  const fromShard = (file) => {
-    for (const n of names) {
-      const p = join(dir, n, file);
-      if (existsSync(p)) return readFileSync(p, "utf8");
-    }
-    return null;
+  // Windows sweep it is merging. Each shard drops both next to its report.
+  //
+  // Read them PER SHARD rather than taking the first that exists: two shards of
+  // one run can execute on different runner images (measured — see
+  // `environmentConflicts`), and a first-wins read reports one shard's
+  // environment as though it described the run.
+  const readShardFile = (name, file) => {
+    const p = join(dir, name, file);
+    if (!existsSync(p)) return null;
+    try { return readFileSync(p, "utf8"); } catch { return null; }
   };
-  let fontInventory = null;
-  const invText = invPath != null && existsSync(invPath)
-    ? readFileSync(invPath, "utf8")
-    : fromShard("font-inventory.json");
-  if (invText != null) {
-    const doc = JSON.parse(invText);
-    // Only the identity, not the 2,000-name list: the list belongs in the
-    // artifact, the digest is what a baseline compares.
-    fontInventory = { digest: doc.digest, count: doc.count, source: doc.source };
-  }
-  const imageId = image ?? fromShard("runner-image.txt")?.trim() ?? null;
+  const inventoryOf = (text) => {
+    if (text == null) return null;
+    try {
+      const doc = JSON.parse(text);
+      // Only the identity, not the 2,000-name list: the list belongs in the
+      // artifact, the digest is what a baseline compares.
+      return { digest: doc.digest, count: doc.count, source: doc.source };
+    } catch { return null; }
+  };
+
   const shards = names.map((name) => {
     const f = join(dir, name, "report.json");
-    return { name, report: existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null };
+    return {
+      name,
+      report: existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null,
+      env: {
+        image: readShardFile(name, "runner-image.txt")?.trim() || null,
+        fontInventory: inventoryOf(readShardFile(name, "font-inventory.json")),
+      },
+    };
   });
+
+  // An explicitly passed --font-inventory / --image overrides the per-shard
+  // reads for the RECORDED value, but the agreement check still runs over what
+  // the shards themselves reported — otherwise passing the flag would silently
+  // paper over a split.
+  const withReport = shards.filter((s) => s.report != null);
+  const explicitInv = invPath != null && existsSync(invPath) ? inventoryOf(readFileSync(invPath, "utf8")) : null;
+  const fontInventory = explicitInv ?? withReport.find((s) => s.env.fontInventory != null)?.env.fontInventory ?? null;
+  const imageId = image ?? withReport.find((s) => s.env.image != null)?.env.image ?? null;
 
   const doc = mergeShards(shards, { os, expected, image: imageId, fontInventory });
   writeFileSync(out, `${JSON.stringify(doc, null, 2)}\n`);
@@ -194,6 +278,15 @@ function main() {
     `merged ${doc.meta.shardsMerged}/${doc.meta.shardsExpected} shard reports → ${out}`
     + `${doc.meta.complete ? "" : ` (INCOMPLETE: missing ${doc.meta.missingShards.join(", ") || "shard artifacts"})`}\n`,
   );
+  for (const c of doc.meta.envConflicts ?? []) {
+    const parts = c.values.map((v) => `${v.value} (${v.shards.join(", ")})`);
+    process.stderr.write(`  WARNING shards disagree on ${c.field}: ${parts.join(" vs ")}\n`);
+  }
+  if ((doc.meta.envConflicts ?? []).length > 0) {
+    process.stderr.write(
+      "  This run is a blend of more than one environment; meta describes one shard, not the run.\n",
+    );
+  }
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) main();
