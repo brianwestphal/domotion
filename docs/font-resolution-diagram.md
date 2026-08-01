@@ -1090,6 +1090,21 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    Both resolvers return no location when nothing moves off the file's
    defaults, so an unvaried face is never needlessly cloned or split into a
    duplicate embedded subset.
+
+   **The axis location is not the whole story on macOS: those faces are also
+   size-dependent.** The glyph helper opens a face at `size = unitsPerEm` so
+   geometry arrives in design units, which is exact for an ordinary face —
+   Helvetica, Times New Roman and Arial Unicode all report an identical advance
+   at 13 / 17 / 28 / 1000 px. Apple's system UI faces do not: CoreText applies
+   optical sizing from the requested point size *on top of* any explicit `opsz`,
+   so `.SFDevanagari` reads 836 / 822 / 802 / 792 and `.SFNS` reads 545.9 /
+   526.4 / 515.6 / 502.0 across those same sizes. Opening at `unitsPerEm`
+   therefore pinned them to their largest optical cut at every run size. Chrome's
+   scaler context is created at the run's size, so `createGlyphHelperFont` now
+   takes an `opticalSize` and — only when the face is **measured** to be
+   size-dependent (`faceGeometryIsSizeDependent`, not a `.`-prefix name test) —
+   opens at that size and scales the returned outlines, advances and GPOS offsets
+   back into design units. Size-invariant faces stay on the untouched path.
 2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the
