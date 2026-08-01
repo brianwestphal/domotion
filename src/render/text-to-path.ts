@@ -1604,9 +1604,54 @@ function renderTextAsEmbedded(
     // opaque fill, where the fill covers the stroke's inner half). Other
     // platforms keep the previous behavior (embolden only unstroked runs).
     const faceNaturalWeight = run.font.naturalWeight;
+    // DM-1880: Blink's synthetic-bold predicate is DIFFERENT ON EACH PLATFORM.
+    // There is no single "Blink rule" to transcribe here — all three read from
+    // `external/chromium`, rev 7d859f27:
+    //
+    //   macOS   mac/font_cache_mac.mm:424-427
+    //           desired_bold = Weight() > 500;
+    //           synthetic = desired_bold && !(traits & kCTFontTraitBold)
+    //
+    //   Linux   skia/font_cache_skia.cc:333-339          (also Android/Fuchsia)
+    //           Weight() > FontSelectionValue(200) + typeface->fontStyle().weight()
+    //
+    //   Windows win/font_cache_skia_win.cc:486-488
+    //           Weight() >= kBoldThreshold && !typeface->isBold()
+    //           (kBoldThreshold = 600, font_selection_types.h:182;
+    //            Skia's isBold() is the face's own declared weight >= 600)
+    //
+    // A DELTA on Linux, a THRESHOLD PAIR on macOS and Windows, and the two
+    // thresholds are not even the same number (500 vs 600).
+    //
+    // What shipped was the delta — which is exactly right for Linux and wrong
+    // for the other two. The clean divergence is weight 600 on a 400 face:
+    // macOS and Windows both synthesise (600 > 500; 600 >= 600, face not bold)
+    // and the delta does not (600 - 400 = 200, not > 200), so `font-weight: 600`
+    // on a static non-bold face painted the thin natural outline where Chrome
+    // paints emboldened ink. It also fired the other way on a 500-weight face
+    // that declares itself bold: the delta synthesises at 800 where macOS and
+    // Windows, asking the face's own bold flag, synthesise nothing.
+    //
+    // Worth stating because the ticket asked to "port Blink's predicate", which
+    // presumes one exists: porting the Windows rule everywhere would have broken
+    // Linux, where the delta IS the transcription.
+    //
+    // Honest substitution: macOS's test is CoreText's `kCTFontTraitBold`
+    // symbolic trait, which we cannot read here; `faceNaturalWeight >= 600` is
+    // the stand-in, and it is the same line Skia draws for `isBold()`. Faces
+    // whose declared weight and symbolic trait disagree will differ from Chrome.
+    //
+    // `hasWeightAxis` has no counterpart in Blink and is kept: a variable face
+    // is instanced at the requested axis location before it reaches here, so it
+    // already reports itself at that weight and there is nothing to synthesise.
+    const faceIsBold = faceNaturalWeight != null && faceNaturalWeight >= 600;
     const faceLacksWeight = run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
-      weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA;
+      (process.platform === "darwin"
+        ? weight > 500 && !faceIsBold
+        : process.platform === "win32"
+          ? weight >= 600 && !faceIsBold
+          : weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA);
     const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
     const fakeBoldStroke = resolveFakeBoldTextStroke({
       strokeWidthPx: (textStrokeWidth != null && textStrokeWidth > 0
