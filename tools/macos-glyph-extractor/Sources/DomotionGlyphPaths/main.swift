@@ -854,7 +854,21 @@ func fontCacheKey(_ spec: [String: Any]) -> String {
     if let v = spec["variations"] as? [String: Any] {
         varKey = v.keys.sorted().map { "\($0)=\((v[$0] as? NSNumber)?.stringValue ?? "")" }.joined(separator: ",")
     }
-    return "\(ps)|\(fp)|\(sz)|\(varKey)"
+    // The `system-ui` CSS parameters decide WHICH face this spec resolves to
+    // (`matchSystemUIFont` applies bold/italic symbolic traits and a `wght`
+    // variation from them), so leaving them out of the key made the cache
+    // answer a different question than the one asked. Measured: at one size,
+    // whichever WEIGHT asked first won, and every later weight at that size got
+    // that face — so `system-ui` CJK at 13px resolved to the Text cut or the
+    // Display cut purely according to sweep order.
+    var uiKey = ""
+    if (spec["systemUI"] as? NSNumber)?.boolValue == true {
+        let w = (spec["cssWeight"] as? NSNumber)?.stringValue ?? ""
+        let sl = (spec["cssSlant"] as? NSNumber)?.stringValue ?? ""
+        let wd = (spec["cssWidth"] as? NSNumber)?.stringValue ?? ""
+        uiKey = "|ui:\(w),\(sl),\(wd)"
+    }
+    return "\(ps)|\(fp)|\(sz)|\(varKey)\(uiKey)"
 }
 
 // Process one request envelope into a response, opening (or reusing, via

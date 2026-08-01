@@ -73,10 +73,52 @@ describeDarwin("system-ui CJK cascade picks Chrome's optical cut (DM-1879)", () 
     expect(resolvedFace(13, 400, 1)).toBe("sysfb:.PingFangUIDisplaySC-Regular");
   });
 
-  // Known divergence, filed separately. `it.fails` asserts it STILL diverges, so
-  // this starts failing — loudly — the moment it is fixed, rather than quietly
-  // enshrining the wrong answer as expected.
-  it.fails("13px / 700 → the TEXT bold cut (we answer DISPLAY — known gap)", () => {
+  it("13px / 700 → the TEXT bold cut", () => {
+    // Was the one wrong answer of the five, and the reason was not weight
+    // mapping but a CACHE KEY: the helper keyed its base font on
+    // (postscriptName, path, size, variations) and omitted the `system-ui` CSS
+    // parameters, which are what `matchSystemUIFont` derives the bold/italic
+    // traits and the `wght` variation from. See the order test below.
     expect(resolvedFace(13, 700)).toBe("sysfb:.PingFangUITextSC-Bold");
+  });
+
+  // The defect was ORDER-DEPENDENT, so a per-case assertion cannot pin it: each
+  // of the five cases above passes on its own in a fresh process, because the
+  // first ask at a given size is always correct. It is the SECOND ask at the
+  // same size that got the first one's face. Measured before the fix:
+  //
+  //     regular first:  13/400 -> Text-Regular  OK    13/700 -> Display-Bold   WRONG
+  //     bold first:     13/700 -> Text-Bold     OK    13/400 -> Display-Regular WRONG
+  //
+  // This is the transition-matrix case the project's testing philosophy calls
+  // out: 100% line coverage from single-operation tests is structurally blind to
+  // it, because every line still runs.
+  it("gives the same answers whichever WEIGHT is asked first at a size", () => {
+    // Ascending then descending, interleaved across two sizes, so a cache keyed
+    // on too little has every chance to leak between them.
+    const ascending = [
+      resolvedFace(13, 400), resolvedFace(13, 700),
+      resolvedFace(20, 400), resolvedFace(20, 700),
+    ];
+    const descending = [
+      resolvedFace(20, 700), resolvedFace(20, 400),
+      resolvedFace(13, 700), resolvedFace(13, 400),
+    ].reverse();
+    expect(ascending).toEqual(descending);
+    expect(ascending).toEqual([
+      "sysfb:.PingFangUITextSC-Regular",
+      "sysfb:.PingFangUITextSC-Bold",
+      "sysfb:.PingFangUIDisplaySC-Regular",
+      "sysfb:.PingFangUIDisplaySC-Bold",
+    ]);
+  });
+
+  it("keeps size and weight independent — italic must not leak either", () => {
+    // Same class, third parameter: `cssSlant` is also part of what the base is
+    // built from, so asking italic first must not answer for the upright.
+    const italicFirst = resolvedFace(13, 400, 1);
+    const uprightAfter = resolvedFace(13, 400, 0);
+    expect(italicFirst).toBe("sysfb:.PingFangUIDisplaySC-Regular");
+    expect(uprightAfter).toBe("sysfb:.PingFangUITextSC-Regular");
   });
 });
