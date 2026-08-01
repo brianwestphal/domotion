@@ -568,7 +568,46 @@ export function textToPathMarkup(
         // Latin-1 because it cannot hold a script or direction boundary.
         const segments = needsSegmentation(run.text, bidiLevels)
           ? segmentForShaping(run.text, bidiLevels)
-          : [{ start: 0, end: run.text.length, script: "", rtl: false }];
+          // A run with no direction BOUNDARY still has a direction — its single
+          // embedding level. Hardcoding `rtl: false` here was latent: the value
+          // reached the shaper as an explicit `dir`, and the platform helper
+          // ignored it and inferred RTL correctly from the content, so a
+          // uniformly-RTL run came out right for the wrong reason. It stops
+          // being harmless the moment a shaper actually honours what it is told.
+          : [{
+            start: 0,
+            end: run.text.length,
+            script: "",
+            rtl: bidiLevels != null && bidiLevels.length > 0 && (bidiLevels[0] & 1) === 1,
+          }];
+
+        // Under a bidi OVERRIDE, shape with HarfBuzz rather than the platform
+        // helper — because the direction we are about to pass is authoritative
+        // and deliberately disagrees with what the content implies, and only
+        // HarfBuzz lets us say so.
+        //
+        // Blink shapes with HarfBuzz on every platform and sets the direction on
+        // the buffer explicitly (`harfbuzz_shaper.cc:341`). Our default shaper is
+        // CoreText via the helper, whose `shape` query takes no direction at all
+        // and infers it from the string's own bidi — the exact inference an
+        // override exists to suppress. So for these runs the helper cannot be
+        // asked the right question, however the caller phrases it.
+        //
+        // Scoped to overrides on purpose. Measured: routing ALL directional runs
+        // to the non-CoreText path took four clean cases (plain / override-rtl /
+        // isolate-rtl / embed-rtl Hebrew) from 0 regions to 2 apiece, because for
+        // runs whose direction the content already implies, the helper is the
+        // better shaper and its answer is already right.
+        // ...and ONLY when the requested direction actually disagrees with what
+        // the content implies. Note what this inference is and is not: it does
+        // not decide the direction (the override already did that, and deciding
+        // it from content is the bug). It decides which SHAPER can express the
+        // request. When the two agree, the helper's inference lands on the same
+        // answer and it is the better shaper — measured, `override-rtl` over
+        // Hebrew goes 0 regions -> 2 if HarfBuzz is used there.
+        const hbPath = bidiOverride != null ? resolveFontSpec(run.fontKey)?.path : undefined;
+        const hbFont = (hbPath != null && hbPath !== "")
+          ? makeHarfbuzzShapingInstance(run.font, hbPath) : run.font;
 
         for (const seg of segments) {
           const segText = run.text.slice(seg.start, seg.end);
@@ -591,9 +630,14 @@ export function textToPathMarkup(
           // is now single-script by construction; it reads the same
           // `unicode-properties` table the segmenter does, so the two agree.
           const dir = seg.rtl ? "rtl" : "ltr";
+          // Does the SEGMENT's own content imply the direction we are asking
+          // for? `_RTL_RE`-equivalent: any strong-RTL character makes the
+          // content RTL for this purpose.
+          const contentIsRtl = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(segText);
+          const shapeFont = (seg.rtl !== contentIsRtl) ? hbFont : run.font;
           const layout = features != null && features.length > 0
-            ? run.font.layout(segText, features, undefined, undefined, dir)
-            : run.font.layout(segText, undefined, undefined, undefined, dir);
+            ? shapeFont.layout(segText, features, undefined, undefined, dir)
+            : shapeFont.layout(segText, undefined, undefined, undefined, dir);
           const uses: string[] = [];
           let segFontUnits = 0;
           for (let gi = 0; gi < layout.glyphs.length; gi++) {

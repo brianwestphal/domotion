@@ -91,7 +91,26 @@ function getHbEntry(fontPath: string): HbEntry | null {
  * opened (caller keeps its existing shaping). Coordinates are font design units,
  * y-up (matching fontkit / the CoreText helper).
  */
-export function harfbuzzShapeRun(fontPath: string, text: string): ShapeResult | null {
+export function harfbuzzShapeRun(
+  fontPath: string,
+  text: string,
+  /**
+   * The bidi run's direction. Blink sets this on the buffer EXPLICITLY and
+   * never lets HarfBuzz infer it (`platform/fonts/shaping/harfbuzz_shaper.cc:339-341`,
+   * rev 7d859f27):
+   *
+   *     hb_buffer_set_language(buffer, language);
+   *     hb_buffer_set_script(buffer, ICUScriptToHBScript(current_run_script));
+   *     hb_buffer_set_direction(buffer, direction);
+   *
+   * with `direction` supplied by the caller from the resolved bidi level
+   * (`:1147`). Inference is exactly what CSS `unicode-bidi: bidi-override`
+   * exists to suppress, so a shaper that guesses cannot honour it — which is
+   * the defect this parameter closes. Omitted means "infer", which stays
+   * correct for every run whose direction the content already implies.
+   */
+  direction?: "ltr" | "rtl",
+): ShapeResult | null {
   const entry = getHbEntry(fontPath);
   if (entry == null) return null;
   const { font, pathCache } = entry;
@@ -100,7 +119,13 @@ export function harfbuzzShapeRun(fontPath: string, text: string): ShapeResult | 
   // divergent codepoints, so the per-call allocation is negligible.
   const buf = new hb.Buffer();
   buf.addText(text);
+  // Infer script + language from content, as Blink does via ICU, then override
+  // the direction when the caller knows it. Order matters: guessing also sets a
+  // direction, so the explicit set has to come second or it is overwritten.
   buf.guessSegmentProperties();
+  // harfbuzzjs takes HarfBuzz's numeric hb_direction_t, not a string:
+  // HB_DIRECTION_LTR = 4, HB_DIRECTION_RTL = 5 (`hb.Direction`).
+  if (direction != null) buf.setDirection(direction === "rtl" ? hb.Direction.RTL : hb.Direction.LTR);
   hb.shape(font as unknown as hb.Font, buf);
   const infos = buf.getGlyphInfosAndPositions();
   const glyphs: ShapedGlyph[] = [];
@@ -134,7 +159,7 @@ export function harfbuzzShapeRun(fontPath: string, text: string): ShapeResult | 
 /** A minimal FontInstance-shaped view used by the renderer. Declared loosely so
  *  this module doesn't depend on text-to-path's internal interface. */
 interface ShapingFontView {
-  layout(text: string, features?: string[]): {
+  layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl"): {
     glyphs: ShapedGlyph[];
     positions: ShapeResult["positions"];
     clusters?: number[];
@@ -161,8 +186,8 @@ interface ShapingFontView {
 export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(base: T, fontPath: string): T {
   if (getHbEntry(fontPath) == null) return base;
   const proxy: ShapingFontView = {
-    layout(text: string) {
-      const res = harfbuzzShapeRun(fontPath, text);
+    layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
+      const res = harfbuzzShapeRun(fontPath, text, direction);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       return res;
     },

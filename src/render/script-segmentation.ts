@@ -103,18 +103,48 @@ export function bidiLevelsFor(
    * run. The letters come out backwards — a fully unreadable line that moves
    * the pixel diff by four hundredths of a percent, because the two words are
    * about the same width.
+   *
+   * **Applied the way Blink applies it**, which is not by special-casing the
+   * levels. `InlineItemsBuilder::EnterBlock` maps the CSS value to a pair of
+   * real Unicode formatting characters and appends them to the text
+   * (`core/layout/inline/inline_items_builder.cc:1501-1505`, rev 7d859f27):
+   *
+   *     case UnicodeBidi::kBidiOverride:
+   *     case UnicodeBidi::kIsolateOverride:
+   *       EnterBidiContext(nullptr, style, uchar::kLeftToRightOverride,
+   *                        uchar::kRightToLeftOverride,
+   *                        uchar::kPopDirectionalFormatting);
+   *
+   * — i.e. U+202D LRO (or U+202E RLO when `direction: rtl`) before, U+202C PDF
+   * after. Nothing downstream knows about `unicode-bidi` at all; the ordinary
+   * algorithm sees the controls and does the rest. `normal` / `embed` /
+   * `isolate` inject nothing (they are the algorithm's default behaviour, and
+   * the block direction is carried as the paragraph level instead).
+   *
+   * So we do the same, rather than flattening the level array by hand. The
+   * flattening version was an approximation that happens to agree on a
+   * single-script run and stops agreeing the moment one doesn't: it would force
+   * a level onto embedded LTR text inside an RTL override, onto neutrals, and
+   * onto nested overrides — cases the real algorithm resolves and a fill() cannot.
    */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): Uint8Array | undefined {
   if (text === "") return undefined;
   const ub = bidiOverride?.unicodeBidi;
-  if (ub === "bidi-override" || ub === "isolate-override") {
-    // Uniform level: even for ltr, odd for rtl. Every character strong in the
-    // embedding direction is exactly what a flat level array expresses, and it
-    // reaches both consumers (`needsSegmentation`, which then sees no direction
-    // boundary, and `segmentForShaping`'s per-segment `rtl` flag).
-    const level = bidiOverride!.direction === "rtl" ? 1 : 0;
-    return new Uint8Array(text.length).fill(level);
+  const isOverride = ub === "bidi-override" || ub === "isolate-override";
+  if (isOverride) {
+    // U+202D LRO / U+202E RLO … U+202C PDF — Blink's exact pair.
+    // U+202E RIGHT-TO-LEFT OVERRIDE / U+202D LEFT-TO-RIGHT OVERRIDE.
+    const enter = bidiOverride!.direction === "rtl" ? "\u202E" : "\u202D";
+    try {
+      const levels = _bidi.getEmbeddingLevels(enter + text + "\u202C", "ltr").levels;
+      // Drop the level of the injected opener; the trailing PDF's level is past
+      // the end of the slice already. What remains is one level per SOURCE
+      // character, so every caller's indexing into `text` still lines up.
+      return levels.slice(1, 1 + text.length);
+    } catch {
+      return undefined;
+    }
   }
   if (!_RTL_RE.test(text)) return undefined;
   try {
