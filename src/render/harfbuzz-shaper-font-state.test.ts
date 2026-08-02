@@ -26,6 +26,8 @@ import { _clearHbFontCache, harfbuzzShapeRun } from "./harfbuzz-shaper.js";
 
 /** PingFang UI — carries `trak`, `STAT`, `GSUB`, and no `morx`. */
 const PINGFANG = "/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc";
+/** SF NS — a variable file with a `wght` axis. */
+const SFNS = "/System/Library/Fonts/SFNS.ttf";
 const onMac = process.platform === "darwin" && existsSync(PINGFANG);
 const macOnly = onMac ? it : it.skip;
 
@@ -79,5 +81,48 @@ describe("AAT tracking follows the run's size", () => {
     // arbitrary tracking lookup.
     expect(firstAdvance(0)).toBe(398);
     expect(firstAdvance(-5)).toBe(398);
+  });
+});
+
+describe("variable faces shape at the run's axis location", () => {
+  // Blink does not hand HarfBuzz an unvaried face: it clones the typeface at the
+  // resolved coordinates first (`mac/font_platform_data_mac.mm:169-185`, rev
+  // 7d859f27), and Skia applies and re-clamps them
+  // (`ctvariation_from_SkFontArguments`, `SkTypeface_mac_ct.cpp:1147`). We did
+  // not, so every variable file shaped at its DEFAULT fvar instance whatever
+  // weight the run resolved to.
+  const varOnly = process.platform === "darwin" && existsSync(SFNS) ? it : it.skip;
+
+  /** First four advances of a pangram fragment, at an axis location. */
+  function advances(axes: Record<string, number> | null): string {
+    const r = harfbuzzShapeRun(SFNS, 0, "Hamburgefonstiv", undefined, 16, axes);
+    expect(r).not.toBeNull();
+    return r!.positions.slice(0, 4).map((p) => p.xAdvance).join(" ");
+  }
+
+  varOnly("shapes two weights differently, and neither as the default", () => {
+    // Three distinct values is the assertion. Comparing ONE location against the
+    // default cannot distinguish "applied" from "the default happens to be that
+    // weight" — SF NS defaults to wght 400, so a 400-only test passes whether or
+    // not the location is applied at all.
+    const dflt = advances(null);
+    const light = advances({ wght: 300 });
+    const bold = advances({ wght: 700 });
+    expect(light).not.toBe(dflt);
+    expect(bold).not.toBe(dflt);
+    expect(light).not.toBe(bold);
+  });
+
+  varOnly("does not leak a previous run's axis location through the font cache", () => {
+    // Same hazard as ptem above: the font is cached per (file, face index), so a
+    // location applied for one run persists into the next unless it is reset.
+    // The null arm is the one that catches it — a static face, or a caller with
+    // no location, must see the DEFAULT master and not the last variable run's.
+    const dflt = advances(null);
+    const bold = advances({ wght: 700 });
+    expect(advances(null)).toBe(dflt);
+    expect(advances({ wght: 700 })).toBe(bold);
+    expect(advances({ wght: 300 })).not.toBe(bold);
+    expect(advances(null)).toBe(dflt);
   });
 });

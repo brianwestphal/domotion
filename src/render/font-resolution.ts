@@ -4242,11 +4242,31 @@ export function __resolveFaceInfoForFileForTest(path: string, postscriptName?: s
  * the shaper declines rather than falling back to member zero, which is the
  * whole point.
  */
-export function shapingFaceFor(fontKey: string): { path: string; faceIndex: number | null } | null {
+export function shapingFaceFor(
+  fontKey: string,
+  /** The run's CSS properties, used only to resolve a VARIABLE file's axis
+   *  location. Omit them and `axes` comes back null, which shapes the default
+   *  fvar instance — correct for a static face and wrong for a variable one, so
+   *  a caller that has these should pass them. */
+  weight?: number,
+  fontSize?: number,
+  slant?: number,
+  variationSettings?: Record<string, number>,
+): { path: string; faceIndex: number | null; axes: Record<string, number> | null } | null {
   const spec = resolveFontSpec(fontKey);
   const path = spec?.path;
   if (path == null || path === "") return null;
-  return { path, faceIndex: resolveFaceInfoForFile(path, spec?.postscriptName).faceIndex };
+  const info = resolveFaceInfoForFile(path, spec?.postscriptName);
+  // The SAME derivation the native outline path uses (see `getFontInstance`'s
+  // `variationAxes`), deliberately not a second one: the shaper and the outlines
+  // have to agree about which master they are on, and two parallel derivations
+  // that happen to coincide today is exactly the shape of bug this area keeps
+  // producing. `fileAxes` is null when the requested name is not a physical
+  // member, and then no location is derived from a face nobody asked for.
+  const axes = info.fileAxes != null && weight != null && fontSize != null
+    ? resolveAxisLocationForFile(info.fileAxes, weight, fontSize, slant ?? 0, variationSettings, spec?.resolvedAxes, info.instanceAxes)
+    : null;
+  return { path, faceIndex: info.faceIndex, axes };
 }
 
 /** DM-1716: the axis location a run resolved to on a variable file whose
@@ -5189,9 +5209,9 @@ export function resolveDottedCircleHbRun(
   const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
   if (markFont == null) return null;
   if (glyphIdForCp(markFont, 0x25CC) === 0) return null; // ◌ must come from the mark's font, like Chrome
-  const hbFace = shapingFaceFor(markKey);
+  const hbFace = shapingFaceFor(markKey, weight, fontSize, slant, variationSettings);
   if (hbFace == null) return null;
-  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, fontSize);
+  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
   if (hbInst === markFont) return null; // HarfBuzz couldn't open the file
   return { key: markKey, font: hbInst };
 }
@@ -5389,9 +5409,9 @@ export function resolveFontForCodepoint(
   if (csDecomp != null) {
     const dcps = [...csDecomp].map((c) => c.codePointAt(0)!);
     if (dcps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
-      const hbFace = shapingFaceFor(primaryFontKey);
+      const hbFace = shapingFaceFor(primaryFontKey, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize);
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
         if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
       }
     }
@@ -5499,9 +5519,9 @@ export function resolveFontForCodepoint(
     // glyph-path emitter to its run-shaping branch. Falls through when the key
     // has no on-disk file HarfBuzz can open.
     if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(inst, d) !== 0)) {
-      const hbFace = shapingFaceFor(key);
+      const hbFace = shapingFaceFor(key, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex, fontSize);
+        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
         if (hbInst !== inst) return cover(key, hbInst, ch, true);
       }
     }

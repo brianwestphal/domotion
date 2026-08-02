@@ -242,6 +242,26 @@ export function harfbuzzShapeRun(
    * and is the honest default for a caller that genuinely has no size.
    */
   fontSizePx?: number,
+  /**
+   * The run's resolved variable-axis location, or null/undefined for a static
+   * face. Blink does not hand HarfBuzz an unvaried face and let it guess: it
+   * clones the typeface at the resolved coordinates first
+   * (`mac/font_platform_data_mac.mm:169-185`, rev 7d859f27), and Skia applies
+   * and re-clamps them (`ctvariation_from_SkFontArguments`,
+   * `SkTypeface_mac_ct.cpp:1147`).
+   *
+   * Without this a variable file shapes at its DEFAULT fvar instance whatever
+   * weight, width or optical size the run resolved to — which is not a small
+   * error. Measured on the SF faces before this was applied, advances were 20%+
+   * off, and the shape of the difference (fractional on the platform side,
+   * integral here) is the signature of an interpolated location versus none.
+   *
+   * Callers get the location from `shapingFaceFor(key, weight, size, slant, …)`,
+   * which routes it through the same `resolveAxisLocationForFile` the native
+   * outline path already uses — so the shaper and the outlines agree by
+   * construction rather than by two parallel derivations.
+   */
+  axes?: Record<string, number> | null,
 ): ShapeResult | null {
   const entry = getHbEntry(fontPath, faceIndex);
   if (entry == null) return null;
@@ -252,6 +272,12 @@ export function harfbuzzShapeRun(
   // wrong size. Passing 0 for an absent size restores "no tracking", which is
   // what HarfBuzz does with an unset ptem.
   (font as unknown as { setPtem(p: number): void }).setPtem(fontSizePx != null && fontSizePx > 0 ? fontSizePx : 0);
+  // Same reasoning as ptem: the font is cached per (file, face index) and shared
+  // across runs, so the axis location is state crossing that boundary. An empty
+  // list resets every axis to its default, which is what a static face — or a
+  // caller with no location — must see, rather than the previous run's.
+  const varList = axes == null ? [] : Object.entries(axes).map(([tag, v]) => new hb.Variation(tag, v));
+  (font as unknown as { setVariations(v: hb.Variation[]): void }).setVariations(varList);
   // harfbuzzjs frees the buffer's WASM memory automatically via a
   // FinalizationRegistry (no manual destroy/free); this only fires for the rare
   // divergent codepoints, so the per-call allocation is negligible.
@@ -331,11 +357,13 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
    *  `harfbuzzShapeRun`; omitting it applies none, which is a different answer
    *  from Chrome's on any face carrying `trak` + `STAT`. */
   fontSizePx?: number,
+  /** The run's resolved variable-axis location. See `harfbuzzShapeRun`. */
+  axes?: Record<string, number> | null,
 ): T {
   if (getHbEntry(fontPath, faceIndex) == null) return base;
   const proxy: ShapingFontView = {
     layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
-      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx);
+      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       return res;
     },

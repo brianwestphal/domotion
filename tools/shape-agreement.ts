@@ -96,19 +96,22 @@ const UNIT_EPS = 0.5;
 /** Every font key this platform's table declares that actually resolves to a
  *  file present on THIS host. Keys are skipped silently when the font is not
  *  installed — that is a coverage fact, reported in the summary, not an error. */
-function resolvableFaces(filter: string | null): Array<{ key: string; path: string; faceIndex: number }> {
-  const out: Array<{ key: string; path: string; faceIndex: number }> = [];
+function resolvableFaces(filter: string | null, sizePx: number): Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null }> {
+  const out: Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null }> = [];
   for (const key of platformFontKeys()) {
     if (filter != null && !key.toLowerCase().includes(filter.toLowerCase())) continue;
-    let face: { path: string; faceIndex: number | null } | null = null;
+    let face: { path: string; faceIndex: number | null; axes: Record<string, number> | null } | null = null;
     try {
-      face = shapingFaceFor(key);
+      // Weight 400 only — a real blindness, and the same one that once produced a
+      // 0.488%-vs-14.77% split on Windows. A family's cut stops being its base
+      // entry at weight 700, so nothing here can catch a bold-only defect.
+      face = shapingFaceFor(key, 400, sizePx, 0);
     } catch {
       continue;
     }
     if (face == null || face.faceIndex == null) continue;
     if (!existsSync(face.path)) continue;
-    out.push({ key, path: face.path, faceIndex: face.faceIndex });
+    out.push({ key, path: face.path, faceIndex: face.faceIndex, axes: face.axes });
   }
   return out;
 }
@@ -129,7 +132,7 @@ function covers(font: NonNullable<ReturnType<typeof createGlyphHelperFont>>, tex
 }
 
 function comparePair(
-  face: { key: string; path: string; faceIndex: number },
+  face: { key: string; path: string; faceIndex: number; axes: Record<string, number> | null },
   sample: { script: string; text: string; note?: string },
   font: NonNullable<ReturnType<typeof createGlyphHelperFont>>,
 ): Disagreement[] {
@@ -143,7 +146,7 @@ function comparePair(
   // Chrome uses. It does not — Blink passes the CSS pixel size, and neither
   // path here does. That is a real defect, and this tool is deliberately blind
   // to it, so it must not be read as evidence of tracking parity with Chrome.
-  const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, undefined, font.unitsPerEm);
+  const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, undefined, font.unitsPerEm, face.axes);
   if (hb == null) return []; // HarfBuzz declined the face — nothing to compare
   const ct = font.layout(sample.text);
   const base = { face: face.key, path: face.path, faceIndex: face.faceIndex, sample: sample.note ?? sample.script, script: sample.script, text: sample.text };
@@ -196,7 +199,9 @@ function main(): void {
     process.exit(2);
   }
 
-  const faces = resolvableFaces(filter);
+  // 1000 stands in for the size the CoreText helper opens faces at
+  // (unitsPerEm), so both sides resolve the same optical-size axis.
+  const faces = resolvableFaces(filter, 1000);
   const disagreements: Disagreement[] = [];
   let pairs = 0;
   let skippedCoverage = 0;
@@ -214,7 +219,7 @@ function main(): void {
     } catch {
       continue;
     }
-    if (harfbuzzShapeRun(face.path, face.faceIndex, "A") == null && harfbuzzShapeRun(face.path, face.faceIndex, SHAPE_SAMPLES[0].text) == null) {
+    if (harfbuzzShapeRun(face.path, face.faceIndex, "A", undefined, 1000, face.axes) == null && harfbuzzShapeRun(face.path, face.faceIndex, SHAPE_SAMPLES[0].text, undefined, 1000, face.axes) == null) {
       declined++;
       continue;
     }
