@@ -100,11 +100,21 @@ for (const os of oses) {
       process.exit(1);
     }
     const out = join(outDir, `baseline-${suite}-${os}.json`);
-    const image = imageFor(os);
+    // `imageFor` reads a per-shard `runner-image.txt`, which the slim metadata
+    // path does not carry — but the merged env record holds the same value, so
+    // fall back to it rather than recording null next to a populated `env`.
+    let image = imageFor(os);
+    if (image == null) {
+      try { image = JSON.parse(readFileSync(envPath, "utf8"))?.image ?? null; } catch { image = null; }
+    }
     const a = ["scripts/write-baseline.mjs", "--results", merged, "--out", out, "--suite", suite, "--os", os];
     if (image) a.push("--image", image);
     if (commit) a.push("--commit", commit);
-    if (capturedAt) a.push("--captured-at", capturedAt);
+    // When the caller did not supply one, stamp when the baseline was WRITTEN.
+    // Not the run's own start time — it is the merge that fixes the contents —
+    // but a null here is strictly worse: it makes a fresh baseline look as
+    // undated as one from before the field existed.
+    a.push("--captured-at", capturedAt ?? new Date().toISOString());
     if (envPath) a.push("--env", envPath);
     execFileSync("node", a, { stdio: "inherit" });
   }
