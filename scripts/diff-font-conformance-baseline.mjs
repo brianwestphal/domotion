@@ -126,6 +126,12 @@ function baselineFrom(run) {
     // changed" from "Chrome's answer changed", which is exactly the distinction
     // a mismatch delta cannot express. See `oracleMovement`.
     chromeFaceCounts: { ...(run.chromeFaces ?? {}) },
+    // DM-1922: the per-stack primary Chrome resolved, so a later run can name
+    // WHICH stack moved instead of only that the face tally shifted. The tally
+    // is dominated by the primary — unassigned / PUA / noncharacter codepoints
+    // terminate on it — so one stack flipping moves ~108k answers and looks
+    // identical to a broad drift.
+    stackPrimaries: (run.meta?.stackPrimaries ?? []).map((s) => ({ key: `${s.fontFamily}@${s.fontSize}/${s.fontWeight}/${s.fontStyle}`, chromePrimary: s.chromePrimary })),
   };
 }
 
@@ -288,6 +294,30 @@ function main() {
       oracle.moved.length > 10 ? `> - …and ${oracle.moved.length - 10} more` : "",
       "",
     );
+    // DM-1922: say WHICH stack and WHICH machine, when the baseline is new
+    // enough to have recorded it. Without this the reader knows the tally
+    // shifted and nothing else — which is how the last occurrence cost a wrong
+    // regression attribution and three CI dispatches to undo.
+    const basePrimaries = new Map((base.stackPrimaries ?? []).map((s) => [s.key, s.chromePrimary]));
+    const runPrimaries = (run.meta?.stackPrimaries ?? [])
+      .map((s) => ({ key: `${s.fontFamily}@${s.fontSize}/${s.fontWeight}/${s.fontStyle}`, now: s.chromePrimary }))
+      .filter((s) => basePrimaries.has(s.key) && basePrimaries.get(s.key) !== s.now);
+    if (runPrimaries.length > 0) {
+      md.push(
+        `> **The primary changed for ${runPrimaries.length} stack(s)** — this is a Chrome-side face`,
+        `> selection change, not a change in our answers:`,
+        "",
+        ...runPrimaries.map((s) => `> - \`${s.key}\`: \`${basePrimaries.get(s.key)}\` → \`${s.now}\``),
+        "",
+      );
+    } else if ((base.stackPrimaries ?? []).length === 0) {
+      md.push(`> ℹ️ The baseline predates per-stack primary tracking, so this cannot say which stack moved.`, "");
+    }
+    const h = run.meta?.host, inv = run.meta?.fontInventory;
+    if (h != null) {
+      md.push(`> Measured on \`${h.name}\` (${h.cpus} cpus, ${h.arch})`
+        + (inv != null ? `, font inventory \`${inv.digest}\` (${inv.count} entries).` : "."), "");
+    }
     if (oracle.total >= mismatchDelta && mismatchDelta > 0) {
       md.push(
         `> **VERDICT WITHHELD.** Chrome's own answers moved by ${oracle.total.toLocaleString()},`,

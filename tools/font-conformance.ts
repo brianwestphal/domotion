@@ -55,6 +55,37 @@
  * ---------------------------------------------------------------------------
  */
 import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
+import { hostname, cpus } from "node:os";
+import { inventoryDocument } from "./font-inventory.mjs";
+
+/**
+ * Which machine produced this shard's answers.
+ *
+ * Recorded because the one thing a detected flip could not say was *where*. The
+ * workflow shards one stack per shard, so a stack that flips wholesale flipped
+ * on exactly one machine, and its name is the only handle on that machine
+ * afterwards. Cheap enough to always record; useless to add after the fact.
+ */
+function hostIdentity(): { name: string; cpus: number; arch: string } {
+  return { name: hostname(), cpus: cpus().length, arch: process.arch };
+}
+
+/**
+ * This shard's own font inventory digest — not the run's.
+ *
+ * The answers are a function of the host's installed fonts, and with one stack
+ * per shard those hosts are different machines. A run-level digest asserts a
+ * uniformity nothing checks; a per-shard one makes two shards disagreeing about
+ * the font set visible in the report instead of invisible.
+ */
+function shardFontInventory(): { digest: string; count: number; source: string } | null {
+  try {
+    const doc = inventoryDocument();
+    return { digest: doc.digest, count: doc.count, source: doc.source };
+  } catch {
+    return null; // diagnostic metadata must never fail a sweep
+  }
+}
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -579,6 +610,29 @@ class ChromeOracle {
     return new ChromeOracle(page, cdp, concurrency, lang);
   }
 
+  /**
+   * The face Chrome resolves this stack's PRIMARY to, asked once and directly.
+   *
+   * Worth having as its own field rather than reading it off the per-codepoint
+   * tally, because the tally is dominated by it and that hid where a defect
+   * lived. Unassigned, private-use and noncharacter codepoints — most of the
+   * universe — terminate on the primary's `.notdef`, so Chrome reports the
+   * PRIMARY for them; only codepoints something else covers report a fallback.
+   * A `sans-serif` stack therefore tallies ~108k "Helvetica" answers that are
+   * really one answer repeated, and when the primary flips they all move at
+   * once. Two runs of one commit did exactly that (`Helvetica-Bold -108,466`,
+   * `Arial-BoldMT +108,466`, exactly balanced), and the tally could not say
+   * whether one stack had moved wholesale or many had drifted.
+   *
+   * Uses `A` — covered by every primary in the corpus — so the answer is the
+   * primary itself and not a fallback decision.
+   */
+  async resolvedPrimary(spec: StackSpec): Promise<string | null> {
+    const faces = await this.facesFor([0x41], spec);
+    const f = primaryChromeFace(faces[0] ?? []);
+    return f == null ? null : (f.postScriptName ?? f.familyName);
+  }
+
   async facesFor(cps: number[], spec: StackSpec): Promise<ChromeFace[][]> {
     const cells = cps
       .map((cp) => `<i class=c>&#x${cp.toString(16)};</i>`)
@@ -989,6 +1043,9 @@ async function main(): Promise<number> {
      * visible as a changed inventory rather than as an unexplained score move.
      */
     const chromeFaceTally = new Map<string, number>();
+    /** Per stack: the primary Chrome resolved, beside the key we resolved. */
+    const stackPrimaries: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string;
+                                  chromePrimary: string | null; ourPrimaryKey: string }> = [];
     const classCounts = { "different-family": 0, "same-family-different-cut": 0 };
     let allowlistedCount = 0;
     let skippedStacks = 0;
@@ -1008,6 +1065,14 @@ async function main(): Promise<number> {
         `  stack ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`
         + ` → chain [${rs.chain.join(", ")}]\n`,
       );
+      // Ask Chrome for this stack's primary before sweeping it, and record it.
+      // See `resolvedPrimary` — this is the quantity that flips, and inferring
+      // it from the tally afterwards is what made the last occurrence
+      // unattributable.
+      const chromePrimary = await oracle.resolvedPrimary(spec);
+      stackPrimaries.push({ fontFamily: spec.fontFamily, fontSize: spec.fontSize, fontWeight: spec.fontWeight,
+                            fontStyle: spec.fontStyle, chromePrimary, ourPrimaryKey: rs.primaryKey });
+      process.stdout.write(`    chrome primary: ${chromePrimary ?? "(none)"}   ours: ${rs.primaryKey}\n`);
       let batchNo = 0;
       for (let i = 0; i < universe.length; i += opts.batch) {
         // Bound memory (DM-1860). The font-resolution memos are unbounded in the
@@ -1177,6 +1242,18 @@ async function main(): Promise<number> {
         maxRows: opts.maxRows,
         lang: opts.lang,
         resetEvery: opts.resetEvery,
+        // DM-1922. Attribution fields for an intermittent, Chrome-side flip of
+        // the `sans-serif` generic's primary, seen four times in real runs and
+        // never once in ~2,000 probe samples across 32 runner allocations. The
+        // detector catches it; nothing recorded where it happened.
+        //
+        // `host` and `fontInventory` are per-SHARD, deliberately. This workflow
+        // shards one stack per shard, so the flipping stack sweeps alone on one
+        // machine — a run-level record cannot name it, and cannot show two
+        // shards disagreeing about the font set.
+        host: hostIdentity(),
+        fontInventory: shardFontInventory(),
+        stackPrimaries,
         peakRssMb,
         wallMs,
         chromeMs,

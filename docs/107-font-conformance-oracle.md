@@ -293,6 +293,20 @@ Two behaviors, both of which exist because the alternative is a confident number
 
 `chromeFaces` tallies only `primaryChromeFace(...)`, so nothing our resolver does contributes to it: **any movement in it is oracle drift by construction.** The baseline therefore records `chromeFaceCounts` alongside the existing sorted name list, and the comparator reports the per-face deltas. When the oracle moved at least as much as the delta being reported, the verdict is **withheld** — you cannot read a signal smaller than the noise beneath it.
 
+**Detecting the drift was not enough to attribute it.** A withheld verdict says the oracle moved; it does not say *which stack* or *on which machine*, and without those a real occurrence is forensically empty. It cost a wrong regression attribution once: two bistable unicode fixtures were pinned on a specific commit by a four-point CI bisect that was really four single samples of this flip.
+
+Three fields close that, all in the report's `meta`:
+
+| field | why |
+| --- | --- |
+| `stackPrimaries` | The face Chrome resolves each stack's primary to, asked once with `A` before the sweep. **This is the quantity that flips**, and the tally cannot isolate it: unassigned, private-use and noncharacter codepoints terminate on the primary's `.notdef`, so Chrome reports the *primary* for most of the universe. One `sans-serif` stack contributes ~108k identical answers, and one stack flipping is indistinguishable from a broad drift in the tally alone. |
+| `host` | Hostname, CPU count, arch. The workflow shards **one stack per shard**, so a stack that flips wholesale flipped on exactly one machine — and its name is the only handle on that machine afterwards. |
+| `fontInventory` | The digest, count and source, **per shard rather than per run**. The answers are a function of the host's fonts, and with one stack per shard those hosts are different machines; a run-level digest asserts a uniformity nothing checks. |
+
+The comparator reads them back and names the stack directly — `` `sans-serif@32/700/normal`: `Helvetica-Bold` → `Arial-BoldMT` `` — plus the machine that measured it. A baseline captured before these existed says so rather than staying silent.
+
+None of it can fail a sweep: `fontInventory` swallows its own errors, because diagnostic metadata that breaks the instrument is worse than no metadata.
+
 The name list alone could not have served, and it is worth knowing why: across the two runs above it was **byte-identical** (291 faces both times), because every face involved was already in use on some other stack. Only the distribution moved. That is also why the original decision to store keys rather than counts — on the reasoning that counts "would churn the diff on every run" — turned out to be the wrong trade: measured, only five faces' counts moved between those runs, and every one was the oracle changing its mind.
 
 **Practical rule this establishes: a single conformance run is not evidence.** Repeat a disagreeing run on the same ref before attributing the delta to a commit.
