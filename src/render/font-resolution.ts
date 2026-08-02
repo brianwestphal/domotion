@@ -4191,6 +4191,40 @@ export function __resolveFaceInfoForFileForTest(path: string, postscriptName?: s
   return resolveFaceInfoForFile(path, postscriptName);
 }
 
+/**
+ * The file + collection member HarfBuzz should open to shape with `fontKey`, or
+ * null when there is no file to open.
+ *
+ * A path alone does not identify a face. macOS ships most system families as
+ * `.ttc` collections whose first member is the regular cut, so a bold / UI / PUA
+ * face opened by path lands on the wrong one: measured on GeezaPro.ttc, shaping
+ * the same Arabic word through member 0 (GeezaPro) and member 1 (GeezaPro-Bold)
+ * returns the same five glyphs with different ids and different advances —
+ * well-formed, plausible output measured from a face nobody asked for, with
+ * nothing anywhere reporting an error.
+ *
+ * Blink never has to ask this, because by the time it reaches HarfBuzz it holds
+ * a typeface rather than a path and the typeface knows its own index:
+ * `HbFaceFromSkTypeface` reads it back out via `typeface->openStream(&ttc_index)`
+ * and passes it to `hb_face_create`
+ * (`external/chromium/.../fonts/shaping/harfbuzz_face_from_typeface.cc:19-44`,
+ * rev 7d859f27). We select faces by PostScript name instead, so the equivalent
+ * is the member lookup `resolveFaceInfoForFile` already performs for the
+ * embedded-font subsetter — including its resolution of a name that is an fvar
+ * NAMED INSTANCE of a member rather than a member itself, which is the usual
+ * shape for a CoreText-resolved face and which a plain name-table scan misses.
+ *
+ * `faceIndex` is null when the name is not in the file at all. That propagates:
+ * the shaper declines rather than falling back to member zero, which is the
+ * whole point.
+ */
+export function shapingFaceFor(fontKey: string): { path: string; faceIndex: number | null } | null {
+  const spec = resolveFontSpec(fontKey);
+  const path = spec?.path;
+  if (path == null || path === "") return null;
+  return { path, faceIndex: resolveFaceInfoForFile(path, spec?.postscriptName).faceIndex };
+}
+
 /** DM-1716: the axis location a run resolved to on a variable file whose
  *  outlines came from the NATIVE helper (CoreText / DirectWrite). Mirrors
  *  applyVariationAxes' resolution — CSS weight → `wght`, font-size → `opsz`
@@ -5131,9 +5165,9 @@ export function resolveDottedCircleHbRun(
   const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
   if (markFont == null) return null;
   if (glyphIdForCp(markFont, 0x25CC) === 0) return null; // ◌ must come from the mark's font, like Chrome
-  const path = resolveFontSpec(markKey)?.path;
-  if (path == null || path === "") return null;
-  const hbInst = makeHarfbuzzShapingInstance(markFont, path);
+  const hbFace = shapingFaceFor(markKey);
+  if (hbFace == null) return null;
+  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex);
   if (hbInst === markFont) return null; // HarfBuzz couldn't open the file
   return { key: markKey, font: hbInst };
 }
@@ -5331,9 +5365,9 @@ export function resolveFontForCodepoint(
   if (csDecomp != null) {
     const dcps = [...csDecomp].map((c) => c.codePointAt(0)!);
     if (dcps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
-      const hbPath = resolveFontSpec(primaryFontKey)?.path;
-      if (hbPath != null && hbPath !== "") {
-        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbPath);
+      const hbFace = shapingFaceFor(primaryFontKey);
+      if (hbFace != null) {
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex);
         if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
       }
     }
@@ -5441,9 +5475,9 @@ export function resolveFontForCodepoint(
     // glyph-path emitter to its run-shaping branch. Falls through when the key
     // has no on-disk file HarfBuzz can open.
     if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(inst, d) !== 0)) {
-      const hbPath = resolveFontSpec(key)?.path;
-      if (hbPath != null && hbPath !== "") {
-        const hbInst = makeHarfbuzzShapingInstance(inst, hbPath);
+      const hbFace = shapingFaceFor(key);
+      if (hbFace != null) {
+        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex);
         if (hbInst !== inst) return cover(key, hbInst, ch, true);
       }
     }

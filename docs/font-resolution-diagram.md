@@ -439,14 +439,14 @@ the exact font + glyph to paint. The order mirrors Blink's `FontFallbackIterator
 ```mermaid
 flowchart TD
   F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain)"] --> FC["complexShaperBaseMarkDecomposition(cp)?<br/>(e.g. Kaithi U+110AB, canonical base+mark)"]
-  FC -->|"primary covers all pieces & has on-disk file"| FCH["→ HarfBuzz shaping instance<br/>(makeHarfbuzzShapingInstance) · decomposed=true<br/>matches Chrome's HarfBuzz decompose+GPOS"]
+  FC -->|"primary covers all pieces & has on-disk file"| FCH["→ HarfBuzz shaping instance<br/>(shapingFaceFor → makeHarfbuzzShapingInstance) · decomposed=true<br/>matches Chrome's HarfBuzz decompose+GPOS"]
   FC -->|"no"| F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?"]
   F1 -->|"yes"| F1H["cover(primaryKey)"]
   F1 -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F2
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
-  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance"]
+  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
   FPUA -->|"yes — no system fallback at all"| F6
@@ -1170,6 +1170,20 @@ treating `null` as `0` reads member zero, a face nobody asked for. The
 hinted-subset path therefore disqualifies such an entry and drops to svg2ttf,
 which emits the outlines the extractor actually produced. `variationAxes` is
 `null` in that state too, rather than describing member zero's axes.
+
+**The HarfBuzz shaping route is the second consumer of this index.** Every call
+that wraps a font in `makeHarfbuzzShapingInstance` — the complex-shaper
+base+mark decomposition, the in-font NFD tier, and the bidi-override runs in
+`text-to-path.ts` — goes through `shapingFaceFor(fontKey)`, which pairs the
+spec's path with `resolveFaceInfoForFile(...).faceIndex` and hands both to
+`hb_face_create`. It used to pass the path alone and open index 0, which on a
+macOS collection meant a bold or UI cut was shaped by the regular one: same
+glyph count, different ids and advances, nothing reporting an error. A `null`
+index makes the shaper decline the run rather than fall back to member zero, so
+the caller keeps its CoreText / fontkit shaping — a different shaper, but the
+right font. The index is then bounds-checked against the file's own face count
+before the face is created, which is what Blink does with the index Skia hands
+it (`HbFaceFromSkTypeface`, `harfbuzz_face_from_typeface.cc:38-42`).
 
 Note the two index spaces are different and must not be crossed: the macOS
 helper's `CTFontManagerCreateFontDescriptorsFromURL` enumeration is CoreText's

@@ -37,9 +37,14 @@ interface ShapeResult {
   clusters: number[];
 }
 
-// One HarfBuzz font per file path, with a per-glyph outline cache (glyphToPath
-// is the hot call). The font/face/blob are retained for the process lifetime —
-// this only fires for the rare divergent codepoints, so the footprint is tiny.
+// One HarfBuzz font per (file path × PostScript name), with a per-glyph outline
+// cache (glyphToPath is the hot call). The font/face/blob are retained for the
+// process lifetime — this only fires for the rare divergent codepoints, so the
+// footprint is tiny.
+//
+// The PostScript name is part of the key because a path alone does not identify
+// a face: macOS ships most system families as `.ttc` collections, and the cut we
+// resolve is usually not the first member (see `faceIndexForPostScriptName`).
 interface HbEntry { font: { glyphToPath(id: number): string }; pathCache: Map<number, PathCommand[]> }
 const hbFontCache = new Map<string, HbEntry | null>();
 
@@ -65,24 +70,75 @@ function parseSvgPath(d: string): PathCommand[] {
   return out;
 }
 
-function getHbEntry(fontPath: string): HbEntry | null {
-  if (hbFontCache.has(fontPath)) return hbFontCache.get(fontPath)!;
+/**
+ * Number of faces in `data`, by the rule HarfBuzz itself applies.
+ *
+ * harfbuzzjs does not expose `hb_face_count`, so this reads the one field that
+ * function ends up returning. `OT::OpenTypeFontFile::get_face_count`
+ * (`external/harfbuzz/src/hb-open-file.hh:470-479`, rev 4de187d) switches on the
+ * leading tag: every non-collection sfnt tag (`OTTO` / `true` / `typ1` /
+ * 0x00010000) answers 1, and `ttcf` defers to `TTCHeader`, whose version-1 and
+ * version-2 layouts share `Array32Of<…> table` at offset 8 and answer
+ * `table.len` (`:219-241` — `DEFINE_SIZE_ARRAY(12, table)`, i.e. 4-byte tag +
+ * 4-byte version + the 4-byte count).
+ *
+ * Not ported: the `dfont` resource-fork container, which HarfBuzz also counts
+ * (`:478`). No font this project routes is one — the platform tables in
+ * `font-resolution.ts` carry no `.dfont` path on any of the three OSes — and its
+ * count lives behind a resource map rather than a header field. Stated rather
+ * than left implicit: a `.dfont` collection would be counted as 1 here and so
+ * would only ever shape its first member.
+ */
+function faceCount(data: Uint8Array): number {
+  if (data.length < 12) return 0;
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const TTCF = 0x74746366; // 'ttcf'
+  if (dv.getUint32(0) !== TTCF) return 1;
+  return dv.getUint32(8);
+}
+
+function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null {
+  const cacheKey = `${fontPath}#${faceIndex ?? "?"}`;
+  if (hbFontCache.has(cacheKey)) return hbFontCache.get(cacheKey)!;
   let entry: HbEntry | null = null;
   try {
+    // A face the caller could not identify is not shaped at all. Falling back to
+    // index 0 is exactly the defect this replaced: on a collection that silently
+    // shapes with a DIFFERENT face. Refusing leaves the caller on its existing
+    // CoreText / fontkit shaping — a different shaper, but the right font.
+    if (faceIndex == null) throw new Error("unidentified face");
     const data = readFileSync(fontPath);
     // `hb.Blob` wants an ArrayBuffer; a Node Buffer is a view onto a (possibly
     // larger, pooled) ArrayBuffer, so slice out exactly this file's bytes.
     const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
     const blob = new hb.Blob(ab);
-    const face = new hb.Face(blob, 0);
-    const font = new hb.Font(face);
-    entry = { font: font as unknown as { glyphToPath(id: number): string }, pathCache: new Map() };
+    // Blink's bounds check, in effect verbatim. `HbFaceFromSkTypeface`
+    // (`external/chromium/.../fonts/shaping/harfbuzz_face_from_typeface.cc:38-42`,
+    // rev 7d859f27) does
+    //
+    //     unsigned int num_hb_faces = hb_face_count(face_blob.get());
+    //     if (0 < num_hb_faces && static_cast<unsigned>(ttc_index) < num_hb_faces) {
+    //       return_face = hb::unique_ptr<hb_face_t>(hb_face_create(face_blob.get(), ttc_index));
+    //     }
+    //
+    // and returns a NULL face otherwise, so its caller falls back. Worth keeping
+    // even though the index came from a lookup over this same file: it is what
+    // turns a resolver that has drifted from the bytes on disk into a fall-back
+    // rather than an out-of-range face that shapes to nothing.
+    const count = faceCount(data);
+    if (count > 0 && faceIndex >= 0 && faceIndex < count) {
+      const font = new hb.Font(new hb.Face(blob, faceIndex));
+      entry = { font: font as unknown as { glyphToPath(id: number): string }, pathCache: new Map() };
+    }
   } catch {
     entry = null; // unreadable / non-file path — caller falls back to normal shaping
   }
-  hbFontCache.set(fontPath, entry);
+  hbFontCache.set(cacheKey, entry);
   return entry;
 }
+
+/** Test seam: drop the memoised faces so a test can re-open the same path. */
+export function _clearHbFontCache(): void { hbFontCache.clear(); }
 
 /**
  * Shape `text` with HarfBuzz using the font at `fontPath`. Returns glyphs (with
@@ -93,6 +149,17 @@ function getHbEntry(fontPath: string): HbEntry | null {
  */
 export function harfbuzzShapeRun(
   fontPath: string,
+  /**
+   * Which member of `fontPath` to shape with — 0 for a single-face file, and
+   * for a collection the index of the member the caller resolved (`shapingFaceFor`
+   * in `font-resolution.ts`). `null` means the caller could not identify the
+   * face, and shaping is then declined rather than guessed.
+   *
+   * Required rather than optional on purpose: it is the argument a call site can
+   * most easily omit, and omitting it used to mean "whatever face is first in
+   * the file", which fails silently — same glyph count, wrong advances.
+   */
+  faceIndex: number | null,
   text: string,
   /**
    * The bidi run's direction. Blink sets this on the buffer EXPLICITLY and
@@ -111,7 +178,7 @@ export function harfbuzzShapeRun(
    */
   direction?: "ltr" | "rtl",
 ): ShapeResult | null {
-  const entry = getHbEntry(fontPath);
+  const entry = getHbEntry(fontPath, faceIndex);
   if (entry == null) return null;
   const { font, pathCache } = entry;
   // harfbuzzjs frees the buffer's WASM memory automatically via a
@@ -183,11 +250,17 @@ interface ShapingFontView {
  * the narrow divergent-codepoint runs; returns the base unchanged when the font
  * file can't be opened by HarfBuzz.
  */
-export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(base: T, fontPath: string): T {
-  if (getHbEntry(fontPath) == null) return base;
+export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
+  base: T,
+  fontPath: string,
+  /** See `harfbuzzShapeRun`. Required so a call site cannot silently inherit
+   *  face index 0 for a collection. */
+  faceIndex: number | null,
+): T {
+  if (getHbEntry(fontPath, faceIndex) == null) return base;
   const proxy: ShapingFontView = {
     layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
-      const res = harfbuzzShapeRun(fontPath, text, direction);
+      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       return res;
     },

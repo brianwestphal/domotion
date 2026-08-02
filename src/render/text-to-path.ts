@@ -70,6 +70,7 @@ import {
   resolveFontKeyChain,
   resolveFontSpec,
   setRenderTextMode,
+  shapingFaceFor,
   syntheticMarkCenteringOffsetPx,
   win,
   stackPrimaryIsSystemUi,
@@ -628,9 +629,9 @@ export function textToPathMarkup(
         // request. When the two agree, the helper's inference lands on the same
         // answer and it is the better shaper — measured, `override-rtl` over
         // Hebrew goes 0 regions -> 2 if HarfBuzz is used there.
-        const hbPath = bidiOverride != null ? resolveFontSpec(run.fontKey)?.path : undefined;
-        const hbFont = (hbPath != null && hbPath !== "")
-          ? makeHarfbuzzShapingInstance(run.font, hbPath) : run.font;
+        const hbFace = bidiOverride != null ? shapingFaceFor(run.fontKey) : null;
+        const hbFont = hbFace != null
+          ? makeHarfbuzzShapingInstance(run.font, hbFace.path, hbFace.faceIndex) : run.font;
 
         for (const seg of segments) {
           const segText = run.text.slice(seg.start, seg.end);

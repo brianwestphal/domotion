@@ -1,0 +1,146 @@
+// Which member of a font collection HarfBuzz opens.
+//
+// The shaper used to open every file at face index 0. macOS ships most system
+// families as `.ttc` collections whose first member is the regular cut, so any
+// bold / UI / PUA face was shaped by the regular one — same glyph count, wrong
+// advances, and nothing anywhere reporting an error. Measured on GeezaPro.ttc
+// (member 0 GeezaPro, member 1 GeezaPro-Bold), one Arabic word came back as
+// 647/1415/1292/902/900 through member 0 and 647/1676/1518/955/977 through
+// member 1: both well-formed, one of them from a face nobody asked for.
+//
+// So these tests assert the SELECTION, not that shaping "works" — a test that
+// only shaped and checked for output would have passed throughout the defect.
+// The two synthetic members below differ only in their advance width, which is
+// what makes the assertions discriminate: member 1's advance is a value member 0
+// cannot produce.
+//
+// Synthetic collections rather than system fonts, for the same reason
+// `font-source-honesty.test.ts` uses them: the assertions need exact knowledge
+// of the member order and metrics, and must hold on every platform's CI.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { _clearHbFontCache, harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+import { buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
+import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
+
+/** "A" is a rectangle whose right edge is `aXMax`; the advance is aXMax + 50. */
+const NARROW_ADVANCE = 600; // aXMax 550 (the builder's default)
+const WIDE_ADVANCE = 800;   // aXMax 750
+
+let dir: string;
+/** 2-member collection: SynthNarrow (advance 600), SynthWide (advance 800). */
+let ttcPath: string;
+/** Single-face file, PostScript name SynthSolo, advance 600. */
+let sfntPath: string;
+
+beforeEach(() => {
+  dir = mkdtempSync(path.join(tmpdir(), "domotion-hb-face-"));
+  ttcPath = path.join(dir, "collection.ttc");
+  writeFileSync(ttcPath, wrapInTtc([
+    buildStaticHintedFont({ family: "SynthNarrow" }),
+    buildStaticHintedFont({ family: "SynthWide", aXMax: 750 }),
+  ]));
+  sfntPath = path.join(dir, "solo.ttf");
+  writeFileSync(sfntPath, buildStaticHintedFont({ family: "SynthSolo" }));
+  _clearHbFontCache();
+  clearFontResolutionCaches();
+});
+
+afterEach(() => {
+  _clearHbFontCache();
+  clearFontResolutionCaches();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+/** Advance of the single glyph "A" shapes to, or null when shaping declined. */
+function advanceAt(file: string, faceIndex: number | null): number | null {
+  const res = harfbuzzShapeRun(file, faceIndex, "A");
+  if (res == null) return null;
+  expect(res.glyphs).toHaveLength(1);
+  return res.positions[0].xAdvance;
+}
+
+describe("collection member selection", () => {
+  it("shapes with the member it was asked for, not the first one", () => {
+    // The regression, stated as the difference it produces. Asserting only that
+    // index 1 "returns glyphs" would have passed while it silently returned
+    // member 0's.
+    expect(advanceAt(ttcPath, 0)).toBe(NARROW_ADVANCE);
+    expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);
+  });
+
+  it("keeps members apart in the cache, whichever is asked for first", () => {
+    // The face cache used to be keyed by path alone, so the first member opened
+    // for a file answered for every later request against it. Both orders, since
+    // a cache that returns the FIRST entry passes one order by accident.
+    expect(advanceAt(ttcPath, 0)).toBe(NARROW_ADVANCE);
+    expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);
+    expect(advanceAt(ttcPath, 0)).toBe(NARROW_ADVANCE);
+
+    _clearHbFontCache();
+    expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);
+    expect(advanceAt(ttcPath, 0)).toBe(NARROW_ADVANCE);
+    expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);
+  });
+
+  it("takes index 0 for a single-face file", () => {
+    expect(advanceAt(sfntPath, 0)).toBe(NARROW_ADVANCE);
+  });
+});
+
+describe("refusing rather than guessing", () => {
+  it("declines to shape a face it cannot identify", () => {
+    // Falling back to member 0 here is the defect itself: it would shape with a
+    // face the caller did not ask for and could not detect. Declining leaves the
+    // caller on its own (CoreText / fontkit) shaping — a different shaper, but
+    // the right font.
+    expect(advanceAt(ttcPath, null)).toBeNull();
+  });
+
+  it("declines an index past the end of the collection", () => {
+    // Blink's bounds check: HbFaceFromSkTypeface only creates the face when
+    // `0 < num_hb_faces && ttc_index < num_hb_faces`, and returns a null face
+    // otherwise so its caller falls back
+    // (harfbuzz_face_from_typeface.cc:38-42, Chromium rev 7d859f27).
+    expect(advanceAt(ttcPath, 2)).toBeNull();
+    expect(advanceAt(ttcPath, 99)).toBeNull();
+    expect(advanceAt(ttcPath, -1)).toBeNull();
+  });
+
+  it("hands back the base instance unchanged when the face is unidentified", () => {
+    // The proxy's contract: `=== base` is how every call site detects "HarfBuzz
+    // could not take this" and keeps its existing shaping.
+    const base = { unitsPerEm: 1000 } as never;
+    expect(makeHarfbuzzShapingInstance(base, ttcPath, null)).toBe(base);
+    expect(makeHarfbuzzShapingInstance(base, ttcPath, 5)).toBe(base);
+    expect(makeHarfbuzzShapingInstance(base, path.join(dir, "absent.ttf"), 0)).toBe(base);
+  });
+});
+
+describe("end to end: the name a face was selected by reaches the shaper", () => {
+  it("shapes the named member's metrics, through the resolver the callers use", () => {
+    // The two halves joined: the caller resolves a PostScript name to a member
+    // index, and the shaper opens that member. This is the composition the four
+    // production call sites perform via `shapingFaceFor`, minus the font-key
+    // registry (which would pin the test to a host's installed fonts).
+    const wide = faceInfo(ttcPath, "SynthWide");
+    expect(wide.faceIndex).toBe(1);
+    expect(advanceAt(ttcPath, wide.faceIndex)).toBe(WIDE_ADVANCE);
+
+    const narrow = faceInfo(ttcPath, "SynthNarrow");
+    expect(narrow.faceIndex).toBe(0);
+    expect(advanceAt(ttcPath, narrow.faceIndex)).toBe(NARROW_ADVANCE);
+  });
+
+  it("declines when the name is not in the file at all", () => {
+    // `faceIndex: null` is the resolver's honest answer for a name it did not
+    // find, and it has to stay null all the way through — a shaper that read it
+    // as "unspecified, use 0" would reinstate the wrong-face bug at the seam
+    // between the two.
+    const absent = faceInfo(ttcPath, "SynthNotHere");
+    expect(absent.faceIndex).toBeNull();
+    expect(advanceAt(ttcPath, absent.faceIndex)).toBeNull();
+  });
+});
