@@ -1,0 +1,57 @@
+# Does Chrome's `sans-serif` generic resolve differently on different browser
+# launches, on a CI runner's font inventory?
+#
+# This exists because the answer depends on the host's fonts and a developer Mac
+# cannot produce it: 12 launches there gave Helvetica 12/12, on a machine with
+# ~2,635 fonts against a runner's ~370. The choice is only marginal where the
+# inventory is thin.
+#
+# What it is for: two conformance runs of one commit — same runner image, same
+# font inventory digest, same Chromium build — disagreed wholesale on the
+# `sans-serif` primary, and the same instability makes four unicode fixtures
+# bistable across visual sweeps. That has already caused one regression to be
+# attributed to the wrong commit.
+#
+# Diagnostic only: renders nothing, gates nothing, writes no baseline. Read the
+# verdict out of the job log — every line is prefixed `SANSFLIP`.
+name: sans-serif flip probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Runner OS'
+        type: choice
+        options: [macos, linux, windows]
+        default: macos
+      launches:
+        description: 'Browser launches to sample (the flip is intermittent, so more is better)'
+        type: string
+        default: '20'
+      settle_ms:
+        description: 'Delay before the second, in-process ask (isolates timing from launch state)'
+        type: string
+        default: '750'
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  probe:
+    runs-on: ${{ inputs.os == 'macos' && 'macos-latest' || (inputs.os == 'windows' && 'windows-latest' || 'ubuntu-latest') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      # The font inventory IS the variable under test — a result is only
+      # interpretable against the set that produced it, and recording it is what
+      # makes a later re-run comparable to this one.
+      - name: Font inventory (the variable under test)
+        run: npx tsx tools/font-env-probe.mjs
+      - name: Sample the generic across launches
+        env:
+          LAUNCHES: ${{ inputs.launches }}
+          SETTLE_MS: ${{ inputs.settle_ms }}
+        run: node tools/probe-sans-serif-flip.mjs
