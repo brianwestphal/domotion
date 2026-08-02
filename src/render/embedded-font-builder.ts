@@ -441,6 +441,39 @@ function determinizeFontTimestamps(bytes: Buffer): void {
  * builds the `cmap` from those, so the emitted `<text>` PUA stream maps to the
  * right outlines with zero shaping.
  */
+/**
+ * Memo for the hinted-subset outline guard, keyed on `(path, faceIndex)`.
+ *
+ * The verdict is a pure function of an immutable system font, and the question
+ * costs ~9 ms and a 58 MB allocation to ask for the largest face we route here
+ * (`PingFangUI.ttc`) while the guard itself takes 0.02 ms. Re-asking it once per
+ * generation is pure waste for a face that will be rejected every time.
+ *
+ * Deliberately NOT part of `clearFontResolutionCaches()`. That reset exists to
+ * bound memory during a full sweep by dropping caches that hold fonts and glyph
+ * objects; this one holds booleans keyed by strings, and clearing it would
+ * reinstate exactly the repeated 58 MB reads the sweep is trying to survive.
+ */
+const hintedOutlineGuardMemo = new Map<string, boolean>();
+const hintedOutlineGuardKey = (path: string, faceIndex: number): string => `${path}#${faceIndex}`;
+
+/** The remembered verdict, or `undefined` when this face has not been asked. */
+function hintedOutlineGuard(path: string, faceIndex: number): boolean | undefined {
+  return hintedOutlineGuardMemo.get(hintedOutlineGuardKey(path, faceIndex));
+}
+
+/** Record a verdict and return it, so the call site reads as one expression. */
+function rememberHintedOutlineGuard(path: string, faceIndex: number, verdict: boolean): boolean {
+  hintedOutlineGuardMemo.set(hintedOutlineGuardKey(path, faceIndex), verdict);
+  return verdict;
+}
+
+/** Test-only: the memo is process-global, so a test that asserts read counts
+ *  needs to start from a known state. */
+export function __clearHintedOutlineGuardMemo(): void {
+  hintedOutlineGuardMemo.clear();
+}
+
 function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
   // DM-1714/DM-1716: hinting-preserving path. When the whole entry came from one
   // openable sfnt with no synthetic glyphs, hb-subset the ORIGINAL file (keeps
@@ -457,12 +490,30 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const gids = [...entry.puaForGlyphId.keys()];
       const puaToGid = new Map<number, number>();
       for (const [gid, pua] of entry.puaForGlyphId) puaToGid.set(pua, gid);
-      const bytes = readFileSync(entry.hintedSource.path);
       // Guard non-glyf faces: CFF/CFF2 (the bundled wasm silently drops `CFF `,
       // producing an outline-less font Chrome's OTS rejects → tofu) and
       // outline-less files (PingFang's Apple-private hvgl). Those keep the
       // svg2ttf path by design — a quiet skip, not a failure.
-      if (sfntHasSubsettableOutlines(bytes, srcFaceIndex)) {
+      //
+      // DM-1862: asked from a MEMO first, so a face already known to fail it
+      // never re-reads the file. The verdict is a pure function of (path, face
+      // index) over an immutable system font, and the read is not cheap: 58 MB
+      // for `PingFangUI.ttc`, ~9 ms every time — the page cache does not make it
+      // free, because the cost is the copy into a fresh Buffer, not the I/O. The
+      // guard that consumes it takes 0.02 ms. Without the memo a multi-frame
+      // animation paid that per generation, per entry, and threw away 58 MB each
+      // round.
+      //
+      // Placed BEFORE the read rather than around it on purpose: a `false`
+      // verdict must skip the read entirely, and that is the case worth fixing.
+      // A `true` verdict still needs the bytes for `hbSubsetRetainGids`, so the
+      // memo saves nothing there and is not meant to.
+      if (hintedOutlineGuard(entry.hintedSource.path, srcFaceIndex) === false) {
+        throw new Error("source has no subsettable outlines (memoized)");
+      }
+      const bytes = readFileSync(entry.hintedSource.path);
+      if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
+                                     sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
         const retained = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
         // DM-1718: compact the RETAIN_GIDS id space (padded to the source's max
         // gid — ~356 KB of loca+hmtx for a CJK font) down to the kept glyphs,
