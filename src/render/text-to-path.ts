@@ -19,7 +19,6 @@ import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
-import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 // The SHARED attribute escaper. Two local copies used to live in this file and
 // escaped only the five XML metacharacters, so a codepoint the XML `Char`
 // production forbids (U+FFFE / U+FFFF, a stray control, an unpaired surrogate)
@@ -70,7 +69,6 @@ import {
   resolveFontKeyChain,
   resolveFontSpec,
   setRenderTextMode,
-  shapingFaceFor,
   syntheticMarkCenteringOffsetPx,
   win,
   stackPrimaryIsSystemUi,
@@ -605,34 +603,22 @@ export function textToPathMarkup(
             rtl: bidiLevels != null && bidiLevels.length > 0 && (bidiLevels[0] & 1) === 1,
           }];
 
-        // Under a bidi OVERRIDE, shape with HarfBuzz rather than the platform
-        // helper — because the direction we are about to pass is authoritative
-        // and deliberately disagrees with what the content implies, and only
-        // HarfBuzz lets us say so.
+        // A note on what an override run does NOT need: a different shaper.
         //
-        // Blink shapes with HarfBuzz on every platform and sets the direction on
-        // the buffer explicitly (`harfbuzz_shaper.cc:341`). Our default shaper is
-        // CoreText via the helper, whose `shape` query takes no direction at all
-        // and infers it from the string's own bidi — the exact inference an
-        // override exists to suppress. So for these runs the helper cannot be
-        // asked the right question, however the caller phrases it.
+        // It looked like it did. The platform helper's `shape` query takes no
+        // direction and infers one from the string's own bidi — the exact
+        // inference an override exists to suppress — so the run was routed to
+        // HarfBuzz, the one shaper that can be TOLD a direction. That fixed the
+        // Hebrew cases and left Arabic worse than before (0.526% -> 0.701%).
         //
-        // Scoped to overrides on purpose. Measured: routing ALL directional runs
-        // to the non-CoreText path took four clean cases (plain / override-rtl /
-        // isolate-rtl / embed-rtl Hebrew) from 0 regions to 2 apiece, because for
-        // runs whose direction the content already implies, the helper is the
-        // better shaper and its answer is already right.
-        // ...and ONLY when the requested direction actually disagrees with what
-        // the content implies. Note what this inference is and is not: it does
-        // not decide the direction (the override already did that, and deciding
-        // it from content is the bug). It decides which SHAPER can express the
-        // request. When the two agree, the helper's inference lands on the same
-        // answer and it is the better shaper — measured, `override-rtl` over
-        // Hebrew goes 0 regions -> 2 if HarfBuzz is used there.
-        const hbFace = bidiOverride != null ? shapingFaceFor(run.fontKey) : null;
-        const hbFont = hbFace != null
-          ? makeHarfbuzzShapingInstance(run.font, hbFace.path, hbFace.faceIndex) : run.font;
-
+        // The reason is below, at the segment: HarfBuzz does not honour a
+        // contrary direction by shaping the text as-is under it. It reverses the
+        // characters into the script's native order first. So the question was
+        // never "which shaper can be told LTR" — it was "which buffer would
+        // HarfBuzz have shaped", and that buffer is one the helper's own
+        // inference reads correctly. Reversing here leaves nothing for a second
+        // shaper to do, and keeps the AAT-capable one, which on macOS is
+        // load-bearing: GeezaPro and Helvetica carry `morx` and no `GSUB`.
         for (const seg of segments) {
           const segText = run.text.slice(seg.start, seg.end);
           if (segText === "") continue;
@@ -658,10 +644,64 @@ export function textToPathMarkup(
           // for? `_RTL_RE`-equivalent: any strong-RTL character makes the
           // content RTL for this purpose.
           const contentIsRtl = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(segText);
-          const shapeFont = (seg.rtl !== contentIsRtl) ? hbFont : run.font;
+
+          // When the two disagree, shape the REVERSED characters in the script's
+          // own direction — which is what HarfBuzz does, and therefore what
+          // Chrome does.
+          //
+          // `hb_ensure_native_direction` (`external/harfbuzz/src/hb-ot-shape.cc:588`,
+          // rev 4de187d) runs before any shaper sees the buffer: if the requested
+          // direction is horizontal and differs from
+          // `hb_script_get_horizontal_direction(script)`, it reverses the buffer's
+          // clusters and flips the direction, so the shaper always runs natively;
+          // `hb_ot_shape_internal` reverses back at the end (`:1184`).
+          //
+          // The consequence is easy to miss and is the whole of this ticket:
+          // reversing BEFORE shaping means the contextual forms are computed on
+          // the reversed character sequence. Under `bidi-override; direction: ltr`
+          // Chrome therefore paints Arabic UNJOINED at the ends — the word's first
+          // letter has nothing to its right any more. Verified equivalent on
+          // GeezaPro: `hb-shape --direction=ltr` over the source and
+          // `--direction=rtl` over the reversed source return byte-identical
+          // glyphs and advances (meem isolated 900 | reh.final 700 | hah.medial
+          // 1359 | beh.initial 656 | alef isolated 647), differing only in cluster
+          // numbering. Shaping the source as-is under a forced direction — which
+          // is what asking a shaper for "this text, LTR" does — keeps the joined
+          // forms and is simply a different word shape.
+          //
+          // Doing the reversal here rather than passing a direction down also
+          // removes the reason the override run needed a different shaper at all.
+          // The platform helper infers direction from content and cannot be told
+          // otherwise; on the reversed string that inference now lands on exactly
+          // the direction we want, so the helper becomes usable — and it must be,
+          // because macOS's Arabic and Latin faces (GeezaPro, Helvetica) carry
+          // `morx` and no `GSUB` at all, and the vendored harfbuzzjs is built
+          // `-DHB_TINY`, which chains to `HB_NO_AAT` (`hb-config.hh:44-46`,
+          // `:95-96`, `:132-134`) and so cannot apply `morx`. On GeezaPro it
+          // returns the ISOLATED forms — 900/902/1292/1415/647 against real
+          // HarfBuzz's 900/700/1359/656/647 — because the only table that could
+          // join them was compiled out.
+          //
+          // Reversal is by code point, matching `reverse_clusters()` on a buffer
+          // that has not been shaped yet, where clusters are still per-character.
+          //
+          // Gated on there being an override, because outside one `seg.rtl` is
+          // not authoritative enough to reverse on. A fallback run carries no
+          // level array of its own, so a plain mixed-script line hands the Arabic
+          // segment through with `rtl: false` while its content is plainly RTL —
+          // measured on `Hello مرحبا 你好`, where reversing on that signal alone
+          // mirrors the word. Under an override the level IS authoritative by
+          // construction: Blink put it there with an injected LRO/RLO, which is
+          // the whole point of the property.
+          const flipToNative = bidiOverride != null && seg.rtl !== contentIsRtl;
+          const shapeText = flipToNative ? [...segText].reverse().join("") : segText;
+          // Once flipped, the run IS native, so hand the shaper the direction its
+          // content implies rather than the paragraph's.
+          const shapeDir = flipToNative ? (contentIsRtl ? "rtl" : "ltr") : dir;
+          const shapeFont = run.font;
           const layout = features != null && features.length > 0
-            ? shapeFont.layout(segText, features, undefined, undefined, dir)
-            : shapeFont.layout(segText, undefined, undefined, undefined, dir);
+            ? shapeFont.layout(shapeText, features, undefined, undefined, shapeDir)
+            : shapeFont.layout(shapeText, undefined, undefined, undefined, shapeDir);
           const uses: string[] = [];
           let segFontUnits = 0;
           for (let gi = 0; gi < layout.glyphs.length; gi++) {

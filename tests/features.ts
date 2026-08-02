@@ -1367,6 +1367,32 @@ export const tests: FeatureTest[] = [
     width: 420,
     height: 320,
   },
+  {
+    // CSS `unicode-bidi: bidi-override` over RTL text, which Blink implements by
+    // injecting U+202D LRO / U+202E RLO and a trailing U+202C PDF and then running
+    // the ordinary bidi algorithm (inline_items_builder.cc:1501-1505).
+    //
+    // The subtle half is what happens NEXT, and it is why Arabic is here alongside
+    // Hebrew. HarfBuzz never shapes a run under a direction contrary to its
+    // script's own: hb_ensure_native_direction reverses the characters into native
+    // order first, shapes, and reverses back (hb-ot-shape.cc:588, :1184). Reversing
+    // BEFORE shaping means the contextual forms are computed on the reversed
+    // sequence, so Chrome paints Arabic under a forced LTR order with the ends
+    // UNJOINED — the first letter no longer has anything to its right. Shaping the
+    // text as-is under a forced direction keeps the joined forms and paints a
+    // different word shape; that residual is what this fixture pins.
+    //
+    // Hebrew is included because it does not join, so it isolates the ORDER half
+    // of the same mechanism and fails differently if only the reversal regresses.
+    name: "text-bidi-override-rtl",
+    html: `<div style="font-family:Helvetica,sans-serif;font-size:28px;color:#000;background:#fff;padding:20px;">
+      <div>eng <span style="unicode-bidi:bidi-override;direction:ltr">مرحبا بالعالم</span> tail</div>
+      <div>eng <span style="unicode-bidi:bidi-override;direction:ltr">שלום ניסיון</span> tail</div>
+      <div>eng <span style="unicode-bidi:bidi-override;direction:rtl">שלום ניסיון</span> tail</div>
+    </div>`,
+    width: 700,
+    height: 180,
+  },
 ];
 
 // Only auto-run the suite when invoked directly (not when the fixtures are

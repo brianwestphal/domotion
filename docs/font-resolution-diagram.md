@@ -1173,8 +1173,8 @@ which emits the outlines the extractor actually produced. `variationAxes` is
 
 **The HarfBuzz shaping route is the second consumer of this index.** Every call
 that wraps a font in `makeHarfbuzzShapingInstance` — the complex-shaper
-base+mark decomposition, the in-font NFD tier, and the bidi-override runs in
-`text-to-path.ts` — goes through `shapingFaceFor(fontKey)`, which pairs the
+base+mark decomposition and the in-font NFD tier — goes through
+`shapingFaceFor(fontKey)`, which pairs the
 spec's path with `resolveFaceInfoForFile(...).faceIndex` and hands both to
 `hb_face_create`. It used to pass the path alone and open index 0, which on a
 macOS collection meant a bold or UI cut was shaped by the regular one: same
@@ -1184,6 +1184,60 @@ the caller keeps its CoreText / fontkit shaping — a different shaper, but the
 right font. The index is then bounds-checked against the file's own face count
 before the face is created, which is what Blink does with the index Skia hands
 it (`HbFaceFromSkTypeface`, `harfbuzz_face_from_typeface.cc:38-42`).
+
+### The vendored HarfBuzz cannot shape an AAT face, so it declines them
+
+`harfbuzzjs` is built with `-DHB_TINY` (stated in its own README), and
+`hb-config.hh` chains that to no AAT support at all: `HB_TINY` → `HB_MINI`
+(`:44-46`) → `HB_NO_AAT` (`:95-96`) → `HB_NO_AAT_SHAPE` (`:132-134`), which is
+the guard around `apply_morx` in the shaping plan (`hb-ot-shape.cc:90`,
+`:98-100`). Chrome's HarfBuzz carries none of those defines.
+
+That matters more on macOS than it sounds, because Apple ships system faces with
+`morx` and **no `GSUB` whatsoever** — GeezaPro (the Arabic face) and Helvetica
+are both in that shape. Real HarfBuzz decides by the face, not the script:
+`_hb_apply_morx` (`hb-ot-shape.cc:60-65`) uses `morx` whenever the face has it
+and the run is horizontal, *ignoring `GSUB` even when present*. Ours cannot,
+so on GeezaPro it returns the unjoined isolated forms — 900/902/1292/1415/647
+font units against real HarfBuzz's 900/700/1359/656/647, well-formed output that
+is simply a different word.
+
+So `getHbEntry` declines any face carrying a `morx` table, and the caller keeps
+the platform helper — CoreText, Apple's own AAT engine, which applies `morx`.
+That is not parity (CoreText is not Chrome's shaper) but it is a shaper that can
+read the font. Removing the restriction requires an AAT-capable HarfBuzz build,
+not a code change here.
+
+### A contrary direction reverses the characters before shaping
+
+`unicode-bidi: bidi-override` is the one place a run's direction is
+authoritative *against* its own script, and it does not reach the shaper as a
+direction at all. Blink implements the property by injecting U+202D LRO /
+U+202E RLO plus a trailing U+202C PDF and running the ordinary bidi algorithm
+(`core/layout/inline/inline_items_builder.cc:1501-1505`). HarfBuzz then refuses
+to shape contrary to the script: `hb_ensure_native_direction`
+(`hb-ot-shape.cc:588`) reverses the buffer's clusters and flips the direction so
+the shaper always runs natively, and `hb_ot_shape_internal` reverses back at the
+end (`:1184`).
+
+The consequence is the load-bearing part: reversing **before** shaping means the
+contextual forms are computed on the reversed character sequence. Under
+`bidi-override; direction: ltr` Chrome therefore paints Arabic with its ends
+**unjoined** — the word's first letter no longer has anything to its right.
+Verified equivalent on GeezaPro: `hb-shape --direction=ltr` over the source and
+`--direction=rtl` over the reversed source return byte-identical glyphs and
+advances, differing only in cluster numbering.
+
+`renderTextAsPath` therefore reverses the segment's code points and shapes in
+the script's own direction, rather than passing a contrary direction down. That
+also removes the reason such a run needed a different shaper: the platform
+helper infers direction from content and cannot be told otherwise, but on the
+reversed string its inference lands on exactly the direction wanted — which is
+required here anyway, since the faces involved are AAT. The reversal is gated on
+an override being present: outside one, `seg.rtl` is not authoritative (a
+fallback run carries no level array, so a plain mixed-script line reports
+`rtl: false` for an Arabic segment) and reversing on that signal mirrors the
+word.
 
 Note the two index spaces are different and must not be crossed: the macOS
 helper's `CTFontManagerCreateFontDescriptorsFromURL` enumeration is CoreText's

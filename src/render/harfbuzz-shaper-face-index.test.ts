@@ -22,7 +22,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { _clearHbFontCache, harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
-import { buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
+import { buildSfnt, buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
 import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
 
 /** "A" is a rectangle whose right edge is `aXMax`; the advance is aXMax + 50. */
@@ -142,5 +142,43 @@ describe("end to end: the name a face was selected by reaches the shaper", () =>
     const absent = faceInfo(ttcPath, "SynthNotHere");
     expect(absent.faceIndex).toBeNull();
     expect(advanceAt(ttcPath, absent.faceIndex)).toBeNull();
+  });
+});
+
+describe("AAT faces are declined, not mis-shaped", () => {
+  // The vendored harfbuzzjs is built `-DHB_TINY`, which chains to `HB_NO_AAT`
+  // (`external/harfbuzz/src/hb-config.hh:44-46`, `:95-96`, `:132-134`), so it
+  // cannot apply `morx`. Real HarfBuzz decides by the FACE, not the script:
+  // `_hb_apply_morx` (`hb-ot-shape.cc:60-65`) uses `morx` whenever the face has
+  // it and the run is horizontal — ignoring `GSUB` even when present. macOS
+  // ships GeezaPro and Helvetica with `morx` and no `GSUB` at all, so shaping
+  // them here returns unjoined isolated forms: well-formed, and a different word.
+  //
+  // Synthetic rather than a system font, so this holds on every platform's CI.
+  it("refuses a face carrying a morx table", () => {
+    const base = buildStaticHintedFont({ family: "SynthAat" });
+    // Re-assemble the same font with a (dummy) `morx` table added, which is all
+    // the guard inspects — it asks whether real HarfBuzz would take the AAT path,
+    // not what that path would produce.
+    const dv = new DataView(base.buffer, base.byteOffset, base.byteLength);
+    const tables: Record<string, Buffer> = {};
+    for (let i = 0; i < dv.getUint16(4); i++) {
+      const e = 12 + i * 16;
+      const tag = String.fromCharCode(...[0, 1, 2, 3].map((k) => dv.getUint8(e + k)));
+      const off = dv.getUint32(e + 8), len = dv.getUint32(e + 12);
+      tables[tag] = Buffer.from(base.subarray(off, off + len));
+    }
+    tables.morx = Buffer.alloc(16);
+
+    const plain = path.join(dir, "plain.ttf");
+    const aat = path.join(dir, "aat.ttf");
+    writeFileSync(plain, base);
+    writeFileSync(aat, buildSfnt(tables));
+
+    // The control arm is what makes this discriminate: the two files differ only
+    // by the presence of `morx`, so a guard that declined for any other reason
+    // would fail here.
+    expect(advanceAt(plain, 0)).toBe(NARROW_ADVANCE);
+    expect(advanceAt(aat, 0)).toBeNull();
   });
 });
