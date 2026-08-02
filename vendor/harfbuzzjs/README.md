@@ -5,8 +5,23 @@ This is [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) **v1.4.0**, with
 HarfBuzz build configuration **Chromium ships**, rather than the `-DHB_TINY`
 configuration the published package uses.
 
-Everything else in `dist/` — `index.mjs`, `index.d.mts`, `harfbuzz.d.ts`,
-`harfbuzz-subset.wasm` — is the published v1.4.0 artifact, unmodified.
+`harfbuzz-subset.wasm` and `harfbuzz.d.ts` are the published v1.4.0 artifacts,
+unmodified. `index.mjs` and `index.d.mts` carry **one local addition**, marked
+inline as `LOCAL ADDITION`: a `Font.setPtem()` method. Preserve it across any
+re-vendor — the diff is four lines mirroring the adjacent `setScale`, and
+losing it silently disables AAT tracking rather than failing.
+
+`build/harfbuzz.symbols` is likewise harfbuzzjs's with one line added
+(`_hb_font_set_ptem`); the upstream build does not export it. Copy that file
+into the clone alongside `config-override.h` and the `Makefile`.
+
+Why `ptem` is needed: HarfBuzz reads the AAT `trak` tracking amount from the
+font's nominal point size, and Blink sets it on every shaped run for exactly
+that reason (`platform/fonts/shaping/harfbuzz_face.cc:641-647` — "Setting ptem
+here is critical for HarfBuzz to know where to lookup spacing offset in the AAT
+trak table"). With `ptem` left at 0, no tracking is applied at all, which on
+macOS is a different answer from Chrome's for Helvetica, Times, SF Pro and every
+PingFang cut.
 
 ## Why
 
@@ -83,8 +98,10 @@ git clone --recursive -b 1.4.0 https://github.com/harfbuzz/harfbuzzjs
 cd harfbuzzjs
 cp <this-dir>/build/config-override.h .
 cp <this-dir>/build/Makefile .
+cp <this-dir>/build/harfbuzz.symbols .
 docker run --rm -v "$PWD":/src -w /src emscripten/emsdk:4.0.13 make harfbuzz
 cp dist/harfbuzz.js dist/harfbuzz.wasm <this-dir>/dist/
+# then re-apply the setPtem addition to dist/index.mjs and dist/index.d.mts
 ```
 
 `emsdk:4.0.13` is the version harfbuzzjs's own CI pins; `emsdk:latest` fails on

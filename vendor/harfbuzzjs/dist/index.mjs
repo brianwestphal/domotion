@@ -723,6 +723,15 @@ var Font = class Font {
 		exports.hb_font_set_scale(this.ptr, xScale, yScale);
 	}
 	/**
+	* LOCAL ADDITION (not upstream harfbuzzjs) — see ../README.md.
+	* Sets the font's nominal point size, which is what HarfBuzz uses to look up
+	* the AAT `trak` tracking amount. Blink calls this on every shaped run with
+	* the CSS pixel size; without it `ptem` stays 0 and no tracking is applied.
+	*/
+	setPtem(ptem) {
+		exports.hb_font_set_ptem(this.ptr, ptem);
+	}
+	/**
 	* Applies a list of font-variation settings to a font.
 	*
 	* Note that this overrides all existing variations set on the font.

@@ -5191,7 +5191,7 @@ export function resolveDottedCircleHbRun(
   if (glyphIdForCp(markFont, 0x25CC) === 0) return null; // ◌ must come from the mark's font, like Chrome
   const hbFace = shapingFaceFor(markKey);
   if (hbFace == null) return null;
-  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex);
+  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, fontSize);
   if (hbInst === markFont) return null; // HarfBuzz couldn't open the file
   return { key: markKey, font: hbInst };
 }
@@ -5391,7 +5391,7 @@ export function resolveFontForCodepoint(
     if (dcps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
       const hbFace = shapingFaceFor(primaryFontKey);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex);
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize);
         if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
       }
     }
@@ -5501,7 +5501,7 @@ export function resolveFontForCodepoint(
     if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(inst, d) !== 0)) {
       const hbFace = shapingFaceFor(key);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex);
+        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex, fontSize);
         if (hbInst !== inst) return cover(key, hbInst, ch, true);
       }
     }

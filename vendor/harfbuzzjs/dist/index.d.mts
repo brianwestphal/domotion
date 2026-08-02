@@ -675,6 +675,12 @@ declare class Font {
    */
   setScale(xScale: number, yScale: number): void;
   /**
+   * LOCAL ADDITION (not upstream harfbuzzjs) — see ../README.md.
+   * Sets the nominal point size HarfBuzz uses to look up AAT `trak` tracking.
+   * Blink passes the CSS pixel size; leaving it 0 applies no tracking.
+   */
+  setPtem(ptem: number): void;
+  /**
    * Applies a list of font-variation settings to a font.
    *
    * Note that this overrides all existing variations set on the font.

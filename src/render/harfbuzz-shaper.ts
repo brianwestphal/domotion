@@ -214,10 +214,44 @@ export function harfbuzzShapeRun(
    * correct for every run whose direction the content already implies.
    */
   direction?: "ltr" | "rtl",
+  /**
+   * The run's CSS pixel size, which is what HarfBuzz uses to look up the AAT
+   * `trak` tracking amount. Blink sets it on every shaped run
+   * (`platform/fonts/shaping/harfbuzz_face.cc:641-647`, rev 7d859f27):
+   *
+   *     // Setting ptem here is critical for HarfBuzz to know where to lookup
+   *     // spacing offset in the AAT trak table, the unit pt in ptem here means
+   *     // "CoreText" points. [...] the meaning of HarfBuzz' hb_font_set_ptem
+   *     // API was changed to expect the equivalent of CSS pixels here.
+   *     hb_font_set_ptem(unscaled_font, specified_size > 0 ? specified_size
+   *                                                        : platform_data_->size());
+   *
+   * `trak` is applied whenever the face carries both `trak` and `STAT`
+   * (`hb-ot-shape.cc:216-220`) — on macOS that is Helvetica, Times, SF Pro and
+   * every PingFang cut, i.e. most body text. Leaving ptem at 0 applies NO
+   * tracking, which is a different answer from Chrome's rather than a neutral
+   * one. Measured on PingFang, "fi fl ffi", first advance in font units:
+   *
+   *     ptem    0   398      (what we used to produce)
+   *     ptem   16   397      (what Chrome produces for a 16px run)
+   *     ptem   32   386
+   *     ptem 1000   381      (what the CoreText helper produces, since it opens
+   *                           the face at size = unitsPerEm)
+   *
+   * Omitted means "no tracking", which stays correct for a face without `trak`
+   * and is the honest default for a caller that genuinely has no size.
+   */
+  fontSizePx?: number,
 ): ShapeResult | null {
   const entry = getHbEntry(fontPath, faceIndex);
   if (entry == null) return null;
   const { font, pathCache } = entry;
+  // Set (or clear) tracking BEFORE shaping, on every call — the font object is
+  // cached per (file, face index) and shared across runs of different sizes, so
+  // a ptem left over from a previous run would silently track this one at the
+  // wrong size. Passing 0 for an absent size restores "no tracking", which is
+  // what HarfBuzz does with an unset ptem.
+  (font as unknown as { setPtem(p: number): void }).setPtem(fontSizePx != null && fontSizePx > 0 ? fontSizePx : 0);
   // harfbuzzjs frees the buffer's WASM memory automatically via a
   // FinalizationRegistry (no manual destroy/free); this only fires for the rare
   // divergent codepoints, so the per-call allocation is negligible.
@@ -293,11 +327,15 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   /** See `harfbuzzShapeRun`. Required so a call site cannot silently inherit
    *  face index 0 for a collection. */
   faceIndex: number | null,
+  /** The run's CSS pixel size — drives AAT `trak` tracking. See
+   *  `harfbuzzShapeRun`; omitting it applies none, which is a different answer
+   *  from Chrome's on any face carrying `trak` + `STAT`. */
+  fontSizePx?: number,
 ): T {
   if (getHbEntry(fontPath, faceIndex) == null) return base;
   const proxy: ShapingFontView = {
     layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
-      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction);
+      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       return res;
     },

@@ -133,7 +133,17 @@ function comparePair(
   sample: { script: string; text: string; note?: string },
   font: NonNullable<ReturnType<typeof createGlyphHelperFont>>,
 ): Disagreement[] {
-  const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text);
+  // Shape at ptem = unitsPerEm, because that is the size the CoreText helper
+  // opens the face at, and AAT `trak` tracking is size-dependent. Matching it
+  // holds the ONE known, separately-tracked difference constant so everything
+  // else is visible; leaving ptem unset would report every `trak` face as an
+  // advance disagreement and drown the rest.
+  //
+  // Note what this therefore CANNOT catch: whether either side uses the size
+  // Chrome uses. It does not — Blink passes the CSS pixel size, and neither
+  // path here does. That is a real defect, and this tool is deliberately blind
+  // to it, so it must not be read as evidence of tracking parity with Chrome.
+  const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, undefined, font.unitsPerEm);
   if (hb == null) return []; // HarfBuzz declined the face — nothing to compare
   const ct = font.layout(sample.text);
   const base = { face: face.key, path: face.path, faceIndex: face.faceIndex, sample: sample.note ?? sample.script, script: sample.script, text: sample.text };

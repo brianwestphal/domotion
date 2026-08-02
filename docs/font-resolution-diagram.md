@@ -1226,6 +1226,45 @@ is the configuration itself, annotated define by define.
 Consequence for the diagram: `getHbEntry` no longer inspects `morx`. Every face
 it can identify and bounds-check is shaped by HarfBuzz.
 
+### Shaping passes the run's size, because AAT tracking depends on it
+
+`harfbuzzShapeRun` takes the run's CSS pixel size and sets it on the font before
+shaping. That is not a metrics convenience — HarfBuzz reads the AAT `trak`
+tracking amount from the font's nominal point size, and applies `trak` whenever
+the face carries both `trak` and `STAT` (`hb-ot-shape.cc:216-220`). Blink sets
+it on every run and says why in as many words
+(`platform/fonts/shaping/harfbuzz_face.cc:641-647`, rev `7d859f27`):
+
+> Setting ptem here is critical for HarfBuzz to know where to lookup spacing
+> offset in the AAT trak table […] the meaning of HarfBuzz' `hb_font_set_ptem`
+> API was changed to expect the equivalent of CSS pixels here.
+
+Leaving it unset is not a neutral default; it applies **no** tracking, which is
+a different answer from Chrome's on Helvetica, Times, SF Pro and every PingFang
+cut — most macOS body text. Measured on PingFang, first advance of `fi fl ffi`
+in font units:
+
+| ptem | advance |
+| --- | --- |
+| unset | 398 |
+| 16 | 397 |
+| 32 | 386 |
+| 1000 | 381 |
+
+The font object is cached per (file, face index) and shared across runs of every
+size, so the size is set on **every** shape call rather than at open time — a
+`ptem` left over from a previous run would track this one at the wrong size.
+
+`hb_font_set_ptem` is not exported by published harfbuzzjs; `vendor/harfbuzzjs/`
+adds it to the symbol list and exposes a `Font.setPtem()` binding. See that
+directory's README.
+
+**Still open on the other path.** The CoreText helper opens each face at
+`size = unitsPerEm`, so CoreText applies the tracking for a 1000 pt render —
+the 381 row above. The two engines agree exactly once given the same `ptem`, so
+this is not an engine difference; it is the size the helper opens at, and it is
+tracked separately.
+
 ### A contrary direction reverses the characters before shaping
 
 `unicode-bidi: bidi-override` is the one place a run's direction is
