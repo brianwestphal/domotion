@@ -1336,6 +1336,30 @@ function relocateMissingSpec(spec: FontPath | null): FontPath | null {
   return { ...spec, path: installed.path };
 }
 
+/**
+ * Every font key the CURRENT platform's routing table declares.
+ *
+ * Read-only enumeration for tooling that has to sweep the routing surface
+ * rather than answer one lookup — the shape-agreement harness
+ * (`tools/shape-agreement.ts`) uses it to enumerate the faces the renderer can
+ * actually pick on this host. Deliberately not the union of all three tables:
+ * a key from another platform's table would resolve to a path that does not
+ * exist here, and a sweep that silently skipped it would report coverage it
+ * never had.
+ *
+ * Dynamic keys (`sysfb:` / `winfam:`, discovered at runtime by the live
+ * per-codepoint resolver) are excluded — they exist only once something has
+ * asked for them, so enumerating them at startup would return an empty or
+ * order-dependent set.
+ */
+export function platformFontKeys(): string[] {
+  switch (process.platform) {
+    case "linux": return Object.keys(LINUX_FONT_PATHS);
+    case "win32": return Object.keys(WIN32_FONT_PATHS);
+    default:      return Object.keys(FONT_PATHS);
+  }
+}
+
 export function resolveFontSpec(key: string): FontPath | null {
   if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
   let resolved: FontPath | null;
