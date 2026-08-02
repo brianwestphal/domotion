@@ -145,21 +145,25 @@ describe("end to end: the name a face was selected by reaches the shaper", () =>
   });
 });
 
-describe("AAT faces are declined, not mis-shaped", () => {
-  // The vendored harfbuzzjs is built `-DHB_TINY`, which chains to `HB_NO_AAT`
-  // (`external/harfbuzz/src/hb-config.hh:44-46`, `:95-96`, `:132-134`), so it
-  // cannot apply `morx`. Real HarfBuzz decides by the FACE, not the script:
-  // `_hb_apply_morx` (`hb-ot-shape.cc:60-65`) uses `morx` whenever the face has
-  // it and the run is horizontal — ignoring `GSUB` even when present. macOS
-  // ships GeezaPro and Helvetica with `morx` and no `GSUB` at all, so shaping
-  // them here returns unjoined isolated forms: well-formed, and a different word.
+describe("AAT faces shape, rather than being declined", () => {
+  // A `morx` table used to be disqualifying: the published harfbuzzjs is built
+  // `-DHB_TINY`, which chains to `HB_NO_AAT` (`external/harfbuzz/src/hb-config.hh:44-46`,
+  // `:95-96`, `:132-134`), so it could not apply `morx` at all. macOS ships
+  // GeezaPro and Helvetica with `morx` and no `GSUB`, and that build returned
+  // unjoined isolated forms for them — well-formed, and a different word.
+  //
+  // `vendor/harfbuzzjs/` is rebuilt with the configuration Chromium ships,
+  // which has AAT enabled (its `README.chromium` for HarfBuzz: Chrome no longer
+  // builds `hb-coretext` "as we rely on HarfBuzz' built-in AAT shaping"). So the
+  // face must now be TAKEN.
   //
   // Synthetic rather than a system font, so this holds on every platform's CI.
-  it("refuses a face carrying a morx table", () => {
+  // The `morx` table is a dummy: real HarfBuzz decides whether to take the AAT
+  // path from the table's PRESENCE (`_hb_apply_morx`, `hb-ot-shape.cc:60-65`),
+  // which is exactly what the old guard keyed on, so a dummy is what
+  // discriminates "guard removed" from "guard still there".
+  it("takes a face carrying a morx table", () => {
     const base = buildStaticHintedFont({ family: "SynthAat" });
-    // Re-assemble the same font with a (dummy) `morx` table added, which is all
-    // the guard inspects — it asks whether real HarfBuzz would take the AAT path,
-    // not what that path would produce.
     const dv = new DataView(base.buffer, base.byteOffset, base.byteLength);
     const tables: Record<string, Buffer> = {};
     for (let i = 0; i < dv.getUint16(4); i++) {
@@ -175,10 +179,23 @@ describe("AAT faces are declined, not mis-shaped", () => {
     writeFileSync(plain, base);
     writeFileSync(aat, buildSfnt(tables));
 
-    // The control arm is what makes this discriminate: the two files differ only
-    // by the presence of `morx`, so a guard that declined for any other reason
-    // would fail here.
+    // Both shape, and to the same advance — the dummy `morx` substitutes
+    // nothing, so the only thing being asserted is that its presence no longer
+    // takes the face out of HarfBuzz's hands.
     expect(advanceAt(plain, 0)).toBe(NARROW_ADVANCE);
-    expect(advanceAt(aat, 0)).toBeNull();
+    expect(advanceAt(aat, 0)).toBe(NARROW_ADVANCE);
+  });
+
+  // The assertion that would have failed before the vendored build, and the
+  // reason it exists: a real AAT-only face, joined. Skipped off macOS, since it
+  // reads a system font.
+  const macOnly = process.platform === "darwin" ? it : it.skip;
+  macOnly("joins Arabic through `morx` on a face with no GSUB (GeezaPro)", () => {
+    // `hb-shape` 14.x, which reproduces Chrome's measured advances, gives
+    // 647 656 1359 700 971 for this word. The published `-DHB_TINY` build gave
+    // 647 1415 1292 902 900 — the isolated forms.
+    const res = harfbuzzShapeRun("/System/Library/Fonts/GeezaPro.ttc", 0, "\u0645\u0631\u062d\u0628\u0627");
+    expect(res).not.toBeNull();
+    expect(res!.positions.map((p) => p.xAdvance)).toEqual([647, 656, 1359, 700, 971]);
   });
 });

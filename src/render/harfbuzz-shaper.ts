@@ -17,7 +17,13 @@
 // It's robust where fontkit isn't (no GSUB-parser crash). Scoped at the call
 // site (`resolveFontForCodepoint`) to ONLY the divergent codepoints, so the rest
 // of the calibrated text pipeline is untouched.
-import * as hb from "harfbuzzjs";
+//
+// The import is a VENDORED harfbuzzjs, not the published one: the npm build is
+// `-DHB_TINY`, which compiles out Apple Advanced Typography entirely, and
+// macOS ships system faces (GeezaPro, Helvetica, Al Nile, Baghdad) with a
+// `morx` table and no `GSUB` at all. `vendor/harfbuzzjs/` is v1.4.0 with the
+// wasm rebuilt using the configuration Chromium ships; see its README.
+import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
 import { readFileSync } from "node:fs";
 
 type PathCommand = { command: string; args: number[] };
@@ -98,52 +104,35 @@ function faceCount(data: Uint8Array): number {
 }
 
 /**
- * Whether real HarfBuzz would shape this face through AAT `morx` — which is the
- * same thing as "this build cannot shape it".
+ * AAT faces shape here too, and that is the point of the vendored build.
  *
- * ## The rule
- *
- * Transcribed from `_hb_apply_morx` (`external/harfbuzz/src/hb-ot-shape.cc:60-65`,
- * rev 4de187d):
+ * `_hb_apply_morx` (`external/harfbuzz/src/hb-ot-shape.cc:60-65`, rev 4de187d)
+ * decides by the FACE, not the script:
  *
  *     return hb_aat_layout_has_substitution (face) &&
  *            (HB_DIRECTION_IS_HORIZONTAL (props.direction) || !hb_ot_layout_has_substitution (face));
  *
  * Every run reaching this module is horizontal (vertical text takes the raster
- * path), so the parenthesised half is always true and the rule reduces to "the
- * face has a `morx` table". Note what that means for a font carrying BOTH
- * `morx` and `GSUB`: HarfBuzz uses `morx` and ignores `GSUB`, so shaping it
- * through GSUB is wrong too, not a lesser version of right.
+ * path), so this reduces to "the face has a `morx` table" — and when it does,
+ * HarfBuzz applies `morx` and ignores `GSUB` even where both are present.
  *
- * ## Why the presence of the table is disqualifying here
+ * That rule used to be a REFUSAL here. The published harfbuzzjs is built
+ * `-DHB_TINY`, and `hb-config.hh` chains that to no AAT at all — `HB_TINY`
+ * defines `HB_MINI` (`:44-46`), which defines `HB_NO_AAT` (`:95-96`), which
+ * defines `HB_NO_AAT_SHAPE` (`:132-134`), the guard around `apply_morx` in the
+ * shaping plan (`hb-ot-shape.cc:90`, `:98-100`). macOS ships GeezaPro,
+ * Helvetica, Al Nile and Baghdad with `morx` and no `GSUB` whatsoever, so that
+ * build returned isolated forms for Arabic — well-formed, and a different word.
  *
- * harfbuzzjs is built with `-DHB_TINY` (stated in its own README), and
- * `hb-config.hh` chains that straight to no AAT at all: `HB_TINY` defines
- * `HB_MINI` (`:44-46`), `HB_MINI` defines `HB_NO_AAT` (`:95-96`), and
- * `HB_NO_AAT` defines `HB_NO_AAT_SHAPE` (`:132-134`), which is the guard around
- * `apply_morx` in the shaping plan (`hb-ot-shape.cc:90`, `:98-100`). Chrome's
- * HarfBuzz has none of those defines.
+ * The build in `vendor/harfbuzzjs/` carries none of those defines, because
+ * Chromium's does not either: its HarfBuzz `README.chromium` says outright that
+ * Chrome no longer builds `hb-coretext` "as we rely on HarfBuzz' built-in AAT
+ * shaping". Measured on GeezaPro, one Arabic word, advances in font units:
  *
- * So on an AAT face the two engines are not the same engine. Measured on
- * GeezaPro (macOS's Arabic face, `morx` and NO `GSUB` at all) with the same
- * five-character word, in font units:
- *
- *     hb-shape 14.0.0   meem.initial 971 | reh.final 700 | hah.initial 1359 | beh.medial 656 | alef.final 647
- *     harfbuzzjs 14.2.1              900 |          902 |             1292 |            1415 |          647
- *
- * The second row is the ISOLATED forms — no joining applied, because the only
- * table that could join them was compiled out. At 32px that is 74.6px against
- * Chrome's 61.7px, and `hb-shape`'s numbers match Chrome's measured advances to
- * a hundredth in both directions.
- *
- * Declining leaves the caller on CoreText, which is Apple's own AAT engine and
- * does apply `morx`. That is not parity — CoreText is not Chrome's shaper — but
- * it is a shaper that can read the font, which this one cannot.
+ *     hb-shape 14.x, and Chrome    647  656 1359  700  971
+ *     harfbuzzjs as published      647 1415 1292  902  900
+ *     vendored build               647  656 1359  700  971
  */
-function appliesMorx(face: hb.Face): boolean {
-  return face.referenceTable("morx") != null;
-}
-
 function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null {
   const cacheKey = `${fontPath}#${faceIndex ?? "?"}`;
   if (hbFontCache.has(cacheKey)) return hbFontCache.get(cacheKey)!;
@@ -175,7 +164,6 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
     const count = faceCount(data);
     if (count > 0 && faceIndex >= 0 && faceIndex < count) {
       const face = new hb.Face(blob, faceIndex);
-      if (appliesMorx(face)) throw new Error("AAT face: this HarfBuzz build cannot shape it");
       const font = new hb.Font(face);
       entry = { font: font as unknown as { glyphToPath(id: number): string }, pathCache: new Map() };
     }

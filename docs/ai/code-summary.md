@@ -165,6 +165,15 @@ shortest possible map:
   frames / elements as one `<defs>` `<image>` + `<use>` refs — see `docs/26`).
 - **`src/utils/`** — small shared helpers.
 - **`src/test-support/`** — shared test helpers (`close-browser-safely.ts`).
+- **`vendor/harfbuzzjs/`** — harfbuzzjs v1.4.0 with `dist/harfbuzz.{js,wasm}`
+  rebuilt using the HarfBuzz configuration **Chromium ships** (transcribed from
+  `third_party/harfbuzz/BUILD.gn`). Imported by relative path, not as an npm
+  dependency, so there is one HarfBuzz in the tree and it is Chrome's. The
+  published build is `-DHB_TINY`, which compiles out Apple Advanced Typography
+  and therefore mis-shapes macOS's `morx`-only system faces (GeezaPro,
+  Helvetica). Provenance, remaining divergences and the reproduction recipe are
+  in its README; the config itself is `build/config-override.h`. Ships in the
+  npm tarball (`files` includes `vendor`).
 - **`tests/`** — visual-regression suites (`features.ts`, `showcase.ts`,
   `html-test-suite.tsx`, `real-world.tsx`) + the in-repo review server
   (`review-server.tsx`). Also the **feature-coverage** axis (DM-1459):
@@ -197,10 +206,12 @@ Two gitignored checkouts under `external/`. Between them they answer essentially
 
 | checkout | contains | ask it about |
 | --- | --- | --- |
-| `external/chromium` | `third_party/blink/renderer/` | font *selection* + fallback, glyph metrics, paint order, CSS parsing, layout |
+| `external/chromium` | `third_party/blink/renderer/`, `third_party/harfbuzz/` (build config only) | font *selection* + fallback, glyph metrics, paint order, CSS parsing, layout — and **how Chrome builds HarfBuzz** (`BUILD.gn`; note the directory is `harfbuzz`, not `harfbuzz-ng`) |
 | `external/harfbuzz` | HarfBuzz `src/` (sparse) | **all *shaping*** — clusters, marks, ligatures, reordering, dotted circles |
 
 **Shaping goes to HarfBuzz first.** Blink delegates it entirely, so the Blink tree only shows the call site. `hb-ot-shaper-{indic,use,khmer,myanmar,arabic,hangul}.cc`, `hb-ot-shaper-syllabic.cc` (dotted circles), `hb-ot-shape.cc` (normalization, shaping plan).
+
+Widen the sparse set with `git -C external/chromium sparse-checkout add <path>` when the file you need isn't there yet — several paths are one command away rather than genuinely absent.
 
 Quote the revision beside anything you transcribe — `git -C external/<repo> log -1 --format='%h %cd' --date=short`.
 

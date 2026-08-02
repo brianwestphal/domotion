@@ -758,8 +758,20 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
+- **HarfBuzz is vendored, built with Chromium's configuration** — `vendor/harfbuzzjs/`
+  is harfbuzzjs v1.4.0 with the wasm rebuilt from the define list in Chromium's
+  `third_party/harfbuzz/BUILD.gn`, replacing the npm dependency. The published build
+  is `-DHB_TINY`, which compiles out Apple Advanced Typography, so it mis-shaped
+  macOS's `morx`-only system faces (GeezaPro returned unjoined isolated forms for
+  Arabic). Both projects pin HarfBuzz 14.2.1, and with the configuration matched the
+  build reproduces `hb-shape` exactly on both an AAT-only and a `GSUB` face. Two
+  divergences remain, documented in `vendor/harfbuzzjs/build/config-override.h`:
+  Unicode properties come from HarfBuzz's built-in UCD rather than ICU, and the Rust
+  backend is absent (not a divergence for shipping Chrome — Blink pins the `"ot"`
+  shaper unless an off-by-default runtime flag is set).
 - **Doc 79 (`docs/79-harfbuzz-use-reroute.md`, DM-1197 + DM-1215)** — two narrow
-  uses of real HarfBuzz (harfbuzzjs) where macOS shaping diverges from Chrome.
+  uses of real HarfBuzz (the vendored build above) where macOS shaping diverges
+  from Chrome.
   (1) DM-1197: USE-shaped precomposed letters with a canonical base+mark NFD
   (Kaithi `U+110AB`, Balinese, Tulu-Tigalari — 13 cps) shape via HarfBuzz instead
   of the CoreText helper, which recomposes and mis-places the mark; scoped to the

@@ -28,7 +28,7 @@ no layout error at all, purely unhinted stroke rendering.
 
 When an embedded entry qualifies (see [Purity rules](#purity-rules)), the
 builder subsets the **original font file** with harfbuzz's `hb-subset` (the
-`harfbuzz-subset.wasm` binary that ships inside the `harfbuzzjs` dependency;
+`harfbuzz-subset.wasm` binary from the vendored harfbuzzjs under `vendor/`;
 `src/render/hb-subset.ts` is a thin WebAssembly binding to its C API):
 
 1. **`hbSubsetRetainGids(fontBytes, gids, faceIndex, keepHinting, pinAxes)`**
@@ -111,7 +111,7 @@ Variable (the dominant hinted variable font):
    and 8px — **zero differing pixels**. The affected control values are inert
    under DirectWrite's rendering of the embedded font.
 
-So no correction is needed; if a future harfbuzzjs bundles an hb whose
+So no correction is needed; if a future vendored harfbuzzjs bundles an hb whose
 instancer applies cvar (1.4.0, the latest as of 2026-07, does not), it's a
 free upgrade, not a fix.
 

@@ -17,6 +17,10 @@ examples/output/*.html
 node_modules/
 external/
 dist/
+# ...except the vendored harfbuzzjs, which is a committed third-party artifact
+# rather than a build output. Its wasm is rebuilt with Chromium's HarfBuzz
+# configuration; `vendor/harfbuzzjs/README.md` has the reproduction recipe.
+!vendor/harfbuzzjs/dist/
 .release-state.json
 *.map
 .DS_Store

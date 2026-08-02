@@ -1,5 +1,5 @@
 // DM-1714 (spike): hinting-preserving embedded-font subset via harfbuzz's
-// hb-subset (ships as `harfbuzz-subset.wasm` inside the harfbuzzjs dep).
+// hb-subset (ships as `harfbuzz-subset.wasm` inside the vendored harfbuzzjs).
 //
 // The default embedded-font path builds the glyph subset with svg2ttf, which
 // writes `glyf` from OUTLINES ONLY — no TrueType hinting program. On Windows
@@ -17,9 +17,8 @@
 //
 // This is behind the `DOMOTION_HINTED_SUBSET` flag while we measure the payoff.
 
-import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const HB_MEMORY_MODE_READONLY = 1;
 const HB_SUBSET_FLAGS_NO_HINTING = 0x01;
@@ -62,10 +61,12 @@ function hbTag(tag: string): number {
 let cachedExports: HbSubsetExports | null = null;
 function hb(): HbSubsetExports {
   if (cachedExports != null) return cachedExports;
-  const require = createRequire(import.meta.url);
-  // harfbuzzjs's `exports` map only exposes ".", so the wasm subpath can't be
-  // require.resolve'd directly — resolve the package entry and join to its dist.
-  const wasmPath = join(dirname(require.resolve("harfbuzzjs")), "harfbuzz-subset.wasm");
+  // Resolved relative to this module rather than through node resolution: the
+  // harfbuzzjs build lives in-tree under `vendor/` (its shaping wasm is rebuilt
+  // with Chromium's HarfBuzz configuration — see `vendor/harfbuzzjs/README.md`).
+  // This file is `src/render/` in the source tree and `dist/render/` in the
+  // published package, so `../../vendor/…` is the package root either way.
+  const wasmPath = fileURLToPath(new URL("../../vendor/harfbuzzjs/dist/harfbuzz-subset.wasm", import.meta.url));
   const mod = new WebAssembly.Module(readFileSync(wasmPath));
   const inst = new WebAssembly.Instance(mod, {});
   cachedExports = inst.exports as unknown as HbSubsetExports;

@@ -5,6 +5,13 @@ specific complex-script runs through real HarfBuzz (harfbuzzjs, the engine Chrom
 embeds) where macOS shaping diverges from Chrome's paint: (1) USE-shaped precomposed
 letters (DM-1197, below) and (2) orphaned-mark dotted circles (DM-1215, at the end).
 
+The HarfBuzz in question is **vendored**, not the npm build: `vendor/harfbuzzjs/`
+is harfbuzzjs v1.4.0 with the wasm rebuilt using the HarfBuzz configuration
+Chromium ships. The published build is `-DHB_TINY`, which compiles out Apple
+Advanced Typography entirely and so mis-shapes macOS's `morx`-only system faces
+(GeezaPro, Helvetica). See `vendor/harfbuzzjs/README.md` and the "HarfBuzz is
+vendored" section of [font-resolution-diagram.md](font-resolution-diagram.md).
+
 ## USE-shaped precomposed letters (DM-1197)
 
 A narrow shaping reroute: a handful of complex-script precomposed letters paint

@@ -56,7 +56,10 @@ describe("project conventions", () => {
       "@xterm/headless",
       "bidi-js",
       "fontkit",
-      "harfbuzzjs",
+      // No `harfbuzzjs`: the published build is `-DHB_TINY`, which compiles out
+      // Apple Advanced Typography, so macOS's `morx`-only system faces shape
+      // wrong. `vendor/harfbuzzjs/` is v1.4.0 rebuilt with Chromium's HarfBuzz
+      // configuration and imported by relative path instead.
       "kerfjs",
       "sharp",
       "svg2ttf",

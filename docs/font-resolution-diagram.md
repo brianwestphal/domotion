@@ -1185,28 +1185,46 @@ right font. The index is then bounds-checked against the file's own face count
 before the face is created, which is what Blink does with the index Skia hands
 it (`HbFaceFromSkTypeface`, `harfbuzz_face_from_typeface.cc:38-42`).
 
-### The vendored HarfBuzz cannot shape an AAT face, so it declines them
+### HarfBuzz is vendored, built with Chromium's configuration
 
-`harfbuzzjs` is built with `-DHB_TINY` (stated in its own README), and
-`hb-config.hh` chains that to no AAT support at all: `HB_TINY` → `HB_MINI`
-(`:44-46`) → `HB_NO_AAT` (`:95-96`) → `HB_NO_AAT_SHAPE` (`:132-134`), which is
-the guard around `apply_morx` in the shaping plan (`hb-ot-shape.cc:90`,
-`:98-100`). Chrome's HarfBuzz carries none of those defines.
+The `harfbuzzjs` published on npm is built `-DHB_TINY`, and `hb-config.hh`
+chains that to no AAT support at all: `HB_TINY` → `HB_MINI` (`:44-46`) →
+`HB_NO_AAT` (`:95-96`) → `HB_NO_AAT_SHAPE` (`:132-134`), the guard around
+`apply_morx` in the shaping plan (`hb-ot-shape.cc:90`, `:98-100`).
 
 That matters more on macOS than it sounds, because Apple ships system faces with
-`morx` and **no `GSUB` whatsoever** — GeezaPro (the Arabic face) and Helvetica
-are both in that shape. Real HarfBuzz decides by the face, not the script:
+`morx` and **no `GSUB` whatsoever** — GeezaPro (the Arabic face), Helvetica,
+Al Nile and Baghdad. HarfBuzz decides by the face, not the script:
 `_hb_apply_morx` (`hb-ot-shape.cc:60-65`) uses `morx` whenever the face has it
-and the run is horizontal, *ignoring `GSUB` even when present*. Ours cannot,
-so on GeezaPro it returns the unjoined isolated forms — 900/902/1292/1415/647
-font units against real HarfBuzz's 900/700/1359/656/647, well-formed output that
+and the run is horizontal, *ignoring `GSUB` even when present*. So on GeezaPro
+the `HB_TINY` build returned the unjoined isolated forms — 647/1415/1292/902/900
+font units against real HarfBuzz's 647/656/1359/700/971, well-formed output that
 is simply a different word.
 
-So `getHbEntry` declines any face carrying a `morx` table, and the caller keeps
-the platform helper — CoreText, Apple's own AAT engine, which applies `morx`.
-That is not parity (CoreText is not Chrome's shaper) but it is a shaper that can
-read the font. Removing the restriction requires an AAT-capable HarfBuzz build,
-not a code change here.
+`vendor/harfbuzzjs/` is therefore harfbuzzjs v1.4.0 with `dist/harfbuzz.js` and
+`dist/harfbuzz.wasm` rebuilt from source using the HarfBuzz configuration
+**Chromium ships**, transcribed from `third_party/harfbuzz/BUILD.gn:462-518`
+(Chromium rev `7d859f27`). Chromium's own `README.chromium` for HarfBuzz states
+the reason directly: it no longer builds `hb-coretext` *"as we rely on
+HarfBuzz' built-in AAT shaping"*. Both projects pin the same HarfBuzz release
+(14.2.1), so the configuration was the only variable, and with it matched the
+build reproduces `hb-shape` exactly on both an AAT-only face (GeezaPro
+`647 656 1359 700 971`) and a `GSUB` face (Arial Unicode `559 498 1323 893 985`).
+
+`HB_TINY` had also removed HarfBuzz's two font blocklists, its legacy cmap
+subtables, and — via `HB_NO_OT_SHAPE_FALLBACK`, which Chromium does **not**
+set — the OT shaper's Arabic/Hebrew/Thai fallback paths and vowel-constraint
+handling. Those are all restored by matching Chromium.
+
+`vendor/harfbuzzjs/README.md` carries the provenance table, the reproduction
+recipe, and the two divergences that remain (Unicode properties come from
+HarfBuzz's built-in UCD rather than ICU; the Rust backend is absent, which is
+not a divergence for shipping Chrome since Blink pins the `"ot"` shaper unless
+an off-by-default runtime flag is set). `vendor/harfbuzzjs/build/config-override.h`
+is the configuration itself, annotated define by define.
+
+Consequence for the diagram: `getHbEntry` no longer inspects `morx`. Every face
+it can identify and bounds-check is shaped by HarfBuzz.
 
 ### A contrary direction reverses the characters before shaping
 
@@ -1232,8 +1250,8 @@ advances, differing only in cluster numbering.
 the script's own direction, rather than passing a contrary direction down. That
 also removes the reason such a run needed a different shaper: the platform
 helper infers direction from content and cannot be told otherwise, but on the
-reversed string its inference lands on exactly the direction wanted — which is
-required here anyway, since the faces involved are AAT. The reversal is gated on
+reversed string its inference lands on exactly the direction wanted. The
+reversal is gated on
 an override being present: outside one, `seg.rtl` is not authoritative (a
 fallback run carries no level array, so a plain mixed-script line reports
 `rtl: false` for an Arabic segment) and reversing on that signal mirrors the

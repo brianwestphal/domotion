@@ -15,7 +15,7 @@ The face oracle is a **face-identity** instrument. It asks "which font did Chrom
 
 That gap is not hypothetical. The nukta misplacement fixed in 2026-07 was a real **3px mark offset** that a prior session first dismissed as antialiasing; a face-identity oracle scores it as a clean pass, because the face was right and only the position was wrong.
 
-It also gates the shaping work: replacing fontkit's `layout()` with harfbuzzjs as the single shaper has a strong structural argument (Blink shapes with HarfBuzz everywhere, we already depend on harfbuzzjs) and, without this, **no instrument to confirm it**. "Same engine, so it must match" is exactly the kind of claim this project retires.
+It also gates the shaping work: replacing fontkit's `layout()` with harfbuzzjs as the single shaper has a strong structural argument (Blink shapes with HarfBuzz everywhere, and `vendor/harfbuzzjs/` is now built with Chromium's own HarfBuzz configuration — same release, same defines, AAT included) and, without this, **no instrument to confirm it**. "Same engine, so it must match" is exactly the kind of claim this project retires.
 
 ## What each side is asked
 
