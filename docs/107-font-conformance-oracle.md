@@ -147,7 +147,39 @@ Two corrections this forces on numbers quoted elsewhere:
 - The recurring "~53% of comparisons are `agree-tofu`" figure predates the current corpus. It is **75.2%** on the committed baseline, so the effective *measured* surface is about a quarter of the headline count, not half.
 - That caveat has been read as "legitimate agreement, just a smaller surface". It is stronger than that: `agree-tofu` is exactly the bucket where the resolver has stopped deciding and the emitter takes over, so it is the part of the corpus the oracle is *least* able to speak for, not merely a part it speaks for less precisely.
 
-**Recommended close, and it is cheap.** Have `ourFaceFor` ask for the face the RENDERER would use on an uncovered codepoint rather than the resolver's terminal — that choice is derivable without rendering (it is the chain tail, or the primary for the carved-out classes), so it costs one function call and no new sweep machinery. It would have caught DM-1905 on the first run, and it would today report the ~75% tier honestly instead of asserting behaviour that is not happening. Tracked separately so this doc's description stays true until it lands.
+**Status: closed for the general case, and deliberately NOT closed for emoji.**
+
+The general terminal was the real divergence and it is fixed — the renderer now
+paints the primary's `.notdef` for every uncovered codepoint, matching Blink's
+`kFirstCandidateForNotdefGlyph` ([doc 106](106-blink-font-parity-inventory.md) §5).
+So `agree-tofu`'s description — *"we draw the run primary's `.notdef`"* — is now
+a true statement about the renderer rather than an assumption, and the ~75% tier
+means what it says.
+
+The one remaining divergence is **uncovered emoji**, where `emojiToTerminal`
+routes to the fallback chain's last entry so a captured rasterGlyph PNG overlay
+keeps its advance pinning. Mirroring that into the oracle was tried and
+**reverted**, because it makes the instrument worse rather than better:
+
+    agree-tofu        882 ->  358   (-524)
+    mismatch-we-tofu    0 ->  524   (+524)
+    mismatchTotal      15 ->  539
+
+Chrome's side did not move; those 524 rows are the same comparisons reclassified.
+And the reclassification is wrong, because **for an uncovered emoji neither side's
+reported face is what paints**: ours is a placeholder chosen to pin an advance,
+and the actual pixels come from a rasterized PNG overlay, not from a font face at
+all. Reporting the placeholder makes the oracle literal about the emitter and
+less representative of the paint.
+
+So this is not an unmeasured blind spot — it is an **ill-posed** comparison, and
+the honest thing is to say so rather than to score it. A face oracle cannot
+adjudicate a raster overlay; that belongs to the shaping/pixel oracle
+([doc 108](108-shaping-conformance-oracle.md)) or to a fixture.
+
+The other bypass, `clusterRun` (the resolver is not consulted at all for a
+CoreText-shaped cluster run), remains genuinely unmeasured and is the one place
+this section still describes a gap rather than a decision.
 
 ### `font-stretch` and `font-variation-settings` — closed, and measured (DM-1858)
 
