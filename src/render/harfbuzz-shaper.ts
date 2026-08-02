@@ -175,6 +175,11 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
 }
 
 /** Test seam: drop the memoised faces so a test can re-open the same path. */
+/** base instance → (path#face|size|axes) → proxy. Weak on the base so an
+ *  instance that goes away takes its proxies with it. See the identity note in
+ *  `makeHarfbuzzShapingInstance`. */
+const hbProxyCache = new WeakMap<object, Map<string, ShapingFontView>>();
+
 export function _clearHbFontCache(): void { hbFontCache.clear(); }
 
 /**
@@ -361,6 +366,21 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   axes?: Record<string, number> | null,
 ): T {
   if (getHbEntry(fontPath, faceIndex) == null) return base;
+  // Memoized on the exact arguments, because the RESULT'S IDENTITY IS LOAD-BEARING
+  // upstream. `renderTextAsPath` groups codepoints into runs with
+  // `useFontOverride !== curFontOverride` — an identity comparison — so a fresh
+  // proxy per codepoint would end the run at every character and hand the shaper
+  // one-character runs. For a script whose whole point is contextual shaping that
+  // is not a subtle regression: it silently disables the thing being routed here.
+  //
+  // Harmless for the original per-codepoint callers (an isolated mark or a single
+  // NFD letter is its own run either way), which is why it went unnoticed; it
+  // becomes load-bearing the moment a whole run routes through.
+  const memoKey = `${fontPath}#${faceIndex ?? "?"}|${fontSizePx ?? ""}|${axes == null ? "" : JSON.stringify(axes)}`;
+  let perBase = hbProxyCache.get(base as object);
+  if (perBase == null) { perBase = new Map(); hbProxyCache.set(base as object, perBase); }
+  const memo = perBase.get(memoKey);
+  if (memo != null) return memo as T;
   const proxy: ShapingFontView = {
     layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
       const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
@@ -378,5 +398,6 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
     warmGlyphs: base.warmGlyphs?.bind(base),
     warmShapes: base.warmShapes?.bind(base),
   };
+  perBase.set(memoKey, proxy);
   return proxy as T;
 }

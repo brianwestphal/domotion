@@ -199,3 +199,44 @@ describe("AAT faces shape, rather than being declined", () => {
     expect(res!.positions.map((p) => p.xAdvance)).toEqual([647, 656, 1359, 700, 971]);
   });
 });
+
+describe("the proxy's identity, which run grouping depends on", () => {
+  // `renderTextAsPath` decides where one run ends and the next begins with
+  // `useFontOverride !== curFontOverride` — an IDENTITY comparison. So when a
+  // whole run routes through HarfBuzz, every codepoint in it must be handed the
+  // SAME proxy object; a fresh one per call ends the run at each character and
+  // feeds the shaper one-character runs. That disables contextual shaping
+  // silently: output is still well-formed, just unshaped.
+  //
+  // Not hypothetical — the per-codepoint callers this started with never
+  // noticed, because an isolated mark is its own run either way.
+  const base = () => ({ unitsPerEm: 1000 }) as never;
+
+  it("returns the same object for the same arguments", () => {
+    const b = base();
+    const a1 = makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, null);
+    const a2 = makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, null);
+    expect(a1).not.toBe(b);       // it did wrap
+    expect(a2).toBe(a1);          // and it is the same wrapper
+  });
+
+  it("does not share a proxy across arguments that shape differently", () => {
+    // The memo key has to include everything that changes the output, or two
+    // runs at different sizes or axis locations would silently share one.
+    const b = base();
+    const at16 = makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, null);
+    expect(makeHarfbuzzShapingInstance(b, sfntPath, 0, 32, null)).not.toBe(at16);
+    expect(makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, { wght: 700 })).not.toBe(at16);
+    expect(makeHarfbuzzShapingInstance(b, ttcPath, 1, 16, null)).not.toBe(at16);
+    // …and re-asking for the original still returns the original.
+    expect(makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, null)).toBe(at16);
+  });
+
+  it("keeps different base instances apart", () => {
+    // Two fonts wrapping the same file must not collapse into one proxy — the
+    // proxy forwards metrics and coverage to ITS base.
+    const b1 = base(), b2 = base();
+    expect(makeHarfbuzzShapingInstance(b1, sfntPath, 0, 16, null))
+      .not.toBe(makeHarfbuzzShapingInstance(b2, sfntPath, 0, 16, null));
+  });
+});
