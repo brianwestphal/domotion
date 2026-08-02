@@ -86,32 +86,41 @@ interface Disagreement {
   ct: string;
 }
 
-/** Font-unit tolerance. Zero: both sides report integers in design-unit space,
- *  so any difference is a real difference and not a rounding artifact. The
- *  helper's `formatNumber` can emit fractions when CoreText applies a non-
- *  integral advance, hence the epsilon rather than strict equality — but it is
- *  set below one unit, far under a pixel at any render size. */
-const UNIT_EPS = 0.5;
+/** Font-unit tolerance, applied after rounding both sides to whole units.
+ *
+ * HarfBuzz reports positions as INTEGER font units when the font is scaled to
+ * unitsPerEm, so a sub-unit difference is not something it can express — the
+ * quantisation happens inside the engine, not in this comparison. CoreText
+ * returns floats (`724.9` where HarfBuzz says `725`). Comparing them raw makes
+ * every interpolated variable face a "disagreement" at 0.5 units, which is a
+ * property of the two APIs' return types and not of their shaping.
+ *
+ * So both sides are rounded to whole units first, and then required to be
+ * EQUAL. Worth being clear about the cost: this cannot see a genuine sub-unit
+ * disagreement. At 16 px on a 1000-upem face one unit is 0.016 px, so nothing
+ * it hides is visible — but a systematic sub-unit bias that accumulated across
+ * a long run would slip through, and that is a real blind spot rather than a
+ * safe one. */
+const UNIT_EPS = 0;
+/** Round to whole font units, so the two APIs' return types stop being a diff. */
+const u = (n: number): number => Math.round(n);
 
 /** Every font key this platform's table declares that actually resolves to a
  *  file present on THIS host. Keys are skipped silently when the font is not
  *  installed — that is a coverage fact, reported in the summary, not an error. */
-function resolvableFaces(filter: string | null, sizePx: number): Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null }> {
-  const out: Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null }> = [];
+function resolvableFaces(filter: string | null, sizePx: number, weight: number): Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null; weight: number }> {
+  const out: Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null; weight: number }> = [];
   for (const key of platformFontKeys()) {
     if (filter != null && !key.toLowerCase().includes(filter.toLowerCase())) continue;
     let face: { path: string; faceIndex: number | null; axes: Record<string, number> | null } | null = null;
     try {
-      // Weight 400 only — a real blindness, and the same one that once produced a
-      // 0.488%-vs-14.77% split on Windows. A family's cut stops being its base
-      // entry at weight 700, so nothing here can catch a bold-only defect.
-      face = shapingFaceFor(key, 400, sizePx, 0);
+      face = shapingFaceFor(key, weight, sizePx, 0);
     } catch {
       continue;
     }
     if (face == null || face.faceIndex == null) continue;
     if (!existsSync(face.path)) continue;
-    out.push({ key, path: face.path, faceIndex: face.faceIndex, axes: face.axes });
+    out.push({ key, path: face.path, faceIndex: face.faceIndex, axes: face.axes, weight });
   }
   return out;
 }
@@ -132,7 +141,7 @@ function covers(font: NonNullable<ReturnType<typeof createGlyphHelperFont>>, tex
 }
 
 function comparePair(
-  face: { key: string; path: string; faceIndex: number; axes: Record<string, number> | null },
+  face: { key: string; path: string; faceIndex: number; axes: Record<string, number> | null; weight: number },
   sample: { script: string; text: string; note?: string },
   font: NonNullable<ReturnType<typeof createGlyphHelperFont>>,
 ): Disagreement[] {
@@ -149,7 +158,7 @@ function comparePair(
   const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, undefined, font.unitsPerEm, face.axes);
   if (hb == null) return []; // HarfBuzz declined the face — nothing to compare
   const ct = font.layout(sample.text);
-  const base = { face: face.key, path: face.path, faceIndex: face.faceIndex, sample: sample.note ?? sample.script, script: sample.script, text: sample.text };
+  const base = { face: `${face.key}@${face.weight}`, path: face.path, faceIndex: face.faceIndex, sample: sample.note ?? sample.script, script: sample.script, text: sample.text };
 
   if (hb.glyphs.length !== ct.glyphs.length) {
     return [{ ...base, kind: "glyph-count", hb: `${hb.glyphs.length} glyphs`, ct: `${ct.glyphs.length} glyphs` }];
@@ -162,12 +171,12 @@ function comparePair(
     // Positions of different glyphs are not a meaningful comparison.
     return out;
   }
-  const advDiff = hb.positions.some((p, i) => Math.abs(p.xAdvance - ct.positions[i].xAdvance) > UNIT_EPS);
+  const advDiff = hb.positions.some((p, i) => Math.abs(u(p.xAdvance) - u(ct.positions[i].xAdvance)) > UNIT_EPS);
   if (advDiff) {
     out.push({ ...base, kind: "advance", hb: hb.positions.map((p) => p.xAdvance).join(" "), ct: ct.positions.map((p) => p.xAdvance).join(" ") });
   }
   const offDiff = hb.positions.some(
-    (p, i) => Math.abs(p.xOffset - ct.positions[i].xOffset) > UNIT_EPS || Math.abs(p.yOffset - ct.positions[i].yOffset) > UNIT_EPS,
+    (p, i) => Math.abs(u(p.xOffset) - u(ct.positions[i].xOffset)) > UNIT_EPS || Math.abs(u(p.yOffset) - u(ct.positions[i].yOffset)) > UNIT_EPS,
   );
   if (offDiff) {
     const fmt = (ps: Array<{ xOffset: number; yOffset: number }>): string => ps.map((p) => `${p.xOffset},${p.yOffset}`).join(" ");
@@ -199,9 +208,16 @@ function main(): void {
     process.exit(2);
   }
 
+  // Both weights, not just 400. A family's cut stops being its base entry at
+  // 700, and a weight-400-only sweep has already produced a blind-but-plausible
+  // number in this project once (0.488% against 14.77% on the same platform,
+  // differing only in which stacks were swept). Sweeping 400 alone would also
+  // ask a `-bold` key at a weight nothing ever requests of it, manufacturing
+  // disagreements that say nothing about production.
+  //
   // 1000 stands in for the size the CoreText helper opens faces at
   // (unitsPerEm), so both sides resolve the same optical-size axis.
-  const faces = resolvableFaces(filter, 1000);
+  const faces = [...resolvableFaces(filter, 1000, 400), ...resolvableFaces(filter, 1000, 700)];
   const disagreements: Disagreement[] = [];
   let pairs = 0;
   let skippedCoverage = 0;
@@ -229,7 +245,7 @@ function main(): void {
         continue;
       }
       pairs++;
-      facesUsed.add(face.key);
+      facesUsed.add(`${face.key}@${face.weight}`);
       scriptsUsed.add(sample.script);
       const d = comparePair(face, sample, font);
       disagreements.push(...d);
@@ -244,7 +260,7 @@ function main(): void {
   console.log(`Shape agreement — HarfBuzz (Chromium config) vs ${process.platform === "darwin" ? "CoreText" : "platform helper"}`);
   console.log(`  faces in table:      ${platformFontKeys().length}${filter != null ? ` (filtered to "${filter}")` : ""}`);
   console.log(`  faces resolvable:    ${faces.length}`);
-  console.log(`  faces compared:      ${facesUsed.size}   (${declined} declined by HarfBuzz)`);
+  console.log(`  face×weight compared:${facesUsed.size}   (${declined} declined by HarfBuzz)`);
   console.log(`  scripts exercised:   ${scriptsUsed.size} of ${new Set(SHAPE_SAMPLES.map((x) => x.script)).size}`);
   console.log(`  pairs compared:      ${pairs}   (${skippedCoverage} skipped: face does not cover the sample)`);
   console.log(`  disagreements:       ${disagreements.length}`);
