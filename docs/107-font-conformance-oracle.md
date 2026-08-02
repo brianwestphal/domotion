@@ -121,6 +121,34 @@ The instrument is only worth its exit code if its blind spots are written down r
 - **On Linux the `agree-same-file` tier can never fire.** That tier resolves Chrome's reported PostScript name to a file through `resolveInstalledFont`, and the Linux glyph helper implements no `family` query — the function is documented as always returning `null` there. So on Linux every agreement must be proven by name at the strongest tier or it is a mismatch. That makes the Linux number *stricter* than the macOS one in this respect, not weaker, but it is a difference between the platforms' instruments and not only between their fonts.
 - **`FACE_ALIASES` is a macOS list.** Its single entry reconciles Chrome's `SF Pro Text` naming with the SFNS file we load. Nothing analogous is claimed for Linux or Windows, so `agree-alias` is structurally zero on those platforms.
 
+### The oracle measures the RESOLVER, not the renderer — and that is where 75% of it sits
+
+The single most important thing to know about this instrument. `ourFaceFor` calls `resolveFontForCodepoint` directly (`tools/font-conformance.ts:523-524`). That function decides *which face covers a codepoint*. It is **not** what the renderer paints with: the emitter in `text-to-path.ts` overrides or bypasses its answer in three places.
+
+| site | what happens to the resolver's answer |
+|---|---|
+| `clusterRun != null` (`:250`, `:1349`) | **never asked** — `res` is `null` and the cluster run's key is used |
+| `emojiToTerminal` (`:256`) | **discarded** for an uncovered emoji, so the raster-overlay path keeps its advance pinning |
+| the uncovered terminal (`:288-294`) | **replaced** — paths mode uses the fallback chain's LAST entry, not the primary |
+
+So any defect the emitter introduces after selection is invisible here by construction, and this is not hypothetical: the private-use bug (DM-1905) had the resolver answering `helvetica` / `covered: false` — correct, and what Blink's `kFirstCandidateForNotdefGlyph` produces — while the renderer painted LastResort's box-with-a-`?`, 2253/2048 em against Helvetica's 1298, overhanging the next character. The oracle scored that row **`agree-tofu`**. A fixture caught it; the oracle could not have.
+
+**Now the part that makes this load-bearing rather than a footnote.** `agree-tofu` is defined as *"No font covers the codepoint, so we draw the run primary's `.notdef`"* — a claim about the **emitter**, which the oracle never verifies. On the committed macOS baseline that tier is:
+
+    agree-exact      406,215   23.1%
+    agree-alias        1,792    0.1%
+    agree-tofu     1,320,164   75.2%
+    mismatch          26,625    1.5%
+
+**75.2% of every comparison this instrument makes rests on that unverified claim** — and in `paths` mode the claim is currently false for all of it except private-use and noncharacter codepoints, which are the only ones carved out so far ([doc 106](106-blink-font-parity-inventory.md) §5 item 5; the general terminal still pins the chain tail). Embedded-subset mode does use the primary and matches the tier's description.
+
+Two corrections this forces on numbers quoted elsewhere:
+
+- The recurring "~53% of comparisons are `agree-tofu`" figure predates the current corpus. It is **75.2%** on the committed baseline, so the effective *measured* surface is about a quarter of the headline count, not half.
+- That caveat has been read as "legitimate agreement, just a smaller surface". It is stronger than that: `agree-tofu` is exactly the bucket where the resolver has stopped deciding and the emitter takes over, so it is the part of the corpus the oracle is *least* able to speak for, not merely a part it speaks for less precisely.
+
+**Recommended close, and it is cheap.** Have `ourFaceFor` ask for the face the RENDERER would use on an uncovered codepoint rather than the resolver's terminal — that choice is derivable without rendering (it is the chain tail, or the primary for the carved-out classes), so it costs one function call and no new sweep machinery. It would have caught DM-1905 on the first run, and it would today report the ~75% tier honestly instead of asserting behaviour that is not happening. Tracked separately so this doc's description stays true until it lands.
+
 ### `font-stretch` and `font-variation-settings` — closed, and measured (DM-1858)
 
 Both are now part of the stack key, extracted from the computed style and declared on the probe page, and our side honors an author's axis settings through `getFontInstance`. The corpus grew **418 → 434 stacks**, surfacing 8 combinations with non-normal `font-stretch` (the fixtures span 50% → 200%) and 9 with explicit `font-variation-settings`.
