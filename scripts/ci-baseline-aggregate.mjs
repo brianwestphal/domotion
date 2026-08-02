@@ -77,6 +77,28 @@ for (const os of oses) {
   }
 
   if (update) {
+    // Absent provenance is a hard error when WRITING a baseline, because a
+    // baseline is the one artifact where it matters and the failure is
+    // otherwise invisible: `env: null` renders as the same "baseline predates
+    // environment recording" notice a genuinely old baseline produces, so the
+    // next reader concludes it is merely stale rather than that the guard was
+    // removed by the tool meant to install it. Measured once, on the html
+    // re-capture: the run's meta came back with env/image/capturedAt all null
+    // and nothing warned.
+    //
+    // Note this is a DIFFERENT condition from the heterogeneity one. There,
+    // `merge-shard-results.mjs` deliberately writes a null field because the
+    // shards disagreed — a decision it announces. Here the record is missing
+    // altogether, which announces nothing.
+    if (envPath == null) {
+      console.error(
+        `\n✖ Refusing to write ${suite}/${os}: no run-env-${os}.json in ${input}.\n`
+        + `  A baseline without environment provenance cannot be compared against, and\n`
+        + `  reads as an old baseline rather than a broken one. Re-run the sweep on a\n`
+        + `  ref whose workflow uploads run-env-*.json in the visual-tests-meta artifact,\n`
+        + `  or pass --eager to merge the full shard artifacts locally.\n`);
+      process.exit(1);
+    }
     const out = join(outDir, `baseline-${suite}-${os}.json`);
     const image = imageFor(os);
     const a = ["scripts/write-baseline.mjs", "--results", merged, "--out", out, "--suite", suite, "--os", os];

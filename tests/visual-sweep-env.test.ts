@@ -272,3 +272,65 @@ describe("shard tree -> merge -> baseline -> diff (end to end)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
+
+/**
+ * DM-1911: `--update-baseline` wrote a baseline with `env: null` and said
+ * nothing. The cause was upstream (the slim metadata artifact did not carry
+ * `run-env-<os>.json`), but the reason it went unnoticed is that writing a
+ * provenance-less baseline was *allowed* — and the result is indistinguishable
+ * from a baseline captured before the guard existed, so it reads as merely old
+ * rather than as the guard having been removed.
+ *
+ * These pin the refusal itself, since that is the part that has to hold however
+ * the artifact plumbing changes.
+ */
+describe("ci-baseline-aggregate refuses to write a baseline without provenance", () => {
+  const repoRoot = join(import.meta.dirname, "..");
+  // `write-baseline.mjs` wants the MERGED shape: a bare array of fixture rows.
+  const RESULTS = [{ name: "f", diffPct: 0, worstTilePct: 0, regionCount: 0, pass: true }];
+
+  const run = (dir: string) => {
+    try {
+      execFileSync("node", ["scripts/ci-baseline-aggregate.mjs",
+        "--input", dir, "--suite", "html", "--out", dir, "--update-baseline"],
+        { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" });
+      return { code: 0, err: "" };
+    } catch (e: unknown) {
+      const x = e as { status?: number; stderr?: string };
+      return { code: x.status ?? -1, err: x.stderr ?? "" };
+    }
+  };
+
+  it("exits non-zero and names the missing file when run-env is absent", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dm1911-"));
+    try {
+      writeFileSync(join(dir, "results-macos.json"), JSON.stringify(RESULTS));
+      const { code, err } = run(dir);
+      expect(code).not.toBe(0);
+      expect(err).toContain("run-env-macos.json");
+      // ...and must not have left a baseline behind.
+      expect(() => readFileSync(join(dir, "baseline-html-macos.json"), "utf-8")).toThrow();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  // The positive case is asserted against `write-baseline.mjs` directly rather
+  // than through the aggregate, because the aggregate diffs FIRST and that step
+  // legitimately refuses to judge a synthetic run against the real committed
+  // baseline (mismatched environment — which is the comparator working). What
+  // needs pinning here is that provenance reaches the written file.
+  it("writes meta.env through when run-env IS present", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dm1911-"));
+    try {
+      writeFileSync(join(dir, "results-macos.json"), JSON.stringify(RESULTS));
+      writeFileSync(join(dir, "run-env-macos.json"),
+        JSON.stringify({ image: "macos26-arm64", platform: "darwin", arch: "arm64", node: "v22.21.0" }));
+      execFileSync("node", ["scripts/write-baseline.mjs",
+        "--results", join(dir, "results-macos.json"), "--out", join(dir, "b.json"),
+        "--suite", "html", "--os", "macos", "--env", join(dir, "run-env-macos.json")],
+        { cwd: repoRoot, stdio: "pipe" });
+      const written = JSON.parse(readFileSync(join(dir, "b.json"), "utf-8"));
+      expect(written.meta.env).not.toBeNull();
+      expect(written.meta.env.image).toBe("macos26-arm64");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});

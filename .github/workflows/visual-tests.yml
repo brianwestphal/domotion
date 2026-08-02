@@ -339,7 +339,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: visual-tests-meta
-          path: shard-artifacts/results-*.slim.json
+          # `run-env-<os>.json` rides along deliberately. It is the merged
+          # environment record the baseline guard is built from, and this is the
+          # artifact `run-ci-visual-tests.mjs` downloads by default — so without
+          # it, `--update-baseline` wrote a baseline with `env: null` and
+          # silently un-installed the guard it was supposed to install. A few
+          # hundred bytes against a ~1 MB artifact.
+          path: |
+            shard-artifacts/results-*.slim.json
+            shard-artifacts/run-env-*.json
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:

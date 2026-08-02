@@ -186,7 +186,22 @@ if (eager) {
     if (m != null) { copyFileSync(join(srcDir, name), join(dir, `results-${m[1].toLowerCase()}.json`)); found++; }
   }
   if (found === 0) die(`no results-<os>.slim.json in the visual-tests-meta artifact — run ${runId} may not have reached the aggregate job (see ${url}).`);
+  // The merged per-OS environment record travels in the same artifact. Copy it
+  // up beside the results so `ci-baseline-aggregate.mjs` finds it — it looks for
+  // `run-env-<os>.json` in the input dir, and without it a baseline written from
+  // this path carries `env: null`.
+  let envFound = 0;
+  for (const name of readdirSync(srcDir)) {
+    if (/^run-env-[a-z0-9]+\.json$/i.test(name)) {
+      copyFileSync(join(srcDir, name), join(dir, name)); envFound++;
+    }
+  }
   console.log(`\nUsing CI slim metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`);
+  if (envFound === 0) {
+    console.warn(`⚠️  No run-env-<os>.json in the meta artifact — this run predates the workflow\n`
+      + `   change that uploads it, so environment provenance is unavailable.\n`
+      + `   A baseline written from it would carry env: null; --update-baseline will refuse.\n`);
+  }
 }
 
 // DM-1217: the macOS CI runner (macos-15-arm64) rasterizes text differently
