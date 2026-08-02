@@ -3,8 +3,8 @@
     "suite": "unicode",
     "os": "macos",
     "image": "macos26-arm64",
-    "commit": "44a03f4b7c4a0e259b2ed0511b8d0c2f328c0819",
-    "capturedAt": null,
+    "commit": "eec7ab5fc4a431673a2428036ad00636060c21b8",
+    "capturedAt": "2026-08-02T08:43:18.975Z",
     "env": {
       "image": "macos26-arm64",
       "imageVersion": "20260728.0273.1",
@@ -18,8 +18,8 @@
       }
     },
     "counts": {
-      "passed": 808,
-      "failed": 10,
+      "passed": 810,
+      "failed": 8,
       "skipped": 0,
       "total": 818
     }
@@ -1741,11 +1741,11 @@
       "regionCount": 0
     },
     "1CD0-1CFF-vedic-extensions": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.016697057642170342,
-      "worstTilePct": 0.1648667279411765,
-      "regionCount": 1
+      "diffPct": 0.015582567656723034,
+      "worstTilePct": 0.07611443014705882,
+      "regionCount": 0
     },
     "1CF00-1CFCF-znamenny-musical-notation": {
       "pass": true,
@@ -5241,11 +5241,11 @@
       "regionCount": 0
     },
     "A8E0-A8FF-devanagari-extended": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.025218886946083985,
-      "worstTilePct": 3.1382123161764732,
-      "regionCount": 1
+      "diffPct": 0.009037090741273885,
+      "worstTilePct": 0.06127450980392158,
+      "regionCount": 0
     },
     "A900-A92F-kayah-li": {
       "pass": true,
