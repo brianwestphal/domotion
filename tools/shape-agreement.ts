@@ -155,6 +155,12 @@ function comparePair(
   // Chrome uses. It does not — Blink passes the CSS pixel size, and neither
   // path here does. That is a real defect, and this tool is deliberately blind
   // to it, so it must not be read as evidence of tracking parity with Chrome.
+  //
+  // Nor is it evidence about which engine the RENDER PIPELINE routes a face to.
+  // Both sides are called directly here, so the count is unmoved by a routing
+  // change — including the one that sends `trak` + `STAT` faces' shaping to
+  // HarfBuzz. This measures how far apart the two engines are, not which of
+  // them paint reaches.
   const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, undefined, font.unitsPerEm, face.axes);
   if (hb == null) return []; // HarfBuzz declined the face — nothing to compare
   const ct = font.layout(sample.text);
@@ -229,7 +235,26 @@ function main(): void {
     const spec = resolveFontSpec(face.key);
     let font: NonNullable<ReturnType<typeof createGlyphHelperFont>>;
     try {
-      const f = createGlyphHelperFont({ postscriptName: spec?.postscriptName, fontPath: face.path });
+      // Open the CoreText side at the SAME axis location the HarfBuzz side gets.
+      // Omitting it is not neutral: on a variable face HarfBuzz would then be
+      // instanced at the resolved location while CoreText sat at whatever the
+      // PostScript name resolves to, and the resulting advance gap would be
+      // reported as an engine disagreement. Measured before this was passed: 57
+      // disagreements on the 13 macOS faces carrying `trak` + `STAT` (SF Pro,
+      // SF Compact, SF Hebrew, the PingFang cuts), 52 of them `advance` — on
+      // exactly the faces that are variable, and with tracking already held
+      // equal by the shared `ptem` below, so they could not have been tracking.
+      //
+      // `face.axes` (the `resolveAxisLocationForFile` derivation) rather than
+      // the `resolveDarwinAxisLocation` one `getFontInstance` opens the helper
+      // with, deliberately: it names EVERY axis explicitly, so both engines are
+      // pinned to the same point instead of one of them resolving a location
+      // from a name. Production's asymmetry between those two derivations is a
+      // routing fact, and routing is not what this tool measures.
+      const f = createGlyphHelperFont({
+        postscriptName: spec?.postscriptName, fontPath: face.path,
+        variations: face.axes ?? undefined,
+      });
       if (f == null) continue;
       font = f;
     } catch {
