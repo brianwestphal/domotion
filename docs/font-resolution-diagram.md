@@ -357,6 +357,26 @@ lacking that font.
 
 ### macOS `FONT_PATHS` (excerpt — the calibrated key→file map)
 
+**Every entry must name its face, and an entry on a `.ttc` especially.** A spec
+with no `postscriptName` does not mean "this file's face" — it means "whatever
+opening the file by path gives you", and that differs from the intended request
+in two measured ways. On a **collection** it selects member 0, which is the
+vendor's ordering rather than anything a routing table meant:
+`NotoSansMyanmar.ttc` has 18 members and member 0 is **Black**, so every Myanmar
+run painted at weight 900 whatever the CSS asked for, while Chrome (asked over
+CDP) answers `NotoSansMyanmar-Regular` at weight 400. On a single-face
+**variable** file, CoreText reports different metrics than the face HarfBuzz
+indexes — SF Arabic 3870 units by path against 4122 by name, SF Pro's
+`Hamburgefonstiv` 13580.667 against 14711 — with identical glyph ids throughout,
+so it is metrics rather than face identity, and the by-name figure is HarfBuzz's
+exactly. `src/render/font-path-postscript-names.test.ts` sweeps the table and
+fails on any key that resolves to a multi-member collection without a name.
+
+Entries under the `u-` namespace come from the generated per-block table, which
+says not to edit it by hand; names for those are overridden in `FONT_PATHS`
+**after** the spread, which is the durable place until the generator learns to
+emit one.
+
 | Key(s) | File | Notes |
 |---|---|---|
 | `sf-pro` / `sf-pro-italic` | SFNS.ttf / SFNSItalic.ttf | system-ui; italic is a sibling file, not a `slnt` axis |
