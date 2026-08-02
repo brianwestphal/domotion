@@ -32,12 +32,38 @@ on:
         description: 'Delay before the second, in-process ask (isolates timing from launch state)'
         type: string
         default: '750'
+      concurrent:
+        description: 'Browsers to launch simultaneously (0 skips). The harness runs a worker pool; sequential launches did not reproduce the flip.'
+        type: string
+        default: '6'
+      runners:
+        description: 'How many separate runner allocations to sample. 30/30 stable on ONE runner is consistent with the machine deciding, consistently.'
+        type: choice
+        options: ['1', '3', '6']
+        default: '6'
 
 env:
   NODE_VERSION: '22'
 
 jobs:
+  # Fan out over SEPARATE runner allocations. A single runner answering 30/30
+  # Helvetica does not distinguish "stable everywhere" from "each machine is
+  # internally consistent but machines disagree" — and the flip was seen between
+  # two runs of one commit, which is exactly two machine allocations.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        run: echo "matrix=$(node -e "console.log(JSON.stringify([...Array(${{ inputs.runners }}).keys()]))")" >> "$GITHUB_OUTPUT"
+
   probe:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        instance: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ inputs.os == 'macos' && 'macos-latest' || (inputs.os == 'windows' && 'windows-latest' || 'ubuntu-latest') }}
     steps:
       - uses: actions/checkout@v4
@@ -50,8 +76,15 @@ jobs:
       # makes a later re-run comparable to this one.
       - name: Font inventory (the variable under test)
         run: npx tsx tools/font-env-probe.mjs
+      # Which physical machine answered matters as much as the answer, since the
+      # hypothesis under test is that the allocation decides.
+      - name: Identify the machine
+        run: |
+          echo "SANSFLIP-HOST instance=${{ matrix.instance }} name=$(uname -n) arch=$(uname -m) cpus=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo '?')"
+          sw_vers 2>/dev/null || true
       - name: Sample the generic across launches
         env:
           LAUNCHES: ${{ inputs.launches }}
           SETTLE_MS: ${{ inputs.settle_ms }}
+          CONCURRENT: ${{ inputs.concurrent }}
         run: node tools/probe-sans-serif-flip.mjs

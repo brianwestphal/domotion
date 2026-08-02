@@ -42,6 +42,11 @@ import { chromium } from "@playwright/test";
 
 const N = Number(process.env.LAUNCHES ?? process.argv[2] ?? 20);
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 750);
+/** Browsers to run AT ONCE in the concurrent phase. The visual harness runs a
+ *  worker pool, so every real sighting of the flip happened under concurrency
+ *  and CPU pressure; 30 sequential launches on a runner did not reproduce it.
+ *  0 skips the phase. */
+const CONCURRENT = Number(process.env.CONCURRENT ?? 6);
 
 /** The probes. `sans-serif` at 32px/700 is the exact case that flipped; the rest
  *  are there to say WHICH mechanism moved when it does. */
@@ -121,5 +126,38 @@ console.log(timing.length > 0
   ? `SANSFLIP TIMING: first vs settled ask differ within a launch on: ${timing.map((p) => p.id).join(", ")}`
   : "SANSFLIP no within-launch timing effect (settled ask always agrees with the first)");
 
+// Concurrent phase. Sequential launches on an idle runner came back 30/30
+// stable, so if the flip is real it needs something the sweep has and a bare
+// probe does not — the obvious candidate being several browsers competing at
+// once, which is how the harness actually runs.
+let concVaries = false;
+if (CONCURRENT > 0) {
+  console.log("SANSFLIP");
+  console.log(`SANSFLIP === ${CONCURRENT} browsers launched SIMULTANEOUSLY ===`);
+  const results = await Promise.all(Array.from({ length: CONCURRENT }, async (_, k) => {
+    const browser = await chromium.launch();
+    const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
+    const faces = await facesFor(ctx);
+    await browser.close();
+    return { k, faces };
+  }));
+  results.sort((a, b) => a.k - b.k);
+  for (const { k, faces } of results) {
+    console.log(`SANSFLIP concurrent ${String(k + 1).padStart(2)}  ${PROBES.map((p) => `${p.id}=${faces[p.id]}`).join("  ")}`);
+  }
+  for (const p of PROBES) {
+    const set = new Set(results.map((r) => r.faces[p.id]));
+    if (set.size > 1) { concVaries = true; console.log(`SANSFLIP CONCURRENT-VARIES ${p.id}: ${[...set].join("  |  ")}`); }
+  }
+  // Also compare the concurrent answers against the sequential ones — the two
+  // phases disagreeing is itself the finding, even if each is internally stable.
+  for (const p of PROBES) {
+    const seq = rows[0].first[p.id], con = results[0].faces[p.id];
+    if (seq !== con) { concVaries = true; console.log(`SANSFLIP PHASE-DIFFERS ${p.id}: sequential=${seq} concurrent=${con}`); }
+  }
+}
+
 console.log("SANSFLIP");
-console.log(anyVaries ? "SANSFLIP *** VARIES ACROSS LAUNCHES ***" : "SANSFLIP stable across launches");
+console.log(anyVaries || concVaries
+  ? "SANSFLIP *** VARIES ***"
+  : "SANSFLIP stable across launches and under concurrency");
