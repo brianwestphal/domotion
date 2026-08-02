@@ -1563,6 +1563,17 @@ const COLOR_EMOJI_FONT_MAC = "Apple Color Emoji";
  *  behavior into source. */
 const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE !== "0";
 
+/** DM-1916: route a `trak` + `STAT` face's shaping to HarfBuzz (outlines stay
+ *  with the platform helper). DEFAULT-ON; set `DOMOTION_TRAK_HB_SHAPING=0` to
+ *  force the platform shaper for an A/B.
+ *
+ *  Exists because the faces it covers are `system-ui` and CJK, so the blast
+ *  radius is most macOS body text and a fixture that moves cannot be attributed
+ *  by re-running one ref — several of the affected fixtures are independently
+ *  bistable from a Chrome-side `sans-serif` flip. Both arms then run from ONE
+ *  ref on ONE runner, and the flag is the only difference. */
+const _trakHbShapingEnabled = process.env.DOMOTION_TRAK_HB_SHAPING !== "0";
+
 /** DM-1868. Put the two kSystemFonts stages in Blink's order — ask the OS first,
  *  and keep the static per-block chain only as the net for what the OS declines.
  *
@@ -3777,7 +3788,7 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     // re-applied on top; HarfBuzz opens it by face index and gets the file's
     // default instance, so every axis has to be named explicitly or a request
     // for PingFang Regular shapes with the Medium master it is an instance of.
-    const hbShapeFace = helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex)
+    const hbShapeFace = _trakHbShapingEnabled && helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex)
       ? makeHarfbuzzShapeFallback(
         spec.path, helperFaceInfo.faceIndex, fontSize,
         helperFaceInfo.fileAxes != null

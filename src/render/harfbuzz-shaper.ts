@@ -233,10 +233,18 @@ export function harfbuzzShapeRun(
    *
    * `trak` is applied whenever the face carries both `trak` and `STAT`
    * (`hb-ot-shape.cc:216-220`; see `faceHasTrakAndStat`). Swept over the 229
-   * faces in the macOS routing table, 13 qualify: SF Pro and SF Pro Italic, SF
-   * Compact, SF Hebrew, and every PingFang cut — i.e. system-ui body text and
-   * CJK. Helvetica and Times do NOT, against an earlier claim here: their
-   * collection members carry `morx` and `kern` and neither `trak` nor `STAT`.
+   * faces in the macOS routing table, 13 carry the pair — SF Pro and SF Pro
+   * Italic, SF Compact, SF Hebrew, SF Pro Text, and every PingFang cut.
+   * Helvetica and Times do NOT, against an earlier claim here: their collection
+   * members carry `morx` and `kern` and neither table.
+   *
+   * Of those 13, **9 are actually routed** here: the 8 PingFang cuts and SF
+   * Compact. The gate is not the tables but `extractor: "native"` — only such a
+   * face reaches `createGlyphHelperFont` at all, and the rest (SF Pro, SF Pro
+   * Italic, SF Hebrew, SF Pro Text) are opened by fontkit, which has no
+   * `shapeFallback` seam and no AAT tracking of its own. So `system-ui` Latin
+   * text is NOT tracked today; that gap is tracked separately.
+   *
    * Leaving ptem at 0 applies NO
    * tracking, which is a different answer from Chrome's rather than a neutral
    * one. Measured on PingFang, "fi fl ffi", first advance in font units:

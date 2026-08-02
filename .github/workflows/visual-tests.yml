@@ -63,6 +63,9 @@ on:
       system_ui_base:
         description: 'DOMOTION_SYSTEM_UI_BASE override (DM-1859). Empty = renderer default (ON — a system-ui run''s cascade is walked from the CoreText UI font, the way MatchSystemUIFont builds it); 0 = force the old non-UI base for A/B. Only meaningful together with live_fallback_first ON, since the static chain otherwise answers first.'
         default: ''
+      trak_hb_shaping:
+        description: 'DOMOTION_TRAK_HB_SHAPING override (DM-1916). Empty = renderer default (ON — a trak+STAT face is shaped by HarfBuzz at the run''s point size, with outlines still from the platform helper); 0 = force the platform shaper for A/B. Both arms run from ONE ref so the flag is the only difference.'
+        default: ''
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
@@ -172,6 +175,7 @@ jobs:
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
           DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
           DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
+          DOMOTION_TRAK_HB_SHAPING: ${{ inputs.trak_hb_shaping }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -224,6 +228,7 @@ jobs:
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
           DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
           DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
+          DOMOTION_TRAK_HB_SHAPING: ${{ inputs.trak_hb_shaping }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -285,6 +290,7 @@ jobs:
           DOMOTION_FALLBACK_BASE: ${{ inputs.fallback_base }}
           DOMOTION_LIVE_FALLBACK_FIRST: ${{ inputs.live_fallback_first }}
           DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
+          DOMOTION_TRAK_HB_SHAPING: ${{ inputs.trak_hb_shaping }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()

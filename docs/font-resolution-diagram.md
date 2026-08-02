@@ -211,7 +211,7 @@ flowchart TD
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
   G6 -->|"yes (PingFang etc. — hvgl / GSUB-crashing fonts)"| G6t{"faceHasTrakAndStat(path, faceIndex)?<br/>(sfnt table directory — HarfBuzz's own trak gate)"}
-  G6t -->|"yes — SF Pro/Italic, SF Compact,<br/>SF Hebrew, every PingFang cut"| G7t["createGlyphHelperFont(…, shapeFallback: makeHarfbuzzShapeFallback(<br/>path, faceIndex, fontSize, resolveAxisLocationForFile(…)),<br/>preferShapeFallback: true)<br/>→ HarfBuzz shapes (ids/positions/clusters),<br/>helper still draws (outlines by id)"]
+  G6t -->|"yes — SF Compact + every PingFang cut.<br/>SF Pro/Italic/Text and SF Hebrew carry the tables<br/>but never reach here: not extractor:'native'"| G7t["createGlyphHelperFont(…, shapeFallback: makeHarfbuzzShapeFallback(<br/>path, faceIndex, fontSize, resolveAxisLocationForFile(…)),<br/>preferShapeFallback: true)<br/>→ HarfBuzz shapes (ids/positions/clusters),<br/>helper still draws (outlines by id)"]
   G6t -->|"no"| G7["createGlyphHelperFont(postscriptName, path,<br/>shapeFallback: makeFontkitShaper(…))<br/>→ native FontInstance · cache · return"]
   G6 -->|"no"| G8["fontkit.openSync(path)<br/>· TTC: getFont(postscriptName) ?? fonts[0]"]
   G8 --> G9{"opened & has glyf/CFF/CFF2 outline table?<br/>(fontHasOutlineTable)"}
@@ -1244,10 +1244,9 @@ it on every run and says why in as many words
 Leaving it unset is not a neutral default; it applies **no** tracking, which is
 a different answer from Chrome's on any face carrying the pair. Swept over the
 229 faces in the macOS routing table, 13 do: SF Pro and SF Pro Italic, SF
-Compact, SF Hebrew, and every PingFang cut — system-ui body text and CJK.
-Helvetica and Times do **not**; their collection members carry `morx` and `kern`
-and neither `trak` nor `STAT`. Measured on PingFang, first advance of
-`fi fl ffi` in font units:
+Compact, SF Hebrew, SF Pro Text, and every PingFang cut. Helvetica and Times do
+**not**; their collection members carry `morx` and `kern` and neither table.
+Measured on PingFang, first advance of `fi fl ffi` in font units:
 
 | ptem | advance |
 | --- | --- |
@@ -1269,6 +1268,15 @@ The CoreText helper opens each face at `size = unitsPerEm`, so it applies the
 tracking for a 1000 pt render — the 381 row above — at every size. That is not
 an engine disagreement: the two engines agree exactly given the same `ptem`. It
 is the size the helper opens at, and no argument to the helper changes it.
+
+**Scope, stated because the table check alone overstates it.** A face is routed
+here only if it also reaches `createGlyphHelperFont`, i.e. carries
+`extractor: "native"` in the platform table. Nine of the thirteen do — the eight
+PingFang cuts and SF Compact. SF Pro, SF Pro Italic, SF Pro Text and SF Hebrew
+carry `trak` + `STAT` but are opened by fontkit, which has neither this seam nor
+any AAT tracking of its own, so **`system-ui` Latin text is not tracked today**.
+Closing that means giving the fontkit path an equivalent shape-with-HarfBuzz,
+draw-with-fontkit route; tracked separately.
 
 `getFontInstance` therefore asks `faceHasTrakAndStat(path, faceIndex)` — a
 direct read of the sfnt table directory, since the answer decides whether a

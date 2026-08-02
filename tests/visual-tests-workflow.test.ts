@@ -125,6 +125,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       { input: "fallback_base", env: "DOMOTION_FALLBACK_BASE" },
       { input: "live_fallback_first", env: "DOMOTION_LIVE_FALLBACK_FIRST" },
       { input: "system_ui_base", env: "DOMOTION_SYSTEM_UI_BASE" },
+      { input: "trak_hb_shaping", env: "DOMOTION_TRAK_HB_SHAPING" },
     ];
 
     for (const { input, env } of AB_FLAGS) {
