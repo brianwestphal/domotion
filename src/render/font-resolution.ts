@@ -22,7 +22,7 @@ import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold } from "./glyph-helper.js";
-import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+import { faceHasTrakAndStat, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 // Speculative-composition rollback (see `snapshotGeneration` below): re-exported
@@ -3763,12 +3763,40 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
         : process.platform === "darwin"
           ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings)
           : undefined;
+    // DM-1916: a face carrying both `trak` and `STAT` is tracked by HarfBuzz at
+    // the run's point size, and no platform helper reproduces that — the macOS
+    // helper opens every face at size = unitsPerEm, so it tracks as though every
+    // run were 1000 px. Shape those faces with HarfBuzz instead, through the
+    // `shapeFallback` seam so OUTLINES stay with the helper. That split is
+    // Chrome's own: Blink shapes with HarfBuzz and rasterizes from the platform
+    // typeface via Skia.
+    //
+    // The axis location is the SHAPING-side derivation, not `helperAxes`, and
+    // the two legitimately differ: the helper opens the face by PostScript name,
+    // so CoreText resolves a named fvar instance itself and `wght` must not be
+    // re-applied on top; HarfBuzz opens it by face index and gets the file's
+    // default instance, so every axis has to be named explicitly or a request
+    // for PingFang Regular shapes with the Medium master it is an instance of.
+    const hbShapeFace = helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex)
+      ? makeHarfbuzzShapeFallback(
+        spec.path, helperFaceInfo.faceIndex, fontSize,
+        helperFaceInfo.fileAxes != null
+          ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings,
+                                       spec.resolvedAxes, helperFaceInfo.instanceAxes)
+          : null,
+      )
+      : undefined;
     const helper = createGlyphHelperFont({
       postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes,
-      // DM-1883: only consulted when the helper's own `shape` query fails, which
-      // on Windows is always — its helper has no such query, so without this a
-      // shaped run silently degrades to isolated letterforms.
-      shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName, helperAxes),
+      // DM-1883: consulted when the helper's own `shape` query fails, which on
+      // Windows is always — its helper has no such query, so without this a
+      // shaped run silently degrades to isolated letterforms. On a `trak`+`STAT`
+      // face it is consulted FIRST instead (see `preferShapeFallback`), and the
+      // fontkit shaper is not the one to consult there: fontkit implements no
+      // AAT tracking either, so it would answer the same untracked advances the
+      // helper does.
+      shapeFallback: hbShapeFace ?? makeFontkitShaper(spec.path, spec.postscriptName, helperAxes),
+      preferShapeFallback: hbShapeFace != null,
     });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;

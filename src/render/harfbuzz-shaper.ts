@@ -24,7 +24,7 @@
 // `morx` table and no `GSUB` at all. `vendor/harfbuzzjs/` is v1.4.0 with the
 // wasm rebuilt using the configuration Chromium ships; see its README.
 import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
-import { readFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 
 type PathCommand = { command: string; args: number[] };
 
@@ -232,8 +232,12 @@ export function harfbuzzShapeRun(
    *                                                        : platform_data_->size());
    *
    * `trak` is applied whenever the face carries both `trak` and `STAT`
-   * (`hb-ot-shape.cc:216-220`) — on macOS that is Helvetica, Times, SF Pro and
-   * every PingFang cut, i.e. most body text. Leaving ptem at 0 applies NO
+   * (`hb-ot-shape.cc:216-220`; see `faceHasTrakAndStat`). Swept over the 229
+   * faces in the macOS routing table, 13 qualify: SF Pro and SF Pro Italic, SF
+   * Compact, SF Hebrew, and every PingFang cut — i.e. system-ui body text and
+   * CJK. Helvetica and Times do NOT, against an earlier claim here: their
+   * collection members carry `morx` and `kern` and neither `trak` nor `STAT`.
+   * Leaving ptem at 0 applies NO
    * tracking, which is a different answer from Chrome's rather than a neutral
    * one. Measured on PingFang, "fi fl ffi", first advance in font units:
    *
@@ -323,6 +327,122 @@ export function harfbuzzShapeRun(
     clusters.push(g.cluster);
   }
   return { glyphs, positions, clusters };
+}
+
+/** `${path}#${faceIndex}` → does the face carry both tables. */
+const trakStatCache = new Map<string, boolean>();
+
+/** Read exactly `length` bytes at `position`, or null on a short read. */
+function readAt(fd: number, position: number, length: number): DataView | null {
+  if (length <= 0) return null;
+  const buf = Buffer.alloc(length);
+  const n = readSync(fd, buf, 0, length, position);
+  if (n < length) return null;
+  return new DataView(buf.buffer, buf.byteOffset, n);
+}
+
+/**
+ * Does this face carry BOTH `trak` and `STAT` — HarfBuzz's own gate for AAT
+ * tracking, and therefore the set of faces whose shaping we cannot reproduce
+ * without HarfBuzz?
+ *
+ * The rule is one line of the shaping plan
+ * (`external/harfbuzz/src/hb-ot-shape.cc:216-220`, rev 4de187d):
+ *
+ *     // According to Ned, trak is applied by default for "modern fonts", as
+ *     // detected by presence of STAT table.
+ *     plan.apply_trak = hb_aat_layout_has_tracking (face) && face->table.STAT->has_data ();
+ *
+ * where `hb_aat_layout_has_tracking` is `face->table.trak->has_data ()`
+ * (`hb-aat-layout.cc:394`). Both `has_data()` are `version.to_int()`
+ * (`hb-aat-layout-trak-table.hh:192`, `hb-ot-stat-table.hh:479`), which is
+ * non-zero exactly when the table is present and non-empty — so a table
+ * directory entry with a non-zero length is the same question, asked of the
+ * bytes on disk.
+ *
+ * Read from the sfnt table directory rather than through fontkit or hb on
+ * purpose: this decides whether to open a HarfBuzz face at all, so it must not
+ * itself cost one. `PingFangUI.ttc` is 58 MB and the directory is ~500 bytes.
+ */
+export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): boolean {
+  if (fontPath === "" || faceIndex == null) return false;
+  const key = `${fontPath}#${faceIndex}`;
+  const cached = trakStatCache.get(key);
+  if (cached != null) return cached;
+  let result = false;
+  let fd = -1;
+  try {
+    fd = openSync(fontPath, "r");
+    const head = readAt(fd, 0, 12);
+    if (head == null) throw new Error("truncated header");
+    let faceOffset = 0;
+    if (head.getUint32(0) === 0x74746366 /* 'ttcf' */) {
+      if (faceIndex >= head.getUint32(8)) throw new Error("face index past the collection");
+      const off = readAt(fd, 12 + faceIndex * 4, 4);
+      if (off == null) throw new Error("truncated collection offset table");
+      faceOffset = off.getUint32(0);
+    } else if (faceIndex !== 0) {
+      // A non-zero index into a single-face file describes a face that isn't
+      // there; answering for face 0 would be answering about a different font.
+      throw new Error("non-collection asked for a non-zero face");
+    }
+    const dir = readAt(fd, faceOffset, 12);
+    if (dir == null) throw new Error("truncated table directory header");
+    const numTables = dir.getUint16(4);
+    const records = readAt(fd, faceOffset + 12, numTables * 16);
+    if (records == null) throw new Error("truncated table directory");
+    let trak = false;
+    let stat = false;
+    for (let i = 0; i < numTables; i++) {
+      if (records.getUint32(i * 16 + 12) === 0) continue; // zero-length → the Null table
+      const tag = records.getUint32(i * 16);
+      if (tag === 0x7472616b /* 'trak' */) trak = true;
+      else if (tag === 0x53544154 /* 'STAT' */) stat = true;
+    }
+    result = trak && stat;
+  } catch {
+    result = false; // unreadable → treat as untracked, i.e. leave the caller's shaping alone
+  } finally {
+    if (fd >= 0) { try { closeSync(fd); } catch { /* already gone */ } }
+  }
+  trakStatCache.set(key, result);
+  return result;
+}
+
+/** Test seam: drop the memoised `trak`/`STAT` verdicts. */
+export function _clearTrakStatCache(): void { trakStatCache.clear(); }
+
+/**
+ * A shaper for the glyph helper's `shapeFallback` seam, backed by HarfBuzz.
+ *
+ * Shaping and outlines come from different engines here, which is the whole
+ * point of that seam — and it is also what Chrome does: Blink shapes with
+ * HarfBuzz and rasterizes from the platform typeface through Skia. Returning
+ * ids, positions and clusters (and no outlines) keeps the platform helper's
+ * outlines in the picture, which on macOS is what the pixel-exact calibration
+ * was measured against.
+ *
+ * Returns `undefined` when HarfBuzz can't open the face, so a caller can fall
+ * back to its existing shaper rather than lose shaping altogether.
+ */
+export function makeHarfbuzzShapeFallback(
+  fontPath: string,
+  faceIndex: number | null,
+  /** The run's CSS pixel size — this is the reason the seam is being used at
+   *  all, since it drives the `trak` lookup. See `harfbuzzShapeRun`. */
+  fontSizePx?: number,
+  axes?: Record<string, number> | null,
+): ((text: string, direction?: "ltr" | "rtl") => {
+  ids: number[];
+  positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+  clusters: number[];
+} | null) | undefined {
+  if (getHbEntry(fontPath, faceIndex) == null) return undefined;
+  return (text: string, direction?: "ltr" | "rtl") => {
+    const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
+    if (res == null) return null;
+    return { ids: res.glyphs.map((g) => g.id), positions: res.positions, clusters: res.clusters };
+  };
 }
 
 /** A minimal FontInstance-shaped view used by the renderer. Declared loosely so

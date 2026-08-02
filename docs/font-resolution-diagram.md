@@ -210,7 +210,9 @@ flowchart TD
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
-  G6 -->|"yes (PingFang etc. — hvgl / GSUB-crashing fonts)"| G7["createGlyphHelperFont(postscriptName, path)<br/>→ native FontInstance · cache · return"]
+  G6 -->|"yes (PingFang etc. — hvgl / GSUB-crashing fonts)"| G6t{"faceHasTrakAndStat(path, faceIndex)?<br/>(sfnt table directory — HarfBuzz's own trak gate)"}
+  G6t -->|"yes — SF Pro/Italic, SF Compact,<br/>SF Hebrew, every PingFang cut"| G7t["createGlyphHelperFont(…, shapeFallback: makeHarfbuzzShapeFallback(<br/>path, faceIndex, fontSize, resolveAxisLocationForFile(…)),<br/>preferShapeFallback: true)<br/>→ HarfBuzz shapes (ids/positions/clusters),<br/>helper still draws (outlines by id)"]
+  G6t -->|"no"| G7["createGlyphHelperFont(postscriptName, path,<br/>shapeFallback: makeFontkitShaper(…))<br/>→ native FontInstance · cache · return"]
   G6 -->|"no"| G8["fontkit.openSync(path)<br/>· TTC: getFont(postscriptName) ?? fonts[0]"]
   G8 --> G9{"opened & has glyf/CFF/CFF2 outline table?<br/>(fontHasOutlineTable)"}
   G9 -->|"no + native-eligible + helper avail"| G7
@@ -1240,9 +1242,12 @@ it on every run and says why in as many words
 > API was changed to expect the equivalent of CSS pixels here.
 
 Leaving it unset is not a neutral default; it applies **no** tracking, which is
-a different answer from Chrome's on Helvetica, Times, SF Pro and every PingFang
-cut — most macOS body text. Measured on PingFang, first advance of `fi fl ffi`
-in font units:
+a different answer from Chrome's on any face carrying the pair. Swept over the
+229 faces in the macOS routing table, 13 do: SF Pro and SF Pro Italic, SF
+Compact, SF Hebrew, and every PingFang cut — system-ui body text and CJK.
+Helvetica and Times do **not**; their collection members carry `morx` and `kern`
+and neither `trak` nor `STAT`. Measured on PingFang, first advance of
+`fi fl ffi` in font units:
 
 | ptem | advance |
 | --- | --- |
@@ -1259,11 +1264,37 @@ size, so the size is set on **every** shape call rather than at open time — a
 adds it to the symbol list and exposes a `Font.setPtem()` binding. See that
 directory's README.
 
-**Still open on the other path.** The CoreText helper opens each face at
-`size = unitsPerEm`, so CoreText applies the tracking for a 1000 pt render —
-the 381 row above. The two engines agree exactly once given the same `ptem`, so
-this is not an engine difference; it is the size the helper opens at, and it is
-tracked separately.
+**So a tracked face is shaped by HarfBuzz, and drawn by the platform helper.**
+The CoreText helper opens each face at `size = unitsPerEm`, so it applies the
+tracking for a 1000 pt render — the 381 row above — at every size. That is not
+an engine disagreement: the two engines agree exactly given the same `ptem`. It
+is the size the helper opens at, and no argument to the helper changes it.
+
+`getFontInstance` therefore asks `faceHasTrakAndStat(path, faceIndex)` — a
+direct read of the sfnt table directory, since the answer decides whether a
+58 MB face gets opened by HarfBuzz at all — and for a face carrying the pair
+injects `makeHarfbuzzShapeFallback(...)` as the helper's `shapeFallback`, with
+`preferShapeFallback: true` so it is consulted **ahead of** the platform's own
+`shape` query rather than only where that query fails (the Windows case that
+seam was built for).
+
+That seam carries glyph ids, positions and clusters and deliberately **no
+outlines**, so shaping moves and outline production does not. The split is
+Chrome's own — Blink shapes with HarfBuzz and rasterizes from the platform
+typeface through Skia — and it is load-bearing rather than tidy: routing the
+whole `layout()` through a HarfBuzz proxy instead shaped byte-identically on the
+face in question and still moved a Thai fixture's worst tile from 0.0940 to
+0.1214, because it silently moved outline production too and the CoreText
+outlines are what the macOS pixel-exact calibration was measured against.
+
+The axis location handed to HarfBuzz here is the **shaping-side** derivation
+(`resolveAxisLocationForFile`, including any fvar named-instance coordinates),
+not the `resolveDarwinAxisLocation` the helper is opened with, and the two
+legitimately differ: the helper opens the face by PostScript name, so CoreText
+resolves a named instance itself and `wght` must not be re-applied on top;
+HarfBuzz opens it by face index and gets the file's default instance, so every
+axis has to be named explicitly — otherwise a request for PingFang Regular
+shapes with the Medium master it is an instance of.
 
 ### A contrary direction reverses the characters before shaping
 

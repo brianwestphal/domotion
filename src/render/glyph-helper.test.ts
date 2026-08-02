@@ -896,3 +896,112 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
     expect(nominated).toBe("EuphemiaUCAS");
   });
 });
+
+// DM-1916: the injected shaper can be made AUTHORITATIVE for a face, so it is
+// consulted ahead of the platform's own `shape` query rather than only where
+// that query fails.
+//
+// The face this exists for is one carrying `trak` + `STAT`, where HarfBuzz
+// tracks by the run's point size and this helper cannot: it opens every face at
+// size = unitsPerEm, so it tracks as though every run were 1000 px. What must
+// move is SHAPING alone — outlines stay here, which is the whole reason the
+// seam carries no glyph paths. Routing the outlines too is not a hypothetical:
+// doing it via a full `layout()` proxy shaped byte-identically and still moved
+// a Thai fixture's worst tile from 0.0940 to 0.1214, because the CoreText
+// outlines are what the macOS calibration was measured against.
+describeHelper("preferShapeFallback (DM-1916)", () => {
+  const HELVETICA = "/System/Library/Fonts/Helvetica.ttc";
+  const TEXT = "office";
+
+  /** A shaper with a signature answer: one glyph, an advance no real shaping
+   *  would produce, and a real glyph id so an outline can be fetched for it. */
+  const stubShaper = (id: number) => {
+    const seen = { calls: 0 };
+    const shape = (_text: string, _direction?: "ltr" | "rtl") => {
+      seen.calls++;
+      return { ids: [id], positions: [{ xAdvance: 4242, yAdvance: 0, xOffset: 0, yOffset: 0 }], clusters: [0] };
+    };
+    return { shape, seen };
+  };
+
+  /** A real glyph id in this face, so the outline assertions have something to
+   *  compare against. */
+  const someGlyphId = (): number => {
+    const f = createGlyphHelperFont({ postscriptName: "Helvetica", fontPath: HELVETICA })!;
+    return f.glyphForCodePoint("o".codePointAt(0)!).id;
+  };
+
+  it("beats the platform shaper when preferred, and defers to it when not", () => {
+    // Both halves in one test on purpose: the control is the same call with the
+    // flag off. Asserting only the "on" case would pass equally if the seam
+    // had simply replaced the platform shaper outright.
+    const id = someGlyphId();
+    const preferred = stubShaper(id);
+    const on = createGlyphHelperFont({
+      postscriptName: "Helvetica", fontPath: HELVETICA,
+      shapeFallback: preferred.shape, preferShapeFallback: true,
+    })!;
+    const runOn = on.layout(TEXT);
+    expect(preferred.seen.calls).toBe(1);
+    expect(runOn.positions.map((p) => p.xAdvance)).toEqual([4242]);
+
+    const notPreferred = stubShaper(id);
+    const off = createGlyphHelperFont({
+      postscriptName: "Helvetica", fontPath: HELVETICA,
+      shapeFallback: notPreferred.shape,
+    })!;
+    const runOff = off.layout(TEXT);
+    expect(notPreferred.seen.calls).toBe(0);   // CoreText shaped it, so the seam was never reached
+    expect(runOff.glyphs.length).toBeGreaterThan(1);
+  });
+
+  it("takes outlines from the helper, not from the shaper", () => {
+    // The seam carries no outlines at all, so the only way a glyph can have one
+    // is if the helper supplied it by id. Compared against `getGlyph(id)`
+    // rather than merely asserted non-empty: a wrong-but-present outline would
+    // satisfy the weaker check, and a wrong outline is exactly the failure mode
+    // that made the Thai fixture worse.
+    const id = someGlyphId();
+    const font = createGlyphHelperFont({
+      postscriptName: "Helvetica", fontPath: HELVETICA,
+      shapeFallback: stubShaper(id).shape, preferShapeFallback: true,
+    })!;
+    const run = font.layout(TEXT);
+    const direct = font.getGlyph(id);
+    expect(direct.path.commands.length).toBeGreaterThan(0);
+    expect(run.glyphs[0].path.commands).toEqual(direct.path.commands);
+  });
+
+  it("falls through to the platform shaper when the preferred shaper declines", () => {
+    // A shaper is an optimisation of correctness, never a correctness
+    // requirement. Declining (or throwing) must land on CoreText's shaping,
+    // not on the naive one-glyph-per-codepoint path.
+    for (const decline of [() => null, () => { throw new Error("no"); }]) {
+      const font = createGlyphHelperFont({
+        postscriptName: "Helvetica", fontPath: HELVETICA,
+        shapeFallback: decline as never, preferShapeFallback: true,
+      })!;
+      const run = font.layout(TEXT);
+      // CoreText ligates the "fi" in "office", which the naive path cannot do —
+      // so a glyph count BELOW the character count is what says which of the
+      // two remaining paths ran, more precisely than the count matching would.
+      expect(run.glyphs.length).toBeLessThan(TEXT.length);
+      expect(run.clusters).toBeDefined();   // CoreText shaped it — the naive path reports none
+      expect(run.positions.every((p) => p.xAdvance > 0)).toBe(true);
+    }
+  });
+
+  it("leaves an uncovered run on the naive path", () => {
+    // Same gate the platform shape query carries: an uncovered codepoint has to
+    // reach the renderer's own `.notdef` handling rather than have a shaper
+    // substitute a different tofu.
+    const shaper = stubShaper(someGlyphId());
+    const font = createGlyphHelperFont({
+      postscriptName: "Helvetica", fontPath: HELVETICA,
+      shapeFallback: shaper.shape, preferShapeFallback: true,
+    })!;
+    const run = font.layout("\u{11000}");   // Brahmi, absent from Helvetica
+    expect(shaper.seen.calls).toBe(0);
+    expect(run.clusters).toBeUndefined();
+  });
+});

@@ -647,6 +647,27 @@ export function createGlyphHelperFont(spec: {
    * `shape` query returned null, so a platform that has one is untouched.
    */
   shapeFallback?: (text: string, direction?: "ltr" | "rtl") => ShapedRunFallback | null;
+  /**
+   * DM-1916: consult `shapeFallback` BEFORE this helper's own `shape` query,
+   * rather than only where that query fails.
+   *
+   * Set for a face carrying both `trak` and `STAT`, where HarfBuzz applies AAT
+   * tracking interpolated from the run's point size
+   * (`hb-ot-shape.cc:216-220`) and Blink feeds it the CSS pixel size on every
+   * run (`harfbuzz_face.cc:641-647`). Measured on PingFang, "fi fl ffi", first
+   * advance in font units: HarfBuzz at the run's 16 px gives 397, the CoreText
+   * helper gives 381 — it opens the face at size = unitsPerEm, so it tracks as
+   * though every run were 1000 px. Neither number is wrong for its own engine;
+   * only one of them is Chrome's.
+   *
+   * Outlines are untouched: this seam carries ids, positions and clusters, and
+   * the glyphs still come from this helper by id. That split is Chrome's own —
+   * Blink shapes with HarfBuzz and rasterizes from the platform typeface — and
+   * it is the difference between this and routing the whole `layout()` away,
+   * which silently moved outline production too and made the Thai fixture worse
+   * (worstTile 0.0940 → 0.1214) while shaping byte-identically.
+   */
+  preferShapeFallback?: boolean;
 }): GlyphHelperFontInstance | null {
   if (!isGlyphHelperAvailable()) return null;
 
@@ -847,6 +868,30 @@ export function createGlyphHelperFont(spec: {
     return shaped;
   }
 
+  /** Shape via the injected shaper, taking outlines from THIS helper by id.
+   *
+   *  Called from two places in `layout()` — ahead of the platform shape query
+   *  on a `preferShapeFallback` face, and after it fails everywhere else — so
+   *  the "ids and positions only, outlines stay here" contract is written once
+   *  rather than twice. Returns null when there is no shaper, when it declines,
+   *  or when what it returned doesn't line up; every caller then continues.
+   *
+   *  Both callers gate on `fullyCovered` first; this deliberately does not
+   *  re-check it, since the coverage probe lives in `layout()`. */
+  function shapeViaFallback(text: string, direction?: "ltr" | "rtl"): {
+    glyphs: GlyphHelperGlyph[];
+    positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+    clusters: number[];
+  } | null {
+    if (spec.shapeFallback == null) return null;
+    let ext: ShapedRunFallback | null = null;
+    // A shaper is an optimisation of correctness, never a correctness
+    // requirement: if it throws, the caller's remaining paths still render text.
+    try { ext = spec.shapeFallback(text, direction); } catch { ext = null; }
+    if (ext == null || ext.ids.length === 0 || ext.ids.length !== ext.positions.length) return null;
+    return { glyphs: ext.ids.map((id) => fetchById(id)), positions: ext.positions, clusters: ext.clusters };
+  }
+
   return {
     unitsPerEm,
     ascent: metaResp.ascent ?? 0,
@@ -873,6 +918,9 @@ export function createGlyphHelperFont(spec: {
     // batched query produces the identical result the lazy single-query call
     // would, so the populated cache is byte-identical to lazily shaping.
     warmShapes(texts: string[]): void {
+      // A `preferShapeFallback` face never reaches `shapeText`, so pre-warming
+      // its cache is a helper round-trip whose result nothing will read.
+      if (spec.preferShapeFallback === true) return;
       const need: string[] = [];
       const seen = new Set<string>();
       for (const t of texts) {
@@ -953,6 +1001,16 @@ export function createGlyphHelperFont(spec: {
       const cps0 = [...text].map((c) => c.codePointAt(0)!);
       fetchByCps(cps0); // batch the coverage probe (cached, reused below)
       const fullyCovered = cps0.every((cp) => !missingCp.has(cp) && (cpToGlyph.get(cp)?.id ?? 0) !== 0);
+      // DM-1916: on a face where the injected shaper is the authoritative one
+      // (`preferShapeFallback` — `trak` + `STAT`, where this helper cannot
+      // reproduce Chrome's size-dependent tracking), ask it first. Same
+      // `fullyCovered` gate as below and for the same reason: an uncovered
+      // codepoint must reach the naive branch so the renderer's own `.notdef`
+      // handling applies rather than a shaper's substituted tofu.
+      const preferred = (spec.preferShapeFallback === true && fullyCovered)
+        ? shapeViaFallback(text, direction)
+        : null;
+      if (preferred != null) return preferred;
       const shaped = fullyCovered ? shapeText(text) : null;
       if (shaped != null && shaped.length > 0) {
         // DM-1111: neutralize CoreText's isolated-mark bearing compensation so a
@@ -1007,15 +1065,9 @@ export function createGlyphHelperFont(spec: {
       // uncovered codepoint must reach the naive branch so the renderer's own
       // `.notdef` handling applies, rather than having a shaper substitute a
       // different tofu.
-      if (fullyCovered && spec.shapeFallback != null) {
-        let ext: ShapedRunFallback | null = null;
-        // A shaper is an optimisation of correctness, never a correctness
-        // requirement: if it throws, the naive path below still renders text.
-        try { ext = spec.shapeFallback(text, direction); } catch { ext = null; }
-        if (ext != null && ext.ids.length > 0 && ext.ids.length === ext.positions.length) {
-          const glyphs: GlyphHelperGlyph[] = ext.ids.map((id) => fetchById(id));
-          return { glyphs, positions: ext.positions, clusters: ext.clusters };
-        }
+      if (fullyCovered) {
+        const ext = shapeViaFallback(text, direction);
+        if (ext != null) return ext;
       }
 
       // Fallback: naive per-codepoint mapping (CoreText shaping unavailable).
