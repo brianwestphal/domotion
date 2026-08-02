@@ -286,12 +286,35 @@ export function textToPathMarkup(
         // ADVANCE (from the capture) stayed Chrome's. The rasterGlyph rationale
         // above doesn't reach here: an overlay is only pinned for emoji, and a
         // PUA or noncharacter codepoint is neither.
+        //
+        // GENERALISED: the terminal is the primary for EVERY uncovered
+        // codepoint, not only the private-use ones. Blink's iterator ends at
+        // `kFirstCandidateForNotdefGlyph` and re-returns the first candidate so
+        // that font's `.notdef` paints; the stage before it asks
+        // `GetLastResortFallbackFont`, which on macOS is **Times** (Lucida
+        // Grande as a backstop, `mac/font_cache_mac.mm:376-392`) and is NEVER
+        // the Unicode LastResort font — the TODO at
+        // `font_fallback_iterator.cc:147-149` explicitly wishes it were.
+        //
+        // Measured against Chrome rather than inferred, on five codepoints
+        // nothing on the host covers (Egyptian Hieroglyphs Ext-A U+13460, CJK
+        // Ext-G U+30000, Sutton SignWriting U+1D800, Tangut Components U+18800,
+        // Vithkuqi U+10570): `CSS.getPlatformFontsForNode` names **Helvetica**
+        // for all five and the advance is 20.2813px at 32px — exactly
+        // Helvetica's `.notdef` (1298/2048 em). LastResort's glyph would be
+        // 35.2031px.
+        //
+        // The emoji case above still reaches this branch and still wants the
+        // chain tail: `emojiToTerminal` routes an uncovered emoji here on
+        // purpose so the captured rasterGlyph PNG overlay keeps its advance
+        // pinning, which is the rationale the original comment gives. That is
+        // the one caller for which the pin was ever the point.
         emitCh = ch;
-        if (isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp)) {
-          useKey = primaryFontKey;
-        } else {
+        if (emojiToTerminal) {
           const chain = fallbackFontChain(cp, primaryFontKey, lang);
           useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
+        } else {
+          useKey = primaryFontKey;
         }
         useFontOverride = null;
         useDecomposed = false;
