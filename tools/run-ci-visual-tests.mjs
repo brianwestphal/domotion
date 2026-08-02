@@ -101,11 +101,28 @@ async function findRunId(dispatchAt) {
     let json;
     try {
       json = sh("gh", ["run", "list", "--workflow", WORKFLOW, "--branch", ref, "-L", "10",
-        "--json", "databaseId,createdAt,event,headSha"]);
+        "--json", "databaseId,createdAt,event,headSha,displayTitle"]);
     } catch { continue; }
     const runs = JSON.parse(json)
       .filter((r) => r.event === "workflow_dispatch" && r.headSha === localSha
-        && new Date(r.createdAt).getTime() >= dispatchAt.getTime() - 5000)
+        && new Date(r.createdAt).getTime() >= dispatchAt.getTime() - 5000
+        // DM-1926: the suite and OS must match, not just the ref and the time.
+        // Two sweeps dispatched seconds apart on one branch are the same
+        // workflow at the same sha, so time alone cannot tell them apart — and
+        // the unicode invocation attached to the html run, then compared html
+        // results against the unicode baseline and reported all 818 unicode
+        // fixtures as "dropped". The workflow's own `concurrency.group` already
+        // distinguishes them; only this lookup did not.
+        //
+        // `displayTitle` is the run name the workflow builds from its inputs
+        // ("Visual tests · unicode · os=macos"). Still not proof against two
+        // dispatches of the SAME suite racing — for that the run would need a
+        // correlation id — but it removes the case that actually occurs, and
+        // `diff-against-baseline.mjs` now refuses to grade a mismatched corpus
+        // whatever the cause.
+        && typeof r.displayTitle === "string"
+        && r.displayTitle.includes(`\u00b7 ${suite} \u00b7`)
+        && r.displayTitle.includes(`os=${os}`))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (runs.length > 0) return runs[0].databaseId;
     process.stdout.write(".");

@@ -128,6 +128,43 @@ for (const [name, base] of baseline) {
 
 const newFailing = newFixtures.filter((f) => isFail(f.cur));
 
+// DM-1926: refuse to grade a result set that is not describing the same corpus.
+//
+// A comparison of the wrong suite's results against this baseline is not a
+// regression report, it is a category error — and it renders as one of the most
+// alarming things this script can print ("Dropped: 818"), which reads as though
+// the change deleted the fixture corpus. The reverse pairing is worse: a clean
+// wrong-run verdict is indistinguishable from a real pass.
+//
+// It happened by dispatching the unicode and html sweeps seconds apart, which
+// made the client-side run lookup attach to the wrong one. That lookup is fixed
+// too, but this guard is the one that holds for any cause — a mis-staged
+// artifact, a truncated download, a baseline for another suite.
+//
+// The threshold is deliberately loose. Suites genuinely gain and lose fixtures,
+// so a few percent of drift is ordinary; what it must catch is two corpora that
+// barely intersect. Measured on the real collision: 0 of 818 baseline fixtures
+// present, out of a 295-fixture run.
+//
+// The size floor is not a fudge to keep a test green. Below a couple of dozen
+// fixtures "no overlap" stops being evidence of anything — one renamed fixture
+// produces it — and the inputs that small are smoke tests and single-fixture
+// probes, where this failing first would mask the error they are actually
+// exercising. Real sweeps are 295 (html) and 818 (unicode).
+const CORPUS_MIN = 25;
+const overlap = [...baseline.keys()].filter((n) => current.has(n)).length;
+if (baseline.size >= CORPUS_MIN && current.size >= CORPUS_MIN
+    && overlap < Math.min(baseline.size, current.size) * 0.5) {
+  console.error(
+    `FATAL: this result set does not describe the baseline's corpus — only ${overlap} of `
+    + `${baseline.size} baseline fixtures are present (${current.size} in the run).\n`
+    + `  Baseline: ${baselinePath}\n`
+    + "  Most likely the staged results are from a DIFFERENT suite's run. Re-stage the\n"
+    + "  intended run explicitly:  node tools/run-ci-visual-tests.mjs --suite <s> --run-id <id>",
+  );
+  process.exit(2);
+}
+
 const curFails = [...current.values()].filter(isFail).length;
 const baseFails = [...baseline.values()].filter(isFail).length;
 
