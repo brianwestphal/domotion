@@ -1555,9 +1555,18 @@ async function main(): Promise<void> {
 
   // --only is matched against the flattened name (with `/` → `-`) so callers
   // can pass either form: `--only niche-foo` and `--only niche/foo` both work.
-  const onlyNorm = onlyArg != null ? onlyArg.replace(/\//g, "-") : null;
-  const filteredFiles = onlyNorm != null
-    ? files.filter((f) => f.replace(/\//g, "-").startsWith(onlyNorm))
+  //
+  // A COMMA-SEPARATED list selects the union, which is what bisecting a handful
+  // of fixtures needs. It used to be a single prefix, and a comma list then
+  // matched nothing — silently: every shard "succeeded" with no work, and only
+  // the CI aggregate step noticed, six minutes later, with
+  // `no results.json found under shard-artifacts`. Selecting nothing is now a
+  // hard error below rather than an empty success.
+  const onlyPrefixes = onlyArg != null
+    ? onlyArg.split(",").map((s) => s.trim().replace(/\//g, "-")).filter((s) => s !== "")
+    : null;
+  const filteredFiles = onlyPrefixes != null && onlyPrefixes.length > 0
+    ? files.filter((f) => { const n = f.replace(/\//g, "-"); return onlyPrefixes.some((p) => n.startsWith(p)); })
     : files;
   // DM-1216: shard-by-index so independent GitHub Actions jobs can each run a
   // slice of the suite. `--shard i/N` (or HTML_TEST_SHARD=i/N) keeps a STRIDE of
@@ -1568,7 +1577,16 @@ async function main(): Promise<void> {
     : process.env.HTML_TEST_SHARD;
   const testFiles = selectShard(filteredFiles, shardSpec);
   if (testFiles.length === 0) {
-    console.log(`No test files matched (onlyArg=${onlyArg ?? "(none)"}, shard=${shardSpec ?? "(none)"}).`);
+    // An `--only` that matches nothing is a caller mistake, not an empty run.
+    // Exiting 0 here is what let a mistyped filter look like a passing CI shard;
+    // a shard whose STRIDE is legitimately empty is different and stays benign.
+    const msg = `No test files matched (onlyArg=${onlyArg ?? "(none)"}, shard=${shardSpec ?? "(none)"}).`;
+    if (onlyPrefixes != null && filteredFiles.length === 0) {
+      console.error(`${msg}\n  --only takes one or more name PREFIXES, comma-separated, e.g. --only 2070,2C60`);
+      process.exitCode = 2;
+      return;
+    }
+    console.log(msg);
     return;
   }
   const shardNote = parseShardSpec(shardSpec) != null

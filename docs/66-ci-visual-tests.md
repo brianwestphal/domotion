@@ -13,10 +13,21 @@ The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual s
 node tools/run-ci-visual-tests.mjs --suite unicode            # macOS, all 818, auto-sharded
 node tools/run-ci-visual-tests.mjs --suite html --os linux    # Linux debugging
 node tools/run-ci-visual-tests.mjs --suite unicode --only 10  # just the 1xxx blocks
+node tools/run-ci-visual-tests.mjs --suite unicode --only 2070,2C60  # two specific blocks
 node tools/run-ci-visual-tests.mjs --suite unicode --update-baseline  # (re)write the committed CI baseline
 ```
 
-It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, **diffs the run against the committed CI baseline** (`tests/baselines/<suite>-<os>.json` — see "Two baselines" below), and prints the pass/fail summary + the baseline diff + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <filter>`, `--ref <branch>`, `--update-baseline`, `--no-review`.
+`--only` takes one or more fixture-name **prefixes**, comma-separated; the union is run. It matches the flattened
+name, so `--only niche-foo` and `--only niche/foo` are equivalent. A filter that matches nothing now **exits 2**
+rather than reporting an empty success — the previous behaviour let a mistyped or comma-separated filter produce
+five "successful" shards with no work and a confusing `no results.json found under shard-artifacts` failure in
+the aggregate step several minutes later.
+
+**`--ref <branch>` is not enough on its own**: the dispatcher resolves the ref from the CURRENT branch and refuses
+unless `origin/<branch>` equals local `HEAD`. To sweep another commit, check it out in a worktree
+(`git worktree add /tmp/wt <branch>`) and run the dispatcher from there.
+
+It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, **diffs the run against the committed CI baseline** (`tests/baselines/<suite>-<os>.json` — see "Two baselines" below), and prints the pass/fail summary + the baseline diff + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <prefix[,prefix…]>`, `--ref <branch>`, `--update-baseline`, `--no-review`.
 
 ### Reviewing the CI diffs locally — four-source toggle (DM-1660)
 
