@@ -377,3 +377,32 @@ DM-1419 baseline work), so nothing else needs re-seeding for the flip.
   (`IDWriteTextAnalysisSource`), `fontFacePath` / `fontFamilyDisplayName`
   (substitute-face path + family). Build with `tools/win32-glyph-extractor/build.ps1`
   (CMake + MSVC) or directly with `cl /std:c++17 /O2 /EHsc /MT main.cpp`.
+
+## Emoji takes a different question on every platform
+
+Blink does not ask the platform about an emoji-presentation run the way it asks about ordinary text, and the substitution is different on each platform. Both are transcribed rather than approximated.
+
+**macOS** short-circuits before the cascade is consulted at all — a by-name lookup of `Apple Color Emoji` (`mac/font_cache_mac.mm:319-324`), so the cascade base is irrelevant for emoji.
+
+**Linux** keeps the fontconfig query but substitutes **both of its arguments** (`linux/font_cache_linux.cc:71-77` and `:89-93`):
+
+| argument | ordinary run | emoji-presentation run |
+| --- | --- | --- |
+| character | the run's codepoint | **U+1F46A FAMILY** (`uchar::kFamily`) |
+| locale | `font_description.LocaleOrDefault()` | **`und-Zsye`** (`kColorEmojiLocale`, `fonts/font_cache.cc:82`) |
+
+Both matter, for different reasons. Asking about FAMILY is deliberate over-asking — Chromium's own comment says it is "in the hope to find a suitable emoji font", because a font covering FAMILY is a real emoji font where a font covering some *individual* emoji may be an ordinary text face that happens to carry a few. `und-Zsye` is what steers fontconfig toward a colour font instead of toward the page's language.
+
+Measured in the Playwright `noble` image, with and without the substitution:
+
+| codepoint | without | with |
+| --- | --- | --- |
+| 😀 U+1F600 | Unifont Upper (monochrome bitmap) | **Noto Color Emoji** |
+| 👪 U+1F46A | Unifont Upper | **Noto Color Emoji** |
+| ⌚ U+231A | FreeSerif | **Noto Color Emoji** |
+| ☀ U+2600 (text presentation) | IPAGothic / IPAPGothic per locale | unchanged |
+| 漢 U+6F22 | WenQuanYi Zen Hei | unchanged |
+
+`⌚ → FreeSerif` is exactly the failure the FIXME describes. The two bottom rows are the control: non-emoji queries are untouched, and U+2600 still varies with the locale, so the locale substitution is scoped to emoji rather than applied globally.
+
+The predicate is `isEmojiPresentationCp` — `Emoji_Presentation` minus `Emoji_Modifier`, from Unicode properties rather than a hand-listed range set. It is the closest a per-codepoint resolver can come to Blink's `IsEmojiPresentationEmoji`, which is a property of the segmented **run** (`kEmojiEmoji | kEmojiEmojiWithVS`): a text-presentation codepoint followed by U+FE0F is emoji-presentation for Blink and is not here.

@@ -1836,9 +1836,7 @@ function resolveSystemFallbackKeyForCp(
       //
       // `kBoldThreshold` is 600 (`font_description.h`), the same constant the
       // helper already uses for the synthetic-bold trait.
-      const isEmojiPresentation = /\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))
-        && !/\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp));
-      if (!isEmojiPresentation && (slant !== 0 || weight >= 600) && primaryKey != null) {
+      if (!isEmojiPresentationCp(cp) && (slant !== 0 || weight >= 600) && primaryKey != null) {
         // The standard-style face of the SAME family. `getFontInstance` is
         // memoised, so this costs a map hit after the first bold codepoint.
         const standard = getFontInstance(primaryKey, 400, fontSize, 0);
@@ -1961,7 +1959,75 @@ export function fcLangProperty(lang?: string): string {
   return `:lang=${tag}`;
 }
 
+/**
+ * Blink's `IsEmojiPresentationEmoji(fallback_priority)`, as far as a single
+ * codepoint can express it.
+ *
+ * Blink's version is a property of the SEGMENTED RUN — `kEmojiEmoji |
+ * kEmojiEmojiWithVS` (`font_fallback_priority.h:45-48`) — so a text-presentation
+ * codepoint followed by U+FE0F is emoji-presentation there and is not here. Our
+ * resolver is per-codepoint, so this is the closest faithful reading: default
+ * emoji presentation, minus the skin-tone modifiers, which are never a run's
+ * priority on their own.
+ *
+ * Derived from Unicode properties rather than a hand-listed range set, so it
+ * tracks the Unicode version rather than freezing one.
+ */
+export function isEmojiPresentationCp(cp: number): boolean {
+  const ch = String.fromCodePoint(cp);
+  return /\p{Emoji_Presentation}/u.test(ch) && !/\p{Emoji_Modifier}/u.test(ch);
+}
+
+/** `uchar::kFamily` — U+1F46A FAMILY. Blink asks fontconfig about THIS instead
+ *  of the run's actual emoji (`linux/font_cache_linux.cc:71-77`). */
+const BLINK_EMOJI_FALLBACK_CP = 0x1f46a;
+
+/** `kColorEmojiLocale` (`fonts/font_cache.cc:82`). */
+const BLINK_COLOR_EMOJI_LOCALE = "und-Zsye";
+
+/**
+ * Blink's two emoji substitutions, as a pure function of the query.
+ *
+ * Split out from the resolver so the SUBSTITUTION can be tested on any host: the
+ * resolver itself is platform-gated and needs fontconfig, so a unit test there
+ * would only run on Linux and the rule would go unchecked on the machine most
+ * changes are written on.
+ *
+ * Exported for tests; not in the package barrel.
+ */
+export function blinkEmojiFallbackQuery(cp: number, lang?: string): { cp: number; lang?: string } {
+  if (!isEmojiPresentationCp(cp)) return { cp, lang };
+  return { cp: BLINK_EMOJI_FALLBACK_CP, lang: BLINK_COLOR_EMOJI_LOCALE };
+}
+
 function resolveLinuxSystemFallbackKeyForCp(cp: number, lang?: string): string | null {
+  // DM-1895: an emoji-presentation run asks fontconfig a DIFFERENT question —
+  // Blink substitutes both the character and the locale before the query
+  // (`linux/font_cache_linux.cc:71-77` and `:89-93`, rev 7d859f27):
+  //
+  //     if (IsEmojiPresentationEmoji(fallback_priority)) {
+  //       // FIXME crbug.com/591346: We're overriding the fallback character here
+  //       // with the FAMILY emoji in the hope to find a suitable emoji font.
+  //       c = uchar::kFamily;
+  //     }
+  //     ...
+  //     FontCache::GetFontForCharacter(
+  //         c, IsEmojiPresentationEmoji(fallback_priority)
+  //                ? kColorEmojiLocale
+  //                : font_description.LocaleOrDefault().Ascii().c_str(), ...)
+  //
+  // Both matter, and for different reasons. Asking about U+1F46A rather than the
+  // run's own emoji is deliberate over-asking: a font covering FAMILY is a real
+  // emoji font, where a font covering some INDIVIDUAL emoji may be an ordinary
+  // text face that happens to carry a few. And `und-Zsye` is what steers
+  // fontconfig toward a colour font instead of toward the page's language.
+  //
+  // We asked about the literal codepoint with the content locale, so both
+  // substitutions were missing. macOS has had its own emoji short-circuit since
+  // DM-1884 (a by-name Apple Color Emoji lookup, mirroring
+  // `mac/font_cache_mac.mm:319-324`); this is the Linux equivalent, and it is a
+  // different mechanism because Blink's is.
+  ({ cp, lang } = blinkEmojiFallbackQuery(cp, lang));
   // DM-1886: ask fontconfig the way Chrome does, when the helper can.
   //
   // Blink is `linux/font_cache_linux.cc:89-97` → `gfx::GetFallbackFontForChar(c,
