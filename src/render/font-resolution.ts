@@ -22,7 +22,7 @@ import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold } from "./glyph-helper.js";
-import { faceHasTrakAndStat, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 // Speculative-composition rollback (see `snapshotGeneration` below): re-exported
@@ -3982,6 +3982,25 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // didn't); null when the file is static (no pinning needed).
   const fileIsVariable = font?.variationAxes != null && Object.keys(font.variationAxes).length > 0;
   const appliedAxes = (instance as unknown as { _appliedVariationAxes?: Record<string, number> })._appliedVariationAxes;
+  // DM-1925: the fontkit path needs the same AAT tracking DM-1916 gave the
+  // native-helper path, and for the faces that matter most — `sf-pro`,
+  // `sf-pro-italic`, `sf-pro-text` and `sf-hebrew` carry `trak` + `STAT` and
+  // land HERE rather than on the helper, because they are ordinary `glyf` files
+  // and so never take the `extractor: "native"` branch. That is `system-ui`,
+  // i.e. most macOS body text, and fontkit implements no AAT tracking at all.
+  //
+  // Installed in place rather than proxied: `instance` is already carrying its
+  // weight/italic/trait fields and is about to become a `fontSourceMap` key.
+  // Only `layout` changes — outlines still come from fontkit, by glyph id, in
+  // the same gid space (same file). Same split as the helper path, and Chrome's
+  // own: HarfBuzz shapes, the platform typeface draws.
+  if (_trakHbShapingEnabled && faceIndex != null && faceHasTrakAndStat(spec.path, faceIndex)) {
+    installHarfbuzzShaping(
+      instance as unknown as Parameters<typeof installHarfbuzzShaping>[0],
+      spec.path, faceIndex, fontSize,
+      fileIsVariable ? (appliedAxes ?? null) : null,
+    );
+  }
   fontSourceMap.set(instance as unknown as object, {
     path: spec.path, postscriptName: spec.postscriptName, faceIndex, nameMatched,
     variationAxes: fileIsVariable ? (appliedAxes ?? {}) : null,

@@ -1269,14 +1269,29 @@ tracking for a 1000 pt render — the 381 row above — at every size. That is n
 an engine disagreement: the two engines agree exactly given the same `ptem`. It
 is the size the helper opens at, and no argument to the helper changes it.
 
-**Scope, stated because the table check alone overstates it.** A face is routed
-here only if it also reaches `createGlyphHelperFont`, i.e. carries
-`extractor: "native"` in the platform table. Nine of the thirteen do — the eight
-PingFang cuts and SF Compact. SF Pro, SF Pro Italic, SF Pro Text and SF Hebrew
-carry `trak` + `STAT` but are opened by fontkit, which has neither this seam nor
-any AAT tracking of its own, so **`system-ui` Latin text is not tracked today**.
-Closing that means giving the fontkit path an equivalent shape-with-HarfBuzz,
-draw-with-fontkit route; tracked separately.
+**Both paths carry it, by two different mechanisms.** A face reaches
+`createGlyphHelperFont` only if the platform table marks it
+`extractor: "native"` — nine of the thirteen do (the eight PingFang cuts and SF
+Compact). The other four (SF Pro, SF Pro Italic, SF Pro Text, SF Hebrew) are
+ordinary `glyf` files, so fontkit opens them and they never see the helper's
+seam. Those four are `system-ui`, i.e. most macOS body text, and fontkit
+implements no AAT tracking at all, so they get the same treatment through
+`installHarfbuzzShaping` at the end of `getFontInstance`: HarfBuzz's `layout` is
+installed on the built instance, and fontkit keeps drawing by glyph id.
+
+Installed in place rather than proxied, and that is not a style choice. A
+`getFontInstance` result carries `naturalWeight`, `hasWeightAxis`,
+`faceIsBoldTrait`, `resolvedItalicAngle`, `hasSlantAxis`, `isRoutedItalicCut`
+and `postscriptName`, all read later by the renderer and the embedded-font path,
+and the object is itself the key of `fontSourceMap`. A proxy exposing a fixed
+property set would drop every one of them silently and break identity lookup
+besides. Replacing one method also keeps the identity that
+`renderTextAsPath`'s `useFontOverride !== curFontOverride` run-grouping depends
+on.
+
+Measured on SF Pro, total advance of `Hamburgefonstiv` in font units at 12 / 16 /
+32 px: **15976 at 16 px against 15101 at 32 px**, where before it was flat except
+for the optical-size step. `DOMOTION_TRAK_HB_SHAPING=0` bounds both paths.
 
 `getFontInstance` therefore asks `faceHasTrakAndStat(path, faceIndex)` — a
 direct read of the sfnt table directory, since the answer decides whether a

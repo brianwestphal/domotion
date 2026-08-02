@@ -469,8 +469,64 @@ interface ShapingFontView {
   availableFeatures?: string[];
   "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
   glyphForCodePoint(codePoint: number): { id: number; advanceWidth?: number; codePoints?: number[] };
+  /** By-id glyph access, used only by `outlinesFromBase`. Optional because not
+   *  every view has one; a view without it cannot take that mode. */
+  getGlyph?(id: number): ShapedGlyph;
   warmGlyphs?(codePoints: number[]): void;
   warmShapes?(texts: string[]): void;
+}
+
+/**
+ * Give an EXISTING font instance HarfBuzz shaping, in place, keeping its own
+ * engine as the source of outlines.
+ *
+ * The sibling `makeHarfbuzzShapingInstance` returns a proxy, and a proxy is
+ * wrong for a fully-built `getFontInstance` result: that object carries a dozen
+ * fields the renderer and the embedded-font path read later —
+ * `naturalWeight`, `hasWeightAxis`, `faceIsBoldTrait`, `resolvedItalicAngle`,
+ * `hasSlantAxis`, `isRoutedItalicCut`, `postscriptName` — and it is the KEY of
+ * `fontSourceMap`. A proxy exposing a fixed property set would silently drop
+ * every one of them and break identity lookup besides. Replacing one method
+ * keeps the object, so none of that has to be re-plumbed or remembered.
+ *
+ * Preserving identity also sidesteps the run-grouping hazard the proxy has to
+ * memoize around: `renderTextAsPath` ends a run on `useFontOverride !==
+ * curFontOverride`, an identity comparison, so a per-call object would hand the
+ * shaper one-character runs.
+ *
+ * Returns false when HarfBuzz cannot open the face, leaving the instance
+ * untouched — a caller then keeps whatever shaping it had.
+ */
+export function installHarfbuzzShaping(
+  base: ShapingFontView,
+  fontPath: string,
+  faceIndex: number | null,
+  /** The run's CSS pixel size, which is the point of doing this at all — it is
+   *  what HarfBuzz interpolates the AAT `trak` amount from. */
+  fontSizePx?: number,
+  axes?: Record<string, number> | null,
+): boolean {
+  if (getHbEntry(fontPath, faceIndex) == null) return false;
+  // Captured BEFORE the swap: `layout` is what produces this engine's glyph
+  // objects, and it is also what we are about to replace.
+  const nativeLayout = base.layout.bind(base);
+  const getGlyph = base.getGlyph?.bind(base);
+  base.layout = (text, _features, _script, _language, direction) => {
+    const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
+    if (res == null) return nativeLayout(text);
+    if (getGlyph == null) return res;
+    return {
+      // Positions and clusters are the shaping and stay HarfBuzz's. Only the
+      // glyph objects change hands, so only the outlines do.
+      ...res,
+      glyphs: res.glyphs.map((g) => {
+        let drawn: ShapedGlyph | null = null;
+        try { drawn = getGlyph(g.id); } catch { drawn = null; }
+        return drawn ?? g; // an id this engine cannot draw keeps HarfBuzz's outline
+      }),
+    };
+  };
+  return true;
 }
 
 /**
@@ -492,6 +548,37 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   fontSizePx?: number,
   /** The run's resolved variable-axis location. See `harfbuzzShapeRun`. */
   axes?: Record<string, number> | null,
+  opts?: {
+    /**
+     * DM-1925: keep HarfBuzz's ids, positions and clusters, but take each
+     * glyph's OUTLINE from `base.getGlyph(id)` instead of HarfBuzz's
+     * `glyphToPath`.
+     *
+     * Opt-in, and it has to stay that way: the three DM-1197 divergent-codepoint
+     * call sites were calibrated against HarfBuzz outlines, so flipping the
+     * default would silently re-render them.
+     *
+     * The reason it is wanted at all is that swapping the outline engine is NOT
+     * a no-op even when the shaping is identical. Measured: on the font a Thai
+     * fixture actually paints with, HarfBuzz and CoreText shape byte-for-byte
+     * identically — same ids, offsets and advances — and routing the whole
+     * `layout()` through this proxy still moved that fixture's worst tile from
+     * 0.0940 to 0.1214, purely because the outlines changed hands.
+     *
+     * Drawing another engine's ids is well-defined because it is the same file
+     * and therefore the same gid space, and that is measured rather than
+     * assumed: CoreText-by-path, CoreText-by-name and HarfBuzz return identical
+     * ids for the same SF Pro run, and fontkit draws HarfBuzz's Arial Unicode
+     * gids 5447 / 5463 — the U+F704 / U+F714 Thai shift-left forms, which
+     * fontkit's own shaping would never produce — with exactly the shifted
+     * bounding boxes.
+     *
+     * Falls back to HarfBuzz's own outline when the base has no `getGlyph`, so
+     * a view lacking it degrades to the previous behavior rather than losing
+     * its glyphs.
+     */
+    outlinesFromBase?: boolean;
+  },
 ): T {
   if (getHbEntry(fontPath, faceIndex) == null) return base;
   // Memoized on the exact arguments, because the RESULT'S IDENTITY IS LOAD-BEARING
@@ -504,7 +591,11 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   // Harmless for the original per-codepoint callers (an isolated mark or a single
   // NFD letter is its own run either way), which is why it went unnoticed; it
   // becomes load-bearing the moment a whole run routes through.
-  const memoKey = `${fontPath}#${faceIndex ?? "?"}|${fontSizePx ?? ""}|${axes == null ? "" : JSON.stringify(axes)}`;
+  // `outlinesFromBase` joins the key for the same reason the rest does: two
+  // proxies over one base that differ only in which engine draws are different
+  // objects to the run-grouping identity check, and serving one where the other
+  // was asked for would swap the outline engine silently.
+  const memoKey = `${fontPath}#${faceIndex ?? "?"}|${fontSizePx ?? ""}|${axes == null ? "" : JSON.stringify(axes)}|${opts?.outlinesFromBase === true ? "ob" : ""}`;
   let perBase = hbProxyCache.get(base as object);
   if (perBase == null) { perBase = new Map(); hbProxyCache.set(base as object, perBase); }
   const memo = perBase.get(memoKey);
@@ -513,7 +604,18 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
     layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
       const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
-      return res;
+      if (opts?.outlinesFromBase !== true || base.getGlyph == null) return res;
+      const getGlyph = base.getGlyph.bind(base);
+      return {
+        // Positions and clusters stay HarfBuzz's — they are the shaping. Only
+        // the glyph objects, and therefore the outlines, come from the base.
+        ...res,
+        glyphs: res.glyphs.map((g) => {
+          let drawn: ShapedGlyph | null = null;
+          try { drawn = getGlyph(g.id); } catch { drawn = null; }
+          return drawn ?? g; // a base that cannot draw this id keeps HarfBuzz's outline
+        }),
+      };
     },
     get unitsPerEm() { return base.unitsPerEm; },
     get ascent() { return base.ascent; },
