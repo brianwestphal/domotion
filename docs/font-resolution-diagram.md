@@ -1529,10 +1529,28 @@ adds it to the symbol list and exposes a `Font.setPtem()` binding. See that
 directory's README.
 
 **So a tracked face is shaped by HarfBuzz, and drawn by the platform helper.**
-The CoreText helper opens each face at `size = unitsPerEm`, so it applies the
-tracking for a 1000 pt render — the 381 row above — at every size. That is not
-an engine disagreement: the two engines agree exactly given the same `ptem`. It
-is the size the helper opens at, and no argument to the helper changes it.
+The CoreText helper opens each face at `size = unitsPerEm`, so its `shape` query
+applies the tracking for a 1000 pt render — the 381 row above — at every size.
+That is not an engine disagreement: the two engines agree exactly given the same
+`ptem`. It is the size the helper opens at, and no argument to the helper changes
+it.
+
+That is true of the **`shape`** query only. A run advance is a typeset advance —
+kerning, GPOS and tracking together — and no design-unit API reproduces those, so
+the query keeps CoreText's answer and the HarfBuzz reroute above is what makes it
+Chrome's. The **`glyphs`** and **`notdef`** queries are a different case and are
+no longer tracked at all: they report a per-glyph *design* advance, which by
+definition cannot contain a size-dependent term, so they read it from the CTFont's
+CGFont (`CTFontCopyGraphicsFont` + `CGFontGetGlyphAdvances`, scaled by
+`pointSize / unitsPerEm`) rather than from `CTFontGetAdvancesForGlyphs`. Before
+that, they carried the same 1000 pt tracking as a constant offset — measured on
+`.SFDevanagari-Regular`, every glyph at every `opsz` instance was exactly 10
+design units short of the file's `hmtx` + `HVAR` value, so no independent reader
+could reproduce the helper's numbers for these faces. Chrome's painted advance
+for that face is design-plus-tracking-at-the-run-size applied **once**, measured
+across 13–64 px, which makes the untracked design advance the correct input.
+Full derivation in [`16-coretext-glyph-extraction.md`](./16-coretext-glyph-extraction.md),
+"Advances are design units, not typeset units".
 
 **Both paths carry it, by two different mechanisms.** A face reaches
 `createGlyphHelperFont` only if the platform table marks it

@@ -785,7 +785,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   and rasterizes from the platform typeface — and it is load-bearing: an earlier
   attempt that moved outlines too shaped byte-identically and still moved a Thai
   fixture's worst tile from 0.0940 to 0.1214. `DOMOTION_TRAK_HB_SHAPING=0` bounds
-  the whole mechanism.
+  the whole mechanism. **Only the `shape` query tracks; the per-glyph `glyphs` /
+  `notdef` queries no longer do.** They report a DESIGN-unit advance, which cannot
+  hold a size-dependent term, so they read it from the CTFont's CGFont rather than
+  from `CTFontGetAdvancesForGlyphs` — which was silently adding the largest-size
+  tracking value to every advance (`.SFDevanagari-Regular` came back exactly 10
+  design units short of the file at every `opsz` instance, so the helper's numbers
+  for the 126 affected faces were not reproducible by any independent reader). See
+  doc 16, "Advances are design units, not typeset units".
   (1) DM-1197: USE-shaped precomposed letters with a canonical base+mark NFD
   (Kaithi `U+110AB`, Balinese, Tulu-Tigalari — 13 cps) shape via HarfBuzz instead
   of the CoreText helper, which recomposes and mis-places the mark; scoped to the

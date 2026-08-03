@@ -145,11 +145,25 @@ Exit code 0 on success; non-zero with a JSON error object on stderr otherwise. C
      - `.addQuadCurveToPoint(cx, cy, x, y)` → `Q {cx} {-cy} {x} {-y}`
      - `.addCurveToPoint(c1x, c1y, c2x, c2y, x, y)` → `C {c1x} {-c1y} {c2x} {-c2y} {x} {-y}`
      - `.closeSubpath` → `Z`
-   - `CTFontGetAdvancesForGlyphs(.horizontal, ...)` for advance widths.
+   - Advance widths come from the CTFont's **CGFont** (`CTFontCopyGraphicsFont` + `CGFontGetGlyphAdvances`), scaled by `pointSize / unitsPerEm` — **not** from `CTFontGetAdvancesForGlyphs`. See "Advances are design units, not typeset units" below.
    - `CTFontGetBoundingRectsForGlyphs(.horizontalOrientation, ...)` for bbox; flip y to SVG convention.
 4. For `meta` queries: read `unitsPerEm`, ascent, descent from CoreText; reach into the `post` and `OS/2` tables via `CTFontCopyTable` for underline/strikeout metrics.
 
 Numbers are emitted with a fixed precision (3 decimal places) to keep the output deterministic and dedup-friendly downstream.
+
+### Advances are design units, not typeset units
+
+The Node side opens every face at `size = unitsPerEm` so that outlines and metrics come back in the font's own design-unit space (the renderer then applies `scale(fontSize / unitsPerEm, …)`). Advances have to honor that convention, and `CTFontGetAdvancesForGlyphs` does not: it returns a **typeset** advance — the design advance plus the AAT `trak` table's spacing adjustment, interpolated at the CTFont's point size. A point size of 1000 (or 2048) runs off the end of `trak`'s size table, so CoreText clamps to the largest-size tracking value and adds that constant to every advance.
+
+Measured on `/System/Library/Fonts/SFIndia.ttc` member `.SFDevanagari-Regular` (upem 1000), whose `trak` normal track is `[38, 20, 0, −10]` at sizes `[12, 17, 28, 34]`: every glyph, at every `opsz` instance, came back exactly 10 design units short of what an independent reader of `hmtx` + `HVAR` gets (U+0915 read 823 where the file says 833). The constant-across-all-glyphs shape is what identifies it as a table lookup rather than an axis or interpolation difference. On a stock macOS install 126 faces carry both `trak` and `STAT` with a non-zero largest-size tracking value — the SF Indic / Compact / Camera families, New York, and Apple Color Emoji among them. `STAT` is load-bearing: CoreText applies `trak` only when the face also carries it, matching HarfBuzz's own gate (`plan.apply_trak = hb_aat_layout_has_tracking (face) && face->table.STAT->has_data ()`, `hb-ot-shape.cc:218`), so Hoefler Text, Skia and Apple Chancery carry a non-zero `trak` and are unaffected.
+
+Tracking is not wrong here, it is misplaced. It belongs at the **run's** point size, applied once, downstream — Chrome sets it with `hb_font_set_ptem(unscaled_font, specified_size)` (`third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.cc:645-648`, Chromium `7d859f27`), and Domotion mirrors that by routing `trak` + `STAT` faces' shaping through HarfBuzz (see [`font-resolution-diagram.md`](./font-resolution-diagram.md), "Shaping passes the run's size, because AAT tracking depends on it"). Folding a size-1000 tracking value into the design-unit advance both double-counts it and uses a size no run has.
+
+So the `glyphs` and `notdef` queries read advances from the CTFont's **CGFont** instead. A CGFont is a glyph-space object with no point size and therefore no tracking, and it carries the variation coordinates through, so the `opsz` instance the caller asked for is still the one measured. Verified against fontkit across the affected faces: the CGFont advance equals fontkit's `hmtx` + `HVAR` advance rounded to the nearest design unit at every sample. That residual rounding is not a loss — a variable font's advances are integers in every consumer that matters (`hmtx` stores integers, HarfBuzz rounds the `HVAR` delta back to one in `hb-ot-hmtx-table.hh:369-375`, and CoreGraphics' glyph-space advance is an `int32`); only fontkit keeps the unrounded interpolation.
+
+Confirmed against Chrome's own paint. Rendering `क` in `system-ui` at 13 / 16 / 20 / 32 / 64 px, Chrome reports the face as `.SFDevanagari-Regular` at the expected `opsz` instances and paints advances matching *design + tracking-at-the-run-size*, applied once, at every size — the "no tracking" and "tracking twice" models are off by 0.4–0.65 px. Chrome's design-unit input is therefore the file's value, i.e. fontkit's, not the helper's pre-fix number.
+
+The **`shape` query is deliberately excluded** from this: a run advance from `CTRunGetAdvances` is a typeset advance carrying kerning and GPOS as well as tracking, and no design-unit API reproduces those. That query keeps CoreText's tracking-at-the-open-size, which is exactly why `trak` + `STAT` faces have their shaping routed through HarfBuzz rather than through it.
 
 ### Distribution and acquisition
 

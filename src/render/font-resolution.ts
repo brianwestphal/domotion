@@ -4015,8 +4015,12 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       // shaped run silently degrades to isolated letterforms. On a `trak`+`STAT`
       // face it is consulted FIRST instead (see `preferShapeFallback`), and the
       // fontkit shaper is not the one to consult there: fontkit implements no
-      // AAT tracking either, so it would answer the same untracked advances the
-      // helper does.
+      // AAT tracking at all, so it would answer advances with no tracking in
+      // them, where Chrome's carry the tracking for the RUN's point size. Only
+      // HarfBuzz, told the run size via `ptem`, produces that. (The helper's
+      // per-glyph `glyphs` query is deliberately untracked too — a DESIGN-unit
+      // advance cannot hold a size-dependent term — but that is the input to
+      // tracking, not a substitute for it.)
       shapeFallback: hbShapeFace ?? makeFontkitShaper(spec.path, spec.postscriptName, helperAxes),
       preferShapeFallback: hbShapeFace != null,
     });
