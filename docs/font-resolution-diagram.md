@@ -511,7 +511,17 @@ Notes:
 
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
-  Today it holds **Thai** (U+0E00–U+0E7F). The reason a script is on it is a
+  Today it holds **Thai** (U+0E00–U+0E7F) and **Telugu** (U+0C00–U+0C7F). The
+  Telugu entry is the weaker of the two and worth reading as such: on the
+  conjunct క్ష both engines land the subjoined SSA's ink at the same x and total
+  the same advance (HarfBuzz calls it a zero-advance GPOS mark at −248, CoreText
+  lays the pair out sequentially), so what actually moves is the CLUSTER MAP —
+  `0 0` against `0 1`. That matters because the renderer anchors each cluster at
+  its captured xOffset, so CoreText's map anchors the subjoined glyph at the
+  VIRAMA's x. Chrome gets HarfBuzz's map, where the Indic shaper merges a
+  consonant syllable's clusters outward from the base
+  (`external/harfbuzz/src/hb-ot-shaper-indic.cc` rev `4de187d`, :806 / :824).
+  The reason a script is on it is a
   measurement, not an assumption: `npm run fonts:shaper-ab` compares HarfBuzz
   against the macOS CoreText helper over every resolvable face and reports 366
   disagreements spread across **all ten** dedicated-shaper scripts, so the claim

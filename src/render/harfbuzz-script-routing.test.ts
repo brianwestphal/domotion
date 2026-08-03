@@ -42,6 +42,15 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x0E80)).toBe(false); // Lao — a separate script, not measured
   });
 
+  it("covers Telugu and stops at the block boundary", () => {
+    expect(usesHarfbuzzShaping(0x0C15)).toBe(true);  // క KA
+    expect(usesHarfbuzzShaping(0x0C4D)).toBe(true);  // ◌్ VIRAMA — the conjunct former
+    expect(usesHarfbuzzShaping(0x0C00)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0C7F)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0BFF)).toBe(false); // Tamil block below
+    expect(usesHarfbuzzShaping(0x0C80)).toBe(false); // Kannada block above
+  });
+
   it("does not reroute the scripts that have not been swept yet", () => {
     // Each of these is a live claim about a script whose reroute has its own
     // commit and its own CI sweep. Flipping one without updating this line
@@ -50,7 +59,6 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
       0x05D0, // Hebrew alef
       0x0645, // Arabic meem
       0x0915, // Devanagari ka
-      0x0C15, // Telugu ka
       0xAC00, // Hangul GA
       0x1000, // Myanmar ka — cluster-only, deliberately excluded
       0x0995, // Bengali ka — cluster-only

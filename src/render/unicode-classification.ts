@@ -259,6 +259,30 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // Lao (0E80–0EFF) is deliberately NOT included: it is a separate script with
   // its own samples, and nothing has been measured for it.
   [0x0E00, 0x0E7F],
+
+  // Telugu. Measured: 10 engine disagreements over 3 faces on the conjunct
+  // క్ష (KA + VIRAMA + SSA) — 6 `cluster`, 2 `advance`, 2 `offset`.
+  //
+  // Worth being precise about what this does and does not move, because the
+  // shaped ink lands in the same place either way. On Kohinoor Telugu HarfBuzz
+  // returns advances `516 0` with offsets `0,0` / `-248,32`, and CoreText
+  // returns `268 248` with `0,0` / `0,32`. Both put the subjoined SSA's ink at
+  // x = 268 and both total 516: HarfBuzz treats it as a zero-advance GPOS mark
+  // attached back under the base, CoreText lays the two out sequentially. That
+  // difference cancels within a shaped run.
+  //
+  // What does NOT cancel is the CLUSTER MAP — HarfBuzz reports `0 0`, CoreText
+  // `0 1` — because the renderer anchors each cluster at its CAPTURED xOffset
+  // rather than at an accumulated advance. A map that assigns the subjoined
+  // glyph its own source index anchors it at the VIRAMA's captured x, which is
+  // not where Chrome put it. Chrome gets HarfBuzz's map: the Indic shaper
+  // merges a consonant syllable's clusters from the base outward
+  // (`external/harfbuzz/src/hb-ot-shaper-indic.cc` rev 4de187d, :806 and
+  // :824), so base and subjoined consonant share one cluster by construction.
+  //
+  // This is the case the ticket flagged as weaker evidence than a glyph
+  // difference — correctly, and it is not zero evidence.
+  [0x0C00, 0x0C7F],
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.
