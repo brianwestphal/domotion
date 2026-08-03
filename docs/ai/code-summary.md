@@ -240,7 +240,9 @@ shortest possible map:
   checkout must build it or the helper-backed tests silently skip):
   `glyphs` / `meta` / `fallback` / `notdef` / `shape` / `family`, plus
   `familyMatch` — Blink's declared-family style matcher
-  (`BestStyleMatchForFamilyNS` + `BetterChoiceCT` + `BetterWeightMatch`),
+  (`BestStyleMatchForFamilyNS` + `BetterChoiceCT`, transcribed at Chromium tag
+  147.0.7727.15, the build Playwright pins — NOT the local checkout, which
+  carries a newer directional comparator the shipping build lacks),
   enumerating with AppKit and reproducing Chrome's per-weight cut for a family.
   Pinned by `tests/family-style-matcher.test.ts`. Built but **not yet wired into
   the render path**.

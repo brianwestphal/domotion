@@ -22,10 +22,13 @@
  *   npm run fonts:family-match -- --allow 12   # tolerate up to N misses
  *
  * macOS only: it scores the macOS helper's `familyMatch` query, which is a
- * transcription of Blink's `BestStyleMatchForFamilyNS` /`BetterChoiceCT` /
- * `BetterWeightMatch` (`platform/fonts/mac/font_matcher_mac.mm`, `external/chromium`
- * rev 7d859f27). The Linux and Windows declared-family paths are different code
- * and would need their own oracles.
+ * transcription of Blink's `BestStyleMatchForFamilyNS` / `BetterChoiceCT`
+ * (`platform/fonts/mac/font_matcher_mac.mm:172-277` at Chromium tag
+ * 147.0.7727.15 — the Chrome build Playwright pins, which is also the Chrome
+ * this oracle asks over CDP; the local `external/chromium` checkout carries a
+ * newer directional comparator the shipping build does not have). The Linux
+ * and Windows declared-family paths are different code and would need their
+ * own oracles.
  */
 import { chromium } from "@playwright/test";
 import { execFileSync } from "node:child_process";

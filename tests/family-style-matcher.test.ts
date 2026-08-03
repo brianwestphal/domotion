@@ -1,5 +1,7 @@
 // The macOS helper's `familyMatch` query — Blink's declared-family style
-// matcher, ported from `mac/font_matcher_mac.mm` (Chromium rev 7d859f27).
+// matcher, ported from `mac/font_matcher_mac.mm` at Chromium tag
+// 147.0.7727.15 (the Chrome build Playwright pins; the local checkout carries
+// a newer directional comparator the shipping build does not have).
 //
 // These pin the cases that DISCRIMINATE between candidate mechanisms, not a
 // broad sample. Three different approaches to this problem all scored 6/7 on

@@ -720,103 +720,92 @@ func appKitToCSSFontWeight(_ appKitWeight: Int) -> Int {
     return min((appKitWeight - 2) * 100, 900)
 }
 
-// Transcribed from `BetterWeightMatch`, font_matcher_mac.mm:100-139.
+// Transcribed from `BetterChoiceCT`, font_matcher_mac.mm:172-220 at Chromium
+// refs/tags/147.0.7727.15 — the tag of the Chrome build Playwright pins
+// (playwright-core browsers.json: chromium 147.0.7727.15), which is the
+// browser every capture and every conformance measurement runs against.
 //
-// The thresholds are CSS 400/500 (`kCSSLowerThreshold` / `kCSSUpperThreshold`,
-// :254-255) because the family matcher calls `BetterChoiceCT`. The AppKit-unit
-// variant next to it in that file belongs to `MatchNSFontFamily`, a different
-// entry point — mixing the two is the trap this port has to avoid.
-func betterWeightMatch(_ desired: Int, _ chosen: Int, _ candidate: Int,
-                       _ lowerThreshold: Int, _ upperThreshold: Int) -> Bool {
-    if desired > upperThreshold {
-        let chosenAbove = chosen >= desired
-        let candidateAbove = candidate >= desired
-        if chosenAbove != candidateAbove { return candidateAbove }
-    } else if desired < lowerThreshold {
-        let chosenBelow = chosen <= desired
-        let candidateBelow = candidate <= desired
-        if chosenBelow != candidateBelow { return candidateBelow }
-    } else {
-        // desired in [lower, upper]: prefer [desired, upper], then < desired,
-        // then > upper.
-        func searchPriority(_ w: Int) -> Int {
-            if w >= desired && w <= upperThreshold { return 0 }
-            if w < desired { return 1 }
-            return 2
-        }
-        let cp = searchPriority(chosen), np = searchPriority(candidate)
-        if cp != np { return np < cp }
-    }
-    // Within the same search direction, prefer the closer weight.
-    return abs(candidate - desired) < abs(chosen - desired)
-}
-
-// Transcribed from `BetterChoiceCT`, font_matcher_mac.mm:223-258. The trait
-// masks are `CTFontSymbolicTraits` rather than AppKit's `NSFontTraitMask`,
-// which is what the CT variant compares.
+// The local `external/chromium` checkout (rev 7d859f27, 2026-06-27) carries a
+// NEWER version of this comparator: a directional `BetterWeightMatch` (its
+// :100-139; below CSS 400 prefer any candidate at or below the desired weight,
+// above 500 any at or above) with the bold trait deliberately dropped from the
+// mask list (its :225-229). That rewrite landed after the 147 branch point and
+// is NOT in the binary we target. Measured over CDP against the shipping build
+// on a 20-family x 41-weight sweep (760 scored cases), this 147 transcription
+// agrees 760/760 where the directional port agreed 567/760 — the disagreement
+// bands (e.g. Helvetica 305-399 and 501-599 both painting plain Helvetica)
+// are exactly the intermediate weights the directional search decides
+// differently. When the pinned Chromium moves to a build that contains the
+// directional rewrite, this function is what must be re-transcribed.
 func betterChoiceCT(_ desiredTraits: CTFontSymbolicTraits, _ desiredWeight: Int,
                     _ chosenTraits: CTFontSymbolicTraits, _ chosenWeight: Int,
                     _ candidateTraits: CTFontSymbolicTraits, _ candidateWeight: Int) -> Bool {
     // Worst-to-best mismatch order, and the ORDER IS LOAD-BEARING: the loop
-    // returns on the first mask that discriminates, so a candidate mismatching
-    // on two of them is decided by whichever comes first. Source order is
-    // condensed, expanded, italic (`:234-235`).
-    //
-    // The bold trait is deliberately absent, and Blink says why (`:225-229`):
-    // CoreText reports it inconsistently for some non-bold faces — naming
-    // HiraginoSans-W5 and PingFangSC-Light — and the directional weight search
-    // below already encodes the spec's bold preference through the weight.
-    let masks: [CTFontSymbolicTraits] = [.traitCondensed, .traitExpanded, .traitItalic]
+    // returns on the first mask that discriminates. Source order at 147 is
+    // condensed, expanded, italic, bold (`:181-183`) — bold IS in the list,
+    // and it is what turns the heavy end "directional": at a desired weight
+    // >= 600 the bold trait becomes desired, so every non-bold face loses on
+    // traits before weight distance is ever compared (Avenir at 600 takes
+    // Heavy over the nearer Medium for this reason alone).
+    let masks: [CTFontSymbolicTraits] = [.traitCondensed, .traitExpanded, .traitItalic, .traitBold]
     for mask in masks {
+        // `:186-196`: CoreText reports a bold trait for some faces Blink maps
+        // below its 600 bold threshold (HiraginoSans-W5, AppKit weight 6 ->
+        // CSS 500), which would keep an exact-weight candidate from ever
+        // winning. So on the bold mask, an exact-weight candidate beats an
+        // inexact chosen regardless of the trait bit.
+        if mask == .traitBold && candidateWeight == desiredWeight && chosenWeight != desiredWeight {
+            return true
+        }
         let desired = !desiredTraits.intersection(mask).isEmpty
         let chosenUnwanted = desired != !chosenTraits.intersection(mask).isEmpty
         let candidateUnwanted = desired != !candidateTraits.intersection(mask).isEmpty
         if !candidateUnwanted && chosenUnwanted { return true }
         if !chosenUnwanted && candidateUnwanted { return false }
     }
-    let kCSSLowerThreshold = 400
-    let kCSSUpperThreshold = 500
-    return betterWeightMatch(desiredWeight, chosenWeight, candidateWeight,
-                             kCSSLowerThreshold, kCSSUpperThreshold)
+    // `:209-219`: nearest CSS weight; on a tie prefer the candidate further
+    // from medium (500). The tie is what selects Helvetica-Light (CSS 200 via
+    // AppKit weight 3) over plain Helvetica (400) at exactly CSS 300, while
+    // every weight 305-399 is strictly nearer to 400 and takes the regular.
+    let chosenDelta = abs(chosenWeight - desiredWeight)
+    let candidateDelta = abs(candidateWeight - desiredWeight)
+    if chosenDelta == candidateDelta {
+        return abs(candidateWeight - 500) > abs(chosenWeight - 500)
+    }
+    return candidateDelta < chosenDelta
 }
 
 // Best member of a DECLARED family for a CSS weight + traits.
 //
-// Mirrors `BestStyleMatchForFamilyNS`, font_matcher_mac.mm:274-350, which is the
-// path shipping Chrome takes (`FontFamilyStyleMatchingCTMigration` carries no
-// `status:` in runtime_enabled_features.json5, so it is off by default). It
-// enumerates with AppKit and then reads each candidate's weight and symbolic
-// traits from the CORETEXT DESCRIPTOR rather than from AppKit's own numbers —
-// Blink's comment at :298-303 gives the reason, and names the case that matters
-// here: "AppKit collapses some distinct faces onto the same numeric weight (e.g.
-// PingFangSC-Light and PingFangSC-Thin)".
+// Mirrors `BestStyleMatchForFamilyNS`, font_matcher_mac.mm:231-277 at Chromium
+// refs/tags/147.0.7727.15 — the tag of the Chrome build Playwright pins, which
+// is the path shipping Chrome takes (`FontFamilyStyleMatchingCTMigration`
+// carries no `status:` in runtime_enabled_features.json5 at that tag, so it is
+// off by default and `MatchFontFamily` at :548-552 dispatches here). Faithful
+// to :244-269:
+//   - candidates come from AppKit `availableMembersOfFontFamily`, in
+//     enumeration order (order matters — ties keep the first scanned);
+//   - candidate weight is `AppKitToCSSFontWeight(font_info[2])` (:245-249) —
+//     the APPKIT weight, which collapses some distinct faces onto one CSS
+//     value (PingFang Thin and Light are both AppKit 3 -> CSS 200, and
+//     Helvetica-Light is AppKit 3 -> CSS 200, not 300);
+//   - candidate traits are `font_info[3] & kImportantTraitsMask` (:251-255).
+//     AppKit's NSFontTraitMask and CTFontSymbolicTraits agree on all four
+//     masked bits (italic 1<<0, bold 1<<1, expanded 1<<5, condensed 1<<6),
+//     which is what lets Blink mask AppKit bits with a CT constant;
+//   - the desired bold trait derives from the weight: `ComputeDesiredTraits`
+//     (:134-151) sets it iff desired_weight >= 600 (kBoldThreshold). With the
+//     bold mask back in `betterChoiceCT`'s loop this is load-bearing: it is
+//     what sends every >= 600 request to a bold-flagged face when one exists;
+//   - the first member is unconditionally chosen (:257 has no
+//     `AcceptableChoice` gate), and the early break on an exact weight+traits
+//     match (:264-268) is a pure optimization — no later candidate can
+//     displace an exact match — so this port omits it.
 //
-// **The checkout and the shipping Chrome disagree here, and the shipping Chrome
-// wins.** The version of `BestStyleMatchForFamilyNS` in the local tree prefers
-// the CoreText DESCRIPTOR's weight per candidate and falls back to AppKit's only
-// when the descriptor has none. Reading the descriptor gives PingFang SC six
-// distinct weights (Ultralight 100, Thin 200, Light 300, Regular 400, Medium
-// 500, Semibold 600) and therefore picks **Light** for a CSS 300 request, since
-// that is an exact match. Chrome, asked over CDP, paints **Thin** at CSS 300 —
-// and never paints Light at any weight from 100 to 900.
-//
-// AppKit's numbers reproduce Chrome exactly, and the reason is the collapse
-// Blink's own comment describes: `availableMembersOfFontFamily` reports
-// **Thin = 3 and Light = 3**, both mapping to CSS 200. At a desired 300 the two
-// tie, `BetterWeightMatch`'s closest-weight tie-break is a strict `<` so it
-// keeps the first scanned, and Thin precedes Light in the enumeration. Every
-// other rung of the ladder matches on both readings; w300 is the only one that
-// discriminates, which is precisely why it is the rung worth testing.
-//
-// So this uses the AppKit weight. The descriptor weight is still read and
-// reported as `descriptorWeight` so the divergence stays visible, and is used
-// only when AppKit declines to report a weight at all. Treat the checkout as
-// AHEAD of the Chrome we target rather than as the authority here — the
-// documented drift, arriving in a place where it changes the answer.
-//
-// This also explains the earlier 6/7: asking CoreText for an in-family
-// re-selection missed w300 Thin for the same underlying reason, and so did a
-// first version of this port that read the descriptor.
+// The CoreText descriptor's weight is still read and reported as
+// `descriptorWeight` for diagnostics, but it does NOT participate in the
+// choice: an earlier version of this port preferred it, which gave PingFang SC
+// six distinct weights and picked Light at CSS 300 where Chrome paints Thin.
 func runFamilyMatchQuery(_ query: [String: Any]) -> [String: Any] {
     guard let family = query["family"] as? String, !family.isEmpty else {
         return ["type": "familyMatch", "found": false, "error": "family required"]
@@ -825,6 +814,9 @@ func runFamilyMatchQuery(_ query: [String: Any]) -> [String: Any] {
     var desiredTraits: CTFontSymbolicTraits = []
     if (query["italic"] as? NSNumber)?.boolValue == true { desiredTraits.insert(.traitItalic) }
     if (query["bold"] as? NSNumber)?.boolValue == true { desiredTraits.insert(.traitBold) }
+    // `ComputeDesiredTraits`, font_matcher_mac.mm:134-151 @ 147.0.7727.15: the
+    // bold trait is a function of the weight, not a separate request.
+    if desiredWeight >= 600 { desiredTraits.insert(.traitBold) }
 
     let members = NSFontManager.shared.availableMembers(ofFontFamily: family) ?? []
     if members.isEmpty {
@@ -843,27 +835,23 @@ func runFamilyMatchQuery(_ query: [String: Any]) -> [String: Any] {
         let appKitWeight = (info.count > 2 ? (info[2] as? NSNumber)?.intValue : nil) ?? -1
         let appKitTraits = (info.count > 3 ? (info[3] as? NSNumber)?.intValue : nil) ?? -1
 
-        // AppKit's reported weight, NOT the CoreText descriptor's — measured
-        // against Chrome, see the note above `runFamilyMatchQuery`.
-        var candidateWeight = appKitToCSSFontWeight(appKitWeight)
-        // Traits still come from the descriptor: AppKit's bits are
-        // `NSFontTraitMask`, whose positions stop matching
-        // `CTFontSymbolicTraits` past bit 1, and only italic/bold align.
-        var candidateTraits: CTFontSymbolicTraits = []
+        // AppKit's reported weight, NOT the CoreText descriptor's — Blink reads
+        // `font_info[2]` (:245-249) and defaults to kNormalWeightValue (400)
+        // when AppKit reports none, which `appKitToCSSFontWeight(-1)` mirrors.
+        let candidateWeight = appKitToCSSFontWeight(appKitWeight)
+        // Traits are AppKit's `font_info[3]` masked to the four important
+        // bits, exactly as Blink does at :251-255 — NSFontTraitMask and
+        // CTFontSymbolicTraits agree on those bit positions (italic 1<<0,
+        // bold 1<<1, expanded 1<<5, condensed 1<<6).
+        let candidateTraits = appKitTraits >= 0
+            ? CTFontSymbolicTraits(rawValue: UInt32(truncatingIfNeeded: appKitTraits)).intersection(kTraitsMask)
+            : []
+        // The descriptor weight is reported for diagnostics only.
         let desc = CTFontDescriptorCreateWithNameAndSize(candidateName as CFString, 0)
         var descriptorCSSWeight = -1
-        if let traits = CTFontDescriptorCopyAttribute(desc, kCTFontTraitsAttribute) as? [CFString: Any] {
-            if let w = traits[kCTFontWeightTrait] as? NSNumber {
-                descriptorCSSWeight = toCSSFontWeight(w.floatValue)
-            }
-            if let st = traits[kCTFontSymbolicTrait] as? NSNumber {
-                candidateTraits = CTFontSymbolicTraits(rawValue: st.uint32Value)
-                    .intersection(kTraitsMask)
-            }
-        }
-        if appKitWeight < 0 && descriptorCSSWeight >= 0 {
-            // No AppKit weight at all — fall back rather than assume 400.
-            candidateWeight = descriptorCSSWeight
+        if let traits = CTFontDescriptorCopyAttribute(desc, kCTFontTraitsAttribute) as? [CFString: Any],
+           let w = traits[kCTFontWeightTrait] as? NSNumber {
+            descriptorCSSWeight = toCSSFontWeight(w.floatValue)
         }
         candidates.append(["name": candidateName, "weight": candidateWeight,
                            "descriptorWeight": descriptorCSSWeight,

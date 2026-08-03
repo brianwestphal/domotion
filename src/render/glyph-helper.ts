@@ -252,10 +252,11 @@ interface HelperRequest {
       }
     // macOS declared-family style match — Blink's `BestStyleMatchForFamilyNS`
     // over `NSFontManager.availableMembersOfFontFamily`, compared with
-    // `BetterChoiceCT` / `BetterWeightMatch` at CSS thresholds 400/500
-    // (`platform/fonts/mac/font_matcher_mac.mm`, Chromium rev 7d859f27). This
-    // is the step that picks WHICH CUT of a declared family a run opens; the
-    // `family` query above is name resolution and does not run it.
+    // `BetterChoiceCT` (nearest CSS weight, bold in the trait-precedence loop;
+    // `platform/fonts/mac/font_matcher_mac.mm:172-277` at Chromium tag
+    // 147.0.7727.15, the build Playwright pins). This is the step that picks
+    // WHICH CUT of a declared family a run opens; the `family` query above is
+    // name resolution and does not run it.
     | { type: "familyMatch"; family: string; cssWeight?: number; italic?: boolean; bold?: boolean }
     | { type: "shape"; fontRef: string; text: string }
     // DM-1886 (Linux): per-codepoint fallback via fontconfig sort-and-walk.
@@ -1659,11 +1660,15 @@ const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
  * Which CUT of a declared CSS family a run at this style opens — macOS only.
  *
  * Blink runs a candidate scan over the family's AppKit members and picks with
- * its own comparator: `BestStyleMatchForFamilyNS` (`:274-350`) →
- * `BetterChoiceCT` (`:223-258`) → `BetterWeightMatch` (`:100-139`), all in
- * `platform/fonts/mac/font_matcher_mac.mm`, Chromium rev 7d859f27. That
- * algorithm lives in the helper (Swift, where AppKit and CoreText are
- * reachable); this is the Node side of the call.
+ * its own comparator: `BestStyleMatchForFamilyNS` (`:231-277`) →
+ * `BetterChoiceCT` (`:172-220`), in
+ * `platform/fonts/mac/font_matcher_mac.mm` at Chromium tag 147.0.7727.15 —
+ * the Chrome build Playwright pins, which is what every capture runs against.
+ * (The local `external/chromium` checkout carries a newer, directional
+ * comparator that the shipping build does not have; the helper transcribes
+ * the tag, not the checkout.) That algorithm lives in the helper (Swift,
+ * where AppKit and CoreText are reachable); this is the Node side of the
+ * call.
  *
  * It is a DIFFERENT question from `resolveInstalledFont`, which resolves a name
  * to a face and, on macOS, does not run the style match at all. It is also a

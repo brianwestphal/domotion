@@ -207,7 +207,7 @@ flowchart TD
   G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle)"]
-  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch → helper 'familyMatch'<br/>= Blink BestStyleMatchForFamilyNS / BetterChoiceCT / BetterWeightMatch.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
+  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch → helper 'familyMatch'<br/>= Blink BestStyleMatchForFamilyNS / BetterChoiceCT (tag 147.0.7727.15).<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
   G3d --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
@@ -276,14 +276,18 @@ cosmetic — a declared `"PingFang SC"` resolved to `PingFangSC-Regular` at
 and 749.06 at 700 (~1.75% per glyph, accumulating along the line).
 
 So for a declared family the cut comes from Blink's own selection rather than
-from our table: `BestStyleMatchForFamilyNS` (`:274-350`) over the family's
-AppKit members, compared with `BetterChoiceCT` (`:223-258`) and
-`BetterWeightMatch` (`:100-139`), all in
-`platform/fonts/mac/font_matcher_mac.mm`, Chromium rev `7d859f27`. The
-algorithm lives in the macOS helper's `familyMatch` query (Swift, where AppKit
-and CoreText are reachable) and is reached from Node through
-`resolveFamilyStyleMatch`; it is scored end to end against Chrome by
-`npm run fonts:family-match` (doc [109](109-family-match-conformance.md)).
+from our table: `BestStyleMatchForFamilyNS` (`:231-277`) over the family's
+AppKit members, compared with `BetterChoiceCT` (`:172-220` — nearest CSS
+weight with a further-from-500 tie-break, bold included in the
+trait-precedence loop), in `platform/fonts/mac/font_matcher_mac.mm` at
+Chromium tag `147.0.7727.15` — the Chrome build Playwright pins, which is what
+every capture runs against. (The local `external/chromium` checkout carries a
+newer directional comparator that landed upstream after the 147 branch point;
+the helper transcribes the tag, not the checkout.) The algorithm lives in the
+macOS helper's `familyMatch` query (Swift, where AppKit and CoreText are
+reachable) and is reached from Node through `resolveFamilyStyleMatch`; it is
+scored end to end against Chrome by `npm run fonts:family-match` (doc
+[109](109-family-match-conformance.md)).
 
 Three properties are load-bearing:
 
@@ -312,16 +316,15 @@ asserts `DCHECK_NE(family, kSystemUi)`, so Blink does not family-match it
 either, and its face sits under a dot-prefixed family CoreText refuses to
 resolve by name from a client process.
 
-**Known residual.** At the nine canonical CSS weights the matcher reproduces
-Chrome exactly for every family the macOS table routes to. Between them it does
-not: `BetterWeightMatch` is directional outside `[400, 500]`, so Helvetica takes
-`Helvetica-Light` at 350 and `Helvetica-Bold` at 590 where Chrome paints plain
-`Helvetica`. This is the same light/heavy-end drift recorded for `Avenir Next`
-at CSS 300 in doc [109](109-family-match-conformance.md) — the checkout is
-directional where the shipping build behaves as nearest-weight — now bounded to
-the 301-399 and 501-599 bands. Per the project rule the port follows the
-transcribed source and records the difference rather than curve-fitting to the
-binary.
+**No known residual.** The matcher reproduces Chrome exactly at all nine
+canonical CSS weights for every scored family (7,317/7,317, doc
+[109](109-family-match-conformance.md)) and at the intermediate weights
+(760/760 on a 20-family × 41-weight CDP sweep). The earlier drift — Helvetica
+taking `Helvetica-Light` at 350 and `Helvetica-Bold` at 590 where Chrome
+paints plain `Helvetica` — was the port transcribing the checkout's
+directional comparator, which the shipping 147 build does not contain. When
+the pinned Playwright Chromium moves to a build that includes the upstream
+directional rewrite, the helper's `betterChoiceCT` must be re-transcribed.
 
 **The table below it** still answers on Linux and Windows, on a macOS host with
 no built helper, and for any key the matcher declines. Three rules, applied in

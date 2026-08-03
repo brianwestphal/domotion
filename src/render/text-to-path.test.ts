@@ -290,9 +290,9 @@ describe("weight -> face routing: sub-bold cuts", () => {
   if (MACOS_FONTS) {
     // Helvetica is the `sans-serif` generic on macOS, so this ladder governs
     // default body text. It now comes from the declared-family style matcher
-    // (Blink's `BestStyleMatchForFamilyNS` / `BetterChoiceCT` /
-    // `BetterWeightMatch`, `platform/fonts/mac/font_matcher_mac.mm`, Chromium
-    // rev 7d859f27) rather than the family's own cut table.
+    // (Blink's `BestStyleMatchForFamilyNS` / `BetterChoiceCT`,
+    // `platform/fonts/mac/font_matcher_mac.mm` at Chromium tag 147.0.7727.15 —
+    // the build Playwright pins) rather than the family's own cut table.
     //
     // At all nine canonical CSS weights this reproduces Chrome exactly,
     // measured over CDP: Light at 100-300, Helvetica at 400-500, Bold at
@@ -307,22 +307,22 @@ describe("weight -> face routing: sub-bold cuts", () => {
       for (const [w, expected] of ladder) expect(psName("helvetica", w), `weight ${w}`).toBe(expected);
     });
 
-    // The two rungs BETWEEN the canonical weights are a known divergence from
-    // the shipping Chrome, pinned here so it stays visible rather than being
-    // discovered again. `BetterWeightMatch` is directional outside [400, 500]:
-    // below 400 it prefers any candidate at or below the desired weight, above
-    // 500 any candidate at or above it. So 350 takes Light and 590 takes Bold.
-    // Measured over CDP, Chrome paints plain Helvetica at both.
-    //
-    // This is the same drift already recorded for Avenir Next at CSS 300 — the
-    // checkout is directional where the shipping build behaves as nearest-
-    // weight — now bounded much more tightly, to the 301-399 and 501-599 bands.
-    // No single rule in the checkout expresses that asymmetry, and the project
-    // rule is to follow the transcribed source and record the difference rather
-    // than curve-fit to the binary.
-    it("pins the intermediate-weight drift against the shipping Chrome", () => {
-      expect(psName("helvetica", 350)).toBe("Helvetica-Light"); // Chrome: Helvetica
-      expect(psName("helvetica", 590)).toBe("Helvetica-Bold");  // Chrome: Helvetica
+    // The rungs BETWEEN the canonical weights used to diverge from the
+    // shipping Chrome, because the port transcribed the local checkout (rev
+    // 7d859f27), whose directional `BetterWeightMatch` rewrite landed AFTER
+    // the branch point of the Chrome build Playwright pins (147.0.7727.15).
+    // Reading `font_matcher_mac.mm` at that tag settled it: the shipping
+    // `BetterChoiceCT` (:172-220) is nearest-CSS-weight with a
+    // further-from-500 tie-break, and the bold trait sits IN the
+    // trait-precedence loop, so 305-399 and 501-599 both paint plain
+    // Helvetica (Light is AppKit weight 3 -> CSS 200, so 400 is nearer above
+    // 300; Bold's unwanted bold trait loses before weight is compared below
+    // 600). The helper now transcribes the 147 comparator and agrees with
+    // Chrome over CDP at every one of these rungs.
+    it("matches the shipping Chrome at the intermediate weights", () => {
+      expect(psName("helvetica", 350)).toBe("Helvetica");       // nearest: 400
+      expect(psName("helvetica", 590)).toBe("Helvetica");       // bold trait unwanted below 600
+      expect(psName("helvetica", 300)).toBe("Helvetica-Light"); // 200 vs 400 tie -> further from 500
     });
 
     it("resolves Helvetica's oblique column in lockstep with the upright one", () => {
