@@ -351,3 +351,90 @@ describe("ci-baseline-aggregate refuses to write a baseline without provenance",
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+/**
+ * Byte-aware movement attribution, end to end.
+ *
+ * Three of 818 macOS unicode fixtures were bimodal across CI runs of identical
+ * code — and the stored perceptual digests were IDENTICAL for the two distinct
+ * outputs (PNGs 2,900 bytes apart), so digest equality read a real change as
+ * inert and nearly reverted a correct commit. Worse, the baseline never stored
+ * the digests the comparator reads, so every regression report printed "—".
+ *
+ * These pin the repaired chain: byte hashes recorded per side -> retained by
+ * the baseline -> consulted by the diff, with the exonerate-by-byte-identity
+ * rule producing a PROVEN oracle verdict for exactly the shape that was
+ * unattributable before (expected bytes differ, actual byte-identical, all
+ * digests equal).
+ */
+describe("byte-aware attribution reaches the baseline and the report", () => {
+  const repoRoot = join(import.meta.dirname, "..");
+  const run = (script: string, args: string[]) =>
+    execFileSync("node", [script, ...args], { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+  const DIGEST = "f".repeat(256); // one perceptual digest, shared everywhere below
+  const baseRow = {
+    name: "2150-218F-number-forms", skipped: false, worstTilePct: 0.14,
+    expectedDigest: DIGEST, actualDigest: DIGEST,
+    actualSha256: "a".repeat(64),
+    chromeFaces: [".SFNS-Bold:12", ".SFNS-Regular:148"],
+  };
+
+  it("write-baseline retains the evidence diff-against-baseline reads", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dm1937-base-"));
+    try {
+      const results = [{ ...baseRow, pass: true, diffPct: 0.02, regionCount: 0, expectedSha256: "b".repeat(64) }];
+      writeFileSync(join(dir, "results-macos.json"), JSON.stringify(results));
+      run("scripts/write-baseline.mjs", ["--results", join(dir, "results-macos.json"),
+        "--out", join(dir, "b.json"), "--suite", "unicode", "--os", "macos"]);
+      const fx = JSON.parse(readFileSync(join(dir, "b.json"), "utf8")).fixtures[baseRow.name];
+      expect(fx.expectedDigest).toBe(DIGEST);
+      expect(fx.actualDigest).toBe(DIGEST);
+      expect(fx.expectedSha256).toBe("b".repeat(64));
+      expect(fx.actualSha256).toBe("a".repeat(64));
+      expect(fx.chromeFaces).toEqual(baseRow.chromeFaces);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("labels a regression PROVEN oracle when actual is byte-identical and every digest is equal", () => {
+    // The decisive real case: Chrome's expected.png moved between two runs of
+    // one commit, our actual.png did not move at all, and the lossy digests
+    // saw nothing. Digest-only attribution printed "unattributed"; byte
+    // identity exonerates our side and pins the oracle — which flips the
+    // report's advice from "bisect" to "re-capture the baseline".
+    const dir = mkdtempSync(join(tmpdir(), "dm1937-diff-"));
+    try {
+      const baseline = [{ ...baseRow, pass: true, diffPct: 0.02, regionCount: 0, expectedSha256: "b".repeat(64) }];
+      writeFileSync(join(dir, "results-base.json"), JSON.stringify(baseline));
+      run("scripts/write-baseline.mjs", ["--results", join(dir, "results-base.json"),
+        "--out", join(dir, "b.json"), "--suite", "unicode", "--os", "macos"]);
+      // Same digests, same actual bytes — but Chrome's PNG differs and the
+      // fixture now fails.
+      const current = [{ ...baseRow, pass: false, diffPct: 0.057, regionCount: 4, expectedSha256: "c".repeat(64) }];
+      writeFileSync(join(dir, "results-cur.json"), JSON.stringify(current));
+      run("scripts/diff-against-baseline.mjs", ["--results", join(dir, "results-cur.json"),
+        "--baseline", join(dir, "b.json"), "--summary", join(dir, "d.md")]);
+      const md = readFileSync(join(dir, "d.md"), "utf8");
+      expect(md).toContain("**oracle** ✓ (actual byte-identical)");
+      expect(md).toContain("ORACLE-SIDE");
+      expect(md).toContain("bisecting is not");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+/**
+ * The local-repeat trap: `demos:test:unicode` HARDCODED its output dir, so
+ * passing `HTML_TEST_OUTPUT_DIR` on the command line silently did nothing —
+ * every local unicode sweep shared one expected-cache, a second run was a 100%
+ * cache hit, and "it's deterministic locally" was close to a tautology (one
+ * invalid reproduction attempt returned exactly that false answer). The
+ * env-var must pass through, the way HTML_TEST_DIR always did.
+ */
+describe("demos:test:unicode honors its documented overrides", () => {
+  it("passes HTML_TEST_OUTPUT_DIR through instead of hardcoding it", () => {
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"));
+    const script: string = pkg.scripts["demos:test:unicode"];
+    expect(script).toContain("HTML_TEST_OUTPUT_DIR=${HTML_TEST_OUTPUT_DIR:-");
+    expect(script).toContain("HTML_TEST_DIR=${HTML_TEST_DIR:-");
+  });
+});

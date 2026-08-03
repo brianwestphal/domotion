@@ -128,6 +128,47 @@ export function compareDigest(a: string | undefined, b: string | undefined): Sid
 }
 
 /**
+ * What two runs of one side compare as, once BYTE hashes are available beside
+ * the perceptual digest.
+ *
+ * Two bimodal CI fixtures produced two distinct outputs whose PNGs differed by
+ * 2,900 bytes — with IDENTICAL perceptual digests. An A/B that read digest
+ * equality as "same output" reported a real change as inert and nearly caused
+ * a correct commit to be reverted. The byte hash closes that hole from the
+ * other side: sha equality is PROOF of "unchanged" (the strongest statement
+ * this file can make), while sha inequality alone proves nothing perceptual —
+ * CI raster is not bit-stable, so most re-renders differ bytewise by AA
+ * jitter. The two measures are complementary bounds, and neither substitutes
+ * for the other:
+ *
+ *   `byte-identical`   shas present and equal. Proven unchanged.
+ *   `moved`            perceptual digest differs. Perceptibly changed.
+ *   `sub-digest`       digest same but bytes differ — changed bytewise, below
+ *                      the digest's sensitivity floor. Could be AA jitter,
+ *                      could be a real change the 16×16 grid cannot see. NOT
+ *                      "same".
+ *   `same-at-digest`   digest same, no byte hashes to consult (older record).
+ *                      The legacy reading: "not detected", not "identical".
+ *   `unknown`          digest unavailable on a side.
+ */
+export type SideEvidence = "byte-identical" | "moved" | "sub-digest" | "same-at-digest" | "unknown";
+
+/** Classify one side across two runs from its digests and (optionally) its
+ *  byte hashes. Empty strings are treated as missing, matching
+ *  `compareDigest`. */
+export function compareSideEvidence(
+  digestA: string | undefined, digestB: string | undefined,
+  shaA?: string, shaB?: string,
+): SideEvidence {
+  const bytesKnown = shaA != null && shaA !== "" && shaB != null && shaB !== "";
+  if (bytesKnown && shaA === shaB) return "byte-identical";
+  const d = compareDigest(digestA, digestB);
+  if (d === "moved") return "moved";
+  if (d === "same") return bytesKnown ? "sub-digest" : "same-at-digest";
+  return "unknown";
+}
+
+/**
  * Attribute a fixture's movement to a side.
  *
  * The classification a report can act on:
@@ -156,4 +197,67 @@ export function attributeMovement(
   if (exp === "moved") return "oracle";
   if (act === "moved") return "renderer";
   return "neither";
+}
+
+/** `attributeMovementWithBytes` result: the verdict plus whether it is PROVEN
+ *  (backed by a byte-identical side) and the per-side evidence that produced
+ *  it, so a report can print its reasoning instead of just its conclusion. */
+export interface MovementAttribution {
+  verdict: "oracle" | "renderer" | "both" | "neither" | "unknown";
+  /** True when the verdict is entailed by byte identity rather than inferred
+   *  from lossy digests. A proven `oracle`/`renderer` cannot be wrong about
+   *  WHICH side changed (it may still be AA jitter in magnitude); a proven
+   *  `neither` means both inputs were bit-identical, so a metric that moved
+   *  anyway indicts the comparator or the environment, not the images. */
+  proven: boolean;
+  expected: SideEvidence;
+  actual: SideEvidence;
+}
+
+/**
+ * Attribute a fixture's movement to a side, using byte hashes when available.
+ *
+ * Precondition: some metric between the two runs moved — this answers "which
+ * side caused it", not "did anything move".
+ *
+ * The load-bearing upgrade over `attributeMovement`: **a byte-identical side is
+ * exonerated outright.** The comparison metric is a pure function of the two
+ * images, so if one side's bytes did not change, the movement can only have
+ * come from the other side — even when that other side's change sits below the
+ * perceptual digest's sensitivity floor. That exact case is how a Chrome-side
+ * flip on a CI runner was finally pinned: the expected PNG differed across two
+ * runs of one commit while our actual PNG was byte-identical, with all four
+ * perceptual digests equal. Digest-only attribution called it `neither`
+ * (unattributable); byte-aware attribution calls it `oracle`, proven.
+ *
+ * Without byte hashes on both runs this degrades to exactly the digest-only
+ * semantics of `attributeMovement`.
+ */
+export function attributeMovementWithBytes(
+  expectedBefore: string | undefined, expectedAfter: string | undefined,
+  actualBefore: string | undefined, actualAfter: string | undefined,
+  shas?: {
+    expectedBefore?: string; expectedAfter?: string;
+    actualBefore?: string; actualAfter?: string;
+  },
+): MovementAttribution {
+  const exp = compareSideEvidence(expectedBefore, expectedAfter, shas?.expectedBefore, shas?.expectedAfter);
+  const act = compareSideEvidence(actualBefore, actualAfter, shas?.actualBefore, shas?.actualAfter);
+  const done = (verdict: MovementAttribution["verdict"], proven: boolean): MovementAttribution =>
+    ({ verdict, proven, expected: exp, actual: act });
+
+  // Byte identity dominates: an unchanged input cannot have moved the metric.
+  if (exp === "byte-identical" && act === "byte-identical") return done("neither", true);
+  if (exp === "byte-identical") return done("renderer", true);
+  if (act === "byte-identical") return done("oracle", true);
+
+  // No side is proven unchanged — fall back to (lossy) digest inference.
+  if (exp === "unknown" || act === "unknown") return done("unknown", false);
+  if (exp === "moved" && act === "moved") return done("both", false);
+  if (exp === "moved") return done("oracle", false);
+  if (act === "moved") return done("renderer", false);
+  // Neither digest moved; `sub-digest` on either side means bytes DID differ
+  // there, but at a magnitude indistinguishable from AA jitter — so this stays
+  // "could not attribute", never "the images are identical".
+  return done("neither", false);
 }

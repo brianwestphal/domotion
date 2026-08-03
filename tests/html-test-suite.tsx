@@ -44,6 +44,10 @@ import { waitForSettled } from "../src/utils/wait-events.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { parseShardSpec, selectShard } from "./shard.js";
 import { walkHtmlFiles } from "./walk-html-files.js";
+// Untyped .mjs (same pattern as tests importing scripts/run-env.mjs); tsx
+// resolves it at runtime, and tests are outside the tsc include set.
+// @ts-ignore -- no type declarations for the .mjs tool
+import { inventoryDocument } from "../tools/font-inventory.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
@@ -129,10 +133,20 @@ const CAPTURE_NODE_HASH = createHash("sha256")
 // changes it while changing nothing else in the key — a flagged run would
 // otherwise reuse the unflagged PNG and report numbers for a condition it never
 // ran. Empty (and so key-neutral) unless `DOMOTION_CAPTURE_FLAGS` is set.
+// DM-1937: and the host's font-inventory digest. The cached artifact's glyphs
+// are a function of the INSTALLED FONT SET — Chrome's per-codepoint fallback
+// walks it — but the key didn't cover it, so an expected generated under one
+// inventory (before a webfont install, before an OS update) was still served
+// forever after. Locally the cache never expires on its own, which meant local
+// A/Bs were comparing fresh actuals against expecteds of unknown font vintage.
+const FONT_INVENTORY_DIGEST: string = (() => {
+  try { return (inventoryDocument() as { digest: string }).digest; }
+  catch { return "unknown"; }
+})();
 function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
   return createHash("sha256")
     .update(htmlBytes)
-    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}${captureFlagsCacheToken()}`)
+    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}|${FONT_INVENTORY_DIGEST}${captureFlagsCacheToken()}`)
     .digest("hex");
 }
 function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
@@ -1144,6 +1158,31 @@ interface TestResult {
    *  distance between them changed. */
   expectedDigest?: string;
   actualDigest?: string;
+  /** DM-1937: exact byte hashes of the two PNGs. The perceptual digests above
+   *  are deliberately lossy and have been observed IDENTICAL for two outputs
+   *  whose PNGs differ by 2,900 bytes — so digest equality must never be read
+   *  as output equality. These are the other bound: sha equality IS proof of
+   *  "same bytes" (the strongest possible "unchanged"), while sha inequality
+   *  alone proves nothing perceptual (CI raster is not bit-stable; AA jitter
+   *  flips it). Attribution logic combining both lives in
+   *  `src/review/side-digest.ts` (`compareSideEvidence` / `attributeMovement`). */
+  expectedSha256?: string;
+  actualSha256?: string;
+  /** DM-1937: true when expected.png + the captured tree were served from the
+   *  expected-cache. A cache hit means Chrome never rendered this fixture in
+   *  THIS run — so `chromeFaces` is absent and `expectedSha256` equality with a
+   *  previous run is a statement about the cache, not about Chrome's
+   *  determinism. Any repeatability claim must check this flag first. */
+  expectedFromCache?: boolean;
+  /** DM-1937: which pool worker ran this fixture, and its 0-based position in
+   *  that worker's job sequence. Sorting a run's results by (worker, workerSeq)
+   *  reconstructs the exact per-worker fixture order — recorded because
+   *  process-global cache state (Blink's font fallback per renderer, fontkit's
+   *  Glyph memoization) makes some outcomes order-sensitive, and two runs can
+   *  only be checked for order-sensitivity if the order each actually executed
+   *  in is in the artifact. */
+  worker?: number;
+  workerSeq?: number;
   /** The faces CHROME actually painted this fixture with, `PostScriptName:glyphCount`,
    *  sorted. Recorded because a pixel digest can only say the reference moved, never
    *  WHY — and the why here is almost always "Chrome picked a different face". Two
@@ -1151,8 +1190,20 @@ interface TestResult {
    *  recorded environment field was byte-identical, and answering that needed a
    *  fresh CI run purely to learn which face was involved. This makes the answer
    *  fall out of the artifact instead. Absent on records written before this
-   *  existed, and on cache hits (no page was rendered to ask). */
+   *  existed, and on cache hits (no page was rendered to ask).
+   *
+   *  Granularity matters and bit once already: this began as ONE
+   *  `CSS.getPlatformFontsForNode` call on `<body>`, which measured on a
+   *  unicode grid fixture returned only the heading + intro-paragraph faces
+   *  (~131 glyphs — none of the ~340 Menlo cell labels, none of the grid
+   *  glyphs), so it read IDENTICAL across a run pair whose grid cells visibly
+   *  flipped face. Now probed per text-bearing leaf element and merged as a
+   *  per-face glyph-count sum, so a single cell's face flip changes this set. */
   chromeFaces?: string[];
+  /** True when the fixture had more text-bearing leaves than the per-fixture
+   *  probe cap — `chromeFaces` then covers a document-order prefix, not the
+   *  whole page. */
+  chromeFacesTruncated?: boolean;
   /** Worst tile's fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   worstTileSignificantPct: number;
   /** Rect of the worst tile (x, y, w, h) in the image. */
@@ -1224,6 +1275,11 @@ interface HtmlTestWorker {
    */
   rasterPage: Page;
   rasterContext: BrowserContext | null;
+  /** DM-1937: stable worker index + a mutable per-worker job counter, so each
+   *  result can record where in this worker's sequence it ran (see the
+   *  `worker`/`workerSeq` result fields). */
+  id: number;
+  seq: number;
 }
 
 // DM-1006: one comparePage shared across all workers. The N-workers-each-
@@ -1270,7 +1326,14 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let worstTilePct = 100;
   let expectedDigest: string | undefined;
   let actualDigest: string | undefined;
+  let expectedSha256: string | undefined;
+  let actualSha256: string | undefined;
+  let expectedFromCache = false;
   let chromeFaces: string[] | undefined;
+  let chromeFacesTruncated: boolean | undefined;
+  // Claim the worker-sequence slot up front so even error/skip results record
+  // where in the worker's order they ran.
+  const workerSeq = w.seq++;
   let worstTileSignificantPct = 100;
   let worstTileRect: { x: number; y: number; w: number; h: number } | undefined;
   let regionCount = Number.MAX_SAFE_INTEGER;
@@ -1321,6 +1384,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       bodyBg: "#ffffff",
       error: undefined,
       warnings: undefined,
+      worker: w.id,
+      workerSeq,
     };
   }
   // DM-781: per-fixture capture height. Fixtures whose content extends past
@@ -1370,6 +1435,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
           bodyBg = meta.bodyBg;
           cap = { tree: meta.tree as unknown[], warnings: meta.warnings ?? [] };
           capWarnings = cap.warnings;
+          expectedFromCache = true;
           _expectedCacheHits++;
         } else {
           // Old DM-1002 cache entry without tree — treat as miss so we
@@ -1406,20 +1472,58 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
       timer.mark("screenshot-expected");
 
-      // Ask Chrome which faces it just painted with. One CDP round-trip on
-      // <body>, which reports the faces used across the whole subtree.
-      // Best-effort: this is diagnostic, and must never fail a sweep.
+      // Ask Chrome which faces it just painted with. Per text-bearing LEAF
+      // element, merged as a per-face glyph-count sum — NOT one call on
+      // <body>: that shallow form was measured returning only the heading +
+      // intro-paragraph faces on a unicode grid fixture (~131 glyphs, none of
+      // the grid cells or their Menlo labels), so it was blind to the exact
+      // cells whose face flips this field exists to catch. (Blink's
+      // aggregation rule for the body-level call lives in
+      // core/inspector/inspector_css_agent.cc, absent from the local sparse
+      // checkout — the shallowness is measured, not transcribed.)
+      // Best-effort: this is diagnostic, and must never fail a sweep. Runs
+      // after the screenshot; the probe attributes are removed before the
+      // tree capture below.
       try {
+        const leafCount: number = await w.page.evaluate(() => {
+          let i = 0;
+          for (const el of document.querySelectorAll("body, body *")) {
+            for (const child of el.childNodes) {
+              if (child.nodeType === Node.TEXT_NODE && /\S/.test(child.textContent ?? "")) {
+                el.setAttribute("data-dm-faces-probe", String(i++));
+                break;
+              }
+            }
+          }
+          return i;
+        });
+        // Cap the per-fixture CDP cost on dense real-world documents; the
+        // unicode grids sit far below this (≈90 leaves).
+        const PROBE_CAP = 400;
         const session = await w.page.context().newCDPSession(w.page);
         await session.send("DOM.enable");
         await session.send("CSS.enable");
         const { root } = await session.send("DOM.getDocument", { depth: 1 });
-        const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: "body" });
-        const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
-        chromeFaces = fonts
-          .map((f) => `${f.postScriptName ?? f.familyName}:${f.glyphCount}`)
+        const merged = new Map<string, number>();
+        for (let i = 0; i < Math.min(leafCount, PROBE_CAP); i++) {
+          const { nodeId } = await session.send("DOM.querySelector", {
+            nodeId: root.nodeId, selector: `[data-dm-faces-probe="${i}"]`,
+          });
+          if (nodeId === 0) continue;
+          const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+          for (const f of fonts) {
+            const key = f.postScriptName ?? f.familyName;
+            merged.set(key, (merged.get(key) ?? 0) + f.glyphCount);
+          }
+        }
+        chromeFaces = [...merged.entries()]
+          .map(([face, count]) => `${face}:${count}`)
           .sort((a, b) => a.localeCompare(b));
+        if (leafCount > PROBE_CAP) chromeFacesTruncated = true;
         await session.detach().catch(() => {});
+        await w.page.evaluate(() => {
+          for (const el of document.querySelectorAll("[data-dm-faces-probe]")) el.removeAttribute("data-dm-faces-probe");
+        });
       } catch { /* diagnostic only */ }
       timer.mark("chrome-faces");
 
@@ -1489,6 +1593,12 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     await w.rasterPage.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
     timer.mark("screenshot-actual");
 
+    // DM-1937: byte hashes of both sides. The perceptual digests below are
+    // lossy by design; these are the exact-identity bound (see the field docs).
+    expectedSha256 = createHash("sha256").update(readFileSync(expectedPath)).digest("hex");
+    actualSha256 = createHash("sha256").update(readFileSync(actualPath)).digest("hex");
+    timer.mark("hash-sides");
+
     const cmp = await withCompareLock((cp) => comparePngs(cp, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST));
     timer.mark("compare-pngs");
     if (DEMO_TIMING) {
@@ -1540,7 +1650,13 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     worstTilePct,
     expectedDigest,
     actualDigest,
+    expectedSha256,
+    actualSha256,
+    expectedFromCache,
     chromeFaces,
+    chromeFacesTruncated,
+    worker: w.id,
+    workerSeq,
     worstTileSignificantPct,
     worstTileRect,
     regionCount,
@@ -1679,6 +1795,9 @@ async function main(): Promise<void> {
   sharedComparePage.setDefaultNavigationTimeout(90_000);
   await sharedComparePage.goto("about:blank");
 
+  // DM-1937: monotonically assigned worker ids so results can record execution
+  // order per worker (`worker` / `workerSeq`).
+  let nextWorkerId = 0;
   const results = await runJobsInPool<string, HtmlTestWorker, TestResult>({
     jobs: testFiles,
     workers: workerCount,
@@ -1699,7 +1818,7 @@ async function main(): Promise<void> {
         rasterPage.setDefaultTimeout(90_000);
         rasterPage.setDefaultNavigationTimeout(90_000);
       }
-      return { context, page, rasterPage, rasterContext };
+      return { context, page, rasterPage, rasterContext, id: nextWorkerId++, seq: 0 };
     },
     teardown: async (w) => {
       await w.context.close();
