@@ -357,6 +357,31 @@ lacking that font.
 
 ### macOS `FONT_PATHS` (excerpt — the calibrated key→file map)
 
+**An entry on a `.ttc` must name its member.** A spec with no `postscriptName`
+does not mean "this file's face" — it means "whatever opening the file by path
+gives you", and on a collection that is member 0, i.e. the vendor's ordering
+rather than anything a routing table meant. `NotoSansMyanmar.ttc` has 18 members
+and member 0 is **Black**, so every Myanmar run painted at weight 900 whatever
+the CSS asked for, while Chrome (asked over CDP) answers
+`NotoSansMyanmar-Regular` at weight 400 — U+1000 advance 1124 against Black's
+1121. `src/render/font-path-postscript-names.test.ts` sweeps the table and fails
+on any key that resolves to a multi-member collection without a name.
+
+Entries under the `u-` namespace come from the generated per-block table, which
+says not to edit it by hand; names for those are overridden in `FONT_PATHS`
+**after** the spread, which is the durable place until the generator learns to
+emit one.
+
+**Single-face VARIABLE files are a separate, still-open question.** For those,
+opening by path also gets different metrics than the face HarfBuzz indexes — SF
+Arabic 3870 units by path against 4122 by name, SF Pro's `Hamburgefonstiv`
+13580.667 against 14711, with identical glyph ids throughout, so it is metrics
+rather than face identity, and by-name equals HarfBuzz exactly. Naming them
+nonetheless regressed a unicode fixture 30× on CI, reproducibly and against a
+control ref run twice, by a mechanism not yet found — it is inert in every local
+measurement, so the divergence is specific to the runner's font inventory. They
+are deliberately left unnamed until that is explained.
+
 | Key(s) | File | Notes |
 |---|---|---|
 | `sf-pro` / `sf-pro-italic` | SFNS.ttf / SFNSItalic.ttf | system-ui; italic is a sibling file, not a `slnt` axis |

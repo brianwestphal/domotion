@@ -875,6 +875,39 @@ const FONT_PATHS: Record<string, FontPath> = {
   // 142 fonts, 319 block routes. Each entry's key is namespaced under
   // `u-...` so it can't collide with a hand-coded key here.
   ...UNICODE_FONT_PATHS,
+  // DM-1924: name the member this key means, because opening a COLLECTION by
+  // path alone selects member 0 and that is the vendor's ordering, not a face
+  // any routing table meant. `NotoSansMyanmar.ttc` carries 18 members and member
+  // 0 is **Black**, so every Myanmar run painted at weight 900 whatever the CSS
+  // asked for — and nothing downstream could notice, since `postscriptName` and
+  // `naturalWeight` both came back undefined on the instance. Chrome, asked over
+  // CDP, answers `NotoSansMyanmar-Regular` at weight 400: U+1000 advance 1124,
+  // against Black's 1121.
+  //
+  // Same defect this repo already fixed once for `NotoSansArmenian.ttc`, whose
+  // member 0 is also Black. Members 9-17 here are Zawgyi, a non-Unicode Myanmar
+  // encoding, so a fix by member INDEX rather than by name would have traded a
+  // weight error for mojibake.
+  //
+  // Overridden here rather than edited into the generated table, which says not
+  // to edit it by hand and would lose this on the next sweep. The generator is
+  // what should learn to emit a name. The spread above comes first, so this wins.
+  // `family` is deliberately absent: it is not part of `FontPath`, and
+  // `generatedRouteUsable` reads it from `UNICODE_FONT_PATHS` directly.
+  //
+  // Weight 400 only. Chrome answers `NotoSansMyanmar-Bold` at 700, so this family
+  // has a ladder inside the container that one pinned member cannot serve; at 700
+  // the renderer now synthesises bold over Regular instead of taking the Bold
+  // member. Still strictly better than Black at every weight, and the ladder
+  // belongs with the per-family weight-ladder work.
+  //
+  // The SIBLING renames this started as — the SF faces and the other Noto
+  // variable files — are NOT here. They measured as pure improvements in
+  // isolation (by-name equals HarfBuzz exactly where by-path does not) and are
+  // inert locally, yet the branch carrying them regressed a fixture on CI by 30x
+  // worst tile, reproducibly, against a control ref run twice. Until that is
+  // explained they stay out; see the ticket.
+  "u-noto-sans-myanmar": { path: "/System/Library/Fonts/NotoSansMyanmar.ttc", postscriptName: "NotoSansMyanmar-Regular", extractor: "native" as const },
 };
 
 // ── Cross-platform font path discovery (DM-258) ──
