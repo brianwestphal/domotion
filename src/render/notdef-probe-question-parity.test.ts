@@ -116,16 +116,24 @@ describe("dotted-circle coverage probe asks the platform the resolver's question
     expect(new Set(perAsker).size, `diverged: ${JSON.stringify(perAsker)}`).toBe(1);
     expect(perAsker[0]).toContain("systemUiPrimary");
     expect(perAsker[0]).toContain("lang");
+    expect(perAsker[0]).toContain("stretch");
   });
 
-  it("keeps every run-context asker's argument list ending in systemUiPrimary, lang", () => {
+  it("keeps every run-context asker's argument list ending in systemUiPrimary, lang, stretch", () => {
     // Pins the ORDER too: `resolveSystemFallbackKeyForCp` takes
-    // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang), and both
-    // of the trailing two are optional with defaults — so a transposition is a
+    // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch),
+    // and the trailing three are optional with defaults — so a transposition is a
     // silently mis-keyed memo rather than a type error wherever the types line up.
+    //
+    // `stretch` joined this list AFTER the test was first written, and it did so
+    // by breaking it: the width was threaded into the resolver by one change
+    // while the probe was made argument-identical by another, and merging the two
+    // reopened the very asymmetry the first test closed — one parameter further
+    // along. That is the whole reason this asserts the FULL tail rather than
+    // merely that the two lists match: a shared omission would satisfy equality.
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
-      expect(args.endsWith("systemUiPrimary, lang"), `${name}: ${args}`).toBe(true);
+      expect(args.endsWith("systemUiPrimary, lang, stretch"), `${name}: ${args}`).toBe(true);
     }
   });
 

@@ -2265,9 +2265,9 @@ const fallbackFamilyCutCache = new Map<string, string | null>();
  *  conformance oracle measured it against a `system-ui` stack. */
 export function __resolveSystemFallbackKeyForCpForTest(
   cp: number, weight = 400, slant = 0, fontSize = 16,
-  primaryKey?: string, systemUiPrimary = false, lang?: string,
+  primaryKey?: string, systemUiPrimary = false, lang?: string, stretch = 100,
 ): string | null {
-  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang);
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch);
 }
 
 /** Test-only window into the platform path resolver (DM-258). */
@@ -5777,6 +5777,11 @@ export function codepointResolvesToNotdef(
    *  `BlinkMacSystemFont` — see `stackPrimaryIsSystemUi`, which is what the
    *  caller derives this from. */
   systemUiPrimary: boolean = false,
+  /** CSS `font-stretch` as a percentage, 100 = `normal`. Travels for the same
+   *  reason `systemUiPrimary` and `lang` do: the resolver passes it, so a probe
+   *  that withheld it would be asking the platform about a different cascade
+   *  than the one the run actually paints. */
+  stretch: number = 100,
 ): boolean {
   if (glyphIdForCp(primaryFont, cp) !== 0) return false;
   if (primaryFontKey.startsWith("webfont:")) {
@@ -5792,7 +5797,7 @@ export function codepointResolvesToNotdef(
   }
   if (_systemFallbackResolutionEnabled) {
     const sysKey = resolveSystemFallbackKeyForCp(
-      cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang);
+      cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null && sf.glyphForCodePoint != null

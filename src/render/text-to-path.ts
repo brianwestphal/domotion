@@ -1109,7 +1109,8 @@ export function insertSyntheticDottedCircles(
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
   const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
+  const stretch = stretchPercent(fontStretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
   if (primaryFont == null) return { text, xOffsets };
 
   // Resolve the dotted circle's own advance (CSS px) so the displaced mark can
@@ -1202,7 +1203,7 @@ export function insertSyntheticDottedCircles(
       const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-            variationSettings, lang, stackPrimaryIsSystemUi(fontFamily))) {
+            variationSettings, lang, stackPrimaryIsSystemUi(fontFamily), stretch)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {
