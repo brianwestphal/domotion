@@ -136,6 +136,32 @@ describe("shaping segmentation (DM-1894)", () => {
     }
   });
 
+  it("scores a run against RUN-RELATIVE levels, so the caller must slice them", () => {
+    // The contract both `needsSegmentation` and `segmentForShaping` are written
+    // to: `levels[i]` is the level of `text[i]`. The renderer segments a FONT
+    // RUN, which is a slice of the line starting at `run.startIdx`, so it has to
+    // hand over `levels.subarray(startIdx, endIdx)` and not the whole-line
+    // array. Passing the unsliced array reads the level of whatever character
+    // sits that far from the start of the LINE.
+    //
+    // This is pinned rather than left implicit because the failure is silent and
+    // was shipped: a run scored left-to-right reaches the shaper as an explicit
+    // `direction: "ltr"`, the macOS CoreText helper's shape query takes no
+    // direction at all and infers RTL from the content, and the wrong score
+    // therefore painted correctly — until a script was routed to HarfBuzz, which
+    // obeys the direction it is given and reverses the buffer before shaping.
+    const line = "Hello שלום world";
+    const levels = bidiLevelsFor(line)!;
+    const startIdx = line.indexOf("שלום");
+    const endIdx = startIdx + "שלום".length;
+    const runText = line.slice(startIdx, endIdx);
+
+    // Sliced: the run's own embedding level, which is what it must shape with.
+    expect(segmentForShaping(runText, levels.subarray(startIdx, endIdx))[0].rtl).toBe(true);
+    // Unsliced: reads levels 0..3, i.e. `Hell` — strong LTR, and wrong.
+    expect(segmentForShaping(runText, levels)[0].rtl).toBe(false);
+  });
+
   it("handles astral characters without splitting a surrogate pair", () => {
     // Indexing is in code UNITS; advancing by one unit through an astral
     // character would put a boundary inside a surrogate pair and emit garbage.

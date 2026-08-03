@@ -323,6 +323,50 @@ export const tests: FeatureTest[] = [
     width: 460,
     height: 120,
   },
+  // A right-to-left word INSIDE a left-to-right line — the one text shape that
+  // no other fixture in either corpus paints, and the reason a real shaping bug
+  // stayed latent through five clean full-corpus sweeps.
+  //
+  // Why the broad sweeps cannot cover it: the per-Unicode-block fixtures are
+  // single-script by construction, so an RTL block's fixture is entirely RTL and
+  // its run starts at index 0 of the line, where the level lookup happened to be
+  // right. It takes a MIXED line to put an RTL run at a non-zero offset.
+  //
+  // What it pins: the renderer hands the shaper an explicit direction per bidi
+  // run, and that direction has to be the run's own embedding level. Hand an
+  // RTL run "ltr" and the two engines diverge — the macOS CoreText helper's
+  // shape query takes no direction at all and silently infers RTL from the
+  // content, while HarfBuzz (which is what Chrome runs) obeys and reverses the
+  // buffer before shaping, so the contextual forms come out computed on the
+  // reversed characters: a differently-shaped word, not a placement nuance.
+  //
+  // Hebrew is covered explicitly and not only Arabic. Both are RTL and both are
+  // routed to HarfBuzz, but they reached that routing in separate changes, and
+  // only Arabic appeared in a mixed line anywhere — so Hebrew's exposure was
+  // real and unexercised.
+  //
+  // Three lines, one behavior each: digits inside an RTL word (bidi resolves
+  // them to their own even level, so the line is three runs and not two);
+  // POINTED Hebrew, where a mirrored run is at its most obvious because each
+  // nikud lands under the wrong consonant; and a Hebrew word directly abutting
+  // an Arabic one, which pins the boundary between two adjacent RTL runs that
+  // resolve to different faces.
+  //
+  // Deliberately three lines and not four. A FOURTH line of this style pushes
+  // the fixture over the harness threshold on its own — measured at 0.07% with
+  // the text replaced by plain Latin and no RTL anywhere in the fixture, so it
+  // is a paths-mode residual of the line count, unrelated to direction. Adding
+  // a line here would buy a failure that says nothing about shaping.
+  {
+    name: "text-rtl-in-ltr-line",
+    html: `<div style="padding: 20px; color: #e6edf3; font-family: -apple-system, sans-serif; font-size: 18px; line-height: 1.6;">
+      <div>id שלום 123 ok</div>
+      <div>Book בְּרֵאשִׁית here</div>
+      <div>mix שלום مرحبا end</div>
+    </div>`,
+    width: 460,
+    height: 150,
+  },
 
   // ── Regression: modern CSS color formats (SK-434) ──
   // Each swatch uses a different color notation. All must parse to the

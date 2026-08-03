@@ -581,55 +581,82 @@ Notes:
 
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
-  Today it holds **Thai** (U+0E00–U+0E7F), **Telugu** (U+0C00–U+0C7F), **Devanagari** (U+0900–U+097F) and
-  **Hangul** (U+1100–U+11FF, U+3130–U+318F, U+A960–U+A97F, U+AC00–U+D7FF), plus
-  **Hebrew** (U+0590–U+05FF together with U+FB1D–U+FB4F — those two route as one
-  because `compose_hebrew` maps a consonant plus U+05BC DAGESH from the first
-  block onto a presentation form in the second, `hb-ot-shaper-hebrew.cc`
-  :35-72, so splitting them would shape a mixed text as two runs).
-  Hangul's 2 disagreements are both `glyph-count` and both on the terminal
-  LastResort face: `한글` shapes to 2 glyphs under HarfBuzz and 6 under CoreText,
-  because HarfBuzz decomposes a precomposed `<LV>`/`<LVT>` syllable **only** when
-  the font lacks the composed glyph and covers the jamo
-  (`external/harfbuzz/src/hb-ot-shaper-hangul.cc` rev `4de187d`, :344-357), and
-  LastResort's cmap covers the syllable. Every real Korean face already agrees,
-  so this corrects the terminal-fallback case only. Devanagari's 44 are the same
-  shape as Telugu's — no `glyph-ids` or `glyph-count` at all, advance/offset
-  pairs that cancel — but its cluster map is not merely coarser, it is
-  REORDERED: on हिन्दी HarfBuzz reports `0 0 2 2` and CoreText `1 0 2 5`, giving
-  the pre-base matra ि its own source index ahead of the base it was reordered
-  around. Against captured-xOffset anchoring, that places the matra where Chrome
-  never painted it. HarfBuzz's merge is the Indic shaper's documented behavior
-  — final reordering moves glyphs before the base and merges clusters up to it,
-  so the two merges interlock (`hb-ot-shaper-indic.cc` :796-806). Hebrew is the
-  largest at 76 and the one whose numbers most invite misreading: its 27
-  `offset` and 21 `advance` disagreements are two ENCODINGS of the same ink —
-  HarfBuzz models each point as a zero-advance mark with its own offset while
-  CoreText carries one constant offset on every glyph and folds the rest into
-  (sometimes negative) advances, and accumulating both lands every glyph at the
-  same x. What is left is the cluster map plus 2 `glyph-count` on LastResort. The
-  Telugu entry is the weaker of the two and worth reading as such: on the
-  conjunct క్ష both engines land the subjoined SSA's ink at the same x and total
-  the same advance (HarfBuzz calls it a zero-advance GPOS mark at −248, CoreText
-  lays the pair out sequentially), so what actually moves is the CLUSTER MAP —
-  `0 0` against `0 1`. That matters because the renderer anchors each cluster at
-  its captured xOffset, so CoreText's map anchors the subjoined glyph at the
-  VIRAMA's x. Chrome gets HarfBuzz's map, where the Indic shaper merges a
-  consonant syllable's clusters outward from the base
-  (`external/harfbuzz/src/hb-ot-shaper-indic.cc` rev `4de187d`, :806 / :824).
-  The reason a script is on it is a
-  measurement, not an assumption: `npm run fonts:shaper-ab` compares HarfBuzz
-  against the macOS CoreText helper over every resolvable face and reports 366
-  disagreements spread across **all ten** dedicated-shaper scripts, so the claim
-  the exclusion used to rest on — "macOS CoreText already matches Chrome for
-  them" — is false everywhere it was applied. Two of Thai's 32 are `glyph-ids`:
-  HarfBuzz substitutes the Windows-PUA shift-left forms U+F704 / U+F714 for an
-  above vowel plus tone mark over an ascender consonant, per the state machine
-  and mapping table in `external/harfbuzz/src/hb-ot-shaper-thai.cc` (rev
-  `4de187d`: `SL_mappings` :124-137, `thai_pua_shape` :156-159,
-  `thai_above_start_state` :172-179, `thai_above_state_machine` :188-189). On
-  Arial Unicode MS those are the plain outline shifted 220 units left — 0.107 em,
-  ≈1.7 px at 16 px.
+  It now holds **all six scripts the measurement found a glyph or position
+  difference in**, each landed as its own commit with its own full macOS unicode
+  sweep and a control ref swept twice:
+
+  | script | ranges | disagreements | what actually differed |
+  | --- | --- | ---: | --- |
+  | Thai | 0E00–0E7F | 32 | **glyph ids** — the U+F704 / U+F714 shift-left PUA forms |
+  | Telugu | 0C00–0C7F | 10 | cluster map (ink cancels) |
+  | Hangul | 1100–11FF, 3130–318F, A960–A97F, AC00–D7FF | 2 | **glyph count** — CoreText decomposes syllables |
+  | Devanagari | 0900–097F | 44 | cluster map, and it is REORDERED |
+  | Hebrew | 0590–05FF, FB1D–FB4F | 76 | cluster map (advance/offset are two encodings of one ink) |
+  | Arabic | 0600–06FF, 0750–077F, 0870–089F, 08A0–08FF, FB50–FDFF, FE70–FEFF | 75 | cluster map; 8 glyph-count on an unreachable face |
+
+  The four remaining dedicated-shaper scripts — **Myanmar, Bengali, Khmer,
+  Tamil** — are deliberately NOT here: every one of their disagreements is
+  cluster-map-only, and moving them was not authorized on that evidence alone.
+
+  The reason a script is on this list is a measurement, not an assumption: `npm
+  run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
+  every resolvable face and reports 366 disagreements spread across **all ten**
+  dedicated-shaper scripts, so the claim the exclusion used to rest on — "macOS
+  CoreText already matches Chrome for them" — is false everywhere it was
+  applied. Its routing-aware `reaching production` line walks
+  `366 → 334 → 324 → 322 → 278 → 202 → 127` across the six commits; the raw
+  total stays 366 by construction, because that tool calls both engines directly
+  and so measures the gap between them rather than which one production asks.
+
+  Three of the six are worth reading in detail, because their numbers invite
+  misreading in different directions:
+
+  - **Thai** is the only one with a genuinely different GLYPH. HarfBuzz
+    substitutes the Windows-PUA shift-left forms U+F704 / U+F714 for an above
+    vowel plus tone mark over an ascender consonant, per the state machine and
+    mapping table in `external/harfbuzz/src/hb-ot-shaper-thai.cc` (rev
+    `4de187d`: `SL_mappings` :124-137, `thai_pua_shape` :156-159,
+    `thai_above_start_state` :172-179, `thai_above_state_machine` :188-189). On
+    Arial Unicode MS those are the plain outline shifted 220 units left — 0.107
+    em, ≈1.7 px at 16 px.
+  - **Hebrew and Arabic** look the worst by count and are mostly an ENCODING
+    difference. HarfBuzz models a point as a zero-advance mark carrying its own
+    offset; CoreText carries one constant offset on every glyph and folds the
+    rest into (sometimes negative) advances. Accumulate advance and add offset
+    and every glyph lands at the same x. What survives is the cluster map.
+  - **Devanagari and Telugu** are cluster-map differences, which matter because
+    the renderer anchors each cluster at its captured xOffset rather than at an
+    accumulated advance. Devanagari's is the sharper case: on हिन्दी HarfBuzz
+    reports `0 0 2 2` and CoreText `1 0 2 5`, giving the pre-base matra ि its own
+    source index ahead of the base it was reordered around — which anchors it
+    where Chrome never painted it. HarfBuzz's merge is the Indic shaper's
+    documented behavior (`hb-ot-shaper-indic.cc` :796-806).
+
+  Two scoping rules were applied consistently, and they point in opposite
+  directions for a reason:
+
+  - **An extension block stays behind unless it was measured.** Lao (0E80–0EFF),
+    Devanagari Extended (A8E0–A8FF) and Vedic Extensions (1CD0–1CFF) are all
+    excluded — separate scripts or separate routes, with no measurement.
+  - **A presentation-form block travels with its base** when the shaper composes
+    or joins across the boundary. Hebrew's FB1D–FB4F does because
+    `compose_hebrew` maps a consonant U+05D0–05EA plus U+05BC DAGESH onto its
+    FB30–FB4A form (`hb-ot-shaper-hebrew.cc` :35-72); Arabic's FB50–FDFF and
+    FE70–FEFF do because joining spans them. Routing only half would split a
+    word across two shapers mid-join, which is the failure this exists to avoid.
+
+  One measured non-hazard worth recording, since it is the most alarming-looking
+  number in the set. Arabic's 8 `glyph-count` disagreements are all on
+  LastResort, where HarfBuzz returns ONE glyph for a whole word (`مرحبا` → 1)
+  against CoreText's one per character. That is HarfBuzz's Arabic FALLBACK plan
+  (`hb-ot-shaper-arabic.cc` :424-438), which fires because LastResort has no
+  GSUB or `morx` at all, and which builds a synthetic GSUB in glyph-id space —
+  LastResort maps every codepoint in a block to the same glyph id, so its
+  ligature entries collide and the run collapses. `abc` on the same face stays 3
+  glyphs. It is also unreachable: `last-resort` is selected **0 times** in 7,680
+  codepoint × primary resolutions over the six Arabic ranges, because the static
+  chain skips the key and Blink's macOS last-resort fallback is Times, never the
+  Unicode LastResort font (`mac/font_cache_mac.mm:376-392`).
 
   **Holding the outlines fixed is the whole mechanism.** An earlier attempt
   routed the entire `layout()` through HarfBuzz and made the Thai fixture worse
@@ -1565,11 +1592,42 @@ the script's own direction, rather than passing a contrary direction down. That
 also removes the reason such a run needed a different shaper: the platform
 helper infers direction from content and cannot be told otherwise, but on the
 reversed string its inference lands on exactly the direction wanted. The
-reversal is gated on
-an override being present: outside one, `seg.rtl` is not authoritative (a
-fallback run carries no level array, so a plain mixed-script line reports
-`rtl: false` for an Arabic segment) and reversing on that signal mirrors the
-word.
+reversal stays gated on an override being present, because an override is the
+only input that can legitimately contradict the segment's own content.
+
+### The direction handed to the shaper is the run's own embedding level
+
+`bidiLevelsFor` computes one level per code unit of the **whole line**, while
+`run.text` is a slice of that line beginning at `run.startIdx`, and both
+`needsSegmentation` and `segmentForShaping` index it with **run-relative**
+offsets. The level array is therefore sliced to the run
+(`bidiLevels.subarray(run.startIdx, run.endIdx)`) before either sees it. Handing
+them the unsliced array scored every run after the first against the wrong
+characters: `Hello مرحبا …` read `0,0,0,0,0` — the levels of `Hello` — for its
+Arabic run and called it left-to-right.
+
+The slice is taken only when the run's text matches its source span character
+for character. A Math-Alphanumeric `decomposed` run holds substituted base
+letters (`mathAlphaToBase`), so no per-character alignment exists to preserve;
+those runs are Latin base letters by construction and absent levels read as
+left-to-right, which is what they are.
+
+**This was invisible for exactly as long as the shaper ignored what it was
+told.** The macOS helper's shape query takes no direction argument at all
+(`shapeText(text)` in `glyph-helper.ts`), so it inferred RTL from the content
+and a mis-scored run came out right for the wrong reason. HarfBuzz obeys — per
+`hb_ensure_native_direction` above — so the moment an RTL script was routed to
+it, the mis-scored run got its characters reversed before shaping and painted a
+mirrored word. The architecture had been depending on the shaper disregarding
+its direction argument, which is a dependency no reroute can preserve.
+
+The residual risk this leaves is a coverage one, and `text-rtl-in-ltr-line` in
+the feature suite exists to close it: the per-Unicode-block fixtures are
+single-script by construction, so an RTL block's fixture is entirely RTL and its
+run starts at index 0, where the unsliced lookup happened to be correct. Only a
+**mixed** line puts an RTL run at a non-zero offset, and before that fixture the
+sole example of one in either corpus carried Arabic — so Hebrew's identical
+exposure survived a full clean sweep.
 
 Note the two index spaces are different and must not be crossed: the macOS
 helper's `CTFontManagerCreateFontDescriptorsFromURL` enumeration is CoreText's

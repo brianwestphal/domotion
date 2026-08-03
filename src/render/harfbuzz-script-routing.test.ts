@@ -82,8 +82,20 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     // must route together or a mixed text is shaped as two separate runs.
     expect(usesHarfbuzzShaping(0xFB30)).toBe(true);
     expect(usesHarfbuzzShaping(0xFB4F)).toBe(true);
-    expect(usesHarfbuzzShaping(0xFB50)).toBe(false); // Arabic presentation forms — not yet
-    expect(usesHarfbuzzShaping(0x058F)).toBe(false); // Armenian
+    expect(usesHarfbuzzShaping(0x058F)).toBe(false); // Armenian — a different script
+  });
+
+  it("covers every Arabic block, base and presentation forms alike", () => {
+    expect(usesHarfbuzzShaping(0x0645)).toBe(true);  // MEEM
+    expect(usesHarfbuzzShaping(0x0650)).toBe(true);  // KASRA
+    expect(usesHarfbuzzShaping(0x0750)).toBe(true);  // Arabic Supplement
+    expect(usesHarfbuzzShaping(0x0870)).toBe(true);  // Arabic Extended-B
+    expect(usesHarfbuzzShaping(0x08A0)).toBe(true);  // Arabic Extended-A
+    expect(usesHarfbuzzShaping(0xFB50)).toBe(true);  // Presentation Forms-A
+    expect(usesHarfbuzzShaping(0xFEFC)).toBe(true);  // LAM-ALEF ligature, Forms-B
+    // Joining spans all of these, so a subset would split a word mid-join.
+    expect(usesHarfbuzzShaping(0x0700)).toBe(false); // Syriac — a different script
+    expect(usesHarfbuzzShaping(0xFE00)).toBe(false); // Variation Selectors
   });
 
   it("does not reroute the scripts that have not been swept yet", () => {
@@ -91,7 +103,6 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     // commit and its own CI sweep. Flipping one without updating this line
     // means the sweep did not happen.
     for (const cp of [
-      0x0645, // Arabic meem
       0x1000, // Myanmar ka — cluster-only, deliberately excluded
       0x0995, // Bengali ka — cluster-only
       0x1780, // Khmer ka — cluster-only

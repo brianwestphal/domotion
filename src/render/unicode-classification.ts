@@ -363,6 +363,47 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // mixing the two would otherwise split into two runs on the routing key and be
   // shaped as two units, which is the failure mode this exercise exists to avoid.
   [0x0590, 0x05FF], [0xFB1D, 0xFB4F],
+
+  // Arabic — the last of the six, and with it every script the measurement
+  // found a glyph or position difference in. 75 disagreements over 10 faces
+  // (SF Arabic / Geeza Pro, both Arial cuts, both Times New Roman cuts, Arial
+  // Unicode, LastResort): 25 `advance`, 24 `offset`, 18 `cluster`, 8
+  // `glyph-count`.
+  //
+  // The advance / offset pairs are the same two-encodings-of-one-ink situation
+  // as Hebrew, and they cancel. On Geeza Pro, مرحبا: HarfBuzz `647 656 1359 700
+  // 971` with a -202 offset on the fourth glyph, CoreText `647 656 1157 902 971`
+  // with no offsets — both paint at 0 / 647 / 1303 / 2460 / 3362 and both total
+  // 4333. On the pointed بِسْمِ CoreText again carries one constant offset on every
+  // glyph and folds the rest into negative advances; accumulated, both land at
+  // 216 / 0 / 947 / 692 / 1795 / 1779. So what is left is the cluster map (hb
+  // `4 4 2 2 0 0` against ct `5 4 3 2 1 0`).
+  //
+  // **The 8 `glyph-count` disagreements look alarming and are unreachable.**
+  // All 8 are on LastResort, where HarfBuzz returns ONE glyph for a whole
+  // Arabic word (`مرحبا` → 1, `العربية` → 1) while CoreText returns one per
+  // character. That is not a ligature in the font — LastResort has no GSUB or
+  // `morx` at all, which is exactly what triggers HarfBuzz's Arabic FALLBACK
+  // plan (`hb-ot-shaper-arabic.cc` rev 4de187d, :424-438). That plan builds a
+  // synthetic GSUB in GLYPH-ID space from the shaping and ligature tables, and
+  // LastResort maps every codepoint in a block to the SAME glyph id, so its
+  // ligature entries all collide on one id and the run collapses. Latin and
+  // Hangul are unaffected on the same face (`abc` stays 3 glyphs), confirming
+  // it is the Arabic fallback plan and not a general property.
+  //
+  // Checked rather than assumed: `last-resort` is reached **0 times** out of
+  // 7,680 codepoint × primary resolutions over all six Arabic ranges — the
+  // static chain skips the key and Blink's macOS last-resort fallback is Times,
+  // never the Unicode LastResort font (`mac/font_cache_mac.mm:376-392`). So
+  // this collapse is not paint we can produce; and where it would be, Chrome
+  // runs the same HarfBuzz and would collapse identically.
+  //
+  // All six ranges route together — Arabic proper, Supplement, Extended-A and
+  // Extended-B are joining letters, and the two presentation-form blocks carry
+  // joining types too, so routing a subset would split a word across two
+  // shapers mid-join. That is the same reasoning as Hebrew's FB1D-FB4F.
+  [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF],
+  [0xFB50, 0xFDFF], [0xFE70, 0xFEFF],
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.

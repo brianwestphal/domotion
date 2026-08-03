@@ -588,8 +588,32 @@ export function textToPathMarkup(
         // `needsSegmentation` keeps the common case free — the analogue of
         // Blink's 8-bit shortcut (:1157-1161), which skips segmentation for
         // Latin-1 because it cannot hold a script or direction boundary.
-        const segments = needsSegmentation(run.text, bidiLevels)
-          ? segmentForShaping(run.text, bidiLevels)
+        // The level array spans the WHOLE text; `run.text` is a slice of it
+        // starting at `run.startIdx`, and both consumers below index it with
+        // RUN-RELATIVE offsets. Handing them the unsliced array reads the level
+        // of whatever character happens to sit that far from the start of the
+        // LINE, so every run except the first was scored against the wrong
+        // characters — `Hello مرحبا …` read levels 0,0,0,0,0 (the `Hello`) for
+        // its Arabic run and called it left-to-right.
+        //
+        // That was invisible for as long as the shaper ignored the direction it
+        // was handed: the macOS helper's shape query takes no direction argument
+        // at all (`shapeText(text)`), so it inferred RTL from the content and
+        // came out right for the wrong reason. HarfBuzz obeys — see the segment
+        // loop below — so the misalignment became a mirrored word the moment any
+        // RTL script was routed to it.
+        //
+        // Sliced only when the run's text is the source slice character for
+        // character. A Math-Alphanumeric `decomposed` run holds SUBSTITUTED base
+        // letters (`mathAlphaToBase`), so its length need not match the span it
+        // came from and no per-character alignment exists to preserve; those runs
+        // are Latin base letters by construction, and `undefined` levels are read
+        // as left-to-right, which is what they are.
+        const runLevels = (bidiLevels != null && run.text.length === run.endIdx - run.startIdx)
+          ? bidiLevels.subarray(run.startIdx, run.endIdx)
+          : undefined;
+        const segments = needsSegmentation(run.text, runLevels)
+          ? segmentForShaping(run.text, runLevels)
           // A run with no direction BOUNDARY still has a direction — its single
           // embedding level. Hardcoding `rtl: false` here was latent: the value
           // reached the shaper as an explicit `dir`, and the platform helper
@@ -600,7 +624,7 @@ export function textToPathMarkup(
             start: 0,
             end: run.text.length,
             script: "",
-            rtl: bidiLevels != null && bidiLevels.length > 0 && (bidiLevels[0] & 1) === 1,
+            rtl: runLevels != null && runLevels.length > 0 && (runLevels[0] & 1) === 1,
           }];
 
         // A note on what an override run does NOT need: a different shaper.
@@ -685,14 +709,18 @@ export function textToPathMarkup(
           // Reversal is by code point, matching `reverse_clusters()` on a buffer
           // that has not been shaped yet, where clusters are still per-character.
           //
-          // Gated on there being an override, because outside one `seg.rtl` is
-          // not authoritative enough to reverse on. A fallback run carries no
-          // level array of its own, so a plain mixed-script line hands the Arabic
-          // segment through with `rtl: false` while its content is plainly RTL —
-          // measured on `Hello مرحبا 你好`, where reversing on that signal alone
-          // mirrors the word. Under an override the level IS authoritative by
-          // construction: Blink put it there with an injected LRO/RLO, which is
-          // the whole point of the property.
+          // Gated on there being an override, and the gate is now a narrowing
+          // rather than a correction. It used to be load-bearing for a different
+          // reason: the level array was indexed run-relatively against
+          // whole-line levels (fixed above), so a plain mixed-script line handed
+          // the Arabic segment `rtl: false` while its content was plainly RTL,
+          // and reversing on that signal mirrored the word. With the run-aligned
+          // levels, `seg.rtl` and `contentIsRtl` agree for every strong-script
+          // segment outside an override, so the two forms coincide there; the
+          // gate is kept because the ONE input that can legitimately contradict
+          // the content is an override, where Blink's injected LRO/RLO makes the
+          // level authoritative by construction — which is the whole point of
+          // the property.
           const flipToNative = bidiOverride != null && seg.rtl !== contentIsRtl;
           const shapeText = flipToNative ? [...segText].reverse().join("") : segText;
           // Once flipped, the run IS native, so hand the shaper the direction its
