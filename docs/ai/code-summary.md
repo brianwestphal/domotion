@@ -199,6 +199,29 @@ shortest possible map:
   `tests/font-conformance-baseline.test.ts`; see
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
+- **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
+  compares HarfBuzz against the platform helper at glyph-ID granularity. Both
+  engines are opened at the SAME axis location; without that a variable face
+  reports instance-vs-instance differences as engine disagreements. It measures
+  the two engines against each other and is therefore **blind to which one the
+  render pipeline routes a face to** — a routing change cannot move its number.
+- **macOS glyph helper queries** (`tools/macos-glyph-extractor/`, Swift, built by
+  its `build.sh` into a **gitignored** `domotion-glyph-paths`, so a fresh
+  checkout must build it or the helper-backed tests silently skip):
+  `glyphs` / `meta` / `fallback` / `notdef` / `shape` / `family`, plus
+  `familyMatch` — Blink's declared-family style matcher
+  (`BestStyleMatchForFamilyNS` + `BetterChoiceCT` + `BetterWeightMatch`),
+  enumerating with AppKit and reproducing Chrome's per-weight cut for a family.
+  Pinned by `tests/family-style-matcher.test.ts`. Built but **not yet wired into
+  the render path**.
+- **AAT tracking routing** — `faceHasTrakAndStat` (`src/render/harfbuzz-shaper.ts`)
+  reads the sfnt table directory to decide whether a face is tracked; when it is,
+  shaping goes to HarfBuzz while outlines stay with the original engine, via
+  `preferShapeFallback` on the native-helper path and `installHarfbuzzShaping` on
+  the fontkit path. `DOMOTION_TRAK_HB_SHAPING=0` bounds both.
+  `takeFallbackResponseAnomalies()` (`src/render/glyph-helper.ts`) reports short
+  or out-of-domain system-fallback batch responses, so a sweep reporting none has
+  eliminated that failure mode rather than not looked.
 
 ## Upstream source is checked out locally — read it
 

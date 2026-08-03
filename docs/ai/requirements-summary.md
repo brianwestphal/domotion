@@ -769,9 +769,23 @@ they describe (see `CLAUDE.md` "Documentation"):
   Unicode properties come from HarfBuzz's built-in UCD rather than ICU, and the Rust
   backend is absent (not a divergence for shipping Chrome — Blink pins the `"ot"`
   shaper unless an off-by-default runtime flag is set).
-- **Doc 79 (`docs/79-harfbuzz-use-reroute.md`, DM-1197 + DM-1215)** — two narrow
+- **Doc 79 (`docs/79-harfbuzz-use-reroute.md`, DM-1197 + DM-1215)** — narrow
   uses of real HarfBuzz (the vendored build above) where macOS shaping diverges
-  from Chrome.
+  from Chrome. Since DM-1916/DM-1925 there is a THIRD, and it is much broader
+  than the other two: any face carrying both `trak` and `STAT` has its SHAPING
+  done by HarfBuzz at the run's CSS pixel size, because AAT tracking is
+  size-dependent and no platform helper reproduces it (the macOS helper opens
+  every face at `size = unitsPerEm`, so it tracks as though every run were
+  1000 px). Thirteen macOS faces carry the pair — SF Pro and SF Pro Italic, SF
+  Compact, SF Hebrew, SF Pro Text, and every PingFang cut — i.e. `system-ui` body
+  text and CJK. **Outlines do not move with the shaping**: the native-helper path
+  routes through `preferShapeFallback` (ids/positions/clusters only) and the
+  fontkit path through `installHarfbuzzShaping`, both leaving the original engine
+  to draw by glyph id. That split is Chrome's own — Blink shapes with HarfBuzz
+  and rasterizes from the platform typeface — and it is load-bearing: an earlier
+  attempt that moved outlines too shaped byte-identically and still moved a Thai
+  fixture's worst tile from 0.0940 to 0.1214. `DOMOTION_TRAK_HB_SHAPING=0` bounds
+  the whole mechanism.
   (1) DM-1197: USE-shaped precomposed letters with a canonical base+mark NFD
   (Kaithi `U+110AB`, Balinese, Tulu-Tigalari — 13 cps) shape via HarfBuzz instead
   of the CoreText helper, which recomposes and mis-places the mark; scoped to the
