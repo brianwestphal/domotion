@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch } from "./glyph-helper.js";
 import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -2601,6 +2601,159 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number): string 
   return result;
 }
 
+// ── macOS declared-family style match (Blink's `BestStyleMatchForFamilyNS`) ──
+
+/**
+ * The logical keys a DECLARED CSS family can resolve to on macOS — the literal
+ * returns of `matchFamilyNameToKey`, which is itself the transcription of the
+ * CSS family names plus Blink's generic-family settings (`sans-serif` →
+ * Helvetica, `serif` → Times, `monospace` → Courier, `cursive` → Apple
+ * Chancery, `fantasy` → Papyrus on macOS).
+ *
+ * This bounds the style matcher to the stage Blink runs it in. Blink asks
+ * `BestStyleMatchForFamilyNS` for a family named by CSS; the per-codepoint
+ * FALLBACK path is a different call (`CTFontCreateForString` then
+ * `GetAlternateFontPlatformData`'s in-family re-selection), which is what
+ * `fallbackFamilyCutKey` already mirrors on the chain candidates. Running this
+ * matcher there too would layer two different mechanisms on one decision.
+ *
+ * `sf-pro` is deliberately absent even though `matchFamilyNameToKey` returns
+ * it: it stands for `system-ui`, and `system-ui` never reaches family matching
+ * as a name in Blink either — `CreateTypeface` asserts `DCHECK_NE(family,
+ * kSystemUi)`. Its face is the variable `SFNS.ttf` under a dot-prefixed family
+ * CoreText refuses to resolve by name from a client process, so the matcher
+ * has nothing to address. (Chromium rev 7d859f27.)
+ *
+ * Kept in sync with `matchFamilyNameToKey` by
+ * `darwin-declared-family-cut.test.ts`, which walks the recognized CSS names
+ * through `resolveFontKey` and asserts each static key it yields is listed
+ * here.
+ */
+const DARWIN_DECLARED_FAMILY_KEYS: ReadonlySet<string> = new Set([
+  "courier", "menlo", "monaco", "sf-mono",
+  "times", "times-new-roman", "georgia", "source-serif-pro", "playfair-display",
+  "hiragino-mincho", "hiragino-jp", "u-arial-unicode-ms",
+  "apple-chancery", "snell", "papyrus",
+  "helvetica", "helvetica-neue", "arial",
+]);
+
+/**
+ * The CoreText family behind a dynamically-registered key that a DECLARED CSS
+ * family produced (the `resolveInstalledFont(name)` tail of
+ * `matchFamilyNameToKey` — how `font-family: "PingFang SC"` becomes
+ * `sysfb:PingFangSC-Regular`).
+ *
+ * Recorded because the `sysfb:` prefix alone cannot tell the two producers
+ * apart: the per-codepoint fallback resolver registers keys under it too, and
+ * those must keep their own in-family re-selection rather than be re-cut here.
+ * Presence in this map IS the declared-family marker.
+ */
+const declaredFamilyForKey = new Map<string, string>();
+
+/** Memo for `darwinPrimaryCutKey`, keyed on the key AND the style it answers
+ *  for — a style-blind key would serve whichever weight asked first. */
+const darwinPrimaryCutCache = new Map<string, { key: string; italic: boolean } | null>();
+
+/**
+ * The CoreText family name for a static key's face, or null.
+ *
+ * Asked of CoreText rather than read out of the file, because Apple's `.ttc`
+ * members name themselves by CUT: the face our `hiragino-jp` entry points at
+ * reports `familyName` "Hiragino Sans W4" and the PingFang entries report
+ * ".PingFang UI SC" (a different family from the one Chrome addresses). Both
+ * would send the matcher to the wrong candidate list — W4 at every weight, and
+ * SC faces for a TC request. CoreText reports "Hiragino Sans" / "PingFang SC",
+ * which is the name `availableMembersOfFontFamily` is keyed on.
+ */
+function darwinCoreTextFamilyForKey(key: string): string | null {
+  const spec = resolveFontSpec(key);
+  if (spec == null) return null;
+  // The table records a PostScript name for `.ttc` members; for single-face
+  // files it does not, so read the one the file declares.
+  let psName = spec.postscriptName;
+  if (psName == null || psName === "") {
+    if (spec.path == null || spec.path === "") return null;
+    try {
+      const opened: any = fontkit.openSync(spec.path);
+      const f: any = (opened?.fonts != null && Array.isArray(opened.fonts)) ? opened.fonts[0] : opened;
+      const p = f?.postscriptName;
+      psName = typeof p === "string" ? p : undefined;
+    } catch { return null; }
+  }
+  if (psName == null || psName === "" || psName.startsWith(".")) return null;
+  const fam = resolveInstalledFont(psName)?.familyName;
+  // Dot-prefixed families are Apple's hidden system faces. CoreText refuses
+  // them by name from a client process (it substitutes Times New Roman and
+  // says so on stderr) and Chrome does not match them from CSS either, so
+  // there is no candidate list to score.
+  return fam != null && fam !== "" && !fam.startsWith(".") ? fam : null;
+}
+
+/**
+ * The face a DECLARED CSS family opens at this weight/slant on macOS, or null
+ * to leave the caller on its existing selection.
+ *
+ * Replaces the two-slot `key` / `key-bold` approximation. A family does not
+ * have two cuts, it has a ladder: Chrome opens five distinct PingFang SC
+ * members across the CSS weights and seven Hiragino Sans ones (W0/W3/W4/W5/
+ * W6/W7/W9), and Helvetica Neue reaches UltraLight and Thin below 400. Two
+ * slots cannot represent that, and the gap is not cosmetic — bold PingFang
+ * measured 736 units/em where Chrome paints 749.06, ~1.75% per glyph,
+ * accumulating along the line.
+ *
+ * The selection is Blink's, not ours: `BestStyleMatchForFamilyNS` over the
+ * family's AppKit members, compared with `BetterChoiceCT` / `BetterWeightMatch`
+ * at CSS thresholds 400/500 (`platform/fonts/mac/font_matcher_mac.mm`,
+ * Chromium rev 7d859f27), ported in the macOS helper and reachable through
+ * `resolveFamilyStyleMatch`.
+ *
+ * Reads the BASE key, never `getFontInstance`'s effective one: feeding the
+ * `-bold` sibling in would ask the matcher to re-weight an already-re-weighted
+ * face. Its answer REPLACES that routing rather than composing with it.
+ *
+ * Degrades to null — and therefore to the previous behavior — whenever the
+ * helper is missing, the family has no AppKit members, or the matched face
+ * cannot be opened. A host without the built binary must still get a face.
+ */
+function darwinPrimaryCutKey(
+  key: string, weight: number, slant: number,
+): { key: string; italic: boolean } | null {
+  if (process.platform !== "darwin" || !isGlyphHelperAvailable()) return null;
+  const declaredFamily = declaredFamilyForKey.get(key);
+  if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
+
+  const italicRequested = slant !== 0;
+  const cacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}`;
+  const cached = darwinPrimaryCutCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let result: { key: string; italic: boolean } | null = null;
+  try {
+    const family = declaredFamily ?? darwinCoreTextFamilyForKey(key);
+    if (family != null) {
+      const match = resolveFamilyStyleMatch(family, { weight, italic: italicRequested });
+      const base = resolveFontSpec(key)?.postscriptName;
+      if (match != null && match.postscriptName !== base) {
+        const installed = resolveInstalledFont(match.postscriptName);
+        if (installed != null && installed.path !== "") {
+          const cutKey = `sysfb:${match.postscriptName}`;
+          // The BASE key's extractor is preserved: this changes WHICH face is
+          // opened, not how its outlines are read, and flipping a fontkit face
+          // onto the native path would move the outlines for reasons that have
+          // nothing to do with style matching.
+          registerDynamicSystemFont(
+            cutKey, installed.path, match.postscriptName,
+            resolveFontSpec(key)?.extractor ?? "fontkit", installed.resolvedAxes,
+          );
+          if (resolveFontSpec(cutKey) != null) result = { key: cutKey, italic: match.italic };
+        }
+      }
+    }
+  } catch { result = null; }
+  darwinPrimaryCutCache.set(cacheKey, result);
+  return result;
+}
+
 /** The family name recorded inside the file a key maps to, or null. */
 function fileFamilyNameForKey(key: string): string | null {
   const spec = resolveFontSpec(key);
@@ -3742,6 +3895,19 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   if (process.platform === "win32" && isGlyphHelperAvailable()) {
     const cutKey = win32PrimaryCutKey(effectiveKey, weight, slant);
     if (cutKey != null) effectiveKey = cutKey;
+  }
+  // macOS: for a family named by CSS, ask Blink's declared-family style matcher
+  // which CUT the run opens, instead of picking between the two `key` /
+  // `key-bold` slots above. Reads the BASE key, so its answer REPLACES that
+  // routing rather than composing with it (composing would re-weight an
+  // already-re-weighted face). Null leaves the two-slot result standing, which
+  // is the degradation contract for a host with no helper binary.
+  const darwinCut = darwinPrimaryCutKey(key, weight, slant);
+  if (darwinCut != null) {
+    effectiveKey = darwinCut.key;
+    // A matched face carrying CoreText's italic trait satisfies the slant with
+    // a real cut; without it the renderer would shear an already-italic face.
+    routedItalicCut = slant !== 0 && darwinCut.italic;
   }
 
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}`;
@@ -4995,6 +5161,16 @@ function matchFamilyNameToKey(name: string): string | null {
       // variable-face matches (e.g. "Segoe UI Variable Text" → opsz 10.5 at
       // every size) so the hinted-subset pin embeds the instance Chrome paints.
       registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes);
+      // This resolution answers "which family", never "which cut" — the name
+      // lookup is style-blind on macOS, so `font-family:"PingFang SC";
+      // font-weight:700` lands on PingFangSC-Regular where Chrome paints
+      // Semibold. Record the CoreText family so `getFontInstance` can run
+      // Blink's declared-family style matcher over it. Resolving the base name
+      // first and matching afterwards is the right ORDER: pinning the weight
+      // into the name would double-count it.
+      if (process.platform === "darwin" && installed.familyName !== "" && !installed.familyName.startsWith(".")) {
+        declaredFamilyForKey.set(key, installed.familyName);
+      }
       return key;
     }
     // DM-1690: on Linux the `resolveInstalledFont` native helper is always null,
