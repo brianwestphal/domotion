@@ -280,7 +280,6 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
 
       // ── Pairing + size: the run must have really compressed ──────────────
       const stats = run.pairingStats;
-      // eslint-disable-next-line no-console
       console.log(`[compressed-run e2e] ${logs[0] ?? ""} | groups=${stats.groupCount} chromeTracks=${stats.chromeTrackCount} recolored=${stats.recolored}`);
       expect(stats.pairedPct).toBeGreaterThan(0.85);
       expect(stats.compressedBytes).toBeLessThan(0.6 * stats.rawBytes);
@@ -409,7 +408,6 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         { width: LW, height: LH, idPrefix: "xl0", background: rootBg, log: (m) => logs.push(m) },
       );
       const stats = run.pairingStats;
-      // eslint-disable-next-line no-console
       console.log(`[cross-line e2e] ${logs[0]} | paired=${(stats.pairedPct * 100).toFixed(1)}% births=${stats.births} deaths=${stats.deaths} groups=${stats.groupCount} | rawBytes=${stats.rawBytes} compressedBytes=${stats.compressedBytes} (${(stats.compressedBytes / stats.rawBytes).toFixed(2)}× of raw)`);
 
       // Cross-line identity: the five BASE lines pair across the +19 move, so
@@ -502,7 +500,6 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       // Reopen: the plain variant is emitted once with a two-window display
       // track (0..1 and 2..3), so the run carries FEWER chrome variants than
       // the three states would naively need.
-      // eslint-disable-next-line no-console
       console.log(`[reopen e2e] chromeTracks=${run.pairingStats.chromeTrackCount} groups=${run.pairingStats.groupCount} deaths=${run.pairingStats.deaths}`);
       // The text pairs across all three states — the highlight paints behind it.
       expect(run.pairingStats.deaths).toBe(0);

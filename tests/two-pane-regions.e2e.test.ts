@@ -263,7 +263,6 @@ describeBrowser("two independently-updating regions in one compressed run (docs/
       const steps = Array.from({ length: 6 }, (_, s) => [s * 2, s] as [number, number]);
       const m = await measure(ctx, "hidden", steps, "tp0");
       const st = m.run.pairingStats;
-      // eslint-disable-next-line no-console
       console.log(`[two-pane e2e clipping] regions=${m.regions} buckets=${m.buckets} paired=${(st.pairedPct * 100).toFixed(1)}% `
         + `births=${st.births} deaths=${st.deaths} groups=${st.groupCount} `
         + `raw=${(st.rawBytes / 1024).toFixed(1)}KB compressed=${(st.compressedBytes / 1024).toFixed(1)}KB (${(st.compressedBytes / st.rawBytes).toFixed(3)}x)`);
@@ -302,7 +301,6 @@ describeBrowser("two independently-updating regions in one compressed run (docs/
       const steps = Array.from({ length: 6 }, (_, s) => [s * 2, s] as [number, number]);
       const m = await measure(ctx, "visible", steps, "tp1");
       const st = m.run.pairingStats;
-      // eslint-disable-next-line no-console
       console.log(`[two-pane e2e non-clipping] regions=${m.regions} buckets=${m.buckets} paired=${(st.pairedPct * 100).toFixed(1)}% `
         + `births=${st.births} deaths=${st.deaths} groups=${st.groupCount} `
         + `raw=${(st.rawBytes / 1024).toFixed(1)}KB compressed=${(st.compressedBytes / 1024).toFixed(1)}KB (${(st.compressedBytes / st.rawBytes).toFixed(3)}x)`);
