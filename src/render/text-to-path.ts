@@ -1194,7 +1194,8 @@ export function insertSyntheticDottedCircles(
       // REMOVE a circle we would otherwise have drawn, never add one.
       const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
-          && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang)) {
+          && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+            variationSettings, lang, stackPrimaryIsSystemUi(fontFamily))) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {

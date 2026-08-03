@@ -817,6 +817,20 @@ Notes:
   order-invariant. Only `resolveFontForCodepoint` has to pick a WINNER, and only
   the winner's identity depends on the order.
 
+  Order-invariance is the ONLY thing it is allowed to differ on. Every argument
+  the platform fallback is a function of has to travel identically, so it reaches
+  `resolveSystemFallbackKeyForCp` with the run's `lang` **and** `systemUiPrimary`
+  exactly as `resolveFontForCodepoint` does. Two reasons, and they are separate:
+  the platform can answer "no font" for one locale and a covering face for
+  another (Linux and Windows both reject a non-covering pick — `fc`'s
+  coverage-walk / `!data->FontContainsCharacter(codepoint)` in
+  `win/font_cache_skia_win.cc:254-256`, Chromium rev 7d859f27), which makes the
+  boolean itself locale-dependent there; and `systemFallbackKeyCache` is keyed on
+  both arguments, so an asker that drops them populates a parallel set of rows
+  the render path never reads, in an order that differs from the render path's.
+  The caller derives `systemUiPrimary` with `stackPrimaryIsSystemUi(fontFamily)`,
+  the same helper the run splitters use.
+
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
 `sfProCoverageOtfKey` / `decomposeMathAlphaRun` in `src/render/font-resolution.ts`.
 Doc [80](80-cross-platform-system-fallback-resolver.md).
