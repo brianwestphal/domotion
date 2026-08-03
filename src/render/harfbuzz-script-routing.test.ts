@@ -73,12 +73,24 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x1CD0)).toBe(false); // Vedic Extensions — a different route
   });
 
+  it("covers Hebrew AND its presentation forms, which shape as one unit", () => {
+    expect(usesHarfbuzzShaping(0x05D0)).toBe(true);  // ALEF
+    expect(usesHarfbuzzShaping(0x05BC)).toBe(true);  // DAGESH — the composing point
+    expect(usesHarfbuzzShaping(0x0590)).toBe(true);
+    expect(usesHarfbuzzShaping(0x05FF)).toBe(true);
+    // compose_hebrew maps 05D0-05EA + 05BC onto FB30-FB4A, so the two blocks
+    // must route together or a mixed text is shaped as two separate runs.
+    expect(usesHarfbuzzShaping(0xFB30)).toBe(true);
+    expect(usesHarfbuzzShaping(0xFB4F)).toBe(true);
+    expect(usesHarfbuzzShaping(0xFB50)).toBe(false); // Arabic presentation forms — not yet
+    expect(usesHarfbuzzShaping(0x058F)).toBe(false); // Armenian
+  });
+
   it("does not reroute the scripts that have not been swept yet", () => {
     // Each of these is a live claim about a script whose reroute has its own
     // commit and its own CI sweep. Flipping one without updating this line
     // means the sweep did not happen.
     for (const cp of [
-      0x05D0, // Hebrew alef
       0x0645, // Arabic meem
       0x1000, // Myanmar ka — cluster-only, deliberately excluded
       0x0995, // Bengali ka — cluster-only
@@ -172,8 +184,8 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
   it("leaves a non-rerouted script's resolution untouched", () => {
     const k = key();
     const base = getFontInstance(k!, 400, 16, 0)!;
-    // Latin 'A' and Hebrew ALEF both resolve without a shaping override.
-    for (const cp of [0x0041, 0x05D0]) {
+    // Latin 'A' and Tibetan KA both resolve without a shaping override.
+    for (const cp of [0x0041, 0x0F40]) {
       const res = resolveFontForCodepoint(cp, base, k!, 400, 16, 0, undefined, undefined, [k!]);
       expect(res.fontOverride).toBeNull();
     }

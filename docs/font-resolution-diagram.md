@@ -512,7 +512,11 @@ Notes:
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
   Today it holds **Thai** (U+0E00–U+0E7F), **Telugu** (U+0C00–U+0C7F), **Devanagari** (U+0900–U+097F) and
-  **Hangul** (U+1100–U+11FF, U+3130–U+318F, U+A960–U+A97F, U+AC00–U+D7FF).
+  **Hangul** (U+1100–U+11FF, U+3130–U+318F, U+A960–U+A97F, U+AC00–U+D7FF), plus
+  **Hebrew** (U+0590–U+05FF together with U+FB1D–U+FB4F — those two route as one
+  because `compose_hebrew` maps a consonant plus U+05BC DAGESH from the first
+  block onto a presentation form in the second, `hb-ot-shaper-hebrew.cc`
+  :35-72, so splitting them would shape a mixed text as two runs).
   Hangul's 2 disagreements are both `glyph-count` and both on the terminal
   LastResort face: `한글` shapes to 2 glyphs under HarfBuzz and 6 under CoreText,
   because HarfBuzz decomposes a precomposed `<LV>`/`<LVT>` syllable **only** when
@@ -527,7 +531,13 @@ Notes:
   around. Against captured-xOffset anchoring, that places the matra where Chrome
   never painted it. HarfBuzz's merge is the Indic shaper's documented behavior
   — final reordering moves glyphs before the base and merges clusters up to it,
-  so the two merges interlock (`hb-ot-shaper-indic.cc` :796-806). The
+  so the two merges interlock (`hb-ot-shaper-indic.cc` :796-806). Hebrew is the
+  largest at 76 and the one whose numbers most invite misreading: its 27
+  `offset` and 21 `advance` disagreements are two ENCODINGS of the same ink —
+  HarfBuzz models each point as a zero-advance mark with its own offset while
+  CoreText carries one constant offset on every glyph and folds the rest into
+  (sometimes negative) advances, and accumulating both lands every glyph at the
+  same x. What is left is the cluster map plus 2 `glyph-count` on LastResort. The
   Telugu entry is the weaker of the two and worth reading as such: on the
   conjunct క్ష both engines land the subjoined SSA's ink at the same x and total
   the same advance (HarfBuzz calls it a zero-advance GPOS mark at −248, CoreText
