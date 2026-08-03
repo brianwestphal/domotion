@@ -225,12 +225,41 @@ export function usesDedicatedShaper(cp: number): boolean {
 // mark sits in a different place). `harfbuzzShapeRun` is routed in for these.
 // Returns the NFD string (used only to coverage-check the decomposed pieces), or
 // null. Scoped to complex-shaper blocks MINUS the dedicated-shaper ones, so both
-// the DEFAULT shaper's composed Latin / Greek / Cyrillic diacritics (é, ñ, …) AND
-// the dedicated Indic / Tibetan / Myanmar shapers (which CoreText already matches)
-// are left on the normal path.
+// the DEFAULT shaper's composed Latin / Greek / Cyrillic diacritics (é, ñ, …) and
+// the dedicated Indic / Tibetan / Myanmar shapers are left on the normal path.
+//
+// **The reason once given for the second exclusion — "which CoreText already
+// matches" — is false, and was never measured.** `npm run fonts:shaper-ab` over
+// every resolvable macOS face reports a disagreement in EVERY dedicated-shaper
+// script, not one clean range (366 disagreements total):
+//
+//     hebrew  76   arabic 75   devanagari 44   thai   32   telugu 10
+//     myanmar  6   bengali  4   khmer       4   tamil   2   hangul  2
+//
+// The *kind* is what still separates them, and it is the only defensible reason
+// to keep any of them excluded. For **myanmar, bengali, khmer and tamil** every
+// disagreement is `cluster` — the two engines produce the same glyph ids at the
+// same positions and differ only in the source-index map. For **hebrew, arabic,
+// devanagari, thai, telugu and hangul** the glyphs or their positions genuinely
+// differ (`glyph-ids`, `advance`, `offset`, `glyph-count`), so on those the
+// exclusion is resting on a claim the measurement contradicts.
+//
+// Note a cluster-only difference is NOT automatically invisible: the DM-1028
+// path anchors each cluster at its captured xOffset, so the cluster map can move
+// paint. It is weaker evidence of a paint difference than a glyph difference,
+// not zero evidence.
+//
+// The exclusion is left in place here deliberately rather than narrowed on the
+// strength of these counts alone — rerouting a script is a corpus-wide change
+// that needs its own sweep, and one attempt already regressed a Thai fixture for
+// a reason (the outline engine moving with the shaper) that had nothing to do
+// with these numbers. What is fixed here is the false justification.
 export function complexShaperBaseMarkDecomposition(cp: number): string | null {
   if (!usesComplexShaperDottedCircle(cp)) return null;
-  if (usesDedicatedShaper(cp)) return null;              // dedicated shaper — CoreText already matches Chrome
+  // Dedicated shaper. NOT because CoreText matches Chrome there — measured, it
+  // does not in any of the ten scripts — but because moving one is a sweep-sized
+  // change; see the block comment above.
+  if (usesDedicatedShaper(cp)) return null;
   return nfdBaseMarkDecomposition(cp);
 }
 
