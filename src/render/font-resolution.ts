@@ -5609,10 +5609,64 @@ export function glyphInkXRange(glyph: { path?: { commands: Array<{ command: stri
   return { min, max };
 }
 
+/**
+ * Coverage predicate behind the synthetic dotted circle: is there ANY font in
+ * this run's cascade that paints `cp`, or does it come out as the primary's
+ * `.notdef`?
+ *
+ * It must ask the platform the SAME question the real resolver
+ * (`resolveFontForCodepoint`) asks, which means every argument the platform
+ * fallback is a function of has to travel — the run's locale AND whether the
+ * cascade is walked from the platform UI font. Both matter, and for different
+ * reasons per platform (Chromium rev 7d859f27):
+ *
+ *  - Linux: locale IS the discriminator and there is no base font at all —
+ *    `font_description.LocaleOrDefault().Ascii().c_str()` is handed straight to
+ *    `GetFontForCharacter` (`platform/fonts/linux/font_cache_linux.cc:90-95`).
+ *  - Windows: the locale reaches `IDWriteFontFallback::MapCharacters` via
+ *    `FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`
+ *    (`platform/fonts/win/font_cache_skia_win.cc:230-240`), and the pick is then
+ *    rejected outright when it does not cover the codepoint (`:254-256`,
+ *    `!data->FontContainsCharacter(codepoint)` → nullptr). So on Windows the
+ *    locale can flip this predicate's answer, not merely which family answers.
+ *  - macOS: locale is NOT an input — `GetAlternateFontPlatformData` substitutes
+ *    from base font + character + size only (`platform/fonts/mac/font_cache_mac.mm:200-212`)
+ *    — but the BASE is, and it is the run's current font
+ *    (`:326-327`, `font_data_to_substitute->PlatformData()`). `systemUiPrimary`
+ *    is what distinguishes a `system-ui` run (cascade walked from
+ *    `CTFontCreateUIFontForLanguage`, which reaches Apple's hidden `.…UI`
+ *    variants) from an explicitly-named face that resolves to the same key.
+ *
+ * Measured rather than asserted, on two of the three platforms:
+ *
+ *  - macOS host, 1-in-7 stride of U+0020–U+2FFFF x primaries `sf-pro` /
+ *    `helvetica` / `times`. `lang` moved the resolved face for 0 of 483,768 asks
+ *    — exactly what the source predicts — while `systemUiPrimary` moved it for
+ *    7,596 of 26,876 `sf-pro` asks, in every case to a face that also covers the
+ *    codepoint. The predicate's boolean did not move for any of 80,628 asks.
+ *  - Linux (the Playwright noble image, fontconfig fall-through path), 1-in-23
+ *    stride. `lang` moved the resolved face for 2,062 (`th`) / 2,059 (`ar`) /
+ *    1,832 (`hi`) / 393 (`ja` `ko` `zh-CN` `zh-TW`) of 8,179 asks each — up to a
+ *    quarter of codepoints get a DIFFERENT face per locale — while the boolean
+ *    again moved 0 times on that inventory.
+ *
+ * So on both measured platforms this fixes the question, not the answer: the
+ * probe was asking the OS about a cascade the run never uses, then registering
+ * the faces it named into the dynamic font registry and the per-codepoint memo
+ * beside the real resolver's rows. That memo is keyed on both arguments
+ * precisely because the answer is a function of them, so two askers disagreeing
+ * on the arguments do not share work and populate it in an order that differs
+ * from the render path's. Windows is the one platform where the boolean itself
+ * is expected to move, and it is not measurable from here.
+ */
 export function codepointResolvesToNotdef(
   cp: number, primaryFont: FontInstance, primaryFontKey: string,
   weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined, lang: string | undefined,
+  /** True when the run's declared stack starts at `system-ui` /
+   *  `BlinkMacSystemFont` — see `stackPrimaryIsSystemUi`, which is what the
+   *  caller derives this from. */
+  systemUiPrimary: boolean = false,
 ): boolean {
   if (glyphIdForCp(primaryFont, cp) !== 0) return false;
   if (primaryFontKey.startsWith("webfont:")) {
@@ -5627,7 +5681,8 @@ export function codepointResolvesToNotdef(
         && glyphIdForCp(cf, cp) !== 0) return false;
   }
   if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey);
+    const sysKey = resolveSystemFallbackKeyForCp(
+      cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null && sf.glyphForCodePoint != null
