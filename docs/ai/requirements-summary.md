@@ -959,6 +959,16 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   measurement rather than an argument: the face oracle's verdict is
   invariant to our axis location (blind in both directions), while the
   shaping oracle (doc 108) separates the cases by 39–137 px.
+  **`font-feature-settings` is now extracted and declared on the probe
+  page** (corpus 434 → 442 stacks on all three platforms, 9 with a
+  non-normal value) — but deliberately *not* adjudicated here: Blink omits
+  `feature_settings_` from `FontDescription::CacheKey` and reads it only at
+  shaping time, and a 6-family × 8-setting CDP probe moved Chrome's
+  reported face in 0 of 42 cases while moving the painted width in 11, so
+  the consequence belongs to doc 108. Two properties that *are* selection
+  inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
+  cache key — remain unextracted. All three committed baselines await a
+  re-seed from CI, since re-extraction moved each corpus's `generatedAt`.
 - **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
   always-in-sync Mermaid flow diagram of the *entire* font-resolution
   system, synthesizing docs 03/30/40/42/51/52/80: family-stack→key, the

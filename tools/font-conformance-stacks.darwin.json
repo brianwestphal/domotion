@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-29T23:19:22.108Z",
+  "generatedAt": "2026-08-03T23:08:28.511Z",
   "platform": "darwin",
   "sources": [
     "external/html-test",
@@ -13,6 +13,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1114,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -23,6 +24,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 818,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -33,6 +35,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 818,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -43,6 +46,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 818,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -53,6 +57,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 448,
       "example": "../html-test/unicode/0530-058F-armenian.html"
     },
@@ -63,6 +68,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 198,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -73,6 +79,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 191,
       "example": "../html-test/unicode/0590-05FF-hebrew.html"
     },
@@ -83,6 +90,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 179,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.0.html"
     },
@@ -93,6 +101,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 174,
       "example": "../html-test/unicode/1800-18AF-mongolian.html"
     },
@@ -103,6 +112,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 163,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -113,6 +123,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 152,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.0.html"
     },
@@ -123,6 +134,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 116,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -133,6 +145,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 76,
       "example": "external/html-test/01-structure-external-css.html"
     },
@@ -143,6 +156,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 74,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -153,6 +167,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 66,
       "example": "external/html-test/02-deep-bidi-isolate.html"
     },
@@ -163,6 +178,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 66,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -173,6 +189,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 63,
       "example": "external/html-test/02-deep-bidi-isolate.html"
     },
@@ -183,6 +200,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 62,
       "example": "external/html-test/02-text-headings.html"
     },
@@ -193,6 +211,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 56,
       "example": "../html-test/unicode/1100-11FF-hangul-jamo.html"
     },
@@ -203,6 +222,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 53,
       "example": "external/html-test/06-deep-field-sizing.html"
     },
@@ -213,6 +233,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 48,
       "example": "external/html-test/01-structure-meta.html"
     },
@@ -223,6 +244,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 46,
       "example": "../html-test/unicode/1100-11FF-hangul-jamo.html"
     },
@@ -233,6 +255,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 41,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -243,6 +266,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 40,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -253,6 +277,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 39,
       "example": "../html-test/unicode/02B0-02FF-spacing-modifier-letters.html"
     },
@@ -263,6 +288,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 34,
       "example": "external/html-test/06-deep-input-baseline.html"
     },
@@ -273,6 +299,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 31,
       "example": "../html-test/unicode/0100-017F-latin-extended-a.html"
     },
@@ -283,6 +310,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 24,
       "example": "external/html-test/06-deep-field-sizing.html"
     },
@@ -293,6 +321,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 23,
       "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
     },
@@ -303,6 +332,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 21,
       "example": "../html-test/unicode/0180-024F-latin-extended-b.html"
     },
@@ -313,6 +343,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 19,
       "example": "external/html-test/06-forms-datalist.html"
     },
@@ -323,6 +354,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 18,
       "example": "external/html-test/06-deep-input-baseline.html"
     },
@@ -333,6 +365,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 18,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -343,6 +376,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 17,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.10.html"
     },
@@ -353,6 +387,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 17,
       "example": "../html-test/unicode/1D400-1D7FF-mathematical-alphanumeric-symbols.0.html"
     },
@@ -363,6 +398,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 17,
       "example": "external/html-test/02-text-emphasis.html"
     },
@@ -373,6 +409,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 17,
       "example": "external/html-test/07-deep-image-rendering.html"
     },
@@ -383,6 +420,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 16,
       "example": "../html-test/unicode/1F100-1F1FF-enclosed-alphanumeric-supplement.html"
     },
@@ -393,6 +431,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 14,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -403,6 +442,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 14,
       "example": "external/html-test/02-deep-line-breaking.html"
     },
@@ -413,6 +453,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 14,
       "example": "external/html-test/06-forms-style-checkbox-radio.html"
     },
@@ -423,6 +464,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 12,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -433,6 +475,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 12,
       "example": "external/html-test/02-text-emphasis.html"
     },
@@ -443,6 +486,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 12,
       "example": "external/html-test/07-deep-svg-use-href.html"
     },
@@ -453,6 +497,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 12,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -463,6 +508,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 8,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -473,6 +519,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 8,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -483,6 +530,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 7,
       "example": "external/html-test/11-box-units.html"
     },
@@ -493,6 +541,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 6,
       "example": "../html-test/unicode/0600-06FF-arabic.html"
     },
@@ -503,6 +552,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 6,
       "example": "../html-test/unicode/12000-123FF-cuneiform.0.html"
     },
@@ -513,6 +563,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 6,
       "example": "../html-test/unicode/A000-A48F-yi-syllables.0.html"
     },
@@ -523,6 +574,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 6,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -533,6 +585,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 6,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -543,6 +596,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "../html-test/unicode/11AB0-11ABF-unified-canadian-aboriginal-syllabics-extended-a.html"
     },
@@ -553,6 +607,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "../html-test/unicode/1200-137F-ethiopic.0.html"
     },
@@ -563,6 +618,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "../html-test/unicode/13000-1342F-egyptian-hieroglyphs.0.html"
     },
@@ -573,6 +629,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "external/html-test/20-deep-first-letter-line.html"
     },
@@ -583,6 +640,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "external/html-test/02-deep-line-breaking.html"
     },
@@ -593,6 +651,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "external/html-test/02-text-ruby.html"
     },
@@ -603,6 +662,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "external/html-test/05-links-states.html"
     },
@@ -613,6 +673,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "external/html-test/15-deep-flex-baseline.html"
     },
@@ -623,6 +684,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 5,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -633,6 +695,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
     },
@@ -643,6 +706,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "../html-test/unicode/16800-16A3F-bamum-supplement.0.html"
     },
@@ -653,6 +717,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -663,6 +728,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/11-box-basic.html"
     },
@@ -673,6 +739,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/02-text-entities.html"
     },
@@ -683,6 +750,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/02-text-sub-sup.html"
     },
@@ -693,6 +761,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/20-font-family.html"
     },
@@ -703,6 +772,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/06-forms-style-fieldset.html"
     },
@@ -713,6 +783,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/06-forms-style-fieldset.html"
     },
@@ -723,6 +794,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 4,
       "example": "external/html-test/11-deep-viewport-units.html"
     },
@@ -733,6 +805,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/3000-303F-cjk-symbols-and-punctuation.html"
     },
@@ -743,6 +816,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/11000-1107F-brahmi.html"
     },
@@ -753,6 +827,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/0600-06FF-arabic.html"
     },
@@ -763,6 +838,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
     },
@@ -773,6 +849,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/1000-109F-myanmar.html"
     },
@@ -783,6 +860,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-buttons.html"
     },
@@ -793,6 +871,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-deep-first-letter-line.html"
     },
@@ -803,6 +882,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/1F100-1F1FF-enclosed-alphanumeric-supplement.html"
     },
@@ -813,6 +893,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-font-family.html"
     },
@@ -823,6 +904,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-font-style-variant.html"
     },
@@ -833,6 +915,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-font-style-variant.html"
     },
@@ -843,6 +926,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -853,6 +937,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -863,6 +948,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -873,6 +959,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -883,6 +970,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 3,
       "example": "external/html-test/07-deep-svg-textpath-filters.html"
     },
@@ -893,6 +981,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -903,6 +992,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -913,6 +1003,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -923,6 +1014,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -933,6 +1025,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -943,6 +1036,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1780-17FF-khmer.html"
     },
@@ -953,6 +1047,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0590-05FF-hebrew.html"
     },
@@ -963,6 +1058,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1A00-1A1F-buginese.html"
     },
@@ -973,6 +1069,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1720-173F-hanunoo.html"
     },
@@ -983,6 +1080,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1E000-1E02F-glagolitic-supplement.html"
     },
@@ -993,6 +1091,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/10600-1077F-linear-a.0.html"
     },
@@ -1003,6 +1102,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/10000-1007F-linear-b-syllabary.html"
     },
@@ -1013,6 +1113,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/AAE0-AAFF-meetei-mayek-extensions.html"
     },
@@ -1023,6 +1124,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/10980-1099F-meroitic-hieroglyphs.html"
     },
@@ -1033,6 +1135,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/11660-1167F-mongolian-supplement.html"
     },
@@ -1043,6 +1146,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1B80-1BBF-sundanese.html"
     },
@@ -1053,6 +1157,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/A500-A63F-vai.0.html"
     },
@@ -1063,6 +1168,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0B80-0BFF-tamil.html"
     },
@@ -1073,6 +1179,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
     },
@@ -1083,6 +1190,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-buttons.html"
     },
@@ -1093,6 +1201,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/13A0-13FF-cherokee.html"
     },
@@ -1103,6 +1212,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-first-letter-line.html"
     },
@@ -1113,16 +1223,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
-      "fixtures": 2,
-      "example": "external/html-test/20-deep-font-feature-values.html"
-    },
-    {
-      "fontFamily": "Georgia, \"Times New Roman\", serif",
-      "fontSize": 11,
-      "fontWeight": 400,
-      "fontStyle": "normal",
-      "fontStretch": "100%",
-      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -1133,6 +1234,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -1143,6 +1245,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -1153,6 +1256,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/07-deep-svg-textpath-filters.html"
     },
@@ -1163,6 +1267,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/33-columns-basic.html"
     },
@@ -1173,6 +1278,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/33-deep-columns-break.html"
     },
@@ -1183,6 +1289,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/34-mathml-basic.html"
     },
@@ -1193,6 +1300,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/34-mathml-basic.html"
     },
@@ -1203,6 +1311,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -1213,6 +1322,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -1223,6 +1333,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/03-lists-ul-ol.html"
     },
@@ -1233,6 +1344,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-style-focus.html"
     },
@@ -1243,6 +1355,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/08-dialog.html"
     },
@@ -1253,6 +1366,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0530-058F-armenian.html"
     },
@@ -1263,6 +1377,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1CD0-1CFF-vedic-extensions.html"
     },
@@ -1273,6 +1388,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-headings.html"
     },
@@ -1283,6 +1399,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-ruby.html"
     },
@@ -1293,6 +1410,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -1303,6 +1421,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -1313,6 +1432,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/28-layer.html"
     },
@@ -1323,6 +1443,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-font-style-variant.html"
     },
@@ -1333,6 +1454,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-style-fieldset.html"
     },
@@ -1343,6 +1465,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-style-input-groups.html"
     },
@@ -1353,6 +1476,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -1363,6 +1487,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/11-deep-env-safe-area.html"
     },
@@ -1373,6 +1498,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/11-deep-viewport-units.html"
     },
@@ -1383,6 +1509,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -1393,6 +1520,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-wavy-underline-descenders.html"
     },
@@ -1403,6 +1531,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-wavy-underline-descenders.html"
     },
@@ -1413,6 +1542,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-tab-size.html"
     },
@@ -1423,6 +1553,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 2,
       "example": "external/html-test/21-deep-transform-box.html"
     },
@@ -1433,6 +1564,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1443,6 +1575,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1453,6 +1586,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1463,6 +1597,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1473,6 +1608,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1483,6 +1619,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1493,6 +1630,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1503,6 +1641,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1513,6 +1652,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1523,6 +1663,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1533,6 +1674,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1543,6 +1685,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1553,6 +1696,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1563,6 +1707,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1573,6 +1718,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1583,6 +1729,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1593,6 +1740,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1603,6 +1751,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1613,6 +1762,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1623,6 +1773,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1633,6 +1784,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1643,6 +1795,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1653,6 +1806,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1663,6 +1817,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1673,6 +1828,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1683,6 +1839,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1693,6 +1850,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1703,6 +1861,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1713,6 +1872,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1723,6 +1883,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1733,6 +1894,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1743,6 +1905,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1753,6 +1916,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1763,6 +1927,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1773,6 +1938,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -1783,6 +1949,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -1793,6 +1960,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10190-101CF-ancient-symbols.html"
     },
@@ -1803,6 +1971,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -1813,6 +1982,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0A00-0A7F-gurmukhi.html"
     },
@@ -1823,6 +1993,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/FE30-FE4F-cjk-compatibility-forms.html"
     },
@@ -1833,6 +2004,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -1843,6 +2015,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-underline-position.html"
     },
@@ -1853,6 +2026,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/svg-view-switch.html"
     },
@@ -1863,6 +2037,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -1873,6 +2048,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-hanging-punctuation.html"
     },
@@ -1883,6 +2059,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 32, \"wdth\" 120, \"wght\" 700",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -1893,6 +2070,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 14, \"wdth\" 80, \"wght\" 300",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -1903,6 +2081,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0900-097F-devanagari.html"
     },
@@ -1913,6 +2092,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0C80-0CFF-kannada.html"
     },
@@ -1923,6 +2103,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0980-09FF-bengali.html"
     },
@@ -1933,6 +2114,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0A80-0AFF-gujarati.html"
     },
@@ -1943,6 +2125,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0C00-0C7F-telugu.html"
     },
@@ -1953,6 +2136,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0E80-0EFF-lao.html"
     },
@@ -1963,6 +2147,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2150-218F-number-forms.html"
     },
@@ -1973,6 +2158,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.109.html"
     },
@@ -1983,6 +2169,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0D00-0D7F-malayalam.html"
     },
@@ -1993,6 +2180,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0D00-0D7F-malayalam.html"
     },
@@ -2003,6 +2191,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -2013,6 +2202,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1B000-1B0FF-kana-supplement.html"
     },
@@ -2023,6 +2213,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A830-A83F-common-indic-number-forms.html"
     },
@@ -2033,6 +2224,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1000-109F-myanmar.html"
     },
@@ -2043,6 +2235,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E900-1E95F-adlam.html"
     },
@@ -2053,6 +2246,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0530-058F-armenian.html"
     },
@@ -2063,6 +2257,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B00-10B3F-avestan.html"
     },
@@ -2073,6 +2268,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16AD0-16AFF-bassa-vah.html"
     },
@@ -2083,6 +2279,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1BC0-1BFF-batak.html"
     },
@@ -2093,6 +2290,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11C00-11C6F-bhaiksuki.html"
     },
@@ -2103,6 +2301,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11000-1107F-brahmi.html"
     },
@@ -2113,6 +2312,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/102A0-102DF-carian.html"
     },
@@ -2123,6 +2323,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10530-1056F-caucasian-albanian.html"
     },
@@ -2133,6 +2334,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11100-1114F-chakma.html"
     },
@@ -2143,6 +2345,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/AA00-AA5F-cham.html"
     },
@@ -2153,6 +2356,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10800-1083F-cypriot-syllabary.html"
     },
@@ -2163,6 +2367,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1BC00-1BC9F-duployan.html"
     },
@@ -2173,6 +2378,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10500-1052F-elbasan.html"
     },
@@ -2183,6 +2389,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10330-1034F-gothic.html"
     },
@@ -2193,6 +2400,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11D60-11DAF-gunjala-gondi.html"
     },
@@ -2203,6 +2411,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10D00-10D3F-hanifi-rohingya.html"
     },
@@ -2213,6 +2422,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1720-173F-hanunoo.html"
     },
@@ -2223,6 +2433,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/108E0-108FF-hatran.html"
     },
@@ -2233,6 +2444,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10840-1085F-imperial-aramaic.html"
     },
@@ -2243,6 +2455,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B60-10B7F-inscriptional-pahlavi.html"
     },
@@ -2253,6 +2466,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B40-10B5F-inscriptional-parthian.html"
     },
@@ -2263,6 +2477,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A980-A9DF-javanese.html"
     },
@@ -2273,6 +2488,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11080-110CF-kaithi.html"
     },
@@ -2283,6 +2499,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0C80-0CFF-kannada.html"
     },
@@ -2293,6 +2510,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A900-A92F-kayah-li.html"
     },
@@ -2303,6 +2521,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10A00-10A5F-kharoshthi.html"
     },
@@ -2313,6 +2532,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11200-1124F-khojki.html"
     },
@@ -2323,6 +2543,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/112B0-112FF-khudawadi.html"
     },
@@ -2333,6 +2554,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1C00-1C4F-lepcha.html"
     },
@@ -2343,6 +2565,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1900-194F-limbu.html"
     },
@@ -2353,6 +2576,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A4D0-A4FF-lisu.html"
     },
@@ -2363,6 +2587,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10280-1029F-lycian.html"
     },
@@ -2373,6 +2598,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10920-1093F-lydian.html"
     },
@@ -2383,6 +2609,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11150-1117F-mahajani.html"
     },
@@ -2393,6 +2620,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0840-085F-mandaic.html"
     },
@@ -2403,6 +2631,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10AC0-10AFF-manichaean.html"
     },
@@ -2413,6 +2642,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11C70-11CBF-marchen.html"
     },
@@ -2423,6 +2653,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11D00-11D5F-masaram-gondi.html"
     },
@@ -2433,6 +2664,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E800-1E8DF-mende-kikakui.html"
     },
@@ -2443,6 +2675,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16F00-16F9F-miao.html"
     },
@@ -2453,6 +2686,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11600-1165F-modi.html"
     },
@@ -2463,6 +2697,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16A40-16A6F-mro.html"
     },
@@ -2473,6 +2708,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11280-112AF-multani.html"
     },
@@ -2483,6 +2719,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10880-108AF-nabataean.html"
     },
@@ -2493,6 +2730,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E4D0-1E4FF-nag-mundari.html"
     },
@@ -2503,6 +2741,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1980-19DF-new-tai-lue.html"
     },
@@ -2513,6 +2752,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11400-1147F-newa.html"
     },
@@ -2523,6 +2763,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/07C0-07FF-nko.html"
     },
@@ -2533,6 +2774,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1C50-1C7F-ol-chiki.html"
     },
@@ -2543,6 +2785,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10C80-10CFF-old-hungarian.html"
     },
@@ -2553,6 +2796,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10300-1032F-old-italic.html"
     },
@@ -2563,6 +2807,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10A80-10A9F-old-north-arabian.html"
     },
@@ -2573,6 +2818,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10350-1037F-old-permic.html"
     },
@@ -2583,6 +2829,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/103A0-103DF-old-persian.html"
     },
@@ -2593,6 +2840,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10A60-10A7F-old-south-arabian.html"
     },
@@ -2603,6 +2851,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10C00-10C4F-old-turkic.html"
     },
@@ -2613,6 +2862,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/104B0-104FF-osage.html"
     },
@@ -2623,6 +2873,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10480-104AF-osmanya.html"
     },
@@ -2633,6 +2884,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16B00-16B8F-pahawh-hmong.html"
     },
@@ -2643,6 +2895,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10860-1087F-palmyrene.html"
     },
@@ -2653,6 +2906,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11AC0-11AFF-pau-cin-hau.html"
     },
@@ -2663,6 +2917,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A840-A87F-phags-pa.html"
     },
@@ -2673,6 +2928,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10900-1091F-phoenician.html"
     },
@@ -2683,6 +2939,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B80-10BAF-psalter-pahlavi.html"
     },
@@ -2693,6 +2950,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A930-A95F-rejang.html"
     },
@@ -2703,6 +2961,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0800-083F-samaritan.html"
     },
@@ -2713,6 +2972,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A880-A8DF-saurashtra.html"
     },
@@ -2723,6 +2983,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11180-111DF-sharada.html"
     },
@@ -2733,6 +2994,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11580-115FF-siddham.html"
     },
@@ -2743,6 +3005,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/110D0-110FF-sora-sompeng.html"
     },
@@ -2753,6 +3016,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A800-A82F-syloti-nagri.html"
     },
@@ -2763,6 +3027,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0700-074F-syriac.html"
     },
@@ -2773,6 +3038,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1700-171F-tagalog.html"
     },
@@ -2783,6 +3049,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1760-177F-tagbanwa.html"
     },
@@ -2793,6 +3060,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1950-197F-tai-le.html"
     },
@@ -2803,6 +3071,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1A20-1AAF-tai-tham.html"
     },
@@ -2813,6 +3082,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/AA80-AADF-tai-viet.html"
     },
@@ -2823,6 +3093,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11680-116CF-takri.html"
     },
@@ -2833,6 +3104,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0780-07BF-thaana.html"
     },
@@ -2843,6 +3115,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2D30-2D7F-tifinagh.html"
     },
@@ -2853,6 +3126,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11480-114DF-tirhuta.html"
     },
@@ -2863,6 +3137,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10380-1039F-ugaritic.html"
     },
@@ -2873,6 +3148,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E2C0-1E2FF-wancho.html"
     },
@@ -2883,6 +3159,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/118A0-118FF-warang-citi.html"
     },
@@ -2893,6 +3170,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11700-1174F-ahom.html"
     },
@@ -2903,6 +3181,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1B00-1B7F-balinese.html"
     },
@@ -2913,6 +3192,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E100-1E14F-nyiakeng-puachue-hmong.html"
     },
@@ -2923,6 +3203,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10E80-10EBF-yezidi.html"
     },
@@ -2933,6 +3214,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0B00-0B7F-oriya.html"
     },
@@ -2943,6 +3225,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/13A0-13FF-cherokee.html"
     },
@@ -2953,6 +3236,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/08A0-08FF-arabic-extended-a.html"
     },
@@ -2963,6 +3247,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1D800-1DAAF-sutton-signwriting.0.html"
     },
@@ -2973,6 +3258,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0D80-0DFF-sinhala.html"
     },
@@ -2983,6 +3269,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -2993,6 +3280,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0E00-0E7F-thai.html"
     },
@@ -3003,6 +3291,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -3013,6 +3302,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -3023,6 +3313,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -3033,6 +3324,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/FB50-FDFF-arabic-presentation-forms-a.0.html"
     },
@@ -3043,6 +3335,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/FE10-FE1F-vertical-forms.html"
     },
@@ -3053,6 +3346,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -3063,6 +3357,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-buttons.html"
     },
@@ -3073,6 +3368,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3083,6 +3379,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3093,6 +3390,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3103,6 +3401,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3113,6 +3412,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3123,6 +3423,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3133,6 +3434,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3143,6 +3445,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3153,8 +3456,20 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2150-218F-number-forms.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
     },
     {
       "fontFamily": "Georgia, \"Times New Roman\", serif",
@@ -3163,6 +3478,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -3172,7 +3488,96 @@
       "fontWeight": 400,
       "fontStyle": "normal",
       "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"dlig\" 0, \"liga\" 0",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"dlig\" 0, \"liga\" 0",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"dlig\", \"liga\"",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 11,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"dlig\", \"liga\"",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"zero\"",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"ss01\"",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"ss02\"",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"salt\"",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-features.html"
+    },
+    {
+      "fontFamily": "Georgia, \"Times New Roman\", serif",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
       "fontVariationSettings": "\"wght\" 100",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3183,6 +3588,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"wght\" 900",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3193,6 +3599,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"wdth\" 50",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3203,6 +3610,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"wdth\" 200",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3213,6 +3621,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 8",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3223,6 +3632,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 144",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3233,6 +3643,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "\"slnt\" -10",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3243,6 +3654,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3253,6 +3665,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3263,6 +3676,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3273,6 +3687,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-textarea.html"
     },
@@ -3283,6 +3698,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-textpath-filters.html"
     },
@@ -3293,6 +3709,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-hanging-punctuation.html"
     },
@@ -3303,6 +3720,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-underline-position.html"
     },
@@ -3313,6 +3731,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-deep-scope.html"
     },
@@ -3323,6 +3742,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3333,6 +3753,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -3343,6 +3764,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/33-columns-basic.html"
     },
@@ -3353,6 +3775,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/33-columns-basic.html"
     },
@@ -3363,6 +3786,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/33-deep-columns-break.html"
     },
@@ -3373,6 +3797,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3383,6 +3808,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3393,6 +3819,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2600-26FF-miscellaneous-symbols.html"
     },
@@ -3403,6 +3830,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
     },
@@ -3413,6 +3841,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
     },
@@ -3423,6 +3852,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2700-27BF-dingbats.html"
     },
@@ -3433,6 +3863,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -3443,6 +3874,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "\"tnum\"",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3453,6 +3885,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -3463,6 +3896,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-form-state-pseudos.html"
     },
@@ -3473,6 +3907,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/24-deep-initial-letter.html"
     },
@@ -3483,6 +3918,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-layer.html"
     },
@@ -3493,6 +3929,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1F780-1F7FF-geometric-shapes-extended.html"
     },
@@ -3503,6 +3940,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2B00-2BFF-miscellaneous-symbols-and-arrows.html"
     },
@@ -3513,6 +3951,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0590-05FF-hebrew.html"
     },
@@ -3523,6 +3962,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-emoji.html"
     },
@@ -3533,6 +3973,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-emphasis.html"
     },
@@ -3543,6 +3984,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-headings.html"
     },
@@ -3553,6 +3995,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-sub-sup.html"
     },
@@ -3563,6 +4006,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-svg-text-gradient.html"
     },
@@ -3573,6 +4017,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-svg-text-gradient.html"
     },
@@ -3583,6 +4028,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-attr-quoting.html"
     },
@@ -3593,6 +4039,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-attr-quoting.html"
     },
@@ -3603,6 +4050,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/13-deep-stacking-context-creators.html"
     },
@@ -3613,6 +4061,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/17-deep-bg-clip-text.html"
     },
@@ -3623,6 +4072,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/17-deep-bg-clip-text.html"
     },
@@ -3633,6 +4083,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/17-deep-bg-clip-text.html"
     },
@@ -3643,6 +4094,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/18-deep-shadow-stacking.html"
     },
@@ -3653,6 +4105,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3663,6 +4116,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3673,6 +4127,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3683,6 +4138,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3693,6 +4149,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3703,6 +4160,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3713,6 +4171,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -3723,6 +4182,7 @@
       "fontStyle": "normal",
       "fontStretch": "50%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3733,6 +4193,7 @@
       "fontStyle": "normal",
       "fontStretch": "62.5%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3743,6 +4204,7 @@
       "fontStyle": "normal",
       "fontStretch": "75%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3753,6 +4215,7 @@
       "fontStyle": "normal",
       "fontStretch": "87.5%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3763,6 +4226,7 @@
       "fontStyle": "normal",
       "fontStretch": "112.5%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3773,6 +4237,7 @@
       "fontStyle": "normal",
       "fontStretch": "125%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3783,6 +4248,7 @@
       "fontStyle": "normal",
       "fontStretch": "150%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3793,6 +4259,7 @@
       "fontStyle": "normal",
       "fontStretch": "200%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -3803,6 +4270,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/22-blend-modes.html"
     },
@@ -3813,6 +4281,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-container.html"
     },
@@ -3823,6 +4292,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-container.html"
     },
@@ -3833,6 +4303,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-deep-container-types.html"
     },
@@ -3843,6 +4314,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -3853,6 +4325,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -3863,6 +4336,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -3873,6 +4347,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -3883,6 +4358,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3893,6 +4369,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/21-deep-transform-box.html"
     },
@@ -3903,6 +4380,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/svg-view-switch.html"
     },
@@ -3913,6 +4391,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/svg-view-switch.html"
     },
@@ -3923,6 +4402,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -3933,6 +4413,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -3943,6 +4424,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -3953,6 +4435,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -3963,6 +4446,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-deep-input-baseline.html"
     },
@@ -3973,6 +4457,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -3983,6 +4468,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-file.html"
     },
@@ -3993,6 +4479,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -4003,6 +4490,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -4013,6 +4501,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -4023,6 +4512,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/08-deep-details-accordion.html"
     },
@@ -4033,6 +4523,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/13-deep-sticky-condensing-header.html"
     },
@@ -4043,6 +4534,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -4053,6 +4545,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -4063,6 +4556,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -4073,6 +4567,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-underline-position.html"
     },
@@ -4083,6 +4578,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-wavy-underline-descenders.html"
     },
@@ -4093,6 +4589,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/22-deep-filter-paint-bounds.html"
     },
@@ -4103,6 +4600,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/24-deep-initial-letter.html"
     },
@@ -4113,6 +4611,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/25-deep-line-clamp.html"
     },
@@ -4123,6 +4622,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-deep-scope.html"
     },
@@ -4133,6 +4633,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -4143,6 +4644,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/shadow-dom-declarative.html"
     },
@@ -4153,6 +4655,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -4163,6 +4666,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4173,6 +4677,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4183,6 +4688,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4193,6 +4699,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4203,6 +4710,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4213,6 +4721,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-attr-quoting.html"
     },
@@ -4223,6 +4732,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4233,6 +4743,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4243,6 +4754,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-tab-size.html"
     },
@@ -4253,6 +4765,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -4263,6 +4776,7 @@
       "fontStyle": "italic",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -4273,6 +4787,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -4283,6 +4798,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-textarea.html"
     },
@@ -4293,6 +4809,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/11-deep-env-safe-area.html"
     },
@@ -4303,6 +4820,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/30-deep-resize-overflow.html"
     },
@@ -4313,6 +4831,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/contrast-color.html"
     },
@@ -4323,6 +4842,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4333,6 +4853,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4343,6 +4864,7 @@
       "fontStyle": "normal",
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     }
