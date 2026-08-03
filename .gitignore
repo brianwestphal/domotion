@@ -39,6 +39,14 @@ tools/unicode-fixtures/
 # locally without cluttering `git status` or risking an accidental commit.
 tools/scratch/
 
+# The SYNTHETIC font-conformance stack corpus is a pure function of the rule in
+# `tools/font-conformance-synthetic-stacks.ts` — regenerating it is
+# byte-identical, identity string included. Committing it would create a second,
+# hand-editable copy, and a hand-edited "synthetic" corpus is just a curated list
+# with a misleading name. Regenerate with:
+#   npx tsx tools/font-conformance-synthetic-stacks.ts
+tools/font-conformance-stacks.synthetic.json
+
 .mcp.json
 .claude/settings.local.json
 /.hotsheet/*

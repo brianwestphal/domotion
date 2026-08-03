@@ -104,6 +104,7 @@ import {
   warmSystemFallbackForCodepoints,
 } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
+import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -147,6 +148,11 @@ interface StackCorpus {
    * a different question than the one the renderer faces. Optional so a corpus
    * file written before the split still parses; absent is treated as unknown
    * and warned about rather than silently trusted.
+   *
+   * The one exempt value is `"any"` (`PORTABLE_CORPUS_PLATFORM`), which the
+   * synthetic generator writes: a rule-derived corpus holds literal CSS
+   * keywords rather than computed values, so it IS portable. See the guard in
+   * `main` for the full reasoning.
    */
   platform?: string;
   sources: string[];
@@ -961,7 +967,15 @@ async function main(): Promise<number> {
     // never computes, so a sweep over it measures the wrong question rather
     // than measuring badly. Refuse by default; the escape hatch is explicit and
     // is recorded in the report's `meta`.
-    if (corpus.platform !== process.platform) {
+    // A corpus that declares itself PORTABLE is exempt, and the exemption is
+    // narrow by construction. The guard exists because a HARVESTED corpus
+    // records computed style, and one computed value — the default font-family
+    // — is a per-platform preference. A rule-derived corpus (see
+    // `tools/font-conformance-synthetic-stacks.ts`) contains only literal CSS
+    // keywords, written the same on every platform; what each keyword resolves
+    // to differs per platform, which is the question it asks rather than a
+    // reason it cannot be asked. Only the generator writes this marker.
+    if (corpus.platform !== process.platform && corpus.platform !== PORTABLE_CORPUS_PLATFORM) {
       const what = corpus.platform ?? "(unrecorded)";
       if (!opts.allowForeignCorpus) {
         process.stderr.write(

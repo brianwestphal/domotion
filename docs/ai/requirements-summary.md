@@ -947,7 +947,18 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   (`tests/baselines/font-conformance-<os>.json`) — the numbers are not
   comparable across platforms (different Blink code, different font sets,
   different ICU universes) and the CI gate is regression-relative rather
-  than absolute-zero.
+  than absolute-zero. The codepoint axis is exhaustive; the stack axis was
+  bounded by the fixtures, so a **synthetic, rule-derived corpus**
+  (`tools/font-conformance-synthetic-stacks.ts`, 2,106 stacks, its own CI
+  dispatch and baselines) now sweeps the CSS generic families across the
+  whole weight ladder, the stretch keywords and both slopes. It named two
+  defects on its first slice: `font-stretch` never reaches our resolution
+  (Chrome takes `Papyrus-Condensed`, we take `Papyrus` — 3 mismatches at
+  100% against 1,110 at each condensed step) and weight 800/900 takes the
+  wrong CJK cut. Doc 107 also now records the variable-axis pairing as a
+  measurement rather than an argument: the face oracle's verdict is
+  invariant to our axis location (blind in both directions), while the
+  shaping oracle (doc 108) separates the cases by 39–137 px.
 - **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
   always-in-sync Mermaid flow diagram of the *entire* font-resolution
   system, synthesizing docs 03/30/40/42/51/52/80: family-stack→key, the

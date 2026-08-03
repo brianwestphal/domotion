@@ -1,0 +1,266 @@
+name: Font conformance oracle (synthetic stacks)
+
+run-name: Synthetic font conformance · os=${{ inputs.os }} · shards=${{ inputs.shards }} · max-stacks=${{ inputs.max_stacks }}
+
+# The SYNTHETIC half of the font-conformance oracle. Same instrument, same shard
+# script, same gate — a different stack corpus.
+#
+# WHY IT IS A SEPARATE DISPATCH RATHER THAN AN INPUT TO font-conformance.yml
+#   The two sweeps ask different questions and must not share a baseline. The
+#   default corpus is HARVESTED from the fixtures: 434 combinations, per
+#   platform, dominated by weight 400 at 100% stretch. The synthetic corpus is
+#   DERIVED FROM A RULE (tools/font-conformance-synthetic-stacks.ts): the CSS
+#   generic-family keywords crossed with the weight ladder, the stretch keywords
+#   and normal/italic — 2,106 stacks, identical on every platform.
+#
+#   That cross product multiplies an already expensive sweep, so folding it into
+#   the default dispatch would make the canonical baseline slice unrunnable. It
+#   also writes its own baselines (tests/baselines/font-conformance-synthetic-*),
+#   because a mismatch count is meaningless without its slice and the comparator
+#   refuses to compare across one.
+#
+# WHY IT IS WORTH RUNNING AT ALL
+#   The oracle's codepoint axis is exhaustive; its stack axis was bounded by what
+#   the fixtures happen to contain. Measured on a 234-stack / 1,463-codepoint
+#   slice on a developer Mac, the departures the harvested corpus never asks
+#   about are where the defects are: `fantasy` measures 3 mismatches at 100%
+#   stretch and 1,110 at each of 50 / 62.5 / 75 / 87.5% (Chrome takes
+#   `Papyrus-Condensed`, we take `Papyrus`), and eight families measure 1-2
+#   mismatches at weight 400 against 157 at weight 800/900.
+#
+# DEFAULT SLICE
+#   `max_stacks: 234` is not arbitrary — the corpus is ordered by distance from
+#   the CSS initial state, so 234 is exactly "every generic at its initial state,
+#   plus every single-axis departure from it". 13 is one per generic; empty is
+#   the full 2,106-way product, which is many hours per platform.
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Platform to sweep — each has its own baseline'
+        type: choice
+        options: [macos, linux, windows, all]
+        default: macos
+      shards:
+        description: 'Number of stack shards to fan out across'
+        default: '6'
+      max_stacks:
+        description: 'Cap on synthetic stacks (ordered by distance from the CSS initial state). 13 = one per generic; 234 = +every single-axis departure; empty = all 2,106.'
+        default: '234'
+      range:
+        description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'
+        default: ''
+      cp_shard:
+        description: 'Codepoint stride index i, applied INSIDE every stack shard (used with cp_total). The stack axis is the expensive one here, so a stride keeps a wide stack slice affordable.'
+        default: '1'
+      cp_total:
+        description: 'Codepoint stride denominator N. 1 (or empty) = the full universe, no stride. e.g. 50 sweeps every 50th codepoint.'
+        default: '1'
+      no_pua:
+        description: 'Skip private-use codepoints (137k of 292k) for a faster run'
+        type: boolean
+        default: false
+      update_baseline:
+        description: 'Write this run back as the synthetic baseline instead of gating on it (artifact only — commit it by hand)'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '22.21.0'
+  STACKS_FILE: 'tools/font-conformance-stacks.synthetic.json'
+
+concurrency:
+  group: font-conformance-synthetic-${{ github.ref_name }}-${{ inputs.os }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      expected: ${{ steps.m.outputs.expected }}
+      os_list: ${{ steps.m.outputs.os_list }}
+      macos_on: ${{ steps.m.outputs.macos_on }}
+      linux_on: ${{ steps.m.outputs.linux_on }}
+      windows_on: ${{ steps.m.outputs.windows_on }}
+    steps:
+      - id: m
+        run: |
+          n="${{ inputs.shards }}"
+          list=$(seq 1 "$n" | paste -sd, -)
+          echo "matrix={\"shard\":[$list],\"total\":[$n]}" >> "$GITHUB_OUTPUT"
+          echo "expected=$n" >> "$GITHUB_OUTPUT"
+          sel="${{ inputs.os }}"
+          on() { [ "$sel" = "$1" ] || [ "$sel" = "all" ] && echo true || echo false; }
+          echo "macos_on=$(on macos)" >> "$GITHUB_OUTPUT"
+          echo "linux_on=$(on linux)" >> "$GITHUB_OUTPUT"
+          echo "windows_on=$(on windows)" >> "$GITHUB_OUTPUT"
+          if [ "$sel" = "all" ]; then
+            echo 'os_list=["macos","linux","windows"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "os_list=[\"$sel\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  sweep-macos:
+    needs: setup
+    if: needs.setup.outputs.macos_on == 'true'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+        # Without the native helper the macOS per-codepoint fallback resolver
+        # cannot ask CoreText and silently drops to the static chain.
+      - name: Build the macOS glyph helper (CoreText fallback resolver)
+        run: |
+          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             tools/macos-glyph-extractor/domotion-glyph-paths
+      # The corpus is gitignored on purpose: it is a pure function of the rule,
+      # and a committed copy is a copy someone can hand-edit. Regenerating is
+      # deterministic — its identity string is a digest of the rule's output, not
+      # a timestamp — so a regenerated corpus stays comparable with the baseline.
+      - name: Generate the synthetic stack corpus
+        run: npx tsx tools/font-conformance-synthetic-stacks.ts
+      - name: Sweep
+        run: bash scripts/ci-font-conformance-shard.sh
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ matrix.total }}
+          STACKS: ${{ env.STACKS_FILE }}
+          RANGE: ${{ inputs.range }}
+          MAX_STACKS: ${{ inputs.max_stacks }}
+          NO_PUA: ${{ inputs.no_pua }}
+          CP_SHARD: ${{ inputs.cp_shard }}
+          CP_TOTAL: ${{ inputs.cp_total }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-conformance-synthetic-macos-shard-${{ matrix.shard }}
+          path: tests/output/font-conformance/
+          retention-days: 14
+
+  sweep-linux:
+    needs: setup
+    if: needs.setup.outputs.linux_on == 'true'
+    runs-on: ubuntu-latest
+    # The pinned Playwright image, not a bare ubuntu-latest: the Linux fallback
+    # answer IS the container's fontconfig set, so a different image is a
+    # different oracle.
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Build the Linux glyph helper (fontconfig fallback resolver)
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq build-essential cmake libfreetype-dev libfontconfig1-dev pkg-config
+          cmake -S tools/linux-glyph-extractor -B /tmp/lgx -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/lgx -j
+          cp /tmp/lgx/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
+      - name: Generate the synthetic stack corpus
+        run: npx tsx tools/font-conformance-synthetic-stacks.ts
+      - name: Sweep
+        run: bash scripts/ci-font-conformance-shard.sh
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ matrix.total }}
+          STACKS: ${{ env.STACKS_FILE }}
+          RANGE: ${{ inputs.range }}
+          MAX_STACKS: ${{ inputs.max_stacks }}
+          NO_PUA: ${{ inputs.no_pua }}
+          CP_SHARD: ${{ inputs.cp_shard }}
+          CP_TOTAL: ${{ inputs.cp_total }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-conformance-synthetic-linux-shard-${{ matrix.shard }}
+          path: tests/output/font-conformance/
+          retention-days: 14
+
+  sweep-windows:
+    needs: setup
+    if: needs.setup.outputs.windows_on == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Build the DirectWrite glyph helper (fallback resolver)
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Generate the synthetic stack corpus
+        run: npx tsx tools/font-conformance-synthetic-stacks.ts
+      - name: Sweep
+        shell: bash
+        run: bash scripts/ci-font-conformance-shard.sh
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ matrix.total }}
+          STACKS: ${{ env.STACKS_FILE }}
+          RANGE: ${{ inputs.range }}
+          MAX_STACKS: ${{ inputs.max_stacks }}
+          NO_PUA: ${{ inputs.no_pua }}
+          CP_SHARD: ${{ inputs.cp_shard }}
+          CP_TOTAL: ${{ inputs.cp_total }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-conformance-synthetic-windows-shard-${{ matrix.shard }}
+          path: tests/output/font-conformance/
+          retention-days: 14
+
+  aggregate:
+    needs: [setup, sweep-macos, sweep-linux, sweep-windows]
+    if: always() && needs.setup.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.setup.outputs.os_list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - uses: actions/download-artifact@v4
+        with:
+          path: shards
+          pattern: 'font-conformance-synthetic-${{ matrix.os }}-shard-*'
+      - name: Merge shard reports
+        run: |
+          node scripts/merge-font-conformance-shards.mjs \
+            --shards shards \
+            --os ${{ matrix.os }} \
+            --expected ${{ needs.setup.outputs.expected }} \
+            --out merged.json
+      # Its OWN baseline. The synthetic slice and the harvested slice measure
+      # different questions, and the comparator would refuse to compare them
+      # anyway (`slice.stacks` and the corpus identity both differ) — this makes
+      # that separation explicit rather than relying on the refusal.
+      - name: Gate vs the synthetic baseline for this platform
+        run: >
+          node scripts/diff-font-conformance-baseline.mjs
+          --results merged.json
+          --baseline tests/baselines/font-conformance-synthetic-${{ matrix.os }}.json
+          --label "${{ matrix.os }} / font-conformance (synthetic stacks)"
+          ${{ inputs.update_baseline && '--update-baseline' || '--strict' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: font-conformance-synthetic-${{ matrix.os }}-merged
+          path: |
+            merged.json
+            tests/baselines/font-conformance-synthetic-${{ matrix.os }}.json
+          retention-days: 30

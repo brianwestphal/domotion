@@ -76,12 +76,32 @@ Full derived corpus from `external/html-test`:
 
 Read the 348 first. Those runs shape to **visibly different glyph positions** than Chrome, at the same magnitude as the nukta defect that motivated this tool — and every one of them was invisible to the face oracle. The single hard mismatch is an emoji run where Chrome produces 1 glyph and we produce 2.
 
+## Covering the face oracle's variable-instance blind spot — measured
+
+Doc 107 has always said that its name-blindness for variable faces is covered here, because one PostScript name spans a variable font's whole design space and only positions can tell two instances apart. That was an argument. Nothing in either corpus drove an axis Chrome honors: macOS Helvetica has no `wdth` axis, and Chrome's painted width for `sans-serif` is identical at every `font-stretch` 50–200% and unchanged across `"wght" 100` ↔ `"wght" 900`, even on `system-ui` whose SFNS file *is* variable.
+
+`tests/fixtures/variable-axis/variable-axis.html` (a subset of variable Open Sans as a webfont, `fvar`/`gvar` intact) supplies the missing case, and `tools/variable-axis-oracle-pair.ts` runs **this tool's own `compareShaping`** and the face oracle's own `identifyFace` over every pair of instances. The full table is in [doc 107](107-font-conformance-oracle.md#the-variable-axis-blind-spot-measured-rather-than-asserted); the part that concerns this tool:
+
+| our instance vs Chrome's | `compareShaping` | max position delta |
+| --- | --- | ---: |
+| same | `agree-exact` | 0.01 px |
+| `wght 800` vs default | `agree-count` | 39.56 px |
+| `wdth 75` vs default | `agree-count` | 97.83 px |
+| `wdth 75` vs `wght 800` | `agree-count` | 137.39 px |
+
+Two things worth carrying away. The discrimination is not marginal — 0.01 px against 39–137 px, where this tool's whole macOS baseline tops out at 5.64 px — so it is not a threshold-tuning result. And it lands in `agree-count`, the tier this document already argues is the interesting one: same glyph count, positions differ. A wrong variable instance is a *geometry* defect with no shaping decision behind it, which is precisely the shape `agree-count` exists to name.
+
+The corollary for `agree-count` reading generally: a row in that tier can mean a mark attached 3 px wrong **or** the right glyphs painted from the wrong point in a design space. Both are real; they want different fixes.
+
+Pinned by `tests/variable-axis-oracle-pair.e2e.test.ts`.
+
 ## Known gaps
 
 - **Glyph IDs are not compared** — neither side exposes them. A run could agree on count and position while painting the wrong glyph. Closing this needs a signal Chrome does not currently offer.
 - **Advances are compared only via positions.** A per-glyph advance is inferred from adjacent positions, so the final glyph's advance is unchecked.
 - **macOS only**, like the face oracle. Shaping is HarfBuzz on every platform so the results should travel better than face selection does, but that is an expectation, not a measurement.
 - Corpus is `external/html-test` only; the unicode fixture set is not yet swept.
+- **`RunSpec` carries no `font-variation-settings`**, so the derived corpus cannot express an axis location even where a fixture declares one. The variable-axis case above is measured by a purpose-built tool rather than swept by this one; folding axes into the run corpus would let the sweep cover it.
 
 ## Related
 

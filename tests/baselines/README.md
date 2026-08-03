@@ -108,6 +108,31 @@ node scripts/diff-font-conformance-baseline.mjs --results merged.json \
   --baseline tests/baselines/font-conformance-macos.json --update-baseline
 ```
 
+### `font-conformance-synthetic-<os>.json` — same instrument, different corpus
+
+The same shape, from `.github/workflows/font-conformance-synthetic.yml`, sweeping
+the **rule-derived** stack corpus instead of the harvested one (doc 107, *"The
+synthetic stack corpus"*). Separate files rather than a shared one because the
+two slices ask different questions — 2,106 CSS-generic stacks spanning the whole
+weight ladder and every stretch keyword, against 434 harvested stacks that are
+74% weight-400 — and a mismatch count means nothing without its slice. The
+comparator would refuse to compare them anyway (`meta.slice.stacks` and
+`meta.corpus.generatedAt` both differ); the separate path makes that explicit
+rather than relying on the refusal.
+
+One difference worth knowing when reading `meta.corpus`: the synthetic corpus's
+`generatedAt` is a **digest of the rule's output** (`synthetic:v1:<hex>`), not a
+timestamp. It is regenerated in every CI job, and a wall-clock stamp would
+invalidate the baseline on every run for no reason. Regenerating is comparable;
+changing the rule is not, which is the discrimination the field is for.
+
+These are **not seeded yet** — no synthetic sweep has been run on CI. Until one
+is, the comparator reports the run and says there is nothing to compare.
+
+```sh
+gh workflow run font-conformance-synthetic.yml -f os=macos -f update_baseline=true
+```
+
 ## Files
 
 `<suite>-<os>.json` — `{ meta, fixtures }`:

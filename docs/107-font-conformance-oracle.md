@@ -24,7 +24,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 
 | Flag | Meaning |
 | --- | --- |
-| `--stacks <file>` | Stack corpus (default `tools/font-conformance-stacks.<platform>.json` — one per platform, see below). |
+| `--stacks <file>` | Stack corpus (default `tools/font-conformance-stacks.<platform>.json` — one per platform, see below; `tools/font-conformance-stacks.synthetic.json` for the [rule-derived sweep](#the-synthetic-stack-corpus--the-axis-the-fixtures-cannot-reach)). |
 | `--extract-stacks` | Re-derive the corpus from the fixtures and exit. |
 | `--allow-foreign-corpus` | Sweep a corpus extracted on another platform. Refused by default. |
 | `--source a,b` | Fixture directories to extract from (default `external/html-test`, `../html-test/unicode`). |
@@ -57,6 +57,65 @@ That leaves **292,466** codepoints, of which 137,468 are private use.
 **Stacks.** Extracted from the fixture corpus rather than invented — inventing them would reintroduce the sampling problem one level up. `--extract-stacks` loads all 1,115 fixtures under `external/html-test/` and `../html-test/unicode/` and records the *computed* `font-family` / `font-size` / `font-weight` / `font-style` / `font-stretch` / `font-variation-settings` of every element that directly contains text. On the current corpus that is **434 distinct combinations**, cached with the fixture count and one example fixture per entry, so any disagreement can be reproduced by hand. Re-run `--extract-stacks` when the corpus changes.
 
 Size is part of the key, not collapsed away: macOS optical cuts mean Chrome genuinely reports a different face at 16 px than at 32 px for the same family.
+
+**But the stack axis is bounded by the fixtures in a way the codepoint axis is not**, and that has to be read alongside every number below: "the oracle reports N mismatches" means "…for the 434 stacks we happened to harvest". The second corpus in the next section is the answer to that.
+
+### The synthetic stack corpus — the axis the fixtures cannot reach
+
+`tools/font-conformance-synthetic-stacks.ts` generates a second corpus from a **stated rule** rather than from the fixtures:
+
+| axis | enumeration |
+| --- | --- |
+| generic families | the 13 CSS Fonts 4 generic-family keywords — `<generic-font-complete>` (`serif`, `sans-serif`, `system-ui`, `cursive`, `fantasy`, `math`, `monospace`) ∪ `<generic-font-incomplete>` (`ui-serif`, `ui-sans-serif`, `ui-monospace`, `ui-rounded`, `emoji`) plus the bare `fangsong` keyword |
+| weights | the 9-rung CSS ladder, 100…900 |
+| stretches | the 9 CSS `font-stretch` keywords, stored as the percentages Chrome computes them to |
+| styles | `normal`, `italic` |
+
+13 × 9 × 9 × 2 = **2,106 stacks**, all at 16 px.
+
+Three properties are load-bearing rather than incidental.
+
+**It is generated, and the output is gitignored.** A committed copy is a copy someone can hand-edit, and a hand-edited "synthetic" corpus is a curated list with a misleading name — the same sampled artifact the whole instrument exists to eliminate. Regenerate with `npx tsx tools/font-conformance-synthetic-stacks.ts`; `tests/font-conformance-synthetic-stacks.test.ts` pins the rule.
+
+**Its identity is a digest of the rule's output, not a timestamp.** The baseline comparator refuses to judge across a change in the corpus's `generatedAt` — correct for a harvested corpus, where re-extraction can genuinely produce a different corpus. A rule-derived corpus has no such property, so a wall-clock stamp would invalidate every baseline on every CI run (each job regenerates it). Instead `generatedAt` is `synthetic:v1:<sha256-16>`: regenerating is comparable, changing the rule is not.
+
+**Its ordering is part of the rule**, so a `--max-stacks` prefix is a meaningful slice. Stacks are sorted by distance from the CSS initial state (how many of weight / stretch / style differ from 400 / 100% / normal):
+
+    --max-stacks 13     one stack per generic family, all at CSS initial
+    --max-stacks 234    …plus every single-axis departure from it
+    (no cap)            the full 2,106-way product
+
+It also declares `platform: "any"`, which the sweep's per-platform corpus guard accepts without `--allow-foreign-corpus`. That exemption is narrow and deliberate: the guard exists because a *harvested* corpus records computed style, and the computed `font-family` of an element that declares none is Chrome's per-platform default preference. This corpus holds only literal CSS keywords. What each keyword resolves to differs per platform — which is the question it asks, not a reason it cannot be asked.
+
+#### Running it
+
+```sh
+npx tsx tools/font-conformance-synthetic-stacks.ts                 # generate
+npx tsx tools/font-conformance.ts \
+  --stacks tools/font-conformance-stacks.synthetic.json \
+  --max-stacks 234 --shard 1/200                                  # sweep a slice
+```
+
+On CI it has its **own dispatch and its own baselines** — `.github/workflows/font-conformance-synthetic.yml`, gating against `tests/baselines/font-conformance-synthetic-<os>.json`. Not an input to the default workflow: the cross product multiplies an already expensive sweep, and the two slices measure different questions, so they must not share a baseline. Both dispatches run the same `scripts/ci-font-conformance-shard.sh` (which now takes a `STACKS` env var) so the flags, exit-code discipline and recorded environment cannot drift between them.
+
+#### What it found immediately
+
+Measured on a developer Mac, `--max-stacks 234 --shard 1/200` — 234 stacks × 1,463 codepoints = **342,342 comparisons, 12,051 mismatches (3.520%) across 186 routes**. The same rule at `--max-stacks 13` (one per generic, CSS initial state everywhere) measures **286 mismatches of 19,019 (1.504%) across 37 routes**. Almost everything is in the departures, and the departures are exactly what the harvested corpus does not contain:
+
+| stack | mismatches of 1,463 |
+| --- | ---: |
+| `fantasy` @16/400/normal/**100%** | 3 |
+| `fantasy` @16/400/normal/**50%**, **62.5%**, **75%**, **87.5%** | **1,110** each |
+| `serif` @16/**400** | 1 |
+| `serif` @16/**700** | 2 |
+| `serif` @16/**800**, **900** | **157** each |
+
+Two defects, neither previously measurable:
+
+- **`font-stretch` is not carried into our resolution at all.** Chrome selects `Papyrus-Condensed` for a condensed `fantasy` stack — macOS ships that cut — and we resolve plain `Papyrus`, which for 1,102 of the swept codepoints we cannot open at all (`mismatch-we-tofu`). The harvested corpus contains `fantasy` only at 100%, and only 8 of its 434 stacks have any non-100% stretch.
+- **Weight 800/900 takes the wrong CJK cut.** Chrome paints Han with `STSongti-SC-Bold`; we resolve `STSongti-SC-Regular` (240 rows) or `STSongti-SC-Black` (70 rows). Identical for eight families, since they all fall through to the same serif CJK route. The harvested corpus has weight 800 in 10 of 434 stacks and weight 900 in 5 — and none of them is a serif-primary stack.
+
+This is the same failure mode doc 107 already records for the Windows weight-400 sample (*"Do not read that 0.488% as a verdict"*), one axis over: **the stack axis needs sampling too, and a corpus harvested from fixtures samples it very unevenly.** 321 of the harvested corpus's 434 stacks are weight 400, 426 of 434 are 100% stretch, and weight 200 does not occur at all.
 
 ### The corpus is per-platform, and this was measured rather than assumed
 
@@ -114,7 +173,7 @@ The three `mismatch*` buckets gate. Each mismatch row also carries a triage `cla
 
 The instrument is only worth its exit code if its blind spots are written down rather than discovered later as "the number was wrong all along". Current ones:
 
-- **Variable faces cannot be adjudicated by name.** A variable file instanced along `wght` keeps the base master's PostScript name (`/System/Library/Fonts/SFNS.ttf` reports `.SFNS-Regular` at every weight) while Chrome names the optical/weight cut it selected. Those land in `agree-alias` or `same-family-different-cut`; the oracle can prove the FILE and the axis request but not the name. **This one is structural and stays** — the name-independent check lives in the sibling shaping oracle ([doc 108](108-shaping-conformance-oracle.md)), which compares painted glyph positions and so discriminates two instances of one name where this tool cannot.
+- **Variable faces cannot be adjudicated by name.** A variable file instanced along `wght` keeps the base master's PostScript name (`/System/Library/Fonts/SFNS.ttf` reports `.SFNS-Regular` at every weight) while Chrome names the optical/weight cut it selected. Those land in `agree-alias` or `same-family-different-cut`; the oracle can prove the FILE and the axis request but not the name. **This one is structural and stays** — the name-independent check lives in the sibling shaping oracle ([doc 108](108-shaping-conformance-oracle.md)), which compares painted glyph positions and so discriminates two instances of one name where this tool cannot. That sentence used to be an argument; it is now [measured](#the-variable-axis-blind-spot-measured-rather-than-asserted).
 - **`font-feature-settings` is still not extracted**, so a fixture using it is swept as though it did not.
 - **One face per cell.** When a codepoint decomposes across two faces the oracle compares the one with the most glyphs; the full list survives in `chromeAllFaces`.
 - **Synthetic vs real cuts are compared by face, not by synthesis.** If Chrome synthesizes bold from a regular face it reports the regular face, so our picking a real bold sibling shows up — correctly — as a mismatch. That is the intended reading, but it means a `same-family-different-cut` row can mean either "we took the wrong cut" or "Chrome faked one".
@@ -190,7 +249,43 @@ Those 17 newly-visible stacks measure **0 mismatches**. That is a real result ra
 - Chrome's painted width for `sans-serif` is **identical at every stretch from 50% to 200%** (151.19px, face `Helvetica`). macOS Helvetica has no condensed face and no `wdth` axis, so there is nothing to select and Chrome does not synthesize condensing.
 - Chrome's painted width is likewise **unchanged** across `"wght" 100` ↔ `"wght" 900` and `"wdth" 50` ↔ `"wdth" 150` — including on `system-ui`, whose SFNS file *is* variable.
 
-So on this corpus and platform neither axis moves Chrome's output, and agreement is genuine. The corollary worth stating: **nothing in the fixture corpus currently exercises a live variable axis**, so the name-blindness above, while real, is presently untested rather than passing. A fixture that drives a `wdth`/`wght` axis Chrome actually honors would be the thing to add.
+So on this corpus and platform neither axis moves Chrome's output, and agreement is genuine. The corollary that used to sit here — *nothing in the fixture corpus exercises a live variable axis, so the name-blindness is untested rather than passing* — is closed by the next section.
+
+### The variable-axis blind spot, measured rather than asserted
+
+`tests/fixtures/variable-axis/variable-axis.html` is the fixture the paragraph above asked for: one `@font-face` (a 27 KB hb-subset of variable Open Sans, `fvar`/`gvar` intact, SIL OFL — rebuild with `tools/build-variable-axis-fixture.mjs`), painting the same word at three `font-variation-settings` locations. `tools/variable-axis-oracle-pair.ts` drives it and runs **both oracles' shipped comparison functions** — `identifyFace` from this tool, `compareShaping` from [doc 108](108-shaping-conformance-oracle.md) — over every (Chrome instance × our instance) pair. Our side is the real renderer: the fixture's own font bytes, registered as a webfont, through `renderTextAsPath` at the axis location under test.
+
+First, the axis is genuinely live, which is why a webfont was needed at all:
+
+| instance | Chrome's painted width | Chrome's reported face | our reported face |
+| --- | ---: | --- | --- |
+| default | 388.48 px | `OpenSans-Regular` | `OpenSans-Regular` |
+| `"wght" 800` | 433.39 px | `OpenSansRoman-ExtraBold` | `OpenSans-Regular` |
+| `"wdth" 75` | 284.05 px | `OpenSansRoman-CondensedRegular` | `OpenSans-Regular` |
+
+Then the pairing, 9 rows, `max pos delta` from `compareShaping`:
+
+| Chrome | ours | face oracle | shaping oracle | max delta |
+| --- | --- | --- | --- | ---: |
+| default | default | `agree-exact` | `agree-exact` | 0.01 px |
+| default | `wght 800` | `agree-exact` | `agree-count` | 39.56 px |
+| default | `wdth 75` | `agree-exact` | `agree-count` | 97.83 px |
+| `wght 800` | default | `mismatch` | `agree-count` | 39.56 px |
+| `wght 800` | `wght 800` | `mismatch` | `agree-exact` | 0.01 px |
+| `wght 800` | `wdth 75` | `mismatch` | `agree-count` | 137.39 px |
+| `wdth 75` | default | `mismatch` | `agree-count` | 97.83 px |
+| `wdth 75` | `wght 800` | `mismatch` | `agree-count` | 137.39 px |
+| `wdth 75` | `wdth 75` | `mismatch` | `agree-exact` | 0.01 px |
+
+**Read the face-oracle column vertically, in groups of three.** Within each group the only thing changing is *our* axis, and the verdict never moves. That is the sharp form of the blindness: the face oracle's answer is a function of Chrome's instance alone and carries **zero information** about whether we honored the author's axis.
+
+And it is blind in *both* directions, which is worse than "lenient" and was not what this document previously implied. Chrome names the named instance it snapped to; our side reports the base master at every location. So the instrument scores an **incorrect** heavy render against Chrome's default as `agree-exact`, and a **correct** heavy render as `mismatch`. Neither is a true statement about our axis handling.
+
+The shaping oracle discriminates exactly: `agree-exact` at 0.01 px if and only if the axes match, `agree-count` at 39–137 px otherwise. For scale, the largest position delta in doc 108's entire macOS baseline is 5.64 px.
+
+Two things this does *not* claim. It is one webfont on one platform, not a sweep — the oracles' corpora still contain no live variable axis, and this fixture is not in either of them. And the 0.01 px on the matching rows is a positive control for our renderer honoring `font-variation-settings` through the webfont path; it says nothing about the system-font paths, where the axes measurably do not move Chrome at all.
+
+Pinned by `tests/variable-axis-fixture.test.ts` (no browser: the subset is still variable, our reported name is constant across axes, our geometry is not) and `tests/variable-axis-oracle-pair.e2e.test.ts` (the live table above).
 
 ### Aliases are not exemptions
 

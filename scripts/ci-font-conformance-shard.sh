@@ -6,7 +6,14 @@
 # between them — a Windows shard that quietly swept a different slice than the
 # macOS one would produce two baselines that look comparable and are not.
 #
-# Inputs (env): SHARD TOTAL RANGE MAX_STACKS NO_PUA STRICT_ALIAS OUT_DIR
+# Inputs (env): SHARD TOTAL RANGE MAX_STACKS NO_PUA STRICT_ALIAS OUT_DIR STACKS
+#
+# STACKS selects the stack corpus. Unset = the platform's own harvested corpus
+# (the tool's default), which is what the canonical baseline slice sweeps. The
+# synthetic sweep passes the rule-derived corpus here instead
+# (font-conformance-synthetic.yml); it deliberately shares this script so the
+# flags, exit-code discipline and recorded environment cannot drift between the
+# two sweeps.
 #
 # Alongside the report it records the two things the answers depend on and the
 # aggregate cannot measure for itself (it runs on a different runner):
@@ -30,6 +37,7 @@ args=(--stack-shard "${SHARD}/${TOTAL}" --out "$OUT_DIR")
 if [ -n "${CP_TOTAL:-}" ] && [ "${CP_TOTAL}" != "1" ]; then
   args+=(--shard "${CP_SHARD}/${CP_TOTAL}")
 fi
+[ -n "${STACKS:-}" ] && args+=(--stacks "$STACKS")
 [ -n "${RANGE:-}" ] && args+=(--range "$RANGE")
 [ -n "${MAX_STACKS:-}" ] && args+=(--max-stacks "$MAX_STACKS")
 [ "${NO_PUA:-false}" = "true" ] && args+=(--no-pua)

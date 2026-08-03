@@ -199,6 +199,27 @@ shortest possible map:
   `tests/font-conformance-baseline.test.ts`; see
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
+- **Synthetic stack corpus** — `tools/font-conformance-synthetic-stacks.ts`
+  generates a SECOND corpus for the same oracle from a stated rule (the 13 CSS
+  generic-family keywords × the 9-rung weight ladder × the 9 stretch keywords ×
+  normal/italic = 2,106 stacks) rather than from the fixtures, because the
+  harvested corpus is 74% weight-400 and 98% 100%-stretch. Output is gitignored
+  (a committed copy could be hand-edited into a curated list); its identity is a
+  digest of the rule, not a timestamp, so regenerating stays baseline-comparable;
+  it declares `platform: "any"`, the one corpus the platform guard exempts. Own
+  CI dispatch + own baselines: `.github/workflows/font-conformance-synthetic.yml`
+  → the shared shard script with `STACKS=…` →
+  `tests/baselines/font-conformance-synthetic-<os>.json`. Rule pinned by
+  `tests/font-conformance-synthetic-stacks.test.ts`.
+- **Variable-axis oracle pair** — `tools/variable-axis-oracle-pair.ts` +
+  `tests/fixtures/variable-axis/` (built by
+  `tools/build-variable-axis-fixture.mjs`) measure the one thing neither oracle
+  covers alone: a live variable axis. One `@font-face` at three
+  `font-variation-settings` locations, run through BOTH oracles' shipped
+  comparison functions. The face oracle's verdict never moves with our axis
+  (name-blind in both directions); the shaping oracle discriminates at 39–137 px.
+  Pinned by `tests/variable-axis-fixture.test.ts` (no browser) and
+  `tests/variable-axis-oracle-pair.e2e.test.ts`.
 - **Declared-family match** — `tools/family-match-conformance.ts`
   (`npm run fonts:family-match`, `docs/109-family-match-conformance.md`) sweeps
   every installed family × the full CSS weight ladder, Chrome via CDP against
