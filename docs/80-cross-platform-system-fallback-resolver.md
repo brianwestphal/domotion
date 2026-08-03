@@ -87,14 +87,84 @@ Every style field is optional and defaults to the old value, so an older helper
 binary or an older Node side degrades to the previous behavior rather than
 mismatching.
 
-One divergence in the same call is still open (tracked separately): Blink passes
-the run's primary family name as `MapCharacters`' `baseFamilyName`
-(`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
-what lets a family's own font linking participate in the answer; we pass null. See
-the calibration note further down — the null-base choice is what the DM-1424
-sweep measured. Re-measuring it is now possible: the conformance oracle runs on
-Windows with its own committed baseline (`tests/baselines/font-conformance-windows.json`,
-doc 107), so the base-family change can be scored rather than argued.
+**The other two `MapCharacters` arguments are now the run's as well.** Both were
+constants for a long time, and both were invisible for the same reason: the call
+still returned a plausible font, so nothing looked broken.
+
+- **`baseFamilyName`** — the run's primary family. Blink takes
+  `font_description.Family().FamilyName()` and Skia forwards it
+  (`GetDWriteFallbackFamily`); it is what lets a family's own font linking
+  participate in the answer. We passed null; we now pass the family, derived from
+  the file the primary key resolves to (`system-ui` comes from the OS instead,
+  since it has no literal name). Note the calibration note further down measured
+  the **null-base** behavior, so its numbers predate this.
+- **`locale`** — the fallback locale, and this one has teeth. Blink resolves it
+  *per codepoint*:
+
+  ```cpp
+  const LayoutLocale* fallback_locale = FallbackLocaleForCharacter(
+      font_description, fallback_priority, codepoint);
+  Bcp47Vector locales;
+  locales.push_back(fallback_locale->LocaleForSkFontMgr());
+  ```
+
+  (`win/font_cache_skia_win.cc:228-240`, rev `7d859f27`). Skia takes
+  `bcp47[bcp47Count - 1]` and hands it to `MapCharacters` as the analysis
+  source's locale name (`SkFontMgr_win_dw.cpp:634-652` → `:900-939`, Skia rev
+  `ebf5052`). Our helper's `SingleStringAnalysisSource::GetLocaleName` returned a
+  hardcoded `L"en-us"` — the class comment said so outright — so every query was
+  asked in English regardless of the page.
+
+  That is the Han-unification trap on the third platform, and the fix is a
+  transcription rather than a pass-through of the CSS `lang`:
+  `FallbackLocaleForCharacter` composed with `LocaleForSkFontMgr` lives in
+  `blinkWinFallbackLocale` (`src/render/win-font-fallback.ts`) and is pinned
+  against Blink's own `locale_test_data` table
+  (`platform/text/layout_locale_test.cc:60-131`) row for row. Three branches:
+  emoji priority → `und-Zsye` / `und-Zsym`; `uscript_getScript(cp) == USCRIPT_HAN`
+  → `LocaleForHan(...)` reduced to `ja` / `ko` / `zh-Hans` / `zh-Hant`, or Blink's
+  `kChineseSimplified` literal (`"zh-Hant"`, `font_cache_skia_win.cc:153` — the
+  identifier and the literal disagree upstream, and we send the literal);
+  otherwise the content locale reduced to `language[-Script]`.
+
+  **The reduction is the load-bearing part, and it was measured on DirectWrite
+  rather than reasoned from the Linux equivalent.** Same host, same codepoint
+  U+6F22, only the tag varying (Win11 VM, stock font set):
+
+  | tag | family DirectWrite maps to |
+  | --- | --- |
+  | *(none — the old hardcoded `en-us`)* | Yu Gothic UI |
+  | `ja` / `ja-JP` | Yu Gothic UI |
+  | `ko` / `ko-KR` | Malgun Gothic |
+  | `zh-Hans` / `zh-CN` | Microsoft YaHei UI |
+  | `zh-Hant` / `zh-TW` / `zh-HK` | Microsoft JhengHei UI |
+  | **`zh`** | **Yu Gothic UI** |
+
+  The last row is the one to internalise. Truncating a tag to its primary subtag
+  destroys the entire signal and lands on a *Japanese* face — which is what Skia's
+  own comment at the call site warns about (`SkFontMgr_win_dw.cpp:641-643`:
+  "DirectWrite supports 'zh-CN' or 'zh-Hans', but 'zh' misses completely and may
+  produce a Japanese font"), and it would be indistinguishable from never having
+  plumbed the argument at all. It is also the **opposite** reduction from the one
+  the Linux path needs, where fontconfig speaks language-REGION and does not
+  understand `Hans` (see `fcLangProperty`). Two matchers, two answers, measured
+  separately — do not carry one platform's conclusion to the other.
+
+  The locale joins the per-codepoint memo key (`fallbackCacheKey` in
+  `src/render/glyph-helper.ts`) for the same reason `baseFamilyName` did: the
+  answer is a function of it, so a blind key would serve whichever language asked
+  first to every later run on a multilingual page.
+
+  Absent field ⇒ the helper keeps its old `en-us`, so an older Node side against a
+  newer helper degrades to the previous behavior rather than to no locale at all.
+
+**Still not transcribed in this call:** Skia also builds an
+`IDWriteNumberSubstitution` from the same tag
+(`DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE`, `SkFontMgr_win_dw.cpp:916-920`) and
+returns it from the analysis source's `GetNumberSubstitution`; we return null.
+Method NONE means "no substitution" and fallback for a non-digit codepoint does
+not consult it, but it is a difference rather than a proven no-op, so it is
+recorded here instead of assumed away.
 
 **Windows also asks a question BEFORE this resolver.**
 `FontCache::PlatformFallbackFontForCharacter` consults Blink's hardcoded
@@ -190,9 +260,11 @@ font DirectWrite would map a run to — the same API Chrome-on-Windows uses
 (`FontFallback::MapCharacters` in `font_fallback_win.cc`). It's implemented as a
 new `fallback` query in `tools/win32-glyph-extractor` (`runFallbackQuery`):
 `factory->GetSystemFontFallback()` + a minimal `IDWriteTextAnalysisSource` over a
-single codepoint, mapped against the system font collection with a **null base
-family** (pure system fallback, since the codepoint reaching the resolver is one
-the primary couldn't render). It returns the same protocol shape as the macOS
+single codepoint, mapped against the system font collection. The query carries the
+run's style triple, its primary family as `baseFamilyName`, and its fallback
+`locale` (which the analysis source reports from `GetLocaleName`) — see "The other
+two `MapCharacters` arguments" above; each is optional and each absent field keeps
+the pre-existing constant. It returns the same protocol shape as the macOS
 CoreText helper — `{cp, found, postscriptName, familyName, path}` — so the
 existing platform-agnostic `resolveSystemFallbackFonts` drives it unchanged.
 

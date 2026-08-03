@@ -855,7 +855,7 @@ flowchart TD
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
   SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
   SRUIB --> SR1
-  SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag)"}
+  SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag + lang)"}
   SR1 -->|"yes"| SRC["return cached key or null"]
   SR1 -->|"no"| SR2{"process.platform"}
   SR2 -->|"darwin (always on)"| SRD0["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)<br/>→ the NOMINATED face"]
@@ -863,7 +863,7 @@ flowchart TD
   SRD -->|"yes"| SRD1["in-family re-selection:<br/>CTFontCreateWithFontDescriptor(family + traits + ToCTFontWeight(weight))<br/>adopt if it moved AND still covers cp"]
   SRD -->|"no"| SRDN["keep the nominated face"]
   SR2 -->|"linux (default-on, DM-1416)"| SRL["resolveLinuxSystemFallbackKeyForCp:<br/>helper 'fcfallback' query FIRST (DM-1886) —<br/>FcFontSort over an FC_LANG pattern + walk until covered,<br/>which is what gfx::GetFallbackFontForChar does<br/>· fall through to fc-match ':charset=&lt;hex&gt;' only<br/>when no helper (documented APPROXIMATION)"]
-  SR2 -->|"win32 (default-on, DM-1424;<br/>actually reaching DirectWrite only since DM-1889)"| SRW["DirectWrite IDWriteFontFallback::MapCharacters<br/>via win32 glyph helper (resolveSystemFallbackFonts)<br/>envelope declares NO base font — DirectWrite takes none,<br/>and declaring an unopenable one was FATAL one-shot"]
+  SR2 -->|"win32 (default-on, DM-1424;<br/>actually reaching DirectWrite only since DM-1889)"| SRW["DirectWrite IDWriteFontFallback::MapCharacters<br/>via win32 glyph helper (resolveSystemFallbackFonts)<br/>envelope declares NO base font — DirectWrite takes none,<br/>and declaring an unopenable one was FATAL one-shot<br/>· args: style triple + baseFamilyName (run primary)<br/>+ locale = blinkWinFallbackLocale(cp, lang)"]
   SRD1 --> SRG{"resolved & path ≠ ''?"}
   SRDN --> SRG
   SRL --> SRLG{"coverage guard:<br/>fontFileCoversCodepoint(path, ps, cp)?<br/>(fc-match returns a default even when nothing covers)"}
@@ -1052,13 +1052,42 @@ was reported as Chrome's pick. Absent style fields keep the old defaults, so an
 older helper binary and an older Node side each degrade to the previous behavior
 rather than mismatching.
 
-One divergence in the same call remains open and is tracked separately: Blink
-passes the run's primary family name as `MapCharacters`' `baseFamilyName`
-(`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
-what lets a family's own font linking participate; we still pass null. It is now
-measurable — a Windows conformance-oracle baseline exists (doc
-[107](107-font-conformance-oracle.md)) — so the change can be scored against it
-rather than made blind, which is the order it should happen in.
+The call's two remaining arguments are now the run's as well, and both had been
+constants:
+
+- **`baseFamilyName`** — Blink passes the run's primary family
+  (`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
+  what lets that family's own font linking participate. `resolveSystemFallbackKeyForCp`
+  now derives it from the file the primary key resolves to (`system-ui` from the
+  OS, since it has no literal name).
+- **`locale`** — Blink resolves a fallback locale *per codepoint*
+  (`FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`,
+  `win/font_cache_skia_win.cc:228-240`) and pushes it into
+  `matchFamilyStyleCharacter`'s one-element bcp47 vector; Skia hands it to
+  `MapCharacters` as the analysis source's locale name. The helper reported a
+  hardcoded `en-us`, so every query was asked in English regardless of the page —
+  the Han-unification trap, where a unified ideograph resolves to a different
+  face under `ja` than under `zh-Hans` and the wrong one reads as a
+  font-inventory problem.
+
+  `blinkWinFallbackLocale` (`src/render/win-font-fallback.ts`) transcribes
+  `FallbackLocaleForCharacter` + `LocaleForSkFontMgr` and is pinned against
+  Blink's own `locale_test_data` table (`platform/text/layout_locale_test.cc:60-131`)
+  row for row. It is **not** the raw CSS `lang`: the reduction keeps the script
+  and drops the region (`zh-CN` → `zh-Hans`). Measured on a Win11 VM for U+6F22
+  with only the tag varying — `ja` → Yu Gothic UI, `ko` → Malgun Gothic,
+  `zh-Hans`/`zh-CN` → Microsoft YaHei UI, `zh-Hant`/`zh-TW` → Microsoft JhengHei
+  UI, and bare **`zh` → Yu Gothic UI**, i.e. truncating to the primary subtag
+  lands on a Japanese face and is indistinguishable from not passing the argument
+  (exactly what Skia's own comment at `SkFontMgr_win_dw.cpp:641-643` warns about).
+  This is the OPPOSITE reduction from the Linux path's, where fontconfig speaks
+  language-REGION and ignores `Hans`.
+
+  The locale joins the helper's per-codepoint memo key (`fallbackCacheKey`), since
+  the answer is a function of it. See doc
+  [80](80-cross-platform-system-fallback-resolver.md) for the full measurement
+  table and the one argument still not transcribed (Skia's
+  `IDWriteNumberSubstitution`, built from the same tag).
 
 Gated by `_systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
 default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with

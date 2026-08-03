@@ -826,9 +826,20 @@ they describe (see `CLAUDE.md` "Documentation"):
   and Blink's hardcoded per-script stage now runs *ahead* of the resolver as it does
   in Chrome. That invalidates the DM-1424 sweep's "0 codepoints move" reasoning,
   which rested on the sampled table shadowing the resolver — read those numbers as
-  a record of the flip decision, not a current measurement. The remaining known
-  divergence in the same call is `baseFamilyName` (Blink passes the run's primary
-  family; we pass null), tracked separately. **DM-1889 corrects the Windows half
+  a record of the flip decision, not a current measurement. **DM-1871 and DM-1896
+  close the call's last two arguments**: `baseFamilyName` (the run's primary
+  family, which is what lets that family's own font linking participate) and
+  `locale`. The locale was a hardcoded `en-us` in the helper's analysis source
+  while Blink resolves one per codepoint
+  (`FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`), so every query was
+  asked in English regardless of the page — the Han-unification trap. Transcribed
+  in `blinkWinFallbackLocale` and pinned against Blink's own `layout_locale_test.cc`
+  table; the reduction keeps the SCRIPT and drops the region, measured on a Win11
+  VM for U+6F22 as `ja`→Yu Gothic UI, `ko`→Malgun Gothic, `zh-Hans`→Microsoft
+  YaHei UI, `zh-Hant`→Microsoft JhengHei UI, and bare `zh`→Yu Gothic UI (i.e.
+  truncating the tag lands on a Japanese face and looks exactly like not passing
+  the argument). Skia's `IDWriteNumberSubstitution`, built from the same tag, is
+  the one piece of that call still untranscribed. **DM-1889 corrects the Windows half
   again, and more fundamentally: the resolver never actually ran there.** The Node
   side declared a base font (`"Helvetica"`, no path) that DirectWrite does not take
   and the helper cannot open by name, and one-shot mode — Windows's only transport,

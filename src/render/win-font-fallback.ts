@@ -614,6 +614,159 @@ function localeForHanScript(lang: string | undefined): WinScript | null {
 }
 
 // ---------------------------------------------------------------------------
+// The BCP-47 tag the DirectWrite fallback query is asked with
+// ---------------------------------------------------------------------------
+
+/**
+ * `LayoutLocale::ToSkFontMgrLocale` (layout_locale.cc:163-176).
+ *
+ * It answers for exactly four `UScriptCode` values, and they are exactly the
+ * four `IsUnambiguousHanScript` accepts — which is why keying it on
+ * `localeToHanScript`'s restricted table above is lossless rather than a
+ * shortcut: every script that table drops is a script this one has no row for.
+ */
+const SK_FONT_MGR_LOCALE: Readonly<Record<string, string>> = {
+  [HRKT]: "ja",       // USCRIPT_KATAKANA_OR_HIRAGANA
+  Hangul: "ko",       // USCRIPT_HANGUL
+  [HANS]: "zh-Hans",  // USCRIPT_SIMPLIFIED_HAN
+  [HANT]: "zh-Hant",  // USCRIPT_TRADITIONAL_HAN
+};
+
+/** `kColorEmojiLocale` / `kMonoEmojiLocale` (`fonts/font_cache.cc:82-83`). */
+const COLOR_EMOJI_LOCALE = "und-Zsye";
+const MONO_EMOJI_LOCALE = "und-Zsym";
+
+/**
+ * `kChineseSimplified` (`win/font_cache_skia_win.cc:153`), transcribed by VALUE:
+ *
+ *     static const char kChineseSimplified[] = "zh-Hant";
+ *
+ * The identifier and the comment beside its use both say *simplified*, and the
+ * string literal says `zh-Hant`. Chrome sends the literal, so we send the
+ * literal. Recorded here rather than "corrected" because a transcription that
+ * quietly fixes upstream stops being a transcription — if this is an upstream
+ * typo it will be fixed upstream, and the checkout revision below is what dates
+ * this reading.
+ */
+const HAN_DEFAULT_LOCALE = "zh-Hant";
+
+/**
+ * `LayoutLocale::LocaleForSkFontMgr()` (layout_locale.cc:178-196).
+ *
+ * Blink keys the CJK shortcut on `script_`, which is
+ * `LocaleToScriptCodeForFontSelection(locale)` (layout_locale.cc:277-280), and
+ * otherwise reduces the tag through ICU to `language[-Script]` — dropping the
+ * REGION. That drop is the reason this is a transcription and not a pass-through
+ * of the CSS `lang`: `zh-CN` reaches DirectWrite as `zh-Hans`, not as `zh-CN`
+ * and not as bare `zh`.
+ *
+ * Which distinction matters is stated in Skia's own source, at the point it
+ * takes the tag (`src/ports/SkFontMgr_win_dw.cpp:641-643`, rev ebf5052):
+ *
+ *     // TODO: DirectWrite supports 'zh-CN' or 'zh-Hans', but 'zh' misses
+ *     // completely and may produce a Japanese font.
+ *
+ * So the script subtag is the whole discriminating signal here, and truncating
+ * to the primary subtag would give an answer indistinguishable from passing no
+ * locale at all. (Note this is the OPPOSITE reduction from the one the Linux
+ * path needs: fontconfig speaks language-REGION and does not understand `Hans`.
+ * Two matchers, two answers, measured separately.)
+ */
+export function localeForSkFontMgr(locale: string): string {
+  const script = localeToHanScript(locale);
+  if (script != null) {
+    const tag = SK_FONT_MGR_LOCALE[script];
+    if (tag !== undefined) return tag;
+  }
+  // `icu::Locale(Ascii()).getLanguage()` + the script subtag when the tag
+  // carries one. Neither ICU's `Locale` constructor nor `Intl.Locale` adds
+  // likely subtags, so the two agree on what is present; `"und"` is Blink's own
+  // stand-in for an empty language (`layout_locale.cc:190`).
+  try {
+    const parsed = new Intl.Locale(locale.replace(/_/g, "-"));
+    const language = parsed.language != null && parsed.language !== "" ? parsed.language : "und";
+    return parsed.script != null && parsed.script !== "" ? `${language}-${parsed.script}` : language;
+  } catch {
+    // ICU is lenient where `Intl.Locale` throws. Reduce to the same shape by
+    // hand rather than dropping the argument, which would silently widen the
+    // query back to "no locale".
+    const parts = locale.replace(/_/g, "-").split("-").filter((p) => p !== "");
+    const first = parts[0];
+    const language = first != null && /^[a-z]{2,3}$/i.test(first) ? first.toLowerCase() : "und";
+    const sub = parts.slice(1).find((p) => /^[a-z]{4}$/i.test(p));
+    return sub != null
+      ? `${language}-${sub[0]!.toUpperCase()}${sub.slice(1).toLowerCase()}`
+      : language;
+  }
+}
+
+/**
+ * The BCP-47 tag Chrome asks DirectWrite's per-codepoint fallback with.
+ *
+ * `FontCache::GetDWriteFallbackFamily` (`win/font_cache_skia_win.cc:228-240`,
+ * Chromium rev 7d859f27):
+ *
+ *     const LayoutLocale* fallback_locale = FallbackLocaleForCharacter(
+ *         font_description, fallback_priority, codepoint);
+ *     ...
+ *     Bcp47Vector locales;
+ *     locales.push_back(fallback_locale->LocaleForSkFontMgr());
+ *     sk_sp<SkTypeface> typeface(skia::DefaultFontMgr()->matchFamilyStyleCharacter(
+ *         family_name.c_str(), font_description.SkiaFontStyle(), locales.data(),
+ *         locales.size(), codepoint));
+ *
+ * Skia takes `bcp47[bcp47Count - 1]` — with one element, this tag — and hands it
+ * to `IDWriteFontFallback::MapCharacters` as the analysis source's locale name
+ * (`SkFontMgr_win_dw.cpp:634-652` → `:900-939`, rev ebf5052). So this string is
+ * the entire content of that argument, and the win32 helper reports it verbatim
+ * from `IDWriteTextAnalysisSource::GetLocaleName`.
+ *
+ * `FallbackLocaleForCharacter` itself (`font_cache_skia_win.cc:92-118`) is the
+ * three-way split reproduced below. Its Han branch is the one with teeth: a
+ * unified ideograph legitimately resolves to a different face under `ja` than
+ * under `zh-Hans`, and Blink's own comment says an ambiguous locale makes
+ * "results from DWrite unpredictable".
+ *
+ * `priority` defaults to the same per-codepoint reading of
+ * `fallback_priority_with_emoji_text` the hardcoded stage uses, so the two
+ * stages of Chrome's Windows fallback are asked with one consistent priority.
+ *
+ * Returns `""` only when the host exposes no locale at all — the caller then
+ * sends no tag and the helper keeps its own default.
+ */
+export function blinkWinFallbackLocale(
+  cp: number,
+  lang?: string,
+  priority: WinFallbackPriority = winFallbackPriorityForTextRun(cp),
+): string {
+  // "if (IsEmojiPresentationEmoji(fallback_priority))
+  //    return LayoutLocale::Get(AtomicString(kColorEmojiLocale));"
+  if (priority === "emoji-emoji") return COLOR_EMOJI_LOCALE;
+  // "else if (RuntimeEnabledFeatures::SystemFallbackEmojiVSSupportEnabled() &&
+  //           IsTextPresentationEmoji(fallback_priority))
+  //    return LayoutLocale::Get(AtomicString(kMonoEmojiLocale));"
+  // The feature is `status: "stable"` in `runtime_enabled_features.json5:6063`.
+  if (priority === "emoji-text") return MONO_EMOJI_LOCALE;
+  // "const UScriptCode char_script = uscript_getScript(codepoint, &error_code);
+  //  if (U_SUCCESS(error_code) && char_script == USCRIPT_HAN) { ... }"
+  // Note this is the RAW script, not `GetScript`'s block-inferred one — Blink
+  // calls `uscript_getScript` directly here.
+  if (uscriptGetScript(cp) === "Han") {
+    const script = localeForHanScript(lang);
+    // "return han_locale ? han_locale
+    //                    : LayoutLocale::Get(AtomicString(kChineseSimplified));"
+    if (script == null) return HAN_DEFAULT_LOCALE;
+    return SK_FONT_MGR_LOCALE[script] ?? HAN_DEFAULT_LOCALE;
+  }
+  // "return font_description.Locale() ? font_description.Locale()
+  //                                   : &LayoutLocale::GetDefault();"
+  // `GetDefault()` is the browser's default language, which for a capture
+  // process is the host's — the same reduction `localeForHanScript` makes.
+  const content = lang != null && lang !== "" ? lang : icuDefaultLocale();
+  return content !== "" ? localeForSkFontMgr(content) : "";
+}
+
+// ---------------------------------------------------------------------------
 // GetFallbackFamily — font_fallback_win.cc:500-607
 // ---------------------------------------------------------------------------
 

@@ -232,7 +232,14 @@ interface HelperRequest {
     // `cssWeight` / `bold` / `italic` drive the in-family re-selection the macOS
     // helper performs after the cascade walk (Blink's
     // `GetAlternateFontPlatformData`). Absent → the nominated face stands.
-    | { type: "fallback"; fontRef: string; cps: number[]; cssWeight?: number; bold?: boolean; italic?: boolean }
+    // `baseFamilyName` / `locale` are the win32 helper's two remaining
+    // `MapCharacters` arguments (DM-1871 / DM-1896); the macOS and Linux helpers
+    // ignore both.
+    | {
+        type: "fallback"; fontRef: string; cps: number[];
+        cssWeight?: number; bold?: boolean; italic?: boolean;
+        baseFamilyName?: string; locale?: string;
+      }
     // DM-1878: the style fields pick the CUT within the family — on Windows
     // `GetFirstMatchingFont(weight, stretch, style)`, i.e. what
     // `matchFamilyStyle(name, font_description.SkiaFontStyle())` bottoms out in.
@@ -1120,7 +1127,12 @@ const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest)
     // run's primary family, so a key blind to it would serve whichever primary
     // asked first to every later caller. Same hazard the cascade base already
     // documents, one platform over.
-    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}`;
+    // DM-1896: `locale` too, and this one is the sharpest of the set — a unified
+    // Han ideograph resolves to a Japanese face under `ja` and a Chinese one
+    // under `zh-Hans`, so a locale-blind key on a multilingual page serves
+    // whichever language asked first to every later run. Wrong quietly, in a way
+    // that reads as a font-inventory problem rather than as a cache defect.
+    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -1142,6 +1154,26 @@ export interface SystemFallbackRequest {
    * Ignored on macOS and Linux, whose fallback APIs take no such argument.
    */
   baseFamilyName?: string;
+  /**
+   * DM-1896: the BCP-47 tag the fallback query is asked with, for Windows.
+   *
+   * Blink resolves it per codepoint with `FallbackLocaleForCharacter` and pushes
+   * `LocaleForSkFontMgr()` of the result into `matchFamilyStyleCharacter`'s
+   * one-element bcp47 vector (`win/font_cache_skia_win.cc:228-240`, rev
+   * 7d859f27); Skia hands it to `MapCharacters` as the analysis source's locale
+   * name. It is what disambiguates unified Han: the same ideograph resolves to a
+   * different face under `ja` than under `zh-Hans`.
+   *
+   * NOT the raw CSS `lang` — the reduction is Blink's, and it drops the region
+   * while keeping the script (`zh-CN` → `zh-Hans`). Produce it with
+   * `blinkWinFallbackLocale`; passing a hand-built tag risks the failure mode
+   * Skia documents at the call site, where bare `zh` "misses completely and may
+   * produce a Japanese font".
+   *
+   * Ignored on macOS (CoreText's cascade takes no locale) and on Linux (whose
+   * fontconfig query carries its own, differently-shaped, `:lang=` tag).
+   */
+  locale?: string;
   /** CSS `font-weight` (1..1000). */
   weight: number;
   /** CSS `font-style: italic | oblique`. */
@@ -1340,6 +1372,11 @@ export function buildFallbackEnvelope(
           // DM-1871: Windows only — the macOS and Linux helpers ignore it.
           ...(req.baseFamilyName != null && req.baseFamilyName !== ""
             ? { baseFamilyName: req.baseFamilyName } : {}),
+          // DM-1896: Windows only, same reason. An absent field leaves the
+          // helper on its own `en-us` default, which is what it did before —
+          // so an older Node side against a newer helper degrades to the
+          // previous behavior rather than to no locale at all.
+          ...(req.locale != null && req.locale !== "" ? { locale: req.locale } : {}),
         }
         : {}),
     }],

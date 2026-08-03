@@ -67,14 +67,33 @@ Quick smoke test (on Windows):
 the substitute font DirectWrite would pick (`IDWriteFontFallback::MapCharacters`),
 returning `{"type":"fallback","fonts":[{"cp",found,postscriptName,familyName,path}]}`
 — the same shape the macOS CoreText helper's `fallback` query returns, so the
-renderer's `resolveSystemFallbackFonts` consumes both. A null base family is used
-(pure system fallback) and the result is accepted only when `HasCharacter(cp)` is
-true (non-covering → `found:false`). This backs the win32 arm of
-`resolveSystemFallbackKeyForCp` (opt-in behind `DOMOTION_SYSTEM_FALLBACK`).
+renderer's `resolveSystemFallbackFonts` consumes both. The result is accepted only
+when `HasCharacter(cp)` is true (non-covering → `found:false`). This backs the
+win32 arm of `resolveSystemFallbackKeyForCp` (opt-in behind
+`DOMOTION_SYSTEM_FALLBACK`).
+
+Optional fields carry the rest of what Chrome passes `MapCharacters`. Each one
+defaults to the value the query used before it existed, so an older caller
+degrades to the previous behavior rather than mismatching:
+
+| field | `MapCharacters` argument | default when absent |
+| --- | --- | --- |
+| `cssWeight` / `italic` / `cssSlant` / `cssStretch` | the style triple | `NORMAL` / `NORMAL` / `NORMAL` |
+| `baseFamilyName` | the run's primary family | `nullptr` (pure system fallback) |
+| `locale` | the analysis source's locale name | `en-us` |
+
+`locale` is a BCP-47 tag and is the whole Han-unification signal — the caller
+derives it the way Blink does (`blinkWinFallbackLocale` on the Node side) rather
+than passing a raw CSS `lang`, because DirectWrite discriminates on the script or
+region subtag and a bare `zh` resolves to a Japanese face.
 
 ```powershell
 '{"queries":[{"type":"fallback","cps":[19968,128512,4096]}]}' | .\domotion-glyph-paths.exe
 # → Yu Gothic UI (U+4E00), Segoe UI Emoji (U+1F600), Myanmar Text (U+1000)
+
+'{"queries":[{"type":"fallback","cps":[28450],"locale":"zh-Hans"}]}' | .\domotion-glyph-paths.exe
+# → Microsoft YaHei UI   (the same query at "zh-Hant" → Microsoft JhengHei UI,
+#                         at "ja" → Yu Gothic UI, at "ko" → Malgun Gothic)
 ```
 
 ### Persistent `--serve` mode (DM-1035)

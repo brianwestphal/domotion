@@ -35,7 +35,7 @@ import { UNICODE_FONT_PATHS_NOTO_LINUX, UNICODE_FONT_RANGES_NOTO_LINUX } from ".
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Blink's hardcoded Windows per-script fallback stage, transcribed from
 // `platform/fonts/win/font_fallback_win.cc` + `font_cache_skia_win.cc` (DM-1864).
-import { blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
+import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
@@ -1928,9 +1928,21 @@ function resolveSystemFallbackKeyForCp(
         : (primaryKey === "sf-pro"
           ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(primaryKey))
           : fileFamilyNameForKey(primaryKey)) ?? undefined;
+      // DM-1896: and the run's fallback LOCALE, the last of `MapCharacters`'
+      // arguments we were supplying a constant for (the helper reported a
+      // hardcoded `en-us`). Blink resolves it per codepoint —
+      // `FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`,
+      // `win/font_cache_skia_win.cc:228-240` — and it is what disambiguates
+      // unified Han, so asking without it answers by DirectWrite's default
+      // preference order instead of by the page's language. The reduction is
+      // Blink's own and is NOT the raw CSS `lang`: it keeps the script subtag
+      // and drops the region (`zh-CN` → `zh-Hans`), which is the only part
+      // DirectWrite discriminates on. Transcribed in `blinkWinFallbackLocale`.
+      const dwLocale = blinkWinFallbackLocale(cp, lang);
       const resolved = resolveSystemFallbackFonts([cp], "Helvetica", {
         weight, italic: slant !== 0, fontSize,
         ...(primaryFamily != null ? { baseFamilyName: primaryFamily } : {}),
+        ...(dwLocale !== "" ? { locale: dwLocale } : {}),
       }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;

@@ -515,11 +515,23 @@ static std::wstring cpToUtf16(uint32_t cp) {
 }
 
 // DM-1403: minimal IDWriteTextAnalysisSource over a single in-memory UTF-16
-// string, the input IDWriteFontFallback::MapCharacters requires. Locale is
-// en-us, LTR, no number substitution — we feed it one codepoint at a time.
+// string, the input IDWriteFontFallback::MapCharacters requires. LTR, no number
+// substitution — we feed it one codepoint at a time.
+//
+// DM-1896: the locale is the CALLER'S, not a constant. It used to report a
+// hardcoded L"en-us", which is a different question than Chrome asks: Blink
+// resolves a per-codepoint fallback locale
+// (`FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`,
+// win/font_cache_skia_win.cc:228-240, Chromium rev 7d859f27) and Skia plumbs it
+// to exactly this method (`FontFallbackSource::GetLocaleName`,
+// src/ports/SkFontMgr_win_dw.cpp:592-599, Skia rev ebf5052). It is what
+// disambiguates unified Han — the same ideograph maps to a Japanese face under
+// "ja" and a Chinese one under "zh-Hans" — so a constant here answered by
+// DirectWrite's default preference order and reported it as Chrome's pick.
 class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
  public:
-  explicit SingleStringAnalysisSource(std::wstring text) : text_(std::move(text)) {}
+  SingleStringAnalysisSource(std::wstring text, std::wstring locale)
+      : text_(std::move(text)), locale_(std::move(locale)) {}
   // IUnknown
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
     if (!ppv) return E_POINTER;
@@ -554,7 +566,9 @@ class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
     return DWRITE_READING_DIRECTION_LEFT_TO_RIGHT;
   }
   HRESULT STDMETHODCALLTYPE GetLocaleName(UINT32 pos, UINT32* len, WCHAR const** name) override {
-    *name = L"en-us";
+    // The string outlives the call (it is a member), which is what this
+    // interface requires of the pointer it hands back.
+    *name = locale_.c_str();
     *len = static_cast<UINT32>(text_.size() - (pos < text_.size() ? pos : text_.size()));
     return S_OK;
   }
@@ -566,6 +580,7 @@ class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
 
  private:
   std::wstring text_;
+  std::wstring locale_;
   ULONG ref_ = 1;
 };
 
@@ -850,7 +865,8 @@ static DWRITE_FONT_STYLE dwriteSlantFromCss(double cssSlant, bool italic) {
 // (FontFallback::MapCharacters in font_fallback_win.cc) uses to pick the
 // substitute font for a character the primary lacks. Mirrors the macOS helper's
 // `runFallbackQuery` (CTFontCreateForString) byte-for-byte in protocol shape:
-//   in : { type:"fallback", cps:[...], cssWeight?, italic?, cssSlant?, cssStretch? }
+//   in : { type:"fallback", cps:[...], cssWeight?, italic?, cssSlant?, cssStretch?,
+//          baseFamilyName?, locale? }
 //   out: { type:"fallback", fonts:[ {cp,found:true,postscriptName,familyName,path} | {cp,found:false} ] }
 // We pass a null base family so MapCharacters performs pure system fallback (the
 // codepoint reaching here is one the primary couldn't render), and verify the
@@ -864,12 +880,21 @@ static DWRITE_FONT_STYLE dwriteSlantFromCss(double cssSlant, bool italic) {
 // while Blink passes `font_description.SkiaFontStyle()`, so a bold or italic run
 // resolved the regular upright cut and was reported as what Chrome picked.
 //
-// KNOWN REMAINING DIVERGENCE (tracked separately): Blink passes the run's primary
-// family name as `MapCharacters`' `baseFamilyName`
-// (`GetDWriteFallbackFamily`: `font_description.Family().FamilyName()`), which is
-// what lets a family's own font-linking participate in the answer. We still pass
-// null. Left alone deliberately rather than changed blind: Windows has no
-// conformance-oracle baseline yet, so the effect is unmeasurable today.
+// DM-1871: the run's primary family arrives as the optional `baseFamilyName`.
+//
+// DM-1896: and the fallback LOCALE as the optional `locale`, which the analysis
+// source reports from `GetLocaleName` (see SingleStringAnalysisSource). Node
+// derives it the way Blink does; an absent field keeps the previous hardcoded
+// `en-us`, so an older Node side degrades to the old behavior rather than to no
+// locale at all.
+//
+// KNOWN REMAINING DIVERGENCE (tracked separately): Skia additionally builds an
+// `IDWriteNumberSubstitution` from the same tag with
+// DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE and returns it from the source's
+// `GetNumberSubstitution` (`SkFontMgr_win_dw.cpp:916-920`); we return null.
+// Method NONE means "no substitution", and font fallback for a non-digit
+// codepoint does not consult it — but it is not transcribed, so it is recorded
+// here rather than assumed harmless.
 //
 // DM-1721: when the mapped face is a variable-font instance, each found entry
 // additionally carries `"axes":{...}` — the axis location DirectWrite resolved
@@ -901,6 +926,15 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
   // DM-1871: the run's primary family, when the caller knows it.
   const std::wstring baseFamilyW = toWide(query.at("baseFamilyName").asString());
 
+  // DM-1896: the run's fallback locale, when the caller knows it. Empty keeps
+  // the pre-DM-1896 constant so an older Node side is unchanged rather than
+  // locale-less. Only the tag DirectWrite is given matters here — see
+  // `blinkWinFallbackLocale` on the Node side for how it is derived; this end
+  // does no reduction of its own, deliberately, so there is exactly one place
+  // the transcription lives.
+  const std::string localeUtf8 = query.at("locale").asString();
+  const std::wstring localeW = localeUtf8.empty() ? L"en-us" : toWide(localeUtf8);
+
   const JsonArray& cps = query.at("cps").asArray();
   for (size_t i = 0; i < cps.size(); i++) {
     if (i > 0) out << ",";
@@ -910,7 +944,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
     std::string psName, familyName, path, axesJson;
     if (fallback && systemFonts) {
       std::wstring s = cpToUtf16(cp);
-      SingleStringAnalysisSource* source = new SingleStringAnalysisSource(s);
+      SingleStringAnalysisSource* source = new SingleStringAnalysisSource(s, localeW);
       UINT32 mappedLength = 0;
       IDWriteFont* mappedFont = nullptr;
       FLOAT scale = 1.0f;
@@ -1298,7 +1332,7 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.5.0\n";
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.6.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {
