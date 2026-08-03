@@ -2223,6 +2223,24 @@ function renderTextAsEmbedded(
 }
 
 /**
+ * Depth counter, >0 while the tree renderer is emitting inside an ancestor CSS
+ * `<g transform>` group. Baseline pixel-grid snapping (see `renderTextAsPath`)
+ * is suppressed there: Skia's glyph y-rounding happens in DEVICE space, after
+ * the full transform, so rounding the LOCAL baseline under a scale/rotation/
+ * fractional-translation ancestor would land on a different device y than
+ * Chrome's paint (measured on the preserve-3d feature fixture, where the
+ * perspective-projected `translateZ` scale turned a local-space snap into a
+ * regression). Unsnapped local coordinates are the closer approximation there.
+ */
+let baselineSnapSuppressionDepth = 0;
+export function pushBaselineSnapSuppression(): void {
+  baselineSnapSuppressionDepth++;
+}
+export function popBaselineSnapSuppression(): void {
+  if (baselineSnapSuppressionDepth > 0) baselineSnapSuppressionDepth--;
+}
+
+/**
  * Render text as SVG markup using path outlines with <defs>/<use> deduplication.
  * Returns a <g> element containing <use> references, positioned at (x, y) top.
  */
@@ -2364,7 +2382,28 @@ export function renderTextAsPath(
   // = winAscent) but ~5 px too small at fontSize=32 for Helvetica and other
   // legacy MS fonts on macOS, where Chrome reads winAscent.
   const ascent = ascentOverride != null ? ascentOverride : Math.round(font.ascent * scale);
-  const baselineY = y + ascent;
+  // Snap the baseline to the integer pixel grid, mirroring Skia's glyph
+  // rasterization: for axis-aligned horizontal text Skia keeps quarter-pixel
+  // subpixel sampling in x but rounds every glyph's y to an integer device
+  // pixel — `SkGlyphPositionRoundingSpec::HalfAxisSampleFreq` returns
+  // `{kSubpixelRound, SK_ScalarHalf}` for `SkAxisAlignment::kX` and the
+  // rounding spec drops all y subpixel bits (Skia `src/core/SkGlyph.cpp:695-726`,
+  // checkout ebf5052 2026-07-31); the axis alignment comes from
+  // `computeAxisAlignmentForHText` (`src/core/SkScalerContext.cpp:991-1011`)
+  // whenever the default-on baseline-snap flag is set (`SkFont.cpp:44`,
+  // `kDefault_Flags = kBaselineSnap_PrivFlag`) — Blink never clears it. So
+  // Chrome paints a line whose layout baseline is fractional (line-height
+  // accumulates in 1/64px LayoutUnits, e.g. 18px × 1.6 → 28.796875) at
+  // floor(y + 0.5); emitting the unsnapped fractional baseline spread every
+  // horizontal stroke across two pixel rows — a uniform stroke-lightness
+  // error whose magnitude is the per-line snap phase, worst near .5.
+  //
+  // Suppressed under an ancestor CSS transform: Skia rounds in device space,
+  // so a local-space snap under a scale/rotation would move glyphs AWAY from
+  // Chrome's paint (see `pushBaselineSnapSuppression`).
+  const baselineY = baselineSnapSuppressionDepth > 0
+    ? y + ascent
+    : Math.floor(y + ascent + 0.5);
 
   // DM-719: -webkit-text-stroke. Glyphs paint inside inner
   // `<g transform="scale(s,-s)">` groups where s = fontSize/unitsPerEm — a

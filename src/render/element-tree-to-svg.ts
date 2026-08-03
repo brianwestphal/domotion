@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
@@ -3553,7 +3553,7 @@ function computeGroupWrapperAttrs(
   opacity: number,
   filterCss: string,
   blendCss: string,
-): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean } {
+): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; hasTransform: boolean } {
   const transformAttr = svgTransformForElement(el);
   // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
   // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
@@ -3618,7 +3618,7 @@ function computeGroupWrapperAttrs(
   // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
   // produced `style="filter:url("#id")"` and broke the SVG parser.
   if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
-  return { needsGroup, groupAttrs, animClass, needsFilterOuter };
+  return { needsGroup, groupAttrs, animClass, needsFilterOuter, hasTransform: transformAttr !== "" };
 }
 
 
@@ -4357,11 +4357,38 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const { needsGroup, groupAttrs, animClass, needsFilterOuter } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const { needsGroup, groupAttrs, animClass, needsFilterOuter, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
   const opened = needsGroup;
   const wrapperStart = svgParts.length;
   if (needsFilterOuter) svgParts.push(`${indent}<g style="${esc(`filter:${filterCss}`)}">`);
   if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
+  // Everything painted until `closeWrappers()` (this element's own text AND its
+  // whole subtree) is transformed content, where the baseline pixel-grid snap
+  // must not apply — Skia rounds glyph y BEFORE the transform (in the local /
+  // composited-layer space it rasterizes in), so snapping the post-transform
+  // coordinate would land off Chrome's paint. Two signals cover the two ways
+  // a transform reaches the renderer:
+  //   - `hasTransform`: an explicit `<g transform>` wrapper is being emitted
+  //     (animator/tree-ops-produced transforms) — the local coordinates we
+  //     emit get transformed downstream.
+  //   - `transformCreatesSc`: the capture script records `styles.transform =
+  //     "none"` for every element and bakes the live post-transform rects
+  //     into the coordinates, preserving the was-non-none bit here. Baked
+  //     coordinates went through the element's transform (e.g. a
+  //     perspective-projected `translateZ` scale), so the fractional
+  //     baseline is Chrome's actual paint position, not an unsnapped one —
+  //     measured on the preserve-3d feature fixture, where re-snapping it
+  //     was a regression.
+  //   - `transformStyle != flat`: children of a `preserve-3d` context are
+  //     composited as 3D layers, and the 3D composite RESAMPLES each layer's
+  //     raster at its (fractional) composited position — so the snap Skia
+  //     applied inside the layer does not survive to the final pixels
+  //     (measured: Chrome paints this fixture's untransformed children at
+  //     baseline y = 109.5 / 169.5, not 110 / 170).
+  const suppressBaselineSnap = hasTransform
+    || el.styles.transformCreatesSc === true
+    || (el.styles.transformStyle != null && el.styles.transformStyle !== "" && el.styles.transformStyle !== "flat");
+  if (suppressBaselineSnap) pushBaselineSnapSuppression();
   // Inner anim-class wrapper sits INSIDE any visibility/transform group so
   // the merger's class (added on the outer group) and our anim class can
   // each carry their own `animation` shorthand without clobbering.
@@ -4461,6 +4488,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
    * element keeps emitting exactly what it always did.
    */
   const closeWrappers = (): void => {
+    if (suppressBaselineSnap) popBaselineSnapSuppression();
     if (phase !== "all" && svgParts.length === wrapperContentStart) {
       svgParts.length = wrapperStart;
       return;
