@@ -302,6 +302,33 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // nothing for real Korean faces (Apple SD Gothic Neo, PingFang, Arial Unicode)
   // and only corrects the terminal-fallback case.
   [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF],
+
+  // Devanagari. Measured: 44 engine disagreements over 5 faces (`devanagari`,
+  // `u-noto-sans`, `u-arial-unicode-ms`, `u-itf-devanagari`, `last-resort`) —
+  // 32 `cluster`, 6 `advance`, 6 `offset`, and **no `glyph-ids` or
+  // `glyph-count` at all**. Both engines pick the same glyphs.
+  //
+  // The advance / offset pairs cancel, exactly as they do for Telugu. On the
+  // `devanagari` key, र्क: HarfBuzz `770 0` with offsets `0,0` / `-248,0`,
+  // CoreText `522 248` with `0,0` / `0,0` — both put the second glyph's ink at
+  // 522 and both total 770. So this reroute is again about the CLUSTER MAP.
+  //
+  // Devanagari's map difference is larger than Telugu's because it is not just
+  // coarser, it is REORDERED. On हिन्दी HarfBuzz reports `0 0 2 2` and CoreText
+  // `1 0 2 5`: CoreText hands the pre-base matra ि its own source index and
+  // orders it ahead of the base it was reordered around, where HarfBuzz merges
+  // base and matra into one cluster. Since the renderer anchors each cluster at
+  // its captured xOffset, a per-glyph map for a reordered matra anchors it at a
+  // source position Chrome never painted it at. HarfBuzz's merge is the Indic
+  // shaper's documented behavior — final reordering moves things before the
+  // base and then merges clusters up to it, so the two merges interlock
+  // (`external/harfbuzz/src/hb-ot-shaper-indic.cc` rev 4de187d, :796-806).
+  //
+  // Scoped to the Devanagari block proper. Devanagari Extended (A8E0–A8FF) is
+  // deliberately excluded: it is not in `DEDICATED_SHAPER_RANGES` at all, so it
+  // currently takes the USE / base+mark path, and nothing has been measured for
+  // it. Vedic Extensions (1CD0–1CFF) likewise stay where DM-1160 put them.
+  [0x0900, 0x097F],
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.

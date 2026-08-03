@@ -62,6 +62,17 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x10FF)).toBe(false);
   });
 
+  it("covers the Devanagari block but not its extensions", () => {
+    expect(usesHarfbuzzShaping(0x0915)).toBe(true);  // क KA
+    expect(usesHarfbuzzShaping(0x093F)).toBe(true);  // ि — the pre-base matra
+    expect(usesHarfbuzzShaping(0x094D)).toBe(true);  // ◌् VIRAMA
+    expect(usesHarfbuzzShaping(0x0900)).toBe(true);
+    expect(usesHarfbuzzShaping(0x097F)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0980)).toBe(false); // Bengali — cluster-only, excluded
+    expect(usesHarfbuzzShaping(0xA8E0)).toBe(false); // Devanagari Extended — not measured
+    expect(usesHarfbuzzShaping(0x1CD0)).toBe(false); // Vedic Extensions — a different route
+  });
+
   it("does not reroute the scripts that have not been swept yet", () => {
     // Each of these is a live claim about a script whose reroute has its own
     // commit and its own CI sweep. Flipping one without updating this line
@@ -69,7 +80,6 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     for (const cp of [
       0x05D0, // Hebrew alef
       0x0645, // Arabic meem
-      0x0915, // Devanagari ka
       0x1000, // Myanmar ka — cluster-only, deliberately excluded
       0x0995, // Bengali ka — cluster-only
       0x1780, // Khmer ka — cluster-only
@@ -162,8 +172,8 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
   it("leaves a non-rerouted script's resolution untouched", () => {
     const k = key();
     const base = getFontInstance(k!, 400, 16, 0)!;
-    // Latin 'A' and Devanagari KA both resolve without a shaping override.
-    for (const cp of [0x0041, 0x0915]) {
+    // Latin 'A' and Hebrew ALEF both resolve without a shaping override.
+    for (const cp of [0x0041, 0x05D0]) {
       const res = resolveFontForCodepoint(cp, base, k!, 400, 16, 0, undefined, undefined, [k!]);
       expect(res.fontOverride).toBeNull();
     }
