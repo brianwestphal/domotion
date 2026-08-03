@@ -1372,14 +1372,55 @@ export function resolveSystemFallbackFonts(
     for (const cp of need) out.set(cp, null);
     return out;
   }
+  // DM-1893: walk the response, but only trust entries we ASKED about.
+  //
+  // The loop used to iterate `r.fonts` and write whatever came back, which
+  // trusted the response to be both complete and in-domain and checked neither.
+  // Two distinct hazards, and the first is shaped like a live bug: a batch that
+  // half-populates leaves the missing codepoints to fall through to the lazy
+  // path, which is a different ask order — and ask order is exactly what this
+  // area has already been bitten by (an under-keyed helper cache made the
+  // answer a function of which spec asked first). A partial response would have
+  // been silent.
+  const asked = new Set(need);
+  let outOfDomain = 0;
   for (const e of r.fonts) {
+    if (!asked.has(e.cp)) { outOfDomain++; continue; }
     const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
       ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes }
       : null;
     _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp, req), resolved);
     out.set(e.cp, resolved);
   }
+  // Anything asked for and not answered is left OUT of both the cache and the
+  // result rather than cached as null: `undefined` reads as "ask again", which
+  // is the recoverable state. Caching a null here would turn one short response
+  // into a permanently wrong answer for those codepoints.
+  const missing = need.reduce((n, cp) => n + (out.has(cp) ? 0 : 1), 0);
+  if (missing > 0 || outOfDomain > 0) {
+    _fallbackResponseAnomalies.push({ asked: need.length, answered: r.fonts.length, missing, outOfDomain });
+  }
   return out;
+}
+
+/** DM-1893: short or out-of-domain fallback responses, in call order.
+ *
+ *  Recorded rather than thrown because a short response is recoverable — the
+ *  unanswered codepoints simply get asked again lazily. But it is NOT harmless:
+ *  it changes WHICH codepoints take the batch path and which take the lazy one,
+ *  and the two ask in different orders. The conformance oracle disagreeing with
+ *  itself run to run is the symptom that made this worth instrumenting, and a
+ *  silent partial response is the leading candidate for it.
+ *
+ *  Read with `takeFallbackResponseAnomalies()`; a sweep that reports none has
+ *  eliminated this candidate rather than merely not looked. */
+interface FallbackResponseAnomaly { asked: number; answered: number; missing: number; outOfDomain: number }
+const _fallbackResponseAnomalies: FallbackResponseAnomaly[] = [];
+
+/** Drain the recorded anomalies. Empty means every batch answered exactly what
+ *  it was asked, which is the claim the batch warm rests on. */
+export function takeFallbackResponseAnomalies(): FallbackResponseAnomaly[] {
+  return _fallbackResponseAnomalies.splice(0, _fallbackResponseAnomalies.length);
 }
 
 /** A real installed font resolved by name via CoreText (macOS) or the
