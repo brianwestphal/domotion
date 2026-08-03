@@ -2702,10 +2702,10 @@ function darwinCoreTextFamilyForKey(key: string): string | null {
  * accumulating along the line.
  *
  * The selection is Blink's, not ours: `BestStyleMatchForFamilyNS` over the
- * family's AppKit members, compared with `BetterChoiceCT` / `BetterWeightMatch`
- * at CSS thresholds 400/500 (`platform/fonts/mac/font_matcher_mac.mm`,
- * Chromium rev 7d859f27), ported in the macOS helper and reachable through
- * `resolveFamilyStyleMatch`.
+ * family's AppKit members, compared with `BetterChoiceCT` (nearest CSS weight,
+ * bold in the trait-precedence loop; `platform/fonts/mac/font_matcher_mac.mm`
+ * :172-277 at Chromium tag 147.0.7727.15, the build Playwright pins), ported
+ * in the macOS helper and reachable through `resolveFamilyStyleMatch`.
  *
  * Reads the BASE key, never `getFontInstance`'s effective one: feeding the
  * `-bold` sibling in would ask the matcher to re-weight an already-re-weighted

@@ -44,7 +44,10 @@ style-matcher decision. On this machine that is 423 of 7,740 rows.
 ## Result at the time of writing
 
     families 860   cases 7,740   scored 7,317   skipped 423
-    agreement 7,308 / 7,317 (99.88%)   families with a miss: 4
+    agreement 7,317 / 7,317 (100.00%)   families with a miss: 0
+
+(An earlier revision of the port scored 7,308 / 7,317 — see "The residual"
+below for what the nine misses were and why they disappeared.)
 
 Two calibration notes, both of which cost real time to learn:
 
@@ -59,59 +62,74 @@ Two calibration notes, both of which cost real time to learn:
    "misses" that were almost entirely Chrome declining to use a Hebrew or
    Arabic family for Latin text.
 
-## The residual, and what it means
+## The residual that was, and the mechanism that resolved it
 
-The nine remaining disagreements fall in four families. One of them is a
-**genuine divergence between the local Chromium checkout and the Chrome that
-Playwright ships**, established by construction rather than inferred:
+An earlier revision of the port transcribed the **local `external/chromium`
+checkout** (rev `7d859f27`, 2026-06-27) and left nine canonical-weight
+disagreements plus two whole intermediate-weight bands (below). Every one of
+them had a single cause, identified by reading `font_matcher_mac.mm` **at the
+tag of the Chrome build Playwright actually ships** — `refs/tags/147.0.7727.15`
+(playwright-core `browsers.json`, chromium 147.0.7727.15) — instead of at the
+checkout's revision:
 
-**`Avenir Next` (and `Avenir Next Condensed`) at CSS 300.** The family offers
-UltraLight (100) and Regular (400) with nothing between. Chrome paints
-**Regular**; the checkout's algorithm cannot produce that answer under either
-weight source. `BetterWeightMatch` (`platform/fonts/mac/font_matcher_mac.mm`,
-`external/chromium` rev `7d859f27`) takes the `desired_weight < lower_threshold`
-branch at 300 and prefers *any* candidate at or below the desired weight over
-any candidate above it, so UltraLight wins whether its weight is read from the
-CoreText descriptor (100) or from AppKit (2 → 100). The same holds for the
-AppKit-space sibling `BetterChoice`, whose thresholds are 5/6 rather than
-400/500. Measured across all 860 families, the shipping behavior at the light
-end is **nearest-weight**, not the directional search — while at the heavy end
-it *is* directional (`Avenir` at 600 takes Heavy over the nearer Medium). No
-single rule in the checkout expresses that asymmetry.
+**The checkout is AHEAD of the shipping build.** The checkout carries a
+directional `BetterWeightMatch` (its `:100-139`: below CSS 400 prefer any
+candidate at or below the desired weight, above 500 any at or above) and
+deliberately drops the bold trait from `BetterChoiceCT`'s mask list (its
+`:225-229`). That rewrite landed upstream **after** the 147 branch point. The
+shipping `BetterChoiceCT` (`:172-220` at the tag) is instead:
 
-This is the drift the project documents as expected: the checkout is refreshed
-periodically and is not pinned to Playwright's Chrome. It is recorded here
-rather than "fixed", because changing the port to match the shipping build
-would mean deliberately diverging from the transcribed source — a policy call,
-not a bug fix. The other three families (`Chivo` at 600/700, `Splendid 66`
-below 600) are un-diagnosed.
+1. a trait-precedence loop over `{condensed, expanded, italic, bold}` — bold
+   **included** — with one exception on the bold mask: an exact-weight
+   candidate beats an inexact chosen regardless of the trait bit (`:186-196`,
+   the HiraginoSans-W5 case);
+2. then **nearest CSS weight** by absolute delta, with a tie broken toward the
+   candidate **further from 500** (`:209-219`).
 
-### What this sweep cannot see: the weights between the rungs
+Candidate weights are AppKit's (`AppKitToCSSFontWeight`: `w<7 → (w−1)·100`,
+else `(w−2)·100` — so Helvetica-Light, AppKit 3, is CSS **200**, not 300), and
+candidate traits are AppKit's `font_info[3]` masked to the four important bits
+(`:245-255`). The desired bold trait derives from the weight
+(`ComputeDesiredTraits` `:134-151`: bold iff ≥ 600). The dispatch is
+unchanged between checkout and tag: `FontFamilyStyleMatchingCTMigration` has no
+`status:` in `runtime_enabled_features.json5` at the tag, so
+`MatchFontFamily` → `BestStyleMatchForFamilyNS` (`:548-552`) is the live path.
 
-The weight axis is the nine canonical CSS values, so **every intermediate
-weight is outside the measurement** — and that is exactly where the drift above
-is widest. Re-measured over CDP on `Helvetica`, whose canonical ladder the port
-reproduces 9/9:
+That one comparator explains every previously-recorded anomaly at once:
 
-| CSS weight | ours | Chrome |
-| --- | --- | --- |
-| 300 | `Helvetica-Light` | `Helvetica-Light` |
-| 305 – 399 | `Helvetica-Light` | `Helvetica` |
-| 400 – 500 | `Helvetica` | `Helvetica` |
-| 501 – 599 | `Helvetica-Bold` | `Helvetica` |
-| 600 | `Helvetica-Bold` | `Helvetica-Bold` |
+- **`Helvetica` 305-399 → plain `Helvetica`**: Light is CSS 200, so 400 is
+  strictly nearer everywhere above 300; at exactly 300 the 100-vs-100 tie
+  breaks toward Light (further from 500).
+- **`Helvetica` 501-599 → plain `Helvetica`**: Bold's bold trait is unwanted
+  below 600 and loses in the trait loop before weight is ever compared.
+- **`Avenir Next` @300 → Regular**: plain nearest weight among {100, 400,
+  500}.
+- **`Avenir` @600 → Heavy over the nearer Medium**: at ≥ 600 the bold trait is
+  *desired*, so non-bold faces lose on traits — the "directional heavy end"
+  was never a weight rule at all.
+- **`PingFang SC` @300 → Thin**: AppKit reports Thin and Light both as weight
+  3 → CSS 200; the three-way delta-100 tie (Thin, Light, Regular) breaks
+  toward 200 (further from 500), and enumeration order keeps Thin.
 
-Both bands are `BetterWeightMatch`'s directional search outside `[400, 500]`
-doing precisely what the transcribed source says, and both are the same
-asymmetry as the `Avenir Next` row — the shipping build behaves as
-nearest-weight at the light end and, here, keeps the lighter face through the
-501-599 band too. Bounding it to those two bands is a sharper statement than
-the single `Avenir Next` rung allowed, and it is what a reader should have in
-mind before quoting 99.88%: the number is over canonical weights only.
+The helper now transcribes the tag's comparator, and the oracle scores
+**7,317 / 7,317 (100.00%)** — including the previously un-diagnosed `Chivo`
+and `Splendid 66` rows, which fell out of the same mechanism.
 
-The bands are pinned as tests (`src/render/text-to-path.test.ts`,
-"pins the intermediate-weight drift against the shipping Chrome") so a future
-checkout refresh that closes them fails loudly rather than passing silently.
+### The intermediate weights are now measured, and they agree
+
+The canonical sweep's weight axis is the nine CSS values, so the bands between
+them were re-measured separately over CDP: 20 families × 41 weights (100-900
+in steps of 25, plus the 305/349/399/501/599 band edges), 760 scored cases —
+**760/760 agreement** for the 147 transcription, against 567/760 for the
+directional checkout port it replaced. The former drift table on `Helvetica`
+(`305-399` and `501-599` painting Light/Bold where Chrome paints plain
+Helvetica) now reads identically on both sides.
+
+The rungs are pinned as tests (`src/render/text-to-path.test.ts`, "matches the
+shipping Chrome at the intermediate weights"). **When the pinned Playwright
+Chromium moves to a build containing the upstream directional rewrite, that
+test and the helper's `betterChoiceCT` must be re-transcribed together** — the
+checkout already shows what the successor algorithm looks like.
 
 ## Scope
 
