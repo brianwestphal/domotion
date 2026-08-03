@@ -600,13 +600,13 @@ const LAST_RESORT_FONT_PATH = process.platform === "darwin"
       "..", "..", "assets", "fonts", "LastResortHE-Regular.ttf",
     );
 const FONT_PATHS: Record<string, FontPath> = {
-  "sf-pro":          { path: "/System/Library/Fonts/SFNS.ttf", postscriptName: ".SFNS-Regular" },
+  "sf-pro":          { path: "/System/Library/Fonts/SFNS.ttf" },
   // SF Pro ships its italic as a sibling file, not as a variable `slnt` axis
   // on SFNS.ttf — so for CSS font-style:italic / oblique we switch to this
   // font instead of trying to drive a nonexistent axis. See SK-1105.
-  "sf-pro-italic":   { path: "/System/Library/Fonts/SFNSItalic.ttf", postscriptName: ".SFNS-RegularItalic" },
-  "sf-mono":         { path: "/System/Library/Fonts/SFNSMono.ttf", postscriptName: ".SFNSMono-Light" },
-  "sf-mono-italic":  { path: "/System/Library/Fonts/SFNSMonoItalic.ttf", postscriptName: ".SFNSMono-LightItalic" },
+  "sf-pro-italic":   { path: "/System/Library/Fonts/SFNSItalic.ttf" },
+  "sf-mono":         { path: "/System/Library/Fonts/SFNSMono.ttf" },
+  "sf-mono-italic":  { path: "/System/Library/Fonts/SFNSMonoItalic.ttf" },
   // Chrome on macOS resolves the CSS `monospace` generic keyword to Courier
   // (per Blink's third_party/blink/renderer/platform/fonts/mac
   // font_cache_mac.mm — kMonospaceFamily → kCourier), NOT SF Mono or Menlo.
@@ -634,7 +634,7 @@ const FONT_PATHS: Record<string, FontPath> = {
   // designed for Apple system UI and isn't what Chrome's CoreText fallback
   // picks for `Times` body text.
   "sf-arabic":       { path: "/System/Library/Fonts/GeezaPro.ttc", postscriptName: "GeezaPro" },
-  "sf-hebrew":       { path: "/System/Library/Fonts/SFHebrew.ttf", postscriptName: ".SFHebrew-Regular" },
+  "sf-hebrew":       { path: "/System/Library/Fonts/SFHebrew.ttf" },
   // Hiragino Sans GB ships W3 (regular) and W6 (bold) as separate sub-fonts in
   // the same TTC; the file doesn't expose a usable wght axis (DM-256), so the
   // bold variant is selected by postscriptName at the spec level — same
@@ -875,47 +875,39 @@ const FONT_PATHS: Record<string, FontPath> = {
   // 142 fonts, 319 block routes. Each entry's key is namespaced under
   // `u-...` so it can't collide with a hand-coded key here.
   ...UNICODE_FONT_PATHS,
-  // DM-1924: names for generated entries that were sampled without one.
+  // DM-1924: name the member this key means, because opening a COLLECTION by
+  // path alone selects member 0 and that is the vendor's ordering, not a face
+  // any routing table meant. `NotoSansMyanmar.ttc` carries 18 members and member
+  // 0 is **Black**, so every Myanmar run painted at weight 900 whatever the CSS
+  // asked for — and nothing downstream could notice, since `postscriptName` and
+  // `naturalWeight` both came back undefined on the instance. Chrome, asked over
+  // CDP, answers `NotoSansMyanmar-Regular` at weight 400: U+1000 advance 1124,
+  // against Black's 1121.
   //
-  // A spec with no `postscriptName` makes the helper open the file BY PATH, and
-  // that is not the same face request. Two distinct consequences, both measured:
+  // Same defect this repo already fixed once for `NotoSansArmenian.ttc`, whose
+  // member 0 is also Black. Members 9-17 here are Zawgyi, a non-Unicode Myanmar
+  // encoding, so a fix by member INDEX rather than by name would have traded a
+  // weight error for mojibake.
   //
-  //  - On a single-face VARIABLE file, CoreText answers with different metrics
-  //    than the face HarfBuzz indexes — `SFArabic` 3870 units by path against
-  //    4122 by name, `NotoSansSyriac` 2696 against 2899, `KefaIII` 1438 against
-  //    1472. Glyph ids are identical throughout, so this is metrics, not face
-  //    identity. The by-name figure equals HarfBuzz's exactly for every entry
-  //    here except SF Arabic (see below).
-  //  - On a COLLECTION it selects member 0, which need not be the regular cut.
-  //    `NotoSansMyanmar.ttc` has 18 members and member 0 is **Black**, so every
-  //    Myanmar run painted at weight 900 whatever the CSS asked for. Chrome, via
-  //    CDP, answers `NotoSansMyanmar-Regular` at weight 400 — hence the explicit
-  //    member name rather than "whatever is first".
+  // Overridden here rather than edited into the generated table, which says not
+  // to edit it by hand and would lose this on the next sweep. The generator is
+  // what should learn to emit a name. The spread above comes first, so this wins.
+  // `family` is deliberately absent: it is not part of `FontPath`, and
+  // `generatedRouteUsable` reads it from `UNICODE_FONT_PATHS` directly.
   //
-  // Overrides here rather than edits to the generated file, which says not to
-  // edit it by hand and would lose them on the next sweep. The generator is what
-  // should learn to emit a name; until it does, this is the durable place. The
-  // spread above comes first, so these win. `family` is deliberately absent:
-  // it is not part of `FontPath`, and `generatedRouteUsable` reads it from
-  // `UNICODE_FONT_PATHS` directly, so the route-usability check is unaffected.
-  "u-sf-pro-text":           { path: "/System/Library/Fonts/SFNS.ttf", postscriptName: ".SFNS-Regular" },
-  // Chrome paints SF Arabic through HarfBuzz, and neither CoreText handle
-  // reproduces it: for `مرحبا` at 32 px Chrome measures 66.938 px (~4285 units
-  // at upem 2048) against HarfBuzz's 4297, by-name's 4122 and by-path's 3870.
-  // The name is still the right change — it moves toward Chrome rather than
-  // away — but the residual is an Arabic SHAPING difference on this face, not a
-  // naming one, and is tracked separately.
-  "u-sf-arabic":             { path: "/System/Library/Fonts/SFArabic.ttf", postscriptName: ".SFArabic-Regular" },
-  "u-kefa-iii":              { path: "/System/Library/Fonts/KefaIII.ttf", postscriptName: "KefaIII-Regular" },
-  "u-noto-sans-syriac":      { path: "/System/Library/Fonts/Supplemental/NotoSansSyriac-Regular.ttf", postscriptName: "NotoSansSyriac-Regular" },
-  "u-noto-sans-nag-mundari": { path: "/System/Library/Fonts/Supplemental/NotoSansNagMundari-Regular.ttf", postscriptName: "NotoSansNagMundari-Regular" },
-  // Weight 400 only. Chrome answers `NotoSansMyanmar-Bold` at 700, so this
-  // family has a ladder in the container and pinning one member cannot serve
-  // both — at 700 the renderer now synthesises bold over Regular instead of
-  // taking the container's Bold member. That is still strictly better than
-  // Black at every weight, and the ladder belongs with the other per-family
-  // weight-ladder work rather than here.
-  "u-noto-sans-myanmar":     { path: "/System/Library/Fonts/NotoSansMyanmar.ttc", postscriptName: "NotoSansMyanmar-Regular", extractor: "native" as const },
+  // Weight 400 only. Chrome answers `NotoSansMyanmar-Bold` at 700, so this family
+  // has a ladder inside the container that one pinned member cannot serve; at 700
+  // the renderer now synthesises bold over Regular instead of taking the Bold
+  // member. Still strictly better than Black at every weight, and the ladder
+  // belongs with the per-family weight-ladder work.
+  //
+  // The SIBLING renames this started as — the SF faces and the other Noto
+  // variable files — are NOT here. They measured as pure improvements in
+  // isolation (by-name equals HarfBuzz exactly where by-path does not) and are
+  // inert locally, yet the branch carrying them regressed a fixture on CI by 30x
+  // worst tile, reproducibly, against a control ref run twice. Until that is
+  // explained they stay out; see the ticket.
+  "u-noto-sans-myanmar": { path: "/System/Library/Fonts/NotoSansMyanmar.ttc", postscriptName: "NotoSansMyanmar-Regular", extractor: "native" as const },
 };
 
 // ── Cross-platform font path discovery (DM-258) ──
