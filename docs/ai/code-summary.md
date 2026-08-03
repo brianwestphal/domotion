@@ -199,6 +199,15 @@ shortest possible map:
   `tests/font-conformance-baseline.test.ts`; see
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
+- **Declared-family match** — `tools/family-match-conformance.ts`
+  (`npm run fonts:family-match`, `docs/109-family-match-conformance.md`) sweeps
+  every installed family × the full CSS weight ladder, Chrome via CDP against
+  the helper's `familyMatch`. It covers the step BEFORE the other two oracles:
+  which cut of a declared family Chrome opens. Fixtures cannot supply this —
+  they declare weight 400 almost exclusively, and at 400 nearly every candidate
+  rule agrees. macOS only (Blink runs different code per platform). Score the
+  shipped port, not a restatement of it: two JS restatements measured *worse*
+  than the Swift port because they omitted the trait-precedence loop.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face
