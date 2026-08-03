@@ -329,6 +329,40 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // currently takes the USE / base+mark path, and nothing has been measured for
   // it. Vedic Extensions (1CD0–1CFF) likewise stay where DM-1160 put them.
   [0x0900, 0x097F],
+
+  // Hebrew, plus the Alphabetic Presentation Forms block that is its other half.
+  // Measured: 76 engine disagreements — the largest of the ten — over 14 faces
+  // (SF Hebrew, all four Arial cuts, all four Times New Roman cuts, both Lucida
+  // Grande cuts, Arial Unicode, LastResort): 27 `offset`, 26 `cluster`, 21
+  // `advance`, 2 `glyph-count`. Nearly all of it is on the POINTED sample
+  // בְּרֵאשִׁ; the unpointed שלום differs only in its cluster map.
+  //
+  // The advance / offset disagreements are two ENCODINGS of the same ink, and it
+  // is worth writing out once because "27 offset differences" reads alarming and
+  // is not. On Arial:
+  //
+  //     hb  adv  0 1422 1153 0 1043 0 1110    off 340,55  0,0  0,0  460,55  0,0  159,0  0,0
+  //     ct  adv  -340 1422 1613 -460 1202 -159 1110       off 340,* on EVERY glyph
+  //
+  // HarfBuzz models each point as a ZERO-advance mark carrying its own offset;
+  // CoreText carries one constant x offset on every glyph and folds the
+  // difference into (sometimes negative) advances. Accumulating advance and
+  // adding offset per glyph, both land the ink at 340 / 0 / 1422 / 3035 / 2575 /
+  // 3777 / 3618 — identical. Only the run's total advance differs (4728 against
+  // 4388), by exactly that constant offset, so the painted extent agrees too.
+  //
+  // What genuinely differs is again the CLUSTER MAP (hb `6 6 5 3 3 0 0` against
+  // ct `8 6 5 4 3 2 0`), which the captured-xOffset anchoring reads, plus the 2
+  // `glyph-count` on LastResort (7 glyphs against 9).
+  //
+  // FB1D-FB4F travels WITH the base block rather than being left behind — unlike
+  // the extension blocks excluded above — because the Hebrew shaper COMPOSES
+  // across the boundary: `compose_hebrew` maps a consonant U+05D0-05EA plus
+  // U+05BC DAGESH onto its FB30-FB4A presentation form
+  // (`external/harfbuzz/src/hb-ot-shaper-hebrew.cc` rev 4de187d, :35-72). Text
+  // mixing the two would otherwise split into two runs on the routing key and be
+  // shaped as two units, which is the failure mode this exercise exists to avoid.
+  [0x0590, 0x05FF], [0xFB1D, 0xFB4F],
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.
