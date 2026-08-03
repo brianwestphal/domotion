@@ -511,7 +511,15 @@ Notes:
 
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
-  Today it holds **Thai** (U+0E00–U+0E7F) and **Telugu** (U+0C00–U+0C7F). The
+  Today it holds **Thai** (U+0E00–U+0E7F), **Telugu** (U+0C00–U+0C7F) and
+  **Hangul** (U+1100–U+11FF, U+3130–U+318F, U+A960–U+A97F, U+AC00–U+D7FF).
+  Hangul's 2 disagreements are both `glyph-count` and both on the terminal
+  LastResort face: `한글` shapes to 2 glyphs under HarfBuzz and 6 under CoreText,
+  because HarfBuzz decomposes a precomposed `<LV>`/`<LVT>` syllable **only** when
+  the font lacks the composed glyph and covers the jamo
+  (`external/harfbuzz/src/hb-ot-shaper-hangul.cc` rev `4de187d`, :344-357), and
+  LastResort's cmap covers the syllable. Every real Korean face already agrees,
+  so this corrects the terminal-fallback case only. The
   Telugu entry is the weaker of the two and worth reading as such: on the
   conjunct క్ష both engines land the subjoined SSA's ink at the same x and total
   the same advance (HarfBuzz calls it a zero-advance GPOS mark at −248, CoreText

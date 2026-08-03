@@ -51,6 +51,17 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x0C80)).toBe(false); // Kannada block above
   });
 
+  it("covers all four Hangul blocks", () => {
+    expect(usesHarfbuzzShaping(0xAC00)).toBe(true);  // 가 — syllables
+    expect(usesHarfbuzzShaping(0xD55C)).toBe(true);  // 한
+    expect(usesHarfbuzzShaping(0x1100)).toBe(true);  // ᄀ — Jamo
+    expect(usesHarfbuzzShaping(0x3131)).toBe(true);  // ㄱ — Compatibility Jamo
+    expect(usesHarfbuzzShaping(0xA960)).toBe(true);  // Jamo Extended-A
+    expect(usesHarfbuzzShaping(0xD7FF)).toBe(true);  // Jamo Extended-B tail
+    expect(usesHarfbuzzShaping(0xD800)).toBe(false); // surrogates — past the end
+    expect(usesHarfbuzzShaping(0x10FF)).toBe(false);
+  });
+
   it("does not reroute the scripts that have not been swept yet", () => {
     // Each of these is a live claim about a script whose reroute has its own
     // commit and its own CI sweep. Flipping one without updating this line
@@ -59,7 +70,6 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
       0x05D0, // Hebrew alef
       0x0645, // Arabic meem
       0x0915, // Devanagari ka
-      0xAC00, // Hangul GA
       0x1000, // Myanmar ka — cluster-only, deliberately excluded
       0x0995, // Bengali ka — cluster-only
       0x1780, // Khmer ka — cluster-only

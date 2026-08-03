@@ -283,6 +283,25 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // This is the case the ticket flagged as weaker evidence than a glyph
   // difference — correctly, and it is not zero evidence.
   [0x0C00, 0x0C7F],
+
+  // Hangul: syllables, both Jamo blocks, and the compatibility block. Measured:
+  // 2 engine disagreements, both `glyph-count`, both on the terminal LastResort
+  // face — `한글` comes back as 2 glyphs from HarfBuzz and 6 from CoreText, i.e.
+  // CoreText decomposes each precomposed syllable into its L / V / T jamo and
+  // HarfBuzz does not.
+  //
+  // HarfBuzz's rule is a coverage test, not a preference
+  // (`external/harfbuzz/src/hb-ot-shaper-hangul.cc` rev 4de187d, :344-357): a
+  // precomposed <LV>/<LVT> syllable is decomposed only when the font LACKS the
+  // composed glyph and covers all the jamo. LastResort's cmap covers the
+  // syllable, so `has_glyph(s)` is true and the syllable stands. Chrome shapes
+  // with HarfBuzz, so Chrome paints 2 glyphs; six jamo boxes where Chrome paints
+  // two syllable boxes is a visibly different width, not a placement nuance.
+  //
+  // Every OTHER face that covers `한글` already agrees, so the reroute changes
+  // nothing for real Korean faces (Apple SD Gothic Neo, PingFang, Arial Unicode)
+  // and only corrects the terminal-fallback case.
+  [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF],
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.
