@@ -193,21 +193,24 @@ Doc [03](03-font-family-chain.md).
 
 ## 3. Key → FontInstance (`getFontInstance`)
 
-Given a logical key + `(weight, fontSize, slant, variationSettings)`,
-`getFontInstance` returns a cached, weight/slant-correct, variation-driven
-`FontInstance`, or `null` (caller walks to the next candidate).
+Given a logical key + `(weight, fontSize, slant, variationSettings, stretch)`,
+`getFontInstance` returns a cached, weight/slant/width-correct, variation-driven
+`FontInstance`, or `null` (caller walks to the next candidate). `stretch` is CSS
+`font-stretch` as a percentage (100 = `normal`, `stretchPercent` parses the
+computed string); it reaches the declared-family style matcher, and the cut it
+selects is what `effectiveKey` ends up naming.
 
 ```mermaid
 flowchart TD
-  G0["getFontInstance(key, weight, fontSize, slant, fvs)"] --> G1{"key prefix?"}
+  G0["getFontInstance(key, weight, fontSize, slant, fvs, stretch)"] --> G1{"key prefix?"}
   G1 -->|"webfont:&lt;family&gt;"| GW["pickWebfontVariant()<br/>(§4 registry scoring + variation axes)"]
   G1 -->|"localalias:&lt;family&gt;"| GL["pickLocalFontAliasVariant()<br/>→ recurse getFontInstance(baseKey,<br/>declared weight/italic)"]
-  G1 -->|"plain / sysfb: / u- / un-"| G2["effectiveKey = key"]
+  G1 -->|"plain / sysfb: / u- / un-"| G2["resolveEffectiveCutKey(key, weight, slant, stretch)<br/>effectiveKey = key — the G3…G3d ladder below.<br/>Also called by fallbackBaseFor (§8a) to name the<br/>cascade BASE, which is why it is its own function."]
 
   G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle)"]
-  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch → helper 'familyMatch'<br/>= Blink BestStyleMatchForFamilyNS / BetterChoiceCT (tag 147.0.7727.15).<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
+  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
   G3d --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
@@ -303,6 +306,19 @@ Three properties are load-bearing:
 - **It reads the BASE key, and REPLACES the two-slot routing** rather than
   composing with it. Feeding the `-bold` sibling in would ask the matcher to
   re-weight an already-re-weighted face.
+- **`font-stretch` is part of the question, and it outranks weight.** Blink's
+  `ComputeDesiredTraits` (`mac/font_matcher_mac.mm:185-202`) turns a width below
+  `kNormalWidthValue` (100, `font_selection_types.h:233`) into
+  `kCTFontTraitCondensed` and a width above it into `kCTFontTraitExpanded`, and
+  `BetterChoiceCT` compares condensed FIRST of its three masks (`:234-235`),
+  ahead of the directional weight search. So a `font-stretch: 75%` run on
+  Helvetica Neue opens `HelveticaNeue-CondensedBold` at CSS weight **400** —
+  the family ships no condensed regular, so the condensed mask decides and the
+  weight search then picks between CondensedBold and CondensedBlack. Chrome
+  agrees on all twelve of that family's width × weight cells. Until the width
+  reached the matcher every stretched run scored as normal width and opened the
+  family's normal cut (`fantasy` at 50% took `Papyrus` where Chrome takes
+  `Papyrus-Condensed` — 1,110 of 1,463 swept codepoints per stretched stack).
 - **The family name is asked of CoreText, not read from the file.** Apple's
   `.ttc` members name themselves by CUT: the face `hiragino-jp` points at
   reports `familyName` "Hiragino Sans W4", and the PingFang entries report
@@ -369,7 +385,8 @@ and `HelveticaNeue-BoldItalic` both report 0 despite outlines that lean the same
 in `renderTextAsPath` sheared those a second time. The routing decision wins over
 the angle.
 
-**Source of truth:** `getFontInstance` / `resolveFontSpec` / `applyVariationAxes` /
+**Source of truth:** `getFontInstance` / `resolveEffectiveCutKey` / `stretchPercent` /
+`resolveFontSpec` / `applyVariationAxes` /
 `subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
 `fontHasOutlineTable` / `commandsFor` in `src/render/font-resolution.ts`;
 `resolveFamilyStyleMatch` / `resolveInstalledFont` in `src/render/glyph-helper.ts`.
@@ -1064,7 +1081,7 @@ flowchart TD
   SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
   SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
-  SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
+  SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY AT ITS RESOLVED CUT<br/>fallbackBaseFor(primaryKey, weight, slant, stretch)<br/>= resolveFontSpec(resolveEffectiveCutKey(…).key) — §3's ladder,<br/>so a weight-800 serif run asks from Times-Bold, not Times-Roman<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
   SRUIB --> SR1
   SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag + lang)"}
   SR1 -->|"yes"| SRC["return cached key or null"]
@@ -1145,15 +1162,31 @@ to whichever cut CoreText nominated: at weight 700 that is the wrong face for
 
 Three consequences worth holding onto:
 
-- **The cascade base is the RUN'S OWN PRIMARY** (DM-1852), because that is what
-  Blink passes: `GetSubstituteFont` hands `CTFontCreateForString` the font the run
-  is currently painting in (`mac/font_cache_mac.mm:128-150`), and CoreText's
-  answer depends on it. We previously passed a hardcoded `"Helvetica"` — the right
-  API asked a different question. Measured before it became the default: 294
-  face-selection decisions fixed and 0 broken on the conformance oracle, with
-  **zero** pixels moved across the full 818-fixture macOS unicode sweep (both arms
-  dispatched from one ref, env verified per shard). `DOMOTION_FALLBACK_BASE=0`
-  restores the old base for an A/B.
+- **The cascade base is the RUN'S OWN PRIMARY, AT THE CUT IT PAINTS IN**,
+  because that is what Blink passes: `GetSubstituteFont` hands
+  `CTFontCreateForString` the font the run is currently painting in
+  (`mac/font_cache_mac.mm:128-150`, reached with
+  `font_data_to_substitute->PlatformData()` at `:326-327`), and CoreText's answer
+  depends on it. Two corrections landed here, one after the other:
+
+  1. A hardcoded `"Helvetica"` → the run's primary KEY. The right API was asking a
+     different question. Measured before it became the default: 294
+     face-selection decisions fixed and 0 broken on the conformance oracle, with
+     **zero** pixels moved across the full 818-fixture macOS unicode sweep (both
+     arms dispatched from one ref, env verified per shard).
+  2. The primary key's BASE entry → the primary's **resolved cut** — the same
+     `resolveEffectiveCutKey` ladder §3 runs, so the base carries the run's
+     weight, slant and width. Measured: `CTFontCreateForString` from `Times-Roman`
+     nominates `STSongti-SC-Regular`, from `Times-Bold` it nominates
+     `STSongti-SC-Bold`. That is not recoverable in the re-selection stage below,
+     which keeps the nominated face whenever the better-matching one does not
+     cover the character — so for every ideograph Songti SC Black lacks (most of
+     CJK Extension A) a `font-weight: 800` serif run kept **Regular** where Chrome
+     keeps **Bold**. Fixing it took the synthetic corpus's eight serif-route
+     stacks from 157 mismatches each at weights 800/900 to 36, and the `cursive`
+     stacks from ~258 to 3 at every weight.
+
+  `DOMOTION_FALLBACK_BASE=0` restores the hardcoded base for an A/B.
 - **The CSS description is part of the cache key**, not just the codepoint —
   `systemFallbackKeyCache` and the helper's own memo both carry weight, italic,
   size **and the base**. A codepoint-only key served whichever weight (or base)

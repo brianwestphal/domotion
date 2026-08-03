@@ -69,6 +69,7 @@ import {
   resolveFontKeyChain,
   resolveFontSpec,
   setRenderTextMode,
+  stretchPercent,
   syntheticMarkCenteringOffsetPx,
   win,
   stackPrimaryIsSystemUi,
@@ -167,10 +168,14 @@ export function textToPathMarkup(
   /** The element's `direction` + `unicode-bidi`; only the override values act.
    *  See `bidiLevelsFor`, which is where it is consumed and why. */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  /** Computed CSS `font-stretch` (e.g. `"75%"`). Selects the family's condensed /
+   *  expanded cut in the declared-family style matcher — see `stretchPercent`. */
+  fontStretch?: string,
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  const stretch = stretchPercent(fontStretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
   if (primaryFont == null) return null;
 
   const primaryFontKey = resolveFontKey(fontFamily);
@@ -246,7 +251,7 @@ export function textToPathMarkup(
       // webfont variant → chain → system fallback → math-alpha → NFD). This path
       // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
       // (the substituted base char) rather than the per-char source index.
-      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily));
+      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch);
       // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
       // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
       // placing one on a system color font here would split it out of the
@@ -1090,6 +1095,8 @@ export function insertSyntheticDottedCircles(
    *  shaping "◌"+mark as one cluster and centering the combining mark on the ◌.
    *  The UNCOVERED case stays driven by `codepointResolvesToNotdef` below. */
   dottedCircleMarks?: number[],
+  /** Computed CSS `font-stretch` (e.g. `"75%"`). */
+  fontStretch?: string,
 ): { text: string; xOffsets: number[] | undefined } {
   // Fast path: nothing to do when the text has no combining marks AND the
   // capture probe flagged no codepoints (the latter can be category-Lo cluster
@@ -1102,7 +1109,7 @@ export function insertSyntheticDottedCircles(
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
   const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
   if (primaryFont == null) return { text, xOffsets };
 
   // Resolve the dotted circle's own advance (CSS px) so the displaced mark can
@@ -1303,6 +1310,8 @@ function splitTextIntoFontRuns(
    *  than derived, because `system-ui` and an explicitly-named "SF Pro" share
    *  the `sf-pro` key — see `stackPrimaryIsSystemUi`. */
   systemUiPrimary: boolean = false,
+  /** CSS `font-stretch` as a percentage, 100 = `normal`. */
+  stretch: number = 100,
 ): FontRun[] {
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
@@ -1439,7 +1448,7 @@ function splitTextIntoFontRuns(
     // `.notdef` (glyph 0) — which is exactly what `covered: false` returns
     // (key=primary / override=null / emitCh=source), preserving DM-1018.
     // (`decomposed` is unused here — the embedded loop always renders run.text.)
-    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary);
+    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch);
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;
     const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
@@ -1534,10 +1543,13 @@ function renderTextAsEmbedded(
    *  on auto-sized pseudo-element pills where fontkit's width differs
    *  from Chrome's by a few pixels. */
   targetWidth?: number,
+  /** Computed CSS `font-stretch` (e.g. `"75%"`). */
+  fontStretch?: string,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  const stretch = stretchPercent(fontStretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const fontKeyChain = resolveFontKeyChain(fontFamily);
@@ -1547,7 +1559,7 @@ function renderTextAsEmbedded(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily));
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch);
   if (runs.length === 0) return null;
 
   // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
@@ -2272,9 +2284,22 @@ export function renderTextAsPath(
    * left-to-right.
    */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  /**
+   * The element's computed `font-stretch` (always a percentage string out of
+   * Chrome — `condensed` serializes as `75%`).
+   *
+   * It selects which CUT of the declared family the run opens: Blink's
+   * declared-family style matcher turns any width below 100% into the condensed
+   * symbolic trait and compares that BEFORE weight
+   * (`mac/font_matcher_mac.mm:185-202` and `:234-235`, rev 7d859f27). Capture has
+   * recorded the property for a while; until now nothing downstream read it, so a
+   * condensed run painted the family's normal cut.
+   */
+  fontStretch?: string,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
+  const stretch = stretchPercent(fontStretch);
   const esc = escAttr;
 
   // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts
@@ -2284,7 +2309,7 @@ export function renderTextAsPath(
   // embedded-font and glyph-path branches below receive the augmented text +
   // xOffsets. A no-op for text with no combining marks.
   ({ text, xOffsets } = insertSyntheticDottedCircles(
-    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang, dottedCircleMarks));
+    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang, dottedCircleMarks, fontStretch));
 
   // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for
   // (they otherwise fall through to a last-resort tofu box).
@@ -2322,14 +2347,14 @@ export function renderTextAsPath(
     // exhausted, etc.) — paths-mode is the safe always-correct fallback.
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
-      textStrokeWidth, textStrokeColor, paintOrder, targetWidth);
+      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch);
     if (embedded != null) return embedded;
   }
 
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch);
   if (result == null || result.markup === "") return null;
 
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
   if (font == null) return null;
 
   const scale = fontSize / font.unitsPerEm;
@@ -2380,6 +2405,13 @@ export function isTextToPathAvailable(fontFamily: string): boolean {
  * Returns offsets in px from the baseline (sign convention noted on each
  * field). Falls back to the legacy 15%/30%/95% approximations when the font
  * fails to resolve.
+ *
+ * KNOWN GAP: this resolves the face at NORMAL width. The glyph path now honors
+ * CSS `font-stretch` (it picks the family's condensed / expanded cut), but the
+ * measurement and decoration helpers here — and the vertical-text renderer —
+ * still ask for the family at 100%. On a family whose condensed cut declares
+ * different `post` / `OS/2` metrics the underline would sit where the normal
+ * cut wants it. No fixture exercises that combination today; tracked separately.
  */
 export function getDecorationMetrics(
   fontFamily: string, fontSize: number, fontWeight: string | number, fontStyle?: string,
