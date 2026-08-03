@@ -36,6 +36,25 @@ export const tests: FeatureTest[] = [
     html: `<div style="padding: 20px; color: #e6edf3; font-family: -apple-system, sans-serif; font-size: 14px; line-height: 1.6; width: 300px;"><div>First line of text</div><div>Second line of text</div><div style="color: #8b949e;">Third line dimmed</div></div>`,
   },
   {
+    // Baseline pixel-grid snap regression test. 18px × line-height 1.6 gives a
+    // 28.796875px line box (Chrome's 1/64px LayoutUnit snap of 28.8), so
+    // successive baselines land on fractional-pixel phases (0, .797, .594,
+    // .391, …). Skia rounds every axis-aligned horizontal glyph's y to an
+    // integer device pixel at raster time; emitting the unsnapped fractional
+    // baseline spread horizontal strokes across two pixel rows (a uniform
+    // stroke-lightness error), and the fourth line's phase was the first to
+    // cross the comparator's high-severity region gate.
+    name: "lineheight-residual",
+    html: `<div style="padding: 20px; color: #e6edf3; font-family: -apple-system, sans-serif; font-size: 18px; line-height: 1.6;">
+      <div>Hello world one</div>
+      <div>Book reading here</div>
+      <div>mix content end</div>
+      <div>id 123 ok</div>
+    </div>`,
+    width: 460,
+    height: 200,
+  },
+  {
     name: "text-small",
     html: `<div style="padding: 20px;"><div style="font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; font-family: -apple-system, sans-serif;">LABEL TEXT</div><div style="font-size: 12px; color: #6e7681; font-family: -apple-system, sans-serif; margin-top: 4px;">Score: 42/100 · 1,234 downloads</div></div>`,
   },

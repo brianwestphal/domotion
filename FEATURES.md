@@ -11,6 +11,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **text-right**: Right-aligned text
 - [x] **text-mono**: Monospace font rendering
 - [x] **text-multiline**: Multiple lines of text in a container
+- [x] **lineheight-residual**: Baseline pixel-grid snap on fractional line-height baselines (18px × 1.6 → 28.796875px line boxes; Skia rounds glyph y to integer device pixels)
 - [x] **text-small**: Small/label text (11-12px)
 - [x] **text-inline-mixed**: Mixed inline content (prose with inline code spans)
 - [x] **text-pre-multiline**: Preformatted multiline text (`<pre>` with `white-space: pre`)
