@@ -46,17 +46,29 @@ if (!Array.isArray(arr)) {
 
 // Keep only the fields the comparator needs (pass/skip + the diff metrics), keyed
 // by fixture name so the file is small, stable, and reviewable in a diff.
+//
+// The attribution fields (perceptual digests, byte hashes, Chrome's painted
+// faces) are comparator inputs too: `diff-against-baseline.mjs` reads
+// `expectedDigest`/`actualDigest` to say WHICH side moved, and it had been
+// reading them from a baseline that never stored them — so every regression
+// report printed "—" (unattributable) since the day the mechanism landed.
+// Recorded when present; absent fields stay absent so older results files
+// still produce a valid (if unattributable) baseline.
 const fixtures = {};
 let passed = 0, failed = 0, skipped = 0;
 for (const r of arr.slice().sort((a, b) => a.name.localeCompare(b.name))) {
   if (!r || typeof r.name !== "string") continue;
-  fixtures[r.name] = {
+  const f = {
     pass: !!r.pass,
     skipped: !!r.skipped,
     diffPct: r.diffPct ?? 0,
     worstTilePct: r.worstTilePct ?? 0,
     regionCount: r.regionCount ?? 0,
   };
+  for (const k of ["expectedDigest", "actualDigest", "expectedSha256", "actualSha256", "chromeFaces"]) {
+    if (r[k] != null) f[k] = r[k];
+  }
+  fixtures[r.name] = f;
   if (r.skipped) skipped++;
   else if (r.pass) passed++;
   else failed++;

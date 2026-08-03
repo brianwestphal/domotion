@@ -243,9 +243,28 @@ function table(title, rows, withBase) {
 // raster is not bit-stable — the same commit differed by 280 px of antialiasing
 // between two runs, so a content hash would report "changed" every time and
 // classify nothing.
+// Byte hashes upgrade attribution where they exist (recorded per side since the
+// bimodal-fixture investigation; mirrors `attributeMovementWithBytes` in
+// src/review/side-digest.ts, which plain-node scripts cannot import — keep the
+// two in agreement). The rule that matters: **a byte-identical side is
+// exonerated outright.** The metric is a pure function of the two images, so if
+// one input's bytes did not change, the movement can only have come from the
+// other side — even when that other side's change sits below the perceptual
+// digest's floor. That exact case pinned a Chrome-side flip on a CI runner:
+// expected.png differed across two runs of one commit, actual.png was
+// byte-identical, and all four perceptual digests were EQUAL. Digest-only
+// attribution printed "unattributed" for it.
 function movedLabel(cur, base) {
   const eb = base?.expectedDigest, ea = cur?.expectedDigest;
   const ab = base?.actualDigest, aa = cur?.actualDigest;
+  const ebs = base?.expectedSha256, eas = cur?.expectedSha256;
+  const abs = base?.actualSha256, aas = cur?.actualSha256;
+  const expBytesSame = !!ebs && !!eas && ebs === eas;
+  const actBytesSame = !!abs && !!aas && abs === aas;
+  if (expBytesSame && actBytesSame) return "neither ✓ (both byte-identical — suspect the comparator)";
+  if (expBytesSame) return "renderer ✓ (expected byte-identical)";
+  if (actBytesSame) return "**oracle** ✓ (actual byte-identical)";
+  // No side proven unchanged — fall back to the lossy digests.
   // A missing digest on either side means an older baseline, or the byte-equal
   // fast path which records none. Report that as unknown rather than guessing —
   // manufacturing confidence here is the exact failure this exists to remove.
@@ -264,7 +283,7 @@ function movedLabel(cur, base) {
   return "⚠︎ unattributed";
 }
 
-const oracleSide = regressions.filter((r) => movedLabel(r.cur, r.base) === "**oracle**");
+const oracleSide = regressions.filter((r) => movedLabel(r.cur, r.base).startsWith("**oracle**"));
 if (oracleSide.length > 0) {
   md.push(
     `> **${oracleSide.length} of ${regressions.length} regression(s) are ORACLE-SIDE** — Chrome's expected.png`

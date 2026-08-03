@@ -9,7 +9,7 @@
  * which is the event worth catching.
  */
 import { describe, it, expect } from "vitest";
-import { attributeMovement, compareDigest, perceptualDigest } from "./side-digest.js";
+import { attributeMovement, attributeMovementWithBytes, compareDigest, compareSideEvidence, perceptualDigest } from "./side-digest.js";
 
 /** RGBA buffer of `w`×`h`, filled by a per-pixel callback returning grey 0..255. */
 function img(w: number, h: number, f: (x: number, y: number) => number): Uint8Array {
@@ -110,5 +110,92 @@ describe("movement attribution (DM-1874)", () => {
     expect(compareDigest("a", "b")).toBe("moved");
     expect(compareDigest(undefined, "a")).toBe("unknown");
     expect(compareDigest("", "")).toBe("unknown");
+  });
+});
+
+describe("byte-aware side evidence (DM-1937)", () => {
+  it("equal shas are proof of identity, regardless of digests", () => {
+    expect(compareSideEvidence("aaa", "aaa", "s1", "s1")).toBe("byte-identical");
+    // Even with digests missing — bytes equal implies digests equal.
+    expect(compareSideEvidence(undefined, undefined, "s1", "s1")).toBe("byte-identical");
+  });
+
+  it("equal digests with DIFFERING bytes are sub-digest, never 'same'", () => {
+    // The trap this ticket exists for: two distinct PNGs (2,900 bytes apart)
+    // hashed to identical perceptual digests, and an A/B read that as inert.
+    expect(compareSideEvidence("aaa", "aaa", "s1", "s2")).toBe("sub-digest");
+  });
+
+  it("equal digests without byte hashes keep the legacy 'not detected' reading", () => {
+    expect(compareSideEvidence("aaa", "aaa")).toBe("same-at-digest");
+  });
+
+  it("a moved digest is moved, whatever the bytes say", () => {
+    expect(compareSideEvidence("aaa", "bbb", "s1", "s2")).toBe("moved");
+    expect(compareSideEvidence("aaa", "bbb")).toBe("moved");
+  });
+
+  it("missing digest without byte proof stays unknown", () => {
+    expect(compareSideEvidence(undefined, "a", "s1", "s2")).toBe("unknown");
+    expect(compareSideEvidence(undefined, "a")).toBe("unknown");
+  });
+});
+
+describe("byte-aware movement attribution (DM-1937)", () => {
+  it("PROVES the oracle when our PNG is byte-identical and Chrome's differs sub-digest", () => {
+    // The decisive CI case: Chrome's expected.png moved across two runs of one
+    // commit while actual.png was byte-identical — with all four perceptual
+    // digests EQUAL. Digest-only attribution said "neither"; byte identity
+    // exonerates our side and pins the movement on the oracle.
+    const r = attributeMovementWithBytes("d", "d", "d", "d",
+      { expectedBefore: "e1", expectedAfter: "e2", actualBefore: "a1", actualAfter: "a1" });
+    expect(r.verdict).toBe("oracle");
+    expect(r.proven).toBe(true);
+    expect(r.expected).toBe("sub-digest");
+    expect(r.actual).toBe("byte-identical");
+    // ...and the digest-only path is blind to it, which is why it was upgraded.
+    expect(attributeMovement("d", "d", "d", "d")).toBe("neither");
+  });
+
+  it("PROVES the renderer symmetrically", () => {
+    const r = attributeMovementWithBytes("d", "d", "d", "d",
+      { expectedBefore: "e1", expectedAfter: "e1", actualBefore: "a1", actualAfter: "a2" });
+    expect(r.verdict).toBe("renderer");
+    expect(r.proven).toBe(true);
+  });
+
+  it("byte identity on a side wins even over a 'moved' digest on the other", () => {
+    const r = attributeMovementWithBytes("e1", "e2", "d", "d",
+      { actualBefore: "a1", actualAfter: "a1" });
+    expect(r.verdict).toBe("oracle");
+    expect(r.proven).toBe(true);
+    expect(r.expected).toBe("moved");
+  });
+
+  it("both byte-identical is a PROVEN neither — indicting the comparator, not the images", () => {
+    const r = attributeMovementWithBytes("d", "d", "d", "d",
+      { expectedBefore: "e1", expectedAfter: "e1", actualBefore: "a1", actualAfter: "a1" });
+    expect(r.verdict).toBe("neither");
+    expect(r.proven).toBe(true);
+  });
+
+  it("degrades to exactly the digest-only semantics when no shas are recorded", () => {
+    for (const [eb, ea, ab, aa] of [
+      ["x", "y", "z", "z"], ["x", "x", "z", "w"], ["x", "y", "z", "w"],
+      ["x", "x", "z", "z"], [undefined, "y", "z", "z"],
+    ] as const) {
+      const r = attributeMovementWithBytes(eb, ea, ab, aa);
+      expect(r.verdict).toBe(attributeMovement(eb, ea, ab, aa));
+      expect(r.proven).toBe(false);
+    }
+  });
+
+  it("bytes differing on both sides proves nothing — AA jitter is bytewise change", () => {
+    const r = attributeMovementWithBytes("d", "d", "d", "d",
+      { expectedBefore: "e1", expectedAfter: "e2", actualBefore: "a1", actualAfter: "a2" });
+    expect(r.verdict).toBe("neither");
+    expect(r.proven).toBe(false);
+    expect(r.expected).toBe("sub-digest");
+    expect(r.actual).toBe("sub-digest");
   });
 });

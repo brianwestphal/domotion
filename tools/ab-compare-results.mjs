@@ -26,7 +26,39 @@ for (const [name, o] of O) {
   else if (dReg > 0 || dDiff > 0.005) regressed.push({ name, o, n, dReg, dDiff });
   else unchanged.push(name);
 }
-const fmt = (e) => `${e.name.padEnd(52)} regions ${String(e.o.regionCount).padStart(3)}→${String(e.n.regionCount).padStart(3)}  diff ${e.o.diffPct.toFixed(3)}%→${e.n.diffPct.toFixed(3)}%`;
+// Attribution for a transition, when the sweeps recorded the evidence.
+// Mirrors `attributeMovementWithBytes` (src/review/side-digest.ts): a
+// byte-identical side is exonerated outright — the metric is a pure function of
+// the two images, so if one input did not change bytewise, the movement came
+// from the other side. Perceptual-digest equality is NOT output equality (two
+// distinct outputs 2,900 bytes apart have hashed digest-equal), so digest-based
+// verdicts are labeled unproven. `chromeFaces` names the face flip when Chrome
+// itself painted differently between the runs (absent on cache hits).
+function attribution(o, n) {
+  const parts = [];
+  const expBytesSame = !!o.expectedSha256 && o.expectedSha256 === n.expectedSha256;
+  const actBytesSame = !!o.actualSha256 && o.actualSha256 === n.actualSha256;
+  if (expBytesSame && actBytesSame) parts.push("NEITHER side changed (both byte-identical) — suspect the comparator");
+  else if (expBytesSame) parts.push("RENDERER side (proven: expected byte-identical)");
+  else if (actBytesSame) parts.push("ORACLE side (proven: actual byte-identical — not caused by this change)");
+  else if (o.expectedDigest && n.expectedDigest && o.actualDigest && n.actualDigest) {
+    const em = o.expectedDigest !== n.expectedDigest, am = o.actualDigest !== n.actualDigest;
+    if (em && am) parts.push("both sides moved (digest)");
+    else if (em) parts.push("oracle side (digest — unproven)");
+    else if (am) parts.push("renderer side (digest — unproven)");
+    else parts.push("unattributed: no digest moved, bytes differ on both sides (sub-digest — NOT proof of 'same output')");
+  }
+  if (Array.isArray(o.chromeFaces) && Array.isArray(n.chromeFaces)
+      && JSON.stringify(o.chromeFaces) !== JSON.stringify(n.chromeFaces)) {
+    parts.push(`Chrome painted different faces: ${JSON.stringify(o.chromeFaces)} → ${JSON.stringify(n.chromeFaces)}`);
+  }
+  return parts;
+}
+const fmt = (e) => {
+  const line = `${e.name.padEnd(52)} regions ${String(e.o.regionCount).padStart(3)}→${String(e.n.regionCount).padStart(3)}  diff ${e.o.diffPct.toFixed(3)}%→${e.n.diffPct.toFixed(3)}%`;
+  const attr = attribution(e.o, e.n);
+  return attr.length > 0 ? `${line}\n${attr.map((a) => `        ↳ ${a}`).join("\n")}` : line;
+};
 
 const offPassCount = off.filter((r) => r.pass).length;
 const onPassCount = on.filter((r) => r.pass).length;
