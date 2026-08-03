@@ -124,7 +124,6 @@ describeArabic("fontkit shaper for helper-backed faces (DM-1883)", () => {
 
   /** Per-codepoint cmap ids — what the naive fallback path produces. */
   function naiveIds(text: string): number[] {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fontkit = require("fontkit");
     const opened: any = fontkit.openSync(arabic!.path);
     let f: any = opened;
