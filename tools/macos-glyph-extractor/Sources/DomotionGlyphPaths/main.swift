@@ -757,9 +757,16 @@ func betterWeightMatch(_ desired: Int, _ chosen: Int, _ candidate: Int,
 func betterChoiceCT(_ desiredTraits: CTFontSymbolicTraits, _ desiredWeight: Int,
                     _ chosenTraits: CTFontSymbolicTraits, _ chosenWeight: Int,
                     _ candidateTraits: CTFontSymbolicTraits, _ candidateWeight: Int) -> Bool {
-    // The top item is the worst trait to mismatch: a font carrying it when it
-    // was not asked for loses to any other member of the family.
-    let masks: [CTFontSymbolicTraits] = [.traitItalic, .traitCondensed, .traitExpanded]
+    // Worst-to-best mismatch order, and the ORDER IS LOAD-BEARING: the loop
+    // returns on the first mask that discriminates, so a candidate mismatching
+    // on two of them is decided by whichever comes first. Source order is
+    // condensed, expanded, italic (`:234-235`).
+    //
+    // The bold trait is deliberately absent, and Blink says why (`:225-229`):
+    // CoreText reports it inconsistently for some non-bold faces — naming
+    // HiraginoSans-W5 and PingFangSC-Light — and the directional weight search
+    // below already encodes the spec's bold preference through the weight.
+    let masks: [CTFontSymbolicTraits] = [.traitCondensed, .traitExpanded, .traitItalic]
     for mask in masks {
         let desired = !desiredTraits.intersection(mask).isEmpty
         let chosenUnwanted = desired != !chosenTraits.intersection(mask).isEmpty
