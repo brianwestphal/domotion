@@ -250,6 +250,13 @@ interface HelperRequest {
         type: "family"; name: string;
         cssWeight?: number; italic?: boolean; cssSlant?: number; cssStretch?: number;
       }
+    // macOS declared-family style match — Blink's `BestStyleMatchForFamilyNS`
+    // over `NSFontManager.availableMembersOfFontFamily`, compared with
+    // `BetterChoiceCT` / `BetterWeightMatch` at CSS thresholds 400/500
+    // (`platform/fonts/mac/font_matcher_mac.mm`, Chromium rev 7d859f27). This
+    // is the step that picks WHICH CUT of a declared family a run opens; the
+    // `family` query above is name resolution and does not run it.
+    | { type: "familyMatch"; family: string; cssWeight?: number; italic?: boolean; bold?: boolean }
     | { type: "shape"; fontRef: string; text: string }
     // DM-1886 (Linux): per-codepoint fallback via fontconfig sort-and-walk.
     | { type: "fcfallback"; lang: string; cps: number[] }
@@ -291,12 +298,27 @@ interface FamilyResponse {
   /** DM-1721: resolved axis values of a variable-face match (win32 ≥0.2.0). */
   axes?: Record<string, number>;
 }
+interface FamilyMatchResponse {
+  type: "familyMatch";
+  found: boolean;
+  /** The chosen family member's PostScript name. */
+  postscriptName?: string;
+  /** The chosen member's CSS weight, as the matcher scored it. */
+  weight?: number;
+  /** Every family member the matcher scanned, in enumeration order. */
+  candidates?: Array<{
+    name: string; weight: number; descriptorWeight: number;
+    /** `CTFontSymbolicTraits` masked to italic / bold / condensed / expanded. */
+    traits: number; appKitWeight: number; appKitTraits: number;
+  }>;
+}
 interface HelperResponse {
   results: Array<
     | (MetaResponse & { type: "meta" })
     | { type: "glyphs"; glyphs: GlyphResponse[] }
     | { type: "fallback"; fonts: FallbackResponseEntry[] }
     | FamilyResponse
+    | FamilyMatchResponse
     | { type: "shape"; glyphs?: ShapeResponseGlyph[]; error?: string }
   >;
 }
@@ -1618,6 +1640,78 @@ export function resolveInstalledFont(
   return resolved;
 }
 
+/** The face a declared CSS family resolves to at one style. */
+export interface FamilyStyleMatch {
+  /** PostScript name of the chosen family member. */
+  postscriptName: string;
+  /** The CSS weight the matcher scored the chosen member at. */
+  weight: number;
+  /** True when the chosen member carries CoreText's italic symbolic trait. */
+  italic: boolean;
+}
+
+/** `kCTFontTraitItalic` — bit 0 of `CTFontSymbolicTraits`. */
+const CT_TRAIT_ITALIC = 1 << 0;
+
+const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
+
+/**
+ * Which CUT of a declared CSS family a run at this style opens — macOS only.
+ *
+ * Blink runs a candidate scan over the family's AppKit members and picks with
+ * its own comparator: `BestStyleMatchForFamilyNS` (`:274-350`) →
+ * `BetterChoiceCT` (`:223-258`) → `BetterWeightMatch` (`:100-139`), all in
+ * `platform/fonts/mac/font_matcher_mac.mm`, Chromium rev 7d859f27. That
+ * algorithm lives in the helper (Swift, where AppKit and CoreText are
+ * reachable); this is the Node side of the call.
+ *
+ * It is a DIFFERENT question from `resolveInstalledFont`, which resolves a name
+ * to a face and, on macOS, does not run the style match at all. It is also a
+ * different question from the per-codepoint fallback's in-family re-selection
+ * (`GetAlternateFontPlatformData`, CoreText's own nearest-weight walk), which
+ * is not this algorithm and measurably disagrees with it — asked for PingFang
+ * SC at CSS 300, CoreText re-selection answers Light where Chrome paints Thin.
+ *
+ * Returns null when the helper is unavailable, the platform is not macOS, or
+ * the family has no AppKit members — in every case the caller must keep the
+ * selection it already had.
+ *
+ * The cache key carries the family AND the style, because the answer is a
+ * function of both: a style-blind key would serve whichever weight asked first
+ * to every later caller, which is exactly the defect this call exists to fix.
+ */
+export function resolveFamilyStyleMatch(
+  family: string, style?: { weight?: number; italic?: boolean },
+): FamilyStyleMatch | null {
+  if (process.platform !== "darwin" || family === "") return null;
+  const weight = style?.weight ?? 400;
+  const italic = style?.italic === true;
+  const key = `${family.toLowerCase()}|${weight}|${italic ? 1 : 0}`;
+  const cached = _familyStyleMatchCache.get(key);
+  if (cached !== undefined) return cached;
+  let resolved: FamilyStyleMatch | null = null;
+  if (isGlyphHelperAvailable()) {
+    try {
+      const resp = callHelper({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight: weight, italic }] });
+      const r = resp.results[0];
+      if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
+        const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
+        resolved = {
+          postscriptName: r.postscriptName,
+          weight: r.weight ?? weight,
+          italic: ((chosen?.traits ?? 0) & CT_TRAIT_ITALIC) !== 0,
+        };
+      }
+    } catch {
+      // An older helper answers "unknown query type"; keep null so the caller
+      // degrades to its existing selection rather than failing.
+      resolved = null;
+    }
+  }
+  _familyStyleMatchCache.set(key, resolved);
+  return resolved;
+}
+
 /**
  * Drop the in-memory glyph-resolution caches: the helper-availability probe
  * result + resolved path, and the system-fallback / installed-font lookup
@@ -1728,4 +1822,5 @@ export function clearGlyphHelperCache(): void {
   _systemFallbackCache.clear();
   _fcFallbackCache.clear();
   _installedFontCache.clear();
+  _familyStyleMatchCache.clear();
 }

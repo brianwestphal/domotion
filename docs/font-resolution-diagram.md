@@ -206,7 +206,9 @@ flowchart TD
 
   G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
-  G3b --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
+  G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle)"]
+  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch → helper 'familyMatch'<br/>= Blink BestStyleMatchForFamilyNS / BetterChoiceCT / BetterWeightMatch.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
+  G3d --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
@@ -259,11 +261,72 @@ takes the glyph-path pipeline rather than the raster-overlay one, and painted it
 box ~4 px high at font-size 32.
 
 **Weight → face routing.** A static family has no `wght` axis to drive, so the
-requested CSS weight has to pick a FILE (or a TTC member). Three rules, applied
-in order, all of them calibrated by asking Chromium which face it painted —
-`CSS.getPlatformFontsForNode` over the full 100…900 range in 10-point steps —
-rather than by running the CSS font-matching algorithm, which the platform
-matcher does not reproduce:
+requested CSS weight has to pick a FILE (or a TTC member). There are now two
+layers here, and on macOS the second supersedes the first for any family a CSS
+`font-family` can name.
+
+**macOS: `darwinPrimaryCutKey` — Blink's declared-family style matcher.** A
+family does not have two cuts, it has a ladder. Chrome opens five distinct
+PingFang SC members across the CSS weights and seven Hiragino Sans ones
+(W0/W3/W4/W5/W6/W7/W9); Helvetica Neue reaches UltraLight and Thin below 400,
+and Apple SD Gothic Neo reaches Thin, Medium, SemiBold and ExtraBold. The
+`key` / `key-bold` pair below cannot represent that, and the gap is not
+cosmetic — a declared `"PingFang SC"` resolved to `PingFangSC-Regular` at
+*every* weight, measuring 725 units/em where Chrome paints 736.09 at CSS 500
+and 749.06 at 700 (~1.75% per glyph, accumulating along the line).
+
+So for a declared family the cut comes from Blink's own selection rather than
+from our table: `BestStyleMatchForFamilyNS` (`:274-350`) over the family's
+AppKit members, compared with `BetterChoiceCT` (`:223-258`) and
+`BetterWeightMatch` (`:100-139`), all in
+`platform/fonts/mac/font_matcher_mac.mm`, Chromium rev `7d859f27`. The
+algorithm lives in the macOS helper's `familyMatch` query (Swift, where AppKit
+and CoreText are reachable) and is reached from Node through
+`resolveFamilyStyleMatch`; it is scored end to end against Chrome by
+`npm run fonts:family-match` (doc [109](109-family-match-conformance.md)).
+
+Three properties are load-bearing:
+
+- **Scope is the declared-family stage.** `DARWIN_DECLARED_FAMILY_KEYS` lists
+  the static keys `matchFamilyNameToKey` can return, and `declaredFamilyForKey`
+  marks the dynamic `sysfb:` keys its `resolveInstalledFont(name)` tail
+  registers (how `font-family: "PingFang SC"` becomes
+  `sysfb:PingFangSC-Regular`). The per-codepoint FALLBACK path is a *different*
+  Blink call — `CTFontCreateForString` then `GetAlternateFontPlatformData`'s
+  in-family re-selection — which `fallbackFamilyCutKey` already mirrors on the
+  chain candidates (§7). Running both on one decision would layer two
+  mechanisms.
+- **It reads the BASE key, and REPLACES the two-slot routing** rather than
+  composing with it. Feeding the `-bold` sibling in would ask the matcher to
+  re-weight an already-re-weighted face.
+- **The family name is asked of CoreText, not read from the file.** Apple's
+  `.ttc` members name themselves by CUT: the face `hiragino-jp` points at
+  reports `familyName` "Hiragino Sans W4", and the PingFang entries report
+  ".PingFang UI SC" — a different family from the one Chrome addresses. Both
+  would send the matcher to the wrong candidate list (W4 at every weight; SC
+  faces for a TC request). CoreText reports "Hiragino Sans" / "PingFang SC",
+  which is the name `availableMembersOfFontFamily` is keyed on.
+
+`system-ui` (`sf-pro`) is deliberately outside the scope: `CreateTypeface`
+asserts `DCHECK_NE(family, kSystemUi)`, so Blink does not family-match it
+either, and its face sits under a dot-prefixed family CoreText refuses to
+resolve by name from a client process.
+
+**Known residual.** At the nine canonical CSS weights the matcher reproduces
+Chrome exactly for every family the macOS table routes to. Between them it does
+not: `BetterWeightMatch` is directional outside `[400, 500]`, so Helvetica takes
+`Helvetica-Light` at 350 and `Helvetica-Bold` at 590 where Chrome paints plain
+`Helvetica`. This is the same light/heavy-end drift recorded for `Avenir Next`
+at CSS 300 in doc [109](109-family-match-conformance.md) — the checkout is
+directional where the shipping build behaves as nearest-weight — now bounded to
+the 301-399 and 501-599 bands. Per the project rule the port follows the
+transcribed source and records the difference rather than curve-fitting to the
+binary.
+
+**The table below it** still answers on Linux and Windows, on a macOS host with
+no built helper, and for any key the matcher declines. Three rules, applied in
+order, calibrated by asking Chromium which face it painted
+(`CSS.getPlatformFontsForNode` over 100…900 in 10-point steps):
 
 | Family key | Measured Chrome behavior |
 | --- | --- |
@@ -280,8 +343,14 @@ matcher does not reproduce:
    Helvetica, so `font-weight: 100/200/300` on default body text was painted a
    full cut too heavy;
 3. the per-family bold thresholds that are not 600 — `lucida-grande` (the macOS
-   fallback for arrows, Hebrew and check marks) crosses over at 450, so a `↑` or
-   `✓` inside a bold heading is painted from the bold face.
+   fallback for arrows, Hebrew and check marks) crosses over at 450.
+
+Two of those measurements are now superseded on macOS by the matcher, which is
+the point of moving to a transcribed mechanism: re-measured over CDP, Chrome
+crosses `Lucida Grande` to its bold face at **600**, not 450, and reaches
+`HelveticaNeue-UltraLight` / `-Thin` / `-Medium` where the two-slot pair had
+only `HelveticaNeue`. The rows above record what the *table* encodes and remain
+accurate for the platforms that still use it.
 
 Every suffixed key is adopted **only when `resolveFontSpec` resolves it on the
 host platform**, which is what keeps the table platform-agnostic: the Linux
@@ -298,8 +367,9 @@ in `renderTextAsPath` sheared those a second time. The routing decision wins ove
 the angle.
 
 **Source of truth:** `getFontInstance` / `resolveFontSpec` / `applyVariationAxes` /
-`subBoldWeightCutSuffix` / `fontHasOutlineTable` / `commandsFor` in
-`src/render/font-resolution.ts`; `src/render/glyph-helper.ts`.
+`subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
+`fontHasOutlineTable` / `commandsFor` in `src/render/font-resolution.ts`;
+`resolveFamilyStyleMatch` / `resolveInstalledFont` in `src/render/glyph-helper.ts`.
 
 ---
 
@@ -660,6 +730,15 @@ Notes:
   checked it covers `cp` — and only the in-family re-selection moves. macOS only;
   Linux and Windows keep the base key, their engines' weight handling being
   calibrated separately. Memoized in `fallbackFamilyCutCache`.
+
+  This is the FALLBACK half of the same problem. The DECLARED half — which cut a
+  family named by CSS opens — is `darwinPrimaryCutKey` in §3, and the two use
+  deliberately different mechanisms because Blink does: a declared family goes
+  through `BestStyleMatchForFamilyNS`, a substituted one through
+  `GetAlternateFontPlatformData`. They measurably disagree (asked for PingFang
+  SC at CSS 300, CoreText's re-selection answers Light where Chrome paints
+  Thin), so neither can stand in for the other, and neither runs on the other's
+  keys.
 - Step 1 confines NFD decomposition to the DECLARED cascade (so it never
   over-renders into deep fallback faces Chrome can't reach — the DM-1080 hazard;
   Arial Unicode MS covers +85 CJK-compat cells via in-font decomposition).

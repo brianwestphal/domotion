@@ -86,6 +86,33 @@ would mean deliberately diverging from the transcribed source — a policy call,
 not a bug fix. The other three families (`Chivo` at 600/700, `Splendid 66`
 below 600) are un-diagnosed.
 
+### What this sweep cannot see: the weights between the rungs
+
+The weight axis is the nine canonical CSS values, so **every intermediate
+weight is outside the measurement** — and that is exactly where the drift above
+is widest. Re-measured over CDP on `Helvetica`, whose canonical ladder the port
+reproduces 9/9:
+
+| CSS weight | ours | Chrome |
+| --- | --- | --- |
+| 300 | `Helvetica-Light` | `Helvetica-Light` |
+| 305 – 399 | `Helvetica-Light` | `Helvetica` |
+| 400 – 500 | `Helvetica` | `Helvetica` |
+| 501 – 599 | `Helvetica-Bold` | `Helvetica` |
+| 600 | `Helvetica-Bold` | `Helvetica-Bold` |
+
+Both bands are `BetterWeightMatch`'s directional search outside `[400, 500]`
+doing precisely what the transcribed source says, and both are the same
+asymmetry as the `Avenir Next` row — the shipping build behaves as
+nearest-weight at the light end and, here, keeps the lighter face through the
+501-599 band too. Bounding it to those two bands is a sharper statement than
+the single `Avenir Next` rung allowed, and it is what a reader should have in
+mind before quoting 99.88%: the number is over canonical weights only.
+
+The bands are pinned as tests (`src/render/text-to-path.test.ts`,
+"pins the intermediate-weight drift against the shipping Chrome") so a future
+checkout refresh that closes them fails loudly rather than passing silently.
+
 ## Scope
 
 macOS only. Blink runs different code for this step on each platform — Linux
