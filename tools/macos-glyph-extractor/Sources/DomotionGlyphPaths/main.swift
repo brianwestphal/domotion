@@ -181,6 +181,10 @@ enum FontResolution: String {
 struct FontEntry {
     let ref: String
     let font: CTFont
+    /// The design-unit (glyph-space) view of `font`, held here so it is built once
+    /// per open rather than once per query. Advances are read from it — see
+    /// `untrackedAdvances`.
+    let cgFont: CGFont
     let pointSize: CGFloat
     let unitsPerEm: Int
     /// True when the returned face is guaranteed to be the requested PostScript
@@ -229,7 +233,8 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
                     "system-ui font unavailable at size \(size) weight \(cssWeight) width \(cssWidth) slant \(cssSlant)",
             ])
         }
-        return FontEntry(ref: ref, font: f, pointSize: CGFloat(size),
+        return FontEntry(ref: ref, font: f, cgFont: CTFontCopyGraphicsFont(f, nil),
+                         pointSize: CGFloat(size),
                          unitsPerEm: Int(CTFontGetUnitsPerEm(f)),
                          nameMatched: true, resolution: .systemUI)
     }
@@ -361,7 +366,8 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     }
 
     let upem = Int(CTFontGetUnitsPerEm(font))
-    return FontEntry(ref: ref, font: font, pointSize: CGFloat(size), unitsPerEm: upem,
+    return FontEntry(ref: ref, font: font, cgFont: CTFontCopyGraphicsFont(font, nil),
+                     pointSize: CGFloat(size), unitsPerEm: upem,
                      nameMatched: pickedNameMatch || postscriptName == nil,
                      resolution: resolution)
 }
@@ -404,6 +410,85 @@ func svgPath(forGlyph glyph: CGGlyph, in font: CTFont) -> String {
     return parts.joined(separator: " ")
 }
 
+// MARK: - Advances
+
+/// Horizontal advances for `glyphs`, in the same units `CTFontGetAdvancesForGlyphs`
+/// reports (points at the font's point size) but WITHOUT AAT tracking.
+///
+/// `CTFontGetAdvancesForGlyphs` returns a *typesetting* advance: the glyph's design
+/// advance PLUS the `trak` table's spacing adjustment interpolated at the CTFont's
+/// point size. That is the right answer for laying out a run at that size, and it is
+/// the wrong answer here, because the Node side opens every face at
+/// `size = unitsPerEm` in order to read metrics in DESIGN units. A point size of
+/// 1000 (or 2048) runs off the end of `trak`'s size table, so CoreText clamps to the
+/// largest-size tracking value and adds it to every advance — a constant offset that
+/// has nothing to do with the design and is not the tracking any real run wants.
+///
+/// Measured on `/System/Library/Fonts/SFIndia.ttc` member `.SFDevanagari-Regular`
+/// (upem 1000), whose `trak` normal track is `[38, 20, 0, -10]` at sizes
+/// `[12, 17, 28, 34]`: every glyph, at every `opsz` instance, came back exactly 10
+/// design units short of the value an independent reader of `hmtx` + `HVAR` gets.
+/// The same constant appears on every installed face carrying both `trak` and
+/// `STAT` and a non-zero largest-size tracking value (126 faces on a stock install:
+/// the SF Indic / Compact / Camera families, New York, and Apple Color Emoji).
+/// `STAT` is load-bearing — measured, CoreText applies `trak` only when the face
+/// also carries `STAT`, matching HarfBuzz's own gate
+/// (`plan.apply_trak = hb_aat_layout_has_tracking (face) && face->table.STAT->has_data ()`,
+/// `hb-ot-shape.cc:218`, HarfBuzz 4de187d) — so Hoefler Text, Skia and Apple
+/// Chancery carry a non-zero `trak` and are untouched.
+///
+/// Tracking belongs at the run's point size, applied once, downstream: Chrome sets
+/// it via `hb_font_set_ptem(unscaled_font, specified_size)`
+/// (`third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.cc:645-648`,
+/// Chromium 7d859f27), and the Node side mirrors that by routing `trak` + `STAT`
+/// faces' shaping through HarfBuzz. Baking a size-1000 tracking value into the
+/// design-unit advance both double-counts it and uses the wrong size.
+///
+/// The replacement reads the advance from the CTFont's CGFont, which is a
+/// design-unit (glyph-space) object with no point size and therefore no tracking.
+/// It carries the variation coordinates through, so the `opsz` instance the caller
+/// asked for is still the one measured. Verified against fontkit across the
+/// `trak` + `STAT` faces: the CGFont advance equals fontkit's `hmtx` + `HVAR`
+/// advance rounded to the nearest design unit at every sample, and the residual
+/// rounding is HarfBuzz's own (`advance + roundf (var_table->get_advance_delta_unscaled (…))`,
+/// `hb-ot-hmtx-table.hh:369-375`) — a variable font's advances are integers in
+/// every consumer that matters.
+func untrackedAdvances(_ entry: FontEntry, glyphs: [CGGlyph]) -> [CGFloat]? {
+    if glyphs.isEmpty { return [] }
+    let upem = CGFloat(entry.unitsPerEm)
+    guard upem > 0 else { return nil }
+    let cgFont = entry.cgFont
+    var designUnits = [Int32](repeating: 0, count: glyphs.count)
+    let ok = glyphs.withUnsafeBufferPointer { gbuf in
+        designUnits.withUnsafeMutableBufferPointer { abuf in
+            cgFont.getGlyphAdvances(glyphs: gbuf.baseAddress!, count: glyphs.count,
+                                    advances: abuf.baseAddress!)
+        }
+    }
+    guard ok else { return nil }
+    let scale = entry.pointSize / upem
+    return designUnits.map { CGFloat($0) * scale }
+}
+
+/// `untrackedAdvances`, degrading to CoreText's tracked advance when the CGFont
+/// route is unavailable. A tracked advance is wrong by a constant, but it is closer
+/// than zero, and the caller has no way to signal "no advance".
+func advances(for entry: FontEntry, glyphs: [CGGlyph]) -> [CGFloat] {
+    if let untracked = untrackedAdvances(entry, glyphs: glyphs) {
+        return untracked
+    }
+    var tracked: [CGSize] = Array(repeating: .zero, count: glyphs.count)
+    if !glyphs.isEmpty {
+        glyphs.withUnsafeBufferPointer { gbuf in
+            tracked.withUnsafeMutableBufferPointer { abuf in
+                _ = CTFontGetAdvancesForGlyphs(entry.font, .horizontal, gbuf.baseAddress!,
+                                               abuf.baseAddress!, glyphs.count)
+            }
+        }
+    }
+    return tracked.map { $0.width }
+}
+
 // MARK: - Queries
 
 func runGlyphsQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String: Any] {
@@ -437,15 +522,8 @@ func runGlyphsQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Stri
         }
     }
 
-    // Advances.
-    var advances: [CGSize] = Array(repeating: .zero, count: glyphs.count)
-    if !glyphs.isEmpty {
-        glyphs.withUnsafeBufferPointer { gbuf in
-            advances.withUnsafeMutableBufferPointer { abuf in
-                _ = CTFontGetAdvancesForGlyphs(font, .horizontal, gbuf.baseAddress!, abuf.baseAddress!, glyphs.count)
-            }
-        }
-    }
+    // Advances, design-unit (no AAT tracking) — see `untrackedAdvances`.
+    let glyphAdvances = advances(for: entry, glyphs: glyphs)
 
     // Bounding rects.
     var bboxes: [CGRect] = Array(repeating: .zero, count: glyphs.count)
@@ -460,7 +538,7 @@ func runGlyphsQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Stri
     var out: [[String: Any]] = []
     for i in 0..<glyphs.count {
         let g = glyphs[i]
-        let advance = advances[i].width
+        let advance = glyphAdvances[i]
         let bbox = bboxes[i]
         // DM-1018: extract glyph-0 (.notdef) outlines too. Blink draws the
         // primary font's `.notdef` for codepoints nothing covers, and that
@@ -501,12 +579,11 @@ func runNotdefQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Stri
         return ["type": "notdef", "error": "fontRef missing or unknown"]
     }
     let font = entry.font
-    var advance = CGSize.zero
-    var gg: CGGlyph = 0
-    _ = CTFontGetAdvancesForGlyphs(font, .horizontal, &gg, &advance, 1)
+    // Design-unit advance (no AAT tracking) — see `untrackedAdvances`.
+    let advance = advances(for: entry, glyphs: [0])[0]
     let path = svgPath(forGlyph: 0, in: font)
     return ["type": "notdef", "id": 0,
-            "advance": NSDecimalNumber(string: formatNumber(advance.width)),
+            "advance": NSDecimalNumber(string: formatNumber(advance)),
             "d": path]
 }
 
@@ -566,6 +643,14 @@ func runShapeQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Strin
         var indices = [CFIndex](repeating: 0, count: n)
         CTRunGetGlyphs(run, CFRange(location: 0, length: n), &glyphs)
         CTRunGetPositions(run, CFRange(location: 0, length: n), &positions)
+        // Deliberately NOT routed through `untrackedAdvances`: a run advance is a
+        // typeset advance, carrying kerning and GPOS as well as AAT tracking, and
+        // no design-unit API reproduces those. So this one keeps CoreText's
+        // tracking-at-the-open-size, which for a face opened at size = unitsPerEm
+        // is the wrong size. That is exactly why the Node side routes shaping for
+        // `trak` + `STAT` faces through HarfBuzz — which applies tracking once, at
+        // the run's real point size, the way Blink does — instead of through this
+        // query. The `glyphs` query above has no such excuse and must not track.
         CTRunGetAdvances(run, CFRange(location: 0, length: n), &advances)
         CTRunGetStringIndices(run, CFRange(location: 0, length: n), &indices)
         for i in 0..<n {
