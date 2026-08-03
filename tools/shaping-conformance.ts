@@ -46,6 +46,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { join, resolve } from "node:path";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { clearFontResolutionCaches } from "../src/render/font-resolution.js";
+import { parseFontVariationSettings } from "../src/render/text.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,6 +59,20 @@ export interface RunSpec {
   fontSize: number;
   fontWeight: number;
   fontStyle: string;
+  /**
+   * Computed `font-variation-settings` — the run's variable-axis location, or
+   * `"normal"`. Part of the run's IDENTITY, not decoration: one variable face
+   * at two axis locations is two different sets of outlines, so a corpus that
+   * omits it sweeps a wght-700 run as though it were wght-400 and cannot
+   * distinguish the two. Measured on `20-deep-font-palette.html`, whose
+   * `.var-stack` runs resolve through an uninstalled "Inter Variable" to
+   * macOS `system-ui`: stripping the axes moves Chrome's painted width by
+   * 76.27px and 3.56px, so the axis is doing real work the sweep was blind to.
+   *
+   * Optional on read so a corpus file written before this field existed still
+   * parses; the extractor always writes it.
+   */
+  fontVariationSettings?: string;
   fixtures: number;
   example: string;
 }
@@ -160,12 +175,14 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
     const found = await page.evaluate(() => {
       const out: string[] = [];
       for (const el of Array.from(document.querySelectorAll("*"))) {
+        const cs = getComputedStyle(el as Element);
+        const fvs = cs.fontVariationSettings === "" ? "normal" : cs.fontVariationSettings;
         for (const node of Array.from(el.childNodes)) {
           if (node.nodeType !== 3) continue;
           const raw = (node.textContent ?? "").trim();
-          // Non-empty, short enough that a disagreement points at a shaping
-          // decision rather than at line breaking, and — deliberately —
-          // WHITESPACE-FREE.
+          if (raw === "") continue;
+          // Candidate texts for this node. Normally the node's whole trimmed
+          // text, subject to the WHITESPACE-FREE rule below.
           //
           // The two sides count spaces differently: Chrome's `glyphCount`
           // includes the space glyphs HarfBuzz produced, while our renderer
@@ -176,15 +193,29 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
           // excludes the question instead. Nothing is lost for shaping: ligatures,
           // contextual joining, Indic reordering and mark attachment are all
           // WITHIN-word phenomena, and a space is a word boundary.
-          if (raw === "" || raw.length > 24 || /\s/.test(raw)) continue;
-          const cs = getComputedStyle(el as Element);
-          out.push(JSON.stringify({
-            text: raw,
-            fontFamily: cs.fontFamily,
-            fontSize: Math.round(parseFloat(cs.fontSize)),
-            fontWeight: parseInt(cs.fontWeight, 10) || 400,
-            fontStyle: cs.fontStyle,
-          }));
+          //
+          // Runs carrying a non-normal axis get their text SPLIT on whitespace
+          // instead of dropped. Whole-node filtering left the corpus with zero
+          // axis-bearing runs — measured: every one of the 11 axis-declaring
+          // text nodes in the fixture corpus contains a space, so recording the
+          // axis without this would widen the schema and change nothing. Splitting
+          // keeps the whitespace-free invariant exactly (each word has no space)
+          // and is the same word-boundary argument the paragraph above makes.
+          // It is applied ONLY to axis-bearing nodes on purpose: splitting every
+          // node grows the corpus 10.95x (2,385 -> 26,121 runs), which is a
+          // separate question about sweep breadth, not about axis coverage.
+          const texts = fvs !== "normal" ? raw.split(/\s+/) : [raw];
+          for (const text of texts) {
+            if (text === "" || text.length > 24 || /\s/.test(text)) continue;
+            out.push(JSON.stringify({
+              text,
+              fontFamily: cs.fontFamily,
+              fontSize: Math.round(parseFloat(cs.fontSize)),
+              fontWeight: parseInt(cs.fontWeight, 10) || 400,
+              fontStyle: cs.fontStyle,
+              fontVariationSettings: fvs,
+            }));
+          }
         }
       }
       return out;
@@ -216,7 +247,14 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
   const html = `<html lang="en"><body style="margin:0">${
     specs.map((s, i) =>
       `<div id="r${i}" style="font-family:${esc(s.fontFamily)};font-size:${s.fontSize}px;`
-      + `font-weight:${s.fontWeight};font-style:${s.fontStyle};white-space:pre">${esc(s.text)}</div>`).join("")
+      + `font-weight:${s.fontWeight};font-style:${s.fontStyle};white-space:pre`
+      // Re-declare the run's variable-axis location. Without it the probe page
+      // paints the face's DEFAULT instance while the fixture painted an
+      // instanced one, so Chrome's side of the comparison answers a different
+      // question than the corpus asked.
+      + `${s.fontVariationSettings != null && s.fontVariationSettings !== "normal"
+        ? `;font-variation-settings:${esc(s.fontVariationSettings)}` : ""}`
+      + `">${esc(s.text)}</div>`).join("")
   }</body></html>`;
   await page.setContent(html, { waitUntil: "load" });
   await page.evaluate(() => document.fonts.ready);
@@ -279,6 +317,12 @@ export function ourShaping(spec: RunSpec): OurShaping {
   const svg = renderTextAsPath(
     spec.text, 0, spec.fontSize * 2, spec.fontSize, spec.fontFamily,
     String(spec.fontWeight), "#000", undefined, undefined, undefined, spec.fontStyle,
+    // ascentOverride, features, lang — not modeled by the corpus — then the
+    // run's axis location, parsed with the SAME function the renderer uses on a
+    // real capture (`src/render/text.ts`), so the oracle exercises the shipped
+    // parse rather than a second one that could drift from it.
+    undefined, undefined, undefined,
+    parseFontVariationSettings(spec.fontVariationSettings),
   );
   if (svg == null) return { glyphCount: 0, xs: [], ok: false };
   // EVERY `<text>` element, not the first: a run spanning more than one font
