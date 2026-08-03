@@ -188,16 +188,17 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
 
 // DM-1197: Unicode blocks whose script HarfBuzz shapes with a DEDICATED shaper
 // (Indic / Thai-Lao / Tibetan / Myanmar / Khmer / Arabic / Hebrew / Hangul-Jamo)
-// rather than the Universal Shaping Engine. These are EXCLUDED from the HarfBuzz
-// rerouting below: the CoreText-vs-Chrome divergence that motivates it is a USE
-// shaper behavior (its `NO_SHORT_CIRCUIT` normalization always decomposes), while
-// the dedicated shapers don't trigger it — macOS CoreText already matches Chrome
-// for them (verified: the devanagari / bengali / gurmukhi / oriya / tamil /
-// myanmar / tibetan unicode fixtures all PASS on the CoreText path). And
-// harfbuzzjs's dedicated-shaper output can itself diverge from Chrome's paint —
-// e.g. it decomposes Tibetan U+0F43 (`[82,199]`) where Chrome and the `hb-shape`
-// CLI render the precomposed glyph (`[gh.]`), which regressed the tibetan fixture
-// until this exclusion was added. Inclusive [lo, hi].
+// rather than the Universal Shaping Engine. These are EXCLUDED from the
+// base+mark HarfBuzz rerouting below: the CoreText-vs-Chrome divergence that
+// motivates it is a USE shaper behavior (its `NO_SHORT_CIRCUIT` normalization
+// always decomposes), which the dedicated shapers don't trigger. The exclusion
+// is NOT because CoreText matches Chrome on these blocks — measured, it does
+// not in any of the ten scripts (see the block comment on
+// `complexShaperBaseMarkDecomposition`) — but because that hook reroutes the
+// OUTLINES along with the shaping, and swapping outline engines is a paint
+// change in its own right. Scripts whose shaping has been moved to HarfBuzz
+// with the outlines held fixed are listed in `HARFBUZZ_SHAPED_RANGES` below,
+// and stay in this list too. Inclusive [lo, hi].
 const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x0590, 0x05FF], // Hebrew
   [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF], // Arabic + supplements
@@ -212,6 +213,58 @@ const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
 ];
 export function usesDedicatedShaper(cp: number): boolean {
   for (const [lo, hi] of DEDICATED_SHAPER_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
+// The subset of the dedicated-shaper blocks whose SHAPING is routed to HarfBuzz
+// — the engine Chrome runs — instead of the platform shaper. The outlines are
+// NOT routed with it: `resolveFontForCodepoint` builds the override with
+// `outlinesFromBase: true`, so HarfBuzz supplies ids / positions / clusters and
+// the platform engine still draws. Keeping those two apart is the whole reason
+// this can be done at all; see the note on `harfbuzzShapedScriptOverride` in
+// `font-resolution.ts` for the measurement that established it.
+//
+// Grown one script at a time, each with its own full macOS unicode sweep,
+// because the blast radius of a script is every face that covers it. The order
+// is by measured disagreement count, smallest first.
+//
+// Why this is a SEPARATE list rather than a narrowing of the one above:
+// `usesDedicatedShaper` is read for two unrelated purposes, and only one of
+// them is "the platform shaper is right here".
+//
+//   1. `text-to-path.ts`'s `isShapingRequired` — a dedicated-shaper script must
+//      take the RUN-shaping branch rather than the per-character one. That stays
+//      true after a reroute; dropping a script out of the list would silently
+//      turn contextual shaping off for it, which is the opposite of the intent.
+//   2. The two HarfBuzz-with-HarfBuzz-OUTLINES hooks below
+//      (`complexShaperBaseMarkDecomposition`, and `resolveDottedCircleHbRun` in
+//      `font-resolution.ts`). Those stay excluded for every script, rerouted or
+//      not: a rerouted run is already shaped by HarfBuzz, so all they could add
+//      is a change of outline ENGINE — measured at a 0.0940 → 0.1214 worst-tile
+//      regression on the Thai fixture, and the reason `outlinesFromBase` exists.
+const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
+  // Thai. Measured: 32 engine disagreements over 4 faces, 2 of them `glyph-ids`
+  // — the U+F704 / U+F714 Windows-PUA shift-left forms of U+0E37 SARA UEE and
+  // U+0E49 MAI THO, which HarfBuzz substitutes on an ascender base (PO PLA) and
+  // CoreText does not. The rule is a state machine plus a mapping table, not a
+  // heuristic: `external/harfbuzz/src/hb-ot-shaper-thai.cc` (rev 4de187d),
+  // `thai_above_start_state` :172-179, `thai_above_state_machine` :188-189,
+  // `SL_mappings` :124-137, `thai_pua_shape` :156-159. On Arial Unicode MS those
+  // PUA entries are the plain outline shifted 220 units left — 0.107 em, ≈1.7 px
+  // at 16 px — so Chrome paints a visibly different mark position from ours on
+  // every Thai word with an above mark over an ascender.
+  //
+  // Lao (0E80–0EFF) is deliberately NOT included: it is a separate script with
+  // its own samples, and nothing has been measured for it.
+  [0x0E00, 0x0E7F],
+];
+
+/** True when this codepoint's script has been rerouted to HarfBuzz shaping.
+ *  See `HARFBUZZ_SHAPED_RANGES` for what that does and does not move. */
+export function usesHarfbuzzShaping(cp: number): boolean {
+  for (const [lo, hi] of HARFBUZZ_SHAPED_RANGES) {
     if (cp >= lo && cp <= hi) return true;
   }
   return false;

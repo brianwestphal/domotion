@@ -38,7 +38,7 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 export interface FontInstance {
@@ -5544,7 +5544,108 @@ function sfProCoverageOtfKey(): string | null {
   return _sfProCoverageKey;
 }
 
+/**
+ * Route a resolved codepoint's SHAPING to HarfBuzz — the engine Chrome runs —
+ * while leaving the OUTLINES with whichever engine resolved the face.
+ *
+ * Applies only to the scripts listed in `HARFBUZZ_SHAPED_RANGES`, which is grown
+ * one script at a time. The measurement that motivates it: `npm run
+ * fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
+ * every resolvable face and finds 366 disagreements, spread across all ten
+ * dedicated-shaper scripts — so the claim the exclusion used to rest on ("macOS
+ * CoreText already matches Chrome for them") is false everywhere it was applied.
+ * For Thai, 2 of its 32 are `glyph-ids`: HarfBuzz substitutes the Windows-PUA
+ * shift-left forms U+F704 / U+F714 for an above vowel + tone mark over an
+ * ascender consonant, per the state machine and mapping table in
+ * `external/harfbuzz/src/hb-ot-shaper-thai.cc` (rev 4de187d, :124-137 / :156-159
+ * / :172-179 / :188-189), and CoreText emits the plain cmap glyphs. On Arial
+ * Unicode MS the PUA forms are the same outline shifted 220 units left — 0.107
+ * em, ≈1.7 px at 16 px.
+ *
+ * **Shaping moves; outlines do not, and that separation is the point.** An
+ * earlier attempt routed the whole `layout()` through HarfBuzz and made the Thai
+ * fixture WORSE (worst tile 0.0940 → 0.1214, reproducible to six decimal
+ * places), even though on the face that fixture actually paints with the two
+ * engines shape byte-for-byte identically. The cost was entirely the outline
+ * engine changing hands, against which the macOS pixel calibration was measured.
+ * `outlinesFromBase` keeps HarfBuzz's ids, positions and clusters and takes each
+ * glyph from the base instance, which is well-defined because it is the same
+ * file and therefore the same gid space.
+ *
+ * Returns the resolution unchanged when the face has no on-disk file HarfBuzz
+ * can open (a webfont buffer, an unresolvable key) — the run then keeps whatever
+ * shaping it had.
+ */
+function harfbuzzShapedScriptOverride(
+  cp: number,
+  res: FontResolution,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+): FontResolution {
+  if (!res.covered || !usesHarfbuzzShaping(cp)) return res;
+  const fvs = res.key === primaryFontKey ? variationSettings : undefined;
+  const base = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant, fvs));
+  if (base == null) return res;
+  const hbFace = shapingFaceFor(res.key, weight, fontSize, slant, fvs);
+  if (hbFace == null) return res;
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true });
+  if (hbInst === base) return res; // HarfBuzz declined the file
+  carryFontInstanceMetadata(hbInst, base);
+  return { ...res, fontOverride: hbInst };
+}
+
+/**
+ * Copy the FontInstance facts a shaping proxy does not forward.
+ *
+ * `makeHarfbuzzShapingInstance` exposes a FIXED property set — the shaping and
+ * metric surface — so everything else a resolved instance carries comes back
+ * `undefined` through it. That is harmless for a one-character override and not
+ * harmless for a whole run: the embedded-font path reads `naturalWeight` /
+ * `faceIsBoldTrait` to decide synthetic bold, `resolvedItalicAngle` /
+ * `isRoutedItalicCut` for synthetic oblique, and looks the instance up in
+ * `fontSourceMap` to fold the resolved axis location into the subset key. Losing
+ * that last one silently collapses two optical instances of one face into a
+ * single embedded TTF.
+ *
+ * Idempotent, and the proxy is memoized per (base, args), so this runs once per
+ * distinct proxy in practice.
+ */
+function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): void {
+  proxy.naturalWeight = base.naturalWeight;
+  proxy.hasWeightAxis = base.hasWeightAxis;
+  proxy.faceIsBoldTrait = base.faceIsBoldTrait;
+  proxy.resolvedItalicAngle = base.resolvedItalicAngle;
+  proxy.hasSlantAxis = base.hasSlantAxis;
+  proxy.isRoutedItalicCut = base.isRoutedItalicCut;
+  proxy.postscriptName = base.postscriptName;
+  const src = fontSourceMap.get(base as unknown as object);
+  if (src != null) fontSourceMap.set(proxy as unknown as object, src);
+}
+
 export function resolveFontForCodepoint(
+  cp: number,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+  fontKeyChain: string[],
+  systemUiPrimary: boolean = false,
+): FontResolution {
+  return harfbuzzShapedScriptOverride(
+    cp,
+    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary),
+    primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings,
+  );
+}
+
+function resolveFontForCodepointInner(
   cp: number,
   primaryFont: FontInstance,
   primaryFontKey: string,

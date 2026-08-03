@@ -67,11 +67,27 @@
  * Exits non-zero when any pair disagrees, so it can gate. `--face` narrows to
  * faces whose key contains a substring — useful while iterating, and dangerous
  * as a conclusion: a narrowed run cannot support a corpus-wide claim.
+ *
+ * ## The total does not move when a script is rerouted, and that is not a bug
+ *
+ * Both sides are called DIRECTLY here, so the headline count measures how far
+ * apart the two ENGINES are and is unmoved by which of them production routes a
+ * script to (see the note in `comparePair`). A reroute therefore cannot make it
+ * fall, and reading a flat total as "the change did nothing" would be exactly
+ * backwards.
+ *
+ * What does move is the count of disagreements that can still REACH PAINT. A
+ * sample whose script is in `HARFBUZZ_SHAPED_RANGES` is shaped by HarfBuzz on
+ * both sides in production, so its disagreements are recorded and then set
+ * aside. That derived number — printed as `reaching production` — is the one to
+ * quote when a script moves, and it is attributable because the per-script
+ * breakdown says which script accounts for the drop.
  */import { writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { harfbuzzShapeRun } from "../src/render/harfbuzz-shaper.js";
 import { createGlyphHelperFont, isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
 import { resolveFontSpec, shapingFaceFor, platformFontKeys } from "../src/render/font-resolution.js";
+import { usesHarfbuzzShaping } from "../src/render/unicode-classification.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
 
 interface Disagreement {
@@ -280,6 +296,14 @@ function main(): void {
 
   const byKind: Record<string, number> = {};
   for (const d of disagreements) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
+  const byScript: Record<string, number> = {};
+  for (const d of disagreements) byScript[d.script] = (byScript[d.script] ?? 0) + 1;
+  // A disagreement is set aside when production shapes that text with HarfBuzz
+  // on both sides — the engines still differ, but the platform one is no longer
+  // in the loop for it. `some` rather than `every` because a sample is one
+  // script's text: if any of its codepoints is rerouted, the run is.
+  const routed = disagreements.filter((d) => [...d.text].some((c) => usesHarfbuzzShaping(c.codePointAt(0)!)));
+  const reaching = disagreements.length - routed.length;
 
   console.log("");
   console.log(`Shape agreement — HarfBuzz (Chromium config) vs ${process.platform === "darwin" ? "CoreText" : "platform helper"}`);
@@ -291,6 +315,12 @@ function main(): void {
   console.log(`  disagreements:       ${disagreements.length}`);
   for (const [kind, n] of Object.entries(byKind).sort((a, b) => b[1] - a[1])) {
     console.log(`      ${kind.padEnd(12)} ${n}`);
+  }
+  console.log(`  reaching production: ${reaching}   (${routed.length} in scripts routed to HarfBuzz)`);
+  console.log("  by script:");
+  for (const [script, n] of Object.entries(byScript).sort((a, b) => b[1] - a[1])) {
+    const isRouted = [...(SHAPE_SAMPLES.find((s) => s.script === script)?.text ?? "")].some((c) => usesHarfbuzzShaping(c.codePointAt(0)!));
+    console.log(`      ${script.padEnd(12)} ${String(n).padStart(4)}${isRouted ? "   → HarfBuzz" : ""}`);
   }
 
   if (disagreements.length > 0) {
@@ -316,6 +346,9 @@ function main(): void {
           pairs,
           skippedCoverage,
           byKind,
+          byScript,
+          reachingProduction: reaching,
+          routedToHarfbuzz: routed.length,
           disagreements,
         },
         null,

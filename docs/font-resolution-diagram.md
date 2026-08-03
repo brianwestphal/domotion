@@ -490,12 +490,64 @@ flowchart TD
   F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
   F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(embedded: primary .notdef · paths: primary .notdef for<br/>private-use/noncharacter, else last chain .notdef)"]
+  FCH & F1H & F2H & F3H & F3HC & F4H & F5H --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>usesHarfbuzzShaping(cp)? (HARFBUZZ_SHAPED_RANGES)"}
+  FHB -->|"no (every other codepoint)"| FHB0["resolution unchanged"]
+  FHB -->|"yes"| FHB1["shapingFaceFor(res.key, weight, size, slant, fvs) →<br/>makeHarfbuzzShapingInstance(base, path, faceIndex, size, axes,<br/>{ outlinesFromBase: true })<br/>HarfBuzz supplies ids / positions / clusters ·<br/>base engine still draws (base.getGlyph(id))<br/>+ carryFontInstanceMetadata(proxy, base)"]
 ```
 
 Notes:
 - `instanceFor(key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
+- **The post-step routes SHAPING to HarfBuzz without moving the OUTLINES.**
+  `resolveFontForCodepoint` is a thin wrapper: it calls the resolution walk
+  above and then hands the result to `harfbuzzShapedScriptOverride`, which — for
+  the scripts listed in `HARFBUZZ_SHAPED_RANGES` (`unicode-classification.ts`) —
+  replaces the resolved instance with a `makeHarfbuzzShapingInstance` proxy in
+  `outlinesFromBase` mode. HarfBuzz then supplies glyph ids, positions and
+  clusters (it is the engine Chrome runs), and each glyph's outline still comes
+  from `base.getGlyph(id)`, which is well-defined because it is the same file
+  and therefore the same gid space.
+
+  The list is grown **one script at a time**, each with its own full macOS
+  unicode sweep, because a script's blast radius is every face that covers it.
+  Today it holds **Thai** (U+0E00–U+0E7F). The reason a script is on it is a
+  measurement, not an assumption: `npm run fonts:shaper-ab` compares HarfBuzz
+  against the macOS CoreText helper over every resolvable face and reports 366
+  disagreements spread across **all ten** dedicated-shaper scripts, so the claim
+  the exclusion used to rest on — "macOS CoreText already matches Chrome for
+  them" — is false everywhere it was applied. Two of Thai's 32 are `glyph-ids`:
+  HarfBuzz substitutes the Windows-PUA shift-left forms U+F704 / U+F714 for an
+  above vowel plus tone mark over an ascender consonant, per the state machine
+  and mapping table in `external/harfbuzz/src/hb-ot-shaper-thai.cc` (rev
+  `4de187d`: `SL_mappings` :124-137, `thai_pua_shape` :156-159,
+  `thai_above_start_state` :172-179, `thai_above_state_machine` :188-189). On
+  Arial Unicode MS those are the plain outline shifted 220 units left — 0.107 em,
+  ≈1.7 px at 16 px.
+
+  **Holding the outlines fixed is the whole mechanism.** An earlier attempt
+  routed the entire `layout()` through HarfBuzz and made the Thai fixture worse
+  (worst tile 0.0940 → 0.1214, reproducible to six decimal places) even though
+  on the face that fixture actually paints with, the two engines shape
+  byte-for-byte identically — the cost was the outline engine changing hands,
+  against which the macOS pixel calibration was measured.
+
+  Two consequences worth stating because they are easy to get backwards:
+  - The script stays in `DEDICATED_SHAPER_RANGES`. That predicate is also what
+    tells `text-to-path.ts` a run needs RUN-based shaping rather than
+    per-character; dropping a rerouted script out of it would turn contextual
+    shaping off entirely.
+  - The two HarfBuzz-**outline** hooks (`complexShaperBaseMarkDecomposition`
+    above, and `resolveDottedCircleHbRun`) stay excluded for rerouted scripts
+    too. A rerouted run is already HarfBuzz-shaped, so all they could add is the
+    outline swap that regressed the fixture.
+
+  The proxy exposes a fixed property set, so `carryFontInstanceMetadata` copies
+  the facts the embedded-font path reads off a resolved instance
+  (`naturalWeight` / `faceIsBoldTrait` for synthetic bold, `resolvedItalicAngle`
+  / `isRoutedItalicCut` for synthetic oblique, `postscriptName`) plus its
+  `fontSourceMap` entry — without which two optical instances of one face
+  collapse into a single embedded TTF.
 - **Why the OS is asked first (step 2a before 2b).** Blink has exactly ONE stage
   here and it is the OS. `FontFallbackIterator::Next`
   (`font_fallback_iterator.cc:120-157`, Chromium rev `7d859f27`) runs
