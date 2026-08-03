@@ -100,7 +100,7 @@ On CI it has its **own dispatch and its own baselines** — `.github/workflows/f
 
 #### What it found immediately
 
-Measured on a developer Mac, `--max-stacks 234 --shard 1/200` — 234 stacks × 1,463 codepoints = **342,342 comparisons, 12,051 mismatches (3.520%) across 186 routes**. The same rule at `--max-stacks 13` (one per generic, CSS initial state everywhere) measures **286 mismatches of 19,019 (1.504%) across 37 routes**. Almost everything is in the departures, and the departures are exactly what the harvested corpus does not contain:
+Measured on a developer Mac, `--max-stacks 234 --shard 1/200` — 234 stacks × 1,463 codepoints = **342,342 comparisons, 12,051 mismatches (3.520%) across 186 routes** at the time it was added. The same rule at `--max-stacks 13` (one per generic, CSS initial state everywhere) measures **286 mismatches of 19,019 (1.504%) across 37 routes**. Almost everything is in the departures, and the departures are exactly what the harvested corpus does not contain:
 
 | stack | mismatches of 1,463 |
 | --- | ---: |
@@ -110,10 +110,12 @@ Measured on a developer Mac, `--max-stacks 234 --shard 1/200` — 234 stacks × 
 | `serif` @16/**700** | 2 |
 | `serif` @16/**800**, **900** | **157** each |
 
-Two defects, neither previously measurable:
+Two defects, neither previously measurable — **both now fixed**; the same slice measures **1,105 mismatches (0.323%) across 63 routes**, 10,946 rows fixed and 0 newly broken, 75 stacks improved and none worse:
 
-- **`font-stretch` is not carried into our resolution at all.** Chrome selects `Papyrus-Condensed` for a condensed `fantasy` stack — macOS ships that cut — and we resolve plain `Papyrus`, which for 1,102 of the swept codepoints we cannot open at all (`mismatch-we-tofu`). The harvested corpus contains `fantasy` only at 100%, and only 8 of its 434 stacks have any non-100% stretch.
-- **Weight 800/900 takes the wrong CJK cut.** Chrome paints Han with `STSongti-SC-Bold`; we resolve `STSongti-SC-Regular` (240 rows) or `STSongti-SC-Black` (70 rows). Identical for eight families, since they all fall through to the same serif CJK route. The harvested corpus has weight 800 in 10 of 434 stacks and weight 900 in 5 — and none of them is a serif-primary stack.
+- **`font-stretch` was not carried into our resolution at all.** Chrome selects `Papyrus-Condensed` for a condensed `fantasy` stack — macOS ships that cut — and we resolved plain `Papyrus`, which for 1,102 of the swept codepoints we could not open at all (`mismatch-we-tofu`). The harvested corpus contains `fantasy` only at 100%, and only 8 of its 434 stacks have any non-100% stretch. Fixed by giving `getFontInstance` a width and passing it to the declared-family style matcher, where Blink turns it into the condensed / expanded symbolic trait: 1,110 → 3 on each of the four stretched `fantasy` stacks.
+- **Weight 800/900 took the wrong CJK cut.** Chrome paints Han with `STSongti-SC-Bold`; we resolved `STSongti-SC-Regular` (240 rows) or `STSongti-SC-Black` (70 rows). Identical for eight families, since they all fall through to the same serif CJK route. The harvested corpus has weight 800 in 10 of 434 stacks and weight 900 in 5 — and none of them is a serif-primary stack. The cause was **not** the `cjk-serif` weight ladder: it was the per-codepoint fallback's cascade base, which named the primary family's base entry (`Times-Roman`) instead of the cut the run paints in (`Times-Bold`), and `CTFontCreateForString` nominates a different Songti cut from each. 157 → 36 on `serif` at 800 and 900, and the `cursive` stacks went from ~258 to 3 at every weight.
+
+**What the residual 36 is, and why it is not ours.** All 35 of the per-stack remainder are `STSongti-SC-Bold → STSongti-SC-Black` on ideographs that Songti SC Black *does* cover, and asked in isolation Chrome answers **Black** there too — agreeing with us. The oracle's probe page renders one cell per codepoint, and Blink caches per-character fallback for **ideographic** codepoints keyed on (base font, weight, style, orientation, size) (`mac/font_cache_mac.mm:341-358`), returning the cached face for any later ideograph it covers. Measured directly: U+4E9F alone reports `STSongti-SC-Black`, and on a page of ~600 ideographs at the same style it reports `STSongti-SC-Bold`. We do not model that cache, so a real CJK page at weight 800 would still disagree — tracked separately, and a different mechanism from either defect above.
 
 This is the same failure mode doc 107 already records for the Windows weight-400 sample (*"Do not read that 0.488% as a verdict"*), one axis over: **the stack axis needs sampling too, and a corpus harvested from fixtures samples it very unevenly.** 321 of the harvested corpus's 434 stacks are weight 400, 426 of 434 are 100% stretch, and weight 200 does not occur at all.
 
@@ -249,7 +251,9 @@ Those 17 newly-visible stacks measure **0 mismatches**. That is a real result ra
 - Chrome's painted width for `sans-serif` is **identical at every stretch from 50% to 200%** (151.19px, face `Helvetica`). macOS Helvetica has no condensed face and no `wdth` axis, so there is nothing to select and Chrome does not synthesize condensing.
 - Chrome's painted width is likewise **unchanged** across `"wght" 100` ↔ `"wght" 900` and `"wdth" 50` ↔ `"wdth" 150` — including on `system-ui`, whose SFNS file *is* variable.
 
-So on this corpus and platform neither axis moves Chrome's output, and agreement is genuine. The corollary that used to sit here — *nothing in the fixture corpus exercises a live variable axis, so the name-blindness is untested rather than passing* — is closed by the next section.
+So on this corpus and platform neither axis moves Chrome's output, and agreement is genuine.
+
+**Read that carefully, though: agreement here was genuine but blind.** `font-stretch` reached the *probe page* — so Chrome honored it — and nothing on our side. The 8 harvested stretch stacks could not detect that, because every one of them is a `sans-serif`/`Helvetica` route with no condensed cut to select. It took the synthetic corpus, which asks `fantasy` at 50%, to make the missing parameter visible; see "What it found immediately" above. The corollary that used to sit here — *nothing in the fixture corpus exercises a live variable axis, so the name-blindness is untested rather than passing* — is closed by the next section.
 
 ### The variable-axis blind spot, measured rather than asserted
 

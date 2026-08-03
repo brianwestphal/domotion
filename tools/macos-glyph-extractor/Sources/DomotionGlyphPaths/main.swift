@@ -822,9 +822,23 @@ func runFamilyMatchQuery(_ query: [String: Any]) -> [String: Any] {
         return ["type": "familyMatch", "found": false, "error": "family required"]
     }
     let desiredWeight = (query["cssWeight"] as? NSNumber)?.intValue ?? 400
+    // Transcribed from `ComputeDesiredTraits`, font_matcher_mac.mm:185-202
+    // (Chromium 7d859f27). `kNormalWidthValue` is 100 (font_selection_types.h:233),
+    // and the width comparison is strict on both sides — a family's condensed cut
+    // is asked for at ANY width below 100%, its expanded cut at any width above,
+    // and 100% asks for neither.
+    //
+    // The width half was missing until now, and `BetterChoiceCT` compares
+    // condensed FIRST of its three masks (font_matcher_mac.mm:234-235), so its
+    // absence was not a rounding error: a `font-stretch: 50%` run scored every
+    // candidate as though the author had asked for normal width, and a family
+    // shipping a condensed cut (Papyrus does) resolved to its normal one.
+    let desiredWidth = (query["cssWidth"] as? NSNumber)?.doubleValue ?? 100
     var desiredTraits: CTFontSymbolicTraits = []
     if (query["italic"] as? NSNumber)?.boolValue == true { desiredTraits.insert(.traitItalic) }
     if (query["bold"] as? NSNumber)?.boolValue == true { desiredTraits.insert(.traitBold) }
+    if desiredWidth > 100 { desiredTraits.insert(.traitExpanded) }
+    if desiredWidth < 100 { desiredTraits.insert(.traitCondensed) }
 
     let members = NSFontManager.shared.availableMembers(ofFontFamily: family) ?? []
     if members.isEmpty {

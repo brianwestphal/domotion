@@ -1524,17 +1524,51 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
  *  draw a notdef. */
 const _fallbackBaseFromPrimary = process.env.DOMOTION_FALLBACK_BASE !== "0";
 
-/** The cascade base to ask CoreText from, for a run whose primary is `primaryKey`.
+/** Memo for `fallbackBaseFor` — the base is asked for once per codepoint, and
+ *  the cut resolution behind it walks the platform style matcher. */
+const fallbackBaseCache = new Map<string, { name: string; path?: string }>();
+
+/** The cascade base to ask CoreText from, for a run whose primary is `primaryKey`
+ *  at this CSS style.
  *
  *  Returns the PostScript name plus — importantly — the on-disk path. The path
  *  is what lets the helper open Apple's hidden `.`-prefixed faces: CoreText
  *  refuses those by name and hands back Times New Roman WITHOUT erroring, so a
- *  name-only lookup would silently walk the wrong font's cascade. */
-function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?: string } {
+ *  name-only lookup would silently walk the wrong font's cascade.
+ *
+ *  The style matters as much as the family, and this used to drop it. Blink's
+ *  base is `font_data_to_substitute->PlatformData()` — the face the run is
+ *  PAINTING in, weight- and style-resolved (`mac/font_cache_mac.mm:326-327` →
+ *  `GetAlternateFontPlatformData` → `CTFontCreateForString(ct_font, …)`, rev
+ *  7d859f27) — whereas we passed the family's base entry. CoreText's cascade is
+ *  a function of the font you ask from, and the two answers differ: asked from
+ *  Times-Roman it nominates STSongti-SC-Regular, asked from Times-Bold it
+ *  nominates STSongti-SC-Bold.
+ *
+ *  That is not recoverable further down. The in-family re-selection that follows
+ *  (`:242-267`) only adopts a better-matching face when that face still covers
+ *  the character, so for every ideograph Songti SC Black does not carry — most
+ *  of CJK Extension A — a `font-weight: 800` serif run kept the REGULAR face
+ *  CoreText had nominated from our unweighted base, where Chrome keeps the BOLD
+ *  one it nominated from its weighted base. */
+function fallbackBaseFor(
+  primaryKey: string | undefined, weight: number = 400, slant: number = 0, stretch: number = 100,
+): { name: string; path?: string } {
   if (!_fallbackBaseFromPrimary || primaryKey == null) return { name: "Helvetica" };
-  const spec = resolveFontSpec(primaryKey);
-  if (spec?.postscriptName == null || spec.postscriptName === "") return { name: "Helvetica" };
-  return { name: spec.postscriptName, path: spec.path };
+  const cacheKey = `${primaryKey}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;
+  const hit = fallbackBaseCache.get(cacheKey);
+  if (hit !== undefined) return hit;
+  // Webfont / local-alias keys have no cut ladder of their own — they resolve
+  // through their own registries — so they are read as-is, exactly as before.
+  const cutKey = primaryKey.startsWith("webfont:") || primaryKey.startsWith("localalias:")
+    ? primaryKey
+    : resolveEffectiveCutKey(primaryKey, weight, slant, stretch).key;
+  const spec = resolveFontSpec(cutKey) ?? resolveFontSpec(primaryKey);
+  const base = (spec?.postscriptName == null || spec.postscriptName === "")
+    ? { name: "Helvetica" }
+    : { name: spec.postscriptName, path: spec.path };
+  fallbackBaseCache.set(cacheKey, base);
+  return base;
 }
 
 /** `kColorEmojiFontMac[]` — `mac/font_cache_mac.mm:288`. The STANDARD face, not
@@ -1733,12 +1767,12 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean 
  */
 export function warmSystemFallbackForCodepoints(
   cps: number[], weight = 400, slant = 0, fontSize = 16,
-  primaryKey?: string, systemUiPrimary = false,
+  primaryKey?: string, systemUiPrimary = false, stretch = 100,
 ): void {
   if (cps.length === 0 || !_systemFallbackResolutionEnabled) return;
   try {
     if (process.platform === "darwin") {
-      const base = fallbackBaseFor(primaryKey);
+      const base = fallbackBaseFor(primaryKey, weight, slant, stretch);
       resolveSystemFallbackFonts(cps, base.name, {
         weight, italic: slant !== 0, fontSize, basePath: base.path,
         ...(systemUiPrimary && _systemUiBaseEnabled ? { systemUi: true } : {}),
@@ -1765,9 +1799,13 @@ function resolveSystemFallbackKeyForCp(
   // without it produces a face that is wrong in a way that reads as a
   // font-inventory problem rather than a dropped argument.
   lang?: string,
+  /** CSS `font-stretch` as a percentage (100 = `normal`). Only reaches the
+   *  cascade BASE — it selects which cut of the primary family the substitute is
+   *  asked from, the same way weight and slant do. */
+  stretch: number = 100,
 ): string | null {
   const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
-  const base = fallbackBaseFor(primaryKey);
+  const base = fallbackBaseFor(primaryKey, weight, slant, stretch);
   // The base joins the cache key for the same reason the CSS description does:
   // the answer is a function of the font you ask FROM, so a base-blind key would
   // serve whichever base asked first to every later caller (the a72e557 lesson).
@@ -2650,8 +2688,11 @@ const DARWIN_DECLARED_FAMILY_KEYS: ReadonlySet<string> = new Set([
  */
 const declaredFamilyForKey = new Map<string, string>();
 
-/** Memo for `darwinPrimaryCutKey`, keyed on the key AND the style it answers
- *  for — a style-blind key would serve whichever weight asked first. */
+/** Memo for `darwinPrimaryCutKey`, keyed on the key AND the full style it
+ *  answers for — weight, italic and width. A style-blind key would serve
+ *  whichever weight asked first; a width-blind one would serve a normal-width
+ *  answer to a `font-stretch: condensed` run, which is the same defect one
+ *  axis over. */
 const darwinPrimaryCutCache = new Map<string, { key: string; italic: boolean } | null>();
 
 /**
@@ -2716,14 +2757,14 @@ function darwinCoreTextFamilyForKey(key: string): string | null {
  * cannot be opened. A host without the built binary must still get a face.
  */
 function darwinPrimaryCutKey(
-  key: string, weight: number, slant: number,
+  key: string, weight: number, slant: number, stretch: number = 100,
 ): { key: string; italic: boolean } | null {
   if (process.platform !== "darwin" || !isGlyphHelperAvailable()) return null;
   const declaredFamily = declaredFamilyForKey.get(key);
   if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
 
   const italicRequested = slant !== 0;
-  const cacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}`;
+  const cacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
   const cached = darwinPrimaryCutCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -2731,7 +2772,7 @@ function darwinPrimaryCutKey(
   try {
     const family = declaredFamily ?? darwinCoreTextFamilyForKey(key);
     if (family != null) {
-      const match = resolveFamilyStyleMatch(family, { weight, italic: italicRequested });
+      const match = resolveFamilyStyleMatch(family, { weight, italic: italicRequested, stretch });
       const base = resolveFontSpec(key)?.postscriptName;
       if (match != null && match.postscriptName !== base) {
         const installed = resolveInstalledFont(match.postscriptName);
@@ -3761,25 +3802,31 @@ export function hiraginoWeightCut(weight: number): string | null {
   return best?.key ?? null;
 }
 
-export function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
-  // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
-  // registry rather than the on-disk FONT_PATHS table.
-  if (key.startsWith("webfont:")) {
-    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings);
-  }
-  // `localalias:<family>` — the family was declared via @font-face local() and
-  // we tracked one or more declared (weight, italic) variants pointing at base
-  // FONT_PATHS keys. Pick the closest declared variant and use ITS weight /
-  // italic to drive the sibling-file selection below — NOT the requested
-  // weight/italic — so Chrome's "no bold-italic declared → use italic 400"
-  // behavior is preserved instead of silently substituting the on-disk
-  // bold-italic sibling. DM-360.
-  if (key.startsWith("localalias:")) {
-    const family = key.slice("localalias:".length);
-    const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
-    if (variant == null) return null;
-    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0, variationSettings);
-  }
+/**
+ * The CUT of `key` a run at this CSS style opens — the `FONT_PATHS` key of the
+ * actual face, not of the family's base entry.
+ *
+ * Split out of `getFontInstance` because two callers need the same answer and
+ * only one of them wants a `FontInstance`. The other is the per-codepoint
+ * fallback's cascade BASE: Blink asks CoreText for a substitute from
+ * `font_data_to_substitute->PlatformData()` — the face the run is actually
+ * painting in — and the cascade it hands back depends on that face (measured:
+ * `CTFontCreateForString` from Times-Roman nominates STSongti-SC-Regular, from
+ * Times-Bold it nominates STSongti-SC-Bold). Asking from the family's base entry
+ * therefore asks a different question than Chrome asks, and the difference is
+ * not recoverable downstream: the in-family re-selection that follows keeps the
+ * nominated face whenever the better-matching one does not cover the character,
+ * so a wrong nomination survives to paint.
+ *
+ * Returns the resolved key plus whether the slant request was satisfied by a
+ * real italic / oblique face rather than left to synthetic shear.
+ *
+ * Webfont and `localalias:` keys are NOT handled here — they resolve through
+ * their own registries in `getFontInstance` and never reach this.
+ */
+function resolveEffectiveCutKey(
+  key: string, weight: number, slant: number, stretch: number,
+): { key: string; routedItalicCut: boolean } {
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
   // requests at the spec level instead of trying to drive an axis. Fallback
@@ -3859,12 +3906,6 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       && weight >= 600) {
     effectiveKey = `${key}-bold`;
   }
-  // DM-578: include author-set variation settings in the cache key so two
-  // elements requesting the same (key, weight, size, slant) but with different
-  // axis overrides don't share a single cached instance.
-  const fvsKey = variationSettings != null
-    ? Object.keys(variationSettings).sort().map((t) => `${t}=${variationSettings[t]}`).join(",")
-    : "";
   // DM-1881: on Windows, resolve the CUT by asking DirectWrite for the family at
   // the requested style, instead of picking a file out of `WIN32_FONT_PATHS`.
   //
@@ -3902,14 +3943,55 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // routing rather than composing with it (composing would re-weight an
   // already-re-weighted face). Null leaves the two-slot result standing, which
   // is the degradation contract for a host with no helper binary.
-  const darwinCut = darwinPrimaryCutKey(key, weight, slant);
+  const darwinCut = darwinPrimaryCutKey(key, weight, slant, stretch);
   if (darwinCut != null) {
     effectiveKey = darwinCut.key;
     // A matched face carrying CoreText's italic trait satisfies the slant with
     // a real cut; without it the renderer would shear an already-italic face.
     routedItalicCut = slant !== 0 && darwinCut.italic;
   }
+  return { key: effectiveKey, routedItalicCut };
+}
 
+/**
+ * @param stretch CSS `font-stretch` as a percentage, 100 = `normal`. Reaches the
+ *   macOS declared-family style matcher, where Blink turns it into the condensed
+ *   / expanded symbolic trait it scores candidates on.
+ */
+export function getFontInstance(
+  key: string, weight: number, fontSize: number, slant: number = 0,
+  variationSettings?: Record<string, number>, stretch: number = 100,
+): FontInstance | null {
+  // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
+  // registry rather than the on-disk FONT_PATHS table.
+  if (key.startsWith("webfont:")) {
+    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings);
+  }
+  // `localalias:<family>` — the family was declared via @font-face local() and
+  // we tracked one or more declared (weight, italic) variants pointing at base
+  // FONT_PATHS keys. Pick the closest declared variant and use ITS weight /
+  // italic to drive the sibling-file selection below — NOT the requested
+  // weight/italic — so Chrome's "no bold-italic declared → use italic 400"
+  // behavior is preserved instead of silently substituting the on-disk
+  // bold-italic sibling. DM-360.
+  if (key.startsWith("localalias:")) {
+    const family = key.slice("localalias:".length);
+    const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
+    if (variant == null) return null;
+    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0, variationSettings, stretch);
+  }
+  const cut = resolveEffectiveCutKey(key, weight, slant, stretch);
+  const effectiveKey = cut.key;
+  const routedItalicCut = cut.routedItalicCut;
+
+  // DM-578: include author-set variation settings in the cache key so two
+  // elements requesting the same (key, weight, size, slant) but with different
+  // axis overrides don't share a single cached instance.
+  const fvsKey = variationSettings != null
+    ? Object.keys(variationSettings).sort().map((t) => `${t}=${variationSettings[t]}`).join(",")
+    : "";
+  // `effectiveKey` already carries the stretch decision (it IS the resolved
+  // cut), so the width does not need its own slot in the cache key.
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
@@ -5266,7 +5348,29 @@ export function opticalCutOpszFor(fontFamily: string): number | null {
   return null;
 }
 
-export function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
+/**
+ * Computed CSS `font-stretch` → the percentage the font matcher takes.
+ *
+ * Chrome always computes this property to a percentage — `condensed` serializes
+ * as `75%`, `ultra-expanded` as `200%` — so the keyword forms never reach here;
+ * anything unparseable reads as `normal` (100). 100 is `kNormalWidthValue`
+ * (`platform/fonts/font_selection_types.h:233`, Chromium rev 7d859f27), the
+ * value Blink's `ComputeDesiredTraits` compares against to decide whether the
+ * run wants a family's condensed cut, its expanded cut, or neither.
+ */
+export function stretchPercent(value: string | undefined): number {
+  if (value == null) return 100;
+  const m = /^\s*([\d.]+)%\s*$/.exec(value);
+  const n = m != null ? parseFloat(m[1]) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 100;
+}
+
+export function resolveFont(
+  fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0,
+  variationSettings?: Record<string, number>,
+  /** CSS `font-stretch` as a percentage, 100 = `normal`. */
+  stretch: number = 100,
+): FontInstance | null {
   // DM-1103: pin `opsz` for an explicitly-named optical cut (e.g. "SF Pro
   // Text" → 17) by injecting it as a variation setting — which wins over the
   // `opsz = fontSize` default in `applyVariationAxes`. An author-set
@@ -5275,7 +5379,7 @@ export function resolveFont(fontFamily: string, fontWeight: number, fontSize: nu
   if (cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)) {
     variationSettings = { ...(variationSettings ?? {}), opsz: cutOpsz };
   }
-  return getFontInstance(resolveFontKey(fontFamily), fontWeight, fontSize, slant, variationSettings);
+  return getFontInstance(resolveFontKey(fontFamily), fontWeight, fontSize, slant, variationSettings, stretch);
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──
@@ -5388,6 +5492,8 @@ export function clearFontResolutionCaches(): void {
   resolvedSpecCache.clear();
   systemFallbackKeyCache.clear();
   fallbackFamilyCutCache.clear();
+  fallbackBaseCache.clear();
+  darwinPrimaryCutCache.clear();
   helperFontCache.clear();
   helperOutlineCache.clear();
   fileFaceInfoCache.clear();
@@ -5813,10 +5919,13 @@ export function resolveFontForCodepoint(
   lang: string | undefined,
   fontKeyChain: string[],
   systemUiPrimary: boolean = false,
+  /** CSS `font-stretch` as a percentage (100 = `normal`). Reaches the cascade
+   *  base, which Blink takes from the face the run is actually painting in. */
+  stretch: number = 100,
 ): FontResolution {
   return harfbuzzShapedScriptOverride(
     cp,
-    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary),
+    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch),
     primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings,
   );
 }
@@ -5835,6 +5944,7 @@ function resolveFontForCodepointInner(
    *  named family. Both land on the `sf-pro` key, so the key cannot carry this;
    *  see `stackPrimaryIsSystemUi` for why it travels separately. */
   systemUiPrimary: boolean = false,
+  stretch: number = 100,
 ): FontResolution {
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
@@ -5998,7 +6108,7 @@ function resolveFontForCodepointInner(
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch);
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;

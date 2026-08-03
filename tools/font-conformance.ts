@@ -101,6 +101,7 @@ import {
   resolveFontKeyChain,
   resolveFontSpec,
   stackPrimaryIsSystemUi,
+  stretchPercent,
   warmSystemFallbackForCodepoints,
 } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
@@ -439,6 +440,8 @@ export interface ResolvedStack {
   primaryKey: string;
   primary: NonNullable<ReturnType<typeof getFontInstance>>;
   slant: number;
+  /** Computed `font-stretch` as a percentage, 100 = `normal`. */
+  stretch: number;
   /**
    * key → face, memoized for the life of this stack.
    *
@@ -495,10 +498,11 @@ export function prepareStack(spec: StackSpec): ResolvedStack | null {
     ...(authorAxes ?? {}),
   };
   const variations = Object.keys(merged).length > 0 ? merged : undefined;
-  const primary = getFontInstance(primaryKey, spec.fontWeight, spec.fontSize, slant, variations);
+  const stretch = stretchPercent(spec.fontStretch);
+  const primary = getFontInstance(primaryKey, spec.fontWeight, spec.fontSize, slant, variations, stretch);
   if (primary == null) return null;
   const rs: ResolvedStack = {
-    spec, chain, primaryKey, primary, slant,
+    spec, chain, primaryKey, primary, slant, stretch,
     faceCache: new Map(),
     // Placeholder — `faceFor` needs the stack, so the real donor is filled in
     // immediately below.
@@ -536,7 +540,7 @@ export function faceFor(rs: ResolvedStack, key: string, covered: boolean, overri
   if (hit !== undefined) return { key, path: hit.path, postscriptName: hit.postscriptName, covered };
 
   const materialize = (): FontInstance | null =>
-    key === rs.primaryKey ? rs.primary : getFontInstance(key, rs.spec.fontWeight, rs.spec.fontSize, rs.slant);
+    key === rs.primaryKey ? rs.primary : getFontInstance(key, rs.spec.fontWeight, rs.spec.fontSize, rs.slant, undefined, rs.stretch);
   let inst = override ?? materialize();
   let src = getFontSourceInfo(inst);
   // An override with no identity of its own (a synthetic shaping wrapper) tells
@@ -574,6 +578,7 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
     // measure a different code path than the one that paints — the exact
     // instrument defect this tool was corrected for once already.
     stackPrimaryIsSystemUi(rs.spec.fontFamily),
+    rs.stretch,
   );
   // An uncovered codepoint has no resolved face of its own — the renderer draws
   // the run primary's `.notdef`, so THAT is the face to compare against Chrome.

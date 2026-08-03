@@ -256,7 +256,11 @@ interface HelperRequest {
     // (`platform/fonts/mac/font_matcher_mac.mm`, Chromium rev 7d859f27). This
     // is the step that picks WHICH CUT of a declared family a run opens; the
     // `family` query above is name resolution and does not run it.
-    | { type: "familyMatch"; family: string; cssWeight?: number; italic?: boolean; bold?: boolean }
+    | { type: "familyMatch"; family: string; cssWeight?: number; italic?: boolean; bold?: boolean;
+        /** CSS `font-stretch` as a percentage (100 = `normal`). The helper turns
+         *  it into the condensed / expanded symbolic trait the way Blink's
+         *  `ComputeDesiredTraits` does. Absent = 100, i.e. the previous behavior. */
+        cssWidth?: number }
     | { type: "shape"; fontRef: string; text: string }
     // DM-1886 (Linux): per-codepoint fallback via fontconfig sort-and-walk.
     | { type: "fcfallback"; lang: string; cps: number[] }
@@ -1676,23 +1680,33 @@ const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
  * the family has no AppKit members — in every case the caller must keep the
  * selection it already had.
  *
- * The cache key carries the family AND the style, because the answer is a
- * function of both: a style-blind key would serve whichever weight asked first
- * to every later caller, which is exactly the defect this call exists to fix.
+ * The cache key carries the family AND the style — weight, italic and WIDTH,
+ * because the answer is a function of all three: a style-blind key would serve
+ * whichever weight asked first to every later caller, which is exactly the
+ * defect this call exists to fix.
  */
 export function resolveFamilyStyleMatch(
-  family: string, style?: { weight?: number; italic?: boolean },
+  family: string, style?: { weight?: number; italic?: boolean; stretch?: number },
 ): FamilyStyleMatch | null {
   if (process.platform !== "darwin" || family === "") return null;
   const weight = style?.weight ?? 400;
   const italic = style?.italic === true;
-  const key = `${family.toLowerCase()}|${weight}|${italic ? 1 : 0}`;
+  // CSS `font-stretch` as a percentage, 100 = `normal`. It reaches the helper as
+  // `cssWidth` and lands in Blink's `ComputeDesiredTraits`
+  // (`mac/font_matcher_mac.mm:185-202`, rev 7d859f27), which turns any width
+  // below 100 into the condensed symbolic trait and any width above it into the
+  // expanded one. `BetterChoiceCT` compares condensed before either of its other
+  // two masks, so this is the FIRST thing the comparator looks at — a stack
+  // asking for a condensed face and a matcher that never hears about it do not
+  // disagree slightly, they disagree about which cut of the family to open.
+  const stretch = style?.stretch ?? 100;
+  const key = `${family.toLowerCase()}|${weight}|${italic ? 1 : 0}|${stretch}`;
   const cached = _familyStyleMatchCache.get(key);
   if (cached !== undefined) return cached;
   let resolved: FamilyStyleMatch | null = null;
   if (isGlyphHelperAvailable()) {
     try {
-      const resp = callHelper({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight: weight, italic }] });
+      const resp = callHelper({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }] });
       const r = resp.results[0];
       if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
         const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
