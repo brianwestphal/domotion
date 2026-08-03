@@ -55,9 +55,26 @@ describe("computeRunEnv", () => {
 
   it("keeps a numeric font count but nulls a non-numeric one", () => {
     expect(computeRunEnv({ fontInventory: { digest: "abc", count: 370 } }).fontInventory)
-      .toEqual({ digest: "abc", count: 370 });
+      .toEqual({ digest: "abc", count: 370, entries: null });
     expect(computeRunEnv({ fontInventory: { digest: "abc", count: "370" as unknown as number } }).fontInventory)
-      .toEqual({ digest: "abc", count: null });
+      .toEqual({ digest: "abc", count: null, entries: null });
+  });
+
+  it("carries the font list, not just its digest", () => {
+    // The digest says the font set CHANGED; only the list says what is in it.
+    // Investigating a fixture that flipped between two faces stalled precisely
+    // here — the recorded inventory could not answer "does this runner even
+    // have the face that would produce that glyph", so the only way to find out
+    // was to spend another CI run.
+    const inv = computeRunEnv({ fontInventory: { digest: "abc", count: 2, entries: ["Helvetica.ttc", "SFNS.ttf"] } }).fontInventory;
+    expect(inv).toEqual({ digest: "abc", count: 2, entries: ["Helvetica.ttc", "SFNS.ttf"] });
+  });
+
+  it("nulls a non-array entries rather than coercing it", () => {
+    // Same convention as every other field: absent reads as "cannot tell".
+    // A record written before this field existed must not read as "no fonts".
+    expect(computeRunEnv({ fontInventory: { digest: "abc", count: 1, entries: "Helvetica.ttc" as unknown as string[] } }).fontInventory?.entries)
+      .toBeNull();
   });
 });
 

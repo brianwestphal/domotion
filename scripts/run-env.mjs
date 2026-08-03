@@ -26,9 +26,13 @@
 //   imageVersion   GitHub's image build id. Moves on every image rotation,
 //                  including ones that change nothing we care about.
 //   osRelease      the kernel version. What caught this case.
-//   fontInventory  the digest of the installed font set — the SEMANTIC ground
-//                  truth, since font selection is what a sweep measures. An
-//                  image rotation that leaves fonts alone keeps this stable.
+//   fontInventory  the installed font set — the SEMANTIC ground truth, since
+//                  font selection is what a sweep measures. An image rotation
+//                  that leaves fonts alone keeps the digest stable. The full
+//                  `entries` list rides along beside the digest: the digest
+//                  detects a change, the list EXPLAINS one, and only the list
+//                  can answer "does this runner even have the face that would
+//                  produce this glyph" after the fact.
 //
 // `image` is carried through unchanged from `record-runner-image.mjs` so the
 // existing `meta.image` contract — and every committed baseline keyed on it —
@@ -50,7 +54,7 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
  * @property {string|null} platform
  * @property {string|null} arch
  * @property {string|null} node
- * @property {{digest: string|null, count: number|null}|null} fontInventory
+ * @property {{digest: string|null, count: number|null, entries: string[]|null}|null} fontInventory
  */
 
 /**
@@ -63,7 +67,7 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
  *
  * @param {{image?: string|null, imageVersion?: string|null, osRelease?: string|null,
  *          platform?: string|null, arch?: string|null, node?: string|null,
- *          fontInventory?: {digest?: string|null, count?: number|null}|null}} [inputs]
+ *          fontInventory?: {digest?: string|null, count?: number|null, entries?: string[]|null}|null}} [inputs]
  * @returns {RunEnv}
  */
 export function computeRunEnv(inputs = {}) {
@@ -82,6 +86,9 @@ export function computeRunEnv(inputs = {}) {
     fontInventory: inv == null ? null : {
       digest: str(inv.digest),
       count: typeof inv.count === "number" ? inv.count : null,
+      // Absent on records written before this field existed; `null` reads as
+      // "cannot tell", the same convention as every other field here.
+      entries: Array.isArray(inv.entries) ? inv.entries.map((e) => String(e)) : null,
     },
   };
 }
@@ -176,7 +183,10 @@ export function mergeShardEnvs(entries) {
   assign("node", (e) => e?.node, (v) => { combined.node = v; });
   assign("font inventory digest", (e) => e?.fontInventory?.digest, (v) => {
     const counts = present.map((e) => e.env?.fontInventory?.count).filter((c) => typeof c === "number");
-    combined.fontInventory = { digest: v, count: counts.length > 0 ? counts[0] : null };
+    // Shards that agree on the digest agree on the list by construction, so the
+    // first non-null entries list stands for the run.
+    const entries = present.map((e) => e.env?.fontInventory?.entries).find((x) => Array.isArray(x)) ?? null;
+    combined.fontInventory = { digest: v, count: counts.length > 0 ? counts[0] : null, entries };
   });
 
   return { combined, heterogeneous: conflicts.length > 0, conflicts };
@@ -206,7 +216,13 @@ export function captureRunEnv({ withInventory = true } = {}) {
     // inventory degrades this field to "cannot tell", which the comparators skip.
     try {
       const doc = inventoryDocument();
-      fontInventory = { digest: doc.digest, count: doc.count };
+      // `entries` rides along, not just the digest. A digest answers "did the
+      // font set change"; it cannot answer "does this runner HAVE the face that
+      // would explain this glyph", which is the question a post-hoc
+      // investigation actually asks — and the one that stalled an investigation
+      // into a fixture flipping between two faces, because the only recourse
+      // was to re-run CI to find out what was installed.
+      fontInventory = { digest: doc.digest, count: doc.count, entries: doc.entries };
     } catch { /* leave null */ }
   }
   return computeRunEnv({

@@ -1144,6 +1144,15 @@ interface TestResult {
    *  distance between them changed. */
   expectedDigest?: string;
   actualDigest?: string;
+  /** The faces CHROME actually painted this fixture with, `PostScriptName:glyphCount`,
+   *  sorted. Recorded because a pixel digest can only say the reference moved, never
+   *  WHY — and the why here is almost always "Chrome picked a different face". Two
+   *  runs of one commit have been seen to disagree on three fixtures while every
+   *  recorded environment field was byte-identical, and answering that needed a
+   *  fresh CI run purely to learn which face was involved. This makes the answer
+   *  fall out of the artifact instead. Absent on records written before this
+   *  existed, and on cache hits (no page was rendered to ask). */
+  chromeFaces?: string[];
   /** Worst tile's fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   worstTileSignificantPct: number;
   /** Rect of the worst tile (x, y, w, h) in the image. */
@@ -1261,6 +1270,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let worstTilePct = 100;
   let expectedDigest: string | undefined;
   let actualDigest: string | undefined;
+  let chromeFaces: string[] | undefined;
   let worstTileSignificantPct = 100;
   let worstTileRect: { x: number; y: number; w: number; h: number } | undefined;
   let regionCount = Number.MAX_SAFE_INTEGER;
@@ -1396,6 +1406,23 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
       timer.mark("screenshot-expected");
 
+      // Ask Chrome which faces it just painted with. One CDP round-trip on
+      // <body>, which reports the faces used across the whole subtree.
+      // Best-effort: this is diagnostic, and must never fail a sweep.
+      try {
+        const session = await w.page.context().newCDPSession(w.page);
+        await session.send("DOM.enable");
+        await session.send("CSS.enable");
+        const { root } = await session.send("DOM.getDocument", { depth: 1 });
+        const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: "body" });
+        const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+        chromeFaces = fonts
+          .map((f) => `${f.postScriptName ?? f.familyName}:${f.glyphCount}`)
+          .sort((a, b) => a.localeCompare(b));
+        await session.detach().catch(() => {});
+      } catch { /* diagnostic only */ }
+      timer.mark("chrome-faces");
+
       // Pick up any @font-face rules — covers both url(...) downloads and
       // local(...) aliases (DM-303). Without this, fixtures using
       // `font-family: "MyFamily"` declared via @font-face render in the
@@ -1513,6 +1540,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     worstTilePct,
     expectedDigest,
     actualDigest,
+    chromeFaces,
     worstTileSignificantPct,
     worstTileRect,
     regionCount,
