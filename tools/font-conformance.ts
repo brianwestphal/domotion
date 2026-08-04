@@ -86,6 +86,7 @@ function shardFontInventory(): { digest: string; count: number; source: string }
     return null; // diagnostic metadata must never fail a sweep
   }
 }
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -162,7 +163,70 @@ export interface StackSpec {
   example: string;
 }
 
+/** Bumped only when the digest's INPUTS change — see `harvestedCorpusIdentity`. */
+const HARVEST_IDENTITY_VERSION = 1;
+
+/**
+ * The corpus's identity, in the field the baseline comparator keys on.
+ *
+ * This used to be a wall-clock `generatedAt`, on the reasoning that re-extracting
+ * can genuinely produce a different corpus and the comparator must refuse to
+ * compare across that. The reasoning is right; the timestamp is a bad proxy for
+ * it. A timestamp moves on EVERY re-extraction, including one that produces a
+ * byte-identical corpus — so a routine re-extract silently withheld the gate on
+ * all three platforms until someone spent three CI sweeps re-seeding baselines
+ * that were never actually stale.
+ *
+ * So the identity is a digest of the QUESTIONS the corpus asks, mirroring what
+ * `font-conformance-synthetic-stacks.ts` already does for the rule-derived
+ * corpus. Two properties are deliberately excluded from it:
+ *
+ *   - `fixtures`, the count of corpus files using a stack. Adding a fixture that
+ *     uses an existing stack changes no question the sweep asks.
+ *   - `example`, which fixture is cited for reproduction. Pure provenance.
+ *
+ * and the keys are sorted independently of the corpus's own ordering, which is
+ * by fixture count and therefore moves when those counts do. Without that sort
+ * a single new fixture would reorder the array and change the digest — exactly
+ * the false invalidation this replaces.
+ *
+ * What still moves it, correctly: a stack appearing or disappearing, or any
+ * property of one changing. That is the discrimination the comparator wants.
+ *
+ * The PLATFORM is in the digest too, and that is deliberate rather than
+ * defensive bookkeeping. Measured after this landed: the Linux and Windows
+ * corpora harvest a byte-identical question set (both compute
+ * `"Times New Roman"` where macOS computes `Times`), so without the platform
+ * they would share an identity. They are still not interchangeable — the same
+ * question gets a different answer on each — and the comparator's other guards
+ * (runner image, font-inventory digest) do separate them today. But those are
+ * both skipped when either side omits the field, which an older baseline does,
+ * leaving the corpus identity as the only discriminator in exactly the case
+ * where it would wrongly match. Folding the platform in removes the
+ * dependency instead of relying on it.
+ */
+export function harvestedCorpusIdentity(stacks: StackSpec[], platform: string = process.platform): string {
+  const questions = stacks
+    .map((s) => JSON.stringify([
+      s.fontFamily, s.fontSize, s.fontWeight, s.fontStyle,
+      s.fontStretch ?? "", s.fontVariationSettings ?? "", s.fontFeatureSettings ?? "",
+    ]))
+    .sort();
+  const h = createHash("sha256")
+    .update(`harvested-stacks/v${HARVEST_IDENTITY_VERSION}\n`)
+    .update(`${platform}\n`)
+    .update(JSON.stringify(questions))
+    .digest("hex")
+    .slice(0, 16);
+  return `harvested:v${HARVEST_IDENTITY_VERSION}:${h}`;
+}
+
 interface StackCorpus {
+  /**
+   * A digest of the stacks, NOT a timestamp. See `harvestedCorpusIdentity`.
+   * Older corpus files carry an ISO timestamp here; both compare by equality,
+   * so a pre-digest baseline simply stays incomparable until re-seeded once.
+   */
   generatedAt: string;
   /**
    * The platform the corpus was extracted on. Load-bearing, not bookkeeping:
@@ -853,7 +917,9 @@ async function extractStacks(browser: Browser, dirs: string[], outFile: string):
     .map((v) => ({ ...v.spec, fixtures: v.fixtures, example: v.example }))
     .sort((a, b) => b.fixtures - a.fixtures || a.fontFamily.localeCompare(b.fontFamily));
   const corpus: StackCorpus = {
-    generatedAt: new Date().toISOString(),
+    // A digest of the stacks, not the wall clock: re-extracting a corpus that
+    // asks the same questions must stay comparable to its baseline.
+    generatedAt: harvestedCorpusIdentity(stacks),
     platform: process.platform,
     sources: dirs,
     stacks,

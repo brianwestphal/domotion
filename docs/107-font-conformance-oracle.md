@@ -517,9 +517,24 @@ These are the numbers `tests/baselines/font-conformance-<os>.json` records and t
 
 **They are first baselines, not achievements.** Two of the three platforms had never been measured at all before this run, and none of the three is anywhere near agreement. The value of writing them down is not that they are good — it is that a later change now has something definite to be worse than, and that the numbers immediately named a specific defect nobody knew about.
 
-> **All three are currently awaiting a re-seed, and the comparator will say so rather than judge.** Adding `font-feature-settings` to the extraction key required re-extracting all three corpora, which moved each corpus's `generatedAt` — a field `comparability()` checks. Until each platform's baseline is re-seeded from a fresh CI sweep (`.github/workflows/font-conformance.yml`, then `scripts/diff-font-conformance-baseline.mjs --update-baseline`), every run withholds its verdict and names `stack corpus generatedAt` as the field that moved.
+> **All three are currently awaiting one re-seed, and the comparator will say so rather than judge.** Adding `font-feature-settings` to the extraction key required re-extracting all three corpora, which moved each corpus's identity — a field `comparability()` checks. Until each platform's baseline is re-seeded from a fresh CI sweep (`.github/workflows/font-conformance.yml`, then `scripts/diff-font-conformance-baseline.mjs --update-baseline`), every run withholds its verdict and names `stack corpus generatedAt` as the field that moved.
 >
-> This is the intended behavior, not a break: the corpus genuinely changed (434 → 442 stacks). It is worth knowing that the change is *smaller* than the refusal implies — the six canonical baseline stacks are untouched and their `byStack` keys are byte-identical, because the stack label only grows when the new property is non-normal. The refusal is the comparator being unable to prove that from a timestamp, which is the correct trade for a harvested corpus. Re-seeding must happen on each platform's own runner; see [the section above](#the-corpus-is-a-function-of-the-platform-not-of-the-machine--measured) for why re-*extraction* may be done off-CI but re-*seeding* may not.
+> This is the intended behavior, not a break: the corpus genuinely changed (434 → 442 stacks). It is worth knowing that the change is *smaller* than the refusal implies — the six canonical baseline stacks are untouched and their `byStack` keys are byte-identical, because the stack label only grows when the new property is non-normal. Re-seeding must happen on each platform's own runner; see [the section above](#the-corpus-is-a-function-of-the-platform-not-of-the-machine--measured) for why re-*extraction* may be done off-CI but re-*seeding* may not.
+
+#### The harvested corpus's identity is a digest now, so this is the LAST such re-seed
+
+`generatedAt` used to be a wall-clock ISO timestamp. That withheld the gate on every re-extraction, including one that produced a byte-identical corpus — and it is what turned the change above into three CI sweeps' worth of re-seeding for a corpus whose swept questions had barely moved.
+
+It is now `harvested:v1:<sha256-16>`, mirroring what the synthetic corpus already did. `harvestedCorpusIdentity()` digests **the questions and the platform**, and deliberately excludes two things:
+
+- `fixtures`, how many corpus files use a stack. A new fixture that uses an existing stack asks nothing new.
+- `example`, which fixture is cited for reproduction. Pure provenance.
+
+The keys are sorted before digesting, independently of the corpus's own ordering — which is by fixture count, and therefore *does* move when those counts do. Without that sort a single added fixture would permute the array and move the identity for a corpus asking an identical question set, which is the false invalidation this replaces.
+
+The platform is in the digest for a measured reason rather than a defensive one: the Linux and Windows corpora harvest a **byte-identical question set** (both compute `"Times New Roman"` where macOS computes `Times`), so without it they would share an identity. They are not interchangeable — the same question gets a different answer on each. The comparator's runner-image and font-inventory checks do separate them today, but both are skipped when either side omits the field, which an older baseline does; that is exactly the case where the corpus identity would be the only discriminator left. Folding the platform in removes the dependency rather than relying on it.
+
+What still moves the identity, correctly: a stack appearing or disappearing, or any of its seven matched properties changing. Pinned in `tests/harvested-corpus-identity.test.ts` in both directions, including that each committed corpus's stored identity recomputes from its own stacks — which catches a hand-edited or stale-extractor corpus that would otherwise let the comparator compare two different question sets.
 
 | | macOS | Linux | Windows |
 | --- | ---: | ---: | ---: |
