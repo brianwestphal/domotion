@@ -73,6 +73,19 @@ export interface RunSpec {
    * parses; the extractor always writes it.
    */
   fontVariationSettings?: string;
+  /**
+   * Computed `font-stretch` — always a percentage string out of Chrome
+   * (`"100%"` = normal). Part of the run's identity for the same reason the
+   * axis location is: on the macOS `system-ui` face the width IS the variable
+   * `wdth` axis (133.52px at 50% to 272.70px at 200% for one 26px run —
+   * measured while the renderer still dropped the property), and on a declared
+   * family it selects the condensed / expanded cut.
+   *
+   * Optional on read so a corpus file written before this field existed still
+   * parses (absent = `"100%"`, which is what every pre-existing run computed
+   * to); the extractor always writes it.
+   */
+  fontStretch?: string;
   fixtures: number;
   example: string;
 }
@@ -177,6 +190,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
       for (const el of Array.from(document.querySelectorAll("*"))) {
         const cs = getComputedStyle(el as Element);
         const fvs = cs.fontVariationSettings === "" ? "normal" : cs.fontVariationSettings;
+        const stretch = cs.fontStretch === "" ? "100%" : cs.fontStretch;
         for (const node of Array.from(el.childNodes)) {
           if (node.nodeType !== 3) continue;
           const raw = (node.textContent ?? "").trim();
@@ -214,6 +228,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
               fontWeight: parseInt(cs.fontWeight, 10) || 400,
               fontStyle: cs.fontStyle,
               fontVariationSettings: fvs,
+              fontStretch: stretch,
             }));
           }
         }
@@ -254,6 +269,12 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
       // question than the corpus asked.
       + `${s.fontVariationSettings != null && s.fontVariationSettings !== "normal"
         ? `;font-variation-settings:${esc(s.fontVariationSettings)}` : ""}`
+      // Re-declare the run's width for the same reason as the axis location
+      // above: on the macOS system-ui face `font-stretch` drives the `wdth`
+      // variation, so a probe page that omits it paints the default width
+      // where the fixture painted a condensed / expanded one.
+      + `${s.fontStretch != null && s.fontStretch !== "100%"
+        ? `;font-stretch:${esc(s.fontStretch)}` : ""}`
       + `">${esc(s.text)}</div>`).join("")
   }</body></html>`;
   await page.setContent(html, { waitUntil: "load" });
@@ -314,16 +335,15 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
  * question than the renderer asks (`resolveFontSpec` vs `getFontInstance`).
  */
 export function ourShaping(spec: RunSpec): OurShaping {
-  const svg = renderTextAsPath(
-    spec.text, 0, spec.fontSize * 2, spec.fontSize, spec.fontFamily,
-    String(spec.fontWeight), "#000", undefined, undefined, undefined, spec.fontStyle,
-    // ascentOverride, features, lang — not modeled by the corpus — then the
-    // run's axis location, parsed with the SAME function the renderer uses on a
-    // real capture (`src/render/text.ts`), so the oracle exercises the shipped
-    // parse rather than a second one that could drift from it.
-    undefined, undefined, undefined,
-    parseFontVariationSettings(spec.fontVariationSettings),
-  );
+  const svg = renderTextAsPath(spec.text, 0, spec.fontSize * 2, {
+    fontSize: spec.fontSize, fontFamily: spec.fontFamily,
+    fontWeight: String(spec.fontWeight), fill: "#000", fontStyle: spec.fontStyle,
+    // The run's axis location, parsed with the SAME function the renderer uses
+    // on a real capture (`src/render/text.ts`), so the oracle exercises the
+    // shipped parse rather than a second one that could drift from it.
+    variationSettings: parseFontVariationSettings(spec.fontVariationSettings),
+    fontStretch: spec.fontStretch,
+  });
   if (svg == null) return { glyphCount: 0, xs: [], ok: false };
   // EVERY `<text>` element, not the first: a run spanning more than one font
   // emits one element per font (`font-family="dmf0"`, `dmf1`, …). Reading only

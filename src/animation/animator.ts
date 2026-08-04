@@ -1915,7 +1915,8 @@ function typedGlyphMarkup(
 ): string | null {
   if (text === "") return null;
   return withRenderTextMode("paths", () =>
-    renderTextAsPath(text, x, baselineY, fontSize, fontFamily, "400", color, undefined, undefined, xOffsets, undefined, 0));
+    renderTextAsPath(text, x, baselineY,
+      { fontSize, fontFamily, fontWeight: "400", fill: color, xOffsets, ascentOverride: 0 }));
 }
 
 /**

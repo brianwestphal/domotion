@@ -17,13 +17,13 @@ vi.mock("./text-to-path.js", () => ({
 // Imported AFTER the mock is registered (vi.mock is hoisted, so this is fine).
 const { renderVerticalSegments, renderVerticalEmphasisMarks } = await import("./vertical-text.js");
 
-// renderTextAsPath positional arg indices under test.
+// renderTextAsPath args under test: (text, x, y, options).
 const ARG_TEXT = 0;
 const ARG_X = 1;
 const ARG_Y = 2;
-const ARG_XOFFSETS = 9;
-const ARG_ASCENT_OVERRIDE = 11;
-const ARG_FEATURES = 12;
+const ARG_OPTIONS = 3;
+type StubOptions = { xOffsets?: number[]; ascentOverride?: number; features?: string[] };
+const optionsOf = (c: unknown[]): StubOptions => c[ARG_OPTIONS] as StubOptions;
 
 function makeElement(): CapturedElement {
   // One rotated Latin char ("E") followed by one upright kana ("と") in a
@@ -72,7 +72,7 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     // y=fontSize with no override, so the font ascent was added on top and
     // the post-rotation glyph drifted ~14 px horizontally.
     expect(rotated![ARG_Y]).toBe(0);
-    expect(rotated![ARG_ASCENT_OVERRIDE]).toBe(18);
+    expect(optionsOf(rotated!).ascentOverride).toBe(18);
   });
 
   it("keeps the upright glyph baseline at charY + 0.85em (ascent not added again)", () => {
@@ -83,7 +83,7 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     // must be 0 so renderTextAsPath doesn't add the font ascent a second
     // time (which dropped every upright glyph ~0.85em below its cell).
     expect(upright![ARG_Y]).toBeCloseTo(62 + 0.85 * 18, 5);
-    expect(upright![ARG_ASCENT_OVERRIDE]).toBe(0);
+    expect(optionsOf(upright!).ascentOverride).toBe(0);
   });
 });
 
@@ -136,9 +136,9 @@ describe("renderVerticalSegments — tate-chu-yoko combine (DM-1032)", () => {
     // font ascent isn't added a second time (same invariant as the per-char
     // upright path).
     expect(c[ARG_Y]).toBeCloseTo(50 + 0.85 * 18, 5);
-    expect(c[ARG_ASCENT_OVERRIDE]).toBe(0);
+    expect(optionsOf(c).ascentOverride).toBe(0);
     // Each glyph placed at its captured per-char x (Chrome's painted layout).
-    expect(c[ARG_XOFFSETS]).toEqual([0, 9.89]);
+    expect(optionsOf(c).xOffsets).toEqual([0, 9.89]);
   });
 });
 
@@ -191,9 +191,9 @@ describe("renderVerticalSegments — vertical-form punctuation (DM-1122)", () =>
     expect(kanji).toBeDefined();
     expect(period).toBeDefined();
     // 例 has no vertical form — default shaping, no features.
-    expect(kanji![ARG_FEATURES]).toBeUndefined();
+    expect(optionsOf(kanji!).features).toBeUndefined();
     // 。 substitutes its vertical-form glyph via `vert`.
-    expect(period![ARG_FEATURES]).toEqual(["vert"]);
+    expect(optionsOf(period!).features).toEqual(["vert"]);
   });
 
   it("anchors the punctuation em box to the column instead of ink-centering", () => {

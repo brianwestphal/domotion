@@ -611,22 +611,22 @@ describe("orphaned complex marks get a HarfBuzz dotted circle (DM-1215)", () => 
     return n;
   };
   it.skipIf(!HAVE_ADLAM)("inserts the ◌ for an orphaned Adlam mark (2 glyphs: ◌ + mark)", () => {
-    const out = renderTextAsPath("\u{1E944}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    const out = renderTextAsPath("\u{1E944}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(2); // HarfBuzz-inserted ◌ + the mark (fontkit alone → 1, no ◌)
   });
   it.skipIf(!HAVE_ADLAM)("shares ONE ◌ across an orphaned multi-mark cluster (3 glyphs: ◌ + 2 marks)", () => {
-    const out = renderTextAsPath("\u{1E944}\u{1E944}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    const out = renderTextAsPath("\u{1E944}\u{1E944}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(3);
   });
   it.skipIf(!HAVE_ADLAM)("does NOT insert a ◌ for a based Adlam letter + mark (no orphan → 2 glyphs)", () => {
-    const out = renderTextAsPath("\u{1E921}\u{1E944}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    const out = renderTextAsPath("\u{1E921}\u{1E944}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(2); // base + mark, NO inserted circle (would be 3 if mis-routed)
   });
   it.skipIf(!HAVE_ADLAM)("does NOT insert a ◌ for a bare Adlam base letter (1 glyph)", () => {
-    const out = renderTextAsPath("\u{1E921}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    const out = renderTextAsPath("\u{1E921}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(1);
   });
@@ -979,8 +979,8 @@ describe("renderTextAsPath: ascentOverride threading", () => {
   it.skipIf(!MACOS_FONTS)("uses ascentOverride verbatim for baselineY when provided", () => {
     const top = 100;
     const ascent = 30; // simulates Chrome's fontBoundingBoxAscent for fs=32 Helvetica bold
-    const out = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000",
-      undefined, undefined, undefined, undefined, ascent);
+    const out = renderTextAsPath("Hi", 0, top,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "700", fill: "#000", ascentOverride: ascent });
     expect(baselineY(out)).toBe(top + ascent);
   });
 
@@ -990,18 +990,18 @@ describe("renderTextAsPath: ascentOverride threading", () => {
     // depends on the resolved font; we just assert the answer is *different*
     // from a clearly-wrong override, so the test fails if both branches end
     // up using the same code.
-    const native = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000");
-    const overridden = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000",
-      undefined, undefined, undefined, undefined, 30);
+    const native = renderTextAsPath("Hi", 0, top, { fontSize: 32, fontFamily: "Helvetica", fontWeight: "700", fill: "#000" });
+    const overridden = renderTextAsPath("Hi", 0, top,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "700", fill: "#000", ascentOverride: 30 });
     expect(baselineY(native)).not.toBe(baselineY(overridden));
   });
 
   it.skipIf(!MACOS_FONTS)("scales the override correctly across font sizes", () => {
     // Same font, different sizes → override is applied verbatim, no extra math.
-    const a = renderTextAsPath("Hi", 0, 0, 14, "Helvetica", "400", "#000",
-      undefined, undefined, undefined, undefined, 13);
-    const b = renderTextAsPath("Hi", 0, 0, 50, "Helvetica", "400", "#000",
-      undefined, undefined, undefined, undefined, 47);
+    const a = renderTextAsPath("Hi", 0, 0,
+      { fontSize: 14, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", ascentOverride: 13 });
+    const b = renderTextAsPath("Hi", 0, 0,
+      { fontSize: 50, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", ascentOverride: 47 });
     expect(baselineY(a)).toBe(13);
     expect(baselineY(b)).toBe(47);
   });
@@ -1014,7 +1014,7 @@ describe("measureInkMetrics: MathML token ink positioning (DM-832)", () => {
   // tests lock the ink-metric helper the renderer now uses to split that box.
 
   it.skipIf(!MACOS_FONTS)("returns ink ascent/descent for an x-height letter", () => {
-    const ink = measureInkMetrics("x", 22, "math", "400");
+    const ink = measureInkMetrics("x", { fontSize: 22, fontFamily: "math", fontWeight: "400" });
     expect(ink).not.toBeNull();
     expect(ink!.inkAscent).toBeGreaterThan(0);
     // 'x' rests on the baseline — descent is ~0 (sub-px), ascent ≈ x-height.
@@ -1028,14 +1028,14 @@ describe("measureInkMetrics: MathML token ink positioning (DM-832)", () => {
     // path emitter uses and still return the fallback glyph's ink — the whole
     // point of the fix. A null here would drop the renderer back to the font
     // ascent and re-introduce the operator drift.
-    const ink = measureInkMetrics("∑", 22, "math", "400");
+    const ink = measureInkMetrics("∑", { fontSize: 22, fontFamily: "math", fontWeight: "400" });
     expect(ink).not.toBeNull();
     expect(ink!.inkAscent).toBeGreaterThan(0);
   });
 
   it.skipIf(!MACOS_FONTS)("gives a taller ink box to ∑ than to an x-height letter", () => {
-    const sum = measureInkMetrics("∑", 22, "math", "400")!;
-    const ex = measureInkMetrics("x", 22, "math", "400")!;
+    const sum = measureInkMetrics("∑", { fontSize: 22, fontFamily: "math", fontWeight: "400" })!;
+    const ex = measureInkMetrics("x", { fontSize: 22, fontFamily: "math", fontWeight: "400" })!;
     // ∑ spans well above and below the baseline; its total ink height must
     // exceed a lowercase x's. This is the signal that made the operator sit
     // ~5 px low under the old font-ascent baseline.
@@ -1045,14 +1045,14 @@ describe("measureInkMetrics: MathML token ink positioning (DM-832)", () => {
   it.skipIf(!MACOS_FONTS)("reports a real descent for a descender glyph", () => {
     // 'p' hangs below the baseline; 'o' does not. Descent ordering must hold
     // so the proportional baseline split places descenders correctly.
-    const p = measureInkMetrics("p", 22, "math", "400")!;
-    const o = measureInkMetrics("o", 22, "math", "400")!;
+    const p = measureInkMetrics("p", { fontSize: 22, fontFamily: "math", fontWeight: "400" })!;
+    const o = measureInkMetrics("o", { fontSize: 22, fontFamily: "math", fontWeight: "400" })!;
     expect(p.inkDescent).toBeGreaterThan(o.inkDescent);
   });
 
   it("returns null when nothing renders an outline", () => {
     // Whitespace shapes to a blank advance with no ink — no usable bbox.
-    expect(measureInkMetrics(" ", 22, "math", "400")).toBeNull();
+    expect(measureInkMetrics(" ", { fontSize: 22, fontFamily: "math", fontWeight: "400" })).toBeNull();
   });
 });
 
@@ -1115,7 +1115,7 @@ describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
   it.skipIf(!MACOS_FONTS)("emits a glyph <use> plus an overbar rect fitted to the box", () => {
     clearGlyphDefs();
     // x=261, top=680, height=22, width=24 — the √2 box from the fixture.
-    const out = renderRadicalGlyph(261, 680, 22, 24, 22, "math", "400", "rgb(0,0,0)");
+    const out = renderRadicalGlyph(261, 680, 22, 24, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)");
     expect(out).not.toBeNull();
     // The √ glyph is emitted as a <use> reference inside a scaled group.
     expect(out!).toContain("<use href=");
@@ -1128,12 +1128,12 @@ describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
   it.skipIf(!MACOS_FONTS)("omits the overbar when the radical box has no width past the glyph", () => {
     clearGlyphDefs();
     // A zero/degenerate width can't host a vinculum extension.
-    const out = renderRadicalGlyph(261, 680, 22, 0, 22, "math", "400", "rgb(0,0,0)");
+    const out = renderRadicalGlyph(261, 680, 22, 0, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)");
     expect(out).toBeNull(); // width <= 0 short-circuits
   });
 
   it("returns null for a non-positive box height", () => {
-    expect(renderRadicalGlyph(0, 0, 0, 20, 22, "math", "400", "rgb(0,0,0)")).toBeNull();
+    expect(renderRadicalGlyph(0, 0, 0, 20, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)")).toBeNull();
   });
 });
 
@@ -1914,7 +1914,7 @@ describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
   beforeEach(() => { clearGlyphDefs(); setRenderTextMode("paths"); });
 
   it("emits a glyph <use> scaled and translated into the captured box", () => {
-    const out = renderStretchyFenceGlyph("(", 10, 30, 20, 22, "sans-serif", "400", "rgb(0,0,0)");
+    const out = renderStretchyFenceGlyph("(", 10, 30, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "rgb(0,0,0)");
     // Skips when the host has no resolvable font for '(' — but every supported
     // platform's sans-serif covers it, so this should render here.
     expect(out).not.toBeNull();
@@ -1924,8 +1924,8 @@ describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
   });
 
   it("stretches vertically with the box height (taller box → larger |sy|) while x-scale stays natural", () => {
-    const short = renderStretchyFenceGlyph("(", 0, 0, 20, 22, "sans-serif", "400", "#000");
-    const tall = renderStretchyFenceGlyph("(", 0, 0, 60, 22, "sans-serif", "400", "#000");
+    const short = renderStretchyFenceGlyph("(", 0, 0, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000");
+    const tall = renderStretchyFenceGlyph("(", 0, 0, 60, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000");
     expect(short).not.toBeNull();
     expect(tall).not.toBeNull();
     const parse = (s: string) => {
@@ -1941,8 +1941,8 @@ describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
   });
 
   it("returns null for an empty or zero-height request (caller falls back to baseline text)", () => {
-    expect(renderStretchyFenceGlyph("", 0, 0, 20, 22, "sans-serif", "400", "#000")).toBeNull();
-    expect(renderStretchyFenceGlyph("(", 0, 0, 0, 22, "sans-serif", "400", "#000")).toBeNull();
+    expect(renderStretchyFenceGlyph("", 0, 0, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000")).toBeNull();
+    expect(renderStretchyFenceGlyph("(", 0, 0, 0, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000")).toBeNull();
   });
 });
 
@@ -1965,10 +1965,8 @@ describe("ligature handling with captured xOffsets (DM-287 / DM-331)", () => {
     // Spread chars at 8px each — exact values don't matter for this test, we
     // just need length === text.length so the ligature path activates.
     for (let i = 0; i < text.length; i++) xOffsets.push(i * 8);
-    const out = renderTextAsPath(
-      text, 0, 0, 16, "cursive", "400", "#000",
-      undefined, undefined, xOffsets,
-    );
+    const out = renderTextAsPath(text, 0, 0,
+      { fontSize: 16, fontFamily: "cursive", fontWeight: "400", fill: "#000", xOffsets });
     expect(out).not.toBeNull();
     // Apple Chancery's Th ligature is glyph id=343, th ligature id=338,
     // and per-char e is id=72. We expect to see exactly one <use> referencing
@@ -1998,27 +1996,21 @@ describe("Emoji codepoints suppress .notdef tofu emission (DM-334)", () => {
     // would be the chain's last entry (symbols) producing tofu. With the
     // emoji-codepoint suppression, the markup is empty and
     // renderTextAsPath returns null (no <g> wrapper for empty content).
-    const out = renderTextAsPath(
-      "✨", 0, 0, 16, "Times", "400", "#000",
-      undefined, undefined, [0],
-    );
+    const out = renderTextAsPath("✨", 0, 0,
+      { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0] });
     expect(out).toBeNull();
   });
   it("emits no <use> for U+1F600 😀 / U+1F680 🚀 (main emoji blocks)", () => {
-    const out = renderTextAsPath(
-      "😀🚀", 0, 0, 16, "Times", "400", "#000",
-      undefined, undefined, [0, 0, 18, 18],
-    );
+    const out = renderTextAsPath("😀🚀", 0, 0,
+      { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 0, 18, 18] });
     expect(out).toBeNull();
   });
   it.skipIf(!MACOS_FONTS)("emits text-but-no-emoji-tofu in mixed runs (Smile 😀)", () => {
     // Mixed text: "Smile 😀" — the "Smile " chars emit Times glyphs, the
     // 😀 codepoint suppresses its tofu. Without the suppression we'd see
     // 7 <use>s (S, m, i, l, e, space, tofu); with it we see 6 (no tofu).
-    const out = renderTextAsPath(
-      "Smile 😀", 0, 0, 16, "Times", "400", "#000",
-      undefined, undefined, [0, 9, 18, 22, 26, 30, 34, 34],
-    );
+    const out = renderTextAsPath("Smile 😀", 0, 0,
+      { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 9, 18, 22, 26, 30, 34, 34] });
     expect(out).not.toBeNull();
     const useCount = (out!.match(/<use href="#g\d+"/g) ?? []).length;
     expect(useCount).toBe(6);
@@ -2033,10 +2025,10 @@ describe("synthesized small-caps (DM-294)", () => {
   // this when it sees `features: ['smcp']` and the font lacks the feature.
   it.skipIf(!MACOS_FONTS)("renders lowercase letters as uppercase glyphs at the small-cap scale", () => {
     // Render "abc" at 16px Helvetica with smcp.
-    const out = renderTextAsPath(
-      "abc", 0, 0, 16, "Helvetica", "400", "#000",
-      undefined, undefined, [0, 8, 16], undefined, undefined, ["smcp"],
-    );
+    const out = renderTextAsPath("abc", 0, 0, {
+      fontSize: 16, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
+      xOffsets: [0, 8, 16], features: ["smcp"],
+    });
     expect(out).not.toBeNull();
     // Synth path emits one <g transform="translate(x,0) scale(s,-s)"> per
     // char. With SMALL_CAP_SCALE = 0.7 and 16/2048 unit scale, the per-char
@@ -2055,10 +2047,10 @@ describe("synthesized small-caps (DM-294)", () => {
 
   it.skipIf(!MACOS_FONTS)("keeps uppercase letters at full size in a smcp run", () => {
     // "ABC" all uppercase — synth path must NOT shrink them.
-    const out = renderTextAsPath(
-      "ABC", 0, 0, 16, "Helvetica", "400", "#000",
-      undefined, undefined, [0, 10, 20], undefined, undefined, ["smcp"],
-    );
+    const out = renderTextAsPath("ABC", 0, 0, {
+      fontSize: 16, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
+      xOffsets: [0, 10, 20], features: ["smcp"],
+    });
     expect(out).not.toBeNull();
     const matches = out!.match(/scale\(([^,]+),/g) ?? [];
     const charScales = matches.slice(1, 4).map((m) => parseFloat(m.replace(/scale\(/, "")));
@@ -2091,41 +2083,41 @@ describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
   // worse visual match against Chrome'\\'s HTML render due to the SVG-vs-HTML
   // rasterization gap documented in DM-418).
   it("uses 1px stroke for body sizes (≤ 19px)", () => {
-    expect(getDecorationMetrics("Helvetica", 12, "400").underlineThickness).toBe(1);
-    expect(getDecorationMetrics("Helvetica", 14, "400").underlineThickness).toBe(1);
-    expect(getDecorationMetrics("Helvetica", 16, "400").underlineThickness).toBe(1);
-    expect(getDecorationMetrics("Helvetica", 18, "400").underlineThickness).toBe(1);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 12, fontWeight: "400" }).underlineThickness).toBe(1);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" }).underlineThickness).toBe(1);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }).underlineThickness).toBe(1);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 18, fontWeight: "400" }).underlineThickness).toBe(1);
   });
 
   it("bumps to 2px stroke at heading sizes (≥ 20px)", () => {
-    expect(getDecorationMetrics("Helvetica", 22, "400").underlineThickness).toBe(2);
-    expect(getDecorationMetrics("Helvetica", 24, "400").underlineThickness).toBe(2);
-    expect(getDecorationMetrics("Helvetica", 32, "400").underlineThickness).toBe(2);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" }).underlineThickness).toBe(2);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 24, fontWeight: "400" }).underlineThickness).toBe(2);
+    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32, fontWeight: "400" }).underlineThickness).toBe(2);
   });
 
   it("emits underlineOffsetY = 1.5 × thickness", () => {
-    const m14 = getDecorationMetrics("Helvetica", 14, "400");
+    const m14 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" });
     expect(m14.underlineOffsetY).toBe(1.5);
-    const m22 = getDecorationMetrics("Helvetica", 22, "400");
+    const m22 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" });
     expect(m22.underlineOffsetY).toBe(3);
   });
 
   it("emits strikeoutOffsetY ≈ fontSize/3 above baseline", () => {
-    const m14 = getDecorationMetrics("Helvetica", 14, "400");
+    const m14 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" });
     expect(m14.strikeoutOffsetY).toBe(Math.round(14 / 3) + 0.5);
-    const m22 = getDecorationMetrics("Helvetica", 22, "400");
+    const m22 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" });
     expect(m22.strikeoutOffsetY).toBe(Math.round(22 / 3) + 1);
   });
 
   it("emits overlineOffsetY ≈ fontSize above baseline (top of em-box)", () => {
-    const m14 = getDecorationMetrics("Helvetica", 14, "400");
+    const m14 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" });
     expect(m14.overlineOffsetY).toBe(14 - 0.5);
-    const m22 = getDecorationMetrics("Helvetica", 22, "400");
+    const m22 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" });
     expect(m22.overlineOffsetY).toBe(22 - 1);
   });
 
   it("honors explicit text-decoration-thickness length (DM-431)", () => {
-    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px");
+    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "5px" });
     expect(m.underlineThickness).toBe(5);
     expect(m.underlineOffsetY).toBe(7.5);
     expect(m.strikeoutThickness).toBe(5);
@@ -2133,24 +2125,24 @@ describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
   });
 
   it("falls back to auto thickness when text-decoration-thickness is 'auto' or 'from-font' (DM-431)", () => {
-    const auto = getDecorationMetrics("Helvetica", 16, "400", undefined, "auto");
+    const auto = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "auto" });
     expect(auto.underlineThickness).toBe(1);
-    const fromFont = getDecorationMetrics("Helvetica", 16, "400", undefined, "from-font");
+    const fromFont = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "from-font" });
     expect(fromFont.underlineThickness).toBe(1);
   });
 
   it("adds explicit text-underline-offset to underlineOffsetY (DM-431)", () => {
-    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, undefined, "6px");
+    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { underlineOffsetCss: "6px" });
     expect(m.underlineOffsetY).toBe(7.5);
   });
 
   it("falls back to auto offset when text-underline-offset is 'auto' (DM-431)", () => {
-    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, undefined, "auto");
+    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { underlineOffsetCss: "auto" });
     expect(m.underlineOffsetY).toBe(1.5);
   });
 
   it("combines explicit thickness + offset overrides (DM-431)", () => {
-    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px", "6px");
+    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "5px", underlineOffsetCss: "6px" });
     expect(m.underlineThickness).toBe(5);
     expect(m.underlineOffsetY).toBe(13.5);
   });
@@ -2167,18 +2159,18 @@ describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
   const T = 1;
 
   it.skipIf(!MACOS_FONTS)("produces gaps for descender-bearing glyphs", () => {
-    const gaps = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T);
+    const gaps = computeSkipInkGaps("jumping", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
     // 'j', 'p', 'g' all have stems crossing the underline band.
     expect(gaps.length).toBeGreaterThanOrEqual(2);
   });
 
   it("produces no gaps for ascender-only / x-height-only text", () => {
-    const gaps = computeSkipInkGaps("alone", FS, FF, FW, undefined, Y, T);
+    const gaps = computeSkipInkGaps("alone", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
     expect(gaps).toEqual([]);
   });
 
   it("merges adjacent / overlapping descender gaps", () => {
-    const gaps = computeSkipInkGaps("ggg", FS, FF, FW, undefined, Y, T);
+    const gaps = computeSkipInkGaps("ggg", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
     // Three adjacent 'g' descenders may merge into one gap or stay separate
     // depending on the pad — guarantee non-overlapping output.
     for (let i = 1; i < gaps.length; i++) {
@@ -2187,14 +2179,14 @@ describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
   });
 
   it("returns empty when font cannot be resolved", () => {
-    const gaps = computeSkipInkGaps("test", FS, "NotAFontFamily12345", FW, undefined, Y, T);
+    const gaps = computeSkipInkGaps("test", { fontSize: FS, fontFamily: "NotAFontFamily12345", fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
     expect(gaps).toEqual([]);
   });
 
   it("scales gaps when targetWidth diverges from fontkit's layout width", () => {
-    const baseline = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T);
+    const baseline = computeSkipInkGaps("jumping", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
     if (baseline.length === 0) return;
-    const stretched = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T, undefined, 200);
+    const stretched = computeSkipInkGaps("jumping", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T, targetWidth: 200 });
     // With a stretched targetWidth, the gap centers should shift outward
     // proportionally — at minimum, the rightmost gap moves right.
     const lastBaseline = baseline[baseline.length - 1];
@@ -2299,7 +2291,7 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
     // Register a 'variable' webfont as parseWeightDescriptor("100 900") = 100
     // would: a single variant at the start of the declared weight range.
     registerWebfont("SFTest", 100, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "500", "#000");
+    const out = renderTextAsPath("Hi", 0, 0, { fontSize: 24, fontFamily: "SFTest", fontWeight: "500", fill: "#000" });
     expect(out).not.toBeNull();
     expect(out!).toContain('font-weight="500"');
     expect(out!).not.toContain('font-weight="100"');
@@ -2308,7 +2300,7 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
   it("omits font-weight when captured weight is 400 (CSS default)", () => {
     if (fontBuf == null) return;
     registerWebfont("SFTest", 100, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000");
+    const out = renderTextAsPath("Hi", 0, 0, { fontSize: 24, fontFamily: "SFTest", fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     expect(out!).not.toContain("font-weight=");
   });
@@ -2317,8 +2309,8 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
     if (fontBuf == null) return;
     registerWebfont("SFTest", 400, "normal", fontBuf);
     // Page applies italic via CSS; engine synthesizes from upright variant.
-    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000",
-      undefined, undefined, undefined, "italic");
+    const out = renderTextAsPath("Hi", 0, 0,
+      { fontSize: 24, fontFamily: "SFTest", fontWeight: "400", fill: "#000", fontStyle: "italic" });
     expect(out).not.toBeNull();
     expect(out!).toContain('font-style="italic"');
   });
@@ -2326,9 +2318,10 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
   it("forwards font-variation-settings onto the <text> style attribute", () => {
     if (fontBuf == null) return;
     registerWebfont("SFTest", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000",
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-      { wght: 540, opsz: 32 });
+    const out = renderTextAsPath("Hi", 0, 0, {
+      fontSize: 24, fontFamily: "SFTest", fontWeight: "400", fill: "#000",
+      variationSettings: { wght: 540, opsz: 32 },
+    });
     expect(out).not.toBeNull();
     expect(out!).toMatch(/style="font-variation-settings: 'wght' 540, 'opsz' 32"/);
   });
@@ -2336,7 +2329,7 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
   it("omits style attribute when no variation-settings were captured", () => {
     if (fontBuf == null) return;
     registerWebfont("SFTest", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000");
+    const out = renderTextAsPath("Hi", 0, 0, { fontSize: 24, fontFamily: "SFTest", fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     expect(out!).not.toContain("font-variation-settings");
     expect(out!).not.toContain('style="');
@@ -2383,7 +2376,7 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("emits <text> with PUA codepoints in the body (not the original text)", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontA", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hello", 0, 0, 24, "CustomFontA", "400", "#000");
+    const out = renderTextAsPath("Hello", 0, 0, { fontSize: 24, fontFamily: "CustomFontA", fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     // The literal "Hello" must NOT appear in any <text> body — only in
     // the accessibility title/aria-label.
@@ -2406,7 +2399,7 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("emitted @font-face data: URI parses as a valid TTF with the registered PUA codepoints", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontB", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hi!", 0, 0, 24, "CustomFontB", "400", "#000");
+    const out = renderTextAsPath("Hi!", 0, 0, { fontSize: 24, fontFamily: "CustomFontB", fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     const css = getEmbeddedFontFaceCss();
     expect(css).toContain("@font-face");
@@ -2428,7 +2421,7 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("positions each shaped glyph via the <text> x list for sub-pixel-accurate placement (DM-841)", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontE", 400, "normal", fontBuf);
-    const out = renderTextAsPath("AB", 0, 0, 24, "CustomFontE", "400", "#000");
+    const out = renderTextAsPath("AB", 0, 0, { fontSize: 24, fontFamily: "CustomFontE", fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
     // Two shaped glyphs → a single <text> with a 2-value `x` list and a
     // 2-codepoint PUA body (no per-glyph <tspan> wrappers).
@@ -2452,15 +2445,17 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     if (fontBuf == null) return;
     registerWebfont("CustomFontC", 400, "normal", fontBuf);
     // Same family, no axes → one entry.
-    renderTextAsPath("AB", 0, 0, 24, "CustomFontC", "400", "#000");
+    renderTextAsPath("AB", 0, 0, { fontSize: 24, fontFamily: "CustomFontC", fontWeight: "400", fill: "#000" });
     // Same family, distinct axes tuple → second entry.
-    renderTextAsPath("CD", 0, 0, 24, "CustomFontC", "400", "#000",
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-      { wght: 540 });
+    renderTextAsPath("CD", 0, 0, {
+      fontSize: 24, fontFamily: "CustomFontC", fontWeight: "400", fill: "#000",
+      variationSettings: { wght: 540 },
+    });
     // Same family, third distinct axes tuple → third entry.
-    renderTextAsPath("EF", 0, 0, 24, "CustomFontC", "400", "#000",
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-      { wght: 100 });
+    renderTextAsPath("EF", 0, 0, {
+      fontSize: 24, fontFamily: "CustomFontC", fontWeight: "400", fill: "#000",
+      variationSettings: { wght: 100 },
+    });
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(3);
@@ -2469,9 +2464,9 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("the same (font, axes) combo across calls shares one @font-face entry", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontD", 400, "normal", fontBuf);
-    renderTextAsPath("AB", 0, 0, 24, "CustomFontD", "400", "#000");
-    renderTextAsPath("CD", 0, 0, 24, "CustomFontD", "400", "#000");
-    renderTextAsPath("EF", 0, 0, 24, "CustomFontD", "400", "#000");
+    renderTextAsPath("AB", 0, 0, { fontSize: 24, fontFamily: "CustomFontD", fontWeight: "400", fill: "#000" });
+    renderTextAsPath("CD", 0, 0, { fontSize: 24, fontFamily: "CustomFontD", fontWeight: "400", fill: "#000" });
+    renderTextAsPath("EF", 0, 0, { fontSize: 24, fontFamily: "CustomFontD", fontWeight: "400", fill: "#000" });
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(1);
@@ -2792,7 +2787,7 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // stay inside the run's own width.
   (MACOS_FONTS ? it : it.skip)("keeps the skip-ink cursor aligned across an astral character", () => {
     const text = "a\u{10F46}b";
-    const gaps = computeSkipInkGaps(text, 32, "Times", 400, "normal", 0, 1);
+    const gaps = computeSkipInkGaps(text, { fontSize: 32, fontFamily: "Times", fontWeight: 400, fontStyle: "normal" }, { decorationCenterYRel: 0, decorationThickness: 1 });
     // Never throws, and every gap is a finite ordered interval — a cursor that
     // walked off the text produced NaN/reversed pairs here.
     for (const [lo, hi] of gaps) {
@@ -2901,7 +2896,7 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   it.skipIf(!MACOS_FONTS)("paints the PRIMARY font's .notdef for an uncovered private-use codepoint", () => {
     clearGlyphDefs();
     setRenderTextMode("paths");
-    const out = renderTextAsPath("\u{E000}", 0, 0, 32, "Helvetica", "400", "#000");
+    const out = renderTextAsPath("\u{E000}", 0, 0, { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000" });
     expect(out).not.toBeNull();
 
     const defs = getGlyphDefs();

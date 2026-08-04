@@ -448,12 +448,12 @@ function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[]
     const cg = wp.glyph;
     if (cg != null) {
       const gm = withRenderTextMode("paths", () =>
-        renderTextAsPath(
-          // The glyph is repainted at the CELL's left edge, which is the caret x
-          // for an LTR insertion point and `x − cellWidth` for an RTL one.
-          cg.char, g.x, g.y, cg.fontSize, cg.fontFamily, cg.fontWeight,
-          glyphInk, undefined, undefined, undefined, cg.fontStyle, wp.point.ascentPx,
-        ),
+        // The glyph is repainted at the CELL's left edge, which is the caret x
+        // for an LTR insertion point and `x − cellWidth` for an RTL one.
+        renderTextAsPath(cg.char, g.x, g.y, {
+          fontSize: cg.fontSize, fontFamily: cg.fontFamily, fontWeight: cg.fontWeight,
+          fill: glyphInk, fontStyle: cg.fontStyle, ascentOverride: wp.point.ascentPx,
+        }),
       );
       if (gm != null) glyphMarkup = gm;
     }
