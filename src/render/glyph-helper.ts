@@ -316,6 +316,16 @@ interface FamilyMatchResponse {
     /** `CTFontSymbolicTraits` masked to italic / bold / condensed / expanded. */
     traits: number; appKitWeight: number; appKitTraits: number;
   }>;
+  // Linux helper only (the fontconfig transcription of Skia's
+  // `SkFontConfigInterfaceDirect::matchFamilyName`): the resolved file, its
+  // TTC member index, the matched family, and the matched face's style as
+  // Skia would report `outStyle` — Blink consults that for synthetic bold /
+  // italic, so the Node side needs the same numbers.
+  path?: string;
+  index?: number;
+  family?: string;
+  width?: number;
+  italic?: boolean;
 }
 interface HelperResponse {
   results: Array<
@@ -1731,6 +1741,81 @@ export function resolveFamilyStyleMatch(
   return resolved;
 }
 
+/** The face a declared family resolves to at one style on Linux (fontconfig). */
+export interface LinuxFamilyMatch {
+  /** Resolved font file. */
+  path: string;
+  /** TTC member index — Blink opens the face by file + index. */
+  index: number;
+  /** PostScript name of the matched face ("" when the face declares none). */
+  postscriptName: string;
+  /** The matched family name (`FC_FAMILY[0]` of the match). */
+  family: string;
+  /** The matched face's weight in CSS space, as Skia reports `outStyle`. */
+  weight: number;
+  /** True when the matched face's fontconfig slant is italic/oblique. */
+  italic: boolean;
+}
+
+const _linuxFamilyMatchCache = new Map<string, LinuxFamilyMatch | null>();
+
+/**
+ * Which CUT of a declared family a run at this style opens — Linux only.
+ *
+ * This is the same question `resolveFamilyStyleMatch` answers on macOS, decided
+ * by entirely different code in Blink: on Linux `FontCache::CreateTypeface`
+ * reduces to `skia::DefaultFontMgr()->matchFamilyStyle(name,
+ * font_description.SkiaFontStyle())` (`fonts/skia/font_cache_skia.cc`, tag
+ * 147.0.7727.15), the Linux font manager is fontconfig-backed
+ * (`SkFontMgr_New_FCI`, `skia/ext/font_utils.cc:86-89`), and the whole decision
+ * lives in `SkFontConfigInterfaceDirect::matchFamilyName` (Skia rev fd139e79 —
+ * the revision tag 147's DEPS pins — `src/ports/SkFontConfigInterface_direct.cpp:592-713`).
+ * The Linux glyph helper carries the transcription (`familyMatch` query,
+ * `tools/linux-glyph-extractor/src/main.cpp`); this is the Node side of the call.
+ *
+ * Returns null when the platform is not Linux, the helper is unavailable or too
+ * old to know the query, or the matcher REJECTED the family (fontconfig always
+ * returns *something*, so Skia accepts only a face whose family list matches the
+ * request, the post-substitution name, or a metric-compatible replacement —
+ * rejection is how Blink walks to the next CSS family). In every null case the
+ * caller must keep the selection it already had.
+ */
+export function resolveLinuxFamilyMatch(
+  family: string, style?: { weight?: number; italic?: boolean; stretch?: number },
+): LinuxFamilyMatch | null {
+  if (process.platform !== "linux" || family === "") return null;
+  const weight = style?.weight ?? 400;
+  const italic = style?.italic === true;
+  const stretch = style?.stretch ?? 100;
+  const key = `${family.toLowerCase()}|${weight}|${italic ? 1 : 0}|${stretch}`;
+  const cached = _linuxFamilyMatchCache.get(key);
+  if (cached !== undefined) return cached;
+  let resolved: LinuxFamilyMatch | null = null;
+  if (isGlyphHelperAvailable()) {
+    try {
+      const resp = callHelper({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }] });
+      const r = resp.results[0];
+      if (r != null && r.type === "familyMatch" && r.found
+          && typeof r.path === "string" && r.path !== "") {
+        resolved = {
+          path: r.path,
+          index: typeof r.index === "number" ? r.index : 0,
+          postscriptName: r.postscriptName ?? "",
+          family: r.family ?? "",
+          weight: r.weight ?? weight,
+          italic: r.italic === true,
+        };
+      }
+    } catch {
+      // An older helper answers "unknown query type"; keep null so the caller
+      // degrades to its existing selection rather than failing.
+      resolved = null;
+    }
+  }
+  _linuxFamilyMatchCache.set(key, resolved);
+  return resolved;
+}
+
 /**
  * Drop the in-memory glyph-resolution caches: the helper-availability probe
  * result + resolved path, and the system-fallback / installed-font lookup
@@ -1842,4 +1927,5 @@ export function clearGlyphHelperCache(): void {
   _fcFallbackCache.clear();
   _installedFontCache.clear();
   _familyStyleMatchCache.clear();
+  _linuxFamilyMatchCache.clear();
 }

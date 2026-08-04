@@ -133,6 +133,10 @@ checkout already shows what the successor algorithm looks like.
 
 ## Scope
 
-macOS only. Blink runs different code for this step on each platform — Linux
-and Windows would each need their own oracle, and a number from one platform
-says nothing about another.
+macOS only. Blink runs different code for this step on each platform, and a
+number from one platform says nothing about another. The sibling oracles now
+exist: doc 110 (Linux — the fontconfig `matchFamilyName` transcription,
+`npm run fonts:family-match:linux`) and doc 111 (Windows — the DirectWrite
+`GetFirstMatchingFont` call plus Blink's family-name suffix layer,
+`npm run fonts:family-match:win32`), each with its own committed,
+environment-fingerprinted baseline.

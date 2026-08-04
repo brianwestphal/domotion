@@ -42,6 +42,25 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Docs 110 + 111 (`docs/110-family-match-conformance-linux.md`,
+  `docs/111-family-match-conformance-windows.md`, DM-1938)** — **Shipped.**
+  The declared-family style matcher now runs Blink's own mechanism on all
+  three platforms, each with its own conformance oracle and committed,
+  environment-fingerprinted baseline. Linux: the Linux glyph helper's
+  `familyMatch` query transcribes `SkFontConfigInterfaceDirect::matchFamilyName`
+  at the Skia revision the pinned Chrome tag (147.0.7727.15) actually ships
+  (which differs from the current Skia tree), replacing the two-slot
+  `key`/`key-bold` sibling table via `linuxPrimaryCutKey`;
+  `npm run fonts:family-match:linux` scores 2,292/2,292 on the noble image.
+  Windows: the DirectWrite `family` query was already the identical call, and
+  measuring it exposed the missing Blink family-name suffix layer
+  ("Segoe UI Light" → "Segoe UI" with weight pinned at 300,
+  `src/render/win32-family-suffix.ts`); with it ported,
+  `npm run fonts:family-match:win32` scores 516/516 on the Windows 11 VM.
+  Both platforms verified in the loop by disabling
+  (`DOMOTION_SYSTEM_FALLBACK=0` / `DOMOTION_DISABLE_HELPER=1`) and requiring
+  the resolved face to move.
+
 - **Doc 104 §3.1 (DM-1796) — typing-overlay handoff seam, FIXED.** A `typing`
   overlay used to fade out starting 150 ms before its window ended and sit fully
   transparent for the last ~50 ms. But a typing overlay exists to be REPLACED —

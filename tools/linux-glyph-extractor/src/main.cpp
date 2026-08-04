@@ -27,6 +27,9 @@
 
 #include <fontconfig/fontconfig.h>
 
+#include <strings.h>  // strcasecmp (familyMatch acceptance check)
+#include <unistd.h>   // access() (familyMatch readability check)
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
@@ -37,7 +40,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
+#include <iterator>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -565,6 +570,343 @@ static std::string runFcFallbackQuery(const JsonValue& query) {
   return out.str();
 }
 
+// ──────────────── declared-family style match (fontconfig) ─────────────────
+//
+// Which CUT of a declared CSS family Chrome-on-Linux opens at a given
+// weight / width / slant. This is a transcription of the code the Chrome build
+// Playwright pins (tag 147.0.7727.15) actually runs for that decision:
+//
+//   Blink `FontCache::CreateTypeface` → `skia::DefaultFontMgr()->
+//   matchFamilyStyle(name, font_description.SkiaFontStyle())`
+//     (`third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc`,
+//      tag 147.0.7727.15; identical at local checkout rev 7d859f27:262-295)
+//   → on Linux that font manager is `SkFontMgr_New_FCI(SkFontConfigInterface::
+//     RefGlobal(), …)` (`skia/ext/font_utils.cc:86-89`, tag 147.0.7727.15)
+//   → `SkFontMgr_FCI::onMatchFamilyStyle` → `fFCI->matchFamilyName(...)`
+//     (Skia `src/ports/SkFontMgr_FontConfigInterface.cpp`, rev fd139e79 —
+//      the revision tag 147's DEPS pins)
+//   → `SkFontConfigInterfaceDirect::matchFamilyName`
+//     (Skia `src/ports/SkFontConfigInterface_direct.cpp:592-713`, rev fd139e79).
+//
+// The pinned revision matters: the CURRENT Skia tree rewrote `MatchFont` to
+// keep scanning the sorted set until it finds an *acceptable* pattern and added
+// a direct `FcFontMatch` fast path. The shipping build has neither — it takes
+// the FIRST valid pattern from one `FcFontSort(trim=0)` and then accepts or
+// rejects THAT pattern, full stop. Transcribing the newer tree would diverge
+// from every capture Playwright runs.
+//
+// `SK_FONT_CONFIG_INTERFACE_ONLY_ALLOW_SFNT_FONTS` is defined in Chrome's
+// build (`skia/config/SkUserConfig.h:151-152`, tag 147.0.7727.15), so the
+// validity check requires FC_FONTFORMAT TrueType/CFF, exactly as below.
+//
+// The CSS style → SkFontStyle conversion is Blink's `FontDescription::
+// SkiaFontStyle` (`platform/fonts/font_description.cc`, identical at tag and
+// at rev 7d859f27): weight passes through when in [1,1000]
+// (`kMinWeightValue`/`kMaxWeightValue`, `font_selection_types.h:184-186`),
+// width buckets at the CSS stretch keywords' percentages
+// (`font_selection_types.h:221-245`), italic maps to the italic slant.
+//
+//   in : { type:"familyMatch", family, cssWeight?:400, italic?:false,
+//          cssWidth?:100 (CSS font-stretch percent) }
+//   out: { type:"familyMatch", found:true, path, index, family,
+//          postscriptName, weight, width, italic }
+//        | { type:"familyMatch", found:false }
+
+// Skia `map_ranges` (SkFontConfigInterface_direct.cpp:359-390, rev fd139e79):
+// piecewise-linear interpolation between anchor pairs, clamped at both ends.
+struct FcMapRange { double old_val; double new_val; };
+static double fcMapRanges(double val, const FcMapRange ranges[], int count) {
+  if (val < ranges[0].old_val) return ranges[0].new_val;
+  for (int i = 0; i < count - 1; i++) {
+    if (val < ranges[i + 1].old_val) {
+      return ranges[i].new_val + ((val - ranges[i].old_val)
+                                  * (ranges[i + 1].new_val - ranges[i].new_val)
+                                  / (ranges[i + 1].old_val - ranges[i].old_val));
+    }
+  }
+  return ranges[count - 1].new_val;
+}
+
+#ifndef FC_WEIGHT_DEMILIGHT
+#define FC_WEIGHT_DEMILIGHT 65
+#endif
+// Available since FontConfig 2.15 (same guard as Skia's).
+#ifndef FC_FONT_WRAPPER
+#define FC_FONT_WRAPPER "fontwrapper"
+#endif
+
+// Skia `fcpattern_from_skfontstyle` weight anchors (SkFontStyle CSS-space →
+// fontconfig space), rev fd139e79:446-483. SkFontStyle named weights are the
+// CSS values (Thin 100 … ExtraBlack 1000).
+static const FcMapRange kSkToFcWeight[] = {
+  { 100, FC_WEIGHT_THIN },     { 200, FC_WEIGHT_EXTRALIGHT },
+  { 300, FC_WEIGHT_LIGHT },    { 350, FC_WEIGHT_DEMILIGHT },
+  { 380, FC_WEIGHT_BOOK },     { 400, FC_WEIGHT_REGULAR },
+  { 500, FC_WEIGHT_MEDIUM },   { 600, FC_WEIGHT_DEMIBOLD },
+  { 700, FC_WEIGHT_BOLD },     { 800, FC_WEIGHT_EXTRABOLD },
+  { 900, FC_WEIGHT_BLACK },    { 1000, FC_WEIGHT_EXTRABLACK },
+};
+static const FcMapRange kFcToSkWeight[] = {
+  { FC_WEIGHT_THIN, 100 },     { FC_WEIGHT_EXTRALIGHT, 200 },
+  { FC_WEIGHT_LIGHT, 300 },    { FC_WEIGHT_DEMILIGHT, 350 },
+  { FC_WEIGHT_BOOK, 380 },     { FC_WEIGHT_REGULAR, 400 },
+  { FC_WEIGHT_MEDIUM, 500 },   { FC_WEIGHT_DEMIBOLD, 600 },
+  { FC_WEIGHT_BOLD, 700 },     { FC_WEIGHT_EXTRABOLD, 800 },
+  { FC_WEIGHT_BLACK, 900 },    { FC_WEIGHT_EXTRABLACK, 1000 },
+};
+// Width anchors (SkFontStyle width class 1..9 ↔ fontconfig), rev fd139e79.
+static const FcMapRange kSkToFcWidth[] = {
+  { 1, FC_WIDTH_ULTRACONDENSED }, { 2, FC_WIDTH_EXTRACONDENSED },
+  { 3, FC_WIDTH_CONDENSED },      { 4, FC_WIDTH_SEMICONDENSED },
+  { 5, FC_WIDTH_NORMAL },         { 6, FC_WIDTH_SEMIEXPANDED },
+  { 7, FC_WIDTH_EXPANDED },       { 8, FC_WIDTH_EXTRAEXPANDED },
+  { 9, FC_WIDTH_ULTRAEXPANDED },
+};
+static const FcMapRange kFcToSkWidth[] = {
+  { FC_WIDTH_ULTRACONDENSED, 1 }, { FC_WIDTH_EXTRACONDENSED, 2 },
+  { FC_WIDTH_CONDENSED, 3 },      { FC_WIDTH_SEMICONDENSED, 4 },
+  { FC_WIDTH_NORMAL, 5 },         { FC_WIDTH_SEMIEXPANDED, 6 },
+  { FC_WIDTH_EXPANDED, 7 },       { FC_WIDTH_EXTRAEXPANDED, 8 },
+  { FC_WIDTH_ULTRAEXPANDED, 9 },
+};
+
+// Blink `FontDescription::SkiaFontStyle` width bucketing: CSS `font-stretch`
+// percent → SkFontStyle width class. Thresholds are the CSS keyword
+// percentages (`font_selection_types.h:221-245`, values 50 / 62.5 / 75 / 87.5
+// / 112.5 / 125 / 150 / 200); note Blink's ladder of non-else `if`s means the
+// most specific bound wins, reproduced here in the same order.
+static int skWidthClassFromCssStretchPercent(double stretch) {
+  int w = 5;                       // SkFontStyle::kNormal_Width
+  if (stretch <= 50) w = 1;
+  if (stretch <= 62.5) w = 2;      // (later assignments override earlier ones,
+  if (stretch <= 75) w = 3;        //  exactly as in SkiaFontStyle)
+  if (stretch <= 87.5) w = 4;
+  if (stretch >= 112.5) w = 6;
+  if (stretch >= 125) w = 7;
+  if (stretch >= 150) w = 8;
+  if (stretch >= 200) w = 9;
+  return w;
+}
+
+// Skia's metric-compatibility equivalence classes (`GetFontEquivClass` /
+// `IsMetricCompatibleReplacement`, SkFontConfigInterface_direct.cpp, rev
+// fd139e79). A match whose family is a metric-compatible replacement of the
+// requested one is acceptable — this is how "Arial" accepts Liberation Sans.
+// Class ids are arbitrary; equality (and != 0) is what matters.
+struct FcFontEquiv { int clazz; const char* name; };
+static const FcFontEquiv kFontEquivMap[] = {
+  { 1, "Arial" }, { 1, "Arimo" }, { 1, "Liberation Sans" },
+  { 2, "Times New Roman" }, { 2, "Tinos" }, { 2, "Liberation Serif" },
+  { 3, "Courier New" }, { 3, "Cousine" }, { 3, "Liberation Mono" },
+  { 4, "Symbol" }, { 4, "Symbol Neu" },
+  // MS PGothic (ASCII + fullwidth spellings, as in the source)
+  { 5, "MS PGothic" },
+  { 5, "\xef\xbc\xad\xef\xbc\xb3 \xef\xbc\xb0\xe3\x82\xb4\xe3\x82\xb7\xe3\x83\x83\xe3\x82\xaf" },
+  { 5, "Noto Sans CJK JP" }, { 5, "IPAPGothic" }, { 5, "MotoyaG04Gothic" },
+  // MS Gothic
+  { 6, "MS Gothic" },
+  { 6, "\xef\xbc\xad\xef\xbc\xb3 \xe3\x82\xb4\xe3\x82\xb7\xe3\x83\x83\xe3\x82\xaf" },
+  { 6, "Noto Sans Mono CJK JP" }, { 6, "IPAGothic" }, { 6, "MotoyaG04GothicMono" },
+  // MS PMincho
+  { 7, "MS PMincho" },
+  { 7, "\xef\xbc\xad\xef\xbc\xb3 \xef\xbc\xb0\xe6\x98\x8e\xe6\x9c\x9d" },
+  { 7, "Noto Serif CJK JP" }, { 7, "IPAPMincho" }, { 7, "MotoyaG04Mincho" },
+  // MS Mincho
+  { 8, "MS Mincho" },
+  { 8, "\xef\xbc\xad\xef\xbc\xb3 \xe6\x98\x8e\xe6\x9c\x9d" },
+  { 8, "Noto Serif CJK JP" }, { 8, "IPAMincho" }, { 8, "MotoyaG04MinchoMono" },
+  // Simsun
+  { 9, "Simsun" }, { 9, "\xe5\xae\x8b\xe4\xbd\x93" },
+  { 9, "Noto Serif CJK SC" }, { 9, "MSung GB18030" }, { 9, "Song ASC" },
+  // NSimsun
+  { 10, "NSimsun" }, { 10, "\xe6\x96\xb0\xe5\xae\x8b\xe4\xbd\x93" },
+  { 10, "Noto Serif CJK SC" }, { 10, "MSung GB18030" }, { 10, "N Song ASC" },
+  // Simhei
+  { 11, "Simhei" }, { 11, "\xe9\xbb\x91\xe4\xbd\x93" },
+  { 11, "Noto Sans CJK SC" }, { 11, "MYingHeiGB18030" }, { 11, "MYingHeiB5HK" },
+  // PMingLiU
+  { 12, "PMingLiU" }, { 12, "\xe6\x96\xb0\xe7\xb4\xb0\xe6\x98\x8e\xe9\xab\x94" },
+  { 12, "Noto Serif CJK TC" }, { 12, "MSung B5HK" },
+  // MingLiU
+  { 13, "MingLiU" }, { 13, "\xe7\xb4\xb0\xe6\x98\x8e\xe9\xab\x94" },
+  { 13, "Noto Serif CJK TC" }, { 13, "MSung B5HK" },
+  // PMingLiU_HKSCS
+  { 14, "PMingLiU_HKSCS" },
+  { 14, "\xe6\x96\xb0\xe7\xb4\xb0\xe6\x98\x8e\xe9\xab\x94_HKSCS" },
+  { 14, "Noto Serif CJK TC" }, { 14, "MSung B5HK" },
+  // MingLiU_HKSCS
+  { 15, "MingLiU_HKSCS" },
+  { 15, "\xe7\xb4\xb0\xe6\x98\x8e\xe9\xab\x94_HKSCS" },
+  { 15, "Noto Serif CJK TC" }, { 15, "MSung B5HK" },
+  { 16, "Cambria" }, { 16, "Caladea" },
+  { 17, "Calibri" }, { 17, "Carlito" },
+};
+static int fontEquivClass(const char* name) {
+  for (const FcFontEquiv& e : kFontEquivMap) {
+    if (strcasecmp(e.name, name) == 0) return e.clazz;
+  }
+  return 0;
+}
+static bool isMetricCompatibleReplacement(const char* a, const char* b) {
+  int ca = fontEquivClass(a);
+  return ca != 0 && ca == fontEquivClass(b);
+}
+
+// `IsFallbackFontAllowed` (rev fd139e79:342-348): the request either names no
+// family or one of the basic generics, and then ANY font is a good answer.
+static bool isFallbackFontAllowed(const std::string& family) {
+  return family.empty() || strcasecmp(family.c_str(), "sans") == 0
+      || strcasecmp(family.c_str(), "serif") == 0
+      || strcasecmp(family.c_str(), "monospace") == 0;
+}
+
+static const char* fcGetString(FcPattern* p, const char* object, int index = 0) {
+  FcChar8* v = nullptr;
+  if (FcPatternGetString(p, object, index, &v) != FcResultMatch) return nullptr;
+  return reinterpret_cast<const char*>(v);
+}
+static int fcGetInt(FcPattern* p, const char* object, int missing) {
+  int v;
+  if (FcPatternGetInteger(p, object, 0, &v) != FcResultMatch) return missing;
+  return v;
+}
+
+// `isValidPattern` (rev fd139e79:519-550) with the SFNT-only format check
+// ACTIVE, because Chrome defines SK_FONT_CONFIG_INTERFACE_ONLY_ALLOW_SFNT_FONTS
+// (`skia/config/SkUserConfig.h:151-152`, tag 147.0.7727.15). Sysroot handling is
+// omitted: Chrome never sets FcConfigSetSysRoot in this process model, so
+// FcConfigGetSysRoot is null and the branch is dead there.
+static bool fcIsValidPattern(FcPattern* p) {
+  const char* fmt = fcGetString(p, FC_FONTFORMAT);
+  if (fmt == nullptr || (strcmp(fmt, "TrueType") != 0 && strcmp(fmt, "CFF") != 0)) {
+    return false;
+  }
+  const char* file = fcGetString(p, FC_FILE);
+  if (file == nullptr) return false;
+  return access(file, R_OK) == 0;
+}
+
+static std::string runFamilyMatchQuery(FT_Library lib, const JsonValue& query) {
+  const std::string family = query.at("family").asString();
+  const double cssWeight = query.has("cssWeight") ? query.at("cssWeight").asNumber(400) : 400;
+  const bool italic = query.at("italic").type == JsonValue::Type::Bool
+                      && query.at("italic").boolean;
+  const double cssWidth = query.has("cssWidth") ? query.at("cssWidth").asNumber(100) : 100;
+
+  // Blink `FontDescription::SkiaFontStyle`: weight passes through inside
+  // [1,1000], otherwise 400; width buckets to the class; italic → italic slant.
+  const double skWeight = (cssWeight >= 1 && cssWeight <= 1000) ? cssWeight : 400;
+  const int skWidth = skWidthClassFromCssStretchPercent(cssWidth);
+
+  const std::string notFound = "{\"type\":\"familyMatch\",\"found\":false}";
+
+  FcConfig* config = FcConfigGetCurrent();
+  FcPattern* pattern = FcPatternCreate();
+  if (pattern == nullptr) return notFound;
+  if (!family.empty()) {
+    FcPatternAddString(pattern, FC_FAMILY,
+                       reinterpret_cast<const FcChar8*>(family.c_str()));
+  }
+  // `fcpattern_from_skfontstyle` (rev fd139e79:446-501): weight and width via
+  // the anchor tables, slant direct. SkScalarRoundToInt rounds half away from
+  // zero on positive values, which llround matches.
+  FcPatternAddInteger(pattern, FC_WEIGHT, static_cast<int>(std::llround(
+      fcMapRanges(skWeight, kSkToFcWeight, static_cast<int>(std::size(kSkToFcWeight))))));
+  FcPatternAddInteger(pattern, FC_WIDTH, static_cast<int>(std::llround(
+      fcMapRanges(skWidth, kSkToFcWidth, static_cast<int>(std::size(kSkToFcWidth))))));
+  FcPatternAddInteger(pattern, FC_SLANT, italic ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
+  FcPatternAddBool(pattern, FC_SCALABLE, FcTrue);
+  FcPatternAddString(pattern, FC_FONT_WRAPPER,
+                     reinterpret_cast<const FcChar8*>("SFNT"));
+
+  FcConfigSubstitute(config, pattern, FcMatchPattern);
+  FcDefaultSubstitute(pattern);
+
+  // The family name the config substitution turned the request into — the
+  // accept/reject comparison below is against THIS, which is what lets a
+  // config alias (Arial → Liberation Sans) count as a good match.
+  const char* postConfigFamilyC = fcGetString(pattern, FC_FAMILY);
+  const std::string postConfigFamily = postConfigFamilyC != nullptr ? postConfigFamilyC : "";
+
+  FcResult result;
+  // trim = 0, exactly as the shipping matchFamilyName (rev fd139e79:662). The
+  // newer Skia tree's direct FcFontMatch stage does not exist in the pinned
+  // build and is deliberately not reproduced.
+  FcFontSet* fontSet = FcFontSort(config, pattern, 0, nullptr, &result);
+  FcPatternDestroy(pattern);
+  if (fontSet == nullptr) return notFound;
+
+  // `MatchFont` (rev fd139e79:553-590): take the FIRST valid pattern in sort
+  // order, then accept or reject THAT one — no further scanning.
+  FcPattern* match = nullptr;
+  for (int i = 0; i < fontSet->nfont; i++) {
+    if (fcIsValidPattern(fontSet->fonts[i])) { match = fontSet->fonts[i]; break; }
+  }
+  if (match != nullptr && !isFallbackFontAllowed(family)) {
+    bool acceptable = false;
+    for (int id = 0; id < 255; id++) {
+      const char* postMatchFamily = fcGetString(match, FC_FAMILY, id);
+      if (postMatchFamily == nullptr) break;
+      acceptable = strcasecmp(postConfigFamily.c_str(), postMatchFamily) == 0
+                || strcasecmp(family.c_str(), postMatchFamily) == 0
+                || isMetricCompatibleReplacement(family.c_str(), postMatchFamily);
+      if (acceptable) break;
+    }
+    if (!acceptable) match = nullptr;
+  }
+  if (match == nullptr) {
+    FcFontSetDestroy(fontSet);
+    return notFound;
+  }
+
+  const char* file = fcGetString(match, FC_FILE);
+  const char* matchFamily = fcGetString(match, FC_FAMILY);
+  const int index = fcGetInt(match, FC_INDEX, 0);
+  if (file == nullptr) {
+    FcFontSetDestroy(fontSet);
+    return notFound;
+  }
+
+  // The matched face's style read back the way Skia reports `outStyle`
+  // (`skfontstyle_from_fcpattern`, rev fd139e79:401-444) — Blink consults the
+  // resulting typeface's weight/slant for its synthetic-bold / synthetic-italic
+  // decisions, so the Node side needs the same numbers.
+  const int outWeight = static_cast<int>(std::llround(fcMapRanges(
+      fcGetInt(match, FC_WEIGHT, FC_WEIGHT_REGULAR), kFcToSkWeight,
+      static_cast<int>(std::size(kFcToSkWeight)))));
+  const int outWidth = static_cast<int>(std::llround(fcMapRanges(
+      fcGetInt(match, FC_WIDTH, FC_WIDTH_NORMAL), kFcToSkWidth,
+      static_cast<int>(std::size(kFcToSkWidth)))));
+  const bool outItalic = fcGetInt(match, FC_SLANT, FC_SLANT_ROMAN) != FC_SLANT_ROMAN;
+
+  // PostScript name of the matched face (FreeType, by file + index) so the
+  // Node side can register the cut and the conformance oracle can compare
+  // against CDP's `postScriptName`. Not part of Skia's answer — Skia carries
+  // file + ttc index — so an unnameable face still reports found:true.
+  std::string psName;
+  {
+    FT_Face f = nullptr;
+    if (FT_New_Face(lib, file, index, &f) == 0 && f != nullptr) {
+      const char* n = FT_Get_Postscript_Name(f);
+      if (n != nullptr) psName = n;
+      FT_Done_Face(f);
+    }
+  }
+
+  std::ostringstream out;
+  out << "{\"type\":\"familyMatch\",\"found\":true"
+      << ",\"path\":\"" << jsonEscape(file) << "\""
+      << ",\"index\":" << index
+      << ",\"family\":\"" << jsonEscape(matchFamily != nullptr ? matchFamily : "") << "\""
+      << ",\"postscriptName\":\"" << jsonEscape(psName) << "\""
+      << ",\"weight\":" << outWeight
+      << ",\"width\":" << outWidth
+      << ",\"italic\":" << (outItalic ? "true" : "false")
+      << "}";
+  FcFontSetDestroy(fontSet);
+  return out.str();
+}
+
 // Open the font described by `spec`. Returns true on success (populating
 // `out`); on failure returns false and sets `err` — the caller decides whether
 // to `die()` (one-shot mode, preserving the original fatal contract) or skip
@@ -775,6 +1117,8 @@ static std::string handleEnvelope(FT_Library lib, const JsonValue& envelope,
       response << runMetaQuery(queries[i], fonts);
     } else if (type == "fcfallback") {
       response << runFcFallbackQuery(queries[i]);
+    } else if (type == "familyMatch") {
+      response << runFamilyMatchQuery(lib, queries[i]);
     } else {
       response << "{\"type\":\"" << jsonEscape(type) << "\",\"error\":\"unknown query type\"}";
     }
@@ -797,7 +1141,9 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (linux/freetype) 0.1.0\n";
+      // 0.2.0: added the `familyMatch` query (declared-family style match —
+      // the fontconfig transcription of Skia's matchFamilyName).
+      std::cout << "domotion-glyph-paths (linux/freetype) 0.2.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {
