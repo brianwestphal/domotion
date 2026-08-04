@@ -7021,6 +7021,49 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   if (src != null) fontSourceMap.set(proxy as unknown as object, src);
 }
 
+/**
+ * Route a run whose feature list carries a DISABLE (`-liga`) or an explicit
+ * value (`aalt=2`) through HarfBuzz shaping, so the feature state is honored
+ * the way Chrome honors it.
+ *
+ * Blink appends every `font-feature-settings` entry to the HarfBuzz feature
+ * array with its value intact (`FontFeatureRange::FromFontDescription`,
+ * `platform/fonts/shaping/font_features.cc:203-225`, rev 7d859f27); HarfBuzz
+ * expresses a zero by leaving the feature's lookup mask unset (GSUB) or
+ * selecting the feature's OFF selector (AAT — `hb-aat-map.cc:79`, rev 4de187d).
+ * fontkit's `layout(text, features)` is enable-only and the platform glyph
+ * helpers ignore the list entirely, so without this reroute a run declaring
+ * `font-feature-settings: "liga" 0` rendered WITH ligatures — measured on
+ * Times ("office waffle affix flight", 24px): Chrome paints 26 glyphs under
+ * the disable and our side kept painting 22.
+ *
+ * Same construction as `harfbuzzShapedScriptOverride`: HarfBuzz supplies the
+ * shaping (ids, positions, clusters), the base instance supplies the outlines
+ * (`outlinesFromBase`), and the run keeps its resolved face. Returns the base
+ * unchanged when the key has no on-disk file HarfBuzz can open (a webfont
+ * buffer, an unresolvable key) — the run then keeps its previous shaping, and
+ * the disable stays unexpressed there (a documented residual).
+ */
+export function fontFeatureValueShapingOverride(
+  base: FontInstance,
+  fontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  /** The run's FULL feature list (HarfBuzz feature strings, disables and
+   *  values included) — bound into the proxy, which is the one consumer that
+   *  receives the unprojected list. */
+  features: string[],
+): FontInstance {
+  const hbFace = shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings);
+  if (hbFace == null) return base;
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
+  if (hbInst === base) return base; // HarfBuzz declined the file
+  carryFontInstanceMetadata(hbInst, base);
+  return hbInst;
+}
+
 export function resolveFontForCodepoint(
   cp: number,
   primaryFont: FontInstance,

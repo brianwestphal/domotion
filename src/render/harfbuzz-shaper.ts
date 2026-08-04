@@ -279,6 +279,19 @@ export function harfbuzzShapeRun(
    * construction rather than by two parallel derivations.
    */
   axes?: Record<string, number> | null,
+  /**
+   * The run's OpenType features as HarfBuzz feature strings (`liga`, `-liga`,
+   * `aalt=2` — the `hb_feature_from_string` grammar). Passed to `hb_shape` the
+   * way Blink passes them: every author setting with its value intact
+   * (`FontFeatureRange::FromFontDescription`,
+   * `platform/fonts/shaping/font_features.cc:203-225`, rev 7d859f27). A zero
+   * value is honored on a GSUB face by leaving the feature's lookup mask unset
+   * and on an AAT face by selecting the feature's OFF selector
+   * (`hb-aat-map.cc:79`, rev 4de187d: `feature.value ? selectorToEnable :
+   * selectorToDisable`) — which is what makes `"liga" 0` remove Times'
+   * morx common ligatures exactly as Chrome does. Omitted = default features.
+   */
+  features?: string[],
 ): ShapeResult | null {
   const entry = getHbEntry(fontPath, faceIndex);
   if (entry == null) return null;
@@ -307,7 +320,18 @@ export function harfbuzzShapeRun(
   // harfbuzzjs takes HarfBuzz's numeric hb_direction_t, not a string:
   // HB_DIRECTION_LTR = 4, HB_DIRECTION_RTL = 5 (`hb.Direction`).
   if (direction != null) buf.setDirection(direction === "rtl" ? hb.Direction.RTL : hb.Direction.LTR);
-  hb.shape(font as unknown as hb.Font, buf);
+  // Feature strings parse through HarfBuzz's own `hb_feature_from_string`
+  // (`hb.Feature.fromString`), so the grammar here IS the library's, not a
+  // re-implementation; an entry it rejects is dropped rather than guessed at.
+  let hbFeatures: hb.Feature[] | undefined;
+  if (features != null && features.length > 0) {
+    hbFeatures = [];
+    for (const f of features) {
+      const parsed = hb.Feature.fromString(f);
+      if (parsed != null) hbFeatures.push(parsed);
+    }
+  }
+  hb.shape(font as unknown as hb.Font, buf, hbFeatures);
   const infos = buf.getGlyphInfosAndPositions();
   const glyphs: ShapedGlyph[] = [];
   const positions: ShapeResult["positions"] = [];
@@ -578,6 +602,18 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
      * its glyphs.
      */
     outlinesFromBase?: boolean;
+    /**
+     * OpenType features BOUND to this proxy, as HarfBuzz feature strings
+     * (including disables like `-liga` and values like `aalt=2` — see
+     * `harfbuzzShapeRun`). Bound at creation rather than read from `layout`'s
+     * own argument on purpose: every fontkit-facing call site projects the
+     * run's feature list down to fontkit's enable-only form
+     * (`fontkitFeatureList`), so the argument that reaches `layout` has already
+     * had exactly the entries this proxy exists to honor stripped from it.
+     * Joins the memo key — two proxies over one base that differ only in
+     * features shape differently and must not be interchanged.
+     */
+    features?: string[];
   },
 ): T {
   if (getHbEntry(fontPath, faceIndex) == null) return base;
@@ -595,14 +631,17 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   // proxies over one base that differ only in which engine draws are different
   // objects to the run-grouping identity check, and serving one where the other
   // was asked for would swap the outline engine silently.
-  const memoKey = `${fontPath}#${faceIndex ?? "?"}|${fontSizePx ?? ""}|${axes == null ? "" : JSON.stringify(axes)}|${opts?.outlinesFromBase === true ? "ob" : ""}`;
+  const memoKey = `${fontPath}#${faceIndex ?? "?"}|${fontSizePx ?? ""}|${axes == null ? "" : JSON.stringify(axes)}|${opts?.outlinesFromBase === true ? "ob" : ""}|${opts?.features != null ? opts.features.join(",") : ""}`;
   let perBase = hbProxyCache.get(base as object);
   if (perBase == null) { perBase = new Map(); hbProxyCache.set(base as object, perBase); }
   const memo = perBase.get(memoKey);
   if (memo != null) return memo as T;
   const proxy: ShapingFontView = {
-    layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
-      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
+    layout(text: string, _features?: string[], _script?: string, _language?: string, direction?: "ltr" | "rtl") {
+      // The BOUND features, never the argument — see the `features` option
+      // comment: the argument arrives pre-projected for fontkit, with the
+      // disables this proxy exists to honor already stripped.
+      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes, opts?.features);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       if (opts?.outlinesFromBase !== true || base.getGlyph == null) return res;
       const getGlyph = base.getGlyph.bind(base);
