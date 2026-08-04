@@ -5473,8 +5473,15 @@ let glyphIdCounter = 0;
 export function ensureGlyphDef(
   fontKey: string, weight: number, fontSize: number, slant: number,
   glyphId: number, commands: Array<{ command: string; args: number[] }>,
+  /** CSS `font-stretch` percentage. Part of the def identity because the SAME
+   *  (fontKey, weight, size, slant, glyphId) tuple names DIFFERENT outlines at
+   *  different widths: the run splitter keys runs by the BASE font key while
+   *  the width decision (condensed cut, or the system-ui `wdth` axis) happens
+   *  inside `getFontInstance` — so without this slot a normal-width run reused
+   *  the condensed run's registered outlines glyph id for glyph id. */
+  stretch: number = 100,
 ): string {
-  const key = `${fontKey}-${weight}-${fontSize}-${slant}-${glyphId}`;
+  const key = `${fontKey}-${weight}-${fontSize}-${slant}${stretch !== 100 ? `-w${stretch}` : ""}-${glyphId}`;
   const existing = glyphKeyToId.get(key);
   if (existing != null) return existing;
 

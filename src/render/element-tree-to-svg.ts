@@ -727,7 +727,7 @@ function paintSyntheticListMarker(
     const label = formatListMarker(lsType, idx) + listMarkerSuffix(lsType);
     const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
     const builtinLastRsb = measureLastGlyphRsb(label,
-      { fontSize: markerFontSize, fontFamily: markerFontFamily, fontWeight: markerFontWeight });
+      { fontSize: markerFontSize, fontFamily: markerFontFamily, fontWeight: markerFontWeight, fontStretch: el.styles.fontStretch });
     const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
     const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
     const mx = outside ? el.x - 7 + builtinLastRsb : el.x + borderL + padL;
@@ -4713,7 +4713,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     const radFontSize = parseFloat(el.styles.fontSize) || 16;
     const glyphRadical = renderRadicalGlyph(
       el.x, el.y, el.height, el.width,
-      { fontSize: radFontSize, fontFamily: el.styles.fontFamily, fontWeight: el.styles.fontWeight, fontStyle: el.styles.fontStyle },
+      { fontSize: radFontSize, fontFamily: el.styles.fontFamily, fontWeight: el.styles.fontWeight, fontStyle: el.styles.fontStyle, fontStretch: el.styles.fontStretch },
       strokeCol,
     );
     if (glyphRadical != null) {

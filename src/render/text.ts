@@ -404,6 +404,11 @@ interface TextDecorationOptions {
   fontFamily: string;
   fontWeight: string | number;
   fontStyle: string | undefined;
+  /** Computed CSS `font-stretch` (a percentage string). The decoration
+   *  metrics and skip-ink intercepts must resolve the same cut / axis
+   *  instance the glyphs came from, or a condensed run is underlined where
+   *  the normal cut wants it. */
+  fontStretch?: string;
   /** CSS `text-decoration-thickness` (e.g. `5px` or `auto`). DM-431. */
   thicknessOverride?: string;
   /** CSS `text-underline-offset` (e.g. `6px` or `auto`). DM-431. */
@@ -694,7 +699,7 @@ export function decorationDashPattern(style: "dashed" | "dotted", thickness: num
 function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
     textDecorationLine, decorationColor, style, segX, baselineY, segWidth,
-    fontSize, fontFamily, fontWeight, fontStyle, thicknessOverride,
+    fontSize, fontFamily, fontWeight, fontStyle, fontStretch, thicknessOverride,
     underlineOffset, underlinePosition, runText, skipInk, features, runXOffsets,
   } = opts;
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
@@ -707,7 +712,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const mFontWeight = opts.metricsFontWeight ?? fontWeight;
   const mFontStyle = opts.metricsFontStyle ?? fontStyle;
   const m = getDecorationMetrics(
-    { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle },
+    { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle, fontStretch },
     { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition });
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
@@ -723,7 +728,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // around them.
   function computeGapsAt(yRel: number, thick: number): Array<[number, number]> {
     if (!skipInkActive || runText == null) return [];
-    return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, features },
+    return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, fontStretch, features },
       { decorationCenterYRel: yRel, decorationThickness: thick, targetWidth: segWidth, charXOffsets: runXOffsets });
   }
   // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
@@ -831,6 +836,10 @@ function renderAppliedTextDecorations(
       textDecorationLine: pd.line, decorationColor: pd.color ?? fallbackColor, style: pd.style,
       segX: run.segX, baselineY: pickPropagatedBaseline(pd.baselines, run.baselineY, pd.fontSize), segWidth: run.segWidth,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
+      // `font-stretch` inherits, and `PropagatedDecoration` captures no stretch
+      // of its own, so the decorated element's computed value is the decorating
+      // box's too in every case capture can currently represent.
+      fontStretch: el.styles.fontStretch,
       thicknessOverride: pd.thickness, underlineOffset: pd.underlineOffset,
       // `PropagatedDecoration` carries no position of its own, so the
       // decorated element's value applies.
@@ -849,6 +858,7 @@ function renderAppliedTextDecorations(
       textDecorationLine: ownLine, decorationColor: ownColor, style: el.styles.textDecorationStyle,
       segX: run.segX, baselineY: run.baselineY, segWidth: run.segWidth,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
+      fontStretch: el.styles.fontStretch,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
       underlinePosition: el.styles.textUnderlinePosition,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
@@ -1235,7 +1245,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   if (el.tag === "mo" && isStretchyFenceChar(el.text) && el.height > 0) {
     const fence = renderStretchyFenceGlyph(
       el.text.trim(), tl, el.y, el.height,
-      { fontSize, fontFamily, fontWeight, fontStyle: el.styles.fontStyle },
+      { fontSize, fontFamily, fontWeight, fontStyle: el.styles.fontStyle, fontStretch: el.styles.fontStretch },
       fillColor,
     );
     if (fence != null) return fence;
@@ -1315,7 +1325,8 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   if (MATH_TOKEN_TAGS.has(el.tag ?? "") && el.height > 0) {
     const ink = measureInkMetrics(pathText, {
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
-      fontStyle: segFontStyle, lang: el.styles.lang, variationSettings, features,
+      fontStyle: segFontStyle, fontStretch: el.styles.fontStretch,
+      lang: el.styles.lang, variationSettings, features,
     });
     if (ink != null) {
       const inkTotal = ink.inkAscent + ink.inkDescent;

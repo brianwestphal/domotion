@@ -15,6 +15,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **text-small**: Small/label text (11-12px)
 - [x] **text-inline-mixed**: Mixed inline content (prose with inline code spans)
 - [x] **text-pre-multiline**: Preformatted multiline text (`<pre>` with `white-space: pre`)
+- [x] **text-font-stretch-underline**: CSS `font-stretch` end to end — condensed/expanded cut selection for declared families (Blink's trait-based style matcher), the `wdth` variation axis on the macOS `system-ui` face and variable webfonts, and decoration metrics resolved on the same width-matched face as the glyphs
 
 ### Backgrounds & Colors
 - [x] **bg-solid**: Solid background colors

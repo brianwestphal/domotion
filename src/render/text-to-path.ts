@@ -423,7 +423,7 @@ export function textToPathMarkup(
   // When synthesizing small-caps we need per-char rendering at variable scales,
   // so we route around singleFontMarkup which emits one fixed-scale group.
   if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps) {
-    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features);
+    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch);
   }
 
   // Content with captured per-char xOffsets. Primary runs and non-shaping
@@ -529,7 +529,7 @@ export function textToPathMarkup(
             if (isEmoji) { suppressedNotdef = true; continue; }
             // PUA: suppress only the .notdef tofu; a real icon-font glyph emits.
             if (isPua && g.id === 0) { suppressedNotdef = true; continue; }
-            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, gCmds);
+            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, gCmds, stretch);
             uses.push(`<use href="#${defId}" x="0" y="0"/>`);
           }
           if (uses.length > 0) {
@@ -742,7 +742,7 @@ export function textToPathMarkup(
             const pos = layout.positions[gi];
             const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
             if (glyphCmds.length > 0) {
-              const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
+              const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
               const tx = segFontUnits + pos.xOffset;
               const ty = -pos.yOffset;
               uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
@@ -776,7 +776,7 @@ export function textToPathMarkup(
       const pos = layout.positions[i];
       const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
       if (glyphCmds.length > 0) {
-        const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
+        const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
         const tx = runX + pos.xOffset;
         const ty = -pos.yOffset;
         uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
@@ -896,6 +896,9 @@ function singleFontMarkup(
   targetWidth?: number,
   xOffsets?: number[],
   features?: string[],
+  /** CSS `font-stretch` percentage — part of the glyph-def identity (see
+   *  `ensureGlyphDef`). */
+  stretch: number = 100,
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
   const run = features != null && features.length > 0
@@ -925,7 +928,7 @@ function singleFontMarkup(
       const pos = run.positions[gi];
       const dCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
       if (textIdx < xOffsets.length && dCmds.length > 0) {
-        const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds);
+        const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds, stretch);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
         const ty = -pos.yOffset;
         uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
@@ -971,7 +974,7 @@ function singleFontMarkup(
     const pos = run.positions[i];
     const eCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
     if (eCmds.length > 0) {
-      const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds);
+      const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds, stretch);
       let tx: number;
       if (usePerChar) {
         // Use the fractional CSS x straight from getBoundingClientRect — do
@@ -2503,22 +2506,19 @@ export interface DecorationStyleOptions {
  * field). Falls back to the legacy 15%/30%/95% approximations when the font
  * fails to resolve.
  *
- * KNOWN GAP: this resolves the face at NORMAL width. The glyph path now honors
- * CSS `font-stretch` (it picks the family's condensed / expanded cut), but the
- * measurement and decoration helpers here — and the vertical-text renderer —
- * still ask for the family at 100%. On a family whose condensed cut declares
- * different `post` / `OS/2` metrics the underline would sit where the normal
- * cut wants it. No fixture exercises that combination today; tracked separately.
+ * Resolves the face at the run's `font-stretch` width, like the glyph path:
+ * a condensed run's underline reads the condensed cut's metrics, not the
+ * normal cut's.
  */
 export function getDecorationMetrics(
   fontOptions: TextFontOptions,
   decoration: DecorationStyleOptions = {},
 ): DecorationMetrics {
-  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const { thicknessOverride, underlineOffsetCss, underlinePositionCss } = decoration;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
   // Chromium's text-decoration auto rules (verified vs source — see below):
   //   thickness = max(1, fontSize / 10)             [text_decoration_info.cc:ComputeDecorationThickness]
   //   underline_gap = max(1, ceil(thickness / 2))   [text_decoration_offset.cc:ComputeUnderlineOffsetAuto]
@@ -2629,10 +2629,10 @@ export function getDecorationMetrics(
  * where Chrome paints it.
  */
 export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
-  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
   if (font == null) return fontSize * 0.25;
   try {
     const g = font.layout(" ").glyphs[0] as { advanceWidth: number } | undefined;
@@ -2649,10 +2649,10 @@ export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions):
   // so the visible-rightmost glyph is the last NON-space character.
   const trimmed = text.replace(/\s+$/, "");
   if (trimmed === "") return 0;
-  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
   if (font == null) return 0;
   let layout;
   try { layout = font.layout(trimmed); } catch { return 0; }
@@ -2697,14 +2697,15 @@ export function measureInkMetrics(
   text: string,
   fontOptions: TextFontOptions,
 ): { inkAscent: number; inkDescent: number } | null {
-  const { fontFamily, fontSize, fontStyle, lang, variationSettings, features } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch, lang, variationSettings, features } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  const stretch = stretchPercent(fontStretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const fontKeyChain = resolveFontKeyChain(fontFamily);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily));
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
@@ -2756,20 +2757,21 @@ export function renderStretchyFenceGlyph(
   const ch = char.trim();
   if (ch === "" || boxH <= 0) return null;
   const cp = ch.codePointAt(0)!;
-  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
+  const stretch = stretchPercent(fontStretch);
 
   // Resolve a font that actually has the fence glyph via the shared per-codepoint
   // resolver (DM-1068). Uncovered → keep the primary (its `.notdef`); the caller
   // falls back to the synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
-    resolveFontKeyChain(fontFamily));
+    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch);
   const useKey = res.covered ? res.key : primaryFontKey;
-  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant) ?? primaryFont) : primaryFont;
+  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 
   let layout;
   try { layout = font.layout(ch); } catch { return null; }
@@ -2780,7 +2782,7 @@ export function renderStretchyFenceGlyph(
   if (bbox == null || !(bbox.maxY > bbox.minY)) return null;
 
   const em = font.unitsPerEm;
-  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands, stretch);
   // Horizontal: natural scale, glyph origin anchored at the captured x (same as
   // the per-char baseline path). Vertical: map ink [minY,maxY] (font units,
   // y-up) onto [boxY, boxY+boxH] (SVG y-down) — `sy` is the stretch factor.
@@ -2826,20 +2828,21 @@ export function renderRadicalGlyph(
 ): string | null {
   if (height <= 0 || width <= 0) return null;
   const cp = 0x221A; // √ SQUARE ROOT
-  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
+  const stretch = stretchPercent(fontStretch);
 
   // Resolve a font that has the √ glyph via the shared per-codepoint resolver
   // (DM-1068). Uncovered → keep the primary; the caller falls back to the
   // synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
-    resolveFontKeyChain(fontFamily));
+    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch);
   const useKey = res.covered ? res.key : primaryFontKey;
-  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant) ?? primaryFont) : primaryFont;
+  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 
   let layout;
   try { layout = font.layout("√"); } catch { return null; }
@@ -2849,7 +2852,7 @@ export function renderRadicalGlyph(
   const bbox = glyph.bbox;
   if (bbox == null || !(bbox.maxY > bbox.minY) || !(bbox.maxX > bbox.minX)) return null;
 
-  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands, stretch);
   // The captured element box carries a small clearance above the painted
   // vinculum and below the V tip (Chrome's RadicalVerticalGap + rule), so the
   // radical INK is shorter than `height`. Pixel scan of the 22 px fixture put
@@ -2908,11 +2911,11 @@ export function computeSkipInkGaps(
   fontOptions: TextFontOptions,
   skipInk: SkipInkOptions = {},
 ): Array<[number, number]> {
-  const { fontFamily, fontSize, fontStyle, features } = fontOptions;
+  const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings, features } = fontOptions;
   const { decorationCenterYRel = 0, decorationThickness = 1, targetWidth, charXOffsets } = skipInk;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
   if (font == null) return [];
   let layout;
   try { layout = font.layout(text, features); } catch { return []; }

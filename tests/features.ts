@@ -1456,6 +1456,27 @@ export const tests: FeatureTest[] = [
     width: 700,
     height: 180,
   },
+
+  {
+    // `font-stretch` end to end: glyphs AND decoration metrics from the same
+    // width-matched face. 75% on Helvetica Neue opens the family's condensed
+    // cut (Blink turns any width below 100% into the condensed symbolic trait
+    // and scores it ahead of weight, `mac/font_matcher_mac.mm:185-202` +
+    // `:234-235`); the underline must be measured on that SAME cut — the
+    // decoration helpers used to resolve the family at normal width, so a
+    // condensed run was underlined where the normal cut wants it. The
+    // system-ui line pins the OTHER mechanism: on the variable SF face the
+    // width is the `wdth` axis (identity, clamped to the axis range), not a
+    // cut. Large font size so a metrics disagreement is pixels, not noise.
+    name: "text-font-stretch-underline",
+    html: `<div style="background:#fff;color:#111;padding:24px;">
+      <div style="font-family:'Helvetica Neue',sans-serif;font-size:42px;font-stretch:75%;text-decoration:underline;">Hamburgefonstiv 75%</div>
+      <div style="font-family:'Helvetica Neue',sans-serif;font-size:42px;text-decoration:underline;">Hamburgefonstiv normal</div>
+      <div style="font-family:system-ui,sans-serif;font-size:42px;font-stretch:50%;text-decoration:underline;">Hamburgefonstiv 50%</div>
+    </div>`,
+    width: 700,
+    height: 220,
+  },
 ];
 
 // Only auto-run the suite when invoked directly (not when the fixtures are

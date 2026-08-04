@@ -206,6 +206,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       const inner = renderTextAsPath(segText, seg.x, baseline, {
         fontSize, fontFamily, fontWeight, fill: fillColor,
         xOffsets: seg.verticalCombineXOffsets, fontStyle, ascentOverride: 0,
+        fontStretch: el.styles.fontStretch,
       });
       if (inner != null) out.push(inner);
       continue;
@@ -263,6 +264,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         const inner = renderTextAsPath(ch, 0, 0, {
           fontSize, fontFamily, fontWeight, fill: fillColor,
           fontStyle, ascentOverride: fontSize,
+          fontStretch: el.styles.fontStretch,
         });
         if (inner == null) { i += step; continue; }
         const transform = `translate(${r(centerX)}, ${r(centerY)}) rotate(${rotateAngle}) translate(${r(-renderCx)}, ${r(-renderCy)})`;
@@ -295,6 +297,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
           fontSize, fontFamily, fontWeight, fill: fillColor,
           fontStyle, ascentOverride: 0,
           features: vertPunct ? ["vert"] : undefined,
+          fontStretch: el.styles.fontStretch,
         });
         if (inner != null) out.push(inner);
       }

@@ -140,8 +140,10 @@ describe("dotted-circle coverage probe asks the platform the resolver's question
   it("derives the probe's cascade-base signal from the declared stack, not from the font key", () => {
     // The key cannot carry it: `system-ui` and an explicitly-named "SF Pro Text"
     // resolve to the SAME key while taking different Blink entry points. So the
-    // call site must read the stack.
-    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily))");
+    // call site must read the stack. (The argument used to sit last in these
+    // calls; the run's `stretch` now follows it, so the pin matches the call
+    // shape rather than a trailing position.)
+    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily), stretch)");
     expect(resolveFontKey("system-ui, sans-serif")).toBe(resolveFontKey('"SF Pro Text", sans-serif'));
     expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif')).toBe(false);
