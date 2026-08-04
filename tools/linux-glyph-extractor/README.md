@@ -21,21 +21,23 @@ for the shared cross-platform contract.
 ./build.sh                 # → ./domotion-glyph-paths
 ```
 
-Requires `cmake`, a C++17 compiler, and FreeType dev headers:
+Requires `cmake`, a C++17 compiler, and FreeType + fontconfig dev headers
+(fontconfig is REQUIRED — it backs the `fcfallback` per-codepoint query, and a
+helper built without it would answer "unknown query type"):
 
 | Distro | Install |
 | --- | --- |
-| Debian/Ubuntu | `sudo apt-get install -y build-essential cmake libfreetype-dev pkg-config` |
-| Fedora | `sudo dnf install -y gcc-c++ cmake freetype-devel pkgconf-pkg-config` |
-| Arch | `sudo pacman -S --needed base-devel cmake freetype2 pkgconf` |
+| Debian/Ubuntu | `sudo apt-get install -y build-essential cmake libfreetype-dev libfontconfig-dev pkg-config` |
+| Fedora | `sudo dnf install -y gcc-c++ cmake freetype-devel fontconfig-devel pkgconf-pkg-config` |
+| Arch | `sudo pacman -S --needed base-devel cmake freetype2 fontconfig pkgconf` |
 
-The binary links `libfreetype.so.6` **dynamically**. That is safe by
-construction: the helper only runs in an environment that also runs Domotion's
-Playwright Chromium, and Chromium-on-Linux requires system FreeType
-(`libfreetype6` is part of `npx playwright install-deps`). So the shared library
-is always present, and its SONAME is ABI-stable. A static build would need
-`libfreetype.a` (not shipped by mainstream distros) for no real portability
-gain.
+The binary links `libfreetype.so.6` and `libfontconfig.so.1` **dynamically**.
+That is safe by construction: the helper only runs in an environment that also
+runs Domotion's Playwright Chromium, and Chromium-on-Linux requires system
+FreeType and fontconfig (both part of `npx playwright install-deps`). So the
+shared libraries are always present, and their SONAMEs are ABI-stable. A static
+build would need `libfreetype.a` (not shipped by mainstream distros) for no
+real portability gain.
 
 ### Reproducible / portability build (Docker)
 

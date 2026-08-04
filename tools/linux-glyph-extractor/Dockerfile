@@ -8,8 +8,9 @@
 # The base image fixes the glibc floor — glibc stays dynamically linked, so the
 # binary runs on any distro with that glibc or newer. ubuntu:22.04 (glibc 2.35)
 # covers all currently supported mainstream distros and matches the release
-# runner. FreeType is linked dynamically (libfreetype.so.6 is always present
-# alongside Chromium — see CMakeLists.txt).
+# runner. FreeType and fontconfig are linked dynamically (libfreetype.so.6 and
+# libfontconfig.so.1 are always present alongside Chromium — see CMakeLists.txt;
+# fontconfig backs the `fcfallback` per-codepoint query and is REQUIRED).
 #
 # Usage (from this directory):
 #   docker build -t domotion-linux-glyph-build .
@@ -19,7 +20,7 @@
 FROM ubuntu:22.04
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      build-essential cmake pkg-config libfreetype-dev \
+      build-essential cmake pkg-config libfreetype-dev libfontconfig-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

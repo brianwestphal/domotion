@@ -64,7 +64,14 @@ describe("buildUniverse", () => {
   it("excludes unassigned codepoints", () => {
     const u = new Set(buildUniverse({ includePua: true, ranges: [[0x0870, 0x089f]] }));
     expect(u.has(0x0870)).toBe(true);   // Arabic Extended-B, assigned
-    expect(u.has(0x088f)).toBe(false);  // reserved hole in the same block
+    // Reserved hole in the same block. `buildUniverse` deliberately tracks the
+    // RUNTIME's `\p{Assigned}` tables (the baselines record the Unicode version
+    // and refuse to compare across a change), so this pin must be a codepoint
+    // unassigned in every Unicode version the suite runs under: the previous
+    // pin, U+088F, was assigned in Unicode 17.0 (Node 24's data) while a Node
+    // 22 host still carries 16.0 — making the test a Unicode-version detector
+    // rather than a filter test. U+0892 is reserved in both.
+    expect(u.has(0x0892)).toBe(false);
   });
 
   it("drops private use only when asked, and the drop is large enough to matter", () => {

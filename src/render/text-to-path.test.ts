@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
 import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
-import { getGlyphDefs, isNonCharacterCodepoint, isPrivateUseCodepoint } from "./font-resolution.js";
+import { getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -86,8 +86,23 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("ui-serif")).toBe("times");
   });
 
-  it("routes system-ui / BlinkMacSystemFont to SF Pro", () => {
-    expect(resolveFontKey("system-ui")).toBe("sf-pro");
+  it("routes system-ui / BlinkMacSystemFont to SF Pro (Linux: the fontconfig default, matching Chrome)", () => {
+    // Chrome-on-Linux has no `system-ui` family — Blink configures `sans-serif`
+    // but never `system-ui`, so the keyword resolves through fontconfig's raw
+    // default (WenQuanYi Zen Hei on the Playwright noble image, DejaVu Sans on a
+    // stock GitHub runner; verified via getPlatformFontsForNode — DM-1681). The
+    // key is therefore a dynamic `sysfb:` registration carrying the HOST's
+    // fontconfig answer, deliberately not a face frozen here — asserting a
+    // literal face name would re-freeze one machine's inventory into the test.
+    // With the live resolver off, the documented fallback is the macOS mapping.
+    if (process.platform === "linux" && getSystemFallbackResolution()) {
+      expect(resolveFontKey("system-ui")).toMatch(/^sysfb:/);
+      withSystemFallbackResolution(false, () => {
+        expect(resolveFontKey("system-ui")).toBe("sf-pro");
+      });
+    } else {
+      expect(resolveFontKey("system-ui")).toBe("sf-pro");
+    }
     expect(resolveFontKey("BlinkMacSystemFont")).toBe("sf-pro");
   });
 
@@ -151,8 +166,22 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // both files. So the family resolves to the "sf-pro" (SFNS) key for shape
     // fidelity — reversing DM-1127, which preferred the OTF wholesale on the FALSE
     // assumption it's "the same font Chrome uses".
-    expect(resolveFontKey("SF Pro Text")).toBe("sf-pro");
-    expect(resolveFontKey("SF Pro Display")).toBe("sf-pro");
+    //
+    // The mapping holds ONLY where the named family actually resolves on THIS
+    // host. Everywhere else — a macOS install without Apple's SF Pro download,
+    // and every Linux/Windows host — Chrome cannot resolve the name and falls
+    // THROUGH the stack: a bare "SF Pro Text" lands on the standard-font
+    // default (verified on the Playwright noble image via
+    // getPlatformFontsForNode: Liberation Serif, our `times` key) and a stacked
+    // one lands on the next family (same probe: Liberation Sans for
+    // `"SF Pro Text", sans-serif`, our `helvetica` key).
+    if (resolveInstalledFont("SF Pro Text") != null) {
+      expect(resolveFontKey("SF Pro Text")).toBe("sf-pro");
+      expect(resolveFontKey("SF Pro Display")).toBe("sf-pro");
+    } else {
+      expect(resolveFontKey("SF Pro Text")).toBe("times");
+      expect(resolveFontKey('"SF Pro Text", sans-serif')).toBe("helvetica");
+    }
 
     if (process.platform !== "darwin") return; // no CoreText helper off macOS
     // Per-codepoint: SFNS-covered glyphs stay on SFNS (correct SHAPE) — the '!' and
@@ -1093,8 +1122,18 @@ describe("fallbackFontChain: CJK/Hangul combining tone marks U+302A–U+302F (DM
   // carries these marks AND U+25CC, so the DM-1215 dotted-circle HarfBuzz path
   // resolves coverage and lays the cluster as a spacing glyph like Chrome.
   it("appends Arial Unicode MS for the combining tone marks", () => {
+    // DM-1850: the append is gated on the family actually resolving on THIS
+    // host (`generatedRouteUsable` → the helper's installed-family probe). On a
+    // macOS font host the font is stock and the route appends; where it does
+    // not resolve (Linux CI, a hidden-family run, no helper binary) the chain
+    // stays ["cjk"] and the tone marks defer to the live per-codepoint
+    // resolver — matching Chrome, which cannot fall back to an absent font
+    // either.
+    const expected = resolveInstalledFont("Arial Unicode MS") != null
+      ? ["cjk", "u-arial-unicode-ms"]
+      : ["cjk"];
     for (const cp of [0x302a, 0x302b, 0x302c, 0x302d, 0x302e, 0x302f]) {
-      expect(darwinFallbackChain(cp)).toEqual(["cjk", "u-arial-unicode-ms"]);
+      expect(darwinFallbackChain(cp)).toEqual(expected);
     }
   });
 
@@ -1588,16 +1627,37 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
 // (the CI suite runs on Linux, but a dev's macOS run must cover it too).
 describe("linuxFallbackChain: Chromium-on-Linux calibration (DM-259)", () => {
   it("routes the symbol/arrow/box blocks to the image's real faces", () => {
-    expect(linuxFallbackChain(0x2500, "courier")).toEqual(["courier", "cjk"]);   // box-drawing, mono primary
-    expect(linuxFallbackChain(0x2500)).toEqual(["helvetica", "cjk"]);            // box-drawing, sans primary
-    expect(linuxFallbackChain(0x25A0)).toEqual(["helvetica", "cjk"]);            // geometric → Liberation Sans
-    // ← → Liberation Sans; the arrows Liberation lacks (↖↘⇄…) defer to the
-    // fc-match resolver, which picks Chrome's WenQuanYi (was a wrong static
-    // FreeSans route — verified vs getPlatformFontsForNode).
-    expect(linuxFallbackChain(0x2190)).toEqual(["helvetica"]);
-    expect(linuxFallbackChain(0x2197)).toEqual(["cjk", "helvetica"]);            // ↗ diagonal → WenQuanYi
-    expect(linuxFallbackChain(0x2702)).toEqual(["free-sans", "free-serif"]);     // dingbat → FreeSans
-    expect(linuxFallbackChain(0x1D400)).toEqual(["free-sans", "free-serif"]);    // Math Alpha → FreeFont
+    // The dingbat / chess / math-alphanumeric / letterlike routes DEFER to the
+    // live fc-match resolver when it can cover the codepoint on a Linux host
+    // (`linuxDeferOrStatic`, DM-1416) — the deferral returns an EMPTY chain so
+    // the per-codepoint resolver, which queries the same fontconfig Chrome
+    // does, makes the pick (verified on the noble image: Chrome paints ✂ from
+    // FreeSans, and fc-match hands the resolver that same face). The static
+    // routes asserted here are the resolver-off safety net, which is exactly
+    // the calibration this test pins — so pin them with the resolver toggled
+    // off, which also makes the assertions hold identically on every host.
+    withSystemFallbackResolution(false, () => {
+      expect(linuxFallbackChain(0x2500, "courier")).toEqual(["courier", "cjk"]);   // box-drawing, mono primary
+      expect(linuxFallbackChain(0x2500)).toEqual(["helvetica", "cjk"]);            // box-drawing, sans primary
+      expect(linuxFallbackChain(0x25A0)).toEqual(["helvetica", "cjk"]);            // geometric → Liberation Sans
+      // ← → Liberation Sans; the arrows Liberation lacks (↖↘⇄…) defer to the
+      // fc-match resolver, which picks Chrome's WenQuanYi (was a wrong static
+      // FreeSans route — verified vs getPlatformFontsForNode).
+      expect(linuxFallbackChain(0x2190)).toEqual(["helvetica"]);
+      expect(linuxFallbackChain(0x2197)).toEqual(["cjk", "helvetica"]);            // ↗ diagonal → WenQuanYi
+      expect(linuxFallbackChain(0x2702)).toEqual(["free-sans", "free-serif"]);     // dingbat → FreeSans
+      expect(linuxFallbackChain(0x1D400)).toEqual(["free-sans", "free-serif"]);    // Math Alpha → FreeFont
+    });
+    // Production shape on a Linux host: with the resolver on, the deferring
+    // routes hand the codepoint to fc-match exactly when it covers — an empty
+    // chain — and keep the static net otherwise.
+    if (process.platform === "linux" && getSystemFallbackResolution()) {
+      for (const cp of [0x2702, 0x1D400]) {
+        const expected = __resolveSystemFallbackKeyForCpForTest(cp) != null
+          ? [] : ["free-sans", "free-serif"];
+        expect(linuxFallbackChain(cp)).toEqual(expected);
+      }
+    }
   });
 
   it("routes CJK / Indic / RTL to the image's lang faces", () => {
@@ -2875,9 +2935,24 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // glyph for it (the Apple logo). Blink skips only the SYSTEM-fallback stage;
   // the declared families are still walked, so this one must still be covered.
   it("still paints a private-use codepoint the DECLARED family covers", () => {
+    // The declared-family walk is the same on every platform; what differs is
+    // the face the `helvetica` key opens. macOS Helvetica genuinely carries
+    // U+F8FF (the Apple logo), so the walk covers it there; Liberation Sans —
+    // the key's Linux face — does not, so Blink's skip-system-fallback rule
+    // makes the primary's `.notdef` the correct paint (verified on the noble
+    // image via getPlatformFontsForNode: Chrome reports Liberation Sans, the
+    // primary itself, for U+F8FF). Either way the key must stay on the
+    // declared primary — never a system-fallback face, never the LastResort
+    // tail — and `covered` must equal what the declared face's cmap says.
+    const face = getFontInstance("helvetica", 400, 16, 0);
+    const declaredFaceCovers = face != null && glyphIdForCp(face, 0xF8FF) !== 0;
+    // Keep the positive branch discriminating where it can be: on a macOS font
+    // host the declared family must genuinely cover (if this ever flips, the
+    // codepoint no longer tests the declared-family walk — re-pick it).
+    if (MACOS_FONTS) expect(declaredFaceCovers).toBe(true);
     const r = __resolveFontForCodepointForTest(0xF8FF, "Helvetica, sans-serif");
     expect(r).not.toBeNull();
-    expect(r!.covered).toBe(true);
+    expect(r!.covered).toBe(declaredFaceCovers);
     expect(r!.key).toBe("helvetica");
   });
 

@@ -18,7 +18,9 @@
  * from the key instead of from the stack would mis-fire the same way — every page
  * that names SF Pro explicitly would silently get the UI cascade.
  *
- * Registry-level: no font extraction, no helper binary, runs cross-platform.
+ * Registry-level: no font extraction, runs cross-platform. (The one test
+ * gated on the key-collapse precondition probes the installed-family registry,
+ * which consults the helper where one exists.)
  */
 import { describe, expect, it } from "vitest";
 import { resolveFontKey, stackPrimaryIsSystemUi } from "./font-resolution.js";
@@ -37,15 +39,26 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     expect(stackPrimaryIsSystemUi("SF Pro")).toBe(false);
   });
 
-  it("keeps the distinction the font key provably cannot carry", () => {
-    // If this ever stops holding, the signal could be derived from the key and
-    // this whole mechanism simplifies. Until then, it cannot.
-    const viaGeneric = resolveFontKey("system-ui, sans-serif");
-    const viaNamedFamily = resolveFontKey('"SF Pro Text", sans-serif');
-    expect(viaGeneric).toBe(viaNamedFamily);
-    expect(stackPrimaryIsSystemUi("system-ui, sans-serif"))
-      .not.toBe(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif'));
-  });
+  // The key-collapse is a macOS-with-SF-Pro fact, so the run-gate is the
+  // collapse's own precondition: the named family resolving to the same
+  // `sf-pro` key as the generic. Where it does not — a macOS host without
+  // Apple's SF Pro download, and every Linux/Windows host — the keys
+  // legitimately diverge, and that divergence is Chrome's own behavior:
+  // Linux resolves `system-ui` through fontconfig's raw default (WenQuanYi
+  // Zen Hei on the noble image, verified via getPlatformFontsForNode) while a
+  // named "SF Pro Text" falls through the stack. There the signal COULD be
+  // derived from the key, but the mechanism must serve the platform where it
+  // cannot, which is what this pins.
+  it.runIf(resolveFontKey("SF Pro Text") === "sf-pro")(
+    "keeps the distinction the font key provably cannot carry", () => {
+      // If this ever stops holding, the signal could be derived from the key and
+      // this whole mechanism simplifies. Until then, it cannot.
+      const viaGeneric = resolveFontKey("system-ui, sans-serif");
+      const viaNamedFamily = resolveFontKey('"SF Pro Text", sans-serif');
+      expect(viaGeneric).toBe(viaNamedFamily);
+      expect(stackPrimaryIsSystemUi("system-ui, sans-serif"))
+        .not.toBe(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif'));
+    });
 
   it("excludes bare -apple-system, matching how the key table already treats it", () => {
     // Chrome resolves `-apple-system` to the UA standard font rather than to the

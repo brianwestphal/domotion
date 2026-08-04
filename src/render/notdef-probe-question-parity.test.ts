@@ -184,9 +184,19 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // calls; the run's `stretch` now follows it, so the pin matches the call
     // shape rather than a trailing position.)
     expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily), stretch)");
-    expect(resolveFontKey("system-ui, sans-serif")).toBe(resolveFontKey('"SF Pro Text", sans-serif'));
     expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif')).toBe(false);
+    // The key-collapse itself exists only where the named SF Pro family
+    // resolves to the same `sf-pro` key as the generic (macOS with Apple's SF
+    // Pro installed). On Linux the keys legitimately diverge — Chrome resolves
+    // `system-ui` through fontconfig's raw default while a named "SF Pro Text"
+    // falls through the stack (verified on the noble image via
+    // getPlatformFontsForNode: WenQuanYi Zen Hei vs Liberation Sans) — so the
+    // collapse pin is gated on its own precondition; the source pins above
+    // hold everywhere.
+    if (resolveFontKey("SF Pro Text") === "sf-pro") {
+      expect(resolveFontKey("system-ui, sans-serif")).toBe(resolveFontKey('"SF Pro Text", sans-serif'));
+    }
   });
 
   it("takes the full context without disturbing the primary-covered fast path", () => {

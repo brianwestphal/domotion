@@ -240,8 +240,10 @@ integers).
 ### Build script & portability *(as built — DM-872)*
 
 - `tools/linux-glyph-extractor/CMakeLists.txt` + `build.sh` (CMake + pkg-config
-  for FreeType), plus a `Dockerfile` that reproduces the release build on
-  `ubuntu:22.04`, and a `README.md`.
+  for FreeType **and fontconfig** — fontconfig became a REQUIRED build
+  dependency when the `fcfallback` query landed, so the dev packages are
+  `libfreetype-dev` + `libfontconfig-dev` on Debian/Ubuntu), plus a `Dockerfile`
+  that reproduces the release build on `ubuntu:22.04`, and a `README.md`.
 - **FreeType is linked dynamically, not statically** (resolving open question 1
   below): the helper only ever runs in an environment that also runs Domotion's
   Playwright Chromium, and Chromium-on-Linux requires system FreeType
