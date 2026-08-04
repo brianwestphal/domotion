@@ -1109,6 +1109,11 @@ export function insertSyntheticDottedCircles(
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
   const primaryFontKey = resolveFontKey(fontFamily);
+  // The full declared stack, derived the same way the run splitters derive it —
+  // the coverage probe below delegates to `resolveFontForCodepoint`, which walks
+  // it (Blink's kFontFamily stage), so a mark covered only by a later-declared
+  // family is "covered" here exactly when the emitter will paint it.
+  const fontKeyChain = resolveFontKeyChain(fontFamily);
   const stretch = stretchPercent(fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
   if (primaryFont == null) return { text, xOffsets };
@@ -1203,7 +1208,7 @@ export function insertSyntheticDottedCircles(
       const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-            variationSettings, lang, stackPrimaryIsSystemUi(fontFamily), stretch)) {
+            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {

@@ -826,27 +826,33 @@ Notes:
   Mac cannot reproduce that, because SF Pro Text covers those codepoints and the
   walk never reaches Arial Unicode MS. Windows resolves these via its calibrated
   chain (Segoe UI Symbol).
-- `codepointResolvesToNotdef(cp, …)` is the read-only predicate that consults the
-  same sources (primary → webfont partition → `fallbackFontChain` → live resolver)
-  to ask "does anything cover `cp`?" without emitting. It deliberately does NOT
-  track step 2a/2b's ordering, and does not need to: it returns on the first
-  source that covers `cp` and otherwise consults them all, so its boolean is
-  order-invariant. Only `resolveFontForCodepoint` has to pick a WINNER, and only
-  the winner's identity depends on the order.
+- `codepointResolvesToNotdef(cp, …)` is the coverage predicate behind the
+  synthetic dotted circle: "does anything cover `cp`, or does it paint as the
+  primary's `.notdef`?" Its body **is** the resolver —
+  `!resolveFontForCodepoint(…).covered` — with the identical argument list,
+  `fontKeyChain` included (the caller derives it with
+  `resolveFontKeyChain(fontFamily)` and the cascade-base flag with
+  `stackPrimaryIsSystemUi(fontFamily)`, the same helpers the run splitters use).
 
-  Order-invariance is the ONLY thing it is allowed to differ on. Every argument
-  the platform fallback is a function of has to travel identically, so it reaches
-  `resolveSystemFallbackKeyForCp` with the run's `lang` **and** `systemUiPrimary`
-  exactly as `resolveFontForCodepoint` does. Two reasons, and they are separate:
-  the platform can answer "no font" for one locale and a covering face for
-  another (Linux and Windows both reject a non-covering pick — `fc`'s
-  coverage-walk / `!data->FontContainsCharacter(codepoint)` in
-  `win/font_cache_skia_win.cc:254-256`, Chromium rev 7d859f27), which makes the
-  boolean itself locale-dependent there; and `systemFallbackKeyCache` is keyed on
-  both arguments, so an asker that drops them populates a parallel set of rows
-  the render path never reads, in an order that differs from the render path's.
-  The caller derives `systemUiPrimary` with `stackPrimaryIsSystemUi(fontFamily)`,
-  the same helper the run splitters use.
+  It used to be a second, hand-maintained copy of the walk (primary → webfont
+  partition → `fallbackFontChain` → live resolver), and that copy drifted twice
+  in one cycle — first dropping the platform arguments (`lang` /
+  `systemUiPrimary`), then, after that was fixed, missing `stretch` when a
+  concurrent change threaded it into the resolver only. Beyond arguments, the
+  copy never walked the declared family stack or the decomposition stages at
+  all, so it could report "uncovered" (→ synthesize a U+25CC) for a mark a
+  later-declared family covers — e.g. U+3099/U+309A in a
+  `Helvetica, "Arial Unicode MS"` stack, where only the kFontFamily walk can
+  cover them once the live resolver is out of the loop. Delegation makes the
+  probe agree with the emitter by construction: when the resolver covers via a
+  later family or an in-font decomposition, the emitter paints a real glyph, so
+  no circle is correct — and when nothing covers, both land on the primary's
+  `.notdef` (Blink's `kFirstCandidateForNotdefGlyph`). Sharing the walk also
+  means private-use / noncharacter codepoints skip system fallback here too
+  (`FontCache::FallbackFontForCharacter`, `platform/fonts/font_cache.cc:229-244`,
+  Chromium rev 7d859f27), and the platform memo rows are populated by one asker
+  in one order. `src/render/notdef-probe-question-parity.test.ts` pins the
+  delegation at the source level plus the later-declared-family behavior.
 
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
 `sfProCoverageOtfKey` / `decomposeMathAlphaRun` in `src/render/font-resolution.ts`.
