@@ -1047,10 +1047,12 @@ flowchart TD
   SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
   SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
-  SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY<br/>(postscriptName + on-disk path, from resolveFontSpec(primaryKey))<br/>DOMOTION_FALLBACK_BASE=0 restores the old hardcoded 'Helvetica'"]
-  SRUIB --> SR1
-  SRB --> SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag + lang)"}
-  SR1 -->|"yes"| SRC["return cached key or null"]
+  SRUI -->|"no"| SRB["cascade base = the RUN'S PRIMARY at its WEIGHT-MATCHED cut<br/>(getFontInstance(primaryKey, weight, size, slant).postscriptName + path;<br/>the base entry at 400/upright — Blink's base is platform_data.CtFont(),<br/>the face MatchFontFamily selected at the CSS weight)<br/>DOMOTION_FALLBACK_BASE=0 restores 'Helvetica' · DOMOTION_FALLBACK_BASE_CUT=0 the base-entry cut"]
+  SRUIB --> SRDOC
+  SRB --> SRDOC{"darwin AND [:Ideographic=Yes:]<br/>AND document scope open AND base not dot-prefixed/UI?<br/>(ideograph document cache — Blink's character_fallback_cache_)"}
+  SRDOC -->|"cached face covers cp"| SRDOCH["return the DOCUMENT's cached key<br/>(the first ideograph's answer under this<br/>base+weight+style+size key — no re-ask)"]
+  SRDOC -->|"miss / not eligible"| SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag + lang)"}
+  SR1 -->|"yes"| SRC["return cached key or null<br/>(+ first-writer insert into the document cache<br/>when eligible and non-null)"]
   SR1 -->|"no"| SR2{"process.platform"}
   SR2 -->|"darwin (always on)"| SRD0["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)<br/>→ the NOMINATED face"]
   SRD0 --> SRD{"traits or weight differ<br/>from the request?"}
@@ -1299,6 +1301,55 @@ native helpers via a `HasCharacter` guard reporting `found:false`; Linux via
 `src/render/font-resolution.ts`; `resolveSystemFallbackFonts` /
 `resolveInstalledFont` / `createGlyphHelperFont` / `isGlyphHelperAvailable` in
 `src/render/glyph-helper.ts`. Doc [80](80-cross-platform-system-fallback-resolver.md).
+
+### 8b. macOS: the ideograph document cache (order-dependent, by design)
+
+Chrome's macOS fallback is **not context-free for ideographs**. For a codepoint
+with the Unicode property `[:Ideographic=Yes:]`, Blink caches the resolved
+fallback face per (base font PostScript name, weight, style, orientation,
+effective size) on the renderer's `FontCache`, and returns it for any LATER
+ideograph the cached face covers — without re-asking CoreText
+(`mac/font_cache_mac.mm:330-372`; key in `mac/character_fallback_cache.mm`;
+runtime feature `MacCharacterFallbackCache` is `stable` at the shipping tag
+147.0.7727.15). The insert is WTF `HashMap::insert`, which does nothing when the
+key exists — **first writer wins**: a later non-covered ideograph re-asks every
+time and never replaces the entry. Dot-prefixed base faces get no key (the UI
+font Blink builds passes a null language, so its descriptor lacks the language
+attribute `BuildIdentifierKey` requires), so a `system-ui` base is never cached.
+
+Consequence, measured: at `serif`/800 a lone U+4E9F resolves to Songti SC Black,
+but on a page whose first ideograph Black does not cover (most of CJK Ext-A) the
+first ask keeps the nominated Bold, that Bold is cached, and every later
+ideograph Bold covers paints Bold — including ones that would resolve to Black
+alone. One Songti cut on the page in Chrome, two in a context-free resolver.
+
+The mirror is a **document-scoped** cache around the darwin branch of
+`resolveSystemFallbackKeyForCp`, active only between
+`beginCharacterFallbackDocument()` / `endCharacterFallbackDocument()`
+(depth-counted). Every top-level render (`elementTreeToSvgInner`) opens a fresh
+scope; the multi-frame composers (`generateAnimatedSvg`, `composeScrollSvg`)
+open one spanning scope, since all frames of a capture session shared one
+renderer cache in Chrome; the conformance oracle opens one spanning its whole
+sweep, because its single probe page is one renderer. With no scope open the
+resolver stays context-free — so answers can depend on DOCUMENT order (modeled,
+matches Chrome) but never on sweep order across renders in one Node process.
+The scope deliberately survives `clearFontResolutionCaches()`: it is modeled
+state, not a memo. `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` disables the model.
+
+The cascade base is likewise the **weight-matched cut** of the run's primary
+(`Times-Bold` at `serif`/800, not `Times-Roman`): Blink's base is the run's
+`FontPlatformData` — the face `MatchFontFamily` selected at the CSS weight —
+and `CTFontCreateForString`'s nomination tracks the base's own cut (measured:
+a Times-Roman base nominates STSongti-SC-Regular where a Times-Bold base
+nominates STSongti-SC-Bold, and Chrome paints the Bold). At weight 400/upright
+the weight-matched cut IS the base entry, so nothing changes there.
+`DOMOTION_FALLBACK_BASE_CUT=0` restores the base-entry behavior for an A/B.
+
+**Source of truth:** `beginCharacterFallbackDocument` /
+`endCharacterFallbackDocument` / `characterFallbackDocKey` / `fallbackBaseFor`
+in `src/render/font-resolution.ts`; `isIdeographicCp` in
+`src/render/unicode-classification.ts`; pinned by
+`src/render/character-fallback-document-cache.test.ts`.
 
 ---
 
@@ -1710,6 +1761,7 @@ then shear when both apply (bold-italic on a no-bold-no-italic face).
 | `fallbackFamilyCutCache` (chain key + cp + weight + italic + size → sysfb cut\|null) | process | `clearFontResolutionCaches` † |
 | `fileFaceInfoCache` / `_famAvailCache` | process | `clearFontResolutionCaches` † |
 | `dynamicSystemFontPaths` (sysfb: → FontPath) | process | **never** — a registry, not a memo (grows as resolver fires) |
+| ideograph document cache (base+weight+style+size → first sysfb answer, § 8b) | **document** (`beginCharacterFallbackDocument` … `end…`) | scope close — deliberately NOT by `clearFontResolutionCaches` (modeled Chrome state, not a memo) |
 | `helperFontCache` / `helperOutlineCache` | process | `clearFontResolutionCaches` † · `__clearGlyphFallbackCaches` (test) |
 | `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |
 | `glyphDefs` (paths mode) | generation | `clearGlyphDefs` / `resetGeneration` |

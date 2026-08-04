@@ -91,7 +91,9 @@ import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   ITALIC_SLNT,
+  beginCharacterFallbackDocument,
   clearFontResolutionCaches,
+  endCharacterFallbackDocument,
   type FontInstance,
   getFontInstance,
   getFontSourceInfo,
@@ -1012,6 +1014,17 @@ async function main(): Promise<number> {
       + `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
     );
 
+    // One document scope for the macOS ideograph fallback cache, spanning the
+    // WHOLE sweep — because that is the scope Chrome's own cache has on the
+    // other side of the comparison: the oracle uses a single page (one renderer
+    // process) for every stack and batch, and Blink's character_fallback_cache_
+    // lives on that renderer's FontCache, surviving each `setContent`
+    // navigation. Both sides then see the identical ask sequence (stacks in
+    // corpus order, codepoints ascending), so the first-ideograph-under-a-key
+    // entries agree by construction. Deliberately NOT reset at the periodic
+    // `clearFontResolutionCaches()` memory trims — Chrome's cache is not
+    // dropped there either. Closed in the outer `finally` beside browser.close.
+    beginCharacterFallbackDocument();
     const oracle = await ChromeOracle.create(browser, opts.concurrency, opts.lang);
     const counts: Record<Verdict, number> = {
       "agree-exact": 0,
@@ -1351,6 +1364,8 @@ async function main(): Promise<number> {
 
     return mismatchTotal > 0 ? 1 : 0;
   } finally {
+    // Safe no-op when the early-exit paths returned before the sweep began.
+    endCharacterFallbackDocument();
     await browser.close();
   }
 }

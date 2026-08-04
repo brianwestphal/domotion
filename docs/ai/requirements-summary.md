@@ -849,7 +849,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   alone while reporting a stable plausible number. Fixed by declaring no base font
   on Windows, plus a named-pipe persistent channel (~83x cheaper per call). Any
   pre-DM-1889 Windows conformance figure describes the static chain and is not
-  comparable to a later one.
+  comparable to a later one. **DM-1949 makes the macOS half order-dependent, as
+  Chrome's is:** Blink caches ideograph (`[:Ideographic=Yes:]`) fallback per
+  (base font, weight, style, size) on the renderer's FontCache — first ask wins,
+  later covered ideographs reuse it without re-asking CoreText — so the resolver
+  now mirrors that with a DOCUMENT-scoped cache (`beginCharacterFallbackDocument`
+  / `end…`; opened per top-level render, per multi-frame composition, and
+  spanning a whole oracle sweep; no scope open → context-free as before), and the
+  cascade base became the primary's WEIGHT-MATCHED cut (Times-Bold at 800, not
+  Times-Roman) since `CTFontCreateForString`'s nomination tracks the base's cut.
+  A/B flags `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` / `DOMOTION_FALLBACK_BASE_CUT=0`.
+  See doc 80's order-dependence section + `docs/font-resolution-diagram.md` § 8b.
 - **Doc 61 (`docs/61-overlay-resolution-primitive.md`, DM-1132)** — `resolveOverlays(
   page, overlays)` lowers an overlay's selector `anchor` + typing `maxWidth:
   "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.

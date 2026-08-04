@@ -38,7 +38,7 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 export interface FontInstance {
@@ -1530,10 +1530,36 @@ const _fallbackBaseFromPrimary = process.env.DOMOTION_FALLBACK_BASE !== "0";
  *  is what lets the helper open Apple's hidden `.`-prefixed faces: CoreText
  *  refuses those by name and hands back Times New Roman WITHOUT erroring, so a
  *  name-only lookup would silently walk the wrong font's cascade. */
-function fallbackBaseFor(primaryKey: string | undefined): { name: string; path?: string } {
+/** DM-1949: ask CoreText from the WEIGHT-MATCHED cut of the primary, not the
+ *  family's base entry. Blink's cascade base is the run's current
+ *  `FontPlatformData` — `font_fallback_list_->PrimarySimpleFontDataWithSpace(
+ *  font_description_)` (shaping/font_fallback_iterator.cc:279-281, tag
+ *  147.0.7727.15) — i.e. the face `MatchFontFamily` selected AT THE CSS WEIGHT.
+ *  At `serif`/800 that is Times-Bold, and the cut is load-bearing:
+ *  `CTFontCreateForString`'s nomination tracks the base's own boldness
+ *  (measured: base Times-Roman nominates STSongti-SC-Regular for U+3400,
+ *  base Times-Bold nominates STSongti-SC-Bold — and Chrome paints the Bold).
+ *  The previous stand-in ("base at its regular cut + synthetic bold trait")
+ *  matched Blink's re-selection inputs but not its nomination, which is the
+ *  half the ideograph fallback cache then propagates to every later ideograph.
+ *  Set `DOMOTION_FALLBACK_BASE_CUT=0` to restore the base-entry behavior for
+ *  an A/B. At weight 400 / upright the instance IS the base entry, so this
+ *  changes nothing there by construction. */
+const _fallbackBaseCutEnabled = process.env.DOMOTION_FALLBACK_BASE_CUT !== "0";
+
+function fallbackBaseFor(
+  primaryKey: string | undefined, weight: number = 400, fontSize: number = 16, slant: number = 0,
+): { name: string; path?: string } {
   if (!_fallbackBaseFromPrimary || primaryKey == null) return { name: "Helvetica" };
   const spec = resolveFontSpec(primaryKey);
   if (spec?.postscriptName == null || spec.postscriptName === "") return { name: "Helvetica" };
+  if (_fallbackBaseCutEnabled && (weight !== 400 || slant !== 0)) {
+    const inst = getFontInstance(primaryKey, weight, fontSize, slant);
+    const ps = inst?.postscriptName;
+    if (inst != null && ps != null && ps !== "" && ps !== spec.postscriptName) {
+      return { name: ps, path: getFontSourceInfo(inst)?.path ?? spec.path };
+    }
+  }
   return { name: spec.postscriptName, path: spec.path };
 }
 
@@ -1738,7 +1764,7 @@ export function warmSystemFallbackForCodepoints(
   if (cps.length === 0 || !_systemFallbackResolutionEnabled) return;
   try {
     if (process.platform === "darwin") {
-      const base = fallbackBaseFor(primaryKey);
+      const base = fallbackBaseFor(primaryKey, weight, fontSize, slant);
       resolveSystemFallbackFonts(cps, base.name, {
         weight, italic: slant !== 0, fontSize, basePath: base.path,
         ...(systemUiPrimary && _systemUiBaseEnabled ? { systemUi: true } : {}),
@@ -1754,6 +1780,119 @@ export function warmSystemFallbackForCodepoints(
   }
 }
 
+/**
+ * DM-1949: the macOS per-character fallback cache for ideographs — Blink's
+ * `character_fallback_cache_`, modeled as DOCUMENT-scoped ordered state.
+ *
+ * Blink (mac/font_cache_mac.mm:330-372, checkout rev 7d859f27, byte-identical
+ * at shipping tag 147.0.7727.15, where the `MacCharacterFallbackCache` runtime
+ * feature is `status: "stable"` — i.e. ON in the Chrome we target): for a
+ * codepoint with the Unicode property [:Ideographic=Yes:], the result of the
+ * system-fallback ask (`GetAlternateFontPlatformData` — the CoreText cascade
+ * plus the in-family traits/weight re-selection) is cached under
+ * `CharacterFallbackKey` and returned for any LATER ideograph the cached face
+ * covers, without re-asking CoreText. Blink's own comment names the cost: it
+ * "can introduce context sensitivity of fallback for individual characters."
+ * So Chrome's answer for an ideograph depends on which ideograph asked FIRST
+ * in that renderer — and matching Chrome means modeling that order.
+ *
+ * Transcribed semantics, each load-bearing:
+ *
+ *  - KEY (`CharacterFallbackKey::Make`, mac/character_fallback_cache.mm:86-105):
+ *    the BASE font's PostScript name + raw weight + raw style + orientation +
+ *    effective font size. The base is the run's primary
+ *    (`font_fallback_list_->PrimarySimpleFontDataWithSpace(...)`,
+ *    shaping/font_fallback_iterator.cc:279-281 at tag 147.0.7727.15) — our
+ *    `fallbackBaseFor(primaryKey).name`. Orientation is constant-horizontal in
+ *    this resolver, and style folds to the same italic bit the raw ask itself
+ *    discriminates on, so neither needs more resolution than the ask has.
+ *  - NO KEY for dot-prefixed faces (`BuildIdentifierKey`,
+ *    character_fallback_cache.mm:36-82): a `.`-PS-named font yields a key only
+ *    when its descriptor carries BOTH `NSCTFontUIUsageAttribute` and
+ *    `CTFontDescriptorLanguageAttribute`. Blink builds the UI font with
+ *    `CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, nullptr)`
+ *    (mac/font_matcher_mac.mm:540-588), and with a null language the descriptor
+ *    has NO language attribute (probed with the identical API call: keys are
+ *    ["NSCTFontUIUsageAttribute", "NSFontSizeAttribute"]) — so a `system-ui`
+ *    base is NEVER cached in shipping Chrome, and must not be here either.
+ *  - HIT = cached face covers the codepoint (`unicharToGlyph(character)`,
+ *    font_cache_mac.mm:361-366) — a cmap check on the CACHED face, at the same
+ *    weight/size/slant the key pins.
+ *  - FIRST WRITER WINS: the insert is WTF `HashMap::insert`, which "does
+ *    nothing if key is already present" (wtf/hash_map.h:184-188 at tag
+ *    147.0.7727.15). A later ideograph the cached face does not cover re-asks
+ *    CoreText every time and NEVER replaces the entry. Only successful asks
+ *    insert (`if (!alternate_font) return nullptr` precedes it).
+ *
+ * SCOPE — the part that is deliberately different from every other cache in
+ * this module. Blink's map lives on `FontCache` (font_cache.h:338), reached via
+ * `FontCache::Get()` → `FontGlobalContext::GetFontCache()` (font_cache.cc:121)
+ * — per renderer main thread, which for Domotion's one-page-per-capture flow
+ * is per captured document. Modeling it process-globally would make answers
+ * depend on SWEEP order (which fixture rendered first in this Node process);
+ * scoping it to an explicitly-begun document makes them depend on DOCUMENT
+ * order, which is the thing being modeled. Therefore:
+ *
+ *  - The map exists ONLY between `beginCharacterFallbackDocument()` /
+ *    `endCharacterFallbackDocument()`. No active document → no lookup, no
+ *    insert — the resolver stays context-free exactly as before.
+ *  - Every top-level render entry opens a FRESH document scope (depth-counted,
+ *    `finally`-paired), so no state can survive into the next render; the
+ *    animator opens ONE scope spanning all frames, because Chrome's cache
+ *    persists across the frames of one capture session.
+ *  - `clearFontResolutionCaches()` does NOT clear it: it is modeled state, not
+ *    a memo — Chrome's cache is not dropped when our sweep trims memory. The
+ *    entries are key strings; the faces they name re-materialize through the
+ *    `dynamicSystemFontPaths` registry, which that reset also preserves.
+ *
+ * The value stored is the final resolved `sysfb:` key — the post-re-selection
+ * answer, exactly what Blink caches (the `FontPlatformData` AFTER
+ * `GetAlternateFontPlatformData`'s in-family re-selection).
+ *
+ * Set `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` to disable the model for an A/B —
+ * with it off, every ideograph resolves context-free (the pre-DM-1949
+ * behavior), which is how "is this mechanism actually in the loop" is checked.
+ */
+const _macCharFallbackCacheEnabled = process.env.DOMOTION_MAC_CHAR_FALLBACK_CACHE !== "0";
+let _charFallbackDocCache: Map<string, string> | null = null;
+let _charFallbackDocDepth = 0;
+
+/** Open a document scope for the ideograph fallback cache (nested calls share
+ *  the outermost scope). Pair with `endCharacterFallbackDocument` in `finally`. */
+export function beginCharacterFallbackDocument(): void {
+  if (_charFallbackDocDepth === 0) _charFallbackDocCache = new Map();
+  _charFallbackDocDepth++;
+}
+
+/** Close the current document scope; the outermost close drops the state. */
+export function endCharacterFallbackDocument(): void {
+  if (_charFallbackDocDepth > 0) _charFallbackDocDepth--;
+  if (_charFallbackDocDepth === 0) _charFallbackDocCache = null;
+}
+
+/** Test-only window into the active document cache (null when none is open). */
+export function __characterFallbackDocumentCacheForTest(): Map<string, string> | null {
+  return _charFallbackDocCache;
+}
+
+/**
+ * The `CharacterFallbackKey` for this ask, or null when Blink would not cache:
+ * no open document, feature off, not [:Ideographic=Yes:], not the darwin path,
+ * or a base whose key `BuildIdentifierKey` declines (dot-prefixed / UI font —
+ * see the block comment above for the probe establishing the UI font has no
+ * language attribute, hence no key).
+ */
+function characterFallbackDocKey(
+  cp: number, baseName: string, useSystemUiBase: boolean,
+  weight: number, slant: number, fontSize: number,
+): string | null {
+  if (_charFallbackDocCache == null || !_macCharFallbackCacheEnabled) return null;
+  if (process.platform !== "darwin") return null;
+  if (useSystemUiBase || baseName.startsWith(".")) return null;
+  if (!isIdeographicCp(cp)) return null;
+  return `${baseName}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
+}
+
 function resolveSystemFallbackKeyForCp(
   cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
   primaryKey?: string, systemUiPrimary: boolean = false,
@@ -1767,7 +1906,7 @@ function resolveSystemFallbackKeyForCp(
   lang?: string,
 ): string | null {
   const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
-  const base = fallbackBaseFor(primaryKey);
+  const base = fallbackBaseFor(primaryKey, weight, fontSize, slant);
   // The base joins the cache key for the same reason the CSS description does:
   // the answer is a function of the font you ask FROM, so a base-blind key would
   // serve whichever base asked first to every later caller (the a72e557 lesson).
@@ -1776,7 +1915,35 @@ function resolveSystemFallbackKeyForCp(
   // to every later caller — and on a multilingual page that is silently wrong
   // rather than loudly broken.
   const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}`;
-  if (systemFallbackKeyCache.has(cacheKey)) return systemFallbackKeyCache.get(cacheKey)!;
+  // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
+  // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
+  // process-global memo below, which is a memo of the context-FREE ask and
+  // therefore must not answer for a codepoint the document's cached face
+  // covers. Hit condition transcribed: the CACHED face has a cmap glyph for
+  // this codepoint, at the weight/size/slant the key pins.
+  const docKey = characterFallbackDocKey(cp, base.name, useSystemUiBase, weight, slant, fontSize);
+  if (docKey != null) {
+    const cachedKey = _charFallbackDocCache!.get(docKey);
+    if (cachedKey != null) {
+      const cachedInst = getFontInstance(cachedKey, weight, fontSize, slant);
+      if (cachedInst != null && glyphIdForCp(cachedInst, cp) !== 0) return cachedKey;
+    }
+  }
+  // First-writer-wins insert of a successful ask (WTF HashMap::insert "does
+  // nothing if key is already present", wtf/hash_map.h:184-188; nulls are never
+  // inserted — Blink returns before its insert when the ask fails). Runs on the
+  // memo-hit path too: the raw answer is a pure function of its inputs, so a
+  // memoized answer is the same answer this document's ask would have produced.
+  const docInsert = (resolvedKey: string | null): void => {
+    if (docKey != null && resolvedKey != null && !_charFallbackDocCache!.has(docKey)) {
+      _charFallbackDocCache!.set(docKey, resolvedKey);
+    }
+  };
+  if (systemFallbackKeyCache.has(cacheKey)) {
+    const memo = systemFallbackKeyCache.get(cacheKey)!;
+    docInsert(memo);
+    return memo;
+  }
   let key: string | null = null;
   try {
     if (process.platform === "darwin") {
@@ -1953,6 +2120,7 @@ function resolveSystemFallbackKeyForCp(
     }
   } catch { key = null; }
   systemFallbackKeyCache.set(cacheKey, key);
+  docInsert(key);
   return key;
 }
 
