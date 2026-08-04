@@ -82,6 +82,17 @@ The path pipeline still walks the emoji codepoint and, when the resolved font (t
 
 The 20-font-family fixture has 3 emoji (😀 🚀 ✨). With the 64-ppem strike picked adaptively each costs 4-9KB embedded as base64 in the SVG. Sustained at ~10 emoji per fixture this adds 60-90KB which is acceptable for the rendering-fidelity gain. Consumers who need smaller files can post-process the SVG with svgo or a separate optimization pass that re-encodes the data URIs at the lowest acceptable strike.
 
+## CSS `font-variant-emoji`
+
+The property overrides which codepoints take the raster-emoji path at all — it is a genuine face-selection input, not a hint. Blink overrides the run's fallback priority and forces a variation selector into every glyph lookup (`ApplyFontVariantEmojiOnFallbackPriority`, `shaping/harfbuzz_shaper.cc:184-198`; `HarfBuzzGetGlyph`, `shaping/harfbuzz_face.cc:127-206`, rev `7d859f27`), so:
+
+- `emoji` moves every Unicode `Emoji`-property codepoint to the color font — including covered text-default ones (☺ moves off Helvetica) and the keycap bases (`0-9 # *`; measured: Chrome really paints digit `5` from Apple Color Emoji under the override). All of these raster.
+- `text` moves an emoji-presentation codepoint onto the monochrome cascade when a mono face covers it (⚡ → Apple Symbols, ⭐ → STIX Two Math — Blink's monochrome-emoji replacement, `mac/font_cache_mac.mm:156-184`, mirrored in the macOS glyph helper's `monoEmoji` fallback mode); those render as path glyphs. Codepoints with no mono face anywhere (😀 ✨ ⭕, flags) stay on the color font and keep rastering.
+- `unicode` behaves like `emoji` for emoji-default codepoints and like `normal` otherwise.
+- An explicit VS15/VS16 in the text always wins over the property.
+
+The capture predicate (`needsRaster`), the per-codepoint resolver, and the render-side path suppression all apply the same rules; the `text-font-variant-emoji` feature fixture pins them pixel-exactly.
+
 ## Known gaps
 
 - **ZWJ sequences** (👨‍👩‍👧 family emoji, 🏳️‍🌈 flag emoji, 👍🏿 skin-tone modifiers): each codepoint in the sequence has its own `rasterGlyphs` entry; the per-codepoint sbix lookup returns the unjoined glyph (👨, 👩, 👧 separately) which doesn't match Chrome's joined paint. The width-vs-height filter rejects the chars whose rect is a thin slice (ZWJ joiner U+200D, VS-16 U+FE0F) but the lead char still paints alone. Fixing this requires shaping-aware lookup: feed the full sequence to `font.layout` and use the resulting glyph cluster's id for sbix lookup. Scope is broader than the current ticket; the screenshot fallback path is still wired for these cases so the visible result is "Chrome's painted output, soft" rather than "wrong".

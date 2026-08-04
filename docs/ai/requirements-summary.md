@@ -1018,7 +1018,11 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `"liga" 0` runs that discriminate (12 mismatch-count pre-fix →
   12 agree-exact). Two properties that *are* selection
   inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
-  cache key — remain unextracted. All three committed baselines await a
+  cache key — remain unextracted by the oracle corpora (the RENDERER now
+  models `font-variant-emoji` end to end: captured, threaded into the
+  per-codepoint resolver with Blink's priority override + forced-VS
+  semantics and the macOS monochrome-emoji replacement, and applied to the
+  raster-emoji overlay routing — see doc 15). All three committed baselines await a
   re-seed from CI, since re-extraction moved each corpus's `generatedAt`.
 - **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
   always-in-sync Mermaid flow diagram of the *entire* font-resolution

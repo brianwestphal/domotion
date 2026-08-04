@@ -653,7 +653,9 @@ the exact font + glyph to paint. The order mirrors Blink's `FontFallbackIterator
 
 ```mermaid
 flowchart TD
-  F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain)"] --> FC["complexShaperBaseMarkDecomposition(cp)?<br/>(e.g. Kaithi U+110AB, canonical base+mark)"]
+  F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain, …, fontVariantEmoji)"] --> FVE{"font-variant-emoji forces EMOJI<br/>presentation for cp?<br/>(emoji → any \p{Emoji} cp · unicode → Emoji_Presentation only;<br/>explicit VS15/VS16 in the text wins — caller passes undefined)"}
+  FVE -->|"yes & color-emoji face covers cp"| FVE1["cover(color-emoji key)<br/>resolveColorEmojiKeyForCp — even over a covering primary<br/>(forced VS16: harfbuzz_face.cc:127-206)"]
+  FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| FC["complexShaperBaseMarkDecomposition(cp)?<br/>(e.g. Kaithi U+110AB, canonical base+mark)"]
   FC -->|"primary covers all pieces & has on-disk file"| FCH["→ HarfBuzz shaping instance<br/>(shapingFaceFor → makeHarfbuzzShapingInstance) · decomposed=true<br/>matches Chrome's HarfBuzz decompose+GPOS"]
   FC -->|"no"| F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?"]
   F1 -->|"yes"| F1H["cover(primaryKey)"]
@@ -1211,7 +1213,7 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary)"] --> SREM{"darwin AND<br/>Emoji_Presentation=Yes?"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji)"] --> SREM{"darwin AND Emoji_Presentation=Yes<br/>AND NOT suppressed?<br/>(font-variant-emoji:text forces kText priority for \p{Emoji} cps —<br/>ApplyFontVariantEmojiOnFallbackPriority, harfbuzz_shaper.cc:184-198)"}
   SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
   SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
