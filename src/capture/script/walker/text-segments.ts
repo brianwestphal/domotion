@@ -951,7 +951,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
               rect: { x: 0, y: 0, width: 0, height: 0 },
               suppressGlyph: true,
             });
-          } else if (cp != null && needsRaster(cp, nextCp, cs.fontFamily)) {
+          } else if (cp != null && needsRaster(cp, nextCp, cs.fontFamily, cs.fontVariantEmoji)) {
             // Color-bitmap codepoint (emoji etc.) — record the painted rect
             // so post-capture rasterization can fill in the dataUri and the
             // renderer can stamp an `<image>` over the path-mode emit.

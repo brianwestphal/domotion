@@ -1136,6 +1136,17 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
     // for codepoints nothing in the cascade covers. Compare PostScript names.
     let lastResortName = "LastResort"
 
+    // Blink's monochrome-emoji replacement (`GetSubstituteFont`,
+    // font_cache_mac.mm:156-184, rev 7d859f27): for a NON-emoji-presentation
+    // ask on an emoji character, an "Apple Color Emoji" answer is replaced by
+    // re-asking CTFontCreateForString from an "Apple Symbols" base carrying
+    // the color font's default cascade list — "we need a monochromatic (text)
+    // presentation of emoji". The caller sets `monoEmoji` per query where
+    // Blink's runtime gate (`SystemFallbackEmojiVSSupport`, stable) plus its
+    // `Character::IsEmoji` check would hold; the family-name test below is
+    // Blink's `IsAppleColorEmojiFont` (font_cache_mac.mm:117-125).
+    let monoEmoji = (query["monoEmoji"] as? NSNumber)?.boolValue == true
+
     var out: [[String: Any]] = []
     for cp in cps {
         guard let scalar = Unicode.Scalar(cp) else {
@@ -1144,6 +1155,21 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
         let s = String(scalar) as NSString
         let range = CFRangeMake(0, s.length)
         var substitute = CTFontCreateForString(baseFont, s as CFString, range)
+        if monoEmoji {
+            let familyName = (CTFontCopyName(substitute, kCTFontFamilyNameKey) as String?) ?? ""
+            if familyName.caseInsensitiveCompare("Apple Color Emoji") == .orderedSame
+                || familyName.caseInsensitiveCompare(".Apple Color Emoji UI") == .orderedSame {
+                let cascadeList = CTFontCopyDefaultCascadeListForLanguages(
+                    substitute, ["en"] as CFArray)
+                var monoAttributes: [CFString: Any] = [
+                    kCTFontNameAttribute: "Apple Symbols",
+                ]
+                if let cascadeList { monoAttributes[kCTFontCascadeListAttribute] = cascadeList }
+                let monoDescriptor = CTFontDescriptorCreateWithAttributes(monoAttributes as CFDictionary)
+                let monoFont = CTFontCreateWithFontDescriptor(monoDescriptor, size, nil)
+                substitute = CTFontCreateForString(monoFont, s as CFString, range)
+            }
+        }
         var psName = (CTFontCopyPostScriptName(substitute) as String?) ?? ""
         if psName == lastResortName || psName.isEmpty {
             out.append(["cp": Int(cp), "found": false])

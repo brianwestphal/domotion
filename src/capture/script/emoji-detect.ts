@@ -185,7 +185,39 @@ export const createEmojiDetect = () => {
     return ignores;
   };
 
-  const needsRaster = (cp, nextCp, font) => {
+  // DM-1959: `font-variant-emoji` overrides the raster-vs-path decision the
+  // same way it overrides Blink's fallback priority — UNLESS the codepoint
+  // carries an explicit VS15/VS16, which wins (the HasVSFallbackPriority guard
+  // in Blink's shaper). Rules are MEASURED against Chrome on macOS via CDP
+  // getPlatformFontsForNode (pinned Playwright build):
+  //  - `emoji` forces every Unicode `Emoji`-property codepoint to the color
+  //    font — including a covered ☺ (Helvetica → Apple Color Emoji) and even
+  //    the keycap bases (digit 5, #: both move to Apple Color Emoji).
+  //  - `text` moves an emoji-presentation codepoint to the MONOCHROME cascade
+  //    when a text face covers it (⚡ U+26A1 / ☔ U+2614 → Apple Symbols,
+  //    ⭐ U+2B50 / ⬛ U+2B1B → STIX Two Math, 🈚 U+1F21A → PingFang,
+  //    🌐 U+1F310 / 🎤 U+1F3A4 → Apple Symbols) and leaves it on the color
+  //    font when none does (😀 U+1F600, ✨ U+2728, ❌ U+274C, ⭕ U+2B55,
+  //    🆑 U+1F191, the regional indicators — all stay Apple Color Emoji:
+  //    Blink's ignore-VS reset).
+  //  - `unicode` behaves like `emoji` for emoji-presentation codepoints and
+  //    like `normal` for text-default ones.
+  const RE_EMOJI_PROP = /\p{Emoji}/u;
+  const RE_EMOJI_PRESENTATION = /\p{Emoji_Presentation}/u;
+  // Emoji-presentation codepoints a monochrome macOS face covers, i.e. the
+  // ones `font-variant-emoji: text` really moves off the color font (measured
+  // set above; U+2B55 has no mono coverage and stays color).
+  const textVariantHasMonoFace = (cp) =>
+    (cp >= 0x2600 && cp <= 0x26FF)
+    || (cp >= 0x2B00 && cp <= 0x2BFF && cp !== 0x2B55)
+    || cp === 0x1F310 || cp === 0x1F3A4
+    || cp === 0x1F21A || cp === 0x1F22F || (cp >= 0x1F232 && cp <= 0x1F23A) || cp === 0x1F250 || cp === 0x1F251;
+
+  const needsRaster = (cp, nextCp, font, fontVariantEmoji = undefined) => {
+    const fve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
+    if (fve === 'emoji') return RE_EMOJI_PROP.test(String.fromCodePoint(cp));
+    if (fve === 'unicode' && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return true;
+    if (fve === 'text' && textVariantHasMonoFace(cp)) return false;
     // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome
     // routes to the COLOR emoji font even when a text font in the cascade has
     // a monochrome glyph — emoji presentation wins regardless of the author's
@@ -299,12 +331,12 @@ export const createEmojiDetect = () => {
     return false;
   };
 
-  const textNeedsRaster = (s, font) => {
+  const textNeedsRaster = (s, font, fontVariantEmoji = undefined) => {
     for (let i = 0; i < s.length; i++) {
       const cp = s.codePointAt(i);
       const step = cp > 0xFFFF ? 2 : 1;
       const nextCp = i + step < s.length ? s.codePointAt(i + step) : 0;
-      if (needsRaster(cp, nextCp, font)) return true;
+      if (needsRaster(cp, nextCp, font, fontVariantEmoji)) return true;
       if (cp > 0xFFFF) i++;
     }
     return false;
