@@ -46,7 +46,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { join, resolve } from "node:path";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { clearFontResolutionCaches } from "../src/render/font-resolution.js";
-import { parseFontVariationSettings } from "../src/render/text.js";
+import { parseFontFeatureSettings, parseFontVariationSettings } from "../src/render/text.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +86,39 @@ export interface RunSpec {
    * to); the extractor always writes it.
    */
   fontStretch?: string;
+  /**
+   * Computed `font-feature-settings` (e.g. `"tnum" 1`, `"liga" 0, "dlig" 0`).
+   *
+   * This is the property whose consequence this oracle OWNS, and it was the one
+   * the run corpus did not record. The face oracle (docs/107) deliberately
+   * carries it without being able to adjudicate it: `feature_settings_` is
+   * absent from `FontDescription::CacheKey`, so no feature setting can change
+   * which face Chrome reports. What it changes is which GLYPHS that face
+   * produces, which is exactly what this tool compares.
+   *
+   * The path, end to end: Blink appends every author setting verbatim onto the
+   * HarfBuzz feature array with no resolution against the features it already
+   * pushed from `font-variant-*` — `FontFeatureRange::FromFontDescription`,
+   * `platform/fonts/shaping/font_features.cc:203-225`, whose own TODO at :205
+   * notes the missing resolution (Chromium `7d859f27`). HarfBuzz then turns each
+   * `hb_feature_t` into a lookup mask — `add_feature` (`hb-ot-shape.cc:392-398`
+   * -> `hb-ot-map.cc:97`), a per-feature bit slice at compile
+   * (`hb-ot-map.cc:312-322`) stamped onto every lookup the feature references
+   * (`hb-ot-map.cc:160`), OR'd onto the buffer's glyph masks
+   * (`hb-ot-shape.cc:753`) and gated per glyph by `cur.mask & c->lookup_mask`
+   * (`hb-ot-layout.cc:1960`) — and a matching GSUB lookup rewrites the glyph
+   * (`OT/Layout/GSUB/SingleSubstFormat1.hh:178`). HarfBuzz checkout `4de187d`.
+   *
+   * Measured on macOS `system-ui`, which is why an all-agree result here would
+   * be suspicious rather than reassuring: `1/2 3/4` runs 97.86px by default and
+   * 58.66px under `"frac" 1`; `hamburgefonstiv` runs 231.30px and 255.36px under
+   * `"smcp" 1`; `0123456789` runs 188.64px and 197.50px under `"tnum" 1`. The
+   * reported face is `.SFNS-Regular` throughout.
+   *
+   * Optional on read so a corpus file written before this field existed still
+   * parses; the extractor always writes it.
+   */
+  fontFeatureSettings?: string;
   fixtures: number;
   example: string;
 }
@@ -191,6 +224,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
         const cs = getComputedStyle(el as Element);
         const fvs = cs.fontVariationSettings === "" ? "normal" : cs.fontVariationSettings;
         const stretch = cs.fontStretch === "" ? "100%" : cs.fontStretch;
+        const ffs = cs.fontFeatureSettings === "" ? "normal" : cs.fontFeatureSettings;
         for (const node of Array.from(el.childNodes)) {
           if (node.nodeType !== 3) continue;
           const raw = (node.textContent ?? "").trim();
@@ -218,7 +252,14 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
           // It is applied ONLY to axis-bearing nodes on purpose: splitting every
           // node grows the corpus 10.95x (2,385 -> 26,121 runs), which is a
           // separate question about sweep breadth, not about axis coverage.
-          const texts = fvs !== "normal" ? raw.split(/\s+/) : [raw];
+          //
+          // FEATURE-bearing nodes get the same treatment, for the identical
+          // reason and with the identical hazard: the fixtures that declare
+          // `font-feature-settings` demonstrate ligatures and numeral styles
+          // with multi-word samples, so whole-node filtering would drop every
+          // one of them and leave this field recorded-but-never-swept — a
+          // vacuous extraction that reads as a stable, clean number.
+          const texts = fvs !== "normal" || ffs !== "normal" ? raw.split(/\s+/) : [raw];
           for (const text of texts) {
             if (text === "" || text.length > 24 || /\s/.test(text)) continue;
             out.push(JSON.stringify({
@@ -229,6 +270,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
               fontStyle: cs.fontStyle,
               fontVariationSettings: fvs,
               fontStretch: stretch,
+              fontFeatureSettings: ffs,
             }));
           }
         }
@@ -275,6 +317,15 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
       // where the fixture painted a condensed / expanded one.
       + `${s.fontStretch != null && s.fontStretch !== "100%"
         ? `;font-stretch:${esc(s.fontStretch)}` : ""}`
+      // Re-declare the run's OpenType features. This is the property this
+      // oracle exists to adjudicate, so a probe page that omits it shapes the
+      // run with the fixture's features switched OFF — and then compares that
+      // against our side, which is also shaping without them, producing
+      // agreement that says nothing. `esc` matters here rather than being
+      // cosmetic: a feature tag is double-quoted CSS, and an unescaped `"`
+      // terminates the style attribute and silently drops the declaration.
+      + `${s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal"
+        ? `;font-feature-settings:${esc(s.fontFeatureSettings)}` : ""}`
       + `">${esc(s.text)}</div>`).join("")
   }</body></html>`;
   await page.setContent(html, { waitUntil: "load" });
@@ -343,6 +394,16 @@ export function ourShaping(spec: RunSpec): OurShaping {
     // shipped parse rather than a second one that could drift from it.
     variationSettings: parseFontVariationSettings(spec.fontVariationSettings),
     fontStretch: spec.fontStretch,
+    // Parsed with the SAME function the renderer uses on a real capture
+    // (`src/render/text.ts`), for the same reason as the axis location above:
+    // the oracle must exercise the shipped parse, not a second one that can
+    // drift from it. That matters more than usual here, because the shipped
+    // parse has a KNOWN divergence from Chrome it would otherwise hide —
+    // fontkit takes an enable-only feature list, so `"liga" 0` is dropped
+    // rather than disabling a default-on feature. The fixture corpus declares
+    // exactly that (`"liga" 0, "dlig" 0`), so this is a disagreement the sweep
+    // should now be able to see rather than one it silently reproduces.
+    features: parseFontFeatureSettings(spec.fontFeatureSettings),
   });
   if (svg == null) return { glyphCount: 0, xs: [], ok: false };
   // EVERY `<text>` element, not the first: a run spanning more than one font
