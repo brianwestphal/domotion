@@ -864,8 +864,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   VM for U+6F22 as `ja`→Yu Gothic UI, `ko`→Malgun Gothic, `zh-Hans`→Microsoft
   YaHei UI, `zh-Hant`→Microsoft JhengHei UI, and bare `zh`→Yu Gothic UI (i.e.
   truncating the tag lands on a Japanese face and looks exactly like not passing
-  the argument). Skia's `IDWriteNumberSubstitution`, built from the same tag, is
-  the one piece of that call still untranscribed. **DM-1889 corrects the Windows half
+  the argument). Skia's `IDWriteNumberSubstitution` — same tag, method NONE,
+  `ignoreUserOverride` TRUE — is now built here too rather than passed as null,
+  and is **measured** answer-neutral (0 moved answers over every Unicode `Nd`
+  digit × 10 locale tags, the full BMP at two style contexts, and the astral
+  planes at stride) rather than argued harmless; the `HRNM` bail Skia takes on a
+  tag DirectWrite rejects is mirrored as `found:false` and measured unreachable
+  across 66 tags. The **simulation-stripping loop** Skia wraps around both
+  `GetFirstMatchingFont` and `MapCharacters` is transcribed alongside it — active
+  in shipping Chrome via `SK_WIN_FONTMGR_NO_SIMULATIONS`, invisible to a
+  PostScript-name oracle by construction, and worth one moved answer in ~600,000
+  on a Win11 host. **DM-1889 corrects the Windows half
   again, and more fundamentally: the resolver never actually ran there.** The Node
   side declared a base font (`"Helvetica"`, no path) that DirectWrite does not take
   and the helper cannot open by name, and one-shot mode — Windows's only transport,

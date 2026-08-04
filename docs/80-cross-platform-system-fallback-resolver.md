@@ -158,13 +158,54 @@ still returned a plausible font, so nothing looked broken.
   Absent field ⇒ the helper keeps its old `en-us`, so an older Node side against a
   newer helper degrades to the previous behavior rather than to no locale at all.
 
-**Still not transcribed in this call:** Skia also builds an
-`IDWriteNumberSubstitution` from the same tag
-(`DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE`, `SkFontMgr_win_dw.cpp:916-920`) and
-returns it from the analysis source's `GetNumberSubstitution`; we return null.
-Method NONE means "no substitution" and fallback for a non-digit codepoint does
-not consult it, but it is a difference rather than a proven no-op, so it is
-recorded here instead of assumed away.
+- **The number substitution.** Skia builds an `IDWriteNumberSubstitution` from
+  that same tag and returns it from the analysis source's
+  `GetNumberSubstitution` (`SkFontMgr_win_dw.cpp:637-641` and `:572-579`, Skia
+  rev `fd139e79` — the revision Chromium tag `147.0.7727.15` pins through
+  `DEPS`). The helper used to return null there. All three arguments are
+  choices: method `DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE`, the locale tag the
+  source reports, and `ignoreUserOverride = TRUE`, which deliberately excludes
+  the host user's numeral-shape preference from the question. Now transcribed.
+
+  **It is measured answer-neutral, which is a different statement from "method
+  NONE means no substitution, so it cannot matter".** The old note reasoned the
+  second way and recorded the gap rather than closing it; the argument was
+  plausible, and plausible arguments about dropped arguments are what hid the
+  hardcoded `en-us` locale, the NORMAL/NORMAL/NORMAL style triple and the null
+  `baseFamilyName` before it. A/B on the Win11 VM, one binary with the
+  substitution and one without, comparing the full response for every codepoint:
+
+  | sweep | codepoints | answers moved |
+  | --- | --- | --- |
+  | every Unicode `Nd` digit × 10 locale tags (`en-us`, `ja`, `zh-Hans`, `zh-Hant`, `ko`, `und-Zsye`, `und-Zsym`, `th`, `ar`, `hi`) | 7,700 | 0 |
+  | full BMP at weight 400 and at weight 700 italic | 126,976 | 0 |
+  | SMP at the emoji locale, astral plane at stride 16 | ~127,000 | 0 |
+
+  So the substitution changes no answer on that host — but it is now the same
+  call Chrome makes, rather than an omission defended by an argument.
+
+  **When DirectWrite rejects the tag**, Skia's `HRNM` abandons the whole match
+  and returns null, which Blink turns into `return nullptr`
+  (`win/font_cache_skia_win.cc:242-244`) — "no DirectWrite fallback family",
+  exactly what this protocol's `found:false` means. The helper mirrors that and
+  additionally reports `"numberSubstitution":"failed"` on the query so a
+  rejected tag is visible rather than looking like universal non-coverage. That
+  bail is measured unreachable for our inputs: 66 tags — both emoji
+  pseudo-locales, the CJK shortcut set, 50 realistic `language[-Script]`
+  reductions, and deliberately malformed shapes (`!!`, `en_US`, a 200-character
+  string) — were all accepted.
+
+- **The simulation-stripping loop around `MapCharacters`**
+  (`SkFontMgr_win_dw.cpp:645-687`, same revision). When DirectWrite answers with
+  a face carrying `DWRITE_FONT_SIMULATIONS_BOLD` / `_OBLIQUE`, Skia re-issues the
+  match with that style axis reset, so Blink receives a clean face and makes its
+  own synthetic-bold decision. Active in shipping Chrome because Chromium defines
+  `SK_WIN_FONTMGR_NO_SIMULATIONS` (`skia/BUILD.gn:65` at the tag). Unlike the
+  number substitution this one **does** move an answer: at weight 700, U+2758
+  LIGHT VERTICAL BAR resolved to `SegoeUI-Light` before and `SegoeUI-Semilight`
+  after — one row in ~600,000 compared, and the same row through the renderer
+  seam, not just the binary. See [doc 41](41-windows-glyph-extraction.md) for
+  the family-query half of the same transcription.
 
 **Windows also asks a question BEFORE this resolver.**
 `FontCache::PlatformFallbackFontForCharacter` consults Blink's hardcoded

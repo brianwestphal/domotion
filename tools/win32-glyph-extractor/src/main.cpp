@@ -420,6 +420,101 @@ struct FontEntry {
   int unitsPerEm = 0;
 };
 
+// ─────────────────── Skia's simulation stripping, transcribed ───────────────
+//
+// Chrome does NOT take DirectWrite's simulated faces. When DirectWrite has no
+// real bold (or italic) cut for a request it hands back the base face with a
+// DWRITE_FONT_SIMULATIONS_BOLD / _OBLIQUE flag, meaning "embolden/slant this
+// yourself"; Skia retries the match with the offending style axis reset so the
+// caller receives a CLEAN face, and Blink then applies its OWN synthetic-bold /
+// synthetic-oblique decision on top. Both halves are conditional on the
+// SK_WIN_FONTMGR_NO_SIMULATIONS build define — which Chromium sets
+// (`skia/BUILD.gn:65`, tag 147.0.7727.15), so the stripping is ACTIVE in every
+// shipping Chrome and is therefore what parity requires here.
+//
+// Transcribed from Skia rev fd139e79 — the revision Chromium tag 147.0.7727.15
+// pins through `DEPS` (`skia_revision`), i.e. the Skia inside the Chrome this
+// project targets, NOT the newer local `external/skia` checkout. The two differ:
+// the newer tree threads an `allowedSimulations` mask through and gives the
+// MapCharacters loop a regular/upright early-out that the pinned revision lacks.
+// The pinned shape is the one below.
+//
+// The exemption is real and load-bearing: the Korean bitmap-strike families
+// (Gulim, Dotum, Batang, Gungsuh) are ALLOWED to keep Windows' simulations,
+// because their bitmap strikes get emboldened without antialiasing and Korean
+// users prefer that to Skia's synthetic bold. A face qualifies by carrying an
+// `EBDT` table.
+
+/** `HasBitmapStrikes` (SkFontMgr_win_dw.cpp:43-51, Skia rev fd139e79). Skia
+ *  builds the tag as `SkEndian_SwapBE32(SkSetFourByteTag('E','B','D','T'))`,
+ *  which is bit-for-bit `DWRITE_MAKE_OPENTYPE_TAG('E','B','D','T')` (both
+ *  0x54444245) — the macro is used here because it says what it means. */
+static bool faceHasBitmapStrikes(IDWriteFont* font) {
+  if (!font) return false;
+  IDWriteFontFace* face = nullptr;
+  if (FAILED(font->CreateFontFace(&face)) || !face) return false;
+  const void* tableData = nullptr;
+  UINT32 tableSize = 0;
+  void* tableCtx = nullptr;
+  BOOL exists = FALSE;
+  if (SUCCEEDED(face->TryGetFontTable(DWRITE_MAKE_OPENTYPE_TAG('E', 'B', 'D', 'T'),
+                                      &tableData, &tableSize, &tableCtx, &exists))) {
+    if (tableCtx) face->ReleaseFontTable(tableCtx);
+  }
+  safeRelease(face);
+  return exists != FALSE;
+}
+
+// Both loops below reset at most one style axis per pass, so three matching
+// calls is already one more than either can need. The cap exists because the
+// PINNED `SkFontMgr_DirectWrite::fallback` loop has no upright/regular
+// termination clause: were DirectWrite ever to answer a REGULAR/NORMAL request
+// with a simulation flag, that loop would re-issue the identical request
+// forever. Skia can afford the theoretical spin; a helper process that must
+// answer a pipe request cannot, so the count is bounded and the last matched
+// face is kept. No input that terminates in Skia reaches the cap.
+static const int kMaxSimulationStrips = 4;
+
+/** `FirstMatchingFontWithoutSimulations` (SkFontMgr_win_dw.cpp:52-92, Skia rev
+ *  fd139e79) — the wrapper `SkFontStyleSet_DirectWrite::matchStyle` (`:861-870`)
+ *  puts around `GetFirstMatchingFont`, and therefore what Blink's
+ *  `matchFamilyStyle` actually runs on Windows. */
+static HRESULT firstMatchingFontWithoutSimulations(IDWriteFontFamily* family,
+                                                   DWRITE_FONT_WEIGHT weight,
+                                                   DWRITE_FONT_STRETCH stretch,
+                                                   DWRITE_FONT_STYLE slant,
+                                                   IDWriteFont** out) {
+  *out = nullptr;
+  if (!family) return E_INVALIDARG;
+  for (int pass = 0; pass < kMaxSimulationStrips; pass++) {
+    IDWriteFont* searchFont = nullptr;
+    HRESULT hr = family->GetFirstMatchingFont(weight, stretch, slant, &searchFont);
+    if (FAILED(hr)) { safeRelease(*out); return hr; }
+    if (!searchFont) break;
+    safeRelease(*out);
+    *out = searchFont;
+
+    DWRITE_FONT_SIMULATIONS simulations = searchFont->GetSimulations();
+    // "If we still get simulations even though we're not asking for bold or
+    // italic, we can't help it and exit the loop."
+    const bool noSimulations = simulations == DWRITE_FONT_SIMULATIONS_NONE ||
+                               (weight == DWRITE_FONT_WEIGHT_REGULAR &&
+                                slant == DWRITE_FONT_STYLE_NORMAL) ||
+                               faceHasBitmapStrikes(searchFont);
+    if (noSimulations) break;
+    if (simulations & DWRITE_FONT_SIMULATIONS_BOLD) {
+      weight = DWRITE_FONT_WEIGHT_REGULAR;
+      continue;
+    }
+    if (simulations & DWRITE_FONT_SIMULATIONS_OBLIQUE) {
+      slant = DWRITE_FONT_STYLE_NORMAL;
+      continue;
+    }
+    break;  // unreachable: a non-NONE mask is one of the two flags above.
+  }
+  return *out ? S_OK : E_FAIL;
+}
+
 // Read a localized informational string (e.g. PostScript name), preferring en-us.
 static std::string readInfoString(IDWriteLocalizedStrings* strings) {
   if (!strings) return "";
@@ -515,8 +610,8 @@ static std::wstring cpToUtf16(uint32_t cp) {
 }
 
 // DM-1403: minimal IDWriteTextAnalysisSource over a single in-memory UTF-16
-// string, the input IDWriteFontFallback::MapCharacters requires. LTR, no number
-// substitution — we feed it one codepoint at a time.
+// string, the input IDWriteFontFallback::MapCharacters requires. LTR; we feed it
+// one codepoint at a time.
 //
 // DM-1896: the locale is the CALLER'S, not a constant. It used to report a
 // hardcoded L"en-us", which is a different question than Chrome asks: Blink
@@ -528,10 +623,21 @@ static std::wstring cpToUtf16(uint32_t cp) {
 // disambiguates unified Han — the same ideograph maps to a Japanese face under
 // "ja" and a Chinese one under "zh-Hans" — so a constant here answered by
 // DirectWrite's default preference order and reported it as Chrome's pick.
+//
+// The NUMBER SUBSTITUTION is likewise the caller's, not null. Skia builds one
+// from the SAME bcp47 tag it reports as the locale and returns it verbatim from
+// this method (`SkFontMgr_win_dw.cpp:637-643` and `:572-579`, Skia rev fd139e79
+// — the revision Chromium tag 147.0.7727.15 pins), so a null here asked
+// DirectWrite a question Chrome never asks. See `createSkiaNumberSubstitution`
+// for the construction and for what happens when DirectWrite rejects the tag.
 class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
  public:
-  SingleStringAnalysisSource(std::wstring text, std::wstring locale)
-      : text_(std::move(text)), locale_(std::move(locale)) {}
+  SingleStringAnalysisSource(std::wstring text, std::wstring locale,
+                             IDWriteNumberSubstitution* numberSubstitution)
+      : text_(std::move(text)), locale_(std::move(locale)),
+        numberSubstitution_(numberSubstitution) {
+    if (numberSubstitution_) numberSubstitution_->AddRef();
+  }
   // IUnknown
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
     if (!ppv) return E_POINTER;
@@ -546,7 +652,10 @@ class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
   ULONG STDMETHODCALLTYPE AddRef() override { return ++ref_; }
   ULONG STDMETHODCALLTYPE Release() override {
     ULONG r = --ref_;
-    if (r == 0) delete this;
+    if (r == 0) {
+      if (numberSubstitution_) numberSubstitution_->Release();
+      delete this;
+    }
     return r;
   }
   // IDWriteTextAnalysisSource
@@ -573,7 +682,10 @@ class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
     return S_OK;
   }
   HRESULT STDMETHODCALLTYPE GetNumberSubstitution(UINT32 pos, UINT32* len, IDWriteNumberSubstitution** ns) override {
-    *ns = nullptr;
+    // Skia hands back the object it built, unowned and without an AddRef
+    // (`FontFallbackSource::GetNumberSubstitution`, :572-579) — the source holds
+    // it alive for the duration of the MapCharacters call. Same contract here.
+    *ns = numberSubstitution_;
     *len = static_cast<UINT32>(text_.size() - (pos < text_.size() ? pos : text_.size()));
     return S_OK;
   }
@@ -581,8 +693,32 @@ class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
  private:
   std::wstring text_;
   std::wstring locale_;
+  IDWriteNumberSubstitution* numberSubstitution_ = nullptr;
   ULONG ref_ = 1;
 };
+
+/** The `IDWriteNumberSubstitution` Skia builds before every fallback match
+ *  (`SkFontMgr_win_dw.cpp:637-641`, Skia rev fd139e79):
+ *
+ *      HRNM(fFactory->CreateNumberSubstitution(DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE,
+ *                                              dwBcp47, TRUE, &numberSubstitution),
+ *           "Could not create number substitution.");
+ *
+ *  All three arguments are choices, not defaults: the METHOD is NONE, the locale
+ *  is the same tag the analysis source reports, and `ignoreUserOverride` is TRUE
+ *  — so the host user's numeral-shape preference is deliberately excluded from
+ *  the question. Returns null (and sets `hr`) if DirectWrite rejects the tag;
+ *  the caller mirrors Skia's `HRNM`, which bails out of the whole match. */
+static IDWriteNumberSubstitution* createSkiaNumberSubstitution(IDWriteFactory* factory,
+                                                               const std::wstring& locale,
+                                                               HRESULT* hr) {
+  IDWriteNumberSubstitution* substitution = nullptr;
+  *hr = factory ? factory->CreateNumberSubstitution(DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE,
+                                                    locale.c_str(), TRUE, &substitution)
+                : E_POINTER;
+  if (FAILED(*hr)) return nullptr;
+  return substitution;
+}
 
 // Open the font described by `spec`. Returns true on success (populating
 // `out`); on failure returns false and sets `err` — the caller decides whether
@@ -888,13 +1024,23 @@ static DWRITE_FONT_STYLE dwriteSlantFromCss(double cssSlant, bool italic) {
 // `en-us`, so an older Node side degrades to the old behavior rather than to no
 // locale at all.
 //
-// KNOWN REMAINING DIVERGENCE (tracked separately): Skia additionally builds an
-// `IDWriteNumberSubstitution` from the same tag with
-// DWRITE_NUMBER_SUBSTITUTION_METHOD_NONE and returns it from the source's
-// `GetNumberSubstitution` (`SkFontMgr_win_dw.cpp:916-920`); we return null.
-// Method NONE means "no substitution", and font fallback for a non-digit
-// codepoint does not consult it — but it is not transcribed, so it is recorded
-// here rather than assumed harmless.
+// DM-1931: and the `IDWriteNumberSubstitution` Skia builds from that same tag
+// (method NONE, `ignoreUserOverride` TRUE) and returns from the analysis
+// source, where this helper used to return null —
+// `createSkiaNumberSubstitution` above. When DirectWrite rejects the tag we
+// mirror Skia's `HRNM`, which abandons the match: Skia returns nullptr, Blink's
+// `GetDWriteFallbackFamily` turns that into `return nullptr`
+// (`win/font_cache_skia_win.cc:242-244`, Chromium rev 7d859f27), and "no
+// DirectWrite fallback family" is exactly what this protocol's `found:false`
+// means. The query additionally reports `"numberSubstitution":"failed"` so a
+// rejected tag is visible instead of looking like universal non-coverage.
+//
+// DM-1956: and the SIMULATION-STRIPPING LOOP around MapCharacters
+// (`SkFontMgr_win_dw.cpp:645-687`, Skia rev fd139e79). Same mechanism as the
+// family query's `firstMatchingFontWithoutSimulations`, but the pinned revision
+// writes it out separately here with a narrower termination clause — no
+// regular/upright early-out, only "no simulations at all, or the face has
+// bitmap strikes". Transcribed with that difference intact.
 //
 // DM-1721: when the mapped face is a variable-font instance, each found entry
 // additionally carries `"axes":{...}` — the axis location DirectWrite resolved
@@ -935,6 +1081,17 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
   const std::string localeUtf8 = query.at("locale").asString();
   const std::wstring localeW = localeUtf8.empty() ? L"en-us" : toWide(localeUtf8);
 
+  // DM-1931: built once per query — the tag is constant across it, and Skia
+  // builds one per match from that same tag. A failure here is a property of the
+  // tag, so it applies to every codepoint in the query, which is precisely how
+  // Skia would fail each of them one at a time.
+  HRESULT nsHr = S_OK;
+  IDWriteNumberSubstitution* numberSubstitution =
+      createSkiaNumberSubstitution(factory, localeW, &nsHr);
+  // A null factory is a different (and already fatal) condition; only a real
+  // DirectWrite rejection of the tag counts as the Skia-mirroring bail.
+  const bool numberSubstitutionFailed = factory != nullptr && FAILED(nsHr);
+
   const JsonArray& cps = query.at("cps").asArray();
   for (size_t i = 0; i < cps.size(); i++) {
     if (i > 0) out << ",";
@@ -942,27 +1099,51 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 
     bool found = false;
     std::string psName, familyName, path, axesJson;
-    if (fallback && systemFonts) {
+    if (fallback && systemFonts && !numberSubstitutionFailed) {
       std::wstring s = cpToUtf16(cp);
-      SingleStringAnalysisSource* source = new SingleStringAnalysisSource(s, localeW);
+      SingleStringAnalysisSource* source =
+          new SingleStringAnalysisSource(s, localeW, numberSubstitution);
       UINT32 mappedLength = 0;
       IDWriteFont* mappedFont = nullptr;
       FLOAT scale = 1.0f;
-      // DM-1871: Blink passes the RUN'S PRIMARY FAMILY as `baseFamilyName`.
-      // `FontCache::GetDWriteFallbackFamily` takes
-      // `font_description.Family().FamilyName()` and Skia forwards it as this
-      // argument (`win/font_cache_skia_win.cc:234-240` →
-      // `SkFontMgr_win_dw.cpp:928-939`, Chromium rev 7d859f27).
-      //
-      // It is not cosmetic: the base family is what lets that family's own font
-      // linking participate in DirectWrite's answer, so passing null asks a
-      // different question than Chrome asks. Absent field keeps the previous
-      // nullptr behaviour, so an older Node side degrades rather than mismatches.
-      HRESULT hr = fallback->MapCharacters(
-          source, 0, static_cast<UINT32>(s.size()), systemFonts,
-          baseFamilyW.empty() ? nullptr : baseFamilyW.c_str(),
-          dwWeight, dwSlant, dwStretch,
-          &mappedLength, &mappedFont, &scale);
+      HRESULT hr = E_FAIL;
+      // DM-1956: the style triple is per-codepoint MUTABLE, because the
+      // simulation-stripping loop resets one of its axes and re-asks.
+      DWRITE_FONT_WEIGHT mapWeight = dwWeight;
+      DWRITE_FONT_STYLE mapSlant = dwSlant;
+      for (int pass = 0; pass < kMaxSimulationStrips; pass++) {
+        safeRelease(mappedFont);
+        // DM-1871: Blink passes the RUN'S PRIMARY FAMILY as `baseFamilyName`.
+        // `FontCache::GetDWriteFallbackFamily` takes
+        // `font_description.Family().FamilyName()` and Skia forwards it as this
+        // argument (`win/font_cache_skia_win.cc:234-240` →
+        // `SkFontMgr_win_dw.cpp:653-666`, Chromium rev 7d859f27).
+        //
+        // It is not cosmetic: the base family is what lets that family's own font
+        // linking participate in DirectWrite's answer, so passing null asks a
+        // different question than Chrome asks. Absent field keeps the previous
+        // nullptr behaviour, so an older Node side degrades rather than mismatches.
+        hr = fallback->MapCharacters(
+            source, 0, static_cast<UINT32>(s.size()), systemFonts,
+            baseFamilyW.empty() ? nullptr : baseFamilyW.c_str(),
+            mapWeight, mapSlant, dwStretch,
+            &mappedLength, &mappedFont, &scale);
+        if (FAILED(hr) || !mappedFont) break;
+        DWRITE_FONT_SIMULATIONS simulations = mappedFont->GetSimulations();
+        if (simulations == DWRITE_FONT_SIMULATIONS_NONE ||
+            faceHasBitmapStrikes(mappedFont)) {
+          break;
+        }
+        if (simulations & DWRITE_FONT_SIMULATIONS_BOLD) {
+          mapWeight = DWRITE_FONT_WEIGHT_REGULAR;
+          continue;
+        }
+        if (simulations & DWRITE_FONT_SIMULATIONS_OBLIQUE) {
+          mapSlant = DWRITE_FONT_STYLE_NORMAL;
+          continue;
+        }
+        break;  // unreachable: a non-NONE mask is one of the two flags above.
+      }
       if (SUCCEEDED(hr) && mappedFont && mappedLength > 0) {
         BOOL covers = FALSE;
         // Coverage guard: only report a face that actually has the glyph.
@@ -994,10 +1175,15 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
     }
   }
 
+  safeRelease(numberSubstitution);
   safeRelease(systemFonts);
   safeRelease(fallback);
   safeRelease(factory2);
-  out << "]}";
+  out << "]";
+  // DM-1931: only emitted on the failure path, so a normal response is byte-for
+  // byte what it was and no consumer has to learn a new field to stay correct.
+  if (numberSubstitutionFailed) out << ",\"numberSubstitution\":\"failed\"";
+  out << "}";
   return out.str();
 }
 
@@ -1035,6 +1221,16 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 //    style — because Blink's `IsFontPresent` only asks whether the family exists
 //    (`win/font_fallback_win.cc:54-59`). A caller probing presence therefore
 //    sends no style fields and correctly gets the family's default face.
+//
+// DM-1956: and the matching call is Skia's WRAPPER, not a bare
+// `GetFirstMatchingFont`. `SkFontStyleSet_DirectWrite::matchStyle` —
+// where `matchFamilyStyle` bottoms out — routes through
+// `FirstMatchingFontWithoutSimulations` (`SkFontMgr_win_dw.cpp:861-870` and
+// `:52-92`, Skia rev fd139e79), which re-asks with the offending style axis
+// reset whenever DirectWrite answers with a simulated face, so Blink receives a
+// clean face and makes its own synthetic-bold/oblique decision. See
+// `firstMatchingFontWithoutSimulations` above for the transcription and for why
+// the loop is active in shipping Chrome.
 //
 // So absent fields keeping the old defaults is not merely backward compatibility;
 // for the presence probe it is the transcription. (Chromium rev 7d859f27.)
@@ -1092,7 +1288,8 @@ static std::string runFamilyQuery(const JsonValue& query, IDWriteFactory* factor
       IDWriteFontFamily* family = nullptr;
       if (SUCCEEDED(systemFonts->GetFontFamily(index, &family)) && family) {
         IDWriteFont* font = nullptr;
-        if (SUCCEEDED(family->GetFirstMatchingFont(dwWeight, dwStretch, dwSlant, &font)) && font) {
+        if (SUCCEEDED(firstMatchingFontWithoutSimulations(family, dwWeight, dwStretch, dwSlant,
+                                                          &font)) && font) {
           IDWriteFontFace* face = nullptr;
           if (SUCCEEDED(font->CreateFontFace(&face)) && face) {
             psName = facePostScriptName(face);

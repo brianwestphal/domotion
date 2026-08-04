@@ -1101,7 +1101,22 @@ Two properties of the adapter that are load-bearing rather than incidental:
   **run's** style: `GetFontPlatformData(font_description, create_by_family)` →
   `matchFamilyStyle(name, font_description.SkiaFontStyle())`
   (`win/font_cache_skia_win.cc:170-176`, `fonts/skia/font_cache_skia.cc:293-295`),
-  which on Windows is `GetFirstMatchingFont(weight, stretch, slant)`.
+  which on Windows is `GetFirstMatchingFont(weight, stretch, slant)` — wrapped, and
+  the wrapper is not optional. `SkFontStyleSet_DirectWrite::matchStyle` routes
+  through `FirstMatchingFontWithoutSimulations`
+  (`src/ports/SkFontMgr_win_dw.cpp:861-870` and `:52-92`, Skia rev `fd139e79`, the
+  revision Chromium tag `147.0.7727.15` pins): when DirectWrite answers with a face
+  carrying `DWRITE_FONT_SIMULATIONS_BOLD` / `_OBLIQUE`, it re-asks with that style
+  axis reset to REGULAR / NORMAL, so Blink gets a face with no Windows simulation
+  and applies its OWN synthetic-bold decision. Faces with bitmap strikes (an `EBDT`
+  table — the Korean Gulim / Dotum / Batang / Gungsuh families) are exempt and keep
+  Windows' simulations. The loop is live in shipping Chrome because Chromium defines
+  `SK_WIN_FONTMGR_NO_SIMULATIONS` (`skia/BUILD.gn:65` at the tag), so the helper
+  transcribes it — including in the `MapCharacters` fallback path, which the pinned
+  Skia writes out separately with a narrower termination clause. The divergence it
+  closes is invisible to a PostScript-name comparison, since stripping styling the
+  request forced usually lands on the same base file; see
+  [doc 107](107-font-conformance-oracle.md#what-the-oracle-does-not-yet-compare).
 
   We used to make only the first call and use its answer for both, so **every
   weight-700 Windows stack resolved the regular cut** — 222,874 of the first
@@ -1413,10 +1428,13 @@ constants:
   language-REGION and ignores `Hans`.
 
   The locale joins the helper's per-codepoint memo key (`fallbackCacheKey`), since
-  the answer is a function of it. See doc
+  the answer is a function of it. Skia's `IDWriteNumberSubstitution` — built from
+  that same tag, method NONE, `ignoreUserOverride` TRUE — is now built here too
+  rather than passed as null, and the simulation-stripping loop Skia wraps around
+  `MapCharacters` is transcribed with it. See doc
   [80](80-cross-platform-system-fallback-resolver.md) for the full measurement
-  table and the one argument still not transcribed (Skia's
-  `IDWriteNumberSubstitution`, built from the same tag).
+  table, including the A/B showing the substitution moves no answer while the
+  simulation loop moves one.
 
 Gated by `_systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
 default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with

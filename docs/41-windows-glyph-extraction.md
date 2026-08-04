@@ -244,10 +244,32 @@ a cert is provisioned.
 - ✅ **`family` query + resolved-axes reporting** (DM-1721): the helper answers
   the cross-platform `family` query (`{type:"family", name}` →
   `{found, postscriptName, familyName, path[, axes]}`) via the system font
-  collection's exact `FindFamilyName` lookup +
-  `GetFirstMatchingFont(NORMAL, NORMAL, NORMAL)` — the win32 counterpart of the
-  macOS CoreText `CTFontCreateWithName` family query, powering
-  `resolveInstalledFont` on Windows. Both `family` and `fallback` results carry
+  collection's exact `FindFamilyName` lookup + `GetFirstMatchingFont` at the
+  run's style — the win32 counterpart of the macOS CoreText
+  `CTFontCreateWithName` family query, powering `resolveInstalledFont` on
+  Windows. The matching call is Skia's WRAPPER, not the bare API:
+  `SkFontStyleSet_DirectWrite::matchStyle` — where Blink's `matchFamilyStyle`
+  bottoms out on Windows — routes through `FirstMatchingFontWithoutSimulations`
+  (`src/ports/SkFontMgr_win_dw.cpp:861-870` and `:52-92`, Skia rev `fd139e79`,
+  which Chromium tag `147.0.7727.15` pins through `DEPS`), which re-asks with
+  weight reset to REGULAR or slant reset to NORMAL whenever DirectWrite answers
+  with a `DWRITE_FONT_SIMULATIONS_BOLD` / `_OBLIQUE` face, so Blink gets a clean
+  face and makes its own synthetic-bold decision. Faces carrying an `EBDT` table
+  (bitmap strikes — the Korean Gulim / Dotum / Batang / Gungsuh families) are
+  exempt and keep Windows' simulations. The loop is live in shipping Chrome
+  because Chromium defines `SK_WIN_FONTMGR_NO_SIMULATIONS` (`skia/BUILD.gn:65`
+  at that tag); the helper transcribes it in both the `family` query and the
+  `fallback` query's `MapCharacters` path. Bounded to four passes rather than
+  Skia's open `while`, because the pinned `MapCharacters` variant has no
+  regular/upright termination clause and could in principle re-issue one request
+  forever — no input that terminates in Skia reaches the bound. Verified on the
+  Win11 VM: 2,268 declared-family rows (126 families × 9 CSS weights × upright /
+  italic) unchanged, one fallback row moved (U+2758 at weight 700,
+  `SegoeUI-Light` → `SegoeUI-Semilight`). The exemption is transcribed but inert
+  on that host — EBDT-bearing families are installed (Calibri, Cambria, Courier
+  New, Lucida Console, MS Gothic, SimSun) but none of them is ever handed back
+  simulated, and Gulim / Batang are not installed at all, so a build with the
+  exemption removed produced byte-identical answers across the same sweep. Both `family` and `fallback` results carry
   an `axes` object (`{"wght":400,"opsz":10.5,...}`, from
   `IDWriteFontFace5::GetFontAxisValues`, gated on `HasVariations()`) when the
   matched face is a variable-font instance. Rationale: DirectWrite does NOT

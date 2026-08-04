@@ -306,3 +306,76 @@ describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
     }
   }, 30_000);
 });
+
+// Skia does not hand DirectWrite's answers straight through, and both of the
+// things it does in between were missing here until they were transcribed.
+describeHelper("Skia's MapCharacters arguments and simulation stripping", () => {
+  function fallback(cps: number[], extra: Record<string, unknown> = {}): any {
+    return callHelper({ fonts: [], queries: [{ type: "fallback", cps, ...extra }] }).results[0];
+  }
+  function family(name: string, extra: Record<string, unknown> = {}): any {
+    return callHelper({ fonts: [], queries: [{ type: "family", name, ...extra }] }).results[0];
+  }
+
+  // Skia builds an IDWriteNumberSubstitution from the same bcp47 tag it reports
+  // as the locale (method NONE, ignoreUserOverride TRUE) and returns it from the
+  // analysis source; passing null asked DirectWrite a question Chrome never
+  // asks. When DirectWrite rejects the tag Skia abandons the whole match, which
+  // this protocol reports as found:false plus a "numberSubstitution":"failed"
+  // marker — a hard, silent zeroing of fallback for a whole run. The bail was
+  // measured unreachable across every tag shape the resolver can emit, and this
+  // pins that: if a future Windows build starts rejecting one of them, the
+  // marker fires here instead of surfacing as universal non-coverage.
+  it("accepts every locale tag shape the fallback resolver can emit", () => {
+    const tags = [
+      "en-us", "und-Zsye", "und-Zsym", "zh-Hans", "zh-Hant", "ja", "ko",
+      "ar", "he", "th", "hi", "sr-Latn", "mn-Mong", "und", "zh",
+    ];
+    for (const locale of tags) {
+      const r = fallback([0x41, 0x30, 0x660], { locale });
+      expect(r.numberSubstitution, `locale ${locale}`).toBeUndefined();
+    }
+  });
+
+  // The number substitution is the same call Chrome makes, but it is also
+  // measured answer-neutral — worth pinning, because a future change that made
+  // it non-neutral (a different method, or dropping ignoreUserOverride) would
+  // otherwise pass every fixture silently. Digits are where it could bite.
+  it("resolves digit codepoints identically under every numeral-shaping locale", () => {
+    const digits = [0x30, 0x39, 0x660, 0x669, 0x6f0, 0x6f9, 0x966, 0x96f, 0xe50, 0xe59];
+    const reference = fallback(digits, { locale: "en-us" }).fonts.map((f: any) => f.postscriptName ?? null);
+    for (const locale of ["ar", "hi", "th", "und-Zsye"]) {
+      const got = fallback(digits, { locale }).fonts.map((f: any) => f.postscriptName ?? null);
+      expect(got, `locale ${locale}`).toEqual(reference);
+    }
+  });
+
+  // Chrome never receives a face carrying a Windows simulation: Skia re-asks
+  // with the offending style axis reset, so Blink applies its own synthetic
+  // bold. The stripping is normally invisible to a PostScript-name comparison —
+  // it lands on the same base file — which is exactly why it needs a pin rather
+  // than a score. U+2758 at weight 700 is the one row on a stock Win11 font set
+  // where the two answers differ: without the loop DirectWrite hands back the
+  // Light cut plus a bold simulation, with it the Semilight cut and no
+  // simulation. Gated on that cut being installed so a trimmed font set skips
+  // rather than fails.
+  it("re-asks MapCharacters without the simulation Chrome would never take", () => {
+    const semilight = family("Segoe UI", { cssWeight: 350 });
+    if (!semilight.found || !/Semilight/i.test(semilight.postscriptName)) return;
+    const r = fallback([0x2758], { locale: "en-us", cssWeight: 700 }).fonts[0];
+    expect(r.found).toBe(true);
+    expect(r.postscriptName).toBe("SegoeUI-Semilight");
+  });
+
+  // The family query runs the same loop (Skia's FirstMatchingFontWithoutSimulations,
+  // which is what matchFamilyStyle bottoms out in on Windows). A family with a
+  // real bold cut must still reach it — the loop must not strip weight from a
+  // request DirectWrite answered honestly.
+  it("keeps a family's real bold cut rather than stripping the request", () => {
+    const bold = family("Segoe UI", { cssWeight: 700 });
+    if (!bold.found) return;
+    expect(bold.postscriptName).toBe("SegoeUI-Bold");
+    const italic = family("Segoe UI", { cssWeight: 700, italic: true });
+    if (italic.found) expect(italic.postscriptName).toBe("SegoeUI-BoldItalic");
+  });
+});
