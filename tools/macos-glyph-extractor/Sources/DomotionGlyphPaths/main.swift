@@ -773,8 +773,45 @@ func runFamilyQuery(_ query: [String: Any]) -> [String: Any] {
     if let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL {
         pathStr = url.path
     }
-    return ["type": "family", "found": true,
-            "postscriptName": psName, "familyName": familyName, "path": pathStr]
+    var result: [String: Any] = ["type": "family", "found": true,
+                                 "postscriptName": psName, "familyName": familyName, "path": pathStr]
+    // The resolved handle's variation axes + CURRENT position, in the same
+    // encoding the fallback query reports. For a variable family this is what
+    // identifies the FACE the name denotes: CoreText resolves AppKit member /
+    // named-instance / clone names ("Skia-Regular_Light") to a handle whose
+    // variation is already set to that instance's coordinates, and no name
+    // parse recovers those coordinates as reliably as asking the handle. Blink
+    // never re-derives them either — the CTFont it matched IS the position
+    // (`FontPlatformDataFromCTFont` reads the typeface's own design position
+    // and touches only `opsz` + font-variation-settings,
+    // font_platform_data_mac.mm:113-208, Chromium tag 147.0.7727.15).
+    if let ctAxes = ctAxesReport(font) { result["ctAxes"] = ctAxes }
+    return result
+}
+
+// The variation axes a CTFont exposes, plus its CURRENT position per axis —
+// the shared encoding for `family` and `fallback` query responses:
+// [{tag, min, def, max, value}]. Nil for a static face.
+func ctAxesReport(_ font: CTFont) -> [[String: Any]]? {
+    guard let axesArr = CTFontCopyVariationAxes(font) as? [[CFString: Any]] else { return nil }
+    let currentDict = (CTFontCopyVariation(font) as NSDictionary?) ?? NSDictionary()
+    var ctAxes: [[String: Any]] = []
+    for a in axesArr {
+        guard let tagNum = (a[kCTFontVariationAxisIdentifierKey] as? NSNumber)?.int64Value,
+              let mn = (a[kCTFontVariationAxisMinimumValueKey] as? NSNumber)?.doubleValue,
+              let mx = (a[kCTFontVariationAxisMaximumValueKey] as? NSNumber)?.doubleValue,
+              let df = (a[kCTFontVariationAxisDefaultValueKey] as? NSNumber)?.doubleValue
+        else { continue }
+        let tag = String([
+            Character(UnicodeScalar(UInt32((tagNum >> 24) & 0xff))!),
+            Character(UnicodeScalar(UInt32((tagNum >> 16) & 0xff))!),
+            Character(UnicodeScalar(UInt32((tagNum >> 8) & 0xff))!),
+            Character(UnicodeScalar(UInt32(tagNum & 0xff))!)
+        ])
+        let cur = (currentDict[NSNumber(value: tagNum)] as? NSNumber)?.doubleValue ?? df
+        ctAxes.append(["tag": tag, "min": mn, "def": df, "max": mx, "value": cur])
+    }
+    return ctAxes.isEmpty ? nil : ctAxes
 }
 
 // MARK: - Declared-family style matching (font_matcher_mac.mm)
@@ -1161,26 +1198,7 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
         // arrives with no variation set). So whether Chrome renames the face
         // with baked-in coordinates is a property of THIS handle, not of the
         // file — report the state so the Node side can mirror the clone gate.
-        if let axesArr = CTFontCopyVariationAxes(substitute) as? [[CFString: Any]] {
-            let currentDict = (CTFontCopyVariation(substitute) as NSDictionary?) ?? NSDictionary()
-            var ctAxes: [[String: Any]] = []
-            for a in axesArr {
-                guard let tagNum = (a[kCTFontVariationAxisIdentifierKey] as? NSNumber)?.int64Value,
-                      let mn = (a[kCTFontVariationAxisMinimumValueKey] as? NSNumber)?.doubleValue,
-                      let mx = (a[kCTFontVariationAxisMaximumValueKey] as? NSNumber)?.doubleValue,
-                      let df = (a[kCTFontVariationAxisDefaultValueKey] as? NSNumber)?.doubleValue
-                else { continue }
-                let tag = String([
-                    Character(UnicodeScalar(UInt32((tagNum >> 24) & 0xff))!),
-                    Character(UnicodeScalar(UInt32((tagNum >> 16) & 0xff))!),
-                    Character(UnicodeScalar(UInt32((tagNum >> 8) & 0xff))!),
-                    Character(UnicodeScalar(UInt32(tagNum & 0xff))!)
-                ])
-                let cur = (currentDict[NSNumber(value: tagNum)] as? NSNumber)?.doubleValue ?? df
-                ctAxes.append(["tag": tag, "min": mn, "def": df, "max": mx, "value": cur])
-            }
-            if !ctAxes.isEmpty { entry["ctAxes"] = ctAxes }
-        }
+        if let ctAxes = ctAxesReport(substitute) { entry["ctAxes"] = ctAxes }
         out.append(entry)
     }
     return ["type": "fallback", "fonts": out]

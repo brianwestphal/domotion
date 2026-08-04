@@ -167,7 +167,21 @@ const fontInstanceCache = new Map<string, FontInstance>();
 // family, we pick the variant whose (weight, style) is closest to the request.
 // This sidesteps the system-font fallback in `getFontInstance` entirely —
 // webfont glyphs come from the loaded buffer, not from disk.
-interface WebfontVariant { weight: number; italic: boolean; font: FontInstance; unicodeRange?: Array<[number, number]>; buffer?: Buffer }
+interface WebfontVariant {
+  weight: number;
+  italic: boolean;
+  font: FontInstance;
+  unicodeRange?: Array<[number, number]>;
+  buffer?: Buffer;
+  /** The `@font-face` `font-stretch` DESCRIPTOR as selection capabilities
+   *  `[min, max]` (a single value is `[v, v]`), per Blink's
+   *  `FontFace::GetFontSelectionCapabilities` (`core/css/font_face.cc:666-…`,
+   *  identical at tag 147.0.7727.15 and rev 7d859f27). Undefined = descriptor
+   *  auto/absent, which SELECTS as normal width `[100, 100]`
+   *  (`RangeSetFromAuto`) and INSTANCES against the font's own wdth axis
+   *  range. */
+  stretch?: readonly [number, number];
+}
 const webfontRegistry = new Map<string, WebfontVariant[]>();
 
 // ── Text render mode (DM-652 / DM-655 / DM-839) ──
@@ -323,8 +337,12 @@ export function getEmbeddedFontFaceCss(): string {
  * Buffers must be decompressed already — fontkit's `create()` reads TTF/OTF
  * directly. WOFF2/WOFF bytes are decompressed in `loadWebfont()` (capture.ts)
  * before they reach this function.
+ *
+ * `stretch` is the raw `@font-face { font-stretch: ... }` descriptor value
+ * ("condensed", "75%", "50% 100%"); omitted/"auto"/unparseable registers the
+ * variant with auto capabilities. See `parseFontStretchDescriptor`.
  */
-export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>): void {
+export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>, stretch?: string): void {
   const key = family.toLowerCase().replace(/^["']|["']$/g, "");
   let font: FontInstance;
   try {
@@ -336,11 +354,52 @@ export function registerWebfont(family: string, weight: number, style: string, b
   }
   const italic = style != null && style !== "" && style.toLowerCase() !== "normal";
   const list = webfontRegistry.get(key) ?? [];
+  const stretchCaps = parseFontStretchDescriptor(stretch);
   // DM-652: retain the raw buffer so embedded-font mode can `@font-face`
   // it as a `data:` URI without re-reading from disk (webfonts have no
   // on-disk source path — they came down from a CDN during capture).
-  list.push({ weight, italic, font, unicodeRange, buffer });
+  list.push({ weight, italic, font, unicodeRange, buffer, ...(stretchCaps != null ? { stretch: stretchCaps } : {}) });
   webfontRegistry.set(key, list);
+}
+
+/** The CSS `font-stretch` keyword → percentage table, transcribed from Blink's
+ *  width constants (`platform/fonts/font_selection_types.h:221-246`, identical
+ *  at tag 147.0.7727.15 and rev 7d859f27). */
+const FONT_STRETCH_KEYWORDS: Readonly<Record<string, number>> = {
+  "ultra-condensed": 50, "extra-condensed": 62.5, "condensed": 75, "semi-condensed": 87.5,
+  "normal": 100,
+  "semi-expanded": 112.5, "expanded": 125, "extra-expanded": 150, "ultra-expanded": 200,
+};
+
+/**
+ * Parse an `@font-face` `font-stretch` DESCRIPTOR value into selection
+ * capabilities `[min, max]`, or undefined for auto/absent/unparseable.
+ *
+ * Transcribed from `FontFace::GetFontSelectionCapabilities`
+ * (`core/css/font_face.cc:666-…`, identical at tag 147.0.7727.15 and rev
+ * 7d859f27): a keyword maps to its width constant as a single-value range; a
+ * single percentage is `[v, v]`; two percentages are a range with the
+ * endpoints SWAPPED when decreasing ("User agents must swap the computed value
+ * of the startpoint and endpoint of the range in order to forbid decreasing
+ * ranges", css-fonts-4). `auto` (and anything unparseable, which Blink's
+ * parser would have rejected before it reached the descriptor) yields
+ * undefined — normal-width capabilities flagged as set-from-auto, meaning the
+ * INSTANCING clamp falls back to the font's own wdth axis range.
+ */
+export function parseFontStretchDescriptor(value: string | undefined): readonly [number, number] | undefined {
+  if (value == null) return undefined;
+  const v = value.trim().toLowerCase();
+  if (v === "" || v === "auto") return undefined;
+  const kw = FONT_STRETCH_KEYWORDS[v];
+  if (kw != null) return [kw, kw];
+  const m = /^([\d.]+)%(?:\s+([\d.]+)%)?$/.exec(v);
+  if (m == null) return undefined;
+  const a = parseFloat(m[1]);
+  if (!Number.isFinite(a) || a < 0) return undefined;
+  if (m[2] == null) return [a, a];
+  const b = parseFloat(m[2]);
+  if (!Number.isFinite(b) || b < 0) return undefined;
+  return a < b ? [a, b] : [b, a];
 }
 
 /** True iff `cp` falls in any of the inclusive `[from, to]` intervals. */
@@ -351,6 +410,68 @@ export function unicodeRangeCovers(ranges: Array<[number, number]> | undefined, 
   }
   return false;
 }
+
+/** A variant's stretch SELECTION capabilities: the declared descriptor range,
+ *  or normal width `[100, 100]` when the descriptor is auto/absent — Blink's
+ *  `FontFace::GetFontSelectionCapabilities` selects an auto face as exactly
+ *  normal width (`core/css/font_face.cc:666-…`, tag 147.0.7727.15). */
+function variantStretchCaps(v: WebfontVariant): readonly [number, number] {
+  return v.stretch ?? [100, 100];
+}
+
+/** The union of the family's stretch capabilities — Blink's
+ *  `capabilities_bounds_`, built across every face of the segmented family and
+ *  consulted by the off-side thresholds below. */
+function webfontStretchBounds(variants: WebfontVariant[]): { min: number; max: number } {
+  let min = Infinity, max = -Infinity;
+  for (const v of variants) {
+    const [lo, hi] = variantStretchCaps(v);
+    if (lo < min) min = lo;
+    if (hi > max) max = hi;
+  }
+  return { min, max };
+}
+
+/**
+ * Distance from a stretch request to a variant's capabilities, transcribed
+ * from `FontSelectionAlgorithm::StretchDistance`
+ * (`platform/fonts/font_selection_algorithm.cc:30-52`, byte-identical at tag
+ * 147.0.7727.15 and rev 7d859f27):
+ *
+ *   - a range containing the request is distance 0;
+ *   - a request above normal (100) prefers wider faces: a face entirely above
+ *     the request scores its gap, a face entirely below scores from
+ *     `max(request, bounds.max)` — pushing too-narrow faces behind every
+ *     too-wide one;
+ *   - a request at/below normal mirrors that, preferring narrower faces.
+ *
+ * Checked BEFORE style and weight, which is Blink's
+ * `IsBetterMatchForRequest` order (stretch, then style, then weight).
+ */
+function webfontStretchDistance(
+  caps: readonly [number, number], request: number, bounds: { min: number; max: number },
+): number {
+  const [lo, hi] = caps;
+  if (request >= lo && request <= hi) return 0;
+  if (request > 100) {
+    if (lo > request) return lo - request;
+    // hi < request
+    return Math.max(request, bounds.max) - hi;
+  }
+  if (hi < request) return request - hi;
+  // lo > request
+  return lo - Math.min(request, bounds.min);
+}
+
+// Score-composition scales. The hierarchy is: unicode-range coverage (a
+// Domotion-specific tofu-avoidance bias, see pickWebfontVariant) dominates
+// stretch, stretch dominates style, style dominates weight — the last three
+// being Blink's `IsBetterMatchForRequest` order. Stretch distances reach 150
+// (a [50,50] face against bounds.max 200), so ×1e4 keeps every stretch step
+// above the style+weight budget (≤1800) and below the range penalty.
+const WEBFONT_RANGE_MISMATCH = 1e7;
+const WEBFONT_STRETCH_SCALE = 1e4;
+const WEBFONT_STYLE_MISMATCH = 1000;
 
 /**
  * DM-557: codepoint-aware variant pick for partitioned webfonts. Filters
@@ -370,23 +491,27 @@ export function unicodeRangeCovers(ranges: Array<[number, number]> | undefined, 
  * unselected.
  */
 export function pickWebfontVariantForCodepoint(family: string, weight: number, fontSize: number, slant: number, codepoint: number, variationSettings?: Record<string, number>,
-  /** CSS `font-stretch` percentage — drives a variable webfont's `wdth` axis
-   *  (see `applyVariationAxes`). */
+  /** CSS `font-stretch` percentage — a SELECTION axis (checked before style
+   *  and weight, Blink's `IsBetterMatchForRequest` order) and the `wdth`-axis
+   *  request for a variable webfont (see `applyVariationAxes`). */
   stretch: number = 100,
 ): FontInstance | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
+  const bounds = webfontStretchBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
     if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
-    const styleMismatch = v.italic === wantItalic ? 0 : 1000;
-    const score = styleMismatch + Math.abs(v.weight - weight);
+    const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
+    const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
+    const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch);
+  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
+    { wdthCapabilities: best.stretch ?? null, wdthAlways: true });
 }
 
 /**
@@ -395,36 +520,40 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
  * unit tests verify scoring (weight, italic, unicode-range) without needing
  * to introspect glyph paths.
  */
-export function __pickWebfontVariantMetaForTest(family: string, weight: number, italic: boolean): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]> } | null {
+export function __pickWebfontVariantMetaForTest(family: string, weight: number, italic: boolean, stretch: number = 100): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]>; stretch?: readonly [number, number] } | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
+  const bounds = webfontStretchBounds(variants);
   const LATIN_PROBE = 0x0041;
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
-    const styleMismatch = v.italic === italic ? 0 : 1000;
-    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
-    const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
+    const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
+    const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
+    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
+    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange };
+  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch };
 }
 
 /** Test-only meta variant for `pickWebfontVariantForCodepoint` (DM-557). */
-export function __pickWebfontVariantMetaForCodepointForTest(family: string, weight: number, italic: boolean, codepoint: number): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]> } | null {
+export function __pickWebfontVariantMetaForCodepointForTest(family: string, weight: number, italic: boolean, codepoint: number, stretch: number = 100): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]>; stretch?: readonly [number, number] } | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
+  const bounds = webfontStretchBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
     if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
-    const styleMismatch = v.italic === italic ? 0 : 1000;
-    const score = styleMismatch + Math.abs(v.weight - weight);
+    const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
+    const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
+    const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange };
+  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch };
 }
 
 /** Drop all registered webfonts. Call at the start of a fresh capture run. */
@@ -502,18 +631,19 @@ export function __pickLocalFontAliasVariantForTest(family: string, weight: numbe
  * match dominates the score so italic+regular beats upright+italic-mismatch.
  */
 function pickWebfontVariant(family: string, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>,
-  /** CSS `font-stretch` percentage — drives a variable webfont's `wdth` axis,
-   *  mirroring Blink's webfont instancing (`font_custom_platform_data.cc:155-169`,
-   *  rev 7d859f27). The @font-face `font-stretch` DESCRIPTOR is not yet tracked
-   *  by the registry, so this implements the descriptor-is-auto branch (clamp to
-   *  the font's own wdth range); a partitioned family whose faces declare
-   *  distinct `font-stretch` descriptor ranges would need the capabilities
-   *  clamp on top. */
+  /** CSS `font-stretch` percentage. A SELECTION axis — scored against each
+   *  variant's `font-stretch` DESCRIPTOR capabilities before style and weight
+   *  (Blink's `IsBetterMatchForRequest` order) — and the `wdth`-axis request
+   *  for a variable webfont, clamped to the matched variant's descriptor
+   *  capabilities when one is declared, else to the font's own wdth range
+   *  (`FontCustomPlatformData::GetFontPlatformData`,
+   *  `font_custom_platform_data.cc:155-169`, tag 147.0.7727.15). */
   stretch: number = 100,
 ): FontInstance | null {
   const variants = webfontRegistry.get(family);
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
+  const bounds = webfontStretchBounds(variants);
   // Tertiary preference: when multiple variants tie on (italic, weight) the
   // one whose `unicode-range` covers Basic Latin (U+0020..U+007F) wins. Google-
   // Fonts-style partitioning registers e.g. Geist@400 across 3 woff2 files
@@ -530,16 +660,18 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
-    const styleMismatch = v.italic === wantItalic ? 0 : 1000;
-    // Range mismatch must outweigh italic mismatch: rendering tofu (no glyph)
+    const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
+    const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
+    // Range mismatch must outweigh every other axis: rendering tofu (no glyph)
     // is far worse than rendering upright glyphs for an italic request, where
     // the renderer can fall back to synthesized italic via `slant`.
-    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
-    const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
+    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
+    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch);
+  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
+    { wdthCapabilities: best.stretch ?? null, wdthAlways: true });
 }
 
 /**
@@ -550,18 +682,20 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
  * would have used. Returns null when the family isn't registered or the
  * matched variant has no retained buffer.
  */
-function pickWebfontVariantWithBuffer(family: string, weight: number, slant: number): { variant: WebfontVariant; buffer: Buffer } | null {
+function pickWebfontVariantWithBuffer(family: string, weight: number, slant: number, stretch: number = 100): { variant: WebfontVariant; buffer: Buffer } | null {
   const variants = webfontRegistry.get(family);
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
+  const bounds = webfontStretchBounds(variants);
   const LATIN_PROBE = 0x0041;
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
     if (v.buffer == null) continue;
-    const styleMismatch = v.italic === wantItalic ? 0 : 1000;
-    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
-    const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
+    const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
+    const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
+    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
+    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null || best.buffer == null) return null;
@@ -601,6 +735,16 @@ interface FontPath {
    *  can't derive (opsz etc.) instead of computing them from font size. Absent
    *  for static tables, macOS/Linux resolutions, and older win32 helpers. */
   resolvedAxes?: Record<string, number>;
+  /** macOS: the CoreText handle's variation axes + CURRENT position at
+   *  resolution time (family or fallback query). This is the FACE the
+   *  PostScript name denotes — a named instance or clone ("Skia-Regular_Light"
+   *  arrives with wght already at 0.48) — and it is what a declared family's
+   *  axis location pins in place of any CSS-derived `wght`: Blink applies only
+   *  `opsz` + font-variation-settings on top of the matched face
+   *  (font_platform_data_mac.mm:113-208, Chromium tag 147.0.7727.15 and rev
+   *  7d859f27 — identical). Absent for static faces, static-table keys, and
+   *  helper binaries predating the family-query axis report. */
+  ctAxes?: DarwinHandleAxis[];
 }
 
 // DM-1014: pick the LastResort font Chrome actually paints with on this
@@ -1357,9 +1501,10 @@ function registerDynamicSystemFont(
   key: string, path: string, postscriptName: string,
   extractor: "fontkit" | "native" = "native",
   resolvedAxes?: Record<string, number>,
+  ctAxes?: DarwinHandleAxis[],
 ): void {
   if (dynamicSystemFontPaths.has(key)) return;
-  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor, resolvedAxes });
+  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor, resolvedAxes, ctAxes });
   resolvedSpecCache.delete(key); // in case a prior null was cached
 }
 
@@ -2057,7 +2202,11 @@ function resolveSystemFallbackKeyForCp(
       }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
-        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+        // The handle's axis position also lands on the spec (opsz excluded at
+        // derivation time — it is per-style, the non-opsz coordinates are a
+        // property of the NAME), so the axis-location derivation can pin the
+        // face's own coordinates instead of a CSS-derived `wght`.
+        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName, "native", undefined, resolved.ctAxes);
         // The substituted handle's variation axes + CURRENT position, observable
         // only here. Blink's clone gate compares against it (CoreText pre-sets
         // `opsz` on some handles), so the instantiated-name stamp in
@@ -2994,6 +3143,7 @@ function darwinPrimaryCutKey(
           registerDynamicSystemFont(
             cutKey, installed.path, match.postscriptName,
             resolveFontSpec(key)?.extractor ?? "fontkit", installed.resolvedAxes,
+            installed.ctAxes,
           );
           if (resolveFontSpec(cutKey) != null) result = { key: cutKey, italic: match.italic };
         }
@@ -4330,7 +4480,22 @@ function resolveEffectiveCutKey(
  */
 function darwinSystemUiWdth(effectiveKey: string, stretch: number): number {
   if (process.platform !== "darwin" || stretch === 100) return 100;
-  return effectiveKey === "sf-pro" || effectiveKey === "sf-pro-italic" ? stretch : 100;
+  return isDarwinSystemUiAxisKey(effectiveKey) ? stretch : 100;
+}
+
+/** The keys standing for the macOS `system-ui` face — the ONLY faces whose
+ *  variation axes Blink drives from CSS values (`MatchSystemUIFont` sets
+ *  wght/wdth variations clamped to the axis range,
+ *  `mac/font_matcher_mac.mm:540-589`, identical at tag 147.0.7727.15 and rev
+ *  7d859f27). Every other darwin key is a declared family or fallback face,
+ *  where the weight lives in WHICH face the matcher picked and only `opsz` +
+ *  font-variation-settings are applied on top. Shared by the `wdth` gate
+ *  (`darwinSystemUiWdth`) and the `wght` gate on the fontkit path. The key
+ *  model's known residual applies: a literal CSS "SF Pro" shares `sf-pro`
+ *  with `system-ui` and takes the axis where Chrome's declared-family matcher
+ *  would pick a cut. */
+function isDarwinSystemUiAxisKey(effectiveKey: string): boolean {
+  return effectiveKey === "sf-pro" || effectiveKey === "sf-pro-italic";
 }
 
 /** Test-only view of the system-ui `wdth` gate (not in the package barrel). */
@@ -4452,11 +4617,22 @@ export function getFontInstance(
     // re-selection already has.
     const helperFaceInfo = (hintedSubsetEnabled() || process.platform === "win32" || process.platform === "darwin")
       ? resolveFaceInfoForFile(spec.path, spec.postscriptName) : null;
+    // The face's own non-default coordinates (macOS): the CoreText handle's
+    // observed position (`spec.ctAxes` — covers clone names like
+    // `Skia-Regular_Light` whose fvar instances carry no postscriptNameID), or
+    // the fvar named instance the PostScript name denotes. Seeded into the
+    // darwin axis location so the pinned instance IS the matched face — a
+    // CSS-derived `wght` never enters here (Blink's mac path applies only
+    // `opsz` + font-variation-settings on top of the matched face,
+    // `font_platform_data_mac.mm:113-208`, tag 147.0.7727.15).
+    const darwinFaceAxes = process.platform === "darwin"
+      ? darwinFaceOwnAxes(spec.ctAxes, helperFaceInfo?.instanceAxes, helperFaceInfo?.fileAxes ?? null)
+      : null;
     const helperAxes = helperFaceInfo?.fileAxes == null ? undefined
       : process.platform === "win32"
         ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes)
         : process.platform === "darwin"
-          ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings)
+          ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings, darwinFaceAxes)
           : undefined;
     // DM-1916: a face carrying both `trak` and `STAT` is tracked by HarfBuzz at
     // the run's point size, and no platform helper reproduces that — the macOS
@@ -4476,8 +4652,16 @@ export function getFontInstance(
       ? makeHarfbuzzShapeFallback(
         spec.path, helperFaceInfo.faceIndex, fontSize,
         helperFaceInfo.fileAxes != null
-          ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings,
-                                       spec.resolvedAxes, helperFaceInfo.instanceAxes)
+          ? (process.platform === "darwin"
+            // The SAME darwin derivation as `helperAxes` — HarfBuzz opens by
+            // face index and gets the file's DEFAULT instance, and the face's
+            // own coordinates are already seeded into that derivation. Tags
+            // left out sit at the default master, which is exactly where the
+            // matched face's unset axes are. No CSS `wght` pin: the weight
+            // lives in WHICH face the matcher picked.
+            ? (helperAxes ?? null)
+            : resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings,
+                                         spec.resolvedAxes, helperFaceInfo.instanceAxes))
           : null,
       )
       : undefined;
@@ -4564,7 +4748,17 @@ export function getFontInstance(
           // `.PingFangUITextSC-Default`, which read as evidence that SC and HK
           // had resolved to the same face.
           variationAxes: fileAxes != null
-            ? (helperAxes ?? resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes, instanceAxes))
+            ? (helperAxes ?? (process.platform === "darwin"
+              // The darwin derivation already folded the face's own
+              // coordinates in; when it answers undefined the matched face IS
+              // the default master, so pin everything to defaults ({}). The
+              // old fall-through to `resolveAxisLocationForFile` here is what
+              // pinned the CSS weight onto declared variable families —
+              // `font-family: Skia` at ANY CSS weight embedded a subset at
+              // wght = clamp(weight, [0.48..3.2]) = 3.2, the Black master,
+              // while the shaped advances came from the face Chrome paints.
+              ? {}
+              : resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes, instanceAxes)))
             : null,
         });
       }
@@ -4625,7 +4819,30 @@ export function getFontInstance(
   }
   if (font == null) return null; // couldn't open and the helper didn't (or can't) rescue
 
-  const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings, wdthStretch);
+  // On macOS, only the `system-ui` face takes CSS-valued weight/width AXIS
+  // pins (`MatchSystemUIFont` sets wght/wdth variations clamped to the axis
+  // range — `mac/font_matcher_mac.mm:540-589`, identical at tag 147.0.7727.15
+  // and rev 7d859f27). A DECLARED family's weight lives in WHICH face the
+  // trait/weight matcher picked; nothing applies a wght axis afterward
+  // (`FontPlatformDataFromCTFont` touches only `opsz` + font-variation-
+  // settings). Pinning `wght` = CSS weight here anyway is what clamped
+  // `font-family: Skia` (wght axis [0.48..3.2], QuickDraw units) to the BLACK
+  // master at every CSS weight — Chrome paints `Skia-Regular` at 400 and the
+  // Light/Bold named instances at 300/700 (measured over CDP: widths 783.36 /
+  // 720.81 / 836.44 at 100px, all reproduced by the instance coordinates and
+  // none by a CSS-valued pin). So on the darwin declared path the face's own
+  // coordinates (CoreText handle position / fvar named instance) replace the
+  // CSS-derived wght, and `wght` is left at the file default when the matched
+  // face IS the default instance.
+  const darwinDeclaredAxisPath = process.platform === "darwin" && !isDarwinSystemUiAxisKey(effectiveKey);
+  const fontkitFaceAxes = darwinDeclaredAxisPath
+      && font?.variationAxes != null && Object.keys(font.variationAxes).length > 0
+    ? darwinFaceOwnAxes(spec.ctAxes,
+        resolveFaceInfoForFile(spec.path, spec.postscriptName).instanceAxes,
+        font.variationAxes)
+    : null;
+  const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings, wdthStretch,
+    darwinDeclaredAxisPath ? { faceAxes: fontkitFaceAxes, cssWghtPin: false } : undefined);
   // DM-1693: expose the static face's natural weight + whether a variable wght
   // axis was baked, so the embedded-font path can decide faux-bold. Read from
   // the ORIGINAL fontkit Font (`font`) — `instance` may be a variation instance
@@ -4636,7 +4853,13 @@ export function getFontInstance(
   if (typeof usWeight === "number" && usWeight >= 1 && usWeight <= 1000) {
     instance.naturalWeight = usWeight;
   }
-  instance.hasWeightAxis = font?.variationAxes?.wght != null;
+  // `hasWeightAxis` gates faux-bold OFF on the premise that the wght axis was
+  // instanced at the requested weight. On the darwin declared path it no
+  // longer is (the weight lives in WHICH face the matcher picked), so the flag
+  // is only honest when the CSS pin actually drove the axis — otherwise the
+  // synthetic-bold rule must consult the face's own bold trait, which is
+  // Chrome's mac rule (`Weight() > 500 && !(traits & kCTFontTraitBold)`).
+  instance.hasWeightAxis = font?.variationAxes?.wght != null && !darwinDeclaredAxisPath;
   // The face's BOLD trait, which the macOS and Windows synthetic-bold rules
   // both test. Read from the ORIGINAL fontkit Font for the same reason the
   // weight fields above are: a variation instance's OS/2 reflects the base face.
@@ -5103,10 +5326,22 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFace
       // the requested name (a relocated / stub file), which callers can see.
       const axes = opened?.variationAxes;
       const psName = opened?.postscriptName;
+      // A single-file VARIABLE font's named instances are ordinary requests
+      // too — `Lexend-Medium` is an fvar instance of Lexend-Regular's file,
+      // and the platform loads it by name at wght 500. Resolving it here (the
+      // same lookup the collection branch already performs per member) is what
+      // lets the axis location pin the INSTANCE's coordinates instead of
+      // re-deriving a location from CSS that only coincides when the request
+      // equals the cut's weight.
+      const instanceAxes = postscriptName != null && psName !== postscriptName
+        ? findNamedInstanceAxes(opened, postscriptName)
+        : null;
       result = {
         faceIndex: 0,
-        nameMatched: postscriptName == null || psName == null || psName === postscriptName,
+        nameMatched: postscriptName == null || psName == null || psName === postscriptName
+          || instanceAxes != null,
         fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+        ...(instanceAxes != null ? { instanceAxes } : {}),
         namedInstances: enumerateNamedInstances(opened),
         memberPostscriptName: psName ?? null,
       };
@@ -5172,7 +5407,14 @@ export function shapingFaceFor(
   // producing. `fileAxes` is null when the requested name is not a physical
   // member, and then no location is derived from a face nobody asked for.
   const axes = info.fileAxes != null && weight != null && fontSize != null
-    ? resolveAxisLocationForFile(info.fileAxes, weight, fontSize, slant ?? 0, variationSettings, spec?.resolvedAxes, info.instanceAxes)
+    ? (process.platform === "darwin" && !isDarwinSystemUiAxisKey(fontKey)
+      // The darwin declared/fallback derivation — the face's own coordinates
+      // plus the opsz/font-variation-settings clone pins, never a CSS-valued
+      // `wght`. Must stay the same derivation `getFontInstance` uses (that is
+      // this function's contract), which no longer CSS-pins wght on macOS.
+      ? (resolveDarwinAxisLocation(info.fileAxes, fontSize, variationSettings,
+          darwinFaceOwnAxes(spec?.ctAxes, info.instanceAxes, info.fileAxes)) ?? null)
+      : resolveAxisLocationForFile(info.fileAxes, weight, fontSize, slant ?? 0, variationSettings, spec?.resolvedAxes, info.instanceAxes))
     : null;
   return { path, faceIndex: info.faceIndex, axes };
 }
@@ -5286,8 +5528,25 @@ export function resolveAxisLocationForFile( // exported for unit testing (not in
 export function resolveDarwinAxisLocation( // exported for unit testing (not in the package barrel)
   fileAxes: Record<string, unknown>, fontSize: number,
   variationSettings?: Record<string, number>,
+  /** The FACE's own non-default coordinates (a named instance's, or the
+   *  CoreText handle's current position — see `darwinFaceOwnAxes`). Seeded
+   *  BEFORE the `opsz` / font-variation-settings pins, exactly where Blink
+   *  starts: its loop reads the matched typeface's current design position and
+   *  reconfigures only `opsz` + the author's variation settings on top
+   *  (`font_platform_data_mac.mm:113-208`, tag 147.0.7727.15 and rev 7d859f27
+   *  — identical). A CSS-derived `wght` never enters on this path: the weight
+   *  is already baked into WHICH face the trait/weight matcher picked, and
+   *  pinning it again is what clamped `font-family: Skia` at CSS 400 to the
+   *  wght-axis maximum 3.2 — the Black master — where Chrome paints
+   *  `Skia-Regular` (the default instance; axis in QuickDraw units). */
+  faceAxes?: Record<string, number> | null,
 ): Record<string, number> | undefined {
   const axes: Record<string, number> = {};
+  if (faceAxes != null) {
+    for (const tag of Object.keys(faceAxes)) {
+      if (tag !== "opsz" && fileAxes[tag] != null) axes[tag] = faceAxes[tag];
+    }
+  }
   if (fileAxes.opsz != null) axes.opsz = fontSize;
   if (variationSettings != null) {
     for (const tag of Object.keys(variationSettings)) {
@@ -5305,6 +5564,53 @@ export function resolveDarwinAxisLocation( // exported for unit testing (not in 
     if (typeof def === "number" && axes[tag] === def) delete axes[tag];
   }
   return Object.keys(axes).length > 0 ? axes : undefined;
+}
+
+/**
+ * The FACE's own non-default axis coordinates for a darwin-resolved PostScript
+ * name, or null when unknowable / static / all-default.
+ *
+ * Two sources, in trust order:
+ *
+ *   1. `spec.ctAxes` — the CoreText handle's variation position observed when
+ *      the live resolver answered (family or fallback query). Authoritative
+ *      for every name CoreText can mint, including clone names like
+ *      `Skia-Regular_Light` whose fvar instances carry no postscriptNameID and
+ *      are therefore invisible to a name-table scan.
+ *   2. the file's fvar NAMED INSTANCE matching the name by postscriptNameID
+ *      (`resolveFaceInfoForFile().instanceAxes`) — the static-file fallback
+ *      for hosts whose helper predates the family-query axis report.
+ *
+ * `opsz` is excluded on both paths: the handle's opsz is per-style state
+ * (CoreText pre-sets it on some handles), and the caller derives it from the
+ * specified size the way Blink's clone loop does (`resolveDarwinAxisLocation`).
+ * Values equal to the axis default are dropped — instancing there is a no-op
+ * and default-only maps would split byte-identical embedded subsets.
+ */
+function darwinFaceOwnAxes(
+  ctAxes: DarwinHandleAxis[] | undefined,
+  instanceAxes: Record<string, number> | null | undefined,
+  fileAxes: Record<string, unknown> | null,
+): Record<string, number> | null {
+  if (ctAxes != null && ctAxes.length > 0) {
+    const axes: Record<string, number> = {};
+    for (const a of ctAxes) {
+      if (a.tag === "opsz" || a.value === a.def) continue;
+      axes[a.tag] = a.value;
+    }
+    return Object.keys(axes).length > 0 ? axes : null;
+  }
+  if (instanceAxes != null) {
+    const axes: Record<string, number> = {};
+    for (const tag of Object.keys(instanceAxes)) {
+      if (tag === "opsz") continue;
+      const def = (fileAxes?.[tag] as { default?: number } | undefined)?.default;
+      if (typeof def === "number" && instanceAxes[tag] === def) continue;
+      axes[tag] = instanceAxes[tag];
+    }
+    return Object.keys(axes).length > 0 ? axes : null;
+  }
+  return null;
 }
 
 /** One axis of a CoreText-substituted handle: fvar metadata plus the handle's
@@ -5557,15 +5863,97 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
    *   Callers on the declared-family path therefore pass 100 here.
    */
   stretch: number = 100,
+  opts?: {
+    /** The FACE's own non-default coordinates (macOS declared families: a
+     *  CoreText handle position or fvar named instance — see
+     *  `darwinFaceOwnAxes`). Pinned for the tags they cover, replacing any
+     *  CSS-derived wght/wdth: the platform loads that instance by name, so its
+     *  coordinates ARE the face. `opsz` is excluded (the caller's font-size
+     *  derivation stands, mirroring Blink's clone loop). */
+    faceAxes?: Record<string, number> | null;
+    /** False on the darwin declared-family path: Blink never sets a CSS-valued
+     *  `wght` axis there — the trait/weight matcher picks a cut or named
+     *  instance and `FontPlatformDataFromCTFont` applies only `opsz` +
+     *  font-variation-settings (`font_platform_data_mac.mm:113-208`, tag
+     *  147.0.7727.15). Defaults to true (webfonts, `system-ui`, Windows'
+     *  helper-less degradation path). */
+    cssWghtPin?: boolean;
+    /** The `@font-face` `font-stretch` DESCRIPTOR as selection capabilities
+     *  `[min, max]` — Blink clamps the request into the DESCRIPTOR range when
+     *  one is declared, and only falls back to the font's own axis range when
+     *  the descriptor is auto (`FontCustomPlatformData::GetFontPlatformData`,
+     *  `font_custom_platform_data.cc:155-169`, identical at tag 147.0.7727.15
+     *  and rev 7d859f27). A face declared `font-stretch: 75%` therefore pins
+     *  wdth = 75 for EVERY request, including `font-stretch: normal`. */
+    wdthCapabilities?: readonly [number, number] | null;
+    /** True on the webfont path: Blink pushes the wdth coordinate for every
+     *  variable webfont — even a normal-stretch (100%) request — clamped to
+     *  the capabilities (descriptor or axis range). System-font paths keep
+     *  the ≠100 gate (`MatchSystemUIFont` only sets wdth when the width moved
+     *  off normal). */
+    wdthAlways?: boolean;
+  },
 ): FontInstance {
   if (font.variationAxes == null || Object.keys(font.variationAxes).length === 0 || font.getVariation == null) {
     return font;
   }
   const axes: Record<string, number> = {};
-  if (font.variationAxes.wght != null) axes.wght = weight;
+  // Blink's webfont clamps run in FontSelectionValue units — a 16-bit fixed
+  // point with TWO fractional bits (`font_selection_types.h:40-105`, identical
+  // at tag 147.0.7727.15 and rev 7d859f27), so every endpoint quantizes to
+  // quarters, truncating: an axis range of [0.48 .. 3.2] clamps requests into
+  // [0.25 .. 3.0], not [0.48 .. 3.2]. Not our rounding — measured: Skia.ttf
+  // loaded AS A WEBFONT paints `Skia-Regular_wght30000_wdth14000` (hex 16.16 =
+  // wght 3.0, wdth 1.25) where the raw axis maxima are 3.19999 / 1.30000.
+  // CSS-unit axes are integers, where the quantization is the identity.
+  const q = (x: number): number => Math.trunc(x * 4) / 4;
+  const webfontClamps = opts?.wdthAlways === true || opts?.wdthCapabilities != null;
+  if (font.variationAxes.wght != null && opts?.cssWghtPin !== false) {
+    axes.wght = webfontClamps
+      // `FontCustomPlatformData::GetFontPlatformData`'s auto-weight branch
+      // (`font_custom_platform_data.cc:136-154`): the request clamped into the
+      // QUANTIZED axis range. (A declared `font-weight` descriptor would clamp
+      // into the descriptor capabilities instead; the registry records a
+      // single scoring weight and cannot yet distinguish a declared 400 from
+      // an absent descriptor — tracked as a follow-up.)
+      ? Math.min(Math.max(q(weight), q(font.variationAxes.wght.min ?? weight)), q(font.variationAxes.wght.max ?? weight))
+      : weight;
+  }
   if (font.variationAxes.opsz != null) axes.opsz = fontSize;
-  if (stretch !== 100 && font.variationAxes.wdth != null) axes.wdth = stretch;
+  if (font.variationAxes.wdth != null) {
+    const caps = opts?.wdthCapabilities;
+    if (caps != null) {
+      // Declared descriptor: the request clamps into the DESCRIPTOR range
+      // first (Blink's `selection_capabilities.width.clampToRange`), which is
+      // what pins a `font-stretch: 75%` face at wdth 75 regardless of the
+      // run's request instead of re-condensing or re-widening it. The raw
+      // axis-range clamp still applies at instancing (Skia's `SkTPin` on
+      // Chrome's side, `clampAxesToFvarRange` + the instancer on ours) — on a
+      // non-CSS-unit axis that is what turns the pinned 75 into the axis
+      // maximum, measured as `_wdth14CCC` (= 1.29998) in Chrome.
+      axes.wdth = Math.min(Math.max(q(stretch), q(caps[0])), q(caps[1]));
+    } else if (opts?.wdthAlways === true) {
+      // Auto descriptor, webfont: Blink ALWAYS pushes the wdth coordinate for
+      // a variable webfont — a normal-stretch (100%) request included —
+      // clamped into the QUANTIZED axis range (`font_custom_platform_data.cc:
+      // 155-169`). Measured: auto-descriptor Skia.ttf paints wdth 1.25 =
+      // q(1.30000) at every requested stretch.
+      axes.wdth = Math.min(Math.max(q(stretch), q(font.variationAxes.wdth.min ?? stretch)), q(font.variationAxes.wdth.max ?? stretch));
+    } else if (stretch !== 100) {
+      // System-font paths keep the ≠100 gate (`MatchSystemUIFont` only sets
+      // wdth when the width moved off normal); the instancers clamp to the
+      // axis range internally.
+      axes.wdth = stretch;
+    }
+  }
   if (slant !== 0 && font.variationAxes.slnt != null) axes.slnt = slant;
+  // The face's own coordinates beat the CSS-derived pins for the tags they
+  // cover — that is what the platform loads by that PostScript name.
+  if (opts?.faceAxes != null) {
+    for (const tag of Object.keys(opts.faceAxes)) {
+      if (tag !== "opsz" && font.variationAxes[tag] != null) axes[tag] = opts.faceAxes[tag];
+    }
+  }
   // DM-578: author-set `font-variation-settings` wins over the CSS-weight /
   // font-size-derived defaults. Skip axes the font doesn't expose — fontkit
   // would otherwise reject the variation entirely on an unknown tag.
@@ -5890,7 +6278,8 @@ function matchFamilyNameToKey(name: string): string | null {
       // DM-1721: `resolvedAxes` carries DirectWrite's pinned axis values for
       // variable-face matches (e.g. "Segoe UI Variable Text" → opsz 10.5 at
       // every size) so the hinted-subset pin embeds the instance Chrome paints.
-      registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes);
+      // On macOS `ctAxes` carries the CoreText handle's own position instead.
+      registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes, installed.ctAxes);
       // This resolution answers "which family", never "which cut" — the name
       // lookup is style-blind on macOS, so `font-family:"PingFang SC";
       // font-weight:700` lands on PingFangSC-Regular where Chrome paints

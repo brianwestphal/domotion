@@ -214,15 +214,36 @@ Given a logical key + `(weight, fontSize, slant, variationSettings, stretch)`,
 computed string); it reaches the declared-family style matcher, and the cut it
 selects is what `effectiveKey` ends up naming. On the macOS `system-ui` face
 (`sf-pro` / `sf-pro-italic`) and on variable webfonts it ALSO drives the `wdth`
-variation axis — the identity mapping clamped into the axis range, which is the
-two places Blink applies it (`MatchSystemUIFont`,
+variation axis — the identity mapping clamped into the capabilities, which is
+the two places Blink applies it (`MatchSystemUIFont`,
 `mac/font_matcher_mac.mm:540-589` + `:483-538`;
-`font_custom_platform_data.cc:155-169`; rev 7d859f27). A declared family never
-gets the axis: the width becomes the condensed/expanded symbolic trait and picks
-a cut or fvar named instance instead (measured on the `Skia` family, which has
-both mechanisms available: 50%/62.5%/75% all paint `Skia-Regular_Condensed` at
-one width, while `system-ui` moves continuously and clamps 200% to SF's wdth max
-150).
+`font_custom_platform_data.cc:155-169`; identical at tag 147.0.7727.15 and rev
+7d859f27). For a webfont the capabilities are the `@font-face` `font-stretch`
+DESCRIPTOR range when one is declared (so a face declared `font-stretch: 75%`
+pins wdth 75 for every request, normal included) and the font's own axis range
+when the descriptor is auto; Blink pushes the coordinate for every variable
+webfont, normal-stretch requests included, and its clamps run in
+FontSelectionValue quarter units (measured: auto-descriptor `Skia.ttf` as a
+webfont paints `_wght30000_wdth14000` = 3.0 / 1.25 against raw axis maxima
+3.19999 / 1.30000). A declared family never gets the axis: the width becomes
+the condensed/expanded symbolic trait and picks a cut or fvar named instance
+instead (measured on the `Skia` family, which has both mechanisms available:
+50%/62.5%/75% all paint `Skia-Regular_Condensed` at one width, while
+`system-ui` moves continuously and clamps 200% to SF's wdth max 150).
+
+**The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
+webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
+WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`
+applies only `opsz` + `font-variation-settings` on top of that face
+(`font_platform_data_mac.mm:113-208`). The darwin fontkit path therefore pins
+the FACE's own coordinates (`darwinFaceOwnAxes`: the CoreText handle position
+the family/fallback query reported — `FontPath.ctAxes` — or the fvar named
+instance the PostScript name denotes) instead of a CSS-derived `wght`. The
+discriminating family is `Skia` (wght axis [0.48 .. 3.2], QuickDraw units): a
+CSS pin clamps every weight to 3.2 — the Black master — where Chrome paints
+`Skia-Regular` at CSS 400 and the Light/Bold instances at 300/700 (CDP-measured
+widths 783.36 / 720.81 / 836.44 at 100px, all reproduced by the instance
+coordinates and none by a CSS pin).
 
 ```mermaid
 flowchart TD
@@ -241,13 +262,13 @@ flowchart TD
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
   G6 -->|"yes (PingFang etc. — hvgl / GSUB-crashing fonts)"| G6t{"faceHasTrakAndStat(path, faceIndex)?<br/>(sfnt table directory — HarfBuzz's own trak gate)"}
-  G6t -->|"yes — SF Compact + every PingFang cut.<br/>SF Pro/Italic/Text and SF Hebrew carry the tables<br/>but never reach here: not extractor:'native'"| G7t["createGlyphHelperFont(…, shapeFallback: makeHarfbuzzShapeFallback(<br/>path, faceIndex, fontSize, resolveAxisLocationForFile(…)),<br/>preferShapeFallback: true)<br/>→ HarfBuzz shapes (ids/positions/clusters),<br/>helper still draws (outlines by id)"]
+  G6t -->|"yes — SF Compact + every PingFang cut.<br/>SF Pro/Italic/Text and SF Hebrew carry the tables<br/>but never reach here: not extractor:'native'"| G7t["createGlyphHelperFont(…, shapeFallback: makeHarfbuzzShapeFallback(<br/>path, faceIndex, fontSize, axes),<br/>preferShapeFallback: true)<br/>axes: darwin = the helperAxes derivation (face-own coords + opsz/fvs);<br/>win32 = resolveAxisLocationForFile(…)<br/>→ HarfBuzz shapes (ids/positions/clusters),<br/>helper still draws (outlines by id)"]
   G6t -->|"no"| G7["createGlyphHelperFont(postscriptName, path,<br/>shapeFallback: makeFontkitShaper(…))<br/>→ native FontInstance · cache · return"]
   G6 -->|"no"| G8["fontkit.openSync(path)<br/>· TTC: getFont(postscriptName) ?? fonts[0]"]
   G8 --> G9{"opened & has glyf/CFF/CFF2 outline table?<br/>(fontHasOutlineTable)"}
   G9 -->|"no + native-eligible + helper avail"| G7
   G9 -->|"no font at all"| GNull
-  G9 -->|"yes"| G10["applyVariationAxes(font, weight, size, slant, fvs, wdth)<br/>wght←weight · opsz←size · wdth←stretch (system-ui/webfont only)<br/>· record fontSourceMap (per-glyph helper fallback)<br/>· cache · return"]
+  G9 -->|"yes"| G10["applyVariationAxes(font, weight, size, slant, fvs, wdth, opts)<br/>opsz←size · wdth←stretch (system-ui/webfont only)<br/>wght←weight EXCEPT darwin declared families —<br/>there the face's own coords (ctAxes / named instance) pin instead<br/>· record fontSourceMap (per-glyph helper fallback)<br/>· cache · return"]
 ```
 
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**
@@ -475,10 +496,10 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs)"] --> W1["score each variant:<br/>italic mismatch (1000) +<br/>unicode-range-misses-Latin (2000) +<br/>|Δweight|"]
-    W1 --> W2["best → applyVariationAxes(…, stretch)<br/>(drive one variable webfont across weights/slants;<br/>wdth←font-stretch clamped to the font's own axis range —<br/>Blink's descriptor-is-auto capabilities clamp)"]
+    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) + |Δweight|"]
+    W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped to the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
-    P1 --> P2["score by (italic, |Δweight|) → best"]
+    P1 --> P2["score by (stretch distance, italic, |Δweight|) → best"]
   end
   subgraph LA["localFontAliasRegistry — @font-face src: local()"]
     LA0["pickLocalFontAliasVariant(family, weight, italic)"] --> LA1["score declared variants →<br/>baseKey (e.g. 'georgia') + declared weight/italic<br/>(preserves Chrome's 'no bold-italic declared →<br/>use italic 400 + synthesize' behavior)"]
