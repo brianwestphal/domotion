@@ -36,8 +36,11 @@
  *   --max-runs n         cap the corpus to the n most-used runs
  *   --split-words        (with --extract-runs) split EVERY text node on
  *                        whitespace, not just the axis- / feature-bearing ones.
- *                        An experiment switch — see docs/108 for the measurement
- *                        that kept it out of the default.
+ *                        An experiment switch, kept so the decision stays
+ *                        reproducible: it grows the corpus 10.65x (2,454 ->
+ *                        26,140) and the sweep 7.3s -> 55.8s, and 97.23% of the
+ *                        added runs merely restate `agree-exact`. See docs/108,
+ *                        "Universal whitespace splitting", for the tier diff.
  *   --tolerance px       per-glyph position tolerance (0.5)
  *   --allowlist <file>   accepted-divergence file
  *   --out <dir>          report directory (tests/output/shaping-conformance)
@@ -241,8 +244,50 @@ export async function extractRuns(
     }
     const found = await page.evaluate((splitEvery: boolean) => {
       const out: string[] = [];
+      // Families this document defines with `@font-face`. A run in such a family
+      // CANNOT be swept, because no `@font-face` rule travels with it: the probe
+      // page re-declares the family name alone, so Chrome falls through the
+      // stack to a system face and shapes something the fixture never painted.
+      // Our side falls through too, so the two agree — and the agreement is
+      // vacuous, which is worse than a mismatch because it reads as coverage.
+      //
+      // Measured on `20-font-face.html`, whose rules are `src: local(...)` only:
+      // the fixture paints `TestSerif` as Georgia and `TestMono` as Menlo, while
+      // the oracle's probe page paints them as Times and Courier. The runs scored
+      // 28 agree-exact / 4 agree-count — a clean-looking result about the wrong
+      // fonts.
+      //
+      // So they are EXCLUDED rather than swept, which is the same move the
+      // whitespace rule makes: when the instrument cannot ask the question
+      // faithfully, drop the question instead of recording a confident wrong
+      // answer. Sweeping them properly means carrying the `@font-face` into the
+      // probe page and registering the same face on our side; until then this
+      // keeps the corpus honest about what it covers.
+      const fontFaceFamilies = new Set<string>();
+      for (const sheet of Array.from(document.styleSheets)) {
+        let rules: CSSRuleList | null = null;
+        try {
+          rules = sheet.cssRules;
+        } catch {
+          // Cross-origin stylesheet — unreadable by design. Nothing to add.
+          continue;
+        }
+        for (const rule of Array.from(rules ?? [])) {
+          if (rule.constructor.name !== "CSSFontFaceRule") continue;
+          const fam = (rule as CSSFontFaceRule).style.getPropertyValue("font-family").trim();
+          if (fam !== "") fontFaceFamilies.add(fam.replace(/^["']|["']$/g, "").toLowerCase());
+        }
+      }
       for (const el of Array.from(document.querySelectorAll("*"))) {
         const cs = getComputedStyle(el as Element);
+        // Any family in the stack, not merely the first: a later entry only gets
+        // used when the earlier ones fail to resolve, and which of them Chrome
+        // lands on is exactly what differs between the fixture and the probe
+        // page. Written inline rather than as a named helper on purpose — this
+        // body is serialized into the page, where the `__name` wrapper that
+        // tsx/esbuild emits for a named function binding does not exist.
+        if (cs.fontFamily.split(",").some((f) =>
+          fontFaceFamilies.has(f.trim().replace(/^["']|["']$/g, "").toLowerCase()))) continue;
         const fvs = cs.fontVariationSettings === "" ? "normal" : cs.fontVariationSettings;
         const stretch = cs.fontStretch === "" ? "100%" : cs.fontStretch;
         const ffs = cs.fontFeatureSettings === "" ? "normal" : cs.fontFeatureSettings;
@@ -271,8 +316,8 @@ export async function extractRuns(
           // keeps the whitespace-free invariant exactly (each word has no space)
           // and is the same word-boundary argument the paragraph above makes.
           // It is applied ONLY to axis-bearing nodes on purpose: splitting every
-          // node grows the corpus 10.95x (2,385 -> 26,121 runs), which is a
-          // separate question about sweep breadth, not about axis coverage.
+          // node is a separate question about sweep breadth, not about axis
+          // coverage, and it has now been measured and declined (see below).
           //
           // FEATURE-bearing nodes get the same treatment, for the identical
           // reason and with the identical hazard: the fixtures that declare
@@ -283,9 +328,18 @@ export async function extractRuns(
           //
           // `--split-words` widens the split to EVERY node. Measured on this
           // machine against `external/html-test`: 2,454 -> 26,140 runs (10.65x,
-          // a strict superset), sweep 7.0s -> 59.3s. See docs/108 for the tier
-          // diff and the decision it drove; the switch exists so that
-          // measurement is reproducible rather than a number in a changelog.
+          // a strict superset with every shared verdict unchanged), sweep 7.3s
+          // -> 55.8s. DECLINED: 97.23% of the added runs merely restate
+          // `agree-exact`, the new position tier is TIGHTER than the one already
+          // reported (median 0.59px vs 0.88px), and all 6 added hard mismatches
+          // are default-ignorable artifacts rather than defects — U+00AD and the
+          // bidi controls, which HarfBuzz keeps as ZERO-ADVANCE invisible glyphs
+          // (`hb_ot_hide_default_ignorables`, hb-ot-shape.cc:824-847, checkout
+          // 4de187d) and Chrome therefore counts while we correctly paint none.
+          // That is the very disagreement this whitespace rule exists to
+          // exclude, leaking back in because /\s/ does not match an ignorable.
+          // See docs/108, "Universal whitespace splitting", for the tier diff;
+          // the switch exists so the measurement stays reproducible.
           const texts = splitEvery || fvs !== "normal" || ffs !== "normal" ? raw.split(/\s+/) : [raw];
           for (const text of texts) {
             if (text === "" || text.length > 24 || /\s/.test(text)) continue;
