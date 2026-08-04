@@ -31,6 +31,7 @@ import {
   withRenderTextMode,
   type RenderTextMode,
 } from "../render/text-to-path.js";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "../render/font-resolution.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
@@ -201,9 +202,19 @@ export function composeScrollSvg(
   // DM-1078/DM-1435: the whole body renders in the chosen mode (module-global);
   // `withRenderTextMode` restores it on ANY exit — incl. a mid-segment
   // elementTreeToSvgInner throw — so the mode can't leak to the next caller.
-  return withRenderTextMode(renderTextMode, () =>
-    composeScrollSvgBody(segments, opts, { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize }),
-  );
+  // One document scope for the macOS ideograph fallback cache across ALL
+  // segments: every segment came from one captured page session, whose Chrome
+  // renderer shared one per-character fallback cache (see
+  // `beginCharacterFallbackDocument` in font-resolution.ts). The per-segment
+  // `elementTreeToSvgInner` scopes nest inside this one as no-ops.
+  beginCharacterFallbackDocument();
+  try {
+    return withRenderTextMode(renderTextMode, () =>
+      composeScrollSvgBody(segments, opts, { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize }),
+    );
+  } finally {
+    endCharacterFallbackDocument();
+  }
 }
 
 /**

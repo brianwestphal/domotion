@@ -10,6 +10,7 @@ import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./font-resolution.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
@@ -2729,7 +2730,7 @@ function buildRenderState(
   return { state, fragmentFilterDefs };
 }
 
-export function elementTreeToSvgInner(
+function elementTreeToSvgInnerImpl(
   elements: CapturedElement[],
   width: number,
   height: number,
@@ -2849,6 +2850,31 @@ export function elementTreeToSvgInner(
   const allDefs = defsParts.join("") + glyphDefsMarkup + fontStyleMarkup;
   const defs = allDefs !== "" ? `  <defs>${allDefs}</defs>\n` : "";
   return defs + svgParts.join("\n");
+}
+
+/**
+ * Body of the frame renderer, wrapped in a document scope for the macOS
+ * ideograph fallback cache. Chrome's per-character fallback cache for
+ * ideographs lives on the renderer process's FontCache (Blink
+ * mac/font_cache_mac.mm — see `beginCharacterFallbackDocument` in
+ * font-resolution.ts for the full transcription), so its state spans one
+ * captured document and never leaks into the next. Mirroring that scope here —
+ * a fresh scope per top-level render, `finally`-closed — is what keeps the
+ * modeled order dependence DOCUMENT order rather than sweep order across
+ * renders in one Node process. Multi-frame composers (animator, scroll
+ * composer) open a single spanning scope of their own; the per-frame scope
+ * here then nests inside it as a no-op, matching Chrome, where all frames of
+ * one capture session share one renderer cache.
+ */
+export function elementTreeToSvgInner(
+  ...args: Parameters<typeof elementTreeToSvgInnerImpl>
+): string {
+  beginCharacterFallbackDocument();
+  try {
+    return elementTreeToSvgInnerImpl(...args);
+  } finally {
+    endCharacterFallbackDocument();
+  }
 }
 
 // DM-1342: render functions lifted out of `elementTreeToSvgInner` to module

@@ -132,6 +132,20 @@ export function isLegitimatelyInklessCodepoint(cp: number): boolean {
   return false;
 }
 
+// The Unicode `Ideographic` binary property, exactly as Blink consults it:
+// `Character::IsIdeographic` is `u_hasBinaryProperty(c, UCHAR_IDEOGRAPHIC)`
+// (external/chromium third_party/blink/renderer/platform/text/character.h:106-108,
+// rev 7d859f27; identical at shipping tag 147.0.7727.15). JS regex `\p{Ideographic}`
+// is the same UCD property, so this is a transcription, not an approximation.
+// It gates Blink's macOS per-character fallback cache: caching happens ONLY for
+// [:Ideographic=Yes:] codepoints (mac/font_cache_mac.mm:335-347).
+const IDEOGRAPHIC_RE = /^\p{Ideographic}$/u;
+export function isIdeographicCp(cp: number): boolean {
+  let s: string;
+  try { s = String.fromCodePoint(cp); } catch { return false; }
+  return IDEOGRAPHIC_RE.test(s);
+}
+
 // CJK fullwidth-punctuation blocks whose glyphs carry trimmable side-bearing.
 // The real filtering is done by `haltInfoFor` (must have a half-width alternate)
 // plus the captured-advance check; this just scopes the probe so it never runs

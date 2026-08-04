@@ -15,7 +15,7 @@ import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOver
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
-import { getFontInstance, resolveFontKey, withRenderTextMode, glyphDefCount, getGlyphDefsSince, truncateGlyphDefs } from "../render/font-resolution.js";
+import { getFontInstance, resolveFontKey, withRenderTextMode, glyphDefCount, getGlyphDefsSince, truncateGlyphDefs, beginCharacterFallbackDocument, endCharacterFallbackDocument } from "../render/font-resolution.js";
 import { renderTextAsPath } from "../render/text-to-path.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
@@ -1239,6 +1239,20 @@ function dedupeCullCss(perFrameCss: string[]): string {
 }
 
 export function generateAnimatedSvg(config: AnimationConfig): string {
+  // One document scope for the macOS ideograph fallback cache across the whole
+  // composition: all frames (and the typing overlays rendered late, below) came
+  // from one captured page session, whose Chrome renderer shared one
+  // per-character fallback cache (see `beginCharacterFallbackDocument` in
+  // font-resolution.ts). Any nested render's own scope no-ops inside this one.
+  beginCharacterFallbackDocument();
+  try {
+    return generateAnimatedSvgBody(config);
+  } finally {
+    endCharacterFallbackDocument();
+  }
+}
+
+function generateAnimatedSvgBody(config: AnimationConfig): string {
   const { width, height } = config;
   // DM-1557: snapshot the glyph-defs registry so we can emit ONLY the glyphs the
   // typing overlays (rendered below as glyph paths) add — without re-emitting

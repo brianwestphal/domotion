@@ -408,6 +408,41 @@ codepoint it exercises is static-owned, so the resolver never fires for it. Ther
 is no committed win32 unicode/html baseline yet (the analog of the Linux
 DM-1419 baseline work), so nothing else needs re-seeding for the flip.
 
+## The macOS answer is order-dependent for ideographs — the document cache
+
+Chrome-on-macOS does not resolve ideograph fallback per codepoint. For any
+codepoint with the Unicode property `[:Ideographic=Yes:]`, Blink caches the
+result of the system-fallback ask (CoreText cascade + in-family re-selection)
+under a `CharacterFallbackKey` — the BASE font's PostScript name, raw weight,
+raw style, orientation, and effective font size — and returns that face for any
+later ideograph it covers, without re-asking CoreText
+(`mac/font_cache_mac.mm:330-372`; `mac/character_fallback_cache.mm`; the
+`MacCharacterFallbackCache` runtime feature is `status: "stable"` at the
+shipping tag 147.0.7727.15). The insert is first-writer-wins (WTF
+`HashMap::insert` does nothing when the key is present), only successful asks
+insert, and a dot-prefixed base gets no key at all — the UI font Blink creates
+passes a null language, whose descriptor then lacks the language attribute
+`BuildIdentifierKey` requires, so `system-ui` runs are never cached.
+
+Measured consequence (CDP `CSS.getPlatformFontsForNode`, `serif`/16px/800):
+U+4E9F alone resolves to `STSongti-SC-Black`; preceded by U+3400 (Ext-A, which
+Black does not cover) both paint `STSongti-SC-Bold` — the first ideograph's
+kept-nominated Bold was cached and answered for every later ideograph it
+covers. A context-free resolver paints two Songti cuts on a page where Chrome
+paints one.
+
+The mirror is a document-scoped cache around the darwin branch of
+`resolveSystemFallbackKeyForCp` — see doc
+[font-resolution-diagram § 8b](font-resolution-diagram.md) for scope rules
+(explicit `beginCharacterFallbackDocument()` / `end…()` pairs opened per
+top-level render, per multi-frame composition, and per oracle sweep; no scope →
+context-free, so ordering can only ever be document order, never sweep order).
+Two flags A/B the mechanism: `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` disables the
+document cache; `DOMOTION_FALLBACK_BASE_CUT=0` restores the base-entry cascade
+base (the base must otherwise be the primary's weight-matched cut —
+`Times-Bold` at 800 — because `CTFontCreateForString`'s nomination tracks the
+base's own cut, and the cache then propagates that first nomination).
+
 ## Testing
 
 - `__resolveSystemFallbackKeyForCpForTest(cp)` (test-only export) drives the
