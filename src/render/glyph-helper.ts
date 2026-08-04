@@ -1466,18 +1466,23 @@ export function resolveSystemFallbackFonts(
  *
  *  Recorded rather than thrown because a short response is recoverable — the
  *  unanswered codepoints simply get asked again lazily. But it is NOT harmless:
- *  it changes WHICH codepoints take the batch path and which take the lazy one,
- *  and the two ask in different orders. The conformance oracle disagreeing with
- *  itself run to run is the symptom that made this worth instrumenting, and a
- *  silent partial response is the leading candidate for it.
+ *  an unanswered codepoint gets re-asked later, in a different order, and this
+ *  area has been bitten by ask-order dependence before.
  *
- *  Read with `takeFallbackResponseAnomalies()`; a sweep that reports none has
- *  eliminated this candidate rather than merely not looked. */
+ *  Historical note (DM-1893): this was instrumented while chasing the
+ *  conformance oracle disagreeing with itself run to run, where a silent
+ *  partial response was a leading candidate. Measured at zero anomalies across
+ *  batch sizes 64–8192; the disagreement itself turned out to be Chrome's own
+ *  answers flipping among CJK cousin faces between runs, now detected by the
+ *  oracle's per-face `chromeFaceCounts` baseline comparison.
+ *
+ *  Read with `takeFallbackResponseAnomalies()`; a run that reports none has
+ *  eliminated the short-response candidate rather than merely not looked. */
 interface FallbackResponseAnomaly { asked: number; answered: number; missing: number; outOfDomain: number }
 const _fallbackResponseAnomalies: FallbackResponseAnomaly[] = [];
 
-/** Drain the recorded anomalies. Empty means every batch answered exactly what
- *  it was asked, which is the claim the batch warm rests on. */
+/** Drain the recorded anomalies. Empty means every call answered exactly what
+ *  it was asked. */
 export function takeFallbackResponseAnomalies(): FallbackResponseAnomaly[] {
   return _fallbackResponseAnomalies.splice(0, _fallbackResponseAnomalies.length);
 }
