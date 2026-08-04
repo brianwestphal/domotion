@@ -311,6 +311,14 @@ interface FamilyResponse {
   path?: string;
   /** DM-1721: resolved axis values of a variable-face match (win32 ≥0.2.0). */
   axes?: Record<string, number>;
+  /** macOS only (helper ≥ the build carrying the family-query axis report):
+   *  the resolved CTFont handle's variation axes with its CURRENT position —
+   *  same encoding as `FallbackResponseEntry.ctAxes`. For a variable family
+   *  this identifies the FACE the name denotes: CoreText resolves AppKit
+   *  member / named-instance / clone names ("Skia-Regular_Light") to a handle
+   *  whose variation is already at that instance's coordinates. Absent for
+   *  static faces and older binaries. */
+  ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
 }
 interface FamilyMatchResponse {
   type: "familyMatch";
@@ -1525,6 +1533,12 @@ export interface InstalledFont {
    *  helper ≥0.2.0). For named optical subfamilies ("Segoe UI Variable Text")
    *  this carries the fixed opsz DirectWrite pins at every font size. */
   resolvedAxes?: Record<string, number>;
+  /** macOS: the resolved handle's variation axes + CURRENT position (see
+   *  `FamilyResponse.ctAxes`). The face's own coordinates — what a declared
+   *  family's axis location must pin instead of a CSS-derived `wght`, since
+   *  Blink's mac path applies only `opsz` + font-variation-settings on top of
+   *  the matched face (font_platform_data_mac.mm:113-208, tag 147.0.7727.15). */
+  ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
 }
 
 const _installedFontCache = new Map<string, InstalledFont | null>();
@@ -1665,7 +1679,7 @@ export function resolveInstalledFont(
       }] });
       const r = resp.results[0];
       if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
-        resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path, resolvedAxes: r.axes };
+        resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path, resolvedAxes: r.axes, ctAxes: r.ctAxes };
       }
     } catch { resolved = null; }
   }

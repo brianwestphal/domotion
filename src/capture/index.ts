@@ -388,7 +388,7 @@ export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: (
  */
 // Node-side discovered-font item shapes (the page.evaluate body declares its
 // own structurally-identical inline copies; these are the Node-side types).
-type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> };
+type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string };
 type ResourceUrl = { kind: "resource"; url: string };
 type LocalFace = { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null };
 type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
@@ -461,7 +461,7 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
           continue;
         }
         const weightNum = parseWeightDescriptor(item.weight);
-        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange);
+        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch);
         report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
       } else {
         const meta = await readFontMetadata(buf);
@@ -509,7 +509,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     if (typeof (window as any).__name === "undefined") {
       (window as any).__name = function (fn: any) { return fn; };
     }
-    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }
+    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string }
     interface ResourceUrl { kind: "resource"; url: string }
     interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
     // Parse a CSS `unicode-range` descriptor value into inclusive [from, to]
@@ -590,6 +590,13 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         const family = r.style.getPropertyValue("font-family").trim().replace(/^["']|["']$/g, "");
         const weight = r.style.getPropertyValue("font-weight") || "400";
         const style = r.style.getPropertyValue("font-style") || "normal";
+        // The `font-stretch` DESCRIPTOR (Chrome also serializes it under the
+        // spec's newer `font-width` name). Empty string = auto/absent — the
+        // registry then treats the face's selection capabilities as normal
+        // width and lets a variable face's own wdth range bound the instancing
+        // (Blink's RangeSetFromAuto branch).
+        const stretchDesc = r.style.getPropertyValue("font-stretch")
+          || r.style.getPropertyValue("font-width") || "";
         const src = r.style.getPropertyValue("src");
         // DM-513: parse ALL `url(...) format(...)` pairs and return them in
         // priority order (woff2 > woff > ttf/otf > unknown). Sites like
@@ -663,7 +670,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         }
         for (const u of absUrls) seenUrls.add(u);
         const unicodeRange = parseUnicodeRangeInline(r.style.getPropertyValue("unicode-range") || "");
-        out.push({ kind: "font-face", family, weight, style, url: absUrl, urls: absUrls, unicodeRange });
+        out.push({ kind: "font-face", family, weight, style, url: absUrl, urls: absUrls, unicodeRange, ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}) });
       }
     }
 
@@ -829,6 +836,11 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   if (family === "") return null;
   const weight = (/font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "400";
   const style = (/font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "normal";
+  // The `font-stretch` descriptor (or its spec-renamed `font-width` form).
+  // Undefined = auto/absent; the registry then treats the face's selection
+  // capabilities as normal width and instancing clamps to the font's own
+  // wdth axis range (Blink's RangeSetFromAuto branch).
+  const stretch = (/font-(?:stretch|width)\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) || undefined;
   const urMatch = /unicode-range\s*:\s*([^;}]+)/i.exec(body);
   const unicodeRange = urMatch != null ? parseUnicodeRangeDescriptor(urMatch[1]) : undefined;
   const srcMatch = /src\s*:\s*([\s\S]+?)(?:;|$)/i.exec(body);
@@ -865,7 +877,7 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
     try { absUrls.push(new URL(u, baseUrl).href); } catch { /* skip */ }
   }
   if (absUrls.length === 0) return null;
-  return { kind: "font-face", family, weight, style, url: absUrls[0], urls: absUrls, unicodeRange };
+  return { kind: "font-face", family, weight, style, url: absUrls[0], urls: absUrls, unicodeRange, ...(stretch != null ? { stretch } : {}) };
 }
 
 /**
