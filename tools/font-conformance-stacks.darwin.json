@@ -1,5 +1,5 @@
 {
-  "generatedAt": "harvested:v1:924f9d10b83d3f55",
+  "generatedAt": "harvested:v2:c4d398bbd23d229e",
   "platform": "darwin",
   "sources": [
     "external/html-test",
@@ -14,6 +14,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1114,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -25,6 +27,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 818,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -36,6 +40,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 818,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -47,6 +53,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 818,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -58,6 +66,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 448,
       "example": "../html-test/unicode/0530-058F-armenian.html"
     },
@@ -69,6 +79,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 198,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -80,6 +92,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 191,
       "example": "../html-test/unicode/0590-05FF-hebrew.html"
     },
@@ -91,6 +105,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 179,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.0.html"
     },
@@ -102,6 +118,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 174,
       "example": "../html-test/unicode/1800-18AF-mongolian.html"
     },
@@ -113,6 +131,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 163,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -124,6 +144,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 152,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.0.html"
     },
@@ -135,6 +157,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 116,
       "example": "external/html-test/01-structure-base.html"
     },
@@ -146,6 +170,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 76,
       "example": "external/html-test/01-structure-external-css.html"
     },
@@ -157,6 +183,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 74,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -168,6 +196,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 66,
       "example": "external/html-test/02-deep-bidi-isolate.html"
     },
@@ -179,6 +209,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 66,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -190,6 +222,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 63,
       "example": "external/html-test/02-deep-bidi-isolate.html"
     },
@@ -201,6 +235,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 62,
       "example": "external/html-test/02-text-headings.html"
     },
@@ -212,6 +248,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 56,
       "example": "../html-test/unicode/1100-11FF-hangul-jamo.html"
     },
@@ -223,6 +261,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 53,
       "example": "external/html-test/06-deep-field-sizing.html"
     },
@@ -234,6 +274,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 48,
       "example": "external/html-test/01-structure-meta.html"
     },
@@ -245,6 +287,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 46,
       "example": "../html-test/unicode/1100-11FF-hangul-jamo.html"
     },
@@ -256,6 +300,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 41,
       "example": "../html-test/unicode/0000-007F-basic-latin.html"
     },
@@ -267,6 +313,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 40,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -278,6 +326,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 39,
       "example": "../html-test/unicode/02B0-02FF-spacing-modifier-letters.html"
     },
@@ -289,6 +339,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 34,
       "example": "external/html-test/06-deep-input-baseline.html"
     },
@@ -300,6 +352,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 31,
       "example": "../html-test/unicode/0100-017F-latin-extended-a.html"
     },
@@ -311,6 +365,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 24,
       "example": "external/html-test/06-deep-field-sizing.html"
     },
@@ -322,6 +378,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 23,
       "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
     },
@@ -333,6 +391,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 21,
       "example": "../html-test/unicode/0180-024F-latin-extended-b.html"
     },
@@ -344,6 +404,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 19,
       "example": "external/html-test/06-forms-datalist.html"
     },
@@ -355,6 +417,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 18,
       "example": "external/html-test/06-deep-input-baseline.html"
     },
@@ -366,6 +430,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 18,
       "example": "external/html-test/06-deep-color-scheme-forms.html"
     },
@@ -377,6 +443,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 17,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.10.html"
     },
@@ -388,6 +456,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 17,
       "example": "../html-test/unicode/1D400-1D7FF-mathematical-alphanumeric-symbols.0.html"
     },
@@ -399,6 +469,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 17,
       "example": "external/html-test/02-text-emphasis.html"
     },
@@ -410,6 +482,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 17,
       "example": "external/html-test/07-deep-image-rendering.html"
     },
@@ -421,6 +495,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 16,
       "example": "../html-test/unicode/1F100-1F1FF-enclosed-alphanumeric-supplement.html"
     },
@@ -432,6 +508,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 14,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -443,6 +521,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 14,
       "example": "external/html-test/02-deep-line-breaking.html"
     },
@@ -454,6 +534,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 14,
       "example": "external/html-test/06-forms-style-checkbox-radio.html"
     },
@@ -465,6 +547,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 12,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -476,6 +560,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 12,
       "example": "external/html-test/02-text-emphasis.html"
     },
@@ -487,6 +573,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 12,
       "example": "external/html-test/07-deep-svg-use-href.html"
     },
@@ -498,6 +586,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 12,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -509,6 +599,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 8,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -520,6 +612,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 8,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -531,6 +625,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 7,
       "example": "external/html-test/11-box-units.html"
     },
@@ -542,6 +638,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 6,
       "example": "../html-test/unicode/0600-06FF-arabic.html"
     },
@@ -553,6 +651,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 6,
       "example": "../html-test/unicode/12000-123FF-cuneiform.0.html"
     },
@@ -564,6 +664,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 6,
       "example": "../html-test/unicode/A000-A48F-yi-syllables.0.html"
     },
@@ -575,6 +677,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 6,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -586,6 +690,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 6,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -597,6 +703,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "../html-test/unicode/11AB0-11ABF-unified-canadian-aboriginal-syllabics-extended-a.html"
     },
@@ -608,6 +716,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "../html-test/unicode/1200-137F-ethiopic.0.html"
     },
@@ -619,6 +729,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "../html-test/unicode/13000-1342F-egyptian-hieroglyphs.0.html"
     },
@@ -630,6 +742,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "external/html-test/20-deep-first-letter-line.html"
     },
@@ -641,6 +755,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "external/html-test/02-deep-line-breaking.html"
     },
@@ -652,6 +768,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "external/html-test/02-text-ruby.html"
     },
@@ -663,6 +781,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "external/html-test/05-links-states.html"
     },
@@ -674,6 +794,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "external/html-test/15-deep-flex-baseline.html"
     },
@@ -685,6 +807,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 5,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -696,6 +820,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
     },
@@ -707,6 +833,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "../html-test/unicode/16800-16A3F-bamum-supplement.0.html"
     },
@@ -718,6 +846,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -729,6 +859,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/11-box-basic.html"
     },
@@ -740,6 +872,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/02-text-entities.html"
     },
@@ -751,6 +885,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/02-text-sub-sup.html"
     },
@@ -762,6 +898,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/20-font-family.html"
     },
@@ -773,6 +911,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/06-forms-style-fieldset.html"
     },
@@ -784,6 +924,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/06-forms-style-fieldset.html"
     },
@@ -795,6 +937,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 4,
       "example": "external/html-test/11-deep-viewport-units.html"
     },
@@ -806,6 +950,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/3000-303F-cjk-symbols-and-punctuation.html"
     },
@@ -817,6 +963,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/11000-1107F-brahmi.html"
     },
@@ -828,6 +976,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/0600-06FF-arabic.html"
     },
@@ -839,6 +989,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
     },
@@ -850,6 +1002,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/1000-109F-myanmar.html"
     },
@@ -861,6 +1015,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-buttons.html"
     },
@@ -872,6 +1028,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-deep-first-letter-line.html"
     },
@@ -883,6 +1041,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "../html-test/unicode/1F100-1F1FF-enclosed-alphanumeric-supplement.html"
     },
@@ -894,6 +1054,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-font-family.html"
     },
@@ -905,6 +1067,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-font-style-variant.html"
     },
@@ -916,6 +1080,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/20-font-style-variant.html"
     },
@@ -927,6 +1093,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -938,6 +1106,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -949,6 +1119,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -960,6 +1132,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -971,6 +1145,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 3,
       "example": "external/html-test/07-deep-svg-textpath-filters.html"
     },
@@ -982,6 +1158,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -993,6 +1171,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1004,6 +1184,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1015,6 +1197,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1026,6 +1210,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1037,6 +1223,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1780-17FF-khmer.html"
     },
@@ -1048,6 +1236,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0590-05FF-hebrew.html"
     },
@@ -1059,6 +1249,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1A00-1A1F-buginese.html"
     },
@@ -1070,6 +1262,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1720-173F-hanunoo.html"
     },
@@ -1081,6 +1275,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1E000-1E02F-glagolitic-supplement.html"
     },
@@ -1092,6 +1288,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/10600-1077F-linear-a.0.html"
     },
@@ -1103,6 +1301,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/10000-1007F-linear-b-syllabary.html"
     },
@@ -1114,6 +1314,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/AAE0-AAFF-meetei-mayek-extensions.html"
     },
@@ -1125,6 +1327,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/10980-1099F-meroitic-hieroglyphs.html"
     },
@@ -1136,6 +1340,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/11660-1167F-mongolian-supplement.html"
     },
@@ -1147,6 +1353,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1B80-1BBF-sundanese.html"
     },
@@ -1158,6 +1366,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/A500-A63F-vai.0.html"
     },
@@ -1169,6 +1379,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0B80-0BFF-tamil.html"
     },
@@ -1180,6 +1392,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0370-03FF-greek-and-coptic.html"
     },
@@ -1191,6 +1405,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-buttons.html"
     },
@@ -1202,6 +1418,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/13A0-13FF-cherokee.html"
     },
@@ -1213,6 +1431,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-first-letter-line.html"
     },
@@ -1224,6 +1444,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -1235,6 +1457,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -1246,6 +1470,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -1257,6 +1483,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/07-deep-svg-textpath-filters.html"
     },
@@ -1268,6 +1496,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/33-columns-basic.html"
     },
@@ -1279,6 +1509,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/33-deep-columns-break.html"
     },
@@ -1290,6 +1522,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/34-mathml-basic.html"
     },
@@ -1301,6 +1535,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/34-mathml-basic.html"
     },
@@ -1312,6 +1548,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -1323,6 +1561,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -1334,6 +1574,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/03-lists-ul-ol.html"
     },
@@ -1345,6 +1587,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-style-focus.html"
     },
@@ -1356,6 +1600,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/08-dialog.html"
     },
@@ -1367,6 +1613,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/0530-058F-armenian.html"
     },
@@ -1378,6 +1626,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "../html-test/unicode/1CD0-1CFF-vedic-extensions.html"
     },
@@ -1389,6 +1639,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-headings.html"
     },
@@ -1400,6 +1652,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/02-text-ruby.html"
     },
@@ -1411,6 +1665,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -1422,6 +1678,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -1433,6 +1691,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/28-layer.html"
     },
@@ -1444,6 +1704,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-font-style-variant.html"
     },
@@ -1455,6 +1717,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-style-fieldset.html"
     },
@@ -1466,6 +1730,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/06-forms-style-input-groups.html"
     },
@@ -1477,6 +1743,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -1488,6 +1756,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/11-deep-env-safe-area.html"
     },
@@ -1499,6 +1769,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/11-deep-viewport-units.html"
     },
@@ -1510,6 +1782,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -1521,6 +1795,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-wavy-underline-descenders.html"
     },
@@ -1532,6 +1808,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-wavy-underline-descenders.html"
     },
@@ -1543,6 +1821,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/20-deep-tab-size.html"
     },
@@ -1554,6 +1834,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 2,
       "example": "external/html-test/21-deep-transform-box.html"
     },
@@ -1565,6 +1847,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1576,6 +1860,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1587,6 +1873,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1598,6 +1886,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1609,6 +1899,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1620,6 +1912,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1631,6 +1925,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1642,6 +1938,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1653,6 +1951,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1664,6 +1964,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1675,6 +1977,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1686,6 +1990,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -1697,6 +2003,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1708,6 +2016,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1719,6 +2029,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1730,6 +2042,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1741,6 +2055,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1752,6 +2068,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1763,6 +2081,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1774,6 +2094,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -1785,6 +2107,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1796,6 +2120,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1807,6 +2133,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1818,6 +2146,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1829,6 +2159,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1840,6 +2172,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1851,6 +2185,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1862,6 +2198,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1873,6 +2211,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1884,6 +2224,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1895,6 +2237,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1906,6 +2250,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1917,6 +2263,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1928,6 +2276,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-mobile-app-frame.html"
     },
@@ -1939,6 +2289,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -1950,6 +2302,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -1961,6 +2315,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10190-101CF-ancient-symbols.html"
     },
@@ -1972,6 +2328,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -1983,6 +2341,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0A00-0A7F-gurmukhi.html"
     },
@@ -1994,6 +2354,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/FE30-FE4F-cjk-compatibility-forms.html"
     },
@@ -2005,6 +2367,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -2016,6 +2380,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-underline-position.html"
     },
@@ -2027,6 +2393,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/svg-view-switch.html"
     },
@@ -2038,6 +2406,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -2049,6 +2419,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-hanging-punctuation.html"
     },
@@ -2060,6 +2432,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 32, \"wdth\" 120, \"wght\" 700",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -2071,6 +2445,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 14, \"wdth\" 80, \"wght\" 300",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -2082,6 +2458,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0900-097F-devanagari.html"
     },
@@ -2093,6 +2471,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0C80-0CFF-kannada.html"
     },
@@ -2104,6 +2484,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0980-09FF-bengali.html"
     },
@@ -2115,6 +2497,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0A80-0AFF-gujarati.html"
     },
@@ -2126,6 +2510,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0C00-0C7F-telugu.html"
     },
@@ -2137,6 +2523,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0E80-0EFF-lao.html"
     },
@@ -2148,6 +2536,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2150-218F-number-forms.html"
     },
@@ -2159,6 +2549,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/20000-2A6DF-cjk-unified-ideographs-extension-b.109.html"
     },
@@ -2170,6 +2562,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0D00-0D7F-malayalam.html"
     },
@@ -2181,6 +2575,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0D00-0D7F-malayalam.html"
     },
@@ -2192,6 +2588,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -2203,6 +2601,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1B000-1B0FF-kana-supplement.html"
     },
@@ -2214,6 +2614,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A830-A83F-common-indic-number-forms.html"
     },
@@ -2225,6 +2627,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1000-109F-myanmar.html"
     },
@@ -2236,6 +2640,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E900-1E95F-adlam.html"
     },
@@ -2247,6 +2653,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0530-058F-armenian.html"
     },
@@ -2258,6 +2666,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B00-10B3F-avestan.html"
     },
@@ -2269,6 +2679,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16AD0-16AFF-bassa-vah.html"
     },
@@ -2280,6 +2692,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1BC0-1BFF-batak.html"
     },
@@ -2291,6 +2705,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11C00-11C6F-bhaiksuki.html"
     },
@@ -2302,6 +2718,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11000-1107F-brahmi.html"
     },
@@ -2313,6 +2731,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/102A0-102DF-carian.html"
     },
@@ -2324,6 +2744,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10530-1056F-caucasian-albanian.html"
     },
@@ -2335,6 +2757,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11100-1114F-chakma.html"
     },
@@ -2346,6 +2770,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/AA00-AA5F-cham.html"
     },
@@ -2357,6 +2783,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10800-1083F-cypriot-syllabary.html"
     },
@@ -2368,6 +2796,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1BC00-1BC9F-duployan.html"
     },
@@ -2379,6 +2809,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10500-1052F-elbasan.html"
     },
@@ -2390,6 +2822,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10330-1034F-gothic.html"
     },
@@ -2401,6 +2835,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11D60-11DAF-gunjala-gondi.html"
     },
@@ -2412,6 +2848,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10D00-10D3F-hanifi-rohingya.html"
     },
@@ -2423,6 +2861,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1720-173F-hanunoo.html"
     },
@@ -2434,6 +2874,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/108E0-108FF-hatran.html"
     },
@@ -2445,6 +2887,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10840-1085F-imperial-aramaic.html"
     },
@@ -2456,6 +2900,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B60-10B7F-inscriptional-pahlavi.html"
     },
@@ -2467,6 +2913,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B40-10B5F-inscriptional-parthian.html"
     },
@@ -2478,6 +2926,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A980-A9DF-javanese.html"
     },
@@ -2489,6 +2939,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11080-110CF-kaithi.html"
     },
@@ -2500,6 +2952,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0C80-0CFF-kannada.html"
     },
@@ -2511,6 +2965,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A900-A92F-kayah-li.html"
     },
@@ -2522,6 +2978,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10A00-10A5F-kharoshthi.html"
     },
@@ -2533,6 +2991,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11200-1124F-khojki.html"
     },
@@ -2544,6 +3004,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/112B0-112FF-khudawadi.html"
     },
@@ -2555,6 +3017,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1C00-1C4F-lepcha.html"
     },
@@ -2566,6 +3030,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1900-194F-limbu.html"
     },
@@ -2577,6 +3043,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A4D0-A4FF-lisu.html"
     },
@@ -2588,6 +3056,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10280-1029F-lycian.html"
     },
@@ -2599,6 +3069,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10920-1093F-lydian.html"
     },
@@ -2610,6 +3082,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11150-1117F-mahajani.html"
     },
@@ -2621,6 +3095,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0840-085F-mandaic.html"
     },
@@ -2632,6 +3108,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10AC0-10AFF-manichaean.html"
     },
@@ -2643,6 +3121,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11C70-11CBF-marchen.html"
     },
@@ -2654,6 +3134,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11D00-11D5F-masaram-gondi.html"
     },
@@ -2665,6 +3147,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E800-1E8DF-mende-kikakui.html"
     },
@@ -2676,6 +3160,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16F00-16F9F-miao.html"
     },
@@ -2687,6 +3173,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11600-1165F-modi.html"
     },
@@ -2698,6 +3186,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16A40-16A6F-mro.html"
     },
@@ -2709,6 +3199,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11280-112AF-multani.html"
     },
@@ -2720,6 +3212,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10880-108AF-nabataean.html"
     },
@@ -2731,6 +3225,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E4D0-1E4FF-nag-mundari.html"
     },
@@ -2742,6 +3238,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1980-19DF-new-tai-lue.html"
     },
@@ -2753,6 +3251,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11400-1147F-newa.html"
     },
@@ -2764,6 +3264,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/07C0-07FF-nko.html"
     },
@@ -2775,6 +3277,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1C50-1C7F-ol-chiki.html"
     },
@@ -2786,6 +3290,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10C80-10CFF-old-hungarian.html"
     },
@@ -2797,6 +3303,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10300-1032F-old-italic.html"
     },
@@ -2808,6 +3316,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10A80-10A9F-old-north-arabian.html"
     },
@@ -2819,6 +3329,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10350-1037F-old-permic.html"
     },
@@ -2830,6 +3342,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/103A0-103DF-old-persian.html"
     },
@@ -2841,6 +3355,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10A60-10A7F-old-south-arabian.html"
     },
@@ -2852,6 +3368,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10C00-10C4F-old-turkic.html"
     },
@@ -2863,6 +3381,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/104B0-104FF-osage.html"
     },
@@ -2874,6 +3394,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10480-104AF-osmanya.html"
     },
@@ -2885,6 +3407,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/16B00-16B8F-pahawh-hmong.html"
     },
@@ -2896,6 +3420,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10860-1087F-palmyrene.html"
     },
@@ -2907,6 +3433,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11AC0-11AFF-pau-cin-hau.html"
     },
@@ -2918,6 +3446,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A840-A87F-phags-pa.html"
     },
@@ -2929,6 +3459,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10900-1091F-phoenician.html"
     },
@@ -2940,6 +3472,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10B80-10BAF-psalter-pahlavi.html"
     },
@@ -2951,6 +3485,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A930-A95F-rejang.html"
     },
@@ -2962,6 +3498,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0800-083F-samaritan.html"
     },
@@ -2973,6 +3511,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A880-A8DF-saurashtra.html"
     },
@@ -2984,6 +3524,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11180-111DF-sharada.html"
     },
@@ -2995,6 +3537,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11580-115FF-siddham.html"
     },
@@ -3006,6 +3550,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/110D0-110FF-sora-sompeng.html"
     },
@@ -3017,6 +3563,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/A800-A82F-syloti-nagri.html"
     },
@@ -3028,6 +3576,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0700-074F-syriac.html"
     },
@@ -3039,6 +3589,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1700-171F-tagalog.html"
     },
@@ -3050,6 +3602,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1760-177F-tagbanwa.html"
     },
@@ -3061,6 +3615,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1950-197F-tai-le.html"
     },
@@ -3072,6 +3628,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1A20-1AAF-tai-tham.html"
     },
@@ -3083,6 +3641,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/AA80-AADF-tai-viet.html"
     },
@@ -3094,6 +3654,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11680-116CF-takri.html"
     },
@@ -3105,6 +3667,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0780-07BF-thaana.html"
     },
@@ -3116,6 +3680,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2D30-2D7F-tifinagh.html"
     },
@@ -3127,6 +3693,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11480-114DF-tirhuta.html"
     },
@@ -3138,6 +3706,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10380-1039F-ugaritic.html"
     },
@@ -3149,6 +3719,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E2C0-1E2FF-wancho.html"
     },
@@ -3160,6 +3732,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/118A0-118FF-warang-citi.html"
     },
@@ -3171,6 +3745,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/11700-1174F-ahom.html"
     },
@@ -3182,6 +3758,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1B00-1B7F-balinese.html"
     },
@@ -3193,6 +3771,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1E100-1E14F-nyiakeng-puachue-hmong.html"
     },
@@ -3204,6 +3784,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/10E80-10EBF-yezidi.html"
     },
@@ -3215,6 +3797,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0B00-0B7F-oriya.html"
     },
@@ -3226,6 +3810,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/13A0-13FF-cherokee.html"
     },
@@ -3237,6 +3823,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/08A0-08FF-arabic-extended-a.html"
     },
@@ -3248,6 +3836,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1D800-1DAAF-sutton-signwriting.0.html"
     },
@@ -3259,6 +3849,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0D80-0DFF-sinhala.html"
     },
@@ -3270,6 +3862,112 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "stylistic(fancy)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "stylistic(alt-a)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "styleset(display)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "character-variant(open-a)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "swash(ornate)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "annotation(circled)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "ornaments(fleurons)",
+      "fontVariantEmoji": "normal",
+      "fixtures": 1,
+      "example": "external/html-test/20-deep-font-feature-values.html"
+    },
+    {
+      "fontFamily": "\"Source Serif Pro\", serif",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontStretch": "100%",
+      "fontVariationSettings": "normal",
+      "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "historical-forms",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -3281,6 +3979,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0E00-0E7F-thai.html"
     },
@@ -3292,6 +3992,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -3303,6 +4005,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -3314,6 +4018,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-palette.html"
     },
@@ -3325,6 +4031,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/FB50-FDFF-arabic-presentation-forms-a.0.html"
     },
@@ -3336,6 +4044,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/FE10-FE1F-vertical-forms.html"
     },
@@ -3347,6 +4057,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-deep-icon-font-pua.html"
     },
@@ -3358,6 +4070,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-buttons.html"
     },
@@ -3369,6 +4083,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3380,6 +4096,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3391,6 +4109,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3402,6 +4122,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3413,6 +4135,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3424,6 +4148,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3435,6 +4161,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3446,6 +4174,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -3457,6 +4187,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2150-218F-number-forms.html"
     },
@@ -3468,6 +4200,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -3479,6 +4213,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-feature-values.html"
     },
@@ -3490,6 +4226,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"dlig\" 0, \"liga\" 0",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3501,6 +4239,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"dlig\" 0, \"liga\" 0",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3512,6 +4252,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"dlig\", \"liga\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3523,6 +4265,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"dlig\", \"liga\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3534,6 +4278,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"zero\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3545,6 +4291,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"ss01\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3556,6 +4304,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"ss02\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3567,6 +4317,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"salt\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3578,6 +4330,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"wght\" 100",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3589,6 +4343,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"wght\" 900",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3600,6 +4356,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"wdth\" 50",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3611,6 +4369,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"wdth\" 200",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3622,6 +4382,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 8",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3633,6 +4395,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"opsz\" 144",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3644,6 +4408,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "\"slnt\" -10",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3655,6 +4421,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3666,6 +4434,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3677,6 +4447,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3688,6 +4460,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-textarea.html"
     },
@@ -3699,6 +4473,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-textpath-filters.html"
     },
@@ -3710,6 +4486,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-hanging-punctuation.html"
     },
@@ -3721,6 +4499,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-underline-position.html"
     },
@@ -3732,6 +4512,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-deep-scope.html"
     },
@@ -3743,6 +4525,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -3754,6 +4538,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-pricing-table.html"
     },
@@ -3765,6 +4551,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/33-columns-basic.html"
     },
@@ -3776,6 +4564,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/33-columns-basic.html"
     },
@@ -3787,6 +4577,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/33-deep-columns-break.html"
     },
@@ -3798,6 +4590,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3809,6 +4603,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -3820,6 +4616,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2600-26FF-miscellaneous-symbols.html"
     },
@@ -3831,6 +4629,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
     },
@@ -3842,6 +4642,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0F00-0FFF-tibetan.html"
     },
@@ -3853,6 +4655,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2700-27BF-dingbats.html"
     },
@@ -3864,6 +4668,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -3875,6 +4681,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "\"tnum\"",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-font-features.html"
     },
@@ -3886,6 +4694,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/08-deep-popover-backdrop.html"
     },
@@ -3897,6 +4707,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-form-state-pseudos.html"
     },
@@ -3908,6 +4720,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/24-deep-initial-letter.html"
     },
@@ -3919,6 +4733,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-layer.html"
     },
@@ -3930,6 +4746,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/1F780-1F7FF-geometric-shapes-extended.html"
     },
@@ -3941,6 +4759,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/2B00-2BFF-miscellaneous-symbols-and-arrows.html"
     },
@@ -3952,6 +4772,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/0590-05FF-hebrew.html"
     },
@@ -3963,6 +4785,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-emoji.html"
     },
@@ -3974,6 +4798,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-emphasis.html"
     },
@@ -3985,6 +4811,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-headings.html"
     },
@@ -3996,6 +4824,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-sub-sup.html"
     },
@@ -4007,6 +4837,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-svg-text-gradient.html"
     },
@@ -4018,6 +4850,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-svg-text-gradient.html"
     },
@@ -4029,6 +4863,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-attr-quoting.html"
     },
@@ -4040,6 +4876,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-attr-quoting.html"
     },
@@ -4051,6 +4889,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/13-deep-stacking-context-creators.html"
     },
@@ -4062,6 +4902,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/17-deep-bg-clip-text.html"
     },
@@ -4073,6 +4915,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/17-deep-bg-clip-text.html"
     },
@@ -4084,6 +4928,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/17-deep-bg-clip-text.html"
     },
@@ -4095,6 +4941,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/18-deep-shadow-stacking.html"
     },
@@ -4106,6 +4954,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4117,6 +4967,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4128,6 +4980,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4139,6 +4993,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4150,6 +5006,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4161,6 +5019,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4172,6 +5032,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-size-weight.html"
     },
@@ -4183,6 +5045,8 @@
       "fontStretch": "50%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4194,6 +5058,8 @@
       "fontStretch": "62.5%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4205,6 +5071,8 @@
       "fontStretch": "75%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4216,6 +5084,8 @@
       "fontStretch": "87.5%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4227,6 +5097,8 @@
       "fontStretch": "112.5%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4238,6 +5110,8 @@
       "fontStretch": "125%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4249,6 +5123,8 @@
       "fontStretch": "150%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4260,6 +5136,8 @@
       "fontStretch": "200%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-stretch.html"
     },
@@ -4271,6 +5149,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/22-blend-modes.html"
     },
@@ -4282,6 +5162,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-container.html"
     },
@@ -4293,6 +5175,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-container.html"
     },
@@ -4304,6 +5188,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-deep-container-types.html"
     },
@@ -4315,6 +5201,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -4326,6 +5214,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-symbols.html"
     },
@@ -4337,6 +5227,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -4348,6 +5240,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -4359,6 +5253,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4370,6 +5266,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/21-deep-transform-box.html"
     },
@@ -4381,6 +5279,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/svg-view-switch.html"
     },
@@ -4392,6 +5292,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/svg-view-switch.html"
     },
@@ -4403,6 +5305,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -4414,6 +5318,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -4425,6 +5331,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -4436,6 +5344,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "../html-test/unicode/index.html"
     },
@@ -4447,6 +5357,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-deep-input-baseline.html"
     },
@@ -4458,6 +5370,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-buttons.html"
     },
@@ -4469,6 +5383,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-file.html"
     },
@@ -4480,6 +5396,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -4491,6 +5409,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-select.html"
     },
@@ -4502,6 +5422,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/07-deep-svg-markers-strokes.html"
     },
@@ -4513,6 +5435,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/08-deep-details-accordion.html"
     },
@@ -4524,6 +5448,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/13-deep-sticky-condensing-header.html"
     },
@@ -4535,6 +5461,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -4546,6 +5474,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -4557,6 +5487,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-stroke.html"
     },
@@ -4568,6 +5500,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-text-underline-position.html"
     },
@@ -4579,6 +5513,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-wavy-underline-descenders.html"
     },
@@ -4590,6 +5526,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/22-deep-filter-paint-bounds.html"
     },
@@ -4601,6 +5539,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/24-deep-initial-letter.html"
     },
@@ -4612,6 +5552,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/25-deep-line-clamp.html"
     },
@@ -4623,6 +5565,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/28-deep-scope.html"
     },
@@ -4634,6 +5578,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-news-card.html"
     },
@@ -4645,6 +5591,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/shadow-dom-declarative.html"
     },
@@ -4656,6 +5604,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/text-box-trim.html"
     },
@@ -4667,6 +5617,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4678,6 +5630,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4689,6 +5643,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4700,6 +5656,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4711,6 +5669,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-face.html"
     },
@@ -4722,6 +5682,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/10-deep-attr-quoting.html"
     },
@@ -4733,6 +5695,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4744,6 +5708,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4755,6 +5721,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-deep-tab-size.html"
     },
@@ -4766,6 +5734,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -4777,6 +5747,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -4788,6 +5760,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/32-real-world-blog-post.html"
     },
@@ -4799,6 +5773,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/06-forms-style-textarea.html"
     },
@@ -4810,6 +5786,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/11-deep-env-safe-area.html"
     },
@@ -4821,6 +5799,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/30-deep-resize-overflow.html"
     },
@@ -4832,6 +5812,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/niche/contrast-color.html"
     },
@@ -4843,6 +5825,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4854,6 +5838,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     },
@@ -4865,6 +5851,8 @@
       "fontStretch": "100%",
       "fontVariationSettings": "normal",
       "fontFeatureSettings": "normal",
+      "fontVariantAlternates": "normal",
+      "fontVariantEmoji": "normal",
       "fixtures": 1,
       "example": "external/html-test/20-font-family.html"
     }

@@ -153,6 +153,63 @@ export interface StackSpec {
    * absent is read as `normal`, i.e. exactly the old behavior.
    */
   fontFeatureSettings?: string;
+  /**
+   * Computed `font-variant-alternates` (e.g. `historical-forms`,
+   * `stylistic(fancy)`).
+   *
+   * Blink hashes `font_variant_alternates_` into `FontDescription::CacheKey`
+   * directly (`platform/fonts/font_description.cc:331`, and it is a real
+   * discriminator — `FontCacheKey::GetHash` index 9 and `operator==`,
+   * `platform/fonts/font_cache_key.h:104` and `:126-127`). So two descriptions
+   * differing in it genuinely resolve to different font DATA.
+   *
+   * That is not the same as resolving to a different FACE, and the distinction
+   * is what this comment exists to record. The thing that differs between those
+   * two font-data objects is the resolved FEATURE list:
+   * `FontDescription::ResolveFontFeatures` merges
+   * `alternates->GetResolvedFontFeatures()` ahead of the `@font-face`
+   * descriptor's own settings (`font_description.cc:559-578`), and
+   * `FontFallbackList::ComputeFontFeatures` notes in as many words that
+   * "Features for `font-variant-alternates` is set in `GetFontData`"
+   * (`font_fallback_list.cc:238-239`). Measured accordingly on macOS across
+   * `system-ui` / Georgia / Times: the reported face does not move.
+   *
+   * So this is recorded for the same reason as `fontFeatureSettings` above —
+   * without it the probe page renders a fixture's text with alternates switched
+   * off — and its consequence belongs to the shaping oracle (docs/108), not
+   * here. (Chromium checkout `7d859f27`, 2026-06-27.)
+   *
+   * Optional so a corpus file extracted before this landed still parses.
+   */
+  fontVariantAlternates?: string;
+  /**
+   * Computed `font-variant-emoji` (`normal` / `text` / `emoji` / `unicode`).
+   *
+   * Unlike every other late addition to this key, this one IS a face-selection
+   * input in the ordinary sense, and the face oracle can adjudicate it. Blink
+   * packs `variant_emoji_` into the cache key's `options` word
+   * (`platform/fonts/font_description.cc:312`), and the mechanism is
+   * `ApplyFontVariantEmojiOnFallbackPriority`
+   * (`platform/fonts/shaping/harfbuzz_shaper.cc:184-198`), which overrides the
+   * run's `FontFallbackPriority` to `kEmojiEmoji` or `kText` before the fallback
+   * iterator is built (`:983-984`) — i.e. it steers the color-emoji-vs-text
+   * choice directly.
+   *
+   * Measured on macOS, and the face really does move:
+   *
+   *   U+2764   normal -> ZapfDingbatsITC      emoji -> AppleColorEmoji
+   *   U+263A   normal -> Helvetica            emoji -> AppleColorEmoji
+   *   U+1F600  normal -> AppleColorEmoji      text  -> .AppleColorEmojiUI
+   *
+   * Recorded here even though no fixture in the corpus declares it today, so a
+   * fixture that starts to is swept under the question it actually asks rather
+   * than silently as `normal`. Note the renderer does NOT yet honor it: our
+   * `isEmojiPresentationCp` derives presentation from the codepoint's Unicode
+   * properties alone and has no path for the CSS override.
+   *
+   * Optional so a corpus file extracted before this landed still parses.
+   */
+  fontVariantEmoji?: string;
   /** How many corpus fixtures contain at least one element with this combination. */
   fixtures: number;
   /**
@@ -163,8 +220,14 @@ export interface StackSpec {
   example: string;
 }
 
-/** Bumped only when the digest's INPUTS change — see `harvestedCorpusIdentity`. */
-const HARVEST_IDENTITY_VERSION = 1;
+/**
+ * Bumped only when the digest's INPUTS change — see `harvestedCorpusIdentity`.
+ *
+ * v2 added `font-variant-alternates` and `font-variant-emoji` to the question
+ * set, so every corpus's identity moves once and the three committed baselines
+ * are owed a re-seed on their own runners.
+ */
+const HARVEST_IDENTITY_VERSION = 2;
 
 /**
  * The corpus's identity, in the field the baseline comparator keys on.
@@ -210,6 +273,7 @@ export function harvestedCorpusIdentity(stacks: StackSpec[], platform: string = 
     .map((s) => JSON.stringify([
       s.fontFamily, s.fontSize, s.fontWeight, s.fontStyle,
       s.fontStretch ?? "", s.fontVariationSettings ?? "", s.fontFeatureSettings ?? "",
+      s.fontVariantAlternates ?? "", s.fontVariantEmoji ?? "",
     ]))
     .sort();
   const h = createHash("sha256")
@@ -731,7 +795,24 @@ export function probePageHtml(cps: number[], spec: StackSpec, lang: string): str
     // features the fixture declares switched off, and a feature that
     // substitutes glyphs (`smcp`, `frac`, `tnum`) changes what Chrome paints
     // and therefore which faces it reports having used.
-    + `font-feature-settings:${spec.fontFeatureSettings ?? "normal"}}`
+    + `font-feature-settings:${spec.fontFeatureSettings ?? "normal"};`
+    // Declared for the same reason as `font-feature-settings` above: it resolves
+    // to OpenType features rather than to a different face, so it does not move
+    // the reported face — but leaving it out renders the fixture's text with the
+    // alternates it declares switched off.
+    //
+    // Fidelity limit worth stating rather than eliding: the NAMED forms
+    // (`stylistic(fancy)`, `styleset(display)`, `swash(ornate)`, …) only resolve
+    // against an `@font-feature-values` rule, which the corpus does not harvest
+    // and this page therefore does not carry. Those values round-trip as
+    // computed values and activate no feature here. `historical-forms` needs no
+    // at-rule and is fully faithful.
+    + `font-variant-alternates:${spec.fontVariantAlternates ?? "normal"};`
+    // This one genuinely selects a face — it overrides the run's
+    // `FontFallbackPriority`, which is what picks a color-emoji face over a text
+    // face — so omitting it would sweep an emoji-presentation question as its
+    // opposite.
+    + `font-variant-emoji:${spec.fontVariantEmoji ?? "normal"}}`
     // `white-space:pre` is load-bearing: without it a cell holding U+0020 (or
     // any other space separator) collapses to nothing, Chrome paints no
     // glyph, and the oracle reports a mismatch that only exists because of
@@ -861,7 +942,7 @@ function walkHtml(dir: string): string[] {
  * weight / style of every element that directly contains text. Inventing the
  * list would reintroduce the sampling problem one level up.
  */
-async function extractStacks(browser: Browser, dirs: string[], outFile: string): Promise<StackCorpus> {
+export async function extractStacks(browser: Browser, dirs: string[], outFile: string): Promise<StackCorpus> {
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
   const page = await ctx.newPage();
   const tally = new Map<string, { spec: Omit<StackSpec, "fixtures" | "example">; fixtures: number; example: string }>();
@@ -901,6 +982,11 @@ async function extractStacks(browser: Browser, dirs: string[], outFile: string):
           // it out meant the probe page rendered a fixture's text with the
           // features the fixture declares switched off.
           fontFeatureSettings: cs.fontFeatureSettings,
+          // Resolves to features rather than to a face, like the line above.
+          fontVariantAlternates: cs.fontVariantAlternates,
+          // This one DOES select a face: it overrides the run's fallback
+          // priority, which is what chooses a color-emoji face over a text one.
+          fontVariantEmoji: cs.fontVariantEmoji,
         }));
       }
       return Array.from(seen);
@@ -1186,7 +1272,9 @@ async function main(): Promise<number> {
       `${s.fontFamily} @${s.fontSize}/${s.fontWeight}/${s.fontStyle}`
       + (s.fontStretch != null && s.fontStretch !== "100%" ? `/${s.fontStretch}` : "")
       + (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "")
-      + (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "");
+      + (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "")
+      + (s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal" ? `/${s.fontVariantAlternates}` : "")
+      + (s.fontVariantEmoji != null && s.fontVariantEmoji !== "normal" ? `/${s.fontVariantEmoji}` : "");
     /**
      * Every distinct face Chrome named during the sweep, with how often.
      *

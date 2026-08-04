@@ -66,6 +66,8 @@ describe("harvested corpus identity", () => {
     ["fontStretch", { fontStretch: "75%" }],
     ["fontVariationSettings", { fontVariationSettings: '"wght" 350' }],
     ["fontFeatureSettings", { fontFeatureSettings: '"tnum" 1' }],
+    ["fontVariantAlternates", { fontVariantAlternates: "historical-forms" }],
+    ["fontVariantEmoji", { fontVariantEmoji: "emoji" }],
   ])("MOVES when %s changes", (_label, over) => {
     expect(harvestedCorpusIdentity([stack(over)], "darwin"))
       .not.toBe(harvestedCorpusIdentity([stack()], "darwin"));

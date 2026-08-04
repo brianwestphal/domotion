@@ -438,6 +438,8 @@ describe("the probe page declares every property the corpus records", () => {
       fontStretch: "75%",
       fontVariationSettings: '"wght" 350',
       fontFeatureSettings: '"smcp" 1',
+      fontVariantAlternates: "historical-forms",
+      fontVariantEmoji: "emoji",
     }), "en");
     expect(html).toContain("font-family:Georgia, serif");
     expect(html).toContain("font-size:24px");
@@ -446,18 +448,41 @@ describe("the probe page declares every property the corpus records", () => {
     expect(html).toContain("font-stretch:75%");
     expect(html).toContain('font-variation-settings:"wght" 350');
     expect(html).toContain('font-feature-settings:"smcp" 1');
+    expect(html).toContain("font-variant-alternates:historical-forms");
+    expect(html).toContain("font-variant-emoji:emoji");
     expect(html).toContain('<html lang="en"');
   });
 
   it("reads an absent property as `normal`, so a corpus predating it still sweeps", () => {
-    // The three late additions are optional on `StackSpec` precisely so an
-    // older corpus file parses. Absent must mean the CSS initial value and not
+    // The late additions are optional on `StackSpec` precisely so an older
+    // corpus file parses. Absent must mean the CSS initial value and not
     // `undefined` leaking into the stylesheet.
     const html = probePageHtml([0x41], spec({}), "en");
     expect(html).toContain("font-stretch:normal");
     expect(html).toContain("font-variation-settings:normal");
     expect(html).toContain("font-feature-settings:normal");
+    expect(html).toContain("font-variant-alternates:normal");
+    expect(html).toContain("font-variant-emoji:normal");
     expect(html).not.toContain("undefined");
+  });
+
+  it("declares `font-variant-emoji`, the one late addition that really selects a face", () => {
+    // Worth its own case rather than folding into the list above, because it is
+    // the only one of these properties whose omission changes which FACE Chrome
+    // reports — it overrides the run's `FontFallbackPriority`
+    // (`platform/fonts/shaping/harfbuzz_shaper.cc:184-198`, Chromium
+    // `7d859f27`). Measured on macOS: U+2764 reports `ZapfDingbatsITC` under
+    // `normal` and `AppleColorEmoji` under `emoji`; U+1F600 reports
+    // `AppleColorEmoji` under `normal` and `.AppleColorEmojiUI` under `text`.
+    //
+    // No fixture in the corpus declares it today, so the corpus-content guard
+    // used for `font-feature-settings` below cannot exist for this one — which
+    // makes pinning the DECLARATION the only thing standing between "extracted"
+    // and "actually asked".
+    for (const v of ["text", "emoji", "unicode"]) {
+      expect(probePageHtml([0x2764], spec({ fontVariantEmoji: v }), "en"))
+        .toContain(`font-variant-emoji:${v}`);
+    }
   });
 
   it("keeps the cell isolation that makes a per-codepoint answer meaningful", () => {
@@ -482,6 +507,7 @@ describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (pl
     stacks: Array<{
       fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string;
       fontStretch?: string; fontVariationSettings?: string; fontFeatureSettings?: string;
+      fontVariantAlternates?: string; fontVariantEmoji?: string;
       fixtures: number; example: string;
     }>;
   };
@@ -521,6 +547,8 @@ describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (pl
       expect(typeof s.fontStretch).toBe("string");
       expect(typeof s.fontVariationSettings).toBe("string");
       expect(typeof s.fontFeatureSettings).toBe("string");
+      expect(typeof s.fontVariantAlternates).toBe("string");
+      expect(typeof s.fontVariantEmoji).toBe("string");
     }
   });
 
@@ -535,5 +563,29 @@ describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (pl
     // …and each such entry must name the fixture it came from, so the claim is
     // reproducible by hand rather than taken on trust.
     for (const s of nonNormal) expect(s.example).toMatch(/\.html$/);
+  });
+
+  it("actually captured a non-normal `font-variant-alternates` somewhere", () => {
+    // Same anti-vacuity guard, and it applies here for the same reason: the
+    // corpus contains a fixture declaring `stylistic()` / `styleset()` /
+    // `swash()` / `character-variant()` / `annotation()` / `ornaments()` /
+    // `historical-forms`, so an all-`normal` column means the extraction is
+    // reading from the wrong place rather than that the fixtures are quiet.
+    const nonNormal = corpus.stacks.filter((s) => s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal");
+    expect(nonNormal.length).toBeGreaterThan(0);
+    for (const s of nonNormal) expect(s.example).toMatch(/\.html$/);
+  });
+
+  it("records `font-variant-emoji` on every entry even though no fixture declares one", () => {
+    // Deliberately NOT an anti-vacuity guard, and the asymmetry is the point.
+    // No fixture in either corpus declares `font-variant-emoji`, so requiring a
+    // non-normal value here would be a test that can only fail. What can be
+    // required is that the column exists and carries legal values — the
+    // discriminating check that the extractor reads the property from the right
+    // place lives in the browser-backed extraction test, which supplies its own
+    // fixture rather than relying on the corpus to contain one.
+    for (const s of corpus.stacks) {
+      expect(["normal", "text", "emoji", "unicode"]).toContain(s.fontVariantEmoji);
+    }
   });
 });
