@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "suite": "family-match",
+    "os": "windows",
+    "capturedAt": "2026-08-04T02:03:19.349Z",
+    "env": {
+      "platform": "win32",
+      "arch": "arm64",
+      "osBuild": "Microsoft Windows [Version 10.0.26200.8875]",
+      "fontCount": 143,
+      "fontDigest": "797e90249018b793"
+    },
+    "weights": [
+      100,
+      200,
+      300,
+      350,
+      400,
+      450,
+      500,
+      550,
+      600,
+      700,
+      800,
+      900
+    ]
+  },
+  "summary": {
+    "families": 44,
+    "cases": 528,
+    "scored": 516,
+    "agree": 516,
+    "rejectAgree": 24,
+    "skipped": 12,
+    "misses": 0
+  },
+  "misses": []
+}

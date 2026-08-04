@@ -139,6 +139,19 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    `os2->yStrikeoutPosition` / `os2->yStrikeoutSize`. These map onto doc 16's
    `meta` response fields.
 
+8. **`familyMatch` query.** Which cut of a declared family Chrome-on-Linux
+   opens at a given weight/width/slant — a transcription of
+   `SkFontConfigInterfaceDirect::matchFamilyName` at the Skia revision the
+   pinned Chrome build ships (`fd139e79`, via chromium tag 147.0.7727.15's
+   DEPS), including the SFNT-only validity check, the single
+   `FcFontSort(trim=0)` walk, and the family/alias/metric-equivalence
+   acceptance rule. Input `{type:"familyMatch", family, cssWeight?, italic?,
+   cssWidth?}` (cssWidth is CSS `font-stretch` percent); output the resolved
+   file, TTC index, matched family, PostScript name (via FreeType) and the
+   matched face's style. Consumed by `resolveLinuxFamilyMatch` /
+   `linuxPrimaryCutKey`, and scored end to end against Chrome by
+   `npm run fonts:family-match:linux` (doc 110).
+
 ### Persistent `--serve` mode *(DM-1034)*
 
 By default the helper is one-shot: read one JSON request envelope from stdin (or

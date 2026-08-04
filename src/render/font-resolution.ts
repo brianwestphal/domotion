@@ -21,7 +21,8 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch } from "./glyph-helper.js";
+import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -2759,13 +2760,30 @@ const win32PrimaryCutCache = new Map<string, string | null>();
  * key→family table is introduced; `system-ui` is the exception, since it has no
  * literal name to read and the OS is asked instead.
  */
-function win32PrimaryCutKey(key: string, weight: number, slant: number): string | null {
-  if (WIN32_PRIMARY_CUT_SKIP.has(key)) return null;
-  // Already-resolved or dynamically-registered faces: the key IS the answer.
-  if (key.startsWith("sysfb:") || key.startsWith("winfam:")
-      || key.startsWith("webfont:") || key.startsWith("localalias:")) return null;
+/**
+ * Author-declared Windows families that only resolved through Blink's
+ * family-name suffix adjustment ("Segoe UI Light" → "Segoe UI" with the weight
+ * PINNED at 300). Keyed by the dynamic key `matchFamilyNameToKey` registered;
+ * the value is what the suffix pinned. `win32PrimaryCutKey` consults this
+ * BEFORE its dynamic-prefix skip, because for these keys the style-dependent
+ * part (the slope) still has to be re-asked per run — the pinned axis
+ * replaces the run's, the others follow it (`font_cache_skia_win.cc:456-480`,
+ * rev 7d859f27: the adjusted description overrides weight or stretch and keeps
+ * everything else).
+ */
+const win32SuffixDeclaredForKey = new Map<string, { family: string; weight?: number; stretch?: number }>();
 
-  const cacheKey = `${key}|${weight}|${slant !== 0 ? 1 : 0}`;
+function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch: number = 100): string | null {
+  if (WIN32_PRIMARY_CUT_SKIP.has(key)) return null;
+  // A suffix-declared family re-resolves per style even though its key is
+  // dynamic: the suffix pinned one axis, the run still owns the slope.
+  const suffixDecl = win32SuffixDeclaredForKey.get(key);
+  // Already-resolved or dynamically-registered faces: the key IS the answer.
+  if (suffixDecl == null && (
+    key.startsWith("sysfb:") || key.startsWith("winfam:")
+      || key.startsWith("webfont:") || key.startsWith("localalias:"))) return null;
+
+  const cacheKey = `${key}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;
   const cached = win32PrimaryCutCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -2773,11 +2791,18 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number): string 
   try {
     // `system-ui` never reaches font matching as a literal in Blink
     // (`DCHECK_NE(family, kSystemUi)`), so it is asked of the OS.
-    const family = key === "sf-pro"
-      ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(key))
-      : fileFamilyNameForKey(key);
+    const family = suffixDecl != null
+      ? suffixDecl.family
+      : key === "sf-pro"
+        ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(key))
+        : fileFamilyNameForKey(key);
     if (family != null && family !== "") {
-      const cut = win32FamilyKey(family, { weight, slant, fontSize: 16 });
+      const cut = win32FamilyKey(family, {
+        weight: suffixDecl?.weight ?? weight,
+        slant,
+        fontSize: 16,
+        stretch: suffixDecl?.stretch ?? stretch,
+      });
       // Only adopt a cut that actually resolves to a file; otherwise the table
       // entry stands.
       if (cut != null && resolveFontSpec(cut) != null) result = cut;
@@ -2814,6 +2839,13 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number): string 
  * `darwin-declared-family-cut.test.ts`, which walks the recognized CSS names
  * through `resolveFontKey` and asserts each static key it yields is listed
  * here.
+ *
+ * `linuxPrimaryCutKey` gates on this same set: which keys a declared CSS
+ * family can produce is a property of the shared `matchFamilyNameToKey`, not
+ * of the platform, and the `sf-pro` exclusion holds there for the same reason
+ * (`CreateTypeface` asserts `DCHECK_NE(family, kSystemUi)` in the shared
+ * `font_cache_skia.cc` too — what `system-ui` becomes is decided browser-side,
+ * outside the checkout).
  */
 const DARWIN_DECLARED_FAMILY_KEYS: ReadonlySet<string> = new Set([
   "courier", "menlo", "monaco", "sf-mono",
@@ -2943,6 +2975,118 @@ function darwinPrimaryCutKey(
   return result;
 }
 
+// ── Linux declared-family style match (Skia's fontconfig `matchFamilyName`) ──
+
+/** Memo for `linuxPrimaryCutKey`, keyed on the key AND the full style. */
+const linuxPrimaryCutCache = new Map<string, { key: string; italic: boolean } | null>();
+
+/**
+ * The fontconfig family a Linux logical key stands for, or null.
+ *
+ * Derived rather than curated, mirroring the Windows precedent where the name
+ * comes from the file the table already points at: here it is the base of the
+ * `fcMatch` pattern the `LINUX_FONT_PATHS` entry already carries (its text
+ * before any `:style` term), falling back to the family name recorded in the
+ * resolved file. No new key→family table is introduced.
+ *
+ * Deliberately NOT the declared CSS name. The shipping matcher REJECTS names
+ * outside a match's family list, the post-substitution alias, and Skia's
+ * metric-equivalence classes — measured in the Playwright noble image, bare
+ * "Helvetica" / "Courier" / "Georgia" all return false, and Chrome then walks
+ * the CSS stack and its last-resort chain ("Sans" → "Arial" →
+ * `legacyMakeTypeface(nullptr)`, `fonts/skia/font_cache_skia.cc:146-200`) to
+ * end on the same faces this table already routes to. Re-running that whole
+ * walk lives a stage above this function (the key was chosen by
+ * `resolveFontKey`); what this function owns is the CUT within the family the
+ * calibration already established, selected by the transcribed mechanism.
+ */
+function linuxFcFamilyForKey(key: string): string | null {
+  const entry = LINUX_FONT_PATHS[key];
+  const fcBase = entry?.fcMatch?.split(":")[0]?.trim();
+  if (fcBase != null && fcBase !== "") return fcBase;
+  return fileFamilyNameForKey(key);
+}
+
+/**
+ * The face a declared family opens at this weight/slant/stretch on Linux, or
+ * null to leave the caller on its existing selection.
+ *
+ * Replaces the two-slot `key` / `key-bold` sibling routing with the mechanism
+ * Blink runs there: `FontCache::CreateTypeface` →
+ * `skia::DefaultFontMgr()->matchFamilyStyle(name, SkiaFontStyle())`
+ * (`fonts/skia/font_cache_skia.cc`, Chromium tag 147.0.7727.15) → the
+ * fontconfig-backed manager (`SkFontMgr_New_FCI`, `skia/ext/font_utils.cc:86-89`)
+ * → `SkFontConfigInterfaceDirect::matchFamilyName` (Skia rev fd139e79, the
+ * revision the tag's DEPS pins). The transcription lives in the Linux glyph
+ * helper's `familyMatch` query; `resolveLinuxFamilyMatch` is the Node call.
+ *
+ * Fontconfig scores the whole style — weight, width, slant — against every
+ * face of the nominated family in one sort, so a single call answers what the
+ * sibling table answered with two slots and a 600 threshold. The 350/380
+ * anchor points in Skia's weight mapping (DemiLight / Book) mean intermediate
+ * CSS weights land between fontconfig rungs and resolve by fontconfig's own
+ * distance scoring, not by our threshold.
+ *
+ * Reads the BASE key, never the effective one, for the same reason as the
+ * macOS matcher: feeding the `-bold` sibling in would re-weight an already
+ * re-weighted face. Its answer REPLACES that routing.
+ *
+ * Gated on the live-resolver flag (`DOMOTION_SYSTEM_FALLBACK=0` disables it)
+ * so the disable-and-require-movement check has a handle, and degrades to null
+ * — the two-slot table — when the helper is missing or too old.
+ */
+function linuxPrimaryCutKey(
+  key: string, weight: number, slant: number, stretch: number = 100,
+): { key: string; italic: boolean } | null {
+  if (process.platform !== "linux" || !_systemFallbackResolutionEnabled
+      || !isGlyphHelperAvailable()) return null;
+  const declaredFamily = declaredFamilyForKey.get(key);
+  if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
+
+  const italicRequested = slant !== 0;
+  const cacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
+  const cached = linuxPrimaryCutCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let result: { key: string; italic: boolean } | null = null;
+  try {
+    const family = declaredFamily ?? linuxFcFamilyForKey(key);
+    if (family != null) {
+      const match = resolveLinuxFamilyMatch(family, { weight, italic: italicRequested, stretch });
+      const baseSpec = resolveFontSpec(key);
+      // Adopt the matched face only when it is a DIFFERENT face from the one
+      // the key already resolves to — same contract as the macOS matcher.
+      if (match != null && match.path !== "" && !(
+        baseSpec != null && baseSpec.path === match.path
+        && (baseSpec.postscriptName == null || baseSpec.postscriptName === match.postscriptName)
+      )) {
+        // The PostScript name selects the TTC member downstream (fontkit's
+        // `getFont`); a face that declares none can only be addressed as the
+        // file's first face, so only single-face files are adoptable then.
+        const psName = match.postscriptName !== ""
+          ? match.postscriptName
+          : (match.index === 0 ? (match.path.split("/").pop() ?? match.path) : "");
+        if (psName !== "") {
+          // Registered under the `sysfb:` prefix like the macOS matcher's
+          // answer — it is the same kind of key (an OS-discovered concrete
+          // face), and `resolveFontSpec` serves dynamic registrations only for
+          // the prefixes it knows.
+          const cutKey = `sysfb:${psName}`;
+          // The BASE key's extractor is preserved — this changes WHICH face is
+          // opened, not how its outlines are read.
+          registerDynamicSystemFont(
+            cutKey, match.path, match.postscriptName !== "" ? match.postscriptName : psName,
+            baseSpec?.extractor ?? "fontkit",
+          );
+          if (resolveFontSpec(cutKey) != null) result = { key: cutKey, italic: match.italic };
+        }
+      }
+    }
+  } catch { result = null; }
+  linuxPrimaryCutCache.set(cacheKey, result);
+  return result;
+}
+
 /** The family name recorded inside the file a key maps to, or null. */
 function fileFamilyNameForKey(key: string): string | null {
   const spec = resolveFontSpec(key);
@@ -2964,13 +3108,31 @@ function win32FamilyKey(family: string, css?: CssFallbackDescription): string | 
   if (_win32FamilyKeyOverride != null) return _win32FamilyKeyOverride(family, css);
   const cacheKey = css == null
     ? family.toLowerCase()
-    : `${family.toLowerCase()}|${css.weight}|${css.slant !== 0 ? 1 : 0}`;
+    : `${family.toLowerCase()}|${css.weight}|${css.slant !== 0 ? 1 : 0}|${css.stretch ?? 100}`;
   if (win32FamilyKeyCache.has(cacheKey)) return win32FamilyKeyCache.get(cacheKey)!;
   let key: string | null = null;
-  const installed = resolveInstalledFont(
+  let installed = resolveInstalledFont(
     family,
-    css != null ? { weight: css.weight, italic: css.slant !== 0 } : undefined,
+    css != null ? { weight: css.weight, italic: css.slant !== 0, stretch: css.stretch ?? 100 } : undefined,
   );
+  // "Segoe UI Light" / "Arial Narrow" are not DirectWrite families — Blink
+  // resolves them by stripping a known weight/stretch suffix and retrying with
+  // the suffix's value REPLACING that axis of the description
+  // (`FontCache::CreateFontPlatformData`, `win/font_cache_skia_win.cc:409-480`,
+  // rev 7d859f27; tables at `:335-407`). The slope is kept — an italic
+  // "Segoe UI Light" run reaches SegoeUI-LightItalic. Style-carrying calls
+  // only: Blink's `IsFontPresent` (the css == null shape here) probes the
+  // literal name with the default style and has no suffix layer.
+  if (installed == null && css != null) {
+    const adjusted = win32FamilySuffixAdjustment(family);
+    if (adjusted != null) {
+      installed = resolveInstalledFont(adjusted.family, {
+        weight: adjusted.weight ?? css.weight,
+        italic: css.slant !== 0,
+        stretch: adjusted.stretch ?? css.stretch ?? 100,
+      });
+    }
+  }
   if (installed != null && installed.path !== "" && installed.postscriptName !== "") {
     // The cut travels in the KEY, since it is the PostScript name DirectWrite
     // resolved — `winfam:SegoeUI-Bold` and `winfam:SegoeUI` are distinct keys
@@ -3140,6 +3302,11 @@ export interface CssFallbackDescription {
   weight: number;
   slant: number;
   fontSize: number;
+  /** CSS `font-stretch` as a percentage, 100 = `normal`. Optional so existing
+   *  callers keep their exact behavior; consulted where Blink's call carries
+   *  the width (the Windows family instantiation passes the full
+   *  `SkiaFontStyle`, weight-width-slant). */
+  stretch?: number;
 }
 
 
@@ -4082,7 +4249,7 @@ function resolveEffectiveCutKey(
   // family does not resolve — a Windows host without the built binary still
   // needs an answer, which is the existing degradation contract.
   if (process.platform === "win32" && isGlyphHelperAvailable()) {
-    const cutKey = win32PrimaryCutKey(effectiveKey, weight, slant);
+    const cutKey = win32PrimaryCutKey(effectiveKey, weight, slant, stretch);
     if (cutKey != null) effectiveKey = cutKey;
   }
   // macOS: for a family named by CSS, ask Blink's declared-family style matcher
@@ -4097,6 +4264,19 @@ function resolveEffectiveCutKey(
     // A matched face carrying CoreText's italic trait satisfies the slant with
     // a real cut; without it the renderer would shear an already-italic face.
     routedItalicCut = slant !== 0 && darwinCut.italic;
+  }
+  // Linux: same stage, different Blink code — the cut comes from fontconfig's
+  // style scoring (`SkFontConfigInterfaceDirect::matchFamilyName`, transcribed
+  // in the Linux glyph helper), not from the `-bold` sibling slots above.
+  // Reads the BASE key and REPLACES the sibling routing, exactly like the
+  // macOS branch; null leaves the two-slot result standing (no helper, an old
+  // helper, or `DOMOTION_SYSTEM_FALLBACK=0`).
+  const linuxCut = linuxPrimaryCutKey(key, weight, slant, stretch);
+  if (linuxCut != null) {
+    effectiveKey = linuxCut.key;
+    // A matched face whose fontconfig slant is italic satisfies the request
+    // with a real cut; without it the renderer keeps its synthetic shear.
+    routedItalicCut = slant !== 0 && linuxCut.italic;
   }
   return { key: effectiveKey, routedItalicCut };
 }
@@ -5481,12 +5661,44 @@ function matchFamilyNameToKey(name: string): string | null {
     // as a dynamic `sysfb:` key. Gated by the live-resolver flag (default-on;
     // honors DOMOTION_SYSTEM_FALLBACK=0) so it can be disabled alongside the
     // per-codepoint fontconfig resolver.
+    // Windows: an author family like "Segoe UI Light" is not a DirectWrite
+    // family, so the `resolveInstalledFont` probe above missed it — Blink
+    // resolves it by stripping the weight/stretch suffix and pinning that axis
+    // (`win/font_cache_skia_win.cc:409-480`, rev 7d859f27; measured against
+    // Chrome over CDP: "Segoe UI Light" paints SegoeUI-Light at EVERY CSS
+    // weight). Register the adjusted face and record the pin so
+    // `win32PrimaryCutKey` re-resolves the slope per run without letting the
+    // run's weight back in.
+    if (process.platform === "win32" && isGlyphHelperAvailable()) {
+      const adjusted = win32FamilySuffixAdjustment(name);
+      if (adjusted != null) {
+        const installedAdj = resolveInstalledFont(adjusted.family, {
+          weight: adjusted.weight ?? 400,
+          italic: false,
+          stretch: adjusted.stretch ?? 100,
+        });
+        if (installedAdj != null && installedAdj.path !== "" && installedAdj.postscriptName !== "") {
+          const key = `winfam:${installedAdj.postscriptName}`;
+          registerDynamicSystemFont(key, installedAdj.path, installedAdj.postscriptName, "native", installedAdj.resolvedAxes);
+          win32SuffixDeclaredForKey.set(key, adjusted);
+          return key;
+        }
+      }
+    }
     if (process.platform === "linux" && _systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
       const matched = fcMatch(name);
       if (matched != null) {
         const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? name;
         const key = `sysfb:${psName}`;
         registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? psName, "fontkit");
+        // This resolution is style-blind (`fc-match <name>` carries no weight),
+        // so `font-family:"DejaVu Sans"; font-weight:700` would land on the
+        // regular cut. Record the AUTHOR'S name — here it is known verbatim —
+        // so `getFontInstance` can run the transcribed fontconfig style match
+        // over it at the run's actual weight/width/slant (`linuxPrimaryCutKey`),
+        // the same order the macOS branch above uses: resolve the base name
+        // first, match the style afterwards.
+        declaredFamilyForKey.set(key, name);
         return key;
       }
     }

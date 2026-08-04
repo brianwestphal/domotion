@@ -125,15 +125,27 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 >   generic-family config differs from the calibration target (e.g. a DejaVu-based
 >   desktop Linux, where Chrome resolves `sans-serif`→DejaVu Sans) diverges —
 >   tracked in **DM-1691**.
-> - **The uncurated-named-font tail is macOS/Windows-only.** The final
+> - **The uncurated-named-font tail is platform-branched.** The
 >   `resolveInstalledFont(name)` step (which resolves an installed-but-uncalibrated
->   family to a `sysfb:` key) uses the native helper, which returns null on Linux —
->   so on Linux an uncurated named family falls through to the `times` default
->   instead of resolving via fontconfig like Chrome would. Tracked in **DM-1690**.
->   (On Windows the `family` query is implemented since DM-1721 — an exact
->   `FindFamilyName` lookup against the system collection, carrying the matched
->   face's resolved axis values for variable instances, e.g. "Segoe UI Variable
->   Text" → `SEGUIVAR.TTF` at `opsz` 10.5.)
+>   family to a `sysfb:` key) uses the native helper on macOS/Windows. (On Windows
+>   the `family` query is an exact `FindFamilyName` lookup against the system
+>   collection, carrying the matched face's resolved axis values for variable
+>   instances, e.g. "Segoe UI Variable Text" → `SEGUIVAR.TTF` at `opsz` 10.5.)
+>   Two per-platform tails follow it:
+>   - **Windows suffix names**: a family like "Segoe UI Light" is not a
+>     DirectWrite family, so the probe misses; Blink resolves it by stripping a
+>     known weight/stretch suffix and PINNING that axis
+>     (`win/font_cache_skia_win.cc:409-480`, rev 7d859f27). Mirrored via
+>     `win32FamilySuffixAdjustment` (`src/render/win32-family-suffix.ts`): the
+>     adjusted face registers as `winfam:<psName>` and
+>     `win32SuffixDeclaredForKey` records the pin so §3's `win32PrimaryCutKey`
+>     re-resolves the slope per run at the pinned weight/stretch.
+>   - **Linux fontconfig tail**: when fontconfig genuinely has the author's
+>     family (`authorFamilyAvailable`, canon-compared so a substitute for a miss
+>     still falls through), its file registers as a `sysfb:` key and
+>     `declaredFamilyForKey` records the author's name so §3's
+>     `linuxPrimaryCutKey` can re-cut it at the run's style. Gated on the
+>     live-resolver flag (`DOMOTION_SYSTEM_FALLBACK=0` disables).
 >
 > `docs/03-font-family-chain.md` frames the same mappings as "matching Chrome on
 > macOS"; doc [40](40-cross-platform-font-paths.md) L62 notes the keys are
@@ -168,6 +180,8 @@ flowchart TD
   M -->|"ui-monospace · ui-rounded · ui-sans-serif ·<br/>math · emoji · fangsong · -apple-system"| RN["null → SKIP to next name"]
   M -->|"new york medium (if OTF installed)"| R21["sysfb:NewYorkMedium-Regular"]
   M -->|"else: resolveInstalledFont(name) hits<br/>(real installed but uncalibrated font)"| R22["sysfb:&lt;postscriptName&gt;<br/>(registerDynamicSystemFont)"]
+  M -->|"win32: suffix name ('Segoe UI Light')<br/>win32FamilySuffixAdjustment + resolveInstalledFont"| R23["winfam:&lt;psName&gt;<br/>+ win32SuffixDeclaredForKey pin"]
+  M -->|"linux: authorFamilyAvailable(name)<br/>→ fcMatch(name)"| R24["sysfb:&lt;psName&gt;<br/>+ declaredFamilyForKey record"]
   M -->|"no match"| RNext["→ try next name in stack"]
 
   RNext -.->|"stack exhausted, nothing matched"| DEF["default: times"]
@@ -219,9 +233,10 @@ flowchart TD
 
   G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
-  G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle)"]
+  G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant, stretch)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle:<br/>FindFamilyName + GetFirstMatchingFont, plus Blink's<br/>family-name suffix layer — win32FamilySuffixAdjustment —<br/>and win32SuffixDeclaredForKey's pinned axis for<br/>author-declared 'Segoe UI Light'-style keys)"]
   G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
-  G3d --> G4["darwinSystemUiWdth(effectiveKey, stretch):<br/>sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey = effectiveKey-weight-size-slant-fvs[-wdth]<br/>→ fontInstanceCache hit? return"]
+  G3d --> G3e["linux + helper + resolver flag: linuxPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (same key set + declaredFamilyForKey).<br/>Family = declared name ?? LINUX_FONT_PATHS fcMatch base →<br/>resolveLinuxFamilyMatch → helper 'familyMatch' =<br/>SkFontConfigInterfaceDirect::matchFamilyName transcribed<br/>(Skia rev fd139e79, the tag-147 DEPS pin): FcFontSort(trim=0),<br/>first SFNT-valid pattern, family/alias/metric-equiv acceptance.<br/>Reads the BASE key; sysfb:&lt;psName&gt; REPLACES G3/G3b. null → stand."]
+  G3e --> G4["darwinSystemUiWdth(effectiveKey, stretch):<br/>sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey = effectiveKey-weight-size-slant-fvs[-wdth]<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
@@ -274,9 +289,12 @@ takes the glyph-path pipeline rather than the raster-overlay one, and painted it
 box ~4 px high at font-size 32.
 
 **Weight → face routing.** A static family has no `wght` axis to drive, so the
-requested CSS weight has to pick a FILE (or a TTC member). There are now two
-layers here, and on macOS the second supersedes the first for any family a CSS
-`font-family` can name.
+requested CSS weight has to pick a FILE (or a TTC member). There are two
+layers here — the calibrated sibling table, and a per-platform transcription
+of Blink's own declared-family selection that supersedes it for any family a
+CSS `font-family` can name: `darwinPrimaryCutKey` (macOS), `linuxPrimaryCutKey`
+(Linux), and `win32PrimaryCutKey` (Windows, where the selection lives inside
+the DirectWrite call itself).
 
 **macOS: `darwinPrimaryCutKey` — Blink's declared-family style matcher.** A
 family does not have two cuts, it has a ladder. Chrome opens five distinct
@@ -360,10 +378,48 @@ directional comparator, which the shipping 147 build does not contain. When
 the pinned Playwright Chromium moves to a build that includes the upstream
 directional rewrite, the helper's `betterChoiceCT` must be re-transcribed.
 
-**The table below it** still answers on Linux and Windows, on a macOS host with
-no built helper, and for any key the matcher declines. Three rules, applied in
-order, calibrated by asking Chromium which face it painted
-(`CSS.getPlatformFontsForNode` over 100…900 in 10-point steps):
+**Linux: `linuxPrimaryCutKey` — Skia's fontconfig `matchFamilyName`,
+transcribed.** Same stage, entirely different Blink code: on Linux
+`CreateTypeface` reduces to `skia::DefaultFontMgr()->matchFamilyStyle(name,
+SkiaFontStyle())` (`fonts/skia/font_cache_skia.cc`, tag `147.0.7727.15`), the
+manager is fontconfig-backed (`SkFontMgr_New_FCI`,
+`skia/ext/font_utils.cc:86-89`), and the whole decision is
+`SkFontConfigInterfaceDirect::matchFamilyName` at Skia rev `fd139e79` — the
+revision the tag's DEPS pins, which differs materially from the current Skia
+tree (single `FcFontSort(trim=0)`, first-valid-then-accept-or-reject; no
+direct `FcFontMatch` stage). The transcription lives in the Linux glyph
+helper's `familyMatch` query (`tools/linux-glyph-extractor/src/main.cpp`),
+reached through `resolveLinuxFamilyMatch`. The nominated family is the
+declared name when recorded (`declaredFamilyForKey`) and otherwise the
+`fcMatch` base the `LINUX_FONT_PATHS` entry already carries — derived, not
+curated, the same precedent as Windows. Gated on
+`DOMOTION_SYSTEM_FALLBACK != 0`; scored end to end by
+`npm run fonts:family-match:linux` (doc
+[110](110-family-match-conformance-linux.md), 2,292/2,292 on the noble
+image — including the CSS-550 crossover to Liberation Bold that the two-slot
+table's 600 threshold missed).
+
+**Windows: the suffix layer rides on `win32PrimaryCutKey`.** DirectWrite picks
+the cut inside `matchFamilyStyle` (`FindFamilyName` + `GetFirstMatchingFont`
+in `FirstMatchingFontWithoutSimulations`, Skia rev `fd139e79`,
+`SkFontMgr_win_dw.cpp:52-92,861-872`), so there is no second in-family
+re-selection — but Blink adds a Windows-only family-NAME layer:
+"Segoe UI Light" is not a DirectWrite family, and
+`FontCache::CreateFontPlatformData` resolves it by stripping the weight/
+stretch suffix and pinning that axis (`win/font_cache_skia_win.cc:335-480`).
+`win32FamilySuffixAdjustment` (`src/render/win32-family-suffix.ts`) carries
+the transcription; `win32FamilyKey` retries through it, and author-declared
+suffix families re-resolve the slope per run through
+`win32SuffixDeclaredForKey`. Scored end to end by
+`npm run fonts:family-match:win32` (doc
+[111](111-family-match-conformance-windows.md), 516/516 on the Windows 11
+VM; 432/516 before the suffix layer was ported — all 84 misses were suffix
+names).
+
+**The table below it** still answers on a host with no built helper, for any
+key the matchers decline, and under `DOMOTION_SYSTEM_FALLBACK=0` on Linux.
+Three rules, applied in order, calibrated by asking Chromium which face it
+painted (`CSS.getPlatformFontsForNode` over 100…900 in 10-point steps):
 
 | Family key | Measured Chrome behavior |
 | --- | --- |
@@ -406,8 +462,11 @@ the angle.
 **Source of truth:** `getFontInstance` / `resolveEffectiveCutKey` / `stretchPercent` /
 `darwinSystemUiWdth` / `resolveFontSpec` / `applyVariationAxes` /
 `subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
-`fontHasOutlineTable` / `commandsFor` in `src/render/font-resolution.ts`;
-`resolveFamilyStyleMatch` / `resolveInstalledFont` in `src/render/glyph-helper.ts`.
+`linuxPrimaryCutKey` / `fontHasOutlineTable` / `commandsFor` in
+`src/render/font-resolution.ts`; `win32FamilySuffixAdjustment` in
+`src/render/win32-family-suffix.ts`; `resolveFamilyStyleMatch` /
+`resolveLinuxFamilyMatch` / `resolveInstalledFont` in
+`src/render/glyph-helper.ts`.
 
 ---
 

@@ -229,6 +229,16 @@ shortest possible map:
   rule agrees. macOS only (Blink runs different code per platform). Score the
   shipped port, not a restatement of it: two JS restatements measured *worse*
   than the Swift port because they omitted the trait-precedence loop.
+  Per-platform siblings: `tools/family-match-conformance-linux.ts`
+  (`npm run fonts:family-match:linux`, doc 110 — the Linux helper's
+  `familyMatch` fontconfig transcription, baseline
+  `tests/baselines/family-match-linux.json`) and
+  `tools/family-match-conformance-win32.ts`
+  (`npm run fonts:family-match:win32`, doc 111 — the win32 helper's `family`
+  query plus Blink's family-name suffix layer,
+  `src/render/win32-family-suffix.ts`, baseline
+  `tests/baselines/family-match-windows.json`). Both comparators refuse to
+  judge across an environment-fingerprint change.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face
