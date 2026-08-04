@@ -1010,7 +1010,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `feature_settings_` from `FontDescription::CacheKey` and reads it only at
   shaping time, and a 6-family × 8-setting CDP probe moved Chrome's
   reported face in 0 of 42 cases while moving the painted width in 11, so
-  the consequence belongs to doc 108. Two properties that *are* selection
+  the consequence belongs to doc 108 — where it is now adjudicated: feature
+  lists carry disables/values as HarfBuzz feature strings (`-liga`,
+  `aalt=2`), runs bearing one shape through the vendored HarfBuzz
+  (`fontFeatureValueShapingOverride`), and the in-repo
+  `tests/fixtures/shaping` corpus dir gives the oracle Times/Helvetica
+  `"liga" 0` runs that discriminate (12 mismatch-count pre-fix →
+  12 agree-exact). Two properties that *are* selection
   inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
   cache key — remain unextracted. All three committed baselines await a
   re-seed from CI, since re-extraction moved each corpus's `generatedAt`.

@@ -697,6 +697,21 @@ Notes:
   from `base.getGlyph(id)`, which is well-defined because it is the same file
   and therefore the same gid space.
 
+- **A RUN-level sibling of the post-step exists for OpenType feature state
+  fontkit cannot express** (`fontFeatureValueShapingOverride`,
+  `font-resolution.ts`). Feature-list entries are HarfBuzz feature strings
+  (`liga` / `-liga` / `aalt=2` — `parseFontFeatureSettings` keeps disables and
+  values, matching Blink's verbatim append in `font_features.cc:203-225`, rev
+  `7d859f27`). When a run's list carries a disable or an explicit value
+  (`featureListNeedsHbShaping`, `font-features.ts`), both `textToPathMarkup`
+  and `renderTextAsEmbedded` wrap the run's resolved instance in the same
+  `makeHarfbuzzShapingInstance` `outlinesFromBase` proxy with the FULL list
+  bound; HarfBuzz honors the zero via the lookup mask (GSUB) or the AAT OFF
+  selector (`hb-aat-map.cc:79`, rev `4de187d`). fontkit-facing `layout()` call
+  sites receive the enable-only projection (`fontkitFeatureList`). A key with
+  no on-disk file (webfont buffer) keeps its previous shaping — the disable is
+  unexpressed there, a documented residual (doc 108).
+
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
   It now holds **all six scripts the measurement found a glyph or position
