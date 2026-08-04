@@ -224,9 +224,12 @@ describe("parseFontFeatureSettings (DM-564)", () => {
     expect(parseFontFeatureSettings('"cv11" on, "kern" 1')).toEqual(["cv11", "kern"]);
   });
 
-  it("drops features with `off` or `0`", () => {
-    expect(parseFontFeatureSettings('"cv11", "kern" 0, "liga" off')).toEqual(["cv11"]);
-    expect(parseFontFeatureSettings('"kern" 0')).toBeUndefined();
+  it("DM-1960: keeps `off` / `0` entries as HarfBuzz-syntax disables", () => {
+    // Blink appends every setting with its value intact (font_features.cc:203-225,
+    // rev 7d859f27); a dropped disable rendered `"liga" 0` WITH ligatures.
+    expect(parseFontFeatureSettings('"cv11", "kern" 0, "liga" off')).toEqual(["cv11", "-kern", "-liga"]);
+    expect(parseFontFeatureSettings('"kern" 0')).toEqual(["-kern"]);
+    expect(parseFontFeatureSettings('"dlig" 0, "liga" 0')).toEqual(["-dlig", "-liga"]);
   });
 
   it("DM-1267: maps numr/dnom to sups/subs (fontkit applies those standalone)", () => {
@@ -241,10 +244,11 @@ describe("parseFontFeatureSettings (DM-564)", () => {
     expect(parseFontFeatureSettings('"tnum", "numr"')).toEqual(["tnum", "sups"]);
   });
 
-  it("supports stylistic-alternate selectors with numeric index", () => {
-    // `salt 2` picks alternate #2; we currently flatten to enabling the tag
-    // (fontkit's userFeatures is on/off only). Confirms we still emit the tag.
-    expect(parseFontFeatureSettings('"salt" 2')).toEqual(["salt"]);
+  it("DM-1960: keeps explicit values > 1 as HarfBuzz `tag=N` entries", () => {
+    // `salt 2` picks alternate #2. Chrome passes the value through to HarfBuzz;
+    // the `tag=N` form survives parsing so the HarfBuzz shaping route can honor
+    // it (fontkit's projection flattens it back to the bare tag).
+    expect(parseFontFeatureSettings('"salt" 2')).toEqual(["salt=2"]);
   });
 
   it("ignores garbage tokens between valid feature declarations", () => {
@@ -277,11 +281,26 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
     expect(resolveFontVariantFeatures(undefined, "diagonal-fractions", undefined)).toEqual(["frac"]);
   });
 
-  it("maps the enable-only ligature keywords (disables are a known gap)", () => {
+  it("maps the ligature enable keywords", () => {
     expect(resolveFontVariantFeatures(undefined, undefined, "discretionary-ligatures")).toEqual(["dlig"]);
     expect(resolveFontVariantFeatures(undefined, undefined, "historical-ligatures")).toEqual(["hlig"]);
-    // `no-common-ligatures` can't be expressed in fontkit's enable-only list.
-    expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures")).toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, "contextual")).toEqual(["calt"]);
+  });
+
+  it("DM-1960: maps the ligature disable keywords per Blink's feature emission", () => {
+    // Transcribed from FontFeatureRange::FromFontDescription,
+    // font_features.cc:54-86, rev 7d859f27: common disabled -> liga 0 + clig 0,
+    // contextual disabled -> calt 0, `none` -> all three (dlig/hlig are off by
+    // default so `none` emits no entry for them).
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures")).toEqual(["-liga", "-clig"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-contextual")).toEqual(["-calt"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, "none")).toEqual(["-liga", "-clig", "-calt"]);
+    // The no-* keywords must NOT read as enables (the plain patterns matched
+    // inside them — `-` is a word boundary).
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-discretionary-ligatures")).toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-historical-ligatures")).toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures no-discretionary-ligatures"))
+      .toEqual(["-liga", "-clig"]);
   });
 });
 

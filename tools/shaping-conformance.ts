@@ -553,7 +553,12 @@ export function parseArgs(argv: string[]): Options {
   const o: Options = {
     runsFile: DEFAULT_RUNS_FILE,
     extractRuns: false,
-    sources: ["external/html-test", "../html-test/unicode"],
+    // `tests/fixtures/shaping` is the in-repo corpus for cases the two broad
+    // checkouts cannot express — the first occupant is the feature-disable
+    // fixture: every `"liga" 0` run in the broad corpus resolves to Georgia,
+    // whose ligatures never fire, so a dropped disable was invisible until a
+    // fixture used a face (Times / Helvetica) where they do.
+    sources: ["external/html-test", "../html-test/unicode", "tests/fixtures/shaping"],
     maxRuns: null,
     splitWords: false,
     tolerance: 0.5,

@@ -721,6 +721,12 @@ export interface CapturedStyles {
   /** CSS font-variant-east-asian — e.g. 'traditional', 'jis78', 'full-width'.
    *  Mapped to OpenType features (trad / jp78 / fwid …) at shape time. DM-1117. */
   fontVariantEastAsian?: string;
+  /** CSS font-variant-emoji — 'normal' | 'text' | 'emoji' | 'unicode'. A
+   *  face-selection input: Blink overrides the run's fallback priority and
+   *  forces a variation selector into every glyph lookup, so `emoji` moves a
+   *  primary-covered ☺ to the color-emoji font and `text` moves ⚡ to the
+   *  monochrome cascade. Explicit VS15/VS16 in the text wins. */
+  fontVariantEmoji?: string;
   /** CSS font-variant-numeric — e.g. 'oldstyle-nums', 'tabular-nums', 'diagonal-fractions'.
    *  Mapped to OpenType features (onum / tnum / frac …). DM-1117. */
   fontVariantNumeric?: string;

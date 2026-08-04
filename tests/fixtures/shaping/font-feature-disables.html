@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>font-feature-settings disables on faces whose ligatures fire</title>
+<!--
+  Shaping-oracle fixture (tools/shaping-conformance.ts extracts its runs).
+
+  Every "liga" 0 run in the broad corpus resolves to Georgia, which forms no
+  ligature for those samples in Chrome either - so both sides agreed by
+  vacuity and a dropped disable was invisible. These runs use Times and
+  Helvetica, whose common ligatures DO fire (CDP glyphCount, 24px "office
+  waffle affix flight": Times 22 glyphs normal -> 26 under "liga" 0;
+  Helvetica 22 -> 26), so a disable that is dropped rather than honored
+  surfaces as a mismatch-count row.
+
+  The single-word normal rows pin the ENABLED side: Times must keep forming
+  its ligatures when no feature disables them (they extract as whole nodes
+  because they contain no whitespace; the feature-bearing rows are split on
+  whitespace by the extractor).
+-->
+<style>
+  body { font-size: 24px; margin: 16px; }
+  .times { font-family: Times, serif; }
+  .helv { font-family: Helvetica, sans-serif; }
+  .liga0 { font-feature-settings: "liga" 0; }
+  .liga0-dlig0 { font-feature-settings: "liga" 0, "dlig" 0; }
+</style>
+<div class="times">office</div>
+<div class="times">waffle</div>
+<div class="times">affix</div>
+<div class="times">flight</div>
+<div class="times liga0">office waffle affix flight</div>
+<div class="times liga0-dlig0">office waffle affix flight</div>
+<div class="helv liga0">office waffle affix flight</div>

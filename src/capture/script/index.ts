@@ -605,6 +605,11 @@ export const captureScript =
         fontVariantEastAsian: cs.fontVariantEastAsian,
         fontVariantNumeric: cs.fontVariantNumeric,
         fontVariantLigatures: cs.fontVariantLigatures,
+        // CSS font-variant-emoji — a genuine face-selection input (it overrides
+        // the run's emoji-vs-text fallback priority and forces VS15/VS16 into
+        // the glyph lookups). The renderer threads it into the per-codepoint
+        // resolver and the raster-emoji overlay routing.
+        fontVariantEmoji: cs.fontVariantEmoji,
         direction: cs.direction,
         // `unicode-bidi` decides whether the characters' OWN bidi types are
         // honored or overridden. `bidi-override` / `isolate-override` tell the

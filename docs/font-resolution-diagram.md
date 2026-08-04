@@ -653,7 +653,9 @@ the exact font + glyph to paint. The order mirrors Blink's `FontFallbackIterator
 
 ```mermaid
 flowchart TD
-  F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain)"] --> FC["complexShaperBaseMarkDecomposition(cp)?<br/>(e.g. Kaithi U+110AB, canonical base+mark)"]
+  F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain, …, fontVariantEmoji)"] --> FVE{"font-variant-emoji forces EMOJI<br/>presentation for cp?<br/>(emoji → any \p{Emoji} cp · unicode → Emoji_Presentation only;<br/>explicit VS15/VS16 in the text wins — caller passes undefined)"}
+  FVE -->|"yes & color-emoji face covers cp"| FVE1["cover(color-emoji key)<br/>resolveColorEmojiKeyForCp — even over a covering primary<br/>(forced VS16: harfbuzz_face.cc:127-206)"]
+  FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| FC["complexShaperBaseMarkDecomposition(cp)?<br/>(e.g. Kaithi U+110AB, canonical base+mark)"]
   FC -->|"primary covers all pieces & has on-disk file"| FCH["→ HarfBuzz shaping instance<br/>(shapingFaceFor → makeHarfbuzzShapingInstance) · decomposed=true<br/>matches Chrome's HarfBuzz decompose+GPOS"]
   FC -->|"no"| F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?"]
   F1 -->|"yes"| F1H["cover(primaryKey)"]
@@ -696,6 +698,21 @@ Notes:
   clusters (it is the engine Chrome runs), and each glyph's outline still comes
   from `base.getGlyph(id)`, which is well-defined because it is the same file
   and therefore the same gid space.
+
+- **A RUN-level sibling of the post-step exists for OpenType feature state
+  fontkit cannot express** (`fontFeatureValueShapingOverride`,
+  `font-resolution.ts`). Feature-list entries are HarfBuzz feature strings
+  (`liga` / `-liga` / `aalt=2` — `parseFontFeatureSettings` keeps disables and
+  values, matching Blink's verbatim append in `font_features.cc:203-225`, rev
+  `7d859f27`). When a run's list carries a disable or an explicit value
+  (`featureListNeedsHbShaping`, `font-features.ts`), both `textToPathMarkup`
+  and `renderTextAsEmbedded` wrap the run's resolved instance in the same
+  `makeHarfbuzzShapingInstance` `outlinesFromBase` proxy with the FULL list
+  bound; HarfBuzz honors the zero via the lookup mask (GSUB) or the AAT OFF
+  selector (`hb-aat-map.cc:79`, rev `4de187d`). fontkit-facing `layout()` call
+  sites receive the enable-only projection (`fontkitFeatureList`). A key with
+  no on-disk file (webfont buffer) keeps its previous shaping — the disable is
+  unexpressed there, a documented residual (doc 108).
 
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
@@ -1196,7 +1213,7 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary)"] --> SREM{"darwin AND<br/>Emoji_Presentation=Yes?"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji)"] --> SREM{"darwin AND Emoji_Presentation=Yes<br/>AND NOT suppressed?<br/>(font-variant-emoji:text forces kText priority for \p{Emoji} cps —<br/>ApplyFontVariantEmojiOnFallbackPriority, harfbuzz_shaper.cc:184-198)"}
   SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
   SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]

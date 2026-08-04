@@ -166,6 +166,17 @@ interface RasterCandidate {
   rect: { x: number; y: number; width: number; height: number };
   key: string;
   setDataUri: (uri: string) => void;
+  /** Per-char glyph overlays only: after the screenshot, move the destination
+   *  rect onto the integer-snapped clip the pixels were actually taken from.
+   *  `clipRectForScreenshot` snaps outward to whole page pixels, so stamping
+   *  the PNG back at the original FRACTIONAL rect resamples Chrome's paint by
+   *  the snap phase — up to a pixel of shift and blur. Measured on the
+   *  `font-variant-emoji: emoji` digit overlays (Apple Color Emoji `5` / `#`),
+   *  whose sub-pixel x positions made the resample visible as a ~1px ink
+   *  shift; snapping the rect to the clip reproduces the paint exactly.
+   *  Segment-level / element-level rasters keep their captured rects — their
+   *  consumers size layout boxes from them. */
+  snapRectToClip?: boolean;
 }
 
 type RasterTextSeg = NonNullable<CapturedElement["textSegments"]>[number];
@@ -241,6 +252,7 @@ function queueRasterGlyph(
     rect: g.rect,
     key: `glyph|${cp}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}`,
     setDataUri: (uri) => { g.dataUri = uri; },
+    snapRectToClip: true,
   });
 }
 
@@ -480,13 +492,13 @@ export async function rasterizeBitmapGlyphs(
 
   const cache = new Map<string, string>();
   for (const cand of candidates) {
+    // rect is viewport-relative; page.screenshot clip takes page-absolute
+    // CSS pixels, so add vp.x/vp.y back. Snap floor/ceil outward to
+    // guarantee the glyph is fully contained (Playwright rejects zero-size
+    // clips and clips at integer boundaries anyway).
+    const clip = clipRectForScreenshot(cand.rect, viewport);
     let dataUri = cache.get(cand.key);
     if (dataUri == null) {
-      // rect is viewport-relative; page.screenshot clip takes page-absolute
-      // CSS pixels, so add vp.x/vp.y back. Snap floor/ceil outward to
-      // guarantee the glyph is fully contained (Playwright rejects zero-size
-      // clips and clips at integer boundaries anyway).
-      const clip = clipRectForScreenshot(cand.rect, viewport);
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
         dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
@@ -496,5 +508,13 @@ export async function rasterizeBitmapGlyphs(
       }
     }
     cand.setDataUri(dataUri);
+    // See `RasterCandidate.snapRectToClip`: the PNG's pixels live at the
+    // snapped clip, so that is where the overlay must be stamped.
+    if (cand.snapRectToClip === true) {
+      cand.rect.x = clip.x - viewport.x;
+      cand.rect.y = clip.y - viewport.y;
+      cand.rect.width = clip.width;
+      cand.rect.height = clip.height;
+    }
   }
 }

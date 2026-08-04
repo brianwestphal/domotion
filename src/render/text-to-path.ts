@@ -33,6 +33,7 @@ import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-f
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
+import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
@@ -49,6 +50,10 @@ import {
   ensureGlyphDef,
   fallbackFontChain,
   fontAutoInsertsDottedCircle,
+  fontFeatureValueShapingOverride,
+  FontVariantEmojiOverride,
+  isColorEmojiFontKey,
+  isEmojiCharCp,
   getFontInstance,
   getFontSourceInfo,
   glyphInkXRange,
@@ -171,6 +176,12 @@ export function textToPathMarkup(
   /** Computed CSS `font-stretch` (e.g. `"75%"`). Selects the family's condensed /
    *  expanded cut in the declared-family style matcher — see `stretchPercent`. */
   fontStretch?: string,
+  /** The run's `font-variant-emoji` override (`normal` = undefined). Overrides
+   *  per-codepoint emoji presentation in the resolver and the raster-overlay
+   *  suppression below — except where the text carries an explicit VS15/VS16,
+   *  which wins (the `HasVSFallbackPriority` guard,
+   *  `shaping/harfbuzz_shaper.cc:184-198`, rev 7d859f27). */
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -251,13 +262,20 @@ export function textToPathMarkup(
       // webfont variant → chain → system fallback → math-alpha → NFD). This path
       // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
       // (the substituted base char) rather than the per-char source index.
-      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch);
+      // The property must not override an explicit VS15/VS16 in the text
+      // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
+      const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
+      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, effFve);
       // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
       // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
       // placing one on a system color font here would split it out of the
       // surrounding text run and break the overlay's advance pinning (the
       // embedded path, which has no overlay, does let the resolver place them).
-      const emojiToTerminal = glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp);
+      // Under `font-variant-emoji: text` the terminal must NOT capture the
+      // codepoint: Chrome's forced-VS15 cascade finds a monochrome face where
+      // one exists (measured: U+26A1 → Apple Symbols, U+2B50 → STIX Two Math),
+      // so the resolver — with the same suppression threaded — decides.
+      const emojiToTerminal = glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text";
       if (clusterRun != null) {
         emitCh = ch;
         useKey = clusterRun.key;
@@ -356,6 +374,19 @@ export function textToPathMarkup(
       // optical-cut opsz (injected by resolveFont from the family name) survives.
       const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
       runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length, decomposed: curDecomposed });
+    }
+  }
+  // A feature list carrying a disable (`-liga`) or an explicit value can only
+  // be honored by HarfBuzz — fontkit's list is enable-only and the platform
+  // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
+  // proxy with the FULL list bound (outlines stay with the resolved face).
+  // Chrome's own split: Blink shapes with HarfBuzz and rasterizes from the
+  // platform typeface. See `fontFeatureValueShapingOverride`. Applied after
+  // run grouping (the proxy is memoized, so identical bases keep identity).
+  if (featureListNeedsHbShaping(features)) {
+    for (const run of runs) {
+      const fvs = run.fontKey === primaryFontKey ? variationSettings : undefined;
+      run.font = fontFeatureValueShapingOverride(run.font, run.fontKey, weight, fontSize, slant, fvs, features!);
     }
   }
   // Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
@@ -502,7 +533,9 @@ export function textToPathMarkup(
             if (synth.scale !== 1) chScale = Number((runScale * synth.scale).toFixed(5));
           }
           const layout = features != null && features.length > 0 && !synthSmallCaps
-            ? run.font.layout(ch, features)
+            // Enable-only projection: a disable/value entry is honored by the
+            // run's HarfBuzz proxy (bound at wrap time above), never by fontkit.
+            ? run.font.layout(ch, fontkitFeatureList(features))
             : run.font.layout(ch);
           // For emoji codepoints whose layout returns a .notdef tofu (id=0,
           // hollow rectangle outline), suppress path emission. The capture
@@ -513,7 +546,19 @@ export function textToPathMarkup(
           const nextI = i + ch.length;
           const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
           const isPua = isPrivateUseCodepoint(cp);
-          const isEmoji = isEmojiCodepoint(cp, nextCp);
+          // `font-variant-emoji` moves the raster-overlay boundary (explicit
+          // VS15/VS16 wins — same guard as the resolver call above): under
+          // `text`, an emoji routed to a MONOCHROME face by the suppressed
+          // cascade paints as a path glyph (no overlay to cover for it), and
+          // only one still routed to the color font keeps the suppression;
+          // under `emoji`/`unicode`, every codepoint the override routed to the
+          // color font is overlay-painted, `Emoji`-property extras included.
+          const charFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
+          const isEmoji = charFve == null
+            ? isEmojiCodepoint(cp, nextCp)
+            : charFve === "text"
+              ? isEmojiCodepoint(cp, nextCp) && isColorEmojiFontKey(run.fontKey)
+              : isEmojiCodepoint(cp, nextCp) || (isEmojiCharCp(cp) && isColorEmojiFontKey(run.fontKey));
           const uses: string[] = [];
           let suppressedNotdef = false;
           for (const g of layout.glyphs) {
@@ -733,7 +778,7 @@ export function textToPathMarkup(
           const shapeDir = flipToNative ? (contentIsRtl ? "rtl" : "ltr") : dir;
           const shapeFont = run.font;
           const layout = features != null && features.length > 0
-            ? shapeFont.layout(shapeText, features, undefined, undefined, shapeDir)
+            ? shapeFont.layout(shapeText, fontkitFeatureList(features), undefined, undefined, shapeDir)
             : shapeFont.layout(shapeText, undefined, undefined, undefined, shapeDir);
           const uses: string[] = [];
           let segFontUnits = 0;
@@ -767,7 +812,7 @@ export function textToPathMarkup(
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
     const layout = features != null && features.length > 0
-      ? run.font.layout(run.text, features)
+      ? run.font.layout(run.text, fontkitFeatureList(features))
       : run.font.layout(run.text);
     const uses: string[] = [];
     let runX = 0;
@@ -902,7 +947,10 @@ function singleFontMarkup(
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
   const run = features != null && features.length > 0
-    ? font.layout(text, features)
+    // Enable-only projection — a caller whose list carries a disable hands in a
+    // font already wrapped in the HarfBuzz proxy, which shapes with the full
+    // list it was bound with and ignores this argument.
+    ? font.layout(text, fontkitFeatureList(features))
     : font.layout(text);
   let totalAdvance = 0;
   for (const pos of run.positions) totalAdvance += pos.xAdvance;
@@ -1321,6 +1369,8 @@ function splitTextIntoFontRuns(
   systemUiPrimary: boolean = false,
   /** CSS `font-stretch` as a percentage, 100 = `normal`. */
   stretch: number = 100,
+  /** The run's `font-variant-emoji` override (`normal` = undefined). */
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): FontRun[] {
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
@@ -1457,7 +1507,10 @@ function splitTextIntoFontRuns(
     // `.notdef` (glyph 0) — which is exactly what `covered: false` returns
     // (key=primary / override=null / emitCh=source), preserving DM-1018.
     // (`decomposed` is unused here — the embedded loop always renders run.text.)
-    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch);
+    // Explicit VS15/VS16 wins over `font-variant-emoji` (`HasVSFallbackPriority`,
+    // `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
+    const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
+    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve);
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;
     const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
@@ -1554,6 +1607,8 @@ function renderTextAsEmbedded(
   targetWidth?: number,
   /** Computed CSS `font-stretch` (e.g. `"75%"`). */
   fontStretch?: string,
+  /** The run's `font-variant-emoji` override (`normal` = undefined). */
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -1568,8 +1623,21 @@ function renderTextAsEmbedded(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji);
   if (runs.length === 0) return null;
+
+  // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
+  // carrying a disable or an explicit value shapes through HarfBuzz with the
+  // full list bound, since neither fontkit nor the platform helpers can honor
+  // it. The proxy's glyph ids live in the same gid space as the file the
+  // embedded subset is cut from, so the subset carries exactly the glyphs the
+  // proxy shaped. See `fontFeatureValueShapingOverride`.
+  if (featureListNeedsHbShaping(features)) {
+    for (const run of runs) {
+      const fvs = run.isPrimary ? variationSettings : undefined;
+      run.font = fontFeatureValueShapingOverride(run.font, run.fontKey, weight, fontSize, slant, fvs, features!);
+    }
+  }
 
   // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
   // captured Chrome `fontBoundingBoxAscent` when provided (matches what
@@ -1694,7 +1762,7 @@ function renderTextAsEmbedded(
     const { shapingText, perCharScale } = computeRunShaping(run);
     let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters?: number[] };
     try {
-      layout = features != null && features.length > 0 ? run.font.layout(shapingText, features) : run.font.layout(shapingText);
+      layout = features != null && features.length > 0 ? run.font.layout(shapingText, fontkitFeatureList(features)) : run.font.layout(shapingText);
     } catch {
       return null;
     }
@@ -2287,6 +2355,17 @@ export interface TextFontOptions {
    * `font-variant: small-caps` is in effect on this run). DM-294.
    */
   features?: string[];
+  /**
+   * CSS `font-variant-emoji`, when not `normal`. A genuine face-selection
+   * input: Blink overrides the run's fallback priority and forces a variation
+   * selector into every glyph lookup (`ApplyFontVariantEmojiOnFallbackPriority`,
+   * `shaping/harfbuzz_shaper.cc:184-198`; `HarfBuzzGetGlyph`,
+   * `shaping/harfbuzz_face.cc:127-206`, rev 7d859f27), so `emoji` moves even a
+   * primary-covered U+263A from Helvetica to Apple Color Emoji and `text`
+   * moves U+26A1 from Apple Color Emoji to Apple Symbols. Explicit VS15/VS16
+   * in the text wins over the property.
+   */
+  fontVariantEmoji?: FontVariantEmojiOverride;
 }
 
 /** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */
@@ -2349,7 +2428,7 @@ export function renderTextAsPath(
 ): string | null {
   const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
     features, lang, variationSettings, textStrokeWidth, textStrokeColor,
-    paintOrder, dottedCircleMarks, bidiOverride, fontStretch } = options;
+    paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji } = options;
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
   const weight = cssWeightOf(options.fontWeight);
@@ -2402,11 +2481,11 @@ export function renderTextAsPath(
     // exhausted, etc.) — paths-mode is the safe always-correct fallback.
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
-      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch);
+      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji);
     if (embedded != null) return embedded;
   }
 
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji);
   if (result == null || result.markup === "") return null;
 
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
@@ -2717,7 +2796,7 @@ export function measureInkMetrics(
     const scale = fontSize / run.font.unitsPerEm;
     let layout;
     try {
-      layout = features != null && features.length > 0 ? run.font.layout(run.text, features) : run.font.layout(run.text);
+      layout = features != null && features.length > 0 ? run.font.layout(run.text, fontkitFeatureList(features)) : run.font.layout(run.text);
     } catch { continue; }
     for (const g of layout.glyphs) {
       // Skip .notdef tofu (id 0) — its placeholder bbox would inflate the ink
@@ -2923,7 +3002,7 @@ export function computeSkipInkGaps(
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
   if (font == null) return [];
   let layout;
-  try { layout = font.layout(text, features); } catch { return []; }
+  try { layout = font.layout(text, fontkitFeatureList(features)); } catch { return []; }
   const scale = fontSize / font.unitsPerEm;
   const yTop = decorationCenterYRel - decorationThickness / 2;
   const yBot = decorationCenterYRel + decorationThickness / 2;

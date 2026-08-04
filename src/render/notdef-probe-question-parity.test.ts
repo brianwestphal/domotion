@@ -119,7 +119,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"))
       .replace(/\s+/g, " ");
     expect(body).toContain(
-      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch).covered;",
+      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji).covered;",
     );
   });
 
@@ -164,16 +164,18 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     expect(perAsker[0]).toContain("systemUiPrimary");
     expect(perAsker[0]).toContain("lang");
     expect(perAsker[0]).toContain("stretch");
+    expect(perAsker[0]).toContain("fontVariantEmoji");
   });
 
-  it("keeps every remaining run-context asker's argument list ending in systemUiPrimary, lang, stretch", () => {
+  it("keeps every remaining run-context asker's argument list ending in systemUiPrimary, lang, stretch, fontVariantEmoji", () => {
     // Pins the ORDER too: `resolveSystemFallbackKeyForCp` takes
-    // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch),
-    // and the trailing three are optional with defaults — so a transposition is a
-    // silently mis-keyed memo rather than a type error wherever the types line up.
+    // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch,
+    // fontVariantEmoji), and the trailing four are optional with defaults — so a
+    // transposition is a silently mis-keyed memo rather than a type error
+    // wherever the types line up.
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
-      expect(args.endsWith("systemUiPrimary, lang, stretch"), `${name}: ${args}`).toBe(true);
+      expect(args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji"), `${name}: ${args}`).toBe(true);
     }
   });
 

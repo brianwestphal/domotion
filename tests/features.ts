@@ -328,6 +328,53 @@ export const tests: FeatureTest[] = [
     width: 420,
     height: 160,
   },
+  // DM-1960: `font-feature-settings: "liga" 0` (and the font-variant-ligatures
+  // no-* keywords) must DISABLE a face's default-on ligatures the way Chrome
+  // does — Blink hands HarfBuzz every setting with its value intact
+  // (font_features.cc:203-225, rev 7d859f27) and HarfBuzz selects the AAT OFF
+  // selector on morx faces (hb-aat-map.cc:79, rev 4de187d). The renderer used
+  // to drop zero-valued entries (fontkit's feature list is enable-only), so the
+  // disabled rows rendered WITH ligatures.
+  //
+  // The face matters: this must be a family whose ligatures actually FIRE, or
+  // both sides agree by vacuity and the fixture grades nothing. Georgia — the
+  // face the broad-corpus liga-off fixture uses — forms none. Verified by CDP
+  // glyphCount on "office waffle affix flight" 24px: Times 22 glyphs normal ->
+  // 26 under `"liga" 0`; Helvetica 22 -> 26; Georgia 26 -> 26 (inert).
+  {
+    name: "text-feature-settings-liga-off",
+    html: `<div style="padding: 16px; color: #e6edf3; font-size: 24px; line-height: 1.5;">
+      <div style="font-family: Times, serif;">office waffle affix flight</div>
+      <div style="font-family: Times, serif; font-feature-settings: 'liga' 0;">office waffle affix flight</div>
+      <div style="font-family: Times, serif; font-variant-ligatures: none;">office waffle affix flight</div>
+      <div style="font-family: Helvetica, sans-serif; font-feature-settings: 'liga' 0, 'dlig' 0;">office waffle affix flight</div>
+    </div>`,
+    width: 420,
+    height: 190,
+  },
+  // DM-1959: `font-variant-emoji` is a face-selection input, not a hint —
+  // Blink overrides the run's fallback priority and forces VS15/VS16 into the
+  // glyph lookups (harfbuzz_shaper.cc:184-198 + harfbuzz_face.cc:127-206, rev
+  // 7d859f27). Measured by CDP on this host: under `emoji`, bare ❤ moves
+  // ZapfDingbats → Apple Color Emoji, covered ☺ moves Helvetica → Apple Color
+  // Emoji, and even digit 5 / # move (the `Emoji` property includes the keycap
+  // bases); under `text`, ⚡ moves Apple Color Emoji → Apple Symbols and ⭐ →
+  // STIX Two Math (Blink's monochrome-emoji replacement,
+  // font_cache_mac.mm:156-184) while 😀 stays color (no mono face exists);
+  // `unicode` forces emoji presentation for emoji-default codepoints only. An
+  // explicit VS15/VS16 in the text always wins over the property.
+  {
+    name: "text-font-variant-emoji",
+    html: `<div style="padding: 16px; color: #e6edf3; font-family: Helvetica, sans-serif; font-size: 24px; line-height: 1.6;">
+      <div>A5# ❤ ☺ ⚡ ⭐ \u{1F600}</div>
+      <div style="font-variant-emoji: text;">A5# ❤ ☺ ⚡ ⭐ \u{1F600}</div>
+      <div style="font-variant-emoji: emoji;">A5# ❤ ☺ ⚡ ⭐ \u{1F600}</div>
+      <div style="font-variant-emoji: unicode;">A5# ❤ ☺ ⚡ ⭐ \u{1F600}</div>
+      <div style="font-variant-emoji: text;">❤️ ⚡️ VS16 wins</div>
+    </div>`,
+    width: 420,
+    height: 240,
+  },
   // SK-1255: mixed-script line exercises the multi-font xOffsets path.
   // Fallback runs (Arabic, Devanagari, CJK) must shape as units so contextual
   // joining, cluster reordering, and ligatures survive — per-char shaping

@@ -6,6 +6,7 @@
 
 import bidiFactory from "bidi-js";
 import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureInkMetrics, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
+import type { FontVariantEmojiOverride } from "./font-resolution.js";
 import { r, esc } from "./format.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 
@@ -1027,6 +1028,15 @@ function isAllPrivateUseArea(text: string): boolean {
 // matching case-fold + scale when the active font lacks these OpenType
 // features (Helvetica / Arial / SF Pro / Georgia / Times all do). Segment-
 // level fontVariant (::first-line override) wins when set.
+// The captured CSS `font-variant-emoji`, normalized for the renderer:
+// `normal` / absent / unrecognized → undefined (no override). The three
+// override keywords are genuine face-selection inputs — see the
+// `RenderTextOptions.fontVariantEmoji` comment in text-to-path.ts.
+function fontVariantEmojiOf(styles: { fontVariantEmoji?: string }): FontVariantEmojiOverride | undefined {
+  const v = styles.fontVariantEmoji;
+  return v === "text" || v === "emoji" || v === "unicode" ? v : undefined;
+}
+
 function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | undefined): string[] | undefined {
   const v = segVariant != null && segVariant !== "" ? segVariant : (elCaps ?? "");
   if (/\ball-small-caps\b/.test(v)) return ["smcp", "c2sc"];
@@ -1069,15 +1079,35 @@ export function resolveFontVariantFeatures(
     const tag = NUMERIC_FEATURE[kw];
     if (tag != null) out.push(tag);
   }
-  // Ligature longhands: the `no-*` keywords DISABLE a default-on feature.
-  // fontkit's `font.layout(text, features)` only accepts an enable list, so we
-  // can't express "liga off" here — handle only the discretionary/historical
-  // enables, which are the ones authors add (the common case the fixture
-  // exercises). Disabling default ligatures is a known gap.
+  // Ligature longhands, transcribed from Blink's feature emission
+  // (`FontFeatureRange::FromFontDescription`,
+  // `platform/fonts/shaping/font_features.cc:54-86`, rev 7d859f27):
+  //   common disabled     → `liga` 0 + `clig` 0   (both on by default in HarfBuzz)
+  //   discretionary on    → `dlig` 1              (off by default)
+  //   historical on       → `hlig` 1              (off by default)
+  //   contextual disabled → `calt` 0              (on by default)
+  // `none` computes to every state disabled, so it emits the three disables and
+  // no enables. Disables are expressed as HarfBuzz feature strings (`-liga`);
+  // runs carrying one are routed through HarfBuzz shaping, since fontkit's
+  // enable-only list cannot switch a default-on feature off (see
+  // `font-features.ts`). Blink additionally forces the common/contextual
+  // disables when `letter-spacing` is non-zero or `text-rendering:
+  // optimizeSpeed` (`font_features.cc:52-57`); neither input reaches this
+  // function today — tracked as a follow-up.
+  //
+  // The negative lookbehinds matter: `\bdiscretionary-ligatures\b` also matches
+  // inside `no-discretionary-ligatures` (`-` is a word boundary), so the plain
+  // patterns read the no- keywords as enables.
   const lig = ligatures ?? "";
-  if (/\bdiscretionary-ligatures\b/.test(lig)) out.push("dlig");
-  if (/\bhistorical-ligatures\b/.test(lig)) out.push("hlig");
-  if (/\bcontextual\b/.test(lig)) out.push("calt");
+  if (/\bnone\b/.test(lig)) {
+    out.push("-liga", "-clig", "-calt");
+  } else {
+    if (/\bno-common-ligatures\b/.test(lig)) out.push("-liga", "-clig");
+    if (/(?<!no-)\bdiscretionary-ligatures\b/.test(lig)) out.push("dlig");
+    if (/(?<!no-)\bhistorical-ligatures\b/.test(lig)) out.push("hlig");
+    if (/\bno-contextual\b/.test(lig)) out.push("-calt");
+    else if (/\bcontextual\b/.test(lig)) out.push("calt");
+  }
   return out.length > 0 ? out : undefined;
 }
 
@@ -1091,8 +1121,19 @@ export function resolveFontVariantFeatures(
 // CSS syntax (per CSS Fonts 4 §6.4):
 //   font-feature-settings: <feature-tag-value> #
 //   <feature-tag-value> = <opentype-tag> [ <integer [0,∞]> | on | off ]?
-//   Default value when omitted is 1 (enabled). 0 / `off` means disabled —
-//   omit from the list so fontkit's defaults / other enables aren't shadowed.
+//   Default value when omitted is 1 (enabled).
+//
+// Every entry is kept, VALUE INCLUDED, the way Blink keeps it: each setting is
+// appended to the HarfBuzz feature array verbatim
+// (`FontFeatureRange::FromFontDescription`,
+// `platform/fonts/shaping/font_features.cc:203-225`, rev 7d859f27), and
+// HarfBuzz honors a zero by leaving the feature's lookup mask unset. Entries
+// are HarfBuzz feature strings: `tag` (value 1), `-tag` (value 0), `tag=N`
+// (N > 1). A previous revision DROPPED zero/off entries as an accommodation of
+// fontkit's enable-only list, which made `font-feature-settings: "liga" 0`
+// render WITH ligatures where Chrome renders without — the disable now
+// survives parsing, and runs carrying one are shaped by HarfBuzz (see
+// `font-features.ts` / `fontFeatureValueShapingOverride`).
 export function parseFontFeatureSettings(css: string | undefined): string[] | undefined {
   if (css == null || css === "" || css === "normal") return undefined;
   const out: string[] = [];
@@ -1102,20 +1143,23 @@ export function parseFontFeatureSettings(css: string | undefined): string[] | un
   while ((m = re.exec(css)) != null) {
     const tag = m[1];
     const value = m[2];
-    const enabled = value == null || value === "on" || (value !== "off" && parseInt(value, 10) !== 0);
-    if (enabled) {
-      // DM-1267: map `numr` / `dnom` to `sups` / `subs`. Authors use bare
-      // `font-feature-settings: "numr"` as a faux-superscript (Apple's
-      // `sup.footnote` footnote numbers). Chrome/HarfBuzz apply `numr` on
-      // explicit request and substitute the font's small raised numerator glyph,
-      // but fontkit only fires the font's `numr`/`dnom` GSUB lookups inside a
-      // `frac` run (they're frac-contextual in SF Pro / most fonts), so a bare
-      // `numr` is a no-op and the digit renders full-size on the baseline. `sups`
-      // / `subs` ARE applied standalone by fontkit and select near-identical
-      // glyphs (same advance; SF Pro's sups "1" sits ~0.8px higher than its numr
-      // "1" at 19px) — a faithful stand-in that reproduces the small raised mark.
-      out.push(tag === "numr" ? "sups" : tag === "dnom" ? "subs" : tag);
+    const num = value == null || value === "on" ? 1 : value === "off" ? 0 : parseInt(value, 10);
+    if (num === 0) {
+      out.push(`-${tag}`);
+      continue;
     }
+    // DM-1267: map `numr` / `dnom` to `sups` / `subs`. Authors use bare
+    // `font-feature-settings: "numr"` as a faux-superscript (Apple's
+    // `sup.footnote` footnote numbers). Chrome/HarfBuzz apply `numr` on
+    // explicit request and substitute the font's small raised numerator glyph,
+    // but fontkit only fires the font's `numr`/`dnom` GSUB lookups inside a
+    // `frac` run (they're frac-contextual in SF Pro / most fonts), so a bare
+    // `numr` is a no-op and the digit renders full-size on the baseline. `sups`
+    // / `subs` ARE applied standalone by fontkit and select near-identical
+    // glyphs (same advance; SF Pro's sups "1" sits ~0.8px higher than its numr
+    // "1" at 19px) — a faithful stand-in that reproduces the small raised mark.
+    const mapped = tag === "numr" ? "sups" : tag === "dnom" ? "subs" : tag;
+    out.push(num === 1 ? mapped : `${mapped}=${num}`);
   }
   return out.length > 0 ? out : undefined;
 }
@@ -1342,7 +1386,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     ascentOverride: renderAscent, features, lang: el.styles.lang, variationSettings,
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
     dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiOverrideFor(el),
-    fontStretch: el.styles.fontStretch,
+    fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),
   });
   if (result != null) {
     // baselineY = textTop + fontAscent. Using fontSize here would put the
@@ -1598,6 +1642,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       features: segFeatures, lang: el.styles.lang, variationSettings: elVariationSettings,
       textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
       bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+      fontVariantEmoji: fontVariantEmojiOf(el.styles),
     });
     if (result != null) { segParts.push(result); }
     else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
@@ -1702,6 +1747,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+        fontVariantEmoji: fontVariantEmojiOf(el.styles),
       });
       if (result != null) parts.push(`  ${result}`);
     }
@@ -1717,6 +1763,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+        fontVariantEmoji: fontVariantEmojiOf(el.styles),
       });
       if (result != null) parts.push(`  ${result}`);
     }
@@ -1781,6 +1828,7 @@ export function renderInputText(opts: RenderTextOpts): string {
         features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+        fontVariantEmoji: fontVariantEmojiOf(el.styles),
       });
       if (segResult != null) segParts.push(segResult);
     }
@@ -1792,6 +1840,7 @@ export function renderInputText(opts: RenderTextOpts): string {
     features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
     bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+    fontVariantEmoji: fontVariantEmojiOf(el.styles),
   });
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or

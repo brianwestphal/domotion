@@ -1190,7 +1190,11 @@ const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest)
     // under `zh-Hans`, so a locale-blind key on a multilingual page serves
     // whichever language asked first to every later run. Wrong quietly, in a way
     // that reads as a font-inventory problem rather than as a cache defect.
-    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}`;
+    // `monoEmojiReplacement` joins for the same reason the rest of the
+    // description does: it changes the answer (Apple Color Emoji vs the
+    // monochrome cascade), so a key blind to it would serve a color answer
+    // to a forced-text ask or vice versa.
+    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}\u0000${req.monoEmojiReplacement === true ? 1 : 0}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -1265,6 +1269,16 @@ export interface SystemFallbackRequest {
   /** CSS `font-stretch` as a percentage (100 = normal). Only consulted for the
    *  `systemUi` base, mirroring `MatchSystemUIFont`'s `desired_width`. */
   stretch?: number;
+  /** macOS only: apply Blink's monochrome-emoji replacement inside the helper —
+   *  when the cascade answers "Apple Color Emoji" for this ask, re-ask
+   *  `CTFontCreateForString` from an "Apple Symbols" base carrying the color
+   *  font's default cascade list (`GetSubstituteFont`,
+   *  `mac/font_cache_mac.mm:156-184`, rev 7d859f27). The caller sets it where
+   *  Blink's gate holds: a non-emoji-presentation (kText-priority) ask on a
+   *  `Character::IsEmoji` codepoint — today that is the `font-variant-emoji:
+   *  text` override. An older helper binary ignores the field and answers the
+   *  color font (the pre-override behavior). */
+  monoEmojiReplacement?: boolean;
 }
 
 /** Authoritative per-codepoint system font fallback, matching Chrome-on-macOS.
@@ -1435,6 +1449,10 @@ export function buildFallbackEnvelope(
           // so an older Node side against a newer helper degrades to the
           // previous behavior rather than to no locale at all.
           ...(req.locale != null && req.locale !== "" ? { locale: req.locale } : {}),
+          // macOS only — Blink's monochrome-emoji replacement inside
+          // `GetSubstituteFont` (see `SystemFallbackRequest.monoEmojiReplacement`).
+          // An older helper ignores the field and answers the color font.
+          ...(req.monoEmojiReplacement === true ? { monoEmoji: true } : {}),
         }
         : {}),
     }],

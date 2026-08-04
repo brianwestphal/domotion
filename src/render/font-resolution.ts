@@ -2090,7 +2090,20 @@ function resolveSystemFallbackKeyForCp(
    *  cascade BASE — it selects which cut of the primary family the substitute is
    *  asked from, the same way weight and slant do. */
   stretch: number = 100,
+  /** The run's `font-variant-emoji` override (`normal` = undefined). `text`
+   *  forces the fallback priority to `kText`
+   *  (`ApplyFontVariantEmojiOnFallbackPriority`, `shaping/harfbuzz_shaper.cc:184-198`,
+   *  rev 7d859f27) BEFORE any platform stage reads it — so the emoji-presentation
+   *  special-casing here (the macOS Apple Color Emoji short-circuit, the Linux
+   *  U+1F46A/`und-Zsye` substitution, the Linux bold-retry exclusion) must not
+   *  fire for an `Emoji` codepoint. Measured: under `text`, U+26A1 resolves to
+   *  Apple Symbols and U+2B50 to STIX Two Math instead of Apple Color Emoji —
+   *  exactly what the suppressed cascade finds. (`emoji` is handled UPSTREAM:
+   *  `resolveFontForCodepointInner` routes to the color-emoji face before this
+   *  stage is reached.) */
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): string | null {
+  const suppressEmojiPresentation = fontVariantEmoji === "text" && isEmojiCharCp(cp);
   const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
       const base = fallbackBaseFor(primaryKey, weight, fontSize, slant, stretch);
   // The base joins the cache key for the same reason the CSS description does:
@@ -2100,7 +2113,7 @@ function resolveSystemFallbackKeyForCp(
   // function of it, so a lang-blind key would serve whichever locale asked first
   // to every later caller — and on a multilingual page that is silently wrong
   // rather than loudly broken.
-  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}`;
+  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and
@@ -2176,7 +2189,8 @@ function resolveSystemFallbackKeyForCp(
       // cannot reproduce run segmentation in general; this is the one place the
       // difference is measurable, and without the exclusion the fix trades 1,698
       // fixed rows for 15 newly-broken ones.
-      if (/\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))
+      if (!suppressEmojiPresentation
+          && /\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))
           && !/\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp))) {
         const emoji = resolveInstalledFont(COLOR_EMOJI_FONT_MAC);
         if (emoji != null && emoji.path !== "" && emoji.postscriptName !== "") {
@@ -2199,6 +2213,21 @@ function resolveSystemFallbackKeyForCp(
         // carries its own cascade list, and that list is what reaches Apple's
         // hidden `.…UI` variants.
         ...(useSystemUiBase ? { systemUi: true } : {}),
+        // Blink's monochrome-emoji replacement inside `GetSubstituteFont`
+        // (`mac/font_cache_mac.mm:156-184`, rev 7d859f27): a color-emoji
+        // answer to a kText-priority ask on an `Emoji` character is re-asked
+        // from an "Apple Symbols" base carrying the color font's cascade list.
+        // It is what produces the measured `font-variant-emoji: text` answers:
+        // ⚡ U+26A1 → Apple Symbols (covers it directly), ⭐ U+2B50 → STIX Two
+        // Math (via the cascade), 😀 U+1F600 → back to Apple Color Emoji (no
+        // monochrome face exists in the cascade). Gated on the forced-text
+        // suppression: in the default pipeline an emoji-presentation run never
+        // reaches this stage (the short-circuit above answers first). Whether
+        // a DEFAULT kText run on a text-default emoji character should also
+        // set it (Blink applies the replacement to any such ask) is tracked as
+        // a follow-up — flipping it here changes answers the conformance
+        // baseline has already scored.
+        ...(suppressEmojiPresentation ? { monoEmojiReplacement: true } : {}),
       }).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
@@ -2244,7 +2273,7 @@ function resolveSystemFallbackKeyForCp(
       //
       // `kBoldThreshold` is 600 (`font_description.h`), the same constant the
       // helper already uses for the synthetic-bold trait.
-      if (!isEmojiPresentationCp(cp) && (slant !== 0 || weight >= 600) && primaryKey != null) {
+      if ((suppressEmojiPresentation || !isEmojiPresentationCp(cp)) && (slant !== 0 || weight >= 600) && primaryKey != null) {
         // The standard-style face of the SAME family. `getFontInstance` is
         // memoised, so this costs a map hit after the first bold codepoint.
         const standard = getFontInstance(primaryKey, 400, fontSize, 0);
@@ -2262,7 +2291,7 @@ function resolveSystemFallbackKeyForCp(
       // by `_systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
       // Calibrated against Chromium-on-noble paint — see the flag comment above
       // and docs/80.
-      key = resolveLinuxSystemFallbackKeyForCp(cp, lang);
+      key = resolveLinuxSystemFallbackKeyForCp(cp, lang, suppressEmojiPresentation ? false : undefined);
     } else if (process.platform === "win32") {
       // DM-1403: DirectWrite IDWriteFontFallback::MapCharacters via the win32
       // glyph helper. The helper speaks the same platform-agnostic "fallback"
@@ -2399,6 +2428,106 @@ export function isEmojiPresentationCp(cp: number): boolean {
   return /\p{Emoji_Presentation}/u.test(ch) && !/\p{Emoji_Modifier}/u.test(ch);
 }
 
+/**
+ * CSS `font-variant-emoji` values that override presentation (`normal` — no
+ * override — is expressed as `undefined` throughout the pipeline).
+ *
+ * Blink turns the property into two mechanisms (rev 7d859f27):
+ *  1. a fallback-priority override — `ApplyFontVariantEmojiOnFallbackPriority`
+ *     (`shaping/harfbuzz_shaper.cc:184-198`) forces the run to `kEmojiEmoji`
+ *     (`emoji`) or `kText` (`text`) unless the priority came from an explicit
+ *     VS15/VS16 in the text (`HasVSFallbackPriority`);
+ *  2. a forced variation selector in the glyph lookup —
+ *     `GetVariationSelectorModeFromFontVariantEmoji`
+ *     (`shaping/variation_selector_mode.cc:19-32`) maps `text`→VS15,
+ *     `emoji`→VS16, `unicode`→the codepoint's Unicode default, and
+ *     `HarfBuzzGetGlyph` (`shaping/harfbuzz_face.cc:127-206`) then treats a
+ *     candidate face with the WRONG presentation as having no glyph
+ *     (`kUnmatchedVSGlyphId`), so the cascade moves on. When no face with the
+ *     requested presentation exists anywhere, the shaper resets the fallback
+ *     queue and re-resolves ignoring the selector
+ *     (`harfbuzz_shaper.cc:1010-1020`) — which is why `font-variant-emoji:
+ *     text` on U+1F600 still paints the color font.
+ */
+export type FontVariantEmojiOverride = "text" | "emoji" | "unicode";
+
+/**
+ * Blink's `Character::IsEmoji` — the Unicode `Emoji` property. This is the
+ * gate for the forced variation selector (`harfbuzz_face.cc:137-139`), and it
+ * INCLUDES the keycap bases (`0-9`, `#`, `*`): measured on the pinned Chrome,
+ * `font-variant-emoji: emoji` really does move a bare digit `5` and `#` from
+ * Helvetica to Apple Color Emoji (CDP `getPlatformFontsForNode`).
+ */
+export function isEmojiCharCp(cp: number): boolean {
+  return /\p{Emoji}/u.test(String.fromCodePoint(cp));
+}
+
+/**
+ * Does `fve` force EMOJI presentation for this codepoint? `emoji` forces VS16
+ * for every `Emoji` codepoint (`harfbuzz_face.cc:156-160`,
+ * kForceVariationSelector16); `unicode` only where the Unicode default is
+ * already emoji presentation (`IsEmojiEmojiDefault`, same lines) — measured:
+ * under `unicode`, U+26A1 moves OFF a covering Apple Symbols primary to Apple
+ * Color Emoji, while text-default U+2764 stays on its normal cascade.
+ */
+export function forcesEmojiPresentation(cp: number, fve: FontVariantEmojiOverride | undefined): boolean {
+  if (fve === "emoji") return isEmojiCharCp(cp);
+  if (fve === "unicode") return isEmojiPresentationCp(cp);
+  return false;
+}
+
+/** Is `key` the platform color-emoji face — the fonts the emoji-presentation
+ *  stages register (`sysfb:AppleColorEmoji` / `.AppleColorEmojiUI` on macOS,
+ *  Noto Color Emoji on Linux, Segoe UI Emoji on Windows)? Used by the renderer
+ *  to decide whether a forced-text-presentation codepoint still needs the
+ *  raster-emoji overlay (the cascade found no monochrome face — Blink's
+ *  ignore-VS reset) or paints as a normal path glyph. */
+export function isColorEmojiFontKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return k.includes("applecoloremoji") || k.includes("notocoloremoji")
+    || k.includes("noto color emoji") || k.includes("segoe-ui-emoji") || k.includes("seguiemj");
+}
+
+/**
+ * The platform color-emoji face for `cp` under FORCED emoji presentation, or
+ * null when it does not cover `cp` (Blink then resets and resolves normally —
+ * `harfbuzz_shaper.cc:1010-1020`).
+ *
+ * Per-platform, each the same stage Blink runs for a `kEmojiEmoji`-priority
+ * run: macOS `mac/font_cache_mac.mm:319-324` (by-name "Apple Color Emoji"),
+ * Linux `linux/font_cache_linux.cc:71-77` + `:89-93` (the U+1F46A/`und-Zsye`
+ * fontconfig substitution), Windows `font_fallback_win.cc` GetFallbackFamily
+ * under kEmojiEmoji (the color-emoji family list).
+ */
+function resolveColorEmojiKeyForCp(
+  cp: number, weight: number, fontSize: number, slant: number, lang: string | undefined,
+): string | null {
+  let key: string | null = null;
+  try {
+    if (process.platform === "darwin") {
+      const emoji = resolveInstalledFont(COLOR_EMOJI_FONT_MAC);
+      if (emoji != null && emoji.path !== "" && emoji.postscriptName !== "") {
+        key = `sysfb:${emoji.postscriptName}`;
+        registerDynamicSystemFont(key, emoji.path, emoji.postscriptName);
+      }
+    } else if (process.platform === "linux") {
+      key = resolveLinuxSystemFallbackKeyForCp(cp, lang, true);
+    } else if (process.platform === "win32") {
+      // The kEmojiEmoji nomination from Blink's hardcoded stage: the first
+      // installed family of the color-emoji list (`WIN_COLOR_EMOJI_FONTS`).
+      for (const k of win32FallbackChainWithPriority(cp, "emoji-emoji", lang)) { key = k; break; }
+    }
+  } catch { key = null; }
+  if (key == null) return null;
+  // Blink's fallback iterator only uses a stage's font when it actually has a
+  // glyph for the character; a non-covering color font falls through to the
+  // reset. The keycap bases are the measured example of covered-but-unexpected:
+  // Apple Color Emoji's cmap really does map a plain digit.
+  const inst = getFontInstance(key, weight, fontSize, slant);
+  if (inst == null || glyphIdForCp(inst, cp) === 0) return null;
+  return key;
+}
+
 /** `uchar::kFamily` — U+1F46A FAMILY. Blink asks fontconfig about THIS instead
  *  of the run's actual emoji (`linux/font_cache_linux.cc:71-77`). */
 const BLINK_EMOJI_FALLBACK_CP = 0x1f46a;
@@ -2416,12 +2545,25 @@ const BLINK_COLOR_EMOJI_LOCALE = "und-Zsye";
  *
  * Exported for tests; not in the package barrel.
  */
-export function blinkEmojiFallbackQuery(cp: number, lang?: string): { cp: number; lang?: string } {
-  if (!isEmojiPresentationCp(cp)) return { cp, lang };
+export function blinkEmojiFallbackQuery(
+  cp: number, lang?: string,
+  /** The run's effective emoji presentation. Defaults to the codepoint's own
+   *  (`IsEmojiPresentationEmoji` per-codepoint reading); `font-variant-emoji`
+   *  overrides it — `emoji` forces true, `text` forces false — because Blink
+   *  applies `ApplyFontVariantEmojiOnFallbackPriority` BEFORE this stage reads
+   *  the priority (`harfbuzz_shaper.cc:983-984`, rev 7d859f27). */
+  emojiPresentation?: boolean,
+): { cp: number; lang?: string } {
+  if (!(emojiPresentation ?? isEmojiPresentationCp(cp))) return { cp, lang };
   return { cp: BLINK_EMOJI_FALLBACK_CP, lang: BLINK_COLOR_EMOJI_LOCALE };
 }
 
-function resolveLinuxSystemFallbackKeyForCp(cp: number, lang?: string): string | null {
+function resolveLinuxSystemFallbackKeyForCp(
+  cp: number, lang?: string,
+  /** The run's effective emoji presentation (see `blinkEmojiFallbackQuery`);
+   *  `font-variant-emoji` overrides the per-codepoint default. */
+  emojiPresentation?: boolean,
+): string | null {
   // DM-1895: an emoji-presentation run asks fontconfig a DIFFERENT question —
   // Blink substitutes both the character and the locale before the query
   // (`linux/font_cache_linux.cc:71-77` and `:89-93`, rev 7d859f27):
@@ -2448,7 +2590,7 @@ function resolveLinuxSystemFallbackKeyForCp(cp: number, lang?: string): string |
   // DM-1884 (a by-name Apple Color Emoji lookup, mirroring
   // `mac/font_cache_mac.mm:319-324`); this is the Linux equivalent, and it is a
   // different mechanism because Blink's is.
-  ({ cp, lang } = blinkEmojiFallbackQuery(cp, lang));
+  ({ cp, lang } = blinkEmojiFallbackQuery(cp, lang, emojiPresentation));
   // DM-1886: ask fontconfig the way Chrome does, when the helper can.
   //
   // Blink is `linux/font_cache_linux.cc:89-97` → `gfx::GetFallbackFontForChar(c,
@@ -2593,8 +2735,9 @@ const fallbackFamilyCutCache = new Map<string, string | null>();
 export function __resolveSystemFallbackKeyForCpForTest(
   cp: number, weight = 400, slant = 0, fontSize = 16,
   primaryKey?: string, systemUiPrimary = false, lang?: string, stretch = 100,
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): string | null {
-  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch);
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji);
 }
 
 /** Test-only window into the platform path resolver (DM-258). */
@@ -3445,6 +3588,27 @@ export function win32FallbackChain(
   // resolver — see `win32DeferOrStatic`.
   const generatedKey = lookupWin32UnicodeFontRange(codepoint);
   if (generatedKey != null) keys.push(...win32DeferOrStatic(codepoint, [generatedKey]));
+  return keys;
+}
+
+/**
+ * The Windows hardcoded-stage nomination under a FORCED fallback priority —
+ * what `font-variant-emoji: emoji` produces: `ApplyFontVariantEmojiOnFallbackPriority`
+ * (`shaping/harfbuzz_shaper.cc:184-198`, rev 7d859f27) sets the run's priority
+ * to `kEmojiEmoji` before any platform stage runs, and `GetFallbackFamily`
+ * (`win/font_fallback_win.cc:500-607`) then nominates the first installed
+ * color-emoji family instead of consulting the per-block table.
+ */
+function win32FallbackChainWithPriority(
+  codepoint: number, priority: "emoji-emoji" | "emoji-text", lang?: string,
+): string[] {
+  const families = blinkWinHardcodedFamilies(codepoint, { lang, priority },
+    (family) => win32FamilyKey(family) != null);
+  const keys: string[] = [];
+  for (const family of families) {
+    const key = win32FamilyKey(family);
+    if (key != null) keys.push(key);
+  }
   return keys;
 }
 
@@ -6850,9 +7014,11 @@ export function codepointResolvesToNotdef(
   systemUiPrimary: boolean = false,
   /** CSS `font-stretch` as a percentage, 100 = `normal`. */
   stretch: number = 100,
+  /** The run's `font-variant-emoji` override (`normal` = undefined) — the
+   *  probe must ask the exact question the resolver answers, override included. */
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): boolean {
-  return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-    variationSettings, lang, fontKeyChain, systemUiPrimary, stretch).covered;
+  return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji).covered;
 }
 
 /**
@@ -7021,6 +7187,49 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   if (src != null) fontSourceMap.set(proxy as unknown as object, src);
 }
 
+/**
+ * Route a run whose feature list carries a DISABLE (`-liga`) or an explicit
+ * value (`aalt=2`) through HarfBuzz shaping, so the feature state is honored
+ * the way Chrome honors it.
+ *
+ * Blink appends every `font-feature-settings` entry to the HarfBuzz feature
+ * array with its value intact (`FontFeatureRange::FromFontDescription`,
+ * `platform/fonts/shaping/font_features.cc:203-225`, rev 7d859f27); HarfBuzz
+ * expresses a zero by leaving the feature's lookup mask unset (GSUB) or
+ * selecting the feature's OFF selector (AAT — `hb-aat-map.cc:79`, rev 4de187d).
+ * fontkit's `layout(text, features)` is enable-only and the platform glyph
+ * helpers ignore the list entirely, so without this reroute a run declaring
+ * `font-feature-settings: "liga" 0` rendered WITH ligatures — measured on
+ * Times ("office waffle affix flight", 24px): Chrome paints 26 glyphs under
+ * the disable and our side kept painting 22.
+ *
+ * Same construction as `harfbuzzShapedScriptOverride`: HarfBuzz supplies the
+ * shaping (ids, positions, clusters), the base instance supplies the outlines
+ * (`outlinesFromBase`), and the run keeps its resolved face. Returns the base
+ * unchanged when the key has no on-disk file HarfBuzz can open (a webfont
+ * buffer, an unresolvable key) — the run then keeps its previous shaping, and
+ * the disable stays unexpressed there (a documented residual).
+ */
+export function fontFeatureValueShapingOverride(
+  base: FontInstance,
+  fontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  /** The run's FULL feature list (HarfBuzz feature strings, disables and
+   *  values included) — bound into the proxy, which is the one consumer that
+   *  receives the unprojected list. */
+  features: string[],
+): FontInstance {
+  const hbFace = shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings);
+  if (hbFace == null) return base;
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
+  if (hbInst === base) return base; // HarfBuzz declined the file
+  carryFontInstanceMetadata(hbInst, base);
+  return hbInst;
+}
+
 export function resolveFontForCodepoint(
   cp: number,
   primaryFont: FontInstance,
@@ -7035,10 +7244,15 @@ export function resolveFontForCodepoint(
   /** CSS `font-stretch` as a percentage (100 = `normal`). Reaches the cascade
    *  base, which Blink takes from the face the run is actually painting in. */
   stretch: number = 100,
+  /** The run's `font-variant-emoji` override (`normal` = undefined). Callers
+   *  that can see the NEXT codepoint pass undefined when it is an explicit
+   *  VS15/VS16 — the property must not override an explicit selector
+   *  (`HasVSFallbackPriority` guard, `harfbuzz_shaper.cc:184-198`, rev 7d859f27). */
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): FontResolution {
   return harfbuzzShapedScriptOverride(
     cp,
-    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch),
+    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji),
     primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings,
   );
 }
@@ -7058,10 +7272,30 @@ function resolveFontForCodepointInner(
    *  see `stackPrimaryIsSystemUi` for why it travels separately. */
   systemUiPrimary: boolean = false,
   stretch: number = 100,
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): FontResolution {
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     ({ key, fontOverride, emitCh, decomposed, covered: true });
+
+  // `font-variant-emoji: emoji` (and `unicode`, for emoji-default codepoints)
+  // forces VS16 in every glyph lookup, so a candidate WITHOUT color presentation
+  // reads as having no glyph and the cascade lands on the color-emoji font —
+  // even over a covering primary (`HarfBuzzGetGlyph`,
+  // `shaping/harfbuzz_face.cc:127-206` + `ApplyFontVariantEmojiOnFallbackPriority`,
+  // `harfbuzz_shaper.cc:184-198`, rev 7d859f27). Measured: bare U+2764 moves
+  // ZapfDingbats → Apple Color Emoji, a covered U+263A moves Helvetica → Apple
+  // Color Emoji, and even digit `5` moves (the `Emoji` property includes the
+  // keycap bases). When the color font does not cover the codepoint, Blink
+  // resets the queue and resolves ignoring the selector
+  // (`harfbuzz_shaper.cc:1010-1020`) — the fall-through below.
+  if (forcesEmojiPresentation(cp, fontVariantEmoji)) {
+    const emojiKey = resolveColorEmojiKeyForCp(cp, weight, fontSize, slant, lang);
+    if (emojiKey != null) {
+      const inst = emojiKey === primaryFontKey ? null : getFontInstance(emojiKey, weight, fontSize, slant);
+      return cover(emojiKey, inst);
+    }
+  }
 
   // DM-1197: complex-script letters with a canonical base+mark NFD (e.g. Kaithi
   // U+110AB VA) shape DIFFERENTLY in Chrome (HarfBuzz decomposes + GPOS-positions
@@ -7221,7 +7455,7 @@ function resolveFontForCodepointInner(
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch, fontVariantEmoji);
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
