@@ -26,9 +26,35 @@ function arabicFontPath(): { path: string; ps?: string } | null {
 }
 
 const arabic = arabicFontPath();
+
+/**
+ * Does that face actually COVER Arabic?
+ *
+ * A path existing is not the same question. On `ubuntu-latest` the Linux path
+ * table resolves `sf-arabic` to a file that is present but carries no Arabic
+ * cmap entries, so both the shaped ids and the naive per-codepoint ids come
+ * back all-`.notdef` — and the discriminating assertion below ("shaped must
+ * DIFFER from naive") compares two arrays of zeros and fails. It failed for the
+ * absence of a font, not for the absence of shaping, which is the opposite of
+ * what it is meant to detect.
+ *
+ * Note the pinned Playwright `noble` container DOES have Arabic coverage, so
+ * `npm run test:linux-docker` passes while CI's barer `ubuntu-latest` does not.
+ * "It passes on Linux" was therefore not one claim but two, and only the
+ * weaker one was ever checked.
+ */
+function coversArabic(): boolean {
+  if (arabic == null) return false;
+  try {
+    const shaper = makeFontkitShaper(arabic.path, arabic.ps);
+    const run = shaper?.("مرحبا");
+    return run != null && run.ids.some((id) => id !== 0);
+  } catch { return false; }
+}
+
 // Skipped rather than failed on a host with no Arabic face: the point is to pin
 // shaping behavior where a face exists, not to require one everywhere.
-const describeArabic = arabic != null ? describe : describe.skip;
+const describeArabic = coversArabic() ? describe : describe.skip;
 
 describeArabic("fontkit shaper for helper-backed faces (DM-1883)", () => {
   const shape = makeFontkitShaper(arabic!.path, arabic!.ps)!;
