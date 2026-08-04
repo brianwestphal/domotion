@@ -3,7 +3,7 @@
     "suite": "font-conformance",
     "os": "linux",
     "image": "playwright-v1.59.1-noble-x64",
-    "capturedAt": "2026-08-04T04:00:38.931Z",
+    "capturedAt": "2026-08-04T08:25:03.927Z",
     "platform": "linux",
     "arch": "x64",
     "node": "v24.14.1",
@@ -11,7 +11,7 @@
     "icu": "78.2",
     "corpus": {
       "file": "tools/font-conformance-stacks.linux.json",
-      "generatedAt": "harvested:v1:1a18b7d657db20d0",
+      "generatedAt": "harvested:v2:5d0b526ac25f771f",
       "platform": "linux"
     },
     "slice": {
@@ -32,7 +32,7 @@
     "missingShards": [],
     "envConflicts": [],
     "complete": true,
-    "commit": "941b554bd597b70622d58031af2fb8398f24fdeb"
+    "commit": "aa10574beba8174d8387419fa6f78611ebd6570a"
   },
   "summary": {
     "comparisons": 1783614,

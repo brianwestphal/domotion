@@ -3,7 +3,7 @@
     "suite": "font-conformance",
     "os": "macos",
     "image": "macos26-arm64",
-    "capturedAt": "2026-08-04T04:07:51.915Z",
+    "capturedAt": "2026-08-04T08:34:06.765Z",
     "platform": "darwin",
     "arch": "arm64",
     "node": "v22.21.0",
@@ -11,7 +11,7 @@
     "icu": "77.1",
     "corpus": {
       "file": "tools/font-conformance-stacks.darwin.json",
-      "generatedAt": "harvested:v1:924f9d10b83d3f55",
+      "generatedAt": "harvested:v2:c4d398bbd23d229e",
       "platform": "darwin"
     },
     "slice": {
@@ -32,7 +32,7 @@
     "missingShards": [],
     "envConflicts": [],
     "complete": true,
-    "commit": "941b554bd597b70622d58031af2fb8398f24fdeb"
+    "commit": "aa10574beba8174d8387419fa6f78611ebd6570a"
   },
   "summary": {
     "comparisons": 1754796,

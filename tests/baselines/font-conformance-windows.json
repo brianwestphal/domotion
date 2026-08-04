@@ -3,7 +3,7 @@
     "suite": "font-conformance",
     "os": "windows",
     "image": "win25-vs2026-x64",
-    "capturedAt": "2026-08-04T04:08:18.094Z",
+    "capturedAt": "2026-08-04T08:31:47.045Z",
     "platform": "win32",
     "arch": "x64",
     "node": "v22.21.0",
@@ -11,7 +11,7 @@
     "icu": "77.1",
     "corpus": {
       "file": "tools/font-conformance-stacks.win32.json",
-      "generatedAt": "harvested:v1:b20a34b0f2eb3258",
+      "generatedAt": "harvested:v2:448094c44049a7f2",
       "platform": "win32"
     },
     "slice": {
@@ -32,7 +32,7 @@
     "missingShards": [],
     "envConflicts": [],
     "complete": true,
-    "commit": "941b554bd597b70622d58031af2fb8398f24fdeb"
+    "commit": "aa10574beba8174d8387419fa6f78611ebd6570a"
   },
   "summary": {
     "comparisons": 1754796,
