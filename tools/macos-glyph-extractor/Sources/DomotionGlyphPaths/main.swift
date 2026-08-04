@@ -1052,13 +1052,44 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
         if let urlAttr = CTFontCopyAttribute(substitute, kCTFontURLAttribute) as? URL {
             pathStr = urlAttr.path
         }
-        out.append([
+        var entry: [String: Any] = [
             "cp": Int(cp),
             "found": true,
             "postscriptName": psName,
             "familyName": familyName,
             "path": pathStr
-        ])
+        ]
+        // The substituted handle's variation axes plus its CURRENT position.
+        // Blink clones this typeface at `opsz` = the CSS specified size only
+        // when that differs from the handle's current position
+        // (`VariableAxisChangeEffective`, mac/font_platform_data_mac.mm:60-102),
+        // and CoreText PRE-SETS `opsz` on some substituted handles (visible via
+        // CTFontCopyVariation — measured: the 13 px cascade hands back
+        // `.SFArabic-Regular` already at opsz 17, while `.SFDevanagari-Regular`
+        // arrives with no variation set). So whether Chrome renames the face
+        // with baked-in coordinates is a property of THIS handle, not of the
+        // file — report the state so the Node side can mirror the clone gate.
+        if let axesArr = CTFontCopyVariationAxes(substitute) as? [[CFString: Any]] {
+            let currentDict = (CTFontCopyVariation(substitute) as NSDictionary?) ?? NSDictionary()
+            var ctAxes: [[String: Any]] = []
+            for a in axesArr {
+                guard let tagNum = (a[kCTFontVariationAxisIdentifierKey] as? NSNumber)?.int64Value,
+                      let mn = (a[kCTFontVariationAxisMinimumValueKey] as? NSNumber)?.doubleValue,
+                      let mx = (a[kCTFontVariationAxisMaximumValueKey] as? NSNumber)?.doubleValue,
+                      let df = (a[kCTFontVariationAxisDefaultValueKey] as? NSNumber)?.doubleValue
+                else { continue }
+                let tag = String([
+                    Character(UnicodeScalar(UInt32((tagNum >> 24) & 0xff))!),
+                    Character(UnicodeScalar(UInt32((tagNum >> 16) & 0xff))!),
+                    Character(UnicodeScalar(UInt32((tagNum >> 8) & 0xff))!),
+                    Character(UnicodeScalar(UInt32(tagNum & 0xff))!)
+                ])
+                let cur = (currentDict[NSNumber(value: tagNum)] as? NSNumber)?.doubleValue ?? df
+                ctAxes.append(["tag": tag, "min": mn, "def": df, "max": mx, "value": cur])
+            }
+            if !ctAxes.isEmpty { entry["ctAxes"] = ctAxes }
+        }
+        out.append(entry)
     }
     return ["type": "fallback", "fonts": out]
 }

@@ -1372,6 +1372,32 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    Both resolvers return no location when nothing moves off the file's
    defaults, so an unvaried face is never needlessly cloned or split into a
    duplicate embedded subset.
+
+   For a live-resolver (`sysfb:`) face, the helper instance is additionally
+   stamped with `FontInstance.instantiatedPostscriptName` — the PostScript name
+   Chrome would report when Blink CLONES the substituted typeface at a
+   non-default axis location. Both halves mirror the upstream mechanism
+   (`darwinCloneInstanceName`): the GATE is Blink's and is HANDLE-relative —
+   the clamped `opsz` target (and any `font-variation-settings` axis) must
+   differ from the substituted handle's CURRENT position
+   (`VariableAxisChangeEffective`), which the macOS helper reports with each
+   fallback answer (`SystemFallbackFont.ctAxes`, recorded per
+   key/weight/size/slant in `darwinHandleAxesMap`) because CoreText PRE-SETS
+   `opsz` on some cascade handles (`.SFArabic-Regular` arrives at opsz 17 from
+   a 13 px cascade and Blink never clones it; `.SFDevanagari-Regular` arrives
+   unset and clones). The NAME is CoreText's and is DEFAULT-relative: per-axis
+   `_tag` suffix in the face's axis order, uppercase hex 16.16 when off the
+   axis default, bare tag at default; the member base name for a named-instance
+   face; a location landing exactly on a named instance takes that instance's
+   own name — every form measured against CoreText and confirmed against names
+   Chrome reports, e.g. `.SFDevanagari-Regular_opsz110000_wght` = opsz 17 for a
+   13 px run. The conformance oracle (doc 107) prefers this name over the base
+   `postscriptName`, which is what lets it adjudicate Chrome's
+   variable-instance names at the strongest tier; the renderer itself keeps
+   using the base name for helper queries and subsetting.
+   `resolveFaceInfoForFile` supplies `namedInstances` and
+   `memberPostscriptName`, and the HarfBuzz shaping proxy forwards the stamp
+   (`carryFontInstanceMetadata`) so a shaped-script override does not strip it.
 2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the

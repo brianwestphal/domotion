@@ -288,6 +288,15 @@ interface FallbackResponseEntry {
    *  named optical subfamilies at a fixed opsz at every font size). Absent for
    *  static faces, the macOS/Linux helpers, and older win32 binaries. */
   axes?: Record<string, number>;
+  /** macOS only: the substituted CTFont handle's variation axes (CT order) with
+   *  the handle's CURRENT position (`value` = CTFontCopyVariation overlay the
+   *  axis default). Blink clones the substituted typeface at `opsz` = the CSS
+   *  specified size only when that differs from this current position
+   *  (`VariableAxisChangeEffective`), and CoreText pre-sets `opsz` on SOME
+   *  substituted handles — so whether Chrome renames the face with baked-in
+   *  coordinates is a property of the handle, only observable here. Absent for
+   *  static faces and older helper binaries. */
+  ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
 }
 interface FamilyResponse {
   type: "family";
@@ -1129,6 +1138,10 @@ export interface SystemFallbackFont {
    *  reports this; macOS/Linux resolvers don't). See
    *  `FallbackResponseEntry.axes`. */
   resolvedAxes?: Record<string, number>;
+  /** macOS only: the substituted handle's variation axes + CURRENT position —
+   *  the state Blink's clone gate (`VariableAxisChangeEffective`) compares
+   *  against. See `FallbackResponseEntry.ctAxes`. */
+  ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
 }
 
 // Keyed on `<basePostscriptName>\u0000<cp>\u0000<weight>\u0000<italic>\u0000<size>`,
@@ -1446,7 +1459,7 @@ export function resolveSystemFallbackFonts(
   for (const e of r.fonts) {
     if (!asked.has(e.cp)) { outOfDomain++; continue; }
     const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
-      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes }
+      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes, ctAxes: e.ctAxes }
       : null;
     _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp, req), resolved);
     out.set(e.cp, resolved);
