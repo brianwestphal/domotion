@@ -54,11 +54,11 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 
 That leaves **292,466** codepoints, of which 137,468 are private use.
 
-**Stacks.** Extracted from the fixture corpus rather than invented — inventing them would reintroduce the sampling problem one level up. `--extract-stacks` loads all 1,115 fixtures under `external/html-test/` and `../html-test/unicode/` and records the *computed* `font-family` / `font-size` / `font-weight` / `font-style` / `font-stretch` / `font-variation-settings` of every element that directly contains text. On the current corpus that is **434 distinct combinations**, cached with the fixture count and one example fixture per entry, so any disagreement can be reproduced by hand. Re-run `--extract-stacks` when the corpus changes.
+**Stacks.** Extracted from the fixture corpus rather than invented — inventing them would reintroduce the sampling problem one level up. `--extract-stacks` loads all 1,115 fixtures under `external/html-test/` and `../html-test/unicode/` and records the *computed* `font-family` / `font-size` / `font-weight` / `font-style` / `font-stretch` / `font-variation-settings` / `font-feature-settings` of every element that directly contains text. On the current corpus that is **442 distinct combinations**, cached with the fixture count and one example fixture per entry, so any disagreement can be reproduced by hand. Re-run `--extract-stacks` when the corpus changes.
 
 Size is part of the key, not collapsed away: macOS optical cuts mean Chrome genuinely reports a different face at 16 px than at 32 px for the same family.
 
-**But the stack axis is bounded by the fixtures in a way the codepoint axis is not**, and that has to be read alongside every number below: "the oracle reports N mismatches" means "…for the 434 stacks we happened to harvest". The second corpus in the next section is the answer to that.
+**But the stack axis is bounded by the fixtures in a way the codepoint axis is not**, and that has to be read alongside every number below: "the oracle reports N mismatches" means "…for the 442 stacks we happened to harvest". The second corpus in the next section is the answer to that.
 
 ### The synthetic stack corpus — the axis the fixtures cannot reach
 
@@ -133,6 +133,23 @@ That is not tidiness. A stack corpus records *computed* style, and the computed 
 
 Sweeping the macOS corpus on Linux would therefore ask Chrome-on-Linux about a stack no page on Linux ever computes, for the stack that covers **1,114 of 1,115 fixtures**. It would not have failed; it would have produced a clean-looking number for the wrong question — the same instrument failure that has already cost this area twice (a table sampled from one machine's font inventory, and a Windows probe that recorded the run's primary font rather than the fallback). The guard exists so a future run cannot make that mistake quietly.
 
+#### The corpus is a function of the PLATFORM, not of the machine — measured
+
+This matters because re-extracting all three corpora otherwise requires three CI runs for every change to the extraction key, and because the reflex elsewhere in this document is to distrust anything measured on a developer machine. Here that reflex is wrong, and the difference is worth being precise about: a *conformance number* depends on the host's installed fonts, but a *corpus entry* is computed style — the declared family list verbatim, or Chrome's per-platform default preference where nothing is declared. Neither reads the font inventory.
+
+Re-extracting the same 1,115 fixtures off-CI and diffing against the committed corpora, which were extracted on the CI runners:
+
+| corpus | re-extracted on | entries only in the CI corpus | entries only in the local one |
+| --- | --- | ---: | ---: |
+| `linux` | the pinned `playwright:v1.59.1-noble` container, locally under Docker | 0 | 0 |
+| `win32` | a local Windows 11 ARM64 VM (a *different* OS edition and arch from the `win25-vs2026-x64` runner) | 0 | 0 |
+
+Compared on the stack key excluding the newly added property, so the comparison measures machine drift and not the change under test. Both reproduce their CI-extracted corpus exactly — including the Windows one, across a Windows 11 / Windows Server 2025 and ARM64 / x64 boundary.
+
+So `--extract-stacks` can be re-run off-CI when the extraction key changes. **Re-seeding a baseline cannot**, and the two must not be confused: a baseline records the mismatch counts, the runner image and the font-inventory digest, all three of which are machine-dependent, so a locally produced baseline is one the comparator will correctly refuse to compare against a CI run.
+
+To re-extract off-CI, place the two fixture trees where the corpus's recorded relative `sources` resolve (`external/html-test` and `../html-test/unicode`) and run `--extract-stacks` from that directory; the recorded `sources` and per-entry `example` labels must come out relative, since the corpus is committed and an absolute path pins one checkout's layout (`tests/font-conformance.test.ts` asserts this).
+
 ## How the probe page is built
 
 Correctness constraints, all of which cost throughput and all of which are load-bearing:
@@ -179,7 +196,8 @@ The instrument is only worth its exit code if its blind spots are written down r
 - **Variable faces instanced outside the macOS helper path cannot be adjudicated by name.** A variable file instanced through fontkit keeps the base master's PostScript name (`/System/Library/Fonts/SFNS.ttf` reports `.SFNS-Regular` at every weight) while Chrome names the optical/weight cut it selected, and a webfont's axis location is likewise invisible in its name. Those land in `agree-alias` or `same-family-different-cut`; the oracle can prove the FILE and the axis request but not the name. **That remainder is structural and stays** — the name-independent check lives in the sibling shaping oracle ([doc 108](108-shaping-conformance-oracle.md)), which compares painted glyph positions and so discriminates two instances of one name where this tool cannot. That sentence used to be an argument; it is now [measured](#the-variable-axis-blind-spot-measured-rather-than-asserted).
 
   The slice of this that used to dominate the macOS report is **closed, by naming rather than by allowlisting**: when Blink clones a CoreText fallback face at a non-default axis location (its rule — `opsz` = the CSS specified size, gated per axis on the clamped target differing from the substituted handle's CURRENT position: `VariableAxisChangeEffective`, `mac/font_platform_data_mac.mm:60-102` + `:167-195`, Chromium `7d859f27`), Chrome reports the clone's instantiated PostScript name with the coordinates baked in as hex 16.16 fixed point (`.SFDevanagari-Regular_opsz110000_wght` — 0x110000 / 65536 = opsz 17). The renderer now mirrors both halves for live-resolver faces: the macOS glyph helper reports the substituted handle's variation axes and current position with each fallback answer (CoreText PRE-SETS `opsz` on some handles — `.SFArabic-Regular` arrives from a 13 px cascade already at opsz 17, so Blink never clones it and Chrome keeps the base name, while `.SFDevanagari-Regular` arrives unset and clones), and `darwinCloneInstanceName` in `src/render/font-resolution.ts` runs Blink's gate against that state, then composes CoreText's name (per-axis `_tag` suffix in the face's axis order, hex when off the axis DEFAULT, bare tag at default; the member base name for a named-instance face; a location landing exactly on a named instance takes that instance's name — every form measured against CoreText and confirmed against a route name Chrome actually reported). The result is stamped as `FontInstance.instantiatedPostscriptName` and `faceFor` prefers it, so those rows are adjudicated at the strongest tier — and a genuine axis divergence between the two sides still surfaces, because the two names are composed independently from each side's own coordinates. This removed the ~30 `_opsz…`/`_wght…` routes (~2,400 rows) that the live CoreText resolver's arrival had surfaced on the macOS baseline; the gate's handle-relativity is load-bearing, since a file-default gate measurably manufactured ~3,700 inverse routes (us naming instances Chrome never clones) on a dev-Mac sweep.
-- **`font-feature-settings` is still not extracted**, so a fixture using it is swept as though it did not.
+- **`font-feature-settings` is extracted and declared, but this oracle deliberately does not adjudicate it** — it is not a face-selection input in Blink, and the shaping consequence belongs to [doc 108](108-shaping-conformance-oracle.md). See [the section below](#font-feature-settings--extracted-because-the-probe-page-needs-it-not-because-this-oracle-can-judge-it) for the citation and the measurement.
+- **`font-variant-alternates` and `font-variant-emoji` ARE face-selection inputs and are still not extracted.** Unlike `font-feature-settings`, both are hashed into `FontDescription::CacheKey` (`platform/fonts/font_description.cc:311-331`, checkout `7d859f27`) — `font_variant_alternates_` directly and `variant_emoji_` through the packed options word — so they can change which font data Chrome resolves. A fixture using either is swept as though it did not, and that one *is* a question this oracle could answer.
 - **One face per cell.** When a codepoint decomposes across two faces the oracle compares the one with the most glyphs; the full list survives in `chromeAllFaces`.
 - **Synthetic vs real cuts are compared by face, not by synthesis.** If Chrome synthesizes bold from a regular face it reports the regular face, so our picking a real bold sibling shows up — correctly — as a mismatch. That is the intended reading, but it means a `same-family-different-cut` row can mean either "we took the wrong cut" or "Chrome faked one".
 - **On Linux the `agree-same-file` tier can never fire.** That tier resolves Chrome's reported PostScript name to a file through `resolveInstalledFont`, and the Linux glyph helper implements no `family` query — the function is documented as always returning `null` there. So on Linux every agreement must be proven by name at the strongest tier or it is a mismatch. That makes the Linux number *stricter* than the macOS one in this respect, not weaker, but it is a difference between the platforms' instruments and not only between their fonts.
@@ -257,6 +275,32 @@ Those 17 newly-visible stacks measure **0 mismatches**. That is a real result ra
 So on this corpus and platform neither axis moves Chrome's output, and agreement is genuine.
 
 **Read that carefully, though: agreement here was genuine but blind.** `font-stretch` reached the *probe page* — so Chrome honored it — and nothing on our side. The 8 harvested stretch stacks could not detect that, because every one of them is a `sans-serif`/`Helvetica` route with no condensed cut to select. It took the synthetic corpus, which asks `fantasy` at 50%, to make the missing parameter visible; see "What it found immediately" above. The corollary that used to sit here — *nothing in the fixture corpus exercises a live variable axis, so the name-blindness is untested rather than passing* — is closed by the next section.
+
+### `font-feature-settings` — extracted because the probe page needs it, not because this oracle can judge it
+
+`font-feature-settings` is now part of the stack key, extracted from the computed style and declared on the probe page. The corpus grew **434 → 442 stacks** on all three platforms, surfacing **9 combinations with a non-normal `font-feature-settings`** (`"dlig"`/`"liga"` on and off, `"zero"`, `"ss01"`, `"ss02"`, `"salt"`, `"tnum"`; all from the `20-deep-font-features` fixture).
+
+**This closes a smaller hole than the two properties above it did, and saying which half is closed is the point of this section.** Stretch and variation settings are face-*selection* inputs, so extracting them let our resolver be asked a question it could get wrong. Feature settings are not, and the mechanism is explicit in the source (`external/chromium` at `7d859f27`, 2026-06-27):
+
+- `FontDescription::CacheKey` (`platform/fonts/font_description.cc:308-338`) hashes the creation params, effective size, a packed options word, `size_adjust_`, `variation_settings_`, `font_palette_` and `font_variant_alternates_`. **`feature_settings_` is not among them**, so two font descriptions differing only in their features share one cache key and therefore resolve to the same font data.
+- The only reader of `FontDescription::FeatureSettings()` in the tree is `FontFeatures::Initialize` (`platform/fonts/shaping/font_features.cc:203-216`), which appends each setting to the HarfBuzz feature array. Features act at **shaping** time, on which glyphs come out of a face — not on which face is chosen.
+
+Measured, rather than transcribed and assumed. Asking Chrome by CDP for both the reported face and the painted width of `Waffle 1/2 fi 0123` at 32 px, across 6 families × 8 feature settings:
+
+| | result |
+| --- | --- |
+| reported face moved with features | **0 of 42** combinations |
+| painted width moved with features | **11 of 42** combinations |
+
+`system-ui` is the sharpest case: the face is `.SFNS-Regular` under every setting, while the paint moves from 240.67 px to 189.92 px under `"frac" 1` (−21%), 260.47 px under `"smcp" 1`, and 254.11 px under `"tnum" 1`. `"liga" 0, "dlig" 0` moves Times and Helvetica by a few tenths of a pixel with the face unchanged.
+
+So there is deliberately **no resolver-side hook for it**, because there is nothing on our side for it to change — `getFontInstance` takes an axis map because axes select a face, and an equivalent "features" parameter would be a parameter that could not affect the return value. Adding one to look symmetric with `font-variation-settings` would be an approximation dressed as parity.
+
+What the extraction buys is therefore precise, and worth stating so a later reader does not mistake it for more:
+
+1. **The probe page now renders what the fixture renders.** Before this, a fixture declaring `"tnum"` or `"salt"` was asked about with features off, so Chrome shaped a different glyph run than the page under test. The reported face happened to be the same — but that is a fact about Blink that we now cite, not something the old page's silence established.
+2. **The corpus carries the property forward.** The shaping oracle ([doc 108](108-shaping-conformance-oracle.md)) is where a feature-driven glyph substitution can actually be adjudicated, since it compares painted glyph positions rather than face names. Its run corpus (`tools/shaping-conformance-runs.json`) is extracted separately and does **not** yet record feature settings; that gap is real and belongs to doc 108, not here.
+3. **The stack label only grows when the value is non-normal**, so all pre-existing `byStack` baseline keys are unchanged and a baseline's per-stack rows stay readable across this change. Only the corpus's `generatedAt` moved.
 
 ### The variable-axis blind spot, measured rather than asserted
 
@@ -473,6 +517,10 @@ These are the numbers `tests/baselines/font-conformance-<os>.json` records and t
 
 **They are first baselines, not achievements.** Two of the three platforms had never been measured at all before this run, and none of the three is anywhere near agreement. The value of writing them down is not that they are good — it is that a later change now has something definite to be worse than, and that the numbers immediately named a specific defect nobody knew about.
 
+> **All three are currently awaiting a re-seed, and the comparator will say so rather than judge.** Adding `font-feature-settings` to the extraction key required re-extracting all three corpora, which moved each corpus's `generatedAt` — a field `comparability()` checks. Until each platform's baseline is re-seeded from a fresh CI sweep (`.github/workflows/font-conformance.yml`, then `scripts/diff-font-conformance-baseline.mjs --update-baseline`), every run withholds its verdict and names `stack corpus generatedAt` as the field that moved.
+>
+> This is the intended behavior, not a break: the corpus genuinely changed (434 → 442 stacks). It is worth knowing that the change is *smaller* than the refusal implies — the six canonical baseline stacks are untouched and their `byStack` keys are byte-identical, because the stack label only grows when the new property is non-normal. The refusal is the comparator being unable to prove that from a timestamp, which is the correct trade for a harvested corpus. Re-seeding must happen on each platform's own runner; see [the section above](#the-corpus-is-a-function-of-the-platform-not-of-the-machine--measured) for why re-*extraction* may be done off-CI but re-*seeding* may not.
+
 | | macOS | Linux | Windows |
 | --- | ---: | ---: | ---: |
 | runner image | `macos26-arm64` | `playwright-v1.59.1-noble-x64` | `win25-vs2026-x64` |
@@ -550,7 +598,7 @@ Both developer numbers differ from their CI counterparts, and neither is "more c
 | Linux container (`playwright:v1.59.1-noble`, fontconfig) | ~110–200 | ~25–45 min |
 | Windows 11 ARM VM (DirectWrite helper) | ~47 | ~105 min |
 
-The Linux and Windows rates are dominated by one subprocess round trip per first-seen codepoint, not by Chrome. That is why the canonical slice is six stacks fanned one-per-shard rather than the whole 434-stack corpus: a full cross product is ~14 h per platform even on the fastest of the three.
+The Linux and Windows rates are dominated by one subprocess round trip per first-seen codepoint, not by Chrome. That is why the canonical slice is six stacks fanned one-per-shard rather than the whole 442-stack corpus: a full cross product is ~14 h per platform even on the fastest of the three.
 
 ## Baseline, 2026-07-29
 

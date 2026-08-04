@@ -127,6 +127,31 @@ export interface StackSpec {
    *  location the author asked for, which the resolver must honor and which
    *  changes the face we instance (docs/99). */
   fontVariationSettings?: string;
+  /**
+   * Computed `font-feature-settings` (e.g. `"smcp" 1, "liga" 0`).
+   *
+   * Recorded for a different reason than its two siblings above, and the
+   * difference is the whole point of the field. Stretch and variation settings
+   * are face-SELECTION inputs — Blink hashes `variation_settings_` into
+   * `FontDescription::CacheKey` (`platform/fonts/font_description.cc:308-338`),
+   * so two descriptions differing in them resolve to different font data.
+   * `feature_settings_` is deliberately absent from that key; its only consumer
+   * in the whole tree is `FontFeatures::Initialize`
+   * (`platform/fonts/shaping/font_features.cc:203-216`), which appends the
+   * settings to the HarfBuzz feature array at SHAPING time. (Chromium checkout
+   * `7d859f27`, 2026-06-27.)
+   *
+   * So this is not a question this oracle can answer — it is a question it must
+   * stop suppressing. Without the property the probe page renders a fixture's
+   * text with features off while the fixture renders it with them on, which is
+   * a difference in what Chrome is being asked about even when the reported
+   * face is the same. Recording it also carries the information forward to the
+   * shaping oracle (docs/108), which is where the consequence lives.
+   *
+   * Optional so a corpus file extracted before this landed still parses;
+   * absent is read as `normal`, i.e. exactly the old behavior.
+   */
+  fontFeatureSettings?: string;
   /** How many corpus fixtures contain at least one element with this combination. */
   fixtures: number;
   /**
@@ -610,6 +635,50 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
  * boundary, so a combining mark in one cell can neither attach to nor change
  * the font selected for its neighbor.
  */
+/**
+ * The probe page for one batch of codepoints in one stack.
+ *
+ * Its own function, and exported, so the declaration list can be asserted
+ * without a browser. Every property the corpus records has to reach this
+ * markup: a property extracted but not declared here is a property the oracle
+ * still sweeps as though it were absent, which is precisely the failure mode
+ * that hid `font-stretch`, `font-variation-settings` and `font-feature-settings`
+ * for as long as it did — the answer looked stable because the question was
+ * never asked.
+ */
+export function probePageHtml(cps: number[], spec: StackSpec, lang: string): string {
+  const cells = cps
+    .map((cp) => `<i class=c>&#x${cp.toString(16)};</i>`)
+    .join("");
+  // The computed `font-family` is already valid CSS and goes into a <style>
+  // element, not an attribute — so it is embedded verbatim. Rewriting its
+  // quotes would corrupt any family name that legitimately contains one.
+  const family = spec.fontFamily;
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>`
+    + `body{margin:0}`
+    + `#w{display:flex;flex-wrap:wrap;font-family:${family};font-size:${spec.fontSize}px;`
+    + `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};`
+    + `font-stretch:${spec.fontStretch ?? "normal"};`
+    + `font-variation-settings:${spec.fontVariationSettings ?? "normal"};`
+    // Declared even though Blink does NOT select a face on it — `feature_settings_`
+    // is absent from `FontDescription::CacheKey` and is read only by
+    // `FontFeatures::Initialize` at shaping time. It belongs here anyway,
+    // because without it the probe page renders a fixture's text with the
+    // features the fixture declares switched off, and a feature that
+    // substitutes glyphs (`smcp`, `frac`, `tnum`) changes what Chrome paints
+    // and therefore which faces it reports having used.
+    + `font-feature-settings:${spec.fontFeatureSettings ?? "normal"}}`
+    // `white-space:pre` is load-bearing: without it a cell holding U+0020 (or
+    // any other space separator) collapses to nothing, Chrome paints no
+    // glyph, and the oracle reports a mismatch that only exists because of
+    // how the probe page was written.
+    // `font-style:inherit` undoes the UA italic on `<i>` — the cell must be
+    // rendered in the style the corpus entry declares, not in the tag's.
+    + `.c{display:inline-block;width:${spec.fontSize + 8}px;height:${spec.fontSize + 8}px;`
+    + `overflow:hidden;font-style:inherit;white-space:pre}`
+    + `</style></head><body><div id=w>${cells}</div></body></html>`;
+}
+
 class ChromeOracle {
   constructor(
     private readonly page: Page,
@@ -651,30 +720,7 @@ class ChromeOracle {
   }
 
   async facesFor(cps: number[], spec: StackSpec): Promise<ChromeFace[][]> {
-    const cells = cps
-      .map((cp) => `<i class=c>&#x${cp.toString(16)};</i>`)
-      .join("");
-    // The computed `font-family` is already valid CSS and goes into a <style>
-    // element, not an attribute — so it is embedded verbatim. Rewriting its
-    // quotes would corrupt any family name that legitimately contains one.
-    const family = spec.fontFamily;
-    await this.page.setContent(
-      `<!doctype html><html lang="${this.lang}"><head><meta charset="utf-8"><style>`
-      + `body{margin:0}`
-      + `#w{display:flex;flex-wrap:wrap;font-family:${family};font-size:${spec.fontSize}px;`
-      + `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};`
-      + `font-stretch:${spec.fontStretch ?? "normal"};`
-      + `font-variation-settings:${spec.fontVariationSettings ?? "normal"}}`
-      // `white-space:pre` is load-bearing: without it a cell holding U+0020 (or
-      // any other space separator) collapses to nothing, Chrome paints no
-      // glyph, and the oracle reports a mismatch that only exists because of
-      // how the probe page was written.
-      // `font-style:inherit` undoes the UA italic on `<i>` — the cell must be
-      // rendered in the style the corpus entry declares, not in the tag's.
-      + `.c{display:inline-block;width:${spec.fontSize + 8}px;height:${spec.fontSize + 8}px;`
-      + `overflow:hidden;font-style:inherit;white-space:pre}`
-      + `</style></head><body><div id=w>${cells}</div></body></html>`,
-    );
+    await this.page.setContent(probePageHtml(cps, spec, this.lang));
     const { root } = await this.cdp.send("DOM.getDocument");
     const { nodeIds } = await this.cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
     if (nodeIds.length !== cps.length) {
@@ -787,6 +833,10 @@ async function extractStacks(browser: Browser, dirs: string[], outFile: string):
           // every explicit axis location swept as though it were the default.
           fontStretch: cs.fontStretch,
           fontVariationSettings: cs.fontVariationSettings,
+          // Not a face-selection input in Blink (see `StackSpec`), but leaving
+          // it out meant the probe page rendered a fixture's text with the
+          // features the fixture declares switched off.
+          fontFeatureSettings: cs.fontFeatureSettings,
         }));
       }
       return Array.from(seen);
@@ -1069,7 +1119,8 @@ async function main(): Promise<number> {
     const stackKey = (s: StackSpec): string =>
       `${s.fontFamily} @${s.fontSize}/${s.fontWeight}/${s.fontStyle}`
       + (s.fontStretch != null && s.fontStretch !== "100%" ? `/${s.fontStretch}` : "")
-      + (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "");
+      + (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "")
+      + (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "");
     /**
      * Every distinct face Chrome named during the sweep, with how often.
      *

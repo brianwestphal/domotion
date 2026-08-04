@@ -23,6 +23,7 @@ import {
   parseArgs,
   prepareStack,
   primaryChromeFace,
+  probePageHtml,
   slantForStyle,
   stacksFileFor,
   type ChromeFace,
@@ -422,11 +423,67 @@ describe("faceFor reports the cut the renderer would load", () => {
   });
 });
 
+/**
+ * The probe page is where a recorded property becomes a question actually put
+ * to Chrome. Extracting a property and then not declaring it here leaves the
+ * oracle sweeping as though the property were absent — a silent blind spot that
+ * reads as a stable number rather than as a failure.
+ */
+describe("the probe page declares every property the corpus records", () => {
+  const spec = (o: Partial<StackSpec>): StackSpec =>
+    ({ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, fontStyle: "normal", fixtures: 1, example: "x.html", ...o });
+
+  it("declares the full font description, not just family/size/weight/style", () => {
+    const html = probePageHtml([0x41], spec({
+      fontStretch: "75%",
+      fontVariationSettings: '"wght" 350',
+      fontFeatureSettings: '"smcp" 1',
+    }), "en");
+    expect(html).toContain("font-family:Georgia, serif");
+    expect(html).toContain("font-size:24px");
+    expect(html).toContain("font-weight:400");
+    expect(html).toContain("font-style:normal");
+    expect(html).toContain("font-stretch:75%");
+    expect(html).toContain('font-variation-settings:"wght" 350');
+    expect(html).toContain('font-feature-settings:"smcp" 1');
+    expect(html).toContain('<html lang="en"');
+  });
+
+  it("reads an absent property as `normal`, so a corpus predating it still sweeps", () => {
+    // The three late additions are optional on `StackSpec` precisely so an
+    // older corpus file parses. Absent must mean the CSS initial value and not
+    // `undefined` leaking into the stylesheet.
+    const html = probePageHtml([0x41], spec({}), "en");
+    expect(html).toContain("font-stretch:normal");
+    expect(html).toContain("font-variation-settings:normal");
+    expect(html).toContain("font-feature-settings:normal");
+    expect(html).not.toContain("undefined");
+  });
+
+  it("keeps the cell isolation that makes a per-codepoint answer meaningful", () => {
+    const html = probePageHtml([0x41, 0x4e00], spec({}), "ja");
+    // One inline-block per codepoint, so shaping cannot cross a cell boundary…
+    expect(html.match(/class=c/g)).toHaveLength(2);
+    expect(html).toContain("display:inline-block");
+    // …`white-space:pre` so a space-only cell still paints…
+    expect(html).toContain("white-space:pre");
+    // …`font-style:inherit` to undo the UA italic on `<i>`…
+    expect(html).toContain("font-style:inherit");
+    // …and the locale reaches the page, since Han routing is keyed on it.
+    expect(html).toContain('<html lang="ja"');
+    expect(html).toContain("&#x4e00;");
+  });
+});
+
 describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (platform) => {
   const corpus = JSON.parse(readFileSync(stacksFileFor(platform), "utf-8")) as {
     platform?: string;
     sources: string[];
-    stacks: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string; fixtures: number; example: string }>;
+    stacks: Array<{
+      fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string;
+      fontStretch?: string; fontVariationSettings?: string; fontFeatureSettings?: string;
+      fixtures: number; example: string;
+    }>;
   };
 
   it("records the platform it was extracted on", () => {
@@ -454,5 +511,29 @@ describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (pl
       expect(s.fixtures).toBeGreaterThan(0);
       expect(s.example).toMatch(/\.html$/);
     }
+  });
+
+  it("records the whole font description on every entry, not a subset", () => {
+    // A missing property is read as `normal`, which is indistinguishable from a
+    // fixture that really declares `normal` — so an entry that simply lacks the
+    // field is a stack swept under a weaker question with nothing to say so.
+    for (const s of corpus.stacks) {
+      expect(typeof s.fontStretch).toBe("string");
+      expect(typeof s.fontVariationSettings).toBe("string");
+      expect(typeof s.fontFeatureSettings).toBe("string");
+    }
+  });
+
+  it("actually captured a non-normal `font-feature-settings` somewhere", () => {
+    // The guard against a vacuous extraction: a property can be added to the
+    // key, serialized on every entry, and still be `normal` everywhere because
+    // it is being read from the wrong place. The fixture corpus declares
+    // `liga`/`dlig`/`zero`/`ss01`/`ss02`/`salt`/`tnum`, so a corpus in which
+    // every entry is `normal` means the extraction is not seeing them.
+    const nonNormal = corpus.stacks.filter((s) => s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal");
+    expect(nonNormal.length).toBeGreaterThan(0);
+    // …and each such entry must name the fixture it came from, so the claim is
+    // reproducible by hand rather than taken on trust.
+    for (const s of nonNormal) expect(s.example).toMatch(/\.html$/);
   });
 });
