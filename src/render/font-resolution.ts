@@ -1585,15 +1585,25 @@ function fallbackBaseFor(
   const hit = fallbackBaseCache.get(cacheKey);
   if (hit !== undefined) return hit;
 
-  const spec = resolveFontSpec(primaryKey);
+  // Webfont / local-alias keys have no cut ladder of their own — they resolve
+  // through their own registries — so they are read as-is.
+  const isRegistryKey = primaryKey.startsWith("webfont:") || primaryKey.startsWith("localalias:");
+  // Start from the STATIC CUT LADDER, not the raw key. The ladder maps some
+  // families to a different file even at 400/upright (a `cursive` primary is
+  // one), so reading `primaryKey` directly changes the cascade base for every
+  // such family at the default style — which is not a style-matching decision
+  // at all. Skipping this cost 18 `cursive` stacks 14 -> ~1,046 mismatches
+  // apiece on the synthetic corpus, at weight 400 where the style branch below
+  // never even runs.
+  const cutKey = isRegistryKey
+    ? primaryKey
+    : resolveEffectiveCutKey(primaryKey, weight, slant, stretch).key;
+  const spec = resolveFontSpec(cutKey) ?? resolveFontSpec(primaryKey);
   let base: { name: string; path?: string };
   if (spec?.postscriptName == null || spec.postscriptName === "") {
     base = { name: "Helvetica" };
   } else {
     base = { name: spec.postscriptName, path: spec.path };
-    // Webfont / local-alias keys have no cut ladder of their own — they resolve
-    // through their own registries — so they are read as-is, as before.
-    const isRegistryKey = primaryKey.startsWith("webfont:") || primaryKey.startsWith("localalias:");
     if (_fallbackBaseCutEnabled && !isRegistryKey
         && (weight !== 400 || slant !== 0 || stretch !== 100)) {
       const inst = getFontInstance(primaryKey, weight, fontSize, slant, undefined, stretch);
