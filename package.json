@@ -41,7 +41,7 @@
     "build:storyboard-schema": "tsx scripts/generate-storyboard-schema.ts",
     "build": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:animate-schema && npm run build:composite-schema && npm run build:storyboard-schema && tsc -p tsconfig.build.json",
     "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
     "test": "npm run build:capture-script && vitest run",
     "test:e2e": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts",

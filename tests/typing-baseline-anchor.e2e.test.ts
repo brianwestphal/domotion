@@ -46,14 +46,14 @@ afterAll(async () => {
 
 const describeBrowser = env ? describe : describe.skip;
 
-async function raw(buf: Buffer): Promise<{ data: Buffer; n: number }> {
+async function rawPixels(buf: Buffer): Promise<{ data: Buffer; n: number }> {
   const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return { data, n: info.width * info.height };
 }
 
 /** Ink (darker-than-mid-gray) pixel count + bounding box within the crop. */
 async function ink(buf: Buffer): Promise<{ count: number; minX: number; minY: number; maxX: number; maxY: number }> {
-  const { data, n } = await raw(buf);
+  const { data, n } = await rawPixels(buf);
   let count = 0, minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
   for (let i = 0; i < n; i++) {
     const o = i * 4;
@@ -71,7 +71,7 @@ async function ink(buf: Buffer): Promise<{ count: number; minX: number; minY: nu
 
 /** Fraction of pixels whose max channel delta exceeds 32. */
 async function diffFraction(a: Buffer, b: Buffer): Promise<number> {
-  const [ra, rb] = [await raw(a), await raw(b)];
+  const [ra, rb] = [await rawPixels(a), await rawPixels(b)];
   expect(ra.n).toBe(rb.n);
   let diff = 0;
   for (let i = 0; i < ra.n; i++) {

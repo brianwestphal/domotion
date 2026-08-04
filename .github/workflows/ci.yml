@@ -54,3 +54,44 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
       - run: npm run build
+
+  # `package.json` has defined a `lint` script since the repo was extracted, and
+  # until now NOTHING ran it — not this workflow, not release.yml, and not a git
+  # hook (there is no .husky directory and core.hooksPath is unset). The cost was
+  # measured: a hard ESLint error (an eslint-disable directive naming a rule that
+  # typescript-eslint 8 removed, so the directive itself became "rule not found")
+  # sat on main undetected until someone happened to run the command by hand.
+  #
+  # The gate is `--max-warnings 0`, not a non-zero grandfather threshold. A
+  # threshold set to today's count is a ratchet that never ratchets: it permits
+  # exactly the current number of warnings forever, and silently accepts a NEW
+  # warning the moment an old one is fixed. Zero is only a fair bar because the
+  # tree genuinely reports zero — the six pre-existing warnings were all false
+  # positives of `kerfjs/no-raw-with-dynamic-arg`, which matches the identifier
+  # `raw` syntactically with no binding resolution and so flagged two e2e tests'
+  # own local `raw()` PNG-decode helper. Renaming that helper to `rawPixels`
+  # removed them at the source, which is why no suppression comments were needed.
+  #
+  # There is deliberately NO separate "run --fix and diff" fixed-point job.
+  # `eslint --fix` only applies fixes to problems ESLint reports, so zero
+  # reported problems implies zero fixes applied — a green lint job already
+  # proves the tree is a fixed point, and a second job asserting it could never
+  # fail independently. Verified by hashing the exact 862-file linted set plus
+  # the two side-effect targets below: byte-identical across two consecutive
+  # `--fix` runs.
+  #
+  # One failure mode is worth recognizing on sight, because it is a REAL finding
+  # rather than a flaky gate: `kerfjs/ai-assistant-configs` warns when the
+  # checked-in `.cursorrules` / `.claude/skills/kerf-app/SKILL.md` drift behind
+  # the installed kerfjs bundle's canonical copies. That means the vendored AI
+  # docs are stale and need re-syncing (`npx eslint --fix eslint.config.js`), not
+  # that lint is broken. The rule's own message names the file and both versions,
+  # so the job log distinguishes the two cases without extra tooling.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run lint
