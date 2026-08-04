@@ -529,9 +529,14 @@ export function prepareStack(spec: StackSpec): ResolvedStack | null {
  * So the instance is materialized exactly the way the renderer materializes it
  * (`res.fontOverride ?? (key === primaryKey ? primaryFont : getFontInstance(…))`
  * — src/render/text-to-path.ts) and its identity read back off the instance:
- * fontkit's own `postscriptName` first (the face actually opened, including the
- * resolved member of a `.ttc`), then the path table's declared name, then the
- * `sysfb:` key's embedded name.
+ * the CoreText-style instantiated name first when the darwin helper path
+ * cloned the face at a non-default axis location (Chrome names such clones
+ * with the coordinates baked in — `.SFDevanagari-Regular_opsz110000_wght`,
+ * hex 16.16 — and `instantiatedPostscriptName` is composed from the
+ * coordinates the renderer actually applied, so a genuine axis divergence
+ * still reads as a mismatch), then fontkit's own `postscriptName` (the face
+ * actually opened, including the resolved member of a `.ttc`), then the path
+ * table's declared name, then the `sysfb:` key's embedded name.
  */
 export function faceFor(rs: ResolvedStack, key: string, covered: boolean, override: FontInstance | null): OurFace {
   // A per-codepoint override (webfont partition, decomposition-shaping instance)
@@ -556,7 +561,7 @@ export function faceFor(rs: ResolvedStack, key: string, covered: boolean, overri
   const fromKey = key.startsWith("sysfb:") ? key.slice("sysfb:".length) : null;
   const meta = {
     path: src?.path ?? spec?.path ?? null,
-    postscriptName: inst?.postscriptName ?? src?.postscriptName ?? spec?.postscriptName ?? fromKey,
+    postscriptName: inst?.instantiatedPostscriptName ?? inst?.postscriptName ?? src?.postscriptName ?? spec?.postscriptName ?? fromKey,
   };
   if (cacheable) rs.faceCache.set(key, meta);
   return { key, path: meta.path, postscriptName: meta.postscriptName, covered };

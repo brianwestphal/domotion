@@ -61,7 +61,7 @@ afterEach(() => {
 
 describe("member-index resolution reports honestly", () => {
   it("names the index and axes of a member it actually found", () => {
-    expect(faceInfo(ttcPath, "SynthAlpha")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null });
+    expect(faceInfo(ttcPath, "SynthAlpha")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthAlpha" });
     const gamma = faceInfo(ttcPath, "SynthGamma");
     expect(gamma.faceIndex).toBe(2);
     expect(gamma.nameMatched).toBe(true);
@@ -125,15 +125,15 @@ describe("member-index resolution reports honestly", () => {
 
   it("treats member zero as honest when no name was requested", () => {
     // Nothing was asked for, so nothing can mismatch — index 0 IS the request.
-    expect(faceInfo(ttcPath)).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null });
+    expect(faceInfo(ttcPath)).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthAlpha" });
   });
 
   it("reports index 0 for a single-face file, flagging a name that does not match it", () => {
-    expect(faceInfo(sfntPath, "SynthSolo")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null });
+    expect(faceInfo(sfntPath, "SynthSolo")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthSolo" });
     // A relocated/stub file can hold a different face than the table declared.
     // Index 0 is still truthful (it is the only face), but the name is not.
     expect(faceInfo(sfntPath, "SomethingElse")).toEqual({
-      faceIndex: 0, nameMatched: false, fileAxes: null,
+      faceIndex: 0, nameMatched: false, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthSolo",
     });
   });
 

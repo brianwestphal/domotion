@@ -131,6 +131,18 @@ export interface FontInstance {
    *  Chrome's `CSS.getPlatformFontsForNode`, and reading it through a cast would
    *  put the one load-bearing field of that comparison outside the type system. */
   postscriptName?: string;
+  /** The PostScript name CoreText reports for the variation-instantiated clone
+   *  this instance represents, when the macOS helper path applied a non-default
+   *  axis location (`resolveDarwinAxisLocation`). Chrome names such faces with
+   *  the coordinates baked in (`.SFDevanagari-Regular_opsz110000_wght` — hex
+   *  16.16), so the conformance oracle must prefer this over `postscriptName`
+   *  or it compares an instance against a base face and reports a mismatch that
+   *  is purely a naming gap. Composed by `coreTextVariationInstanceName` FROM
+   *  THE COORDINATES ACTUALLY APPLIED — never copied from `postscriptName` —
+   *  so a genuine axis divergence still surfaces as a name difference.
+   *  Undefined off the darwin helper path and when the face stays at its
+   *  file-default location (no clone — Blink's `axes_reconfigured` guard). */
+  instantiatedPostscriptName?: string;
 }
 
 /** Glyph id for a codepoint, tolerating a null return from `glyphForCodePoint`.
@@ -2046,6 +2058,13 @@ function resolveSystemFallbackKeyForCp(
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+        // The substituted handle's variation axes + CURRENT position, observable
+        // only here. Blink's clone gate compares against it (CoreText pre-sets
+        // `opsz` on some handles), so the instantiated-name stamp in
+        // `getFontInstance` consults this rather than the file's fvar defaults.
+        if (resolved.ctAxes != null && resolved.ctAxes.length > 0) {
+          registerDarwinHandleAxes(key, weight, fontSize, slant, resolved.ctAxes);
+        }
       }
     } else if (process.platform === "linux") {
       // DM-1863 stage 1 of 2: BEFORE asking fontconfig, retry the run's own
@@ -4484,6 +4503,38 @@ export function getFontInstance(
       // cut's, so the instance is self-identifying no matter which of the two
       // branches below records a `fontSourceMap` entry (one is flag-gated).
       instance.postscriptName ??= spec.postscriptName;
+      // When Blink would CLONE this face at a non-default axis location, also
+      // stamp the name CoreText gives that clone — so the conformance oracle
+      // compares Chrome's instantiated name against the instance we actually
+      // paint instead of against the base face. The name is composed from the
+      // coordinates and handle state on OUR side, never copied from Chrome's
+      // answer, so a genuine axis divergence still shows up as a name mismatch.
+      //
+      // The gate consults the CoreText-substituted handle's CURRENT position as
+      // the live resolver observed it (`darwinHandleAxesFor` — see
+      // `darwinCloneInstanceName` for the measured mechanism: CoreText pre-sets
+      // `opsz` on some handles and Blink then never clones them), so faces the
+      // live resolver did not register — static-table keys, hosts on an older
+      // helper binary — keep the base name, which is the previous behavior and
+      // keeps any resulting oracle route visible rather than guessed at.
+      //
+      // The composition base is the MEMBER's name: when the requested face is
+      // an fvar named instance (`.SFDevanagari-Bold` = the Regular member at
+      // wght 700), CoreText composes off-instance clones from the base master
+      // (measured: {opsz:20, wght:700} on a `.SFDevanagari-Bold` handle names
+      // `.SFDevanagari-Regular_opsz140000_wght2BC0000` — which is also exactly
+      // the route name Chrome reports for the bold 20px stacks).
+      if (process.platform === "darwin") {
+        const handleAxes = darwinHandleAxesFor(key, weight, fontSize, slant);
+        const composeBase = helperFaceInfo?.memberPostscriptName ?? spec.postscriptName;
+        if (handleAxes != null && composeBase != null) {
+          const instName = darwinCloneInstanceName(
+            composeBase, handleAxes, fontSize, variationSettings, helperFaceInfo?.namedInstances);
+          if (instName != null && instName !== spec.postscriptName) {
+            instance.instantiatedPostscriptName = instName;
+          }
+        }
+      }
       // DM-1714: even when outlines come from the native helper (macOS CoreText /
       // Windows DirectWrite — the default for live-resolver-registered system
       // fonts), the on-disk FILE is known. If it's a standard sfnt with glyf/CFF
@@ -4775,6 +4826,20 @@ export interface FileFaceInfo {
    *  member rather than a member itself: the instance's own axis coordinates.
    *  These ARE the requested face, so they beat a CSS-derived pin. */
   instanceAxes?: Record<string, number> | null;
+  /** The resolved MEMBER's own PostScript name. Identical to the requested name
+   *  for a physical-member match; differs for a named-instance request, where it
+   *  is the base master's name — which is what CoreText composes instantiated
+   *  names from (measured: cloning a `.SFDevanagari-Bold` handle at
+   *  {opsz:20, wght:700} names `.SFDevanagari-Regular_opsz140000_wght2BC0000`,
+   *  not `.SFDevanagari-Bold_…`). */
+  memberPostscriptName?: string | null;
+  /** The resolved member's fvar named instances — PostScript name plus full
+   *  coordinate set — for CoreText-style instantiated-name composition
+   *  (`coreTextVariationInstanceName`): CoreText reports a named instance's own
+   *  PostScript name when an applied location lands exactly on its coordinates
+   *  (measured: `{wght: 700}` on `.SFDevanagari-Regular` → `.SFDevanagari-Bold`).
+   *  Null when the member is static or no instance resolves a PostScript name. */
+  namedInstances?: Array<{ postscriptName: string; coords: Record<string, number> }> | null;
 }
 
 /** Find `postscriptName` among a variable member's fvar NAMED INSTANCES.
@@ -4823,6 +4888,42 @@ function findNamedInstanceAxes(member: any, postscriptName: string): Record<stri
     return Object.keys(axes).length > 0 ? axes : null;
   }
   return null;
+}
+
+/** Every fvar named instance of `member` that resolves a PostScript name, with
+ *  its full coordinate set in axis order. The forward counterpart of
+ *  `findNamedInstanceAxes` above (name → coords): instantiated-name composition
+ *  needs the whole list to ask "does this axis location land exactly on a named
+ *  instance?" the way CoreText does. Same name-table machinery, same reason
+ *  fontkit's `namedVariations` accessor is bypassed (it throws on Apple system
+ *  faces whose instance name records carry no English entry). */
+function enumerateNamedInstances(member: any): Array<{ postscriptName: string; coords: Record<string, number> }> | null {
+  const instances = member?.fvar?.instance;
+  const axisRecords = member?.fvar?.axis;
+  if (!Array.isArray(instances) || !Array.isArray(axisRecords)) return null;
+  const records = member?.name?.records ?? {};
+  const extended: Record<string, Record<string, string> | undefined> = records.fontFeatures ?? {};
+  const nameFor = (id: number): string | null => {
+    if (id === 6) return pickNameString(records.postscriptName);
+    return pickNameString(extended[String(id)]);
+  };
+  const out: Array<{ postscriptName: string; coords: Record<string, number> }> = [];
+  for (const inst of instances) {
+    const psId = inst?.postscriptNameID;
+    if (typeof psId !== "number") continue;
+    const name = nameFor(psId);
+    if (name == null) continue;
+    const coord = inst?.coord;
+    if (!Array.isArray(coord)) continue;
+    const coords: Record<string, number> = {};
+    for (let i = 0; i < axisRecords.length && i < coord.length; i++) {
+      const tag = axisRecords[i]?.axisTag;
+      const v = coord[i];
+      if (typeof tag === "string" && typeof v === "number" && isFinite(v)) coords[tag] = v;
+    }
+    if (Object.keys(coords).length > 0) out.push({ postscriptName: name, coords });
+  }
+  return out.length > 0 ? out : null;
 }
 
 /** One string out of a fontkit localized-name record, preferring English. */
@@ -4957,11 +5058,21 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFace
         : -1;
       if (idx >= 0) {
         const axes = opened.fonts[idx]?.variationAxes;
-        result = { faceIndex: idx, nameMatched: true, fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null };
+        result = {
+          faceIndex: idx, nameMatched: true,
+          fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+          namedInstances: enumerateNamedInstances(opened.fonts[idx]),
+          memberPostscriptName: opened.fonts[idx]?.postscriptName ?? null,
+        };
       } else if (postscriptName == null) {
         // No name to match: member zero IS the request, so index 0 is honest.
         const axes = opened.fonts[0]?.variationAxes;
-        result = { faceIndex: 0, nameMatched: true, fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null };
+        result = {
+          faceIndex: 0, nameMatched: true,
+          fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+          namedInstances: enumerateNamedInstances(opened.fonts[0]),
+          memberPostscriptName: opened.fonts[0]?.postscriptName ?? null,
+        };
       } else {
         // Not a physical member. Before giving up, check whether it is an fvar
         // NAMED INSTANCE of one — the usual shape for a CoreText-resolved face,
@@ -4975,6 +5086,8 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFace
             faceIndex: i, nameMatched: true,
             fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
             instanceAxes,
+            namedInstances: enumerateNamedInstances(opened.fonts[i]),
+            memberPostscriptName: opened.fonts[i]?.postscriptName ?? null,
           };
           break;
         }
@@ -4994,6 +5107,8 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFace
         faceIndex: 0,
         nameMatched: postscriptName == null || psName == null || psName === postscriptName,
         fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+        namedInstances: enumerateNamedInstances(opened),
+        memberPostscriptName: psName ?? null,
       };
     }
   } catch { /* unreadable → leave the single-static-face default */ }
@@ -5190,6 +5305,133 @@ export function resolveDarwinAxisLocation( // exported for unit testing (not in 
     if (typeof def === "number" && axes[tag] === def) delete axes[tag];
   }
   return Object.keys(axes).length > 0 ? axes : undefined;
+}
+
+/** One axis of a CoreText-substituted handle: fvar metadata plus the handle's
+ *  CURRENT position (`value` = CTFontCopyVariation overlay the default). The
+ *  macOS glyph helper reports these per fallback answer; see
+ *  `SystemFallbackFont.ctAxes`. */
+export interface DarwinHandleAxis { tag: string; min: number; def: number; max: number; value: number }
+
+/**
+ * The PostScript name Chrome reports for a fallback face on macOS — base name
+ * or variation-instantiated clone — decided by Blink's own clone procedure.
+ *
+ * Two separate mechanisms, both transcribed/measured rather than inferred:
+ *
+ * **The gate is Blink's, and it is HANDLE-relative.** Blink starts from the
+ * substituted typeface's CURRENT design position and sets `opsz` = the CSS
+ * **specified** size (under `font-optical-sizing: auto`), then any
+ * `font-variation-settings` axis — each set gated on
+ * `VariableAxisChangeEffective`: the target, clamped into the axis range, must
+ * differ from the handle's current position, or nothing is set. No axis moved →
+ * no clone → Chrome keeps the handle's own name
+ * (`mac/font_platform_data_mac.mm:60-102` + `:167-195`, checkout `7d859f27`).
+ * The current position is NOT the file default: CoreText PRE-SETS `opsz` on
+ * some substituted handles (measured on macOS 26.5.2: the 13 px cascade hands
+ * back `.SFArabic-Regular` with `CTFontCopyVariation` = {opsz: 17}, so Blink
+ * finds 17 == clamp(13) and never clones — Chrome reports the bare
+ * `.SFArabic-Regular` — while `.SFDevanagari-Regular` arrives with no
+ * variation set, so the same 13 px run clones and Chrome reports
+ * `.SFDevanagari-Regular_opsz110000_wght`). That is why this takes the
+ * handle's axes as reported by the helper at fallback-resolution time, not the
+ * file's fvar table.
+ *
+ * **The name is CoreText's, and it is DEFAULT-relative.** Skia hands CoreText a
+ * dictionary holding every axis — default → current → clamped requested
+ * (`ctvariation_from_SkFontArguments`, `src/ports/SkTypeface_mac_ct.cpp:1097-1174`,
+ * checkout `ebf5052`; the `SkTPin` at `:1147` is the second clamp) — via
+ * `CTFontCreateCopyWithAttributes`. Measured composition rule, every form
+ * confirmed against a route name Chrome actually reported:
+ *
+ *   - location lands exactly on an fvar NAMED INSTANCE → the instance's own
+ *     PostScript name ({opsz:28, wght:700} → `.SFDevanagari-Bold`);
+ *   - otherwise the MEMBER base name plus one `_<tag>` suffix per axis in the
+ *     face's axis order — uppercase hex 16.16 fixed point when the value
+ *     differs from the axis DEFAULT, bare tag when it doesn't
+ *     (`.SFDevanagari-Regular_opsz110000_wght` = opsz 17, wght at default;
+ *     0x110000 / 65536 = 17.0 — a prior session read it as decimal 11, below
+ *     the axis minimum, which made the routes look unproducible);
+ *   - the suffix comparison is against the DEFAULT even on a pre-set handle
+ *     ({opsz:17, wght:700} on the SF Arabic handle whose current opsz IS 17
+ *     still hexes it: `_wght2BC0000_opsz110000`), while a dictionary equal to
+ *     the handle's current position produces no derived font at all — which
+ *     cannot be reached from here because the gate already requires a moved
+ *     axis;
+ *   - an all-defaults location keeps the base name.
+ *
+ * Returns null — caller keeps the base name, and any resulting oracle mismatch
+ * stays VISIBLE rather than papered over — when no clone would happen, or a
+ * coordinate is negative (no macOS system face has a negative-range axis, so
+ * the hex encoding of a negative coordinate is unobservable and deliberately
+ * not guessed).
+ *
+ * Exported for unit testing (not in the package barrel).
+ */
+export function darwinCloneInstanceName(
+  basePostscriptName: string,
+  handleAxes: DarwinHandleAxis[],
+  fontSize: number,
+  variationSettings?: Record<string, number>,
+  namedInstances?: Array<{ postscriptName: string; coords: Record<string, number> }> | null,
+): string | null {
+  if (handleAxes.length === 0) return null;
+  const fixed = (v: number): number => Math.round(v * 65536); // 16.16 fixed point
+  const clampTo = (v: number, a: DarwinHandleAxis): number => Math.min(Math.max(v, a.min), a.max);
+  let reconfigured = false;
+  const loc: Array<{ tag: string; q: number; qDef: number }> = [];
+  for (const a of handleAxes) {
+    // Blink's loop, in its order: opsz first, font-variation-settings second
+    // (allowed to override the opsz just set). Both gates compare the CLAMPED
+    // target against the handle's ORIGINAL current position.
+    let v = a.value;
+    if (a.tag === "opsz" && fixed(clampTo(fontSize, a)) !== fixed(a.value)) {
+      v = fontSize;
+      reconfigured = true;
+    }
+    const fvs = variationSettings?.[a.tag];
+    if (fvs != null && fixed(clampTo(fvs, a)) !== fixed(a.value)) {
+      v = fvs;
+      reconfigured = true;
+    }
+    const final = clampTo(v, a); // Skia's SkTPin — the second, independent clamp
+    if (final < 0) return null;
+    loc.push({ tag: a.tag, q: fixed(final), qDef: fixed(a.def) });
+  }
+  if (!reconfigured) return null; // Blink's axes_reconfigured guard: no clone
+  if (namedInstances != null) {
+    // Quantized comparison on BOTH sides: fvar instance coordinates are stored
+    // in fixed point too, so float drift (e.g. an instance wght of
+    // 30.925003051757812) must not defeat an exact match.
+    for (const inst of namedInstances) {
+      if (loc.every(({ tag, q }) => {
+        const c = inst.coords[tag];
+        return typeof c === "number" && fixed(c) === q;
+      })) return inst.postscriptName;
+    }
+  }
+  if (loc.every(({ q, qDef }) => q === qDef)) return basePostscriptName;
+  return basePostscriptName + loc
+    .map(({ tag, q, qDef }) => `_${tag}${q === qDef ? "" : q.toString(16).toUpperCase()}`)
+    .join("");
+}
+
+// The substituted handle's axis state, recorded when the live CoreText resolver
+// answers (the only moment it is observable), keyed the way the instance cache
+// is keyed — the same (key, weight, size, slant) that will later materialize the
+// instance. Two stacks CAN reach one face with different handle states (the
+// 13 px italic system-ui cascade hands back `.CJKSymbolsFallbackSC-Regular`
+// with a pre-set opsz where the upright one does not), which is exactly why
+// this cannot live on the size-independent `sysfb:` spec.
+const darwinHandleAxesMap = new Map<string, DarwinHandleAxis[]>();
+const darwinHandleAxesKey = (key: string, weight: number, fontSize: number, slant: number): string =>
+  `${key}|${weight}|${fontSize}|${slant}`;
+function registerDarwinHandleAxes(key: string, weight: number, fontSize: number, slant: number, axes: DarwinHandleAxis[]): void {
+  const k = darwinHandleAxesKey(key, weight, fontSize, slant);
+  if (!darwinHandleAxesMap.has(k)) darwinHandleAxesMap.set(k, axes);
+}
+function darwinHandleAxesFor(key: string, weight: number, fontSize: number, slant: number): DarwinHandleAxis[] | undefined {
+  return darwinHandleAxesMap.get(darwinHandleAxesKey(key, weight, fontSize, slant));
 }
 
 function clampAxesToFvarRange(axes: Record<string, number>, fileAxes: Record<string, unknown>): Record<string, number> {
@@ -5944,6 +6186,7 @@ export function clearFontResolutionCaches(): void {
   fileFaceInfoCache.clear();
   _famAvailCache.clear();
   win32FamilyKeyCache.clear();
+  darwinHandleAxesMap.clear();
 }
 
 /**
@@ -6384,6 +6627,7 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   proxy.hasSlantAxis = base.hasSlantAxis;
   proxy.isRoutedItalicCut = base.isRoutedItalicCut;
   proxy.postscriptName = base.postscriptName;
+  proxy.instantiatedPostscriptName = base.instantiatedPostscriptName;
   const src = fontSourceMap.get(base as unknown as object);
   if (src != null) fontSourceMap.set(proxy as unknown as object, src);
 }
