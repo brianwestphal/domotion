@@ -1576,40 +1576,61 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
 // failure mode — the renderer drops to no-font and paints tofu) is caught here
 // even when the per-codepoint expectation tests aren't updated.
 describe("darwinFallbackChain well-formedness (DM-1030)", () => {
-  it("every emitted font key resolves to a real font spec", () => {
-    const keys = new Set<string>();
-    // Sweep the symbol / arrow / geometric / technical ranges plus a sample of
-    // every script block that has a dedicated route.
-    for (let cp = 0x2000; cp <= 0x2BFF; cp++) {
-      for (const k of darwinFallbackChain(cp)) keys.add(k);
-      for (const primary of ["times", "courier"]) for (const k of darwinFallbackChain(cp, primary)) keys.add(k);
-    }
-    for (const cp of [0x4E00, 0x3041, 0x30A1, 0xAC00, 0x1100, 0x0900, 0x0E00, 0x0600, 0x0590, 0x1D400, 0x20000, 0x2F800]) {
-      for (const k of darwinFallbackChain(cp)) keys.add(k);
-    }
-    // `last-resort` is a synthetic terminal (bundled LastResort font), not a
-    // FONT_PATHS entry — exempt it. Every other key must resolve. Resolve against
-    // the darwin table directly (not the host-platform resolver) so this guard
-    // runs identically on Linux CI — `darwinFallbackChain` emits darwin-only
-    // `u-...` routes that `LINUX_FONT_PATHS` deliberately doesn't carry.
-    // `sysfb:` keys come from the LIVE OS resolver, which now wins over a
-    // sampled route the two disagree on (DM-1811). They are registered into the
-    // dynamic font registry by `resolveSystemFallbackKeyForCp` at the moment it
-    // returns them, so they are never dangling — but they are deliberately
-    // absent from the static darwin table, and which ones appear depends on the
-    // host's installed fonts. Checking them against the darwin table would make
-    // this guard fail on any machine whose CoreText/fontconfig answers differ
-    // from the calibration Mac, which is the opposite of what it is for.
+  // Split into two, because the two properties want opposite setups and running
+  // them together made the guard fail for neither reason.
+  //
+  // It timed out on CI's `ubuntu-latest` at 30s (58s observed) while passing in
+  // ~150ms on macOS and in the pinned noble container. The sweep is 3,072
+  // codepoints x 3 primaries, and with the live resolver in the loop each one
+  // can reach fontconfig over a CLI — so the cost is a function of the host, not
+  // of the code under test. A structural guard that a barer machine cannot
+  // afford to run is a guard that silently stops guarding.
+  it("every emitted STATIC key resolves to a real font spec", () => {
+    // Resolver OFF: this is the structural half, and the static chain is the
+    // thing being checked. Turning it off makes the sweep pure table lookups —
+    // fast and identical on every platform, which is what this guard is for.
+    withSystemFallbackResolution(false, () => {
+      const keys = new Set<string>();
+      // Sweep the symbol / arrow / geometric / technical ranges plus a sample of
+      // every script block that has a dedicated route.
+      for (let cp = 0x2000; cp <= 0x2BFF; cp++) {
+        for (const k of darwinFallbackChain(cp)) keys.add(k);
+        for (const primary of ["times", "courier"]) for (const k of darwinFallbackChain(cp, primary)) keys.add(k);
+      }
+      for (const cp of [0x4E00, 0x3041, 0x30A1, 0xAC00, 0x1100, 0x0900, 0x0E00, 0x0600, 0x0590, 0x1D400, 0x20000, 0x2F800]) {
+        for (const k of darwinFallbackChain(cp)) keys.add(k);
+      }
+      // `last-resort` is a synthetic terminal (bundled LastResort font), not a
+      // FONT_PATHS entry — exempt it. Every other key must resolve. Resolve
+      // against the darwin table directly (not the host-platform resolver) so
+      // this runs identically on Linux CI — `darwinFallbackChain` emits
+      // darwin-only `u-...` routes that `LINUX_FONT_PATHS` deliberately lacks.
+      const unresolved = [...keys].filter((k) =>
+        k !== "last-resort" && !k.startsWith("sysfb:") && __resolveDarwinFontSpecForTest(k) == null);
+      expect(unresolved, "a dangling/typo'd key paints tofu at runtime").toEqual([]);
+    });
+  });
+
+  it("registers every LIVE-resolver key it emits, so none is dangling", () => {
+    // Resolver ON, but a sample rather than a sweep. The property is "a `sysfb:`
+    // key is registered into the dynamic registry at the moment
+    // `resolveSystemFallbackKeyForCp` returns it" — that is per-key and does not
+    // need 3,072 codepoints to demonstrate. Sampling one per block it routes
+    // keeps the live path exercised without making the cost a function of how
+    // slow this host's fontconfig is.
     //
-    // The property the guard actually protects — no key reaches the renderer
-    // without a font behind it — still holds for them, via the runtime resolver.
+    // Deliberately NOT checked against the darwin table: which `sysfb:` keys
+    // appear depends on the host's installed fonts, so table-checking them would
+    // fail on any machine whose CoreText/fontconfig answers differ from the
+    // calibration Mac — the opposite of what this is for.
+    const keys = new Set<string>();
+    for (const cp of [0x2190, 0x2500, 0x25A0, 0x2600, 0x2700, 0x2A00,
+                      0x4E00, 0x3041, 0x30A1, 0xAC00, 0x0900, 0x0E00, 0x0600, 0x0590]) {
+      for (const k of darwinFallbackChain(cp)) keys.add(k);
+    }
     const sysfb = [...keys].filter((k) => k.startsWith("sysfb:"));
     const danglingDynamic = sysfb.filter((k) => __resolveFontSpecForTest(k) == null);
     expect(danglingDynamic, "live-resolver keys must be registered when emitted").toEqual([]);
-
-    const unresolved = [...keys].filter((k) =>
-      k !== "last-resort" && !k.startsWith("sysfb:") && __resolveDarwinFontSpecForTest(k) == null);
-    expect(unresolved).toEqual([]);
   });
 
   it("never returns an empty chain for the symbol / arrow / geometric blocks", () => {
