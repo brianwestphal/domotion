@@ -1609,7 +1609,18 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
         k !== "last-resort" && !k.startsWith("sysfb:") && __resolveDarwinFontSpecForTest(k) == null);
       expect(unresolved, "a dangling/typo'd key paints tofu at runtime").toEqual([]);
     });
-  });
+    // Explicit, generous timeout rather than a smaller sweep. Turning the live
+    // resolver off removed one source of cost but not the other: building a
+    // chain still probes whether each candidate FAMILY is installed, and on a
+    // host where that reaches fontconfig over a CLI, 3,072 codepoints x 3
+    // primaries is legitimately slow — 58s observed on CI's ubuntu-latest
+    // against ~150ms on macOS.
+    //
+    // Exhaustiveness over the symbol/arrow/geometric ranges is the whole point
+    // of this guard: it catches a dangling key that the per-codepoint
+    // expectation tests miss, and a sampled version would catch it only by
+    // luck. So the slow host gets more time rather than a weaker check.
+  }, 180_000);
 
   it("registers every LIVE-resolver key it emits, so none is dangling", () => {
     // Resolver ON, but a sample rather than a sweep. The property is "a `sysfb:`
