@@ -34,6 +34,10 @@
  *   --extract-runs       re-derive it from the fixtures and exit
  *   --source a,b         fixture dirs to extract from
  *   --max-runs n         cap the corpus to the n most-used runs
+ *   --split-words        (with --extract-runs) split EVERY text node on
+ *                        whitespace, not just the axis- / feature-bearing ones.
+ *                        An experiment switch — see docs/108 for the measurement
+ *                        that kept it out of the default.
  *   --tolerance px       per-glyph position tolerance (0.5)
  *   --allowlist <file>   accepted-divergence file
  *   --out <dir>          report directory (tests/output/shaping-conformance)
@@ -126,6 +130,17 @@ export interface RunSpec {
 export interface RunCorpus {
   generatedAt: string;
   sources: string[];
+  /**
+   * Whether the extractor split EVERY text node on whitespace rather than only
+   * the axis- and feature-bearing ones. Recorded because it changes what the
+   * corpus IS — a `--split-words` corpus and a default one are not two samples
+   * of the same population, and a sweep summary that does not say which it read
+   * invites comparing tallies across the two.
+   *
+   * Optional on read so a corpus file written before this field existed still
+   * parses (absent = `false`, the default extraction).
+   */
+  splitWords?: boolean;
   runs: RunSpec[];
 }
 
@@ -199,7 +214,13 @@ function walkHtml(dir: string): string[] {
  * exists to replace, and it would inevitably contain the cases someone already
  * thought of. Runs come from what the fixtures actually render.
  */
-export async function extractRuns(browser: Browser, dirs: string[], outFile: string): Promise<RunCorpus> {
+export async function extractRuns(
+  browser: Browser,
+  dirs: string[],
+  outFile: string,
+  opts: { splitWords?: boolean } = {},
+): Promise<RunCorpus> {
+  const splitWords = opts.splitWords === true;
   const files: Array<{ path: string; label: string }> = [];
   for (const d of dirs) {
     if (!existsSync(d)) continue;
@@ -218,7 +239,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
     } catch {
       continue;
     }
-    const found = await page.evaluate(() => {
+    const found = await page.evaluate((splitEvery: boolean) => {
       const out: string[] = [];
       for (const el of Array.from(document.querySelectorAll("*"))) {
         const cs = getComputedStyle(el as Element);
@@ -259,7 +280,13 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
           // with multi-word samples, so whole-node filtering would drop every
           // one of them and leave this field recorded-but-never-swept — a
           // vacuous extraction that reads as a stable, clean number.
-          const texts = fvs !== "normal" || ffs !== "normal" ? raw.split(/\s+/) : [raw];
+          //
+          // `--split-words` widens the split to EVERY node. Measured on this
+          // machine against `external/html-test`: 2,454 -> 26,140 runs (10.65x,
+          // a strict superset), sweep 7.0s -> 59.3s. See docs/108 for the tier
+          // diff and the decision it drove; the switch exists so that
+          // measurement is reproducible rather than a number in a changelog.
+          const texts = splitEvery || fvs !== "normal" || ffs !== "normal" ? raw.split(/\s+/) : [raw];
           for (const text of texts) {
             if (text === "" || text.length > 24 || /\s/.test(text)) continue;
             out.push(JSON.stringify({
@@ -276,7 +303,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
         }
       }
       return out;
-    });
+    }, splitWords);
     for (const s of found) {
       const spec = JSON.parse(s) as Omit<RunSpec, "fixtures" | "example">;
       const hit = tally.get(s);
@@ -288,7 +315,7 @@ export async function extractRuns(browser: Browser, dirs: string[], outFile: str
   const runs: RunSpec[] = Array.from(tally.values())
     .map((v) => ({ ...v.spec, fixtures: v.fixtures, example: v.example }))
     .sort((a, b) => b.fixtures - a.fixtures || a.text.localeCompare(b.text));
-  const corpus: RunCorpus = { generatedAt: new Date().toISOString(), sources: dirs, runs };
+  const corpus: RunCorpus = { generatedAt: new Date().toISOString(), sources: dirs, splitWords, runs };
   writeFileSync(outFile, `${JSON.stringify(corpus, null, 2)}\n`);
   return corpus;
 }
@@ -461,6 +488,7 @@ export interface Options {
   extractRuns: boolean;
   sources: string[];
   maxRuns: number | null;
+  splitWords: boolean;
   tolerance: number;
   allowlistFile: string;
   outDir: string;
@@ -473,6 +501,7 @@ export function parseArgs(argv: string[]): Options {
     extractRuns: false,
     sources: ["external/html-test", "../html-test/unicode"],
     maxRuns: null,
+    splitWords: false,
     tolerance: 0.5,
     allowlistFile: "tools/shaping-conformance-allowlist.json",
     outDir: "tests/output/shaping-conformance",
@@ -490,6 +519,7 @@ export function parseArgs(argv: string[]): Options {
       case "--extract-runs": o.extractRuns = true; break;
       case "--source": o.sources = next().split(",").map((s) => s.trim()).filter(Boolean); break;
       case "--max-runs": o.maxRuns = parseInt(next(), 10); break;
+      case "--split-words": o.splitWords = true; break;
       case "--tolerance": o.tolerance = parseFloat(next()); break;
       case "--allowlist": o.allowlistFile = next(); break;
       case "--out": o.outDir = next(); break;
@@ -515,7 +545,7 @@ async function main(): Promise<number> {
         process.stderr.write(`no fixture dirs found (${opts.sources.join(", ")})\n`);
         return 2;
       }
-      const corpus = await extractRuns(browser, dirs, opts.runsFile);
+      const corpus = await extractRuns(browser, dirs, opts.runsFile, { splitWords: opts.splitWords });
       process.stdout.write(`extracted ${corpus.runs.length} runs -> ${opts.runsFile}\n`);
       return 0;
     }
@@ -598,6 +628,10 @@ async function main(): Promise<number> {
     const lines: string[] = [];
     lines.push(`shaping-conformance — ${process.platform} ${process.arch}`);
     lines.push(`runs               ${total.toLocaleString()}  (corpus ${corpus.runs.length.toLocaleString()}, from ${corpus.sources.join(", ")})`);
+    // Which extraction produced the corpus. A `--split-words` corpus is a
+    // different population, not a bigger sample of the same one, so a summary
+    // that omits this invites comparing its tallies against the default's.
+    lines.push(`node splitting     ${corpus.splitWords === true ? "EVERY node on whitespace (--split-words)" : "axis- / feature-bearing nodes only (default)"}`);
     lines.push(`wall               ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     lines.push(`tolerance          ${opts.tolerance}px`);
     lines.push("");
@@ -629,7 +663,8 @@ async function main(): Promise<number> {
     writeFileSync(join(opts.outDir, "report.json"), `${JSON.stringify({
       meta: {
         platform: process.platform, runs: total, corpusRuns: corpus.runs.length,
-        sources: corpus.sources, tolerance: opts.tolerance, wallMs: Date.now() - t0,
+        sources: corpus.sources, splitWords: corpus.splitWords === true,
+        tolerance: opts.tolerance, wallMs: Date.now() - t0,
       },
       summary: { ...counts, mismatchTotal, allowlisted, distinctRoutes: routes.size },
       topRoutes: [...routes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([route, count]) => ({ route, count })),
