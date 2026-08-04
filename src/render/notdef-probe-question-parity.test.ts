@@ -1,64 +1,63 @@
 /**
- * The dotted-circle coverage probe and the real per-codepoint resolver must ask
- * the PLATFORM the same question.
+ * The dotted-circle coverage probe and the real per-codepoint resolver must
+ * agree — and the only way that holds under maintenance is if there is exactly
+ * ONE walk.
  *
- * `codepointResolvesToNotdef` answers "does anything cover `cp`, or does it come
- * out as the primary's `.notdef`?", and `resolveFontForCodepoint` answers "which
- * font paints `cp`?". Different questions of the cascade — but they reach the
- * platform through the SAME call, `resolveSystemFallbackKeyForCp`, and there they
- * must be identical. The probe used to take the run's `lang`, spend it on
- * `fallbackFontChain`, and then drop both it and `systemUiPrimary` on the very
- * next line.
+ * History, because it is the whole design rationale: `codepointResolvesToNotdef`
+ * used to be a second, hand-maintained copy of the resolver's walk. It drifted
+ * twice in one cycle. First it dropped the platform arguments (`lang` /
+ * `systemUiPrimary`) that `resolveFontForCodepoint` passes — the original
+ * version of this test pinned the two call sites argument-for-argument. Then,
+ * within the hour, a concurrent change threaded `stretch` into the resolver and
+ * not the probe, reopening the same asymmetry one parameter further along
+ * (which is why the tail assertions below name every expected argument rather
+ * than merely comparing lists — a shared omission satisfies equality). And
+ * beyond the arguments, the copy never consulted the same SOURCES: it skipped
+ * the declared-family walk (`fontKeyChain`, Blink's kFontFamily stage) and all
+ * decomposition stages, so it could report "uncovered" (→ synthesize a U+25CC
+ * before a mark) for a codepoint the emitter goes on to paint with a real
+ * glyph from a later-declared family.
  *
- * Two independent reasons that is a defect, and neither is "it scored badly":
+ * The fix is structural: the probe's body IS `!resolveFontForCodepoint(...)
+ * .covered`. This file pins that delegation at the source level (so a future
+ * "optimization" can't quietly reintroduce a second walk), pins the caller's
+ * full argument tail, and pins the discriminating behavior — a mark covered
+ * ONLY by a later-declared family reports covered — with the live platform
+ * resolver disabled, because on a rich host the platform masks the family
+ * walk (measured: 0 boolean moves over 7,582 mark/cluster codepoints x 4
+ * system stacks on a dev Mac, live resolver on or off — the skew is a
+ * cross-inventory and webfont-stack hazard, invisible to system-stack
+ * sampling on one machine).
  *
- *  1. The platform can answer "no font at all" for one locale and a covering face
- *     for another, because two of the three backends reject a pick that does not
- *     cover the codepoint — Linux walks fontconfig's sorted set taking only a
- *     covering face, and Windows drops the DirectWrite pick outright
- *     (`!data->FontContainsCharacter(codepoint)` → nullptr,
- *     `platform/fonts/win/font_cache_skia_win.cc:254-256`, Chromium rev
- *     7d859f27). Where the locale steers the matcher, it can therefore flip this
- *     predicate's BOOLEAN, not merely which family answers. On Linux the locale
- *     is the only discriminator there is — Blink hands
- *     `font_description.LocaleOrDefault().Ascii().c_str()` straight to
- *     `GetFontForCharacter` and passes no base font
- *     (`platform/fonts/linux/font_cache_linux.cc:90-95`).
- *  2. `systemFallbackKeyCache` is keyed on both arguments precisely because the
- *     answer is a function of them. An asker that drops them does not share work
- *     with the render path; it populates a PARALLEL set of rows, in an order that
- *     differs from the render path's. Ask order is the exact axis this area has
- *     been bitten on before (an under-keyed cache served whichever spec asked
- *     first).
- *
- * On macOS the locale is genuinely not an input — `GetAlternateFontPlatformData`
- * substitutes from base font + character + size only
- * (`platform/fonts/mac/font_cache_mac.mm:200-212`) — but the BASE is, and it is
- * the run's current font (`:326-327`). `systemUiPrimary` is what separates a
- * `system-ui` run (cascade walked from `CTFontCreateUIFontForLanguage`) from an
- * explicitly-named face landing on the same key, so it has to travel there.
- *
- * Measured before pinning it, so the guard is not mistaken for a fix to a visible
- * bug. macOS host, 1-in-7 stride of U+0020–U+2FFFF x three primaries: supplying
- * `lang` moved the resolved face for 0 of 483,768 asks (as the source predicts)
- * and supplying `systemUiPrimary` moved it for 7,596 of 26,876 `sf-pro` asks,
- * every one to a face that also covers the codepoint — so the boolean did not
- * move for any of 80,628 asks. Linux (Playwright noble image, 1-in-23 stride):
- * `lang` moved the face for up to 2,062 of 8,179 asks per locale, and the boolean
- * again moved 0 times on that inventory. On both, the defect was the question
- * rather than the answer; Windows is where the boolean is expected to move.
- *
- * Source-level rather than behavioral on purpose: the divergence is in which
- * ARGUMENTS reach the platform, and the platform's answer is a property of the
- * host's font inventory, so no assertion about a specific codepoint would hold on
- * all three runners. Comparing the two call sites pins the invariant itself and
- * fails the moment a future argument is wired into one asker and not the other.
+ * The platform-argument parity pins survive for the askers that still reach
+ * `resolveSystemFallbackKeyForCp` directly: the resolver's own live-fallback
+ * stage and the test seam that reproduces its call. Why every argument matters
+ * (Chromium rev 7d859f27): Linux hands the locale straight to
+ * `GetFontForCharacter` with no base font (`platform/fonts/linux/
+ * font_cache_linux.cc:90-95`); Windows rejects a pick that does not cover the
+ * codepoint (`!data->FontContainsCharacter(codepoint)` → nullptr,
+ * `platform/fonts/win/font_cache_skia_win.cc:254-256`), so the locale can flip
+ * coverage itself; macOS takes no locale but substitutes from the run's
+ * current font (`platform/fonts/mac/font_cache_mac.mm:200-212`, `:326-327`),
+ * which is what `systemUiPrimary` distinguishes.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { codepointResolvesToNotdef, resolveFont, resolveFontKey, stackPrimaryIsSystemUi } from "./font-resolution.js";
+import {
+  codepointResolvesToNotdef,
+  fallbackFontChain,
+  getFontInstance,
+  glyphIdForCp,
+  registerWebfont,
+  clearWebfonts,
+  resolveFont,
+  resolveFontKey,
+  resolveFontKeyChain,
+  stackPrimaryIsSystemUi,
+  withSystemFallbackResolution,
+} from "./font-resolution.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FONT_RESOLUTION_SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
@@ -74,6 +73,14 @@ function functionBody(src: string, name: string): string {
   return src.slice(at, end);
 }
 
+/** Split a function's source into (parameter list, body) at the arrow of its
+ *  declaration — crude but sufficient for the top-level shapes pinned here. */
+function bodyAfterParams(fnSrc: string): string {
+  const open = fnSrc.indexOf("{", fnSrc.indexOf("):"));
+  expect(open).toBeGreaterThan(0);
+  return fnSrc.slice(open);
+}
+
 /** The argument list of every `resolveSystemFallbackKeyForCp(...)` CALL (not the
  *  declaration) in `src`, whitespace-normalized, in source order. */
 function systemFallbackCallArgs(src: string): string[] {
@@ -87,50 +94,83 @@ function systemFallbackCallArgs(src: string): string[] {
       if (src[j] === "(") depth++;
       else if (src[j] === ")") depth--;
     }
-    // The probe and the resolver spell the primary-key parameter differently;
-    // everything else must match literally.
+    // Askers may spell the primary-key parameter differently; everything else
+    // must match literally.
     out.push(src.slice(i + marker.length, j - 1).replace(/\s+/g, " ").trim().replace(/primaryFontKey/g, "primaryKey"));
   }
   return out;
 }
 
-/** The coverage probe, the resolver's live-fallback stage, and the test seam
- *  that exists to reproduce their call — the askers that have a run to speak
- *  for. Every other call site is an availability probe with no run context. */
+/** The askers that reach the platform directly and have a run to speak for.
+ *  The coverage probe is deliberately NOT here anymore: it delegates to
+ *  `resolveFontForCodepoint` and reaches the platform only through it. */
 const RUN_CONTEXT_ASKERS = [
-  "codepointResolvesToNotdef",
   "resolveFontForCodepointInner",
   "__resolveSystemFallbackKeyForCpForTest",
 ] as const;
 
-describe("dotted-circle coverage probe asks the platform the resolver's question", () => {
-  it("hands the system-fallback resolver the same arguments from every run-context asker", () => {
+describe("dotted-circle coverage probe shares the resolver's walk", () => {
+  it("delegates its body to resolveFontForCodepoint with the full argument tail", () => {
+    // The load-bearing pin: the probe has NO walk of its own. Its body is the
+    // resolver call — full tail, named argument by argument, because the two
+    // historical drifts were each a single argument or stage present in one
+    // copy and not the other, and comparing shapes (rather than naming the
+    // expectation) is satisfied by a shared omission.
+    const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"))
+      .replace(/\s+/g, " ");
+    expect(body).toContain(
+      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch).covered;",
+    );
+  });
+
+  it("keeps the probe free of any residual second copy of the walk", () => {
+    // A future edit that reintroduces even one stage inline (a cmap fast path,
+    // a chain scan, a direct platform ask) recreates the drift surface this
+    // file exists to close. The body may contain the delegation and nothing
+    // else that resolves fonts.
+    const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"));
+    for (const banned of [
+      "resolveSystemFallbackKeyForCp(",
+      "fallbackFontChain(",
+      "glyphIdForCp(",
+      "getFontInstance(",
+      "pickWebfontVariantForCodepoint(",
+    ]) {
+      expect(body, `probe body must not call ${banned}`).not.toContain(banned);
+    }
+  });
+
+  it("is called with the run's full context, fontKeyChain included, at its one call site", () => {
+    // The caller-side tail, in full — `fontKeyChain` is the argument whose
+    // omission this ticket closes (the probe used to see only the primary, so
+    // a mark covered by a later-declared family got a spurious circle), and
+    // `stackPrimaryIsSystemUi(fontFamily)` / `stretch` are the two that were
+    // each dropped once before.
+    const call = TEXT_TO_PATH_SRC.replace(/\s+/g, " ");
+    expect(call).toContain(
+      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)",
+    );
+    // And the chain is derived the same way the run splitters derive it.
+    expect(TEXT_TO_PATH_SRC).toContain("const fontKeyChain = resolveFontKeyChain(fontFamily);");
+  });
+
+  it("hands the system-fallback resolver the same arguments from every remaining run-context asker", () => {
     const perAsker = RUN_CONTEXT_ASKERS.map((name) => {
       const calls = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name));
       expect(calls.length, `${name} must reach the platform exactly once`).toBe(1);
       return calls[0];
     });
-    // The load-bearing assertion: identical, argument for argument. The probe
-    // used to stop at `primaryKey` while the resolver went on to pass the run's
-    // cascade base and locale.
     expect(new Set(perAsker).size, `diverged: ${JSON.stringify(perAsker)}`).toBe(1);
     expect(perAsker[0]).toContain("systemUiPrimary");
     expect(perAsker[0]).toContain("lang");
     expect(perAsker[0]).toContain("stretch");
   });
 
-  it("keeps every run-context asker's argument list ending in systemUiPrimary, lang, stretch", () => {
+  it("keeps every remaining run-context asker's argument list ending in systemUiPrimary, lang, stretch", () => {
     // Pins the ORDER too: `resolveSystemFallbackKeyForCp` takes
     // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch),
     // and the trailing three are optional with defaults — so a transposition is a
     // silently mis-keyed memo rather than a type error wherever the types line up.
-    //
-    // `stretch` joined this list AFTER the test was first written, and it did so
-    // by breaking it: the width was threaded into the resolver by one change
-    // while the probe was made argument-identical by another, and merging the two
-    // reopened the very asymmetry the first test closed — one parameter further
-    // along. That is the whole reason this asserts the FULL tail rather than
-    // merely that the two lists match: a shared omission would satisfy equality.
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
       expect(args.endsWith("systemUiPrimary, lang, stretch"), `${name}: ${args}`).toBe(true);
@@ -141,42 +181,69 @@ describe("dotted-circle coverage probe asks the platform the resolver's question
     // The key cannot carry it: `system-ui` and an explicitly-named "SF Pro Text"
     // resolve to the SAME key while taking different Blink entry points. So the
     // call site must read the stack.
-    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily))");
+    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily)");
     expect(resolveFontKey("system-ui, sans-serif")).toBe(resolveFontKey('"SF Pro Text", sans-serif'));
     expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif')).toBe(false);
   });
 
-  it("takes the cascade-base signal without disturbing the primary-covered fast path", () => {
+  it("takes the full context without disturbing the primary-covered fast path", () => {
     const family = "Helvetica, sans-serif";
     const key = resolveFontKey(family);
     const font = resolveFont(family, 400, 16, 0, undefined);
-    if (font == null) return; // host without the family; the parity pins above still hold
-    // A covered codepoint returns on the primary's own cmap before the platform
-    // is consulted at all, so it is false for every combination on every host.
+    if (font == null) return; // host without the family; the source pins above still hold
+    const chain = resolveFontKeyChain(family);
+    // A covered codepoint returns on the primary's own cmap before anything
+    // else is consulted, so it is false for every combination on every host.
     for (const systemUi of [false, true]) {
       for (const lang of [undefined, "ja", "zh-CN"]) {
-        expect(codepointResolvesToNotdef(0x41, font, key, 400, 16, 0, undefined, lang, systemUi)).toBe(false);
+        expect(codepointResolvesToNotdef(0x41, font, key, 400, 16, 0, undefined, lang, chain, systemUi)).toBe(false);
       }
     }
   });
 
-  it.runIf(process.platform === "darwin")("stays locale-invariant on macOS, where Chrome's substitution takes no locale", () => {
-    // `GetSubstituteFont(ct_font, character, size)` — base font, character, size,
-    // and nothing else (`platform/fonts/mac/font_cache_mac.mm:200-212`). So on
-    // darwin the locale must not be able to move this answer, and forwarding it
-    // is about the memo key rather than about the result. Measured at 0 moves
-    // over 80,628 asks when the argument was first threaded through; this pins
-    // that the darwin branch never starts consuming it.
-    const family = "Helvetica, sans-serif";
-    const key = resolveFontKey(family);
-    const font = resolveFont(family, 400, 16, 0, undefined);
-    if (font == null) return;
-    for (const cp of [0x0f39, 0x1cf4, 0x11a84, 0x16f8f, 0x1e947]) {
-      const base = codepointResolvesToNotdef(cp, font, key, 400, 16, 0, undefined, undefined, false);
-      for (const lang of ["ja", "zh-CN", "zh-TW", "ko", "hi", "th"]) {
-        expect(codepointResolvesToNotdef(cp, font, key, 400, 16, 0, undefined, lang, false)).toBe(base);
+  const AUMS_PATH = "/Library/Fonts/Arial Unicode.ttf";
+  it.runIf(process.platform === "darwin" && existsSync(AUMS_PATH))(
+    "reports covered for a mark only a LATER-declared family carries (the spurious-circle case)",
+    () => {
+      // U+3099 (combining katakana-hiragana voiced sound mark): Arial Unicode MS
+      // covers it; Helvetica does not, and neither does Helvetica's static
+      // fallback chain — so with the live platform resolver out of the loop, the
+      // declared-family walk is the ONLY thing that can cover it. The old
+      // probe (primary + static chain + live resolver, no family walk) answered
+      // "uncovered" here and its caller synthesized a U+25CC before a mark the
+      // emitter paints normally. Registered as a webfont so the test does not
+      // depend on the helper-based installed-font name matcher.
+      const MARK = 0x3099;
+      try {
+        registerWebfont("DM1945 Later Family", 400, "normal", readFileSync(AUMS_PATH));
+        const family = 'Helvetica, "DM1945 Later Family"';
+        const key = resolveFontKey(family);
+        const font = resolveFont(family, 400, 32, 0, undefined);
+        expect(font).not.toBeNull();
+        const chain = resolveFontKeyChain(family);
+        expect(chain).toContain("webfont:dm1945 later family");
+        withSystemFallbackResolution(false, () => {
+          // Preconditions that make this case DISCRIMINATE (if a future chain
+          // recalibration covers U+3099 from a helvetica primary, this stops
+          // testing anything — fail loudly so the mark gets re-picked).
+          expect(glyphIdForCp(font!, MARK)).toBe(0);
+          for (const cand of fallbackFontChain(MARK, key, undefined, { weight: 400, slant: 0, fontSize: 32 })) {
+            if (cand === "last-resort") continue;
+            const cf = getFontInstance(cand, 400, 32, 0);
+            expect(cf == null || glyphIdForCp(cf, MARK) === 0,
+              `static chain candidate ${cand} covers U+3099 — pick a new discriminating mark`).toBe(true);
+          }
+          // The pinned behavior: the later-declared family covers the mark, so
+          // the probe must NOT report `.notdef` (no synthetic dotted circle).
+          expect(codepointResolvesToNotdef(MARK, font!, key, 400, 32, 0, undefined, undefined, chain)).toBe(false);
+          // Control: the same ask WITHOUT the later family in the chain is
+          // uncovered — proving the family walk, not some other stage, covers.
+          expect(codepointResolvesToNotdef(MARK, font!, key, 400, 32, 0, undefined, undefined, [key])).toBe(true);
+        });
+      } finally {
+        clearWebfonts();
       }
-    }
-  });
+    },
+  );
 });

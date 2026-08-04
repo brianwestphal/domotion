@@ -5724,87 +5724,62 @@ export function glyphInkXRange(glyph: { path?: { commands: Array<{ command: stri
  * this run's cascade that paints `cp`, or does it come out as the primary's
  * `.notdef`?
  *
- * It must ask the platform the SAME question the real resolver
- * (`resolveFontForCodepoint`) asks, which means every argument the platform
- * fallback is a function of has to travel — the run's locale AND whether the
- * cascade is walked from the platform UI font. Both matter, and for different
- * reasons per platform (Chromium rev 7d859f27):
+ * The body IS the resolver. It used to be a second, hand-maintained copy of the
+ * walk (primary cmap → webfont partition → static chain → live resolver), and
+ * that copy drifted twice in one cycle: first the platform arguments (`lang` /
+ * `systemUiPrimary`) were dropped on the probe side only, then — within the hour
+ * of that being fixed — a concurrent change threaded `stretch` into the resolver
+ * and not the probe, reopening the same asymmetry one parameter further along.
+ * Beyond the arguments, the copy also never walked the declared family stack
+ * (`fontKeyChain` — Blink's kFontFamily stage) and had none of the NFD /
+ * math-alphanumeric decomposition stages, so it could answer "uncovered" for a
+ * codepoint the emitter goes on to paint with a real glyph. Its one caller
+ * (`insertSyntheticDottedCircles`) then synthesizes a U+25CC in front of a mark
+ * Chrome paints normally — e.g. a `Helvetica, "Arial Unicode MS"` stack, where
+ * U+3099/U+309A live only in the later-declared family (neither in Helvetica nor
+ * in its static chain), so only the family walk can cover them.
  *
- *  - Linux: locale IS the discriminator and there is no base font at all —
- *    `font_description.LocaleOrDefault().Ascii().c_str()` is handed straight to
- *    `GetFontForCharacter` (`platform/fonts/linux/font_cache_linux.cc:90-95`).
- *  - Windows: the locale reaches `IDWriteFontFallback::MapCharacters` via
- *    `FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`
- *    (`platform/fonts/win/font_cache_skia_win.cc:230-240`), and the pick is then
- *    rejected outright when it does not cover the codepoint (`:254-256`,
- *    `!data->FontContainsCharacter(codepoint)` → nullptr). So on Windows the
- *    locale can flip this predicate's answer, not merely which family answers.
- *  - macOS: locale is NOT an input — `GetAlternateFontPlatformData` substitutes
- *    from base font + character + size only (`platform/fonts/mac/font_cache_mac.mm:200-212`)
- *    — but the BASE is, and it is the run's current font
- *    (`:326-327`, `font_data_to_substitute->PlatformData()`). `systemUiPrimary`
- *    is what distinguishes a `system-ui` run (cascade walked from
- *    `CTFontCreateUIFontForLanguage`, which reaches Apple's hidden `.…UI`
- *    variants) from an explicitly-named face that resolves to the same key.
+ * Delegating is also semantically the point, not just drift-proofing: the
+ * question this predicate answers for its caller is "will this codepoint paint
+ * as the primary's `.notdef`?" (Blink's `kFirstCandidateForNotdefGlyph`
+ * terminal), and the authority on what actually paints is
+ * `resolveFontForCodepoint`, because the run splitters emit from its answer. Any
+ * divergence between the two is by definition a visible contradiction — a ◌
+ * inserted beside a glyph that then renders, or a bare tofu where Chrome
+ * circles. That includes the decomposition stages counting as "covered": when
+ * the resolver covers via an in-font NFD or math-alpha decomposition, the
+ * emitter paints real glyphs, so no circle is correct.
  *
- * Measured rather than asserted, on two of the three platforms:
+ * Two deliberate consequences of sharing the walk, both matching Blink:
+ *  - Private-use / noncharacter codepoints now skip system fallback here too
+ *    (`FontCache::FallbackFontForCharacter` returns null before the platform is
+ *    consulted, `platform/fonts/font_cache.cc:229-244`, Chromium rev 7d859f27).
+ *  - The platform is asked with the run's full argument tail and through the
+ *    same memo rows the render path populates, in the same order.
  *
- *  - macOS host, 1-in-7 stride of U+0020–U+2FFFF x primaries `sf-pro` /
- *    `helvetica` / `times`. `lang` moved the resolved face for 0 of 483,768 asks
- *    — exactly what the source predicts — while `systemUiPrimary` moved it for
- *    7,596 of 26,876 `sf-pro` asks, in every case to a face that also covers the
- *    codepoint. The predicate's boolean did not move for any of 80,628 asks.
- *  - Linux (the Playwright noble image, fontconfig fall-through path), 1-in-23
- *    stride. `lang` moved the resolved face for 2,062 (`th`) / 2,059 (`ar`) /
- *    1,832 (`hi`) / 393 (`ja` `ko` `zh-CN` `zh-TW`) of 8,179 asks each — up to a
- *    quarter of codepoints get a DIFFERENT face per locale — while the boolean
- *    again moved 0 times on that inventory.
- *
- * So on both measured platforms this fixes the question, not the answer: the
- * probe was asking the OS about a cascade the run never uses, then registering
- * the faces it named into the dynamic font registry and the per-codepoint memo
- * beside the real resolver's rows. That memo is keyed on both arguments
- * precisely because the answer is a function of them, so two askers disagreeing
- * on the arguments do not share work and populate it in an order that differs
- * from the render path's. Windows is the one platform where the boolean itself
- * is expected to move, and it is not measurable from here.
+ * Measured before landing (macOS host, all \p{M} marks + the complex-shaper
+ * dotted-circle Lo set = 7,582 codepoints x 4 stacks, live resolver both on and
+ * off): the boolean moved 0 times on this inventory — the skew is a latent
+ * cross-inventory and webfont-stack hazard, not a repro on a rich dev Mac. The
+ * discriminating case (later-declared family as the only cover) is pinned in
+ * `notdef-probe-question-parity.test.ts` with the live resolver disabled.
  */
 export function codepointResolvesToNotdef(
   cp: number, primaryFont: FontInstance, primaryFontKey: string,
   weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined, lang: string | undefined,
+  /** The run's full declared CSS family stack as font keys — derive with
+   *  `resolveFontKeyChain(fontFamily)`, exactly as the run splitters do. */
+  fontKeyChain: string[],
   /** True when the run's declared stack starts at `system-ui` /
    *  `BlinkMacSystemFont` — see `stackPrimaryIsSystemUi`, which is what the
    *  caller derives this from. */
   systemUiPrimary: boolean = false,
-  /** CSS `font-stretch` as a percentage, 100 = `normal`. Travels for the same
-   *  reason `systemUiPrimary` and `lang` do: the resolver passes it, so a probe
-   *  that withheld it would be asking the platform about a different cascade
-   *  than the one the run actually paints. */
+  /** CSS `font-stretch` as a percentage, 100 = `normal`. */
   stretch: number = 100,
 ): boolean {
-  if (glyphIdForCp(primaryFont, cp) !== 0) return false;
-  if (primaryFontKey.startsWith("webfont:")) {
-    const family = primaryFontKey.slice("webfont:".length);
-    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-    if (v != null && glyphIdForCp(v, cp) !== 0) return false;
-  }
-  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
-    if (candidate === "last-resort") continue;
-    const cf = getFontInstance(candidate, weight, fontSize, slant);
-    if (cf != null && cf.glyphForCodePoint != null
-        && glyphIdForCp(cf, cp) !== 0) return false;
-  }
-  if (_systemFallbackResolutionEnabled) {
-    const sysKey = resolveSystemFallbackKeyForCp(
-      cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch);
-    if (sysKey != null) {
-      const sf = getFontInstance(sysKey, weight, fontSize, slant);
-      if (sf != null && sf.glyphForCodePoint != null
-          && glyphIdForCp(sf, cp) !== 0) return false;
-    }
-  }
-  return true;
+  return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+    variationSettings, lang, fontKeyChain, systemUiPrimary, stretch).covered;
 }
 
 /**
