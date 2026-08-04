@@ -96,8 +96,20 @@ its own baseline before the gate can grade it.
 - The family-nomination stage above `CreateTypeface` (the hardcoded per-script
   fallback table, `resolveFontKey`'s key table) — doc 107's oracle owns that.
 - Italic and width axes are not swept.
-- Simulation FLAGS: the helper's bare `GetFirstMatchingFont` can return a face
-  carrying DirectWrite simulations where Chrome's loop strips them and
-  re-resolves. The chosen file and PostScript name coincide in every measured
-  row (the loop only strips styling the request forced), so the sweep cannot
-  distinguish the two — noted here rather than glossed.
+- Simulation FLAGS. **The divergence itself is closed** — the helper now runs
+  Skia's `FirstMatchingFontWithoutSimulations` loop, transcribed at the pinned
+  tag rather than from the local checkout (which had restructured it). But this
+  oracle still could not have *told* you: the loop only strips styling the
+  request forced, so the chosen file and PostScript name coincide in almost
+  every row, and a name-comparing sweep is blind to the flags either way.
+
+  Worth keeping as a blind-spot entry rather than deleting, because the closing
+  measurement is what shows the size of the blind spot. Porting the loop moved
+  exactly **one** answer — `U+2758` at weight 700, `SegoeUI-Light` →
+  `SegoeUI-Semilight`, in 2 of ~600k rows and **0 of 4,536 declared-family
+  rows**. So the sweep would have reported "nothing changed" for a change that
+  did change something, which is the definition of a blind spot rather than an
+  absence of one.
+
+  Attribution was by construction, not inference: single-change helper binaries
+  were built, and only the simulation one reproduces that row.
