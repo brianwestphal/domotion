@@ -329,8 +329,16 @@ jobs:
         with:
           path: shard-artifacts
           pattern: results-*
+      # `--expect` states the matrix size so the merge can tell a complete run
+      # from a partial one. Without it the aggregate merges whatever artifacts
+      # happen to exist: a macOS unicode run once lost shard 5 entirely and
+      # reported "no regressions" over 655 of 818 fixtures, because the missing
+      # shard's failures were simply not there to count. An OS that was not
+      # dispatched reports 0 and is skipped.
       - name: Merge + write Step Summary
-        run: node scripts/merge-shard-results.mjs --input shard-artifacts --out shard-artifacts
+        run: >-
+          node scripts/merge-shard-results.mjs --input shard-artifacts --out shard-artifacts
+          --expect macos=${{ needs.setup.outputs.macos_on == 'true' && needs.setup.outputs.macos_total || 0 }},linux=${{ needs.setup.outputs.linux_on == 'true' && needs.setup.outputs.linux_total || 0 }},windows=${{ needs.setup.outputs.windows_on == 'true' && needs.setup.outputs.windows_total || 0 }}
       - name: Diff against committed CI baseline (+ optionally rewrite it)
         run: >-
           node scripts/ci-baseline-aggregate.mjs
@@ -354,6 +362,7 @@ jobs:
           path: |
             shard-artifacts/results-*.slim.json
             shard-artifacts/run-env-*.json
+            shard-artifacts/shard-completeness-*.json
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:

@@ -128,6 +128,24 @@ Both are now guarded. `scripts/run-env.mjs` records `ImageVersion`, `os.release(
 
 This mirrors the guard the font-conformance oracle already had (`comparability()` in `scripts/diff-font-conformance-baseline.mjs`, doc 107), which refuses to judge across a change in runner image, font inventory, ICU version or slice. The visual sweep simply never had one.
 
+## A merge is only a measurement if every shard reached it
+
+The aggregate downloads `results-*` and merges whatever it finds. That meant a run which **lost a shard produced a smaller corpus rather than an error** — and the loss is silent in the direction that matters, because the missing shard's failures are not there to be counted.
+
+Observed: a 5-way macOS unicode run's shard 5 ran to completion (its log reaches `Post Run actions/checkout`) but produced no artifact. The aggregate merged the other four, **succeeded**, and the driver printed `✅ No regressions vs the CI baseline` over **655 of 818 fixtures**. The 163 lost ones were Tibetan, Kannada, Gurmukhi, Arabic Supplement, IPA Extensions — complex-script blocks, i.e. the ones a shaping change is most likely to disturb.
+
+It also manufactured a false A/B. Diffing that run against a complete one reported "2 newly passing, 0 fixtures moved": both artifacts of comparing only the fixture names present in *both* runs. The two "newly passing" fixtures were not passing, they were **absent**.
+
+The guard is in three places, deliberately not one:
+
+- `merge-shard-results.mjs` takes `--expect <os>=<n>,…` (the matrix size, passed by the workflow from the setup job's per-OS totals). It writes `shard-completeness-<os>.json`, prints a red block naming the missing shards, and **exits non-zero unconditionally** — there is no opt-out flag, because this is not a fidelity opinion but the merge saying the file it just wrote does not describe the corpus. An OS reporting `0` was not dispatched and is skipped; an OS that was dispatched and produced *nothing* never enters the per-OS loop at all, so it is swept for separately (the quietest form of the same failure).
+- The workflow adds `shard-completeness-*.json` to the `visual-tests-meta` artifact.
+- `tools/run-ci-visual-tests.mjs` reads those files and **refuses to print a baseline verdict** for an incomplete run. This stays independent of the merge's exit code on purpose: it is the last thing between a partial run and a number a human will quote, and it should not depend on the producing job having failed loudly.
+
+Absent `--expect` — a local run, or an unsharded one — the check is skipped and says so (`complete: null`) rather than guessing a matrix size, which would make it vacuously pass. Pinned in `tests/shard-completeness.test.ts`, including a replay of the real lost-shard run.
+
+This is the same defect class already fixed once for the conformance workflow, where `|| true` on the shard step plus `continue` on a missing report let a run whose mismatch-bearing shards died report zero mismatches and go green. It was not fixed here at the same time.
+
 **Practical rule:** a per-fixture difference between two sweeps is evidence about the code *only* if both were measured in the same environment. Check the Step Summary's environment line before attributing anything to a commit.
 
 ### Chrome itself is not run-to-run deterministic on the runner — and the digests alone could not see which side moved

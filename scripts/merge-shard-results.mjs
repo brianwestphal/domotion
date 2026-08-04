@@ -120,9 +120,22 @@ for (const f of files) {
   }
 }
 
+/**
+ * `--expect macos=5,linux=0,windows=0` — the matrix size per OS, so the merge can
+ * tell a complete run from a partial one. Entries of 0 mean "this OS was not
+ * dispatched" and are dropped rather than treated as a shortfall.
+ */
+const expectByOs = new Map();
+for (const part of (arg("--expect", "") || "").split(",")) {
+  const [os, n] = part.split("=");
+  const total = Number.parseInt(n, 10);
+  if (os && Number.isFinite(total) && total > 0) expectByOs.set(os.trim(), total);
+}
+
 const lines = ["## Visual-test results (merged across shards)", ""];
 let anyFailed = false;
 let anyHeterogeneous = false;
+let anyIncomplete = false;
 
 for (const os of [...byOs.keys()].sort()) {
   const results = [...byOs.get(os).values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -183,7 +196,63 @@ for (const os of [...byOs.keys()].sort()) {
     }
     lines.push("");
   }
-  console.log(`merged ${os}: ${passed} passed, ${failed} failed, ${skipped} skipped (${results.length} fixtures) -> ${outPath}`);
+  // Shard completeness. A merge is only a measurement of the CORPUS if every
+  // shard's results reached it — and a lost shard is silent in the direction
+  // that matters, because its failures simply are not there to report. Observed:
+  // shard 5 of a 5-way macOS unicode run produced no artifact, the aggregate
+  // merged the other four, and the run reported "no regressions" over 655 of 818
+  // fixtures. The 163 missing ones were Tibetan, Kannada, Gurmukhi, Arabic
+  // Supplement, IPA Extensions — complex-script blocks, i.e. the ones a shaping
+  // change is most likely to disturb.
+  //
+  // `--expect` is how the caller states the matrix size. Absent (a local run,
+  // or a single unsharded run) the check is skipped rather than guessed at.
+  const observed = [...new Set((envsByOs.get(os) ?? []).map((e) => e.shard).filter((s) => s != null))].sort((a, b) => a - b);
+  const shardsSeen = new Set((byOs.get(os) ? [...byOs.get(os).values()] : []).map((r) => r.shard).filter((s) => s != null));
+  for (const s of shardsSeen) observed.includes(s) || observed.push(s);
+  observed.sort((a, b) => a - b);
+  const expected = expectByOs.get(os) ?? null;
+  const missing = expected == null ? [] : Array.from({ length: expected }, (_, i) => i + 1).filter((s) => !observed.includes(s));
+  writeFileSync(resolve(outDir, `shard-completeness-${os}.json`), `${JSON.stringify({
+    os, expectedShards: expected, observedShards: observed, missingShards: missing,
+    complete: expected == null ? null : missing.length === 0,
+    fixtures: results.length,
+  }, null, 2)}\n`);
+
+  if (missing.length > 0) {
+    anyIncomplete = true;
+    lines.push(
+      `> 🔴 **INCOMPLETE RUN — ${missing.length} of ${expected} shard(s) are missing from this merge.**`,
+      `> Missing shard(s): ${missing.join(", ")}. The ${results.length} fixtures above are the`,
+      `> SURVIVORS, not the corpus, and every count derived from them understates the`,
+      `> failures — a regression living in a lost shard reads here as "no regressions".`,
+      `> Do not compare this run against a baseline or another run.`,
+      "",
+    );
+    console.error(`merge-shard-results: INCOMPLETE ${os} — missing shard(s) ${missing.join(", ")} of ${expected}`);
+  }
+
+  console.log(`merged ${os}: ${passed} passed, ${failed} failed, ${skipped} skipped (${results.length} fixtures`
+    + `${expected != null ? `, shards ${observed.length}/${expected}` : ""}) -> ${outPath}`);
+}
+
+// An OS that was dispatched but produced NO results at all never enters the loop
+// above, so it would otherwise vanish from the summary entirely — the most
+// complete form of the same failure, and the quietest.
+for (const [os, expected] of expectByOs) {
+  if (byOs.has(os)) continue;
+  anyIncomplete = true;
+  lines.push(
+    `### ${os}`, "",
+    `> 🔴 **NO RESULTS AT ALL.** ${expected} shard(s) were dispatched and none reached the merge.`,
+    "",
+  );
+  writeFileSync(resolve(outDir, `shard-completeness-${os}.json`), `${JSON.stringify({
+    os, expectedShards: expected, observedShards: [],
+    missingShards: Array.from({ length: expected }, (_, i) => i + 1),
+    complete: false, fixtures: 0,
+  }, null, 2)}\n`);
+  console.error(`merge-shard-results: INCOMPLETE ${os} — no results at all (expected ${expected} shard(s))`);
 }
 
 const summary = lines.join("\n") + "\n";
@@ -206,5 +275,14 @@ if (summaryTarget != null) {
 // may be perfectly fine, but they are not one measurement. `--strict-env` fails
 // on it so a baseline capture can refuse to bake in a blended run, without
 // making every ordinary sweep hard-fail during a routine image rotation.
+// An INCOMPLETE run fails unconditionally, with no flag to opt out of, because
+// it is not a fidelity opinion — it is the merge saying the file it just wrote
+// does not describe the corpus. Reporting it and exiting 0 is what let a run
+// missing a fifth of its fixtures print "✅ No regressions". Only reachable when
+// the caller passed `--expect`; a local or unsharded run is unaffected.
+if (anyIncomplete) {
+  console.error("merge-shard-results: refusing to report an incomplete run as a measurement");
+  process.exit(1);
+}
 if (process.argv.includes("--strict-env") && anyHeterogeneous) process.exit(1);
 if (process.argv.includes("--strict") && anyFailed) process.exit(1);

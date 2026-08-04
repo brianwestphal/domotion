@@ -13,7 +13,7 @@
 // push first — this script refuses to dispatch a ref the remote doesn't have.
 
 import { execFileSync, execFile } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -221,6 +221,46 @@ if (eager) {
     console.warn(`⚠️  No run-env-<os>.json in the meta artifact — this run predates the workflow\n`
       + `   change that uploads it, so environment provenance is unavailable.\n`
       + `   A baseline written from it would carry env: null; --update-baseline will refuse.\n`);
+  }
+}
+
+// Completeness before verdict. The aggregate merges whatever shard artifacts
+// exist, so a run that lost one produces a smaller corpus rather than an error —
+// and every count derived from it understates the failures, because the missing
+// shard's are not there to count. Measured: a 5-way macOS unicode run lost shard
+// 5, merged 655 of 818 fixtures, and this script printed "✅ No regressions".
+//
+// The merge now writes `shard-completeness-<os>.json` and fails on a shortfall,
+// but this check stays independent of that: it is the last thing between a
+// partial run and a verdict a human will quote, and it must not depend on the
+// producing job having failed loudly.
+{
+  const metaSub = join(dir, "visual-tests-meta");
+  const srcDir = existsSync(metaSub) ? metaSub : dir;
+  const incomplete = [];
+  let checked = 0;
+  for (const name of readdirSync(srcDir)) {
+    const m = /^shard-completeness-([a-z0-9]+)\.json$/i.exec(name);
+    if (m == null) continue;
+    checked++;
+    try {
+      const c = JSON.parse(readFileSync(join(srcDir, name), "utf-8"));
+      if (c.complete === false) incomplete.push(c);
+    } catch { /* unreadable — treated as "cannot tell" below */ }
+  }
+  if (incomplete.length > 0) {
+    for (const c of incomplete) {
+      console.error(`\n🔴 INCOMPLETE RUN — ${c.os}: shard(s) ${(c.missingShards ?? []).join(", ")} of `
+        + `${c.expectedShards} are missing from the merge. ${c.fixtures} fixtures are the SURVIVORS, `
+        + `not the corpus.`);
+    }
+    die(`refusing to report a baseline verdict for an incomplete run (see ${url}). `
+      + `Re-run the sweep; a partial corpus cannot be compared against a baseline or another run.`);
+  }
+  if (checked === 0) {
+    console.warn(`⚠️  No shard-completeness-<os>.json in the artifact — this run predates the\n`
+      + `   completeness check, so a lost shard would be invisible here. Verify the fixture\n`
+      + `   count against the corpus before quoting a verdict.\n`);
   }
 }
 
