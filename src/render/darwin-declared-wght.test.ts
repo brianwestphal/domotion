@@ -54,19 +54,19 @@ const describeSkia = process.platform === "darwin" && existsSync(SKIA) && isGlyp
 describeSkia("declared `Skia` resolves the face Chrome paints, not the Black master", () => {
   it("pins the embedded-subset location to the matched instance's coordinates", () => {
     // CSS 400 → the default instance (wght 1): an empty pin, NOT wght 3.2.
-    const at400 = getFontInstance(resolveFontKey("Skia", 400)!, 400, 100, 0);
+    const at400 = getFontInstance(resolveFontKey("Skia"), 400, 100, 0);
     const src400 = getFontSourceInfo(at400);
     expect(src400?.variationAxes).toEqual({});
 
     // CSS 700 → the Bold named instance at wght 1.95 — far below the 3.2 a
     // clamped CSS pin would produce.
-    const at700 = getFontInstance(resolveFontKey("Skia", 700)!, 700, 100, 0);
+    const at700 = getFontInstance(resolveFontKey("Skia"), 700, 100, 0);
     const wght700 = getFontSourceInfo(at700)?.variationAxes?.wght;
     expect(wght700).toBeGreaterThan(1.5);
     expect(wght700).toBeLessThan(2.5);
 
     // CSS 300 → the Light instance at wght 0.48.
-    const at300 = getFontInstance(resolveFontKey("Skia", 300)!, 300, 100, 0);
+    const at300 = getFontInstance(resolveFontKey("Skia"), 300, 100, 0);
     const wght300 = getFontSourceInfo(at300)?.variationAxes?.wght;
     expect(wght300).toBeGreaterThan(0.4);
     expect(wght300).toBeLessThan(0.6);
