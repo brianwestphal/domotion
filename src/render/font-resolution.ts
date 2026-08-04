@@ -356,7 +356,11 @@ export function unicodeRangeCovers(ranges: Array<[number, number]> | undefined, 
  * matching Cyrillic/Greek/Latin-Ext partition that's registered but
  * unselected.
  */
-export function pickWebfontVariantForCodepoint(family: string, weight: number, fontSize: number, slant: number, codepoint: number, variationSettings?: Record<string, number>): FontInstance | null {
+export function pickWebfontVariantForCodepoint(family: string, weight: number, fontSize: number, slant: number, codepoint: number, variationSettings?: Record<string, number>,
+  /** CSS `font-stretch` percentage — drives a variable webfont's `wdth` axis
+   *  (see `applyVariationAxes`). */
+  stretch: number = 100,
+): FontInstance | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
@@ -369,7 +373,7 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings);
+  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch);
 }
 
 /**
@@ -484,7 +488,16 @@ export function __pickLocalFontAliasVariantForTest(family: string, weight: numbe
  * Used internally by `getFontInstance` for `webfont:<name>` keys; italic
  * match dominates the score so italic+regular beats upright+italic-mismatch.
  */
-function pickWebfontVariant(family: string, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>): FontInstance | null {
+function pickWebfontVariant(family: string, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>,
+  /** CSS `font-stretch` percentage — drives a variable webfont's `wdth` axis,
+   *  mirroring Blink's webfont instancing (`font_custom_platform_data.cc:155-169`,
+   *  rev 7d859f27). The @font-face `font-stretch` DESCRIPTOR is not yet tracked
+   *  by the registry, so this implements the descriptor-is-auto branch (clamp to
+   *  the font's own wdth range); a partitioned family whose faces declare
+   *  distinct `font-stretch` descriptor ranges would need the capabilities
+   *  clamp on top. */
+  stretch: number = 100,
+): FontInstance | null {
   const variants = webfontRegistry.get(family);
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
@@ -513,7 +526,7 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings);
+  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch);
 }
 
 /**
@@ -3954,9 +3967,39 @@ function resolveEffectiveCutKey(
 }
 
 /**
+ * The `wdth` request for a resolved key, or 100 (no request).
+ *
+ * On macOS, `font-stretch` drives the variable `wdth` axis for exactly ONE
+ * face: the `system-ui` one. Blink's `MatchSystemUIFont` applies the CSS
+ * percentage as a CoreText `wdth` variation, clamped to the axis range
+ * (`mac/font_matcher_mac.mm:540-589` + `:483-538`, rev 7d859f27); every other
+ * family goes through `MatchFontFamily`, where the width becomes the
+ * condensed/expanded symbolic TRAIT and selects a cut or named instance with
+ * no axis applied — including families that carry a wdth axis (measured on the
+ * `Skia` family: 50%/62.5%/75% all paint the same `Skia-Regular_Condensed`).
+ *
+ * Keyed on the sf-pro keys because that is what `system-ui` resolves to here.
+ * The key model conflates a literal CSS `"SF Pro"` declaration with
+ * `system-ui` (both map to `sf-pro`), so a declared "SF Pro" at non-normal
+ * stretch takes the axis where Chrome's declared-family matcher would pick a
+ * cut — a known residual of the shared key, same as its weight behavior.
+ */
+function darwinSystemUiWdth(effectiveKey: string, stretch: number): number {
+  if (process.platform !== "darwin" || stretch === 100) return 100;
+  return effectiveKey === "sf-pro" || effectiveKey === "sf-pro-italic" ? stretch : 100;
+}
+
+/** Test-only view of the system-ui `wdth` gate (not in the package barrel). */
+export function __darwinSystemUiWdthForTest(effectiveKey: string, stretch: number): number {
+  return darwinSystemUiWdth(effectiveKey, stretch);
+}
+
+/**
  * @param stretch CSS `font-stretch` as a percentage, 100 = `normal`. Reaches the
  *   macOS declared-family style matcher, where Blink turns it into the condensed
- *   / expanded symbolic trait it scores candidates on.
+ *   / expanded symbolic trait it scores candidates on — and, for the `system-ui`
+ *   face and variable webfonts, the variable `wdth` axis (see
+ *   `darwinSystemUiWdth` / `applyVariationAxes`).
  */
 export function getFontInstance(
   key: string, weight: number, fontSize: number, slant: number = 0,
@@ -3965,7 +4008,7 @@ export function getFontInstance(
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
   if (key.startsWith("webfont:")) {
-    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings);
+    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings, stretch);
   }
   // `localalias:<family>` — the family was declared via @font-face local() and
   // we tracked one or more declared (weight, italic) variants pointing at base
@@ -3990,9 +4033,13 @@ export function getFontInstance(
   const fvsKey = variationSettings != null
     ? Object.keys(variationSettings).sort().map((t) => `${t}=${variationSettings[t]}`).join(",")
     : "";
-  // `effectiveKey` already carries the stretch decision (it IS the resolved
-  // cut), so the width does not need its own slot in the cache key.
-  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}`;
+  // On the DECLARED-family path `effectiveKey` carries the whole stretch
+  // decision (it IS the resolved cut). On the macOS `system-ui` face the
+  // stretch ALSO drives the variable `wdth` axis (see `darwinSystemUiWdth`), so
+  // two stretches on the same key are two different instances and the width
+  // needs its own slot.
+  const wdthStretch = darwinSystemUiWdth(effectiveKey, stretch);
+  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}${wdthStretch !== 100 ? `-wdth${wdthStretch}` : ""}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
   // Platform-aware path discovery (DM-258): darwin → FONT_PATHS, linux →
@@ -4202,7 +4249,7 @@ export function getFontInstance(
   }
   if (font == null) return null; // couldn't open and the helper didn't (or can't) rescue
 
-  const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings);
+  const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings, wdthStretch);
   // DM-1693: expose the static face's natural weight + whether a variable wght
   // axis was baked, so the embedded-font path can decide faux-bold. Read from
   // the ORIGINAL fontkit Font (`font`) — `instance` may be a variation instance
@@ -4914,13 +4961,43 @@ export function __clearGlyphFallbackCaches(): void {
  * Inter Variable or Roboto Flex render at the requested weight/size instead
  * of always producing the registered base instance.
  */
-function applyVariationAxes(font: any, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>): FontInstance {
+function applyVariationAxes(font: any, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>,
+  /**
+   * CSS `font-stretch` as a percentage (100 = `normal`), driving the `wdth`
+   * axis when the file exposes one. The MAPPING is the identity — Blink hands
+   * the CSS percentage straight to the axis and lets the range clamp do the
+   * rest — but only TWO of Blink's paths apply it, so callers gate it:
+   *
+   *   - the macOS `system-ui` face: `MatchSystemUIFont` sets `wdth` (and
+   *     `wght`) in a CoreText variation dict, each clamped to the axis range
+   *     first (`ClampVariationValuesToFontAcceptableRange`,
+   *     `mac/font_matcher_mac.mm:483-589`, rev 7d859f27). That clamp is why
+   *     `font-stretch: 200%` resolves to wdth 150 on SF (axis max), which is
+   *     exactly what Chrome reports (`.SFNS-Regular_wdth960000_…` = 150.0).
+   *   - variable WEBFONTS, on every platform: `FontCustomPlatformData::
+   *     GetFontPlatformData` pins `wdth` to the selection request clamped to
+   *     the @font-face descriptor capabilities — or, when the descriptor is
+   *     auto, to the font's own axis range
+   *     (`font_custom_platform_data.cc:155-169`, rev 7d859f27).
+   *
+   *   A DECLARED family gets NEITHER: `MatchFontFamily` turns the width into
+   *   the condensed/expanded symbolic trait and picks a cut or fvar NAMED
+   *   INSTANCE, and no wdth axis is applied afterward (`FontPlatformDataFromCTFont`
+   *   touches only `opsz` + `font-variation-settings`). Measured for the
+   *   discrimination: `font-family: Skia` (a family with BOTH condensed named
+   *   instances AND a wdth axis) paints `Skia-Regular_Condensed` at the SAME
+   *   width for 50% / 62.5% / 75%, while `system-ui` moves continuously.
+   *   Callers on the declared-family path therefore pass 100 here.
+   */
+  stretch: number = 100,
+): FontInstance {
   if (font.variationAxes == null || Object.keys(font.variationAxes).length === 0 || font.getVariation == null) {
     return font;
   }
   const axes: Record<string, number> = {};
   if (font.variationAxes.wght != null) axes.wght = weight;
   if (font.variationAxes.opsz != null) axes.opsz = fontSize;
+  if (stretch !== 100 && font.variationAxes.wdth != null) axes.wdth = stretch;
   if (slant !== 0 && font.variationAxes.slnt != null) axes.slnt = slant;
   // DM-578: author-set `font-variation-settings` wins over the CSS-weight /
   // font-size-derived defaults. Skip axes the font doesn't expose — fontkit
@@ -5786,7 +5863,7 @@ export function codepointResolvesToNotdef(
   if (glyphIdForCp(primaryFont, cp) !== 0) return false;
   if (primaryFontKey.startsWith("webfont:")) {
     const family = primaryFontKey.slice("webfont:".length);
-    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
     if (v != null && glyphIdForCp(v, cp) !== 0) return false;
   }
   for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
@@ -6119,7 +6196,7 @@ function resolveFontForCodepointInner(
     if (key === primaryFontKey) return primaryFont;
     if (key.startsWith("webfont:")) {
       const family = key.slice("webfont:".length);
-      const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+      const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
       if (v != null) return v;
     }
     return getFontInstance(key, weight, fontSize, slant, fvs);

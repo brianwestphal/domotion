@@ -1362,7 +1362,7 @@ function splitTextIntoFontRuns(
       // webfonts (in-process fontkit), so this probe issues no helper round-trip.
       if (primaryFontKey.startsWith("webfont:")) {
         const family = primaryFontKey.slice("webfont:".length);
-        const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+        const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
         if (cpVariant != null && glyphIdForCp(cpVariant, cp) !== 0) {
           continue;
         }

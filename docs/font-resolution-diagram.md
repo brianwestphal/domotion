@@ -198,7 +198,17 @@ Given a logical key + `(weight, fontSize, slant, variationSettings, stretch)`,
 `FontInstance`, or `null` (caller walks to the next candidate). `stretch` is CSS
 `font-stretch` as a percentage (100 = `normal`, `stretchPercent` parses the
 computed string); it reaches the declared-family style matcher, and the cut it
-selects is what `effectiveKey` ends up naming.
+selects is what `effectiveKey` ends up naming. On the macOS `system-ui` face
+(`sf-pro` / `sf-pro-italic`) and on variable webfonts it ALSO drives the `wdth`
+variation axis — the identity mapping clamped into the axis range, which is the
+two places Blink applies it (`MatchSystemUIFont`,
+`mac/font_matcher_mac.mm:540-589` + `:483-538`;
+`font_custom_platform_data.cc:155-169`; rev 7d859f27). A declared family never
+gets the axis: the width becomes the condensed/expanded symbolic trait and picks
+a cut or fvar named instance instead (measured on the `Skia` family, which has
+both mechanisms available: 50%/62.5%/75% all paint `Skia-Regular_Condensed` at
+one width, while `system-ui` moves continuously and clamps 200% to SF's wdth max
+150).
 
 ```mermaid
 flowchart TD
@@ -211,7 +221,7 @@ flowchart TD
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle)"]
   G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
-  G3d --> G4["cacheKey = effectiveKey-weight-size-slant-fvs<br/>→ fontInstanceCache hit? return"]
+  G3d --> G4["darwinSystemUiWdth(effectiveKey, stretch):<br/>sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey = effectiveKey-weight-size-slant-fvs[-wdth]<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
@@ -222,7 +232,7 @@ flowchart TD
   G8 --> G9{"opened & has glyf/CFF/CFF2 outline table?<br/>(fontHasOutlineTable)"}
   G9 -->|"no + native-eligible + helper avail"| G7
   G9 -->|"no font at all"| GNull
-  G9 -->|"yes"| G10["applyVariationAxes(font, weight, size, slant, fvs)<br/>· record fontSourceMap (per-glyph helper fallback)<br/>· cache · return"]
+  G9 -->|"yes"| G10["applyVariationAxes(font, weight, size, slant, fvs, wdth)<br/>wght←weight · opsz←size · wdth←stretch (system-ui/webfont only)<br/>· record fontSourceMap (per-glyph helper fallback)<br/>· cache · return"]
 ```
 
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**
@@ -330,7 +340,15 @@ Three properties are load-bearing:
 `system-ui` (`sf-pro`) is deliberately outside the scope: `CreateTypeface`
 asserts `DCHECK_NE(family, kSystemUi)`, so Blink does not family-match it
 either, and its face sits under a dot-prefixed family CoreText refuses to
-resolve by name from a client process.
+resolve by name from a client process. Its `font-stretch` mechanism is the
+OTHER one: `MatchSystemUIFont` puts the CSS percentage straight into a CoreText
+`wdth` variation (plus `wght` when ≠400), each clamped to the face's axis range
+first (`ClampVariationValuesToFontAcceptableRange`,
+`mac/font_matcher_mac.mm:483-589`, rev 7d859f27) — mirrored here by
+`darwinSystemUiWdth` feeding `applyVariationAxes`, and validated against
+Chrome's CDP-measured widths at 26px within 0.01px across
+50/62.5/75/100/125/200% (200% clamps to SF's wdth max 150, which is why the
+mapping is NOT the identity end to end).
 
 **No known residual.** The matcher reproduces Chrome exactly at all nine
 canonical CSS weights for every scored family (7,317/7,317, doc
@@ -386,7 +404,7 @@ in `renderTextAsPath` sheared those a second time. The routing decision wins ove
 the angle.
 
 **Source of truth:** `getFontInstance` / `resolveEffectiveCutKey` / `stretchPercent` /
-`resolveFontSpec` / `applyVariationAxes` /
+`darwinSystemUiWdth` / `resolveFontSpec` / `applyVariationAxes` /
 `subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
 `fontHasOutlineTable` / `commandsFor` in `src/render/font-resolution.ts`;
 `resolveFamilyStyleMatch` / `resolveInstalledFont` in `src/render/glyph-helper.ts`.
@@ -399,7 +417,7 @@ the angle.
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
     W0["pickWebfontVariant(family, weight, size, slant, fvs)"] --> W1["score each variant:<br/>italic mismatch (1000) +<br/>unicode-range-misses-Latin (2000) +<br/>|Δweight|"]
-    W1 --> W2["best → applyVariationAxes<br/>(drive one variable webfont across weights/slants)"]
+    W1 --> W2["best → applyVariationAxes(…, stretch)<br/>(drive one variable webfont across weights/slants;<br/>wdth←font-stretch clamped to the font's own axis range —<br/>Blink's descriptor-is-auto capabilities clamp)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
     P1 --> P2["score by (italic, |Δweight|) → best"]
   end
