@@ -706,7 +706,9 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const mFontSize = opts.metricsFontSize ?? fontSize;
   const mFontWeight = opts.metricsFontWeight ?? fontWeight;
   const mFontStyle = opts.metricsFontStyle ?? fontStyle;
-  const m = getDecorationMetrics(mFontFamily, mFontSize, mFontWeight, mFontStyle, thicknessOverride, underlineOffset, underlinePosition);
+  const m = getDecorationMetrics(
+    { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle },
+    { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition });
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
   // Skip-ink applies to solid + double + wavy underlines per Chromium's
@@ -721,7 +723,8 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // around them.
   function computeGapsAt(yRel: number, thick: number): Array<[number, number]> {
     if (!skipInkActive || runText == null) return [];
-    return computeSkipInkGaps(runText, fontSize, fontFamily, fontWeight, fontStyle, yRel, thick, features, segWidth, runXOffsets);
+    return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, features },
+      { decorationCenterYRel: yRel, decorationThickness: thick, targetWidth: segWidth, charXOffsets: runXOffsets });
   }
   // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
   // (run-relative; gap[0]+segX is absolute screen X).
@@ -1231,7 +1234,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // several px too low. Fit the glyph to the captured element box instead.
   if (el.tag === "mo" && isStretchyFenceChar(el.text) && el.height > 0) {
     const fence = renderStretchyFenceGlyph(
-      el.text.trim(), tl, el.y, el.height, fontSize, fontFamily, fontWeight, fillColor, el.styles.fontStyle,
+      el.text.trim(), tl, el.y, el.height,
+      { fontSize, fontFamily, fontWeight, fontStyle: el.styles.fontStyle },
+      fillColor,
     );
     if (fence != null) return fence;
     // Fall through to normal baseline rendering when the glyph can't be fitted.
@@ -1308,7 +1313,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   let renderY = tt;
   let renderAscent = segAscent;
   if (MATH_TOKEN_TAGS.has(el.tag ?? "") && el.height > 0) {
-    const ink = measureInkMetrics(pathText, segFontSize, segFontFamily, segFontWeight, segFontStyle, el.styles.lang, variationSettings, features);
+    const ink = measureInkMetrics(pathText, {
+      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
+      fontStyle: segFontStyle, lang: el.styles.lang, variationSettings, features,
+    });
     if (ink != null) {
       const inkTotal = ink.inkAscent + ink.inkDescent;
       if (inkTotal > 0) {
@@ -1317,7 +1325,14 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       }
     }
   }
-  const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder, singleSeg?.dottedCircleMarks, bidiOverrideFor(el), el.styles.fontStretch);
+  const result = renderTextAsPath(pathText, tl, renderY, {
+    fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
+    targetWidth: el.textWidth, xOffsets: xOffsetsRel, fontStyle: segFontStyle,
+    ascentOverride: renderAscent, features, lang: el.styles.lang, variationSettings,
+    textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+    dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiOverrideFor(el),
+    fontStretch: el.styles.fontStretch,
+  });
   if (result != null) {
     // baselineY = textTop + fontAscent. Using fontSize here would put the
     // underline ~1px too low (fontSize includes descent; baseline sits at
@@ -1566,7 +1581,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
     const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el), el.styles.fontStretch);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
+      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
+      xOffsets: segXOffsets, fontStyle: segFontStyle, ascentOverride: segAscent,
+      features: segFeatures, lang: el.styles.lang, variationSettings: elVariationSettings,
+      textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+      bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+    });
     if (result != null) { segParts.push(result); }
     else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
@@ -1664,7 +1685,13 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el), el.styles.fontStretch);
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
+        fontSize: segFontSize, fontFamily, fontWeight: segFontWeight, fill: segColor,
+        xOffsets: segXOffsets, fontStyle: el.styles.fontStyle, ascentOverride: segAscent,
+        features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
+        textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+        bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+      });
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
@@ -1673,7 +1700,13 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el), el.styles.fontStretch);
+      const result = renderTextAsPath(line, startX, lineY, {
+        fontSize, fontFamily, fontWeight, fill: fillColor,
+        fontStyle: el.styles.fontStyle, ascentOverride: el.fontAscent,
+        features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
+        textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+        bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+      });
       if (result != null) parts.push(`  ${result}`);
     }
   }
@@ -1731,12 +1764,24 @@ export function renderInputText(opts: RenderTextOpts): string {
     const segParts: string[] = [];
     for (const seg of el.textSegments) {
       const segXOffsetsRel = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-      const segResult = renderTextAsPath(seg.text, seg.x, seg.y, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, segXOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el), el.styles.fontStretch);
+      const segResult = renderTextAsPath(seg.text, seg.x, seg.y, {
+        fontSize, fontFamily, fontWeight: textFontWeight, fill: textColor,
+        xOffsets: segXOffsetsRel, fontStyle: textFontStyle, ascentOverride: el.fontAscent,
+        features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
+        textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+        bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+      });
       if (segResult != null) segParts.push(segResult);
     }
     if (segParts.length > 0) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`);
   }
-  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder, undefined, bidiOverrideFor(el), el.styles.fontStretch);
+  const result = renderTextAsPath(el.text, textX, tt, {
+    fontSize, fontFamily, fontWeight: textFontWeight, fill: textColor,
+    xOffsets: xOffsetsRel, fontStyle: textFontStyle, ascentOverride: el.fontAscent,
+    features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
+    textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+    bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+  });
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints

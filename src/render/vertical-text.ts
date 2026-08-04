@@ -203,10 +203,10 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       const decoMarkupC = renderVerticalDecoration(el, seg, fillColor);
       if (decoMarkupC !== "") out.push(decoMarkupC);
       const baseline = seg.y + fontSize * 0.85;
-      const inner = renderTextAsPath(
-        segText, seg.x, baseline, fontSize, fontFamily, fontWeight,
-        fillColor, undefined, undefined, seg.verticalCombineXOffsets, fontStyle, 0,
-      );
+      const inner = renderTextAsPath(segText, seg.x, baseline, {
+        fontSize, fontFamily, fontWeight, fill: fillColor,
+        xOffsets: seg.verticalCombineXOffsets, fontStyle, ascentOverride: 0,
+      });
       if (inner != null) out.push(inner);
       continue;
     }
@@ -260,10 +260,10 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         // this the renderer added the font's own ascent on top (baseline
         // ≈ 1.8em), and after the 90° rotation that vertical error became
         // a ~14 px HORIZONTAL drift of every rotated glyph in the column.
-        const inner = renderTextAsPath(
-          ch, 0, 0, fontSize, fontFamily, fontWeight,
-          fillColor, undefined, undefined, undefined, fontStyle, fontSize,
-        );
+        const inner = renderTextAsPath(ch, 0, 0, {
+          fontSize, fontFamily, fontWeight, fill: fillColor,
+          fontStyle, ascentOverride: fontSize,
+        });
         if (inner == null) { i += step; continue; }
         const transform = `translate(${r(centerX)}, ${r(centerY)}) rotate(${rotateAngle}) translate(${r(-renderCx)}, ${r(-renderCy)})`;
         out.push(`<g transform="${transform}">${inner}</g>`);
@@ -291,11 +291,11 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         const vertPunct = hasVerticalFormPunctuation(ch);
         const naturalW = vertPunct ? fontSize : (naturalWidths?.[i] ?? fontSize);
         const xLeft = colX + (colW - naturalW) / 2;
-        const inner = renderTextAsPath(
-          ch, xLeft, baseline, fontSize, fontFamily, fontWeight,
-          fillColor, undefined, undefined, undefined, fontStyle, 0,
-          vertPunct ? ["vert"] : undefined,
-        );
+        const inner = renderTextAsPath(ch, xLeft, baseline, {
+          fontSize, fontFamily, fontWeight, fill: fillColor,
+          fontStyle, ascentOverride: 0,
+          features: vertPunct ? ["vert"] : undefined,
+        });
         if (inner != null) out.push(inner);
       }
       i += step;

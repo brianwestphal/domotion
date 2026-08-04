@@ -2242,55 +2242,79 @@ export function popBaselineSnapSuppression(): void {
 }
 
 /**
- * Render text as SVG markup using path outlines with <defs>/<use> deduplication.
- * Returns a <g> element containing <use> references, positioned at (x, y) top.
+ * The font context shared by `renderTextAsPath` and the measurement helpers
+ * (`getDecorationMetrics`, `fontSpaceAdvancePx`, `measureLastGlyphRsb`,
+ * `measureInkMetrics`, `computeSkipInkGaps`, `renderStretchyFenceGlyph`,
+ * `renderRadicalGlyph`). One object, so a run's glyph emission and its
+ * measurements resolve the SAME face — the positional lists this replaced let
+ * the two drift (a helper that never grew the newest parameter measured a
+ * different cut than the one the glyphs came from).
  */
-export function renderTextAsPath(
-  text: string,
-  x: number,
-  y: number,
-  fontSize: number,
-  fontFamily: string,
-  fontWeight: string,
-  fill: string,
-  _clipPath?: string,
-  /** Chrome's measured text width — used to scale glyph positions for accurate layout */
-  targetWidth?: number,
-  /** Per-char x offsets relative to this text's origin (CSS pixels). */
-  xOffsets?: number[],
+export interface TextFontOptions {
+  fontSize: number;
+  fontFamily: string;
+  /** CSS `font-weight` — numeric string (`"700"`) or number. */
+  fontWeight: string | number;
   /** CSS font-style; 'italic' / 'oblique' activate SF Pro's slnt axis. */
-  fontStyle?: string,
+  fontStyle?: string;
   /**
-   * Captured `canvas.measureText().fontBoundingBoxAscent` (px) — distance
-   * from line-box top to baseline as Chrome will paint it. Overrides the
-   * fontkit-derived ascent below, which is HHEA-based and disagrees with
-   * Chrome on macOS for Helvetica/Arial/Times/Georgia/Menlo/Courier (Chrome
-   * uses winAscent there). Per-font metric-selection rules are fragile to
-   * derive but trivial to read from the browser. See SK-1267 / DM-237.
+   * The element's computed `font-stretch` (always a percentage string out of
+   * Chrome — `condensed` serializes as `75%`).
+   *
+   * It selects which CUT of the declared family the run opens: Blink's
+   * declared-family style matcher turns any width below 100% into the condensed
+   * symbolic trait and compares that BEFORE weight
+   * (`mac/font_matcher_mac.mm:185-202` and `:234-235`, rev 7d859f27). On the
+   * macOS `system-ui` face it instead drives the variable `wdth` axis — see
+   * `resolveFont`.
    */
-  ascentOverride?: number,
+  fontStretch?: string;
+  /** BCP-47 language tag for locale-aware Han fallback variant routing
+   *  (PingFang TC / HK / MO, or Hiragino Kaku for `ja`). DM-394. */
+  lang?: string;
+  /** Author-set `font-variation-settings` axis overrides. DM-578. */
+  variationSettings?: Record<string, number>;
   /**
    * OpenType feature tags forwarded to fontkit (e.g. ['smcp'] when CSS
    * `font-variant: small-caps` is in effect on this run). DM-294.
    */
-  features?: string[],
-  /** BCP-47 language tag for locale-aware Han fallback variant routing
-   *  (PingFang TC / HK / MO, or Hiragino Kaku for `ja`). DM-394. */
-  lang?: string,
-  /** Author-set `font-variation-settings` axis overrides. DM-578. */
-  variationSettings?: Record<string, number>,
+  features?: string[];
+}
+
+/** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */
+export function cssWeightOf(fontWeight: string | number): number {
+  return typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+}
+
+/** Options for `renderTextAsPath` beyond the shared font context. */
+export interface RenderTextOptions extends TextFontOptions {
+  /** Paint color for the glyph fills. */
+  fill: string;
+  /** Chrome's measured text width — used to scale glyph positions for accurate layout. */
+  targetWidth?: number;
+  /** Per-char x offsets relative to this text's origin (CSS pixels). */
+  xOffsets?: number[];
+  /**
+   * Captured `canvas.measureText().fontBoundingBoxAscent` (px) — distance
+   * from line-box top to baseline as Chrome will paint it. Overrides the
+   * fontkit-derived ascent, which is HHEA-based and disagrees with
+   * Chrome on macOS for Helvetica/Arial/Times/Georgia/Menlo/Courier (Chrome
+   * uses winAscent there). Per-font metric-selection rules are fragile to
+   * derive but trivial to read from the browser. See SK-1267 / DM-237.
+   */
+  ascentOverride?: number;
   /** DM-719: `-webkit-text-stroke-width` (px). When > 0, the emitted text
    *  group gets a `stroke` attribute so each glyph paints with an outline. */
-  textStrokeWidth?: number,
+  textStrokeWidth?: number;
   /** DM-719: `-webkit-text-stroke-color`. Required when `textStrokeWidth > 0`. */
-  textStrokeColor?: string,
+  textStrokeColor?: string;
   /** DM-719: `paint-order` (e.g. "stroke fill"). When `stroke fill`, the
    *  stroke paints UNDER the fill so half the stroke is covered, eliminating
    *  the chunky fill-on-stroke look at large widths. */
-  paintOrder?: string,
+  paintOrder?: string;
   /** DM-1126: UTF-16 indices (into `text`) of covered orphaned marks the capture
    *  layer detected Chrome auto-circles. Forwarded to `insertSyntheticDottedCircles`. */
-  dottedCircleMarks?: number[],
+  dottedCircleMarks?: number[];
   /**
    * The element's resolved `direction` and `unicode-bidi`. Only the OVERRIDE
    * values matter here, and they matter because they are the one bidi input
@@ -2302,21 +2326,25 @@ export function renderTextAsPath(
    * `bidi-override; direction: ltr` shaped right-to-left where Chrome forces it
    * left-to-right.
    */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
-  /**
-   * The element's computed `font-stretch` (always a percentage string out of
-   * Chrome — `condensed` serializes as `75%`).
-   *
-   * It selects which CUT of the declared family the run opens: Blink's
-   * declared-family style matcher turns any width below 100% into the condensed
-   * symbolic trait and compares that BEFORE weight
-   * (`mac/font_matcher_mac.mm:185-202` and `:234-235`, rev 7d859f27). Capture has
-   * recorded the property for a while; until now nothing downstream read it, so a
-   * condensed run painted the family's normal cut.
-   */
-  fontStretch?: string,
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string };
+}
+
+/**
+ * Render text as SVG markup using path outlines with <defs>/<use> deduplication.
+ * Returns a <g> element containing <use> references, positioned at (x, y) top.
+ */
+export function renderTextAsPath(
+  text: string,
+  x: number,
+  y: number,
+  options: RenderTextOptions,
 ): string | null {
-  const weight = parseInt(fontWeight) || 400;
+  const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
+    features, lang, variationSettings, textStrokeWidth, textStrokeColor,
+    paintOrder, dottedCircleMarks, bidiOverride, fontStretch } = options;
+  const fontWeight = String(options.fontWeight);
+  let { xOffsets } = options;
+  const weight = cssWeightOf(options.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
   const esc = escAttr;
@@ -2435,6 +2463,35 @@ export function isTextToPathAvailable(fontFamily: string): boolean {
 }
 
 
+/** The decoration-specific CSS inputs to `getDecorationMetrics`. */
+export interface DecorationStyleOptions {
+  /** CSS `text-decoration-thickness` — when set to a length value (e.g. "5px"),
+   *  overrides the auto thickness. Pass `undefined` or `auto` to use the auto
+   *  rule. DM-431. */
+  thicknessOverride?: string;
+  /** CSS `text-underline-offset` — when set to a length value, adds this much
+   *  EXTRA distance below the baseline (on top of the auto offset). DM-431. */
+  underlineOffsetCss?: string;
+  /**
+   * DM-1819/DM-1820: CSS `text-underline-position`. Captured since DM-936 but,
+   * until now, read only by the VERTICAL text path — so in horizontal text
+   * `under` rendered as `auto` and the underline cut straight through the
+   * descenders instead of clearing them.
+   *
+   *   `auto` (default) / `from-font` — just below the alphabetic baseline (the
+   *     empirical auto rule below; `from-font` would use the face's own
+   *     `post.underlinePosition`, which for the faces we resolve lands within a
+   *     rounding of the auto rule, so it is deliberately NOT special-cased).
+   *   `under` — below ALL descenders, i.e. at the font's descent depth. This is
+   *     what Chromium's `ComputeUnderlineOffsetForUnder` does: it drops the line
+   *     to the under edge of the content box rather than offsetting from the
+   *     baseline.
+   *   `left` / `right` — vertical-writing-mode only; horizontally they behave as
+   *     `auto` (handled by falling through).
+   */
+  underlinePositionCss?: string;
+}
+
 /**
  * Resolve text-decoration line placement from the font's actual `post`/`OS/2`
  * tables (SK-1236). Chromium uses these same metric tables, so reading them
@@ -2454,34 +2511,12 @@ export function isTextToPathAvailable(fontFamily: string): boolean {
  * cut wants it. No fixture exercises that combination today; tracked separately.
  */
 export function getDecorationMetrics(
-  fontFamily: string, fontSize: number, fontWeight: string | number, fontStyle?: string,
-  /** CSS `text-decoration-thickness` — when set to a length value (e.g. "5px"),
-   *  overrides the auto thickness. Pass `undefined` or `auto` to use the auto
-   *  rule. DM-431. */
-  thicknessOverride?: string,
-  /** CSS `text-underline-offset` — when set to a length value, adds this much
-   *  EXTRA distance below the baseline (on top of the auto offset). DM-431. */
-  underlineOffsetCss?: string,
-  /**
-   * DM-1819/DM-1820: CSS `text-underline-position`. Captured since DM-936 but,
-   * until now, read only by the VERTICAL text path — so in horizontal text
-   * `under` rendered as `auto` and the underline cut straight through the
-   * descenders instead of clearing them.
-   *
-   *   `auto` (default) / `from-font` — just below the alphabetic baseline (the
-   *     empirical auto rule below; `from-font` would use the face's own
-   *     `post.underlinePosition`, which for the faces we resolve lands within a
-   *     rounding of the auto rule, so it is deliberately NOT special-cased).
-   *   `under` — below ALL descenders, i.e. at the font's descent depth. This is
-   *     what Chromium's `ComputeUnderlineOffsetForUnder` does: it drops the line
-   *     to the under edge of the content box rather than offsetting from the
-   *     baseline.
-   *   `left` / `right` — vertical-writing-mode only; horizontally they behave as
-   *     `auto` (handled by falling through).
-   */
-  underlinePositionCss?: string,
+  fontOptions: TextFontOptions,
+  decoration: DecorationStyleOptions = {},
 ): DecorationMetrics {
-  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const { thicknessOverride, underlineOffsetCss, underlinePositionCss } = decoration;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant);
   // Chromium's text-decoration auto rules (verified vs source — see below):
@@ -2593,13 +2628,9 @@ export function getDecorationMetrics(
  * renderer must subtract the space's advance manually to place the visible glyph
  * where Chrome paints it.
  */
-export function fontSpaceAdvancePx(
-  fontSize: number,
-  fontFamily: string,
-  fontWeight: string | number,
-  fontStyle?: string,
-): number {
-  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
+  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant);
   if (font == null) return fontSize * 0.25;
@@ -2612,19 +2643,14 @@ export function fontSpaceAdvancePx(
   }
 }
 
-export function measureLastGlyphRsb(
-  text: string,
-  fontSize: number,
-  fontFamily: string,
-  fontWeight: string | number,
-  fontStyle?: string,
-): number {
+export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions): number {
   // Drop trailing whitespace — DM-789 probed that Chrome's SVG renderer
   // collapses / drops trailing whitespace despite `xml:space="preserve"`,
   // so the visible-rightmost glyph is the last NON-space character.
   const trimmed = text.replace(/\s+$/, "");
   if (trimmed === "") return 0;
-  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant);
   if (font == null) return 0;
@@ -2669,15 +2695,10 @@ export function measureLastGlyphRsb(
  */
 export function measureInkMetrics(
   text: string,
-  fontSize: number,
-  fontFamily: string,
-  fontWeight: string | number,
-  fontStyle?: string,
-  lang?: string,
-  variationSettings?: Record<string, number>,
-  features?: string[],
+  fontOptions: TextFontOptions,
 ): { inkAscent: number; inkDescent: number } | null {
-  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const { fontFamily, fontSize, fontStyle, lang, variationSettings, features } = fontOptions;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (primaryFont == null) return null;
@@ -2729,16 +2750,14 @@ export function renderStretchyFenceGlyph(
   x: number,
   boxY: number,
   boxH: number,
-  fontSize: number,
-  fontFamily: string,
-  fontWeight: string,
+  fontOptions: TextFontOptions,
   fill: string,
-  fontStyle?: string,
 ): string | null {
   const ch = char.trim();
   if (ch === "" || boxH <= 0) return null;
   const cp = ch.codePointAt(0)!;
-  const weight = parseInt(fontWeight) || 400;
+  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
 
   // Resolve a font that actually has the fence glyph via the shared per-codepoint
@@ -2802,15 +2821,13 @@ export function renderRadicalGlyph(
   topY: number,
   height: number,
   width: number,
-  fontSize: number,
-  fontFamily: string,
-  fontWeight: string,
+  fontOptions: TextFontOptions,
   fill: string,
-  fontStyle?: string,
 ): string | null {
   if (height <= 0 || width <= 0) return null;
   const cp = 0x221A; // √ SQUARE ROOT
-  const weight = parseInt(fontWeight) || 400;
+  const { fontFamily, fontSize, fontStyle } = fontOptions;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
 
   // Resolve a font that has the √ glyph via the shared per-codepoint resolver
@@ -2868,16 +2885,14 @@ export function renderRadicalGlyph(
   return glyphMarkup + overbar;
 }
 
-export function computeSkipInkGaps(
-  text: string,
-  fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle?: string,
-  decorationCenterYRel: number = 0,
-  decorationThickness: number = 1,
-  features?: string[],
+/** The decoration-geometry inputs to `computeSkipInkGaps`. */
+export interface SkipInkOptions {
+  decorationCenterYRel?: number;
+  decorationThickness?: number;
   /** Chromium-measured run width — when set, intercepts are scaled to match
    *  so gaps line up with the painted glyph positions even when fontkit's
    *  layout disagrees with HarfBuzz at sub-px scale. */
-  targetWidth?: number,
+  targetWidth?: number;
   /** Chromium-measured per-char x offsets, RELATIVE to the run start (same
    *  indexing as the run text's UTF-16 units). When present, each glyph's
    *  intercept is anchored at the captured offset of its first character
@@ -2885,9 +2900,17 @@ export function computeSkipInkGaps(
    *  drift a few px against Chrome's paint over a long run, which misplaced
    *  wavy-underline skip-ink gaps mid-run even after the proportional
    *  `targetWidth` rescale (the rescale can only fix the endpoints). */
-  charXOffsets?: number[],
+  charXOffsets?: number[];
+}
+
+export function computeSkipInkGaps(
+  text: string,
+  fontOptions: TextFontOptions,
+  skipInk: SkipInkOptions = {},
 ): Array<[number, number]> {
-  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const { fontFamily, fontSize, fontStyle, features } = fontOptions;
+  const { decorationCenterYRel = 0, decorationThickness = 1, targetWidth, charXOffsets } = skipInk;
+  const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant);
   if (font == null) return [];

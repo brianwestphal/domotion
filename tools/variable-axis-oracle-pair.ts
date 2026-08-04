@@ -201,11 +201,10 @@ export async function measureInstances(page: Page, fixturePath: string): Promise
 
 /** Our renderer's own output for one axis location, read back off the markup. */
 export function ourGeometry(text: string, family: string, fontSize: number, axes: Record<string, number> | null): { xs: number[]; glyphCount: number; ok: boolean } {
-  const svg = renderTextAsPath(
-    text, 0, fontSize * 2, fontSize, `"${family}"`, "400", "#000",
-    undefined, undefined, undefined, "normal", undefined, undefined, undefined,
-    axes ?? undefined,
-  );
+  const svg = renderTextAsPath(text, 0, fontSize * 2, {
+    fontSize, fontFamily: `"${family}"`, fontWeight: "400", fill: "#000",
+    fontStyle: "normal", variationSettings: axes ?? undefined,
+  });
   if (svg == null) return { xs: [], glyphCount: 0, ok: false };
   const xs: number[] = [];
   for (const m of svg.matchAll(/<text[^>]*\sx="([^"]*)"/g)) {
