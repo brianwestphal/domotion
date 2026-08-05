@@ -19,7 +19,11 @@ describe("parseFontFaceRulesFromCssText", () => {
     const out = parseFontFaceRulesFromCssText(css, BASE);
     expect(out).toHaveLength(1);
     expect(out[0].family).toBe("MyFont");
-    expect(out[0].weight).toBe("400"); // default
+    // Absent descriptor stays "" (auto) — kept distinct from a declared "400",
+    // because only a declared value pins a variable face's wght axis (Blink's
+    // RangeSetFromAuto vs SetExplicitly split). The legacy numeric collapse
+    // (parseWeightDescriptor) maps "" to 400 for report rows.
+    expect(out[0].weight).toBe(""); // auto/absent
     expect(out[0].style).toBe("normal"); // default
     expect(out[0].url).toBe("https://cdn.example.com/fonts/myfont.woff2");
     expect(out[0].urls).toEqual(["https://cdn.example.com/fonts/myfont.woff2"]);
