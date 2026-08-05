@@ -78,6 +78,7 @@ import {
   syntheticMarkCenteringOffsetPx,
   win,
   stackPrimaryIsSystemUi,
+  webfontSyntheticBold,
 } from "./font-resolution.js";
 export * from "./font-resolution.js";
 
@@ -1871,7 +1872,23 @@ function renderTextAsEmbedded(
     // used as the primary signal, so it must not quietly become one again.
     const faceIsBold = run.font.faceIsBoldTrait
       ?? (faceNaturalWeight != null && faceNaturalWeight >= 600);
-    const faceLacksWeight = run.font.hasWeightAxis !== true &&
+    // A run resolved through the `@font-face` registry obeys a DIFFERENT rule,
+    // and a platform-independent one: Chrome's webfont synthetic bold is
+    // decided in the CSS layer (whether the declared font-weight DESCRIPTOR
+    // reaches bold, not whether the FILE does), so none of the per-platform
+    // system-font predicates below apply. Measured over CDP + 1x ink at 100px
+    // "Hamburgefonstiv": a variable webfont declared `font-weight: 400` and
+    // requested at 700 paints Lexend-Regular at ink 25951.4 against 21568.9
+    // for the same face at request 400 — a +20.3% dilation on an unchanged
+    // advance (847.000 px both) and an unchanged reported face name, which is
+    // why neither width nor `CSS.getPlatformFontsForNode` can see it.
+    // Reusing macOS's `weight > 500` predicate here would also be wrong in the
+    // other direction: a static webfont requested at 500 measured IDENTICAL to
+    // its 400 control (ink 17510.0 both), because the webfont threshold is 600.
+    const webfontFace = run.font.webfontFace;
+    const faceLacksWeight = webfontFace != null
+      ? webfontSyntheticBold(webfontFace, weight)
+      : run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
       (process.platform === "darwin"
         // macOS: `desired_bold = Weight() > 500`, then `&& !(traits & kCTFontTraitBold)`
