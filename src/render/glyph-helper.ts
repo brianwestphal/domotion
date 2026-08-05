@@ -25,6 +25,7 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { hostPlatform } from "./host-platform.js";
 import { existsSync, openSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,7 +56,7 @@ const HELPER_BINARIES: Partial<Record<NodeJS.Platform, string>> = {
 //      (DM-886) — what gives a *published* consumer a helper, since `tools/`
 //      isn't shipped. Lazy: this runs only when 1+2 miss and a helper-eligible font
 //      is actually requested. Returns undefined on any failure → fontkit.
-function resolveHelperPath(platform: NodeJS.Platform = process.platform): string | undefined {
+function resolveHelperPath(platform: NodeJS.Platform = hostPlatform()): string | undefined {
   if (process.env.DOMOTION_HELPER_PATH) return process.env.DOMOTION_HELPER_PATH;
   const inTree = HELPER_BINARIES[platform];
   if (inTree != null && existsSync(inTree)) return inTree;
@@ -481,14 +482,14 @@ function startPersistent(bin: string): boolean {
   // `persistentDisabled` flips below since `persistentEverWorked` is still
   // false — reverting transparently to the one-shot `spawnSync` path. So the
   // persistent channel is safe to attempt on every platform that ships a helper.
-  if (process.platform !== "darwin" && process.platform !== "linux" && process.platform !== "win32") {
+  if (hostPlatform() !== "darwin" && hostPlatform() !== "linux" && hostPlatform() !== "win32") {
     persistentDisabled = true;
     return false;
   }
   // DM-1889: Windows gets the same channel over a different carrier. See
   // `startPersistentViaPipe` — a spawned stdio pipe has no OS fd there, which is
   // what DM-1421 hit, but a NAMED pipe opened by path does.
-  if (process.platform === "win32") return startPersistentViaPipe(bin);
+  if (hostPlatform() === "win32") return startPersistentViaPipe(bin);
   try {
     const proc = spawn(bin, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
     const inFd = fdOf(proc.stdin);
@@ -1339,7 +1340,7 @@ export function resolveFcFallbackFonts(
   cps: number[], lang: string = "en",
 ): Map<number, FcFallbackFont | null> {
   const out = new Map<number, FcFallbackFont | null>();
-  if (process.platform !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return out;
+  if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return out;
   // DM-1889: memoize per (lang, cp), and ask only about what is not already
   // known. Without this a batch warm would query and discard, leaving the
   // per-codepoint caller to re-ask for every one — the warm would look like it
@@ -1474,7 +1475,7 @@ export function resolveSystemFallbackFonts(
   if (need.length === 0) return out;
   let resp: HelperResponse;
   try {
-    resp = callHelper(buildFallbackEnvelope(basePostscriptName, need, req, process.platform));
+    resp = callHelper(buildFallbackEnvelope(basePostscriptName, need, req, hostPlatform()));
   } catch {
     // Helper failure → treat all as unresolved this call (don't poison cache).
     for (const cp of need) out.set(cp, null);
@@ -1648,7 +1649,7 @@ let _systemUiFamily: string | null | undefined;
 export function resolveSystemUiFamily(): string | null {
   if (_systemUiFamily !== undefined) return _systemUiFamily;
   _systemUiFamily = null;
-  if (process.platform !== "win32" || !isGlyphHelperAvailable()) return _systemUiFamily;
+  if (hostPlatform() !== "win32" || !isGlyphHelperAvailable()) return _systemUiFamily;
   try {
     const resp = callHelper({ fonts: [], queries: [{ type: "systemfont" } as never] });
     const r = resp.results[0] as unknown as { type?: string; found?: boolean; family?: string } | undefined;
@@ -1753,7 +1754,7 @@ const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
 export function resolveFamilyStyleMatch(
   family: string, style?: { weight?: number; italic?: boolean; stretch?: number },
 ): FamilyStyleMatch | null {
-  if (process.platform !== "darwin" || family === "") return null;
+  if (hostPlatform() !== "darwin" || family === "") return null;
   const weight = style?.weight ?? 400;
   const italic = style?.italic === true;
   // CSS `font-stretch` as a percentage, 100 = `normal`. It reaches the helper as
@@ -1841,7 +1842,7 @@ export function resolveLinuxFamilyMatch(
   // pattern with no FC_FAMILY term, which fontconfig matches against
   // everything and `IsFallbackFontAllowed("")` then accepts. The helper's
   // `familyMatch` query mirrors that when `family` is "".
-  if (process.platform !== "linux") return null;
+  if (hostPlatform() !== "linux") return null;
   const weight = style?.weight ?? 400;
   const italic = style?.italic === true;
   const stretch = style?.stretch ?? 100;

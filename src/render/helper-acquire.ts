@@ -24,6 +24,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { hostPlatform } from "./host-platform.js";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -105,7 +106,7 @@ interface AcquireOptions {
 }
 
 function resolveTarget(opts: AcquireOptions): { asset: string; dest: string; assetUrl: string; shaUrl: string } | null {
-  const platform = opts.platform ?? process.platform;
+  const platform = opts.platform ?? hostPlatform();
   const arch = opts.arch ?? process.arch;
   const version = opts.version ?? PKG_VERSION;
   const asset = assetNameFor(platform, arch);

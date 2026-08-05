@@ -17,6 +17,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { hostPlatform } from "./host-platform.js";
 import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1076,6 +1077,9 @@ interface FontPath {
 // DirectWrite cascades also bottom out at "nothing" — using LR-HE there
 // would AT LEAST emit a visible placeholder rather than empty space, even
 // if it doesn't match Chrome's per-platform tofu pixel-for-pixel.
+// DM-1980: deliberately NOT `hostPlatform()` — this picks a BUNDLED ASSET
+// path, not a routing decision, and the asset that ships with the package
+// does not change because we are simulating another OS.
 const LAST_RESORT_FONT_PATH = process.platform === "darwin"
   ? "/System/Library/Fonts/LastResort.otf"
   : nodePath.resolve(
@@ -1870,7 +1874,7 @@ function relocateMissingSpec(spec: FontPath | null): FontPath | null {
  * order-dependent set.
  */
 export function platformFontKeys(): string[] {
-  switch (process.platform) {
+  switch (hostPlatform()) {
     case "linux": return Object.keys(LINUX_FONT_PATHS);
     case "win32": return Object.keys(WIN32_FONT_PATHS);
     default:      return Object.keys(FONT_PATHS);
@@ -1887,7 +1891,7 @@ export function resolveFontSpec(key: string): FontPath | null {
     // there is nothing to relocate.
     resolved = dynamicSystemFontPaths.get(key) ?? null;
   } else {
-    switch (process.platform) {
+    switch (hostPlatform()) {
       case "linux": resolved = resolveLinuxSpec(key); break;
       case "win32": resolved = resolveWin32Spec(key); break;
       default:      resolved = FONT_PATHS[key] ?? null; break; // darwin + any other Unix with macOS-style paths
@@ -1937,9 +1941,9 @@ const systemFallbackKeyCache = new Map<string, string | null>();
 // HasCharacter coverage guard — so it can only paint Chromium's own covering face
 // or correctly tofu. See docs/80.
 let _systemFallbackResolutionEnabled =
-  process.platform === "darwin"
-  || (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0")
-  || (process.platform === "win32" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0");
+  hostPlatform() === "darwin"
+  || (hostPlatform() === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0")
+  || (hostPlatform() === "win32" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0");
 /**
  * Test/perf hook to toggle the CoreText per-codepoint fallback resolver. This is
  * a PROCESS-GLOBAL: a caller that flips it without restoring silently changes
@@ -2226,7 +2230,7 @@ const _trakHbShapingEnabled = process.env.DOMOTION_TRAK_HB_SHAPING !== "0";
  *  the conformance oracle can. That fixture's committed CI baseline was refreshed
  *  in this change to record the correct-face raster. */
 const _liveFallbackFirst =
-  process.platform !== "win32" && process.env.DOMOTION_LIVE_FALLBACK_FIRST !== "0";
+  hostPlatform() !== "win32" && process.env.DOMOTION_LIVE_FALLBACK_FIRST !== "0";
 
 /**
  * Does this family stack's PRIMARY resolve through Blink's system-ui path?
@@ -2382,7 +2386,7 @@ function characterFallbackDocKey(
   weight: number, slant: number, fontSize: number,
 ): string | null {
   if (_charFallbackDocCache == null || !_macCharFallbackCacheEnabled) return null;
-  if (process.platform !== "darwin") return null;
+  if (hostPlatform() !== "darwin") return null;
   if (useSystemUiBase || baseName.startsWith(".")) return null;
   if (!isIdeographicCp(cp)) return null;
   return `${baseName}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
@@ -2458,7 +2462,7 @@ function resolveSystemFallbackKeyForCp(
   }
   let key: string | null = null;
   try {
-    if (process.platform === "darwin") {
+    if (hostPlatform() === "darwin") {
       // DM-1884: an EMOJI-PRESENTATION codepoint never reaches the cascade at
       // all. `PlatformFallbackFontForCharacter` short-circuits at its very top
       // (`mac/font_cache_mac.mm:319-324`, rev 7d859f27):
@@ -2557,7 +2561,7 @@ function resolveSystemFallbackKeyForCp(
           registerDarwinHandleAxes(key, weight, fontSize, slant, resolved.ctAxes);
         }
       }
-    } else if (process.platform === "linux") {
+    } else if (hostPlatform() === "linux") {
       // DM-1863 stage 1 of 2: BEFORE asking fontconfig, retry the run's own
       // family at standard style and weight. Transcribed from
       // `linux/font_cache_linux.cc:80-87` (rev 7d859f27):
@@ -2605,7 +2609,7 @@ function resolveSystemFallbackKeyForCp(
       // Calibrated against Chromium-on-noble paint — see the flag comment above
       // and docs/80.
       key = resolveLinuxSystemFallbackKeyForCp(cp, lang, suppressEmojiPresentation ? false : undefined);
-    } else if (process.platform === "win32") {
+    } else if (hostPlatform() === "win32") {
       // DM-1403: DirectWrite IDWriteFontFallback::MapCharacters via the win32
       // glyph helper. The helper speaks the same platform-agnostic "fallback"
       // protocol as the macOS CoreText helper, so `resolveSystemFallbackFonts`
@@ -2817,15 +2821,15 @@ function resolveColorEmojiKeyForCp(
 ): string | null {
   let key: string | null = null;
   try {
-    if (process.platform === "darwin") {
+    if (hostPlatform() === "darwin") {
       const emoji = resolveInstalledFont(COLOR_EMOJI_FONT_MAC);
       if (emoji != null && emoji.path !== "" && emoji.postscriptName !== "") {
         key = `sysfb:${emoji.postscriptName}`;
         registerDynamicSystemFont(key, emoji.path, emoji.postscriptName);
       }
-    } else if (process.platform === "linux") {
+    } else if (hostPlatform() === "linux") {
       key = resolveLinuxSystemFallbackKeyForCp(cp, lang, true);
-    } else if (process.platform === "win32") {
+    } else if (hostPlatform() === "win32") {
       // The kEmojiEmoji nomination from Blink's hardcoded stage: the first
       // installed family of the color-emoji list (`WIN_COLOR_EMOJI_FONTS`).
       for (const k of win32FallbackChainWithPriority(cp, "emoji-emoji", lang)) { key = k; break; }
@@ -3001,7 +3005,7 @@ function fontFileCoversCodepoint(path: string, postscriptName: string | undefine
 function fallbackFamilyCutKey(
   candidate: string, cp: number, weight: number, slant: number, fontSize: number,
 ): string | null {
-  if (process.platform !== "darwin" || !_systemFallbackResolutionEnabled) return null;
+  if (hostPlatform() !== "darwin" || !_systemFallbackResolutionEnabled) return null;
   // The BASE key's face, not `getFontInstance`'s effective key — feeding the
   // `-bold` sibling in would ask CoreText to re-weight an already-re-weighted
   // face, and the point is to replace that approximation rather than compose
@@ -3060,7 +3064,7 @@ export function __resolveFontSpecForTest(key: string): { path: string; postscrip
 
 /**
  * Test-only: resolve a key against the **darwin** `FONT_PATHS` table directly,
- * independent of `process.platform`. The darwin-chain well-formedness guard
+ * independent of `hostPlatform()`. The darwin-chain well-formedness guard
  * (DM-1030) must check the keys `darwinFallbackChain` emits — including the
  * darwin-only `u-...` per-block routes (DM-983) — against the darwin table even
  * when the suite runs on Linux CI; the platform-gated `resolveFontSpec` would
@@ -3187,7 +3191,7 @@ function linuxDeferOrStatic(cp: number, fallback: string[]): string[] {
   // unit tests directly — return the static route so this stays host-agnostic
   // and `resolveSystemFallbackKeyForCp` (which would use CoreText/DirectWrite
   // off-Linux) is never consulted for Linux logic.
-  if (process.platform === "linux" && _systemFallbackResolutionEnabled
+  if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled
       && resolveSystemFallbackKeyForCp(cp) != null) {
     return [];
   }
@@ -3573,7 +3577,7 @@ function darwinCoreTextFamilyForKey(key: string): string | null {
 function darwinPrimaryCutKey(
   key: string, weight: number, slant: number, stretch: number = 100,
 ): { key: string; italic: boolean } | null {
-  if (process.platform !== "darwin" || !isGlyphHelperAvailable()) return null;
+  if (hostPlatform() !== "darwin" || !isGlyphHelperAvailable()) return null;
   const declaredFamily = declaredFamilyForKey.get(key);
   if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
 
@@ -3692,7 +3696,7 @@ function linuxFamilyMatchWithAlternate(
  * EVERY name and the whole stack would collapse to the terminal key.
  */
 function linuxNominationWalkArmed(): boolean {
-  return process.platform === "linux" && _systemFallbackResolutionEnabled
+  return hostPlatform() === "linux" && _systemFallbackResolutionEnabled
     && isGlyphHelperAvailable()
     && resolveLinuxFamilyMatch("sans", { weight: 400 }) != null;
 }
@@ -3792,7 +3796,7 @@ function linuxFcFamilyForKey(key: string): string | null {
 function linuxPrimaryCutKey(
   key: string, weight: number, slant: number, stretch: number = 100,
 ): { key: string; italic: boolean } | null {
-  if (process.platform !== "linux" || !_systemFallbackResolutionEnabled
+  if (hostPlatform() !== "linux" || !_systemFallbackResolutionEnabled
       || !isGlyphHelperAvailable()) return null;
   const declaredFamily = declaredFamilyForKey.get(key);
   if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
@@ -3948,7 +3952,7 @@ export function __setWin32FamilyKeyResolverForTest(
  * declines.
  */
 function win32DeferOrStatic(cp: number, fallback: string[]): string[] {
-  if (process.platform === "win32" && _systemFallbackResolutionEnabled
+  if (hostPlatform() === "win32" && _systemFallbackResolutionEnabled
       && resolveSystemFallbackKeyForCp(cp) != null) {
     return [];
   }
@@ -4074,11 +4078,11 @@ export function fallbackFontChain(
   // Platform-aware routing (DM-259 / DM-260). Each platform's Chromium cascades
   // through entirely different faces (CoreText vs fontconfig vs DirectWrite), so
   // each has its own empirically-probed chain.
-  if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
+  if (hostPlatform() === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
   // DM-1878: win32 gets the description too. It used to be dropped here, so the
   // nominated family was always instantiated at NORMAL weight — Blink passes the
   // run's `SkiaFontStyle()` and lets DirectWrite pick the cut.
-  if (process.platform === "win32") return win32FallbackChain(codepoint, primaryKey, lang, css);
+  if (hostPlatform() === "win32") return win32FallbackChain(codepoint, primaryKey, lang, css);
   return darwinFallbackChain(codepoint, primaryKey, lang, css);
 }
 
@@ -5034,7 +5038,7 @@ function resolveEffectiveCutKey(
   // Falls through to the table untouched when the helper is unavailable or the
   // family does not resolve — a Windows host without the built binary still
   // needs an answer, which is the existing degradation contract.
-  if (process.platform === "win32" && isGlyphHelperAvailable()) {
+  if (hostPlatform() === "win32" && isGlyphHelperAvailable()) {
     const cutKey = win32PrimaryCutKey(effectiveKey, weight, slant, stretch);
     if (cutKey != null) effectiveKey = cutKey;
   }
@@ -5086,7 +5090,7 @@ function resolveEffectiveCutKey(
  * cut — a known residual of the shared key, same as its weight behavior.
  */
 function darwinSystemUiWdth(effectiveKey: string, stretch: number): number {
-  if (process.platform !== "darwin" || stretch === 100) return 100;
+  if (hostPlatform() !== "darwin" || stretch === 100) return 100;
   return isDarwinSystemUiAxisKey(effectiveKey) ? stretch : 100;
 }
 
@@ -5222,7 +5226,7 @@ export function getFontInstance(
     // one call: Windows pins `wght` from the CSS weight because DirectWrite has
     // not applied it, macOS must not because the CoreText trait/weight
     // re-selection already has.
-    const helperFaceInfo = (hintedSubsetEnabled() || process.platform === "win32" || process.platform === "darwin")
+    const helperFaceInfo = (hintedSubsetEnabled() || hostPlatform() === "win32" || hostPlatform() === "darwin")
       ? resolveFaceInfoForFile(spec.path, spec.postscriptName) : null;
     // The face's own non-default coordinates (macOS): the CoreText handle's
     // observed position (`spec.ctAxes` — covers clone names like
@@ -5232,13 +5236,13 @@ export function getFontInstance(
     // CSS-derived `wght` never enters here (Blink's mac path applies only
     // `opsz` + font-variation-settings on top of the matched face,
     // `font_platform_data_mac.mm:113-208`, tag 147.0.7727.15).
-    const darwinFaceAxes = process.platform === "darwin"
+    const darwinFaceAxes = hostPlatform() === "darwin"
       ? darwinFaceOwnAxes(spec.ctAxes, helperFaceInfo?.instanceAxes, helperFaceInfo?.fileAxes ?? null)
       : null;
     const helperAxes = helperFaceInfo?.fileAxes == null ? undefined
-      : process.platform === "win32"
+      : hostPlatform() === "win32"
         ? resolveAxisLocationForFile(helperFaceInfo.fileAxes, weight, fontSize, slant, variationSettings, spec.resolvedAxes)
-        : process.platform === "darwin"
+        : hostPlatform() === "darwin"
           ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings, darwinFaceAxes)
           : undefined;
     // DM-1916: a face carrying both `trak` and `STAT` is tracked by HarfBuzz at
@@ -5259,7 +5263,7 @@ export function getFontInstance(
       ? makeHarfbuzzShapeFallback(
         spec.path, helperFaceInfo.faceIndex, fontSize,
         helperFaceInfo.fileAxes != null
-          ? (process.platform === "darwin"
+          ? (hostPlatform() === "darwin"
             // The SAME darwin derivation as `helperAxes` — HarfBuzz opens by
             // face index and gets the file's DEFAULT instance, and the face's
             // own coordinates are already seeded into that derivation. Tags
@@ -5315,7 +5319,7 @@ export function getFontInstance(
       // (measured: {opsz:20, wght:700} on a `.SFDevanagari-Bold` handle names
       // `.SFDevanagari-Regular_opsz140000_wght2BC0000` — which is also exactly
       // the route name Chrome reports for the bold 20px stacks).
-      if (process.platform === "darwin") {
+      if (hostPlatform() === "darwin") {
         const handleAxes = darwinHandleAxesFor(key, weight, fontSize, slant);
         const composeBase = helperFaceInfo?.memberPostscriptName ?? spec.postscriptName;
         if (handleAxes != null && composeBase != null) {
@@ -5355,7 +5359,7 @@ export function getFontInstance(
           // `.PingFangUITextSC-Default`, which read as evidence that SC and HK
           // had resolved to the same face.
           variationAxes: fileAxes != null
-            ? (helperAxes ?? (process.platform === "darwin"
+            ? (helperAxes ?? (hostPlatform() === "darwin"
               // The darwin derivation already folded the face's own
               // coordinates in; when it answers undefined the matched face IS
               // the default master, so pin everything to defaults ({}). The
@@ -5441,7 +5445,7 @@ export function getFontInstance(
   // coordinates (CoreText handle position / fvar named instance) replace the
   // CSS-derived wght, and `wght` is left at the file default when the matched
   // face IS the default instance.
-  const darwinDeclaredAxisPath = process.platform === "darwin" && !isDarwinSystemUiAxisKey(effectiveKey);
+  const darwinDeclaredAxisPath = hostPlatform() === "darwin" && !isDarwinSystemUiAxisKey(effectiveKey);
   const fontkitFaceAxes = darwinDeclaredAxisPath
       && font?.variationAxes != null && Object.keys(font.variationAxes).length > 0
     ? darwinFaceOwnAxes(spec.ctAxes,
@@ -5466,7 +5470,7 @@ export function getFontInstance(
   // to CSS 400 — not the wght=450 interpolation (853.969px) the CSS pin
   // produced — and every other weight lands on a named instance (Thin
   // 776.313 … Black 915.406), never between two.
-  const linuxSystemAxisPath = process.platform === "linux";
+  const linuxSystemAxisPath = hostPlatform() === "linux";
   const linuxInstanceAxes = linuxSystemAxisPath
       && font?.variationAxes != null && Object.keys(font.variationAxes).length > 0
     ? resolveFaceInfoForFile(spec.path, spec.postscriptName).instanceAxes ?? null
@@ -5550,7 +5554,7 @@ export function getFontInstance(
   // Only overrides when CoreText actually answers; a null (no helper on the
   // host, unknown face) leaves the fsSelection reading in place rather than
   // silently deciding "not bold", which is the direction that emboldens.
-  if (process.platform === "darwin") {
+  if (hostPlatform() === "darwin") {
     const ps = instance.postscriptName ?? font?.postscriptName;
     if (ps != null && ps !== "") {
       const ctTrait = resolveFaceTraitBold(ps, resolveFontSpec(key)?.path);
@@ -6079,7 +6083,7 @@ export function shapingFaceFor(
   // producing. `fileAxes` is null when the requested name is not a physical
   // member, and then no location is derived from a face nobody asked for.
   const axes = info.fileAxes != null
-    ? (process.platform === "linux"
+    ? (hostPlatform() === "linux"
       // The Linux system-font derivation: Blink applies NO variation
       // coordinates there (`skia/font_cache_skia.cc:299-358` builds the
       // FontPlatformData straight from the fontconfig-matched typeface), so
@@ -6088,7 +6092,7 @@ export function shapingFaceFor(
       ? (info.instanceAxes != null ? { ...info.instanceAxes } : null)
       : weight == null || fontSize == null
       ? null
-      : process.platform === "darwin" && !isDarwinSystemUiAxisKey(fontKey)
+      : hostPlatform() === "darwin" && !isDarwinSystemUiAxisKey(fontKey)
       // The darwin declared/fallback derivation — the face's own coordinates
       // plus the opsz/font-variation-settings clone pins, never a CSS-valued
       // `wght`. Must stay the same derivation `getFontInstance` uses (that is
@@ -6732,7 +6736,7 @@ function authorFamilyAvailable(name: string): boolean {
   let avail: boolean;
   if (resolveInstalledFont(name) != null) {
     avail = true; // native helper (macOS/Windows) found the exact family
-  } else if (process.platform === "linux") {
+  } else if (hostPlatform() === "linux") {
     const fam = fcMatchFamilyName(name);
     avail = fam != null && canonFamilyName(fam) === canonFamilyName(name);
   } else {
@@ -6915,7 +6919,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // match Chrome; keep macOS/Windows on the `sf-pro` key. Gated by the
     // live-resolver flag (default-on; honors DOMOTION_SYSTEM_FALLBACK=0).
     if (name === "system-ui") {
-      if (process.platform === "linux" && _systemFallbackResolutionEnabled) {
+      if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
         const matched = fcMatch("sans-serif");
         if (matched != null) {
           const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? "system-ui";
@@ -7041,7 +7045,7 @@ function matchFamilyNameToKey(name: string): string | null {
       // Blink's declared-family style matcher over it. Resolving the base name
       // first and matching afterwards is the right ORDER: pinning the weight
       // into the name would double-count it.
-      if (process.platform === "darwin" && installed.familyName !== "" && !installed.familyName.startsWith(".")) {
+      if (hostPlatform() === "darwin" && installed.familyName !== "" && !installed.familyName.startsWith(".")) {
         declaredFamilyForKey.set(key, installed.familyName);
       }
       return key;
@@ -7064,7 +7068,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // weight). Register the adjusted face and record the pin so
     // `win32PrimaryCutKey` re-resolves the slope per run without letting the
     // run's weight back in.
-    if (process.platform === "win32" && isGlyphHelperAvailable()) {
+    if (hostPlatform() === "win32" && isGlyphHelperAvailable()) {
       const adjusted = win32FamilySuffixAdjustment(name);
       if (adjusted != null) {
         const installedAdj = resolveInstalledFont(adjusted.family, {
@@ -7080,7 +7084,7 @@ function matchFamilyNameToKey(name: string): string | null {
         }
       }
     }
-    if (process.platform === "linux" && _systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
+    if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
       const matched = fcMatch(name);
       if (matched != null) {
         const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? name;

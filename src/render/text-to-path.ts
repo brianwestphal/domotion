@@ -14,6 +14,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { hostPlatform } from "./host-platform.js";
 import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1890,12 +1891,12 @@ function renderTextAsEmbedded(
       ? webfontSyntheticBold(webfontFace, weight)
       : run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
-      (process.platform === "darwin"
+      (hostPlatform() === "darwin"
         // macOS: `desired_bold = Weight() > 500`, then `&& !(traits & kCTFontTraitBold)`
         // (`mac/font_cache_mac.mm:424-427`). Note the threshold is 500, not the
         // 600 Windows uses — they are different numbers in Blink, not a typo here.
         ? weight > 500 && !faceIsBold
-        : process.platform === "win32"
+        : hostPlatform() === "win32"
         // Windows only, for now. Linux keeps the delta because the delta IS its
         // transcription. macOS is ALSO wrong today, and is deliberately left
         // wrong rather than half-fixed: its rule tests CoreText's
