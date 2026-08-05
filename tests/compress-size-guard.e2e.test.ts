@@ -190,12 +190,22 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
       var rows=BASE.slice(); rows[2]='const label = "'+'lorem-ipsum'.slice(0,k)+'";';
       document.getElementById('left').innerHTML=rows.map(function(h){return '<div class="ln">'+h+'</div>';}).join('');
     };
+    // DM-1978: six lines per slide, not three, and no line shared between
+    // slides. The wholesale pane has to OUTWEIGH the well-pairing code pane for
+    // the run to be a genuine size regression — with three short lines it did
+    // not, and the whole decision hung on ~1% of payload. macOS measured
+    // 26.3 KB -> 26.5 KB (a regression, guard trips) while Linux measured
+    // 26.0 KB -> 25.5 KB (no regression, guard correctly stays out), off the
+    // same 62.7% pairing. The glyph payload legitimately differs by platform —
+    // different faces, different subset sizes — so a fixture balanced on the
+    // sign of a 1% difference tests the platform, not the compressor. At this
+    // size both measure ~+30%.
     var SLIDES=[
-      ['Overview','Domotion turns DOM into SVG','Pixel-faithful to Chromium','Embeds with no external assets'],
-      ['Capture','Playwright drives Chromium','The tree is serialized','Computed styles ride along'],
-      ['Fonts','CoreText paints on macOS','fontconfig resolves on Linux','DirectWrite renders on Windows'],
-      ['Animate','Keyframes, not scripts','One self-contained file to ship','Loads lazily on the page'],
-      ['Review','Expected against actual','Region-level diff scoring','Pixel evidence comes first']
+      ['Overview','Domotion turns DOM into SVG','Pixel-faithful to Chromium','Embeds with no external assets','Marketing demos load lazily','One file, no runtime scripts','Scales crisply at any size'],
+      ['Rendering','Blink decides which typeface','HarfBuzz shapes every cluster','Skia rasterizes the outlines','Bidi mirrors paired brackets','Gradients become native defs','Shadow pseudos are honored'],
+      ['Platforms','CoreText answers on Apple','Fontconfig resolves on Ubuntu','DirectWrite maps on Windows','Each chain is calibrated','Hinting floors are documented','Oracles gate the agreement'],
+      ['Motion','Keyframes replace scripting','Magic-move pairs subtrees','Scroll patterns drive cameras','Typing overlays anchor baselines','Carets ride measured advances','Transitions compose cleanly'],
+      ['Verification','Expected against actual','Region-level scoring beats eyeballs','Conformance sweeps every codepoint','Baselines refuse mismatched envs','Cassettes replay host answers','Evidence precedes conclusions']
     ];
     window.setRight=function(k){
       var s=SLIDES[k];
@@ -225,6 +235,17 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
     // The guard tripped and chose chrome demotion (not the flipbook revert).
     const demoteLog = logs.find((l) => /demoting .* into the chrome union/.test(l));
     expect(demoteLog, `no demotion log; got:\n${logs.join("\n")}`).toBeDefined();
+
+    // DM-1978: and it tripped by a MARGIN, not by a hair. The demotion branch is
+    // only reached when compressing grew the run, so a fixture that grows it by
+    // ~1% passes on whichever platform rounds the right way and fails on the
+    // other — which is precisely what happened here, off identical pairing.
+    // Pinning the margin means a future fixture edit that quietly walks it back
+    // to the boundary fails HERE, naming the cause, instead of surfacing later
+    // as a platform-specific flake.
+    const grewBy = /kept them (\d+)% larger/.exec(demoteLog!);
+    expect(grewBy, `demotion log did not report a growth %: ${demoteLog}`).not.toBeNull();
+    expect(Number(grewBy![1])).toBeGreaterThanOrEqual(10);
 
     const flipSvg = generateAnimatedSvg(flip);
     const compSvg = generateAnimatedSvg(comp);
