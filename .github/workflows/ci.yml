@@ -95,3 +95,74 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
       - run: npm run lint
+
+  # DM-1980: the per-PR VISUAL gate for macOS.
+  #
+  # This workflow was ubuntu-only, and `visual-tests.yml`'s macOS job is
+  # dispatch-only — so the platform held to PIXEL-EXACT parity (regionCount ===
+  # 0, unlike the documented Linux/Windows hinting floors) had no automatic gate
+  # at all. The only thing standing between a macOS visual regression and `main`
+  # was the maintainer remembering to run an 8-second command. Linux and Windows
+  # both had one; the strictest platform did not.
+  #
+  # Also the only place `npm run test:e2e` runs outside the Linux container, so
+  # the 66 browser-driven capture/layout files now get a second platform.
+  visual-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      # Without this the gate measures a DIFFERENT renderer than a developer
+      # runs: the macOS per-codepoint fallback resolver asks CoreText through
+      # this helper, the built binary is gitignored, so a fresh checkout has
+      # none and resolution silently drops to the static chain. That is exactly
+      # how the Linux fidelity gate spent months grading a path the mechanism
+      # was not in (DM-1972). arm64 only — the runners are arm64 and `build.sh`
+      # would otherwise also build x86_64 for the universal release binary.
+      - name: Build the macOS glyph helper (CoreText fallback resolver)
+        run: |
+          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             tools/macos-glyph-extractor/domotion-glyph-paths
+      - name: Run feature visual-regression suite
+        # Absolute pass/fail is ADVISORY (`|| true`), exactly as on Linux: the
+        # gate is the baseline diff below, which fails only on regressions vs
+        # the last known-good run on this same image. Pre-existing residuals
+        # (comp-input-button, border-styles-variants) therefore do not block,
+        # but any NEW one does.
+        run: npm run demos:test || true
+      - name: Record run environment
+        if: always()
+        run: node scripts/run-env.mjs tests/output/run-env.json
+      - name: Gate vs committed macOS baseline (regressions only)
+        # No baseline is committed yet: the comparator prints a "no baseline"
+        # note and exits 0, so this run is green and uploads the results below.
+        # Seed `tests/baselines/features-macos.json` from that artifact — it must
+        # be recorded on THIS runner, not on a developer Mac, whose font
+        # inventory is an order of magnitude larger (2,635 vs ~370 faces) and
+        # resolves stacks differently.
+        run: >
+          node scripts/diff-against-baseline.mjs
+          --results tests/output/features-results.json
+          --baseline tests/baselines/features-macos.json
+          --env tests/output/run-env.json
+          --strict --label "macos / features"
+      - name: Run browser-driven e2e tests (capture/layout assertions)
+        # `if: always()` for the reason DM-1977 established on Linux: a failure
+        # in an earlier step must not hide this one. There, the e2e suite had
+        # never once run because the step above it was permanently red, and its
+        # 13 failures read as green-by-absence.
+        if: always()
+        run: npm run test:e2e
+      - name: Upload results (seed the baseline from this)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: features-macos
+          path: |
+            tests/output/features-results.json
+            tests/output/run-env.json
+          if-no-files-found: error

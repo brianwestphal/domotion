@@ -69,6 +69,62 @@ describe("project conventions", () => {
     ]);
   });
 
+  // DM-1980: the font/text subsystem's contract with the rest of the codebase.
+  //
+  // Measured: the transitive closure from `{text-to-path, font-resolution,
+  // text}` is 21 files / ~22.8k lines whose ONLY coupling outward is a single
+  // type-only import (`text.ts` -> `capture/types.js`). It is already an island
+  // — but nothing said so, and nothing stopped it eroding. `text-to-path.ts`
+  // re-exports all ~113 of `font-resolution`'s symbols via `export *`, so any
+  // module can reach the whole subsystem through a second door without it being
+  // visible in review.
+  //
+  // This pins the door itself: what the rest of `src/` may import from inside
+  // the subsystem. It is a snapshot of today (16 symbols across 6 files), not a
+  // design — adding a symbol here is fine and deliberate, which is the point.
+  // Most of the list is LIFECYCLE (generation snapshots, document scopes, cache
+  // resets) rather than queries; the actual queries are `resolveFontKey`,
+  // `getFontInstance` and `renderTextAsPath`.
+  //
+  // Why this is worth a guard rather than a doc: the subsystem is where ~44% of
+  // recent commits land, so it is exactly where an accidental new dependency
+  // would appear, and it is the boundary any future extraction would run along.
+  it("keeps the font/text subsystem's outward contract to the allow-listed symbols (DM-1980)", () => {
+    const FONT_MODULES = new Set([
+      "font-resolution", "text-to-path", "text", "glyph-helper", "embedded-font-builder",
+      "harfbuzz-shaper", "hb-subset", "unicode-classification", "script-segmentation",
+      "font-features", "win-font-fallback", "win32-family-suffix", "embolden-outline",
+      "helper-acquire",
+    ]);
+    const ALLOWED = new Set([
+      // lifecycle / scoping
+      "beginCharacterFallbackDocument", "endCharacterFallbackDocument",
+      "resetGeneration", "snapshotGeneration", "restoreGeneration",
+      "glyphDefCount", "getGlyphDefsSince", "truncateGlyphDefs",
+      "getEmbeddedFontFaceCss", "withRenderTextMode", "RenderTextMode",
+      "registerWebfont", "registerLocalFontAlias",
+      // the three real queries
+      "resolveFontKey", "getFontInstance", "renderTextAsPath",
+    ]);
+    const re = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
+    const offenders: string[] = [];
+    for (const file of srcFiles()) {
+      const rel = file.slice(ROOT.length + 1);
+      // Files INSIDE the subsystem's own directory are unconstrained.
+      if (rel.startsWith("src/render/")) continue;
+      const code = readFileSync(file, "utf8");
+      for (const m of code.matchAll(re)) {
+        const base = m[2].replace(/\.(js|ts)$/, "").split("/").pop() ?? "";
+        if (!FONT_MODULES.has(base)) continue;
+        for (const raw of m[1].split(",")) {
+          const name = raw.trim().split(/\s+as\s+/)[0].trim().replace(/^type\s+/, "");
+          if (name !== "" && !ALLOWED.has(name)) offenders.push(`${rel}: ${name}`);
+        }
+      }
+    }
+    expect(offenders, "new import out of the font subsystem — add it to ALLOWED deliberately").toEqual([]);
+  });
+
   it("never imports the shell-string `exec` / `execSync` from child_process (DM-1332 — argv forms only)", () => {
     const offenders: string[] = [];
     const re = /import\s*\{([^}]*)\}\s*from\s*['"](?:node:)?child_process['"]/g;
