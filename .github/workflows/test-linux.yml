@@ -117,6 +117,63 @@ jobs:
             tests/output/features-results.json
           if-no-files-found: error
 
+  # Declared-family match conformance oracle (doc 110): scores the transcribed
+  # SkFontConfigInterfaceDirect::matchFamilyName in the Linux helper against
+  # what Chrome-in-this-container actually paints, over CDP, and gates
+  # REGRESSION-RELATIVE against tests/baselines/family-match-linux.json — an
+  # env-keyed baseline set (tools/family-match-baseline.ts). The committed
+  # baseline was recorded on arm64 (Docker on Apple Silicon); this runner is
+  # x64 with a different font-inventory digest, so until a baseline recorded
+  # HERE is committed the comparator refuses to judge (exit 3) — that case is
+  # handled by recording a candidate and uploading it as an artifact (review
+  # it, commit it, and the gate arms on the next run) while the job stays
+  # green. A regression vs this environment's committed entry (exit 1), or a
+  # setup failure (exit 2), fails the job. Also runs the armed seam test
+  # (src/render/linux-declared-family-cut.test.ts): this is the one CI site
+  # with the calibrated container fonts AND a built helper, so the
+  # nomination-walk pins actually execute here rather than skipping.
+  family-match:
+    name: Linux family-match conformance
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install helper build dependencies
+        # Container runs as root (no sudo). fontconfig headers are needed on
+        # top of FreeType's: the helper links both (familyMatch + fcfallback).
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - run: npm ci
+      - name: Build the fontconfig/FreeType helper
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Run the armed declared-family seam test
+        run: npx vitest run src/render/linux-declared-family-cut.test.ts
+      - name: Family-match conformance vs Chrome (regression-relative)
+        shell: bash
+        run: |
+          set +e
+          npx tsx tools/family-match-conformance-linux.ts
+          code=$?
+          set -e
+          if [ "$code" = "3" ]; then
+            echo "::notice title=Linux family-match::No committed baseline for this runner environment yet. Recording a candidate and uploading it as the family-match-linux artifact - review it, commit tests/baselines/family-match-linux.json, and this gate arms on the next run."
+            npx tsx tools/family-match-conformance-linux.ts --write-baseline
+            cp tests/baselines/family-match-linux.json family-match-linux.baseline-candidate.json
+            exit 0
+          fi
+          exit $code
+      - name: Upload conformance report (and baseline candidate on first run)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: family-match-linux
+          path: |
+            tests/output/family-match-conformance-linux.json
+            family-match-linux.baseline-candidate.json
+          if-no-files-found: ignore
+
   # Compile the FreeType glyph extractor and run its fontkit-parity test against
   # the container's real Linux font stack. Release-independent validation of the
   # linux helper (release-helpers.yml builds + uploads the asset; this just

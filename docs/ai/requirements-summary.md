@@ -60,6 +60,26 @@ they describe (see `CLAUDE.md` "Documentation"):
   Both platforms verified in the loop by disabling
   (`DOMOTION_SYSTEM_FALLBACK=0` / `DOMOTION_DISABLE_HELPER=1`) and requiring
   the resolved face to move.
+- **Linux declared-family NOMINATION walk (doc 110, DM-1955)** — **Shipped.**
+  The stage ABOVE the cut matcher now runs Blink's stack walk verbatim for
+  non-generic names on Linux: ask the transcribed matcher per name, retry a
+  rejection once under Blink's alias (Courier ↔ Courier New, Times ↔ Times
+  New Roman, Arial ↔ Helvetica), walk past on rejection, and run the
+  transcribed last-resort chain ("" → Sans → Arial →
+  `legacyMakeTypeface(nullptr)`) when everything rejects. Fixes measured
+  divergences (declared "Courier New"/"Courier" now paint Liberation Mono as
+  Chrome does, not WenQuanYi; rejected "Menlo"/"Consolas"/"Helvetica Neue"
+  land on the `-webkit-standard` stand-in). Generic keywords stay on the
+  measured static routes — their concrete families are browser-side settings
+  values, stated as un-transcribed in doc 110.
+- **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
+  first-run baselines).** Both oracles run per-PR (`Linux family-match
+  conformance` in test-linux.yml, `Windows family-match conformance` in
+  windows-fidelity.yml), regression-relative against env-keyed baseline SETS
+  (`tools/family-match-baseline.ts`; one entry per environment fingerprint in
+  the same committed file). The first CI run on each x64 image records a
+  candidate baseline and uploads it as an artifact; committing it arms the
+  gate.
 
 - **Doc 104 §3.1 (DM-1796) — typing-overlay handoff seam, FIXED.** A `typing`
   overlay used to fade out starting 150 ms before its window ended and sit fully

@@ -238,7 +238,13 @@ shortest possible map:
   query plus Blink's family-name suffix layer,
   `src/render/win32-family-suffix.ts`, baseline
   `tests/baselines/family-match-windows.json`). Both comparators refuse to
-  judge across an environment-fingerprint change.
+  judge across an environment-fingerprint change; each baseline file is an
+  env-keyed SET (`tools/family-match-baseline.ts` — one entry per
+  environment, legacy single-report files read as one-entry sets), and both
+  oracles run per-PR as regression-relative CI jobs ("Linux family-match
+  conformance" in test-linux.yml, "Windows family-match conformance" in
+  windows-fidelity.yml) that self-record a candidate baseline artifact on a
+  runner environment with no committed entry.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face

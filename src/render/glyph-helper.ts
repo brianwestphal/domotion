@@ -1833,7 +1833,15 @@ const _linuxFamilyMatchCache = new Map<string, LinuxFamilyMatch | null>();
 export function resolveLinuxFamilyMatch(
   family: string, style?: { weight?: number; italic?: boolean; stretch?: number },
 ): LinuxFamilyMatch | null {
-  if (process.platform !== "linux" || family === "") return null;
+  // An EMPTY family is a real Blink request, not junk: the terminal rung of
+  // `FontCache::GetLastResortFallbackFont` is `legacyMakeTypeface(nullptr,
+  // style)` (`fonts/skia/font_cache_skia.cc`, tag 147.0.7727.15), which the
+  // FCI font manager forwards to `matchFamilyName(nullptr, …)`
+  // (`SkFontMgr_FontConfigInterface.cpp:253-256`, Skia rev fd139e79) — a
+  // pattern with no FC_FAMILY term, which fontconfig matches against
+  // everything and `IsFallbackFontAllowed("")` then accepts. The helper's
+  // `familyMatch` query mirrors that when `family` is "".
+  if (process.platform !== "linux") return null;
   const weight = style?.weight ?? 400;
   const italic = style?.italic === true;
   const stretch = style?.stretch ?? 100;

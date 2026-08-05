@@ -86,10 +86,29 @@ the enabled path measures.
 
 Identical to doc 110: `--write-baseline` records the run plus an environment
 fingerprint (platform, arch, OS build, font-inventory digest); the comparator
-refuses to judge (exit 3) across any fingerprint change. The committed
-baseline was recorded on the Parallels Windows 11 VM (arm64); CI's
-`win25-vs2026-x64` runner differs in both arch and inventory and must record
-its own baseline before the gate can grade it.
+refuses to judge (exit 3) when no recorded fingerprint matches this run's.
+The baseline file is an **env-keyed set** (`tools/family-match-baseline.ts`):
+one entry per environment, selected by fingerprint equality, so the arm64
+Windows 11 VM and CI's x64 runner carry separate entries in the same
+committed file (a legacy single-report file reads as a one-entry set;
+`--write-baseline` records or replaces only the current environment's entry).
+
+## The CI gate
+
+The `Windows family-match conformance` job in
+`.github/workflows/windows-fidelity.yml` runs on every PR on
+`windows-latest`: it builds the DirectWrite helper, then runs this oracle
+**regression-relative** like the other fidelity gates — a regression vs this
+environment's committed entry fails the job. Until a baseline recorded on the
+CI runner is committed, the refuse-to-judge (exit 3) is turned into a green
+run that records a candidate and uploads it in the `family-match-windows`
+artifact — review it, commit `tests/baselines/family-match-windows.json`,
+and the gate arms on the next run. Two caveats worth restating: the
+committed entry as of this writing was recorded on the arm64 Windows 11 VM,
+so the first CI run is expected to take the candidate path; and
+`windows-latest` is Windows **Server**, whose font set is narrower than
+desktop Windows 11 — its numbers say nothing about the desktop entry, and
+each environment is judged only against itself.
 
 ## What this oracle cannot see
 

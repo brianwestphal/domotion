@@ -1,9 +1,9 @@
 import * as fs from "fs";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
 import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
-import { getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
+import { getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -32,7 +32,22 @@ beforeEach(() => setRenderTextMode("paths"));
 // font_cache_mac.mm) — substituting any of these silently shifts every
 // page's text metrics. See DM-236 (monospace was wrongly routed to SF Mono)
 // and SK-1124 (sans-serif was wrongly routed to SF Pro).
+// The next three describes pin the CALIBRATED nomination table — the
+// platform-blind key model, which on Linux is now the DEGRADE path (no
+// helper binary, a helper predating the familyMatch query, or
+// DOMOTION_SYSTEM_FALLBACK=0). When the transcribed Linux nomination walk is
+// armed, a non-generic name is resolved by asking Blink's matcher instead
+// (accepted names register `sysfb:` keys, rejected names are walked past),
+// and THOSE semantics are pinned in linux-declared-family-cut.test.ts — so
+// these tables are exercised here with the walk disarmed on every platform.
+function withNominationWalkDisarmed(): void {
+  let prev: boolean;
+  beforeAll(() => { prev = getSystemFallbackResolution(); setSystemFallbackResolution(false); });
+  afterAll(() => { setSystemFallbackResolution(prev); });
+}
+
 describe("resolveFontKey: generic-family resolution", () => {
+  withNominationWalkDisarmed();
   it("routes sans-serif to Helvetica, not SF Pro", () => {
     expect(resolveFontKey("sans-serif")).toBe("helvetica");
   });
@@ -139,6 +154,7 @@ describe("resolveFontKey: generic-family resolution", () => {
 });
 
 describe("resolveFontKey: explicit-name resolution", () => {
+  withNominationWalkDisarmed();
   it("honors author-named monospace families separately", () => {
     expect(resolveFontKey("Menlo")).toBe("menlo");
     expect(resolveFontKey("Monaco")).toBe("monaco");
@@ -1241,6 +1257,7 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
 });
 
 describe("Primary-aware CJK fallback (DM-333)", () => {
+  withNominationWalkDisarmed();
   // CJK characters routing depends on the primary font's broad style: serif
   // primaries (Apple Times / Times New Roman / Georgia, plus the bare
   // generics that resolve to `times`) get serif CJK glyphs (Songti SC Light)
@@ -1362,6 +1379,7 @@ describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", ()
 // ordered list of resolvable keys — the set Chrome's FontFallbackIterator walks
 // at the kFontFamily stage.
 describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
+  withNominationWalkDisarmed();
   it("returns every resolvable family in CSS order, with resolveFontKey == chain[0]", () => {
     const chain = resolveFontKeyChain(`"Times New Roman", Georgia, sans-serif`);
     expect(chain).toEqual(["times-new-roman", "georgia", "helvetica"]);
@@ -2153,6 +2171,7 @@ describe("synthesized small-caps (DM-294)", () => {
 });
 
 describe("resolveFontKey: chain walking", () => {
+  withNominationWalkDisarmed();
   it("picks the first recognized name in the stack", () => {
     expect(resolveFontKey('"DoesNotExist", monospace')).toBe("courier");
     expect(resolveFontKey("DoesNotExist, Helvetica, sans-serif")).toBe("helvetica");
@@ -2950,6 +2969,12 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // no pixel threshold flagged it. The rest of the list would pass against a
   // resolver that merely fails to find anything.
   it("performs no system fallback for private-use or noncharacter codepoints", () => {
+    // The contract is "stays on the declared PRIMARY", whatever key the
+    // nomination stage produced for it — the static `helvetica` key on
+    // macOS / disarmed hosts, a `sysfb:` registration where the Linux
+    // nomination walk accepted the name — so assert against the resolver's
+    // own primary rather than a literal spelling.
+    const primaryKey = resolveFontKey("Helvetica, sans-serif");
     for (const cp of [0xE000, 0xE401, 0xE402, 0xE403, 0xF0000, 0xFAAAA, 0x100000, 0x10AAAA,
       0xFDD0, 0xFFFE, 0xFFFF, 0x10FFFF]) {
       const r = __resolveFontForCodepointForTest(cp, "Helvetica, sans-serif");
@@ -2958,7 +2983,7 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
       // primary's `.notdef`, which is what Chrome paints.
       expect(r!.covered, `U+${cp.toString(16)} must not be covered`).toBe(false);
       // Never a live system-fallback face, and never the LastResort tail.
-      expect(r!.key, `U+${cp.toString(16)} key`).toBe("helvetica");
+      expect(r!.key, `U+${cp.toString(16)} key`).toBe(primaryKey);
     }
   });
 
@@ -2976,7 +3001,8 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     // primary itself, for U+F8FF). Either way the key must stay on the
     // declared primary — never a system-fallback face, never the LastResort
     // tail — and `covered` must equal what the declared face's cmap says.
-    const face = getFontInstance("helvetica", 400, 16, 0);
+    const primaryKey = resolveFontKey("Helvetica, sans-serif");
+    const face = getFontInstance(primaryKey, 400, 16, 0);
     const declaredFaceCovers = face != null && glyphIdForCp(face, 0xF8FF) !== 0;
     // Keep the positive branch discriminating where it can be: on a macOS font
     // host the declared family must genuinely cover (if this ever flips, the
@@ -2985,7 +3011,7 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     const r = __resolveFontForCodepointForTest(0xF8FF, "Helvetica, sans-serif");
     expect(r).not.toBeNull();
     expect(r!.covered).toBe(declaredFaceCovers);
-    expect(r!.key).toBe("helvetica");
+    expect(r!.key).toBe(primaryKey);
   });
 
   // The RENDER half of the same rule, which the resolver assertions above

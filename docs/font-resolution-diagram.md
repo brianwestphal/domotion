@@ -110,8 +110,25 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 (used by the per-codepoint resolver to reach later-declared families).
 
-> **This ladder is the macOS family stage — it is NOT `process.platform`-branched.**
-> `matchFamilyNameToKey` unconditionally encodes Chrome-**on-macOS**'s family and
+> **This ladder is the macOS family stage — and on Linux, the transcribed
+> nomination WALK now runs ahead of it.** When the Linux helper is present,
+> speaks `familyMatch`, and `DOMOTION_SYSTEM_FALLBACK != 0`, every
+> NON-generic name is resolved the way Blink resolves it (the W node in the
+> diagram): ask `SkFontConfigInterfaceDirect::matchFamilyName` about the name
+> (`font_fallback_list.cc:149-193`, tag 147.0.7727.15), retry a rejection once
+> under Blink's alias (Courier ↔ Courier New, Times ↔ Times New Roman,
+> Arial ↔ Helvetica — `blinkAlternateFamilyName`, from
+> `alternate_font_family.h:74-105` + `font_platform_data_cache.cc:74-105`),
+> and on acceptance register the matched face as `sysfb:<psName>` with the
+> ACCEPTED spelling in `declaredFamilyForKey`; on rejection return null so the
+> stack walks past the name, exactly as Blink does. Generic keywords
+> (`LINUX_SETTINGS_MAPPED_GENERICS`: serif / sans-serif / cursive / fantasy /
+> monospace / math / system-ui / -webkit-*) are excluded — their concrete
+> families are browser-side `GenericFontFamilySettings` VALUES, not readable
+> from the renderer checkout — and stay on the calibrated static routes below,
+> which are also the degrade path when the walk is disarmed (doc 110).
+>
+> Otherwise, `matchFamilyNameToKey` unconditionally encodes Chrome-**on-macOS**'s family and
 > generic resolution (each entry is probe-calibrated against Chrome-macOS). The
 > logical keys it returns are macOS-face names; cross-platform behavior emerges
 > only DOWNSTREAM, where §5's `resolveFontSpec` remaps the SAME key to a
@@ -159,6 +176,9 @@ flowchart TD
 
   M -->|"webfontRegistry.has(name)"| R1["webfont:&lt;name&gt;"]
   M -->|"localFontAliasRegistry.has(name)"| R2["localalias:&lt;name&gt;"]
+  M -->|"linux, walk armed, non-generic name"| W{"transcribed nomination walk:<br/>matchFamilyName(name) →<br/>reject: retry blinkAlternateFamilyName(name)"}
+  W -->|"accepted"| WA["sysfb:&lt;psName&gt; of matched face<br/>+ declaredFamilyForKey = ACCEPTED spelling"]
+  W -->|"rejected"| WR["null → SKIP to next name<br/>(Blink walks past the family)"]
   M -->|"monospace / courier / courier new / consolas"| R3["courier"]
   M -->|"menlo · monaco · sf mono"| R4["menlo / monaco / sf-mono"]
   M -->|"times new roman"| R5["times-new-roman"]
@@ -293,7 +313,7 @@ flowchart TD
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant, stretch)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle:<br/>FindFamilyName + GetFirstMatchingFont, plus Blink's<br/>family-name suffix layer — win32FamilySuffixAdjustment —<br/>and win32SuffixDeclaredForKey's pinned axis for<br/>author-declared 'Segoe UI Light'-style keys)"]
   G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
-  G3d --> G3e["linux + helper + resolver flag: linuxPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (same key set + declaredFamilyForKey).<br/>Family = declared name ?? LINUX_FONT_PATHS fcMatch base →<br/>resolveLinuxFamilyMatch → helper 'familyMatch' =<br/>SkFontConfigInterfaceDirect::matchFamilyName transcribed<br/>(Skia rev fd139e79, the tag-147 DEPS pin): FcFontSort(trim=0),<br/>first SFNT-valid pattern, family/alias/metric-equiv acceptance.<br/>Reads the BASE key; sysfb:&lt;psName&gt; REPLACES G3/G3b. null → stand."]
+  G3d --> G3e["linux + helper + resolver flag: linuxPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (same key set + declaredFamilyForKey).<br/>Family = ACCEPTED spelling (declaredFamilyForKey) ?? LINUX_FONT_PATHS<br/>fcMatch base (the un-transcribed settings stand-in) →<br/>linuxFamilyMatchWithAlternate (alias retry per Blink) →<br/>helper 'familyMatch' = SkFontConfigInterfaceDirect::matchFamilyName<br/>transcribed (Skia rev fd139e79, the tag-147 DEPS pin): FcFontSort(trim=0),<br/>first SFNT-valid pattern, family/alias/metric-equiv acceptance.<br/>Both reject → linuxLastResortMatch ('' → Sans → Arial → '',<br/>GetLastResortFallbackFont transcribed).<br/>Reads the BASE key; sysfb:&lt;psName&gt; REPLACES G3/G3b. null → stand."]
   G3e --> G4["darwinSystemUiWdth(effectiveKey, stretch):<br/>sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey = effectiveKey-weight-size-slant-fvs[-wdth]<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
@@ -448,9 +468,16 @@ tree (single `FcFontSort(trim=0)`, first-valid-then-accept-or-reject; no
 direct `FcFontMatch` stage). The transcription lives in the Linux glyph
 helper's `familyMatch` query (`tools/linux-glyph-extractor/src/main.cpp`),
 reached through `resolveLinuxFamilyMatch`. The nominated family is the
-declared name when recorded (`declaredFamilyForKey`) and otherwise the
-`fcMatch` base the `LINUX_FONT_PATHS` entry already carries — derived, not
-curated, the same precedent as Windows. Gated on
+ACCEPTED spelling the §2 nomination walk recorded (`declaredFamilyForKey`,
+re-matched here with the same alias retry Blink's lookup carries) and, for
+the static keys that still reach this stage — the generic keywords and the
+`times` terminal, whose concrete names are browser-side settings values —
+the calibrated `fcMatch` base the `LINUX_FONT_PATHS` entry carries, the
+documented un-transcribed stand-in. When both match nothing on this host,
+`linuxLastResortMatch` runs the transcribed last-resort chain
+(`GetLastResortFallbackFont`, `fonts/skia/font_cache_skia.cc:147-261` at the
+tag: empty name → "Sans" → "Arial" → `legacyMakeTypeface(nullptr)` ≡
+`matchFamilyName(nullptr)`). Gated on
 `DOMOTION_SYSTEM_FALLBACK != 0`; scored end to end by
 `npm run fonts:family-match:linux` (doc
 [110](110-family-match-conformance-linux.md), 2,292/2,292 on the noble

@@ -47,6 +47,69 @@ through `resolveLinuxFamilyMatch` → `linuxPrimaryCutKey`
 present and on `DOMOTION_SYSTEM_FALLBACK != 0`, and degrade to the sibling
 table otherwise.
 
+## The nomination stage above it (transcribed where readable)
+
+The stage that decides WHICH family gets style-matched is Blink's stack walk,
+and `matchFamilyNameToKey` now runs the readable parts of it verbatim for
+non-generic names (same gates, same degradation to the calibrated tables):
+
+1. Ask the transcribed matcher about the declared name itself
+   (`FontFallbackList::GetFontData` walks the stack per name,
+   `font_fallback_list.cc:149-193`, tag `147.0.7727.15`).
+2. On rejection, retry ONCE under Blink's alias — Courier ↔ Courier New,
+   Times ↔ Times New Roman, Arial ↔ Helvetica
+   (`font_platform_data_cache.cc:74-105` + `alternate_font_family.h:74-105`
+   at the tag; `blinkAlternateFamilyName` is the transcription). This is how
+   bare "Courier" lands on Liberation Mono: "Courier" rejects, "Courier New"
+   accepts through the metric-equivalence class.
+3. If both reject, walk PAST the family — return null so the next CSS name
+   resolves — exactly as Blink does. Measured over CDP on the noble image:
+   bare "Menlo" / "Consolas" / "Helvetica Neue" stacks paint Liberation
+   Serif because Chrome exhausts the stack and lands on `-webkit-standard`,
+   which is what our `times` terminal yields.
+4. An accepted name registers the matched face under a `sysfb:` key carrying
+   the ACCEPTED spelling, so `linuxPrimaryCutKey` re-matches that spelling at
+   each run's real weight/slant/width.
+
+The last-resort chain is transcribed too:
+`FontCache::GetLastResortFallbackFont` (`fonts/skia/font_cache_skia.cc:147-261`
+at the tag) tries `GetFallbackFontFamily(description)` — the EMPTY name for a
+standard description — then "Sans", then "Arial", then
+`legacyMakeTypeface(nullptr, style)`, which the FCI manager forwards to
+`matchFamilyName(nullptr, …)` (`SkFontMgr_FontConfigInterface.cpp:253-256`,
+Skia rev `fd139e79`). An empty-family pattern matches everything and
+`IsFallbackFontAllowed` accepts it, so the first rung terminates on any host
+with one valid SFNT font — the later rungs are defense-in-depth in Blink and
+in our `linuxLastResortMatch` alike. It runs where Blink runs it: when a
+declared family and its calibrated stand-in both match nothing.
+
+**Deliberately NOT transcribed** — stated rather than approximated, because
+the values live in the browser process, outside the renderer checkout:
+
+- The generic-family → concrete-name preferences. The MECHANISM is readable
+  (`FontSelector::FamilyNameFromSettings` reads
+  `GenericFontFamilySettings.Standard/Serif/SansSerif/Cursive/Fantasy/Fixed/
+  Math(script)`, `font_selector.cc:20-113` at the tag) but the VALUES are
+  pushed from the embedder. `serif` / `sans-serif` / `monospace` / `cursive` /
+  `fantasy` / `math` therefore stay on the measured static routes
+  (`LINUX_SETTINGS_MAPPED_GENERICS` excludes them from the walk). Measured on
+  noble: monospace → WenQuanYi Zen Hei Mono, sans-serif → Liberation Sans,
+  serif → Liberation Serif.
+- The `-webkit-standard` stage a fully-rejected stack falls to
+  (`settings.Standard(script)`). Measured on noble as "Times New Roman" →
+  Liberation Serif; carried as the calibrated `times` terminal, not a
+  transcription.
+- What `system-ui` becomes (`FontCache::SystemFontFamily()`, pushed from the
+  browser side; `CreateTypeface` asserts `DCHECK_NE(family, kSystemUi)`).
+  Its Linux route (the fontconfig default) and its weight ladder stay
+  measured, not transcribed.
+
+One residual of the shared key model, worth naming: a QUOTED generic
+(`font-family: "sans-serif"`) is a plain family name to Blink
+(`FamilyNameFromSettings` bails when `!FamilyIsGeneric()`), but our stack
+splitter strips quotes before nomination, so it takes the generic's
+calibrated route instead of the walk's rejection path.
+
 ## Method
 
 Families are **derived, not authored**: every installed fontconfig family with
@@ -97,19 +160,49 @@ loop, and the disable knob restores the two-slot behavior. The seam test
 
 `--write-baseline` records the run plus an environment fingerprint (platform,
 arch, OS image, fontconfig version, font-inventory digest). The default mode
-compares misses against the committed baseline and **refuses to judge (exit
-3)** when any fingerprint field differs — a difference measured across two
-environments is not evidence about the code. The committed baseline was
-recorded in the pinned Playwright noble image on arm64 (Docker on Apple
-Silicon); a CI x64 runner must record its own before the gate can grade it.
+compares misses against the committed baseline for THIS environment and
+**refuses to judge (exit 3)** when no recorded fingerprint matches — a
+difference measured across two environments is not evidence about the code.
+
+The baseline file is an **env-keyed set** (`tools/family-match-baseline.ts`,
+`{"format": "family-match-baseline-set/1", "baselines": [...]}`): one
+recorded baseline per environment, selected by fingerprint equality, so the
+arm64 Docker-on-Apple-Silicon image and CI's x64 container each carry their
+own entry in the same committed file. A legacy single-report file reads as a
+one-entry set, and `--write-baseline` records or replaces only the current
+environment's entry, preserving the others.
+
+## The CI gate
+
+The `Linux family-match conformance` job in
+`.github/workflows/test-linux.yml` runs on every PR inside the pinned noble
+container: it builds the helper, runs the armed declared-family seam test
+(`src/render/linux-declared-family-cut.test.ts` — the one CI site where the
+nomination-walk pins execute rather than skip), then runs this oracle
+**regression-relative**, exactly like the feature-suite fidelity gates: a
+regression vs this environment's committed entry fails the job; identical or
+improved misses pass. Until a baseline recorded on the CI image is
+committed, the comparator's refuse-to-judge (exit 3) is turned into a green
+run that records a candidate and uploads it in the `family-match-linux`
+artifact — review it, commit `tests/baselines/family-match-linux.json`, and
+the gate arms on the next run. The committed entry as of this writing was
+recorded on arm64 (Docker on Apple Silicon), so the first CI run on the x64
+image is expected to take the candidate path.
 
 ## What this oracle cannot see
 
-- The family-NOMINATION stage above this call (`resolveFontKey`'s calibrated
-  key table, and Blink's browser-side generic-family preferences) — the
-  oracle asks both sides about the same family string, so a wrong nomination
-  upstream is out of frame. Doc 107's whole-pipeline oracle covers that end.
+- The family-NOMINATION stage above this call — the oracle asks both sides
+  about the same family string, so a wrong nomination upstream is out of
+  frame. The walk itself (declared name → alias retry → walk past) is now
+  transcribed and pinned by `src/render/linux-declared-family-cut.test.ts`
+  against CDP-measured paint, but this oracle still does not score it; doc
+  107's whole-pipeline oracle covers that end. The generic-family
+  preferences and `-webkit-standard` remain browser-side VALUES (measured,
+  un-transcribed — see above).
 - Italic and width axes are not swept (weight only, upright, normal width).
-- The last-resort chain after a rejection ("Sans" → "Arial" →
-  `legacyMakeTypeface(nullptr)`, `font_cache_skia.cc:146-200`) is asserted
-  only as "Chrome left the family", not face-for-face.
+- Where a rejected family's paint actually LANDS is asserted only as
+  "Chrome left the family", not face-for-face. The stages it lands through —
+  the alias retry, the `-webkit-standard` stand-in, and the last-resort
+  chain (`GetLastResortFallbackFont`, `font_cache_skia.cc:147-261` at the
+  tag, now transcribed and wired) — are pinned by the seam test's measured
+  cases instead.
