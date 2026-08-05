@@ -284,7 +284,71 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
   it("maps the ligature enable keywords", () => {
     expect(resolveFontVariantFeatures(undefined, undefined, "discretionary-ligatures")).toEqual(["dlig"]);
     expect(resolveFontVariantFeatures(undefined, undefined, "historical-ligatures")).toEqual(["hlig"]);
-    expect(resolveFontVariantFeatures(undefined, undefined, "contextual")).toEqual(["calt"]);
+    // DM-1963: `contextual` emits NOTHING. calt is on by default in HarfBuzz,
+    // and Blink pushes only `no_calt` — there is no enable push in
+    // `font_features.cc:79-86`. Emitting `calt` was harmless while nothing could
+    // turn it off, and became a direct contradiction once letter-spacing could
+    // (which pushes `-calt` in the same list), so it is dropped rather than made
+    // conditional.
+    expect(resolveFontVariantFeatures(undefined, undefined, "contextual")).toBeUndefined();
+  });
+
+  // DM-1963: the two inputs Blink reads that this function used to lack. Both
+  // are VETOES that outrank the author's keyword — the disjunction's first term
+  // is `letter_spacing`, so no `font-variant-ligatures` value survives it.
+  describe("letter-spacing and text-rendering vetoes (DM-1963)", () => {
+    const f = (lig: string | undefined, ls?: string, tr?: string): string[] | undefined =>
+      resolveFontVariantFeatures(undefined, undefined, lig, ls, tr);
+
+    it("disables liga/clig/calt on any non-zero letter-spacing", () => {
+      expect(f(undefined, "2px")).toEqual(["-liga", "-clig", "-calt"]);
+      expect(f(undefined, "-0.5px")).toEqual(["-liga", "-clig", "-calt"]);
+    });
+
+    it("treats `normal` and an explicit 0 as zero spacing", () => {
+      expect(f(undefined, "normal")).toBeUndefined();
+      expect(f(undefined, "0px")).toBeUndefined();
+      expect(f(undefined)).toBeUndefined();
+    });
+
+    it("overrides an explicit enable — the keyword does not survive letter-spacing", () => {
+      // The case that makes this a veto rather than a default: the author asked
+      // for common ligatures AND Chrome shapes without them.
+      expect(f("common-ligatures", "1px")).toEqual(["-liga", "-clig", "-calt"]);
+      // …and the enables are suppressed rather than merely outvoted.
+      expect(f("discretionary-ligatures historical-ligatures", "1px"))
+        .toEqual(["-liga", "-clig", "-calt"]);
+      expect(f("discretionary-ligatures historical-ligatures"))
+        .toEqual(["dlig", "hlig"]);
+    });
+
+    it("matches the keyword CASE-INSENSITIVELY, which is how it actually arrives", () => {
+      // The CSS keyword is `optimizeSpeed`, but Chrome's computed style
+      // serializes it ALL-LOWERCASE, so this is the spelling capture hands us —
+      // verified by dumping the element tree (`styles.textRendering` is
+      // `"optimizespeed"`). An exact match against the spec spelling compiles,
+      // reads correctly, and silently never fires. It shipped that way for the
+      // length of one measurement here: the disable-and-require-movement check
+      // showed this arm byte-identical either way while the letter-spacing arm
+      // moved 3px, which is the only reason it was caught.
+      expect(f(undefined, "normal", "optimizespeed")).toEqual(["-liga", "-clig", "-calt"]);
+      expect(f(undefined, "normal", "optimizeSpeed")).toEqual(["-liga", "-clig", "-calt"]);
+    });
+
+    it("disables the NORMAL-state features under text-rendering: optimizeSpeed", () => {
+      expect(f(undefined, "normal", "optimizeSpeed")).toEqual(["-liga", "-clig", "-calt"]);
+      // …but an explicit enable DOES survive optimizeSpeed, unlike
+      // letter-spacing: that term only fires in the `normal` state.
+      expect(f("common-ligatures contextual", "normal", "optimizeSpeed")).toBeUndefined();
+      expect(f("discretionary-ligatures", "normal", "optimizeSpeed"))
+        .toEqual(["-liga", "-clig", "dlig", "-calt"]);
+    });
+
+    it("leaves the other text-rendering values alone", () => {
+      for (const tr of ["auto", "optimizeLegibility", "geometricPrecision"]) {
+        expect(f(undefined, "normal", tr)).toBeUndefined();
+      }
+    });
   });
 
   it("DM-1960: maps the ligature disable keywords per Blink's feature emission", () => {

@@ -747,6 +747,12 @@ export interface CapturedStyles {
    * choice for icon fonts and for type systems shipping real cuts — gets
    * emboldened ink from us where Chrome paints the thin face.
    */
+  /**
+   * CSS `text-rendering`. Only `optimizeSpeed` acts, and it acts on SHAPING:
+   * Blink's `default_is_off` term turns the normal-state ligature features off
+   * (`platform/fonts/shaping/font_features.cc:52-86`, rev 7d859f27). DM-1963.
+   */
+  textRendering?: string;
   fontSynthesisWeight?: string;
   fontSynthesisStyle?: string;
   fontSynthesisSmallCaps?: string;

@@ -609,6 +609,10 @@ export const captureScript =
         // hint: Blink ANDs each into the corresponding synthesis decision, so
         // `none` means Chrome paints the thin/upright/lowercase face where we
         // would otherwise embolden, shear, or scale. DM-1971.
+        // CSS text-rendering — `optimizeSpeed` disables the normal-state
+        // ligature features at shaping time, the same way a non-zero
+        // letter-spacing does. DM-1963.
+        textRendering: cs.textRendering,
         fontSynthesisWeight: cs.fontSynthesisWeight,
         fontSynthesisStyle: cs.fontSynthesisStyle,
         fontSynthesisSmallCaps: cs.fontSynthesisSmallCaps,

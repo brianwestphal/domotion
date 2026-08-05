@@ -1087,6 +1087,10 @@ export function resolveFontVariantFeatures(
   eastAsian: string | undefined,
   numeric: string | undefined,
   ligatures: string | undefined,
+  /** Computed `letter-spacing` (`"normal"` or a px string). DM-1963. */
+  letterSpacing?: string,
+  /** Computed `text-rendering`. Only `optimizeSpeed` acts. DM-1963. */
+  textRendering?: string,
 ): string[] | undefined {
   const out: string[] = [];
   for (const kw of (eastAsian ?? "").split(/\s+/)) {
@@ -1097,36 +1101,69 @@ export function resolveFontVariantFeatures(
     const tag = NUMERIC_FEATURE[kw];
     if (tag != null) out.push(tag);
   }
-  // Ligature longhands, transcribed from Blink's feature emission
-  // (`FontFeatureRange::FromFontDescription`,
-  // `platform/fonts/shaping/font_features.cc:54-86`, rev 7d859f27):
-  //   common disabled     → `liga` 0 + `clig` 0   (both on by default in HarfBuzz)
-  //   discretionary on    → `dlig` 1              (off by default)
-  //   historical on       → `hlig` 1              (off by default)
-  //   contextual disabled → `calt` 0              (on by default)
-  // `none` computes to every state disabled, so it emits the three disables and
-  // no enables. Disables are expressed as HarfBuzz feature strings (`-liga`);
-  // runs carrying one are routed through HarfBuzz shaping, since fontkit's
-  // enable-only list cannot switch a default-on feature off (see
-  // `font-features.ts`). Blink additionally forces the common/contextual
-  // disables when `letter-spacing` is non-zero or `text-rendering:
-  // optimizeSpeed` (`font_features.cc:52-57`); neither input reaches this
-  // function today — tracked as a follow-up.
+  // Ligature emission, transcribed from Blink's `FontFeatureRange::
+  // FromFontDescription` (`platform/fonts/shaping/font_features.cc:52-86`,
+  // rev 7d859f27). Each of the four rules below is one of its four `if`s, in
+  // its order, reading the same three-state longhands:
+  //
+  //   default_is_off = TextRendering() == kOptimizeSpeed
+  //   letter_spacing = LetterSpacing() != 0
+  //   liga+clig OFF  if letter_spacing || common     == disabled || (common     == normal && default_is_off)
+  //   dlig       ON  if !letter_spacing && discretionary == enabled
+  //   hlig       ON  if !letter_spacing && historical    == enabled
+  //   calt      OFF  if letter_spacing || contextual == disabled || (contextual == normal && default_is_off)
+  //
+  // DM-1963: `letter_spacing` and `default_is_off` are the two inputs this
+  // function used to lack, and both are VETOES that outrank the author's
+  // keyword — `font-variant-ligatures: common-ligatures` with a non-zero
+  // `letter-spacing` still shapes without them, because the first term of the
+  // disjunction wins. That is why these are not modeled as "the keyword unless
+  // overridden": there is no keyword that survives letter-spacing.
+  //
+  // Blink pushes NOTHING for an explicitly-enabled `contextual`, since calt is
+  // on by default in HarfBuzz. We used to push `calt`, which was harmless while
+  // nothing could disable it and became a direct contradiction once
+  // letter-spacing could — so it is dropped rather than made conditional.
+  //
+  // Disables are HarfBuzz feature strings (`-liga`); a run carrying one is
+  // routed through HarfBuzz shaping, because fontkit's enable-only list cannot
+  // switch a default-on feature off (see `font-features.ts`).
   //
   // The negative lookbehinds matter: `\bdiscretionary-ligatures\b` also matches
   // inside `no-discretionary-ligatures` (`-` is a word boundary), so the plain
   // patterns read the no- keywords as enables.
   const lig = ligatures ?? "";
-  if (/\bnone\b/.test(lig)) {
-    out.push("-liga", "-clig", "-calt");
-  } else {
-    if (/\bno-common-ligatures\b/.test(lig)) out.push("-liga", "-clig");
-    if (/(?<!no-)\bdiscretionary-ligatures\b/.test(lig)) out.push("dlig");
-    if (/(?<!no-)\bhistorical-ligatures\b/.test(lig)) out.push("hlig");
-    if (/\bno-contextual\b/.test(lig)) out.push("-calt");
-    else if (/\bcontextual\b/.test(lig)) out.push("calt");
-  }
+  const none = /\bnone\b/.test(lig);
+  // `none` computes every longhand to its disabled state, so it short-circuits
+  // all four at once rather than being spelled out per longhand.
+  const state = (on: RegExp, off: RegExp): "normal" | "enabled" | "disabled" =>
+    none || off.test(lig) ? "disabled" : on.test(lig) ? "enabled" : "normal";
+  const common = state(/(?<!no-)\bcommon-ligatures\b/, /\bno-common-ligatures\b/);
+  const discretionary = state(/(?<!no-)\bdiscretionary-ligatures\b/, /\bno-discretionary-ligatures\b/);
+  const historical = state(/(?<!no-)\bhistorical-ligatures\b/, /\bno-historical-ligatures\b/);
+  const contextual = state(/(?<!no-)\bcontextual\b/, /\bno-contextual\b/);
+
+  // Case-INSENSITIVE: the CSS keyword is `optimizeSpeed`, but Chrome's computed
+  // style serializes it all-lowercase (`optimizespeed`), so an exact match
+  // against the spec spelling silently never fires. Caught by disabling the
+  // feature and finding the answer did not move — the arm that reads this was
+  // byte-identical either way while the letter-spacing arm shifted 3px.
+  const defaultIsOff = textRendering?.toLowerCase() === "optimizespeed";
+  const spaced = letterSpacingIsNonZero(letterSpacing);
+
+  if (spaced || common === "disabled" || (common === "normal" && defaultIsOff)) out.push("-liga", "-clig");
+  if (!spaced && discretionary === "enabled") out.push("dlig");
+  if (!spaced && historical === "enabled") out.push("hlig");
+  if (spaced || contextual === "disabled" || (contextual === "normal" && defaultIsOff)) out.push("-calt");
+
   return out.length > 0 ? out : undefined;
+}
+
+/** Blink's `LetterSpacing() != 0` — `normal` and `0px` are both zero. DM-1963. */
+function letterSpacingIsNonZero(value: string | undefined): boolean {
+  if (value == null || value === "" || value === "normal") return false;
+  const n = parseFloat(value);
+  return Number.isFinite(n) && n !== 0;
 }
 
 // DM-564: parse `font-feature-settings` into the OpenType tag list fontkit
@@ -1331,7 +1368,8 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const features = mergeFeatureLists(
     mergeFeatureLists(
       resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
-      resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric, el.styles.fontVariantLigatures),
+      resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
+        el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering),
     ),
     parseFontFeatureSettings(el.styles.fontFeatureSettings),
   );
@@ -1631,7 +1669,8 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segFeatures = mergeFeatureLists(
       mergeFeatureLists(
         resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
-        resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric, el.styles.fontVariantLigatures),
+        resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
+        el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering),
       ),
       parseFontFeatureSettings(el.styles.fontFeatureSettings),
     );
