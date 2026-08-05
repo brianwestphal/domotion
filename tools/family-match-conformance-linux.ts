@@ -35,16 +35,19 @@
  *    requested family and the matched family are skipped as coverage
  *    artifacts of the Latin probe text, mirroring the macOS oracle's rule.
  *
- * Baseline: `tests/baselines/family-match-linux.json`, per-platform and
- * environment-fingerprinted. The comparator REFUSES to judge when the runner
- * image, fontconfig version, or font inventory digest differ from the
- * baseline's — a difference measured across two environments is not evidence
- * about the code.
+ * Baseline: `tests/baselines/family-match-linux.json` — an ENV-KEYED SET
+ * (tools/family-match-baseline.ts): one recorded baseline per environment
+ * fingerprint (platform/arch/image/fontconfig version/font-inventory digest),
+ * so the arm64 Docker-on-Apple-Silicon image and CI's x64 container each
+ * carry their own. The comparator judges against the entry matching THIS
+ * run's fingerprint and REFUSES to judge (exit 3) when none matches — a
+ * difference measured across two environments is not evidence about the
+ * code. `--write-baseline` records/replaces only this environment's entry.
  *
  * Usage (Linux only — run inside the pinned Playwright noble image locally):
  *   npm run fonts:family-match:linux                     # compare vs baseline
  *   npm run fonts:family-match:linux -- --json           # machine-readable
- *   npm run fonts:family-match:linux -- --write-baseline # record a new baseline
+ *   npm run fonts:family-match:linux -- --write-baseline # record this env's baseline
  *
  * Exit codes: 0 ok / 1 regression vs baseline / 2 cannot run / 3 environment
  * mismatch (refused to judge).
@@ -54,9 +57,12 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { readBaselineSet, selectBaseline, describeRecordedEnvs, writeBaselineSet } from "./family-match-baseline.js";
 
 const WEIGHTS = [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900] as const;
 const BASELINE = resolve("tests", "baselines", "family-match-linux.json");
+/** Fingerprint fields across which comparison is invalid (env-keyed baselines). */
+const ENV_KEYS = ["platform", "arch", "image", "fcVersion", "fontDigest"] as const;
 const HELPER = process.env.DOMOTION_HELPER_PATH
   ?? resolve("tools", "linux-glyph-extractor", "domotion-glyph-paths");
 
@@ -232,23 +238,23 @@ async function main(): Promise<void> {
   }
 
   if (writeBaseline) {
-    writeFileSync(BASELINE, JSON.stringify(report, null, 2) + "\n");
-    console.log(`baseline written: ${BASELINE}`);
+    const { replaced, total } = writeBaselineSet(BASELINE, report, ENV_KEYS);
+    console.log(`baseline ${replaced ? "replaced" : "recorded"} for this environment: ${BASELINE} (${total} environment(s) in the set)`);
     return;
   }
 
-  if (!existsSync(BASELINE)) {
+  const entries = readBaselineSet(BASELINE);
+  if (entries.length === 0) {
     console.log("no committed baseline yet (tests/baselines/family-match-linux.json) — advisory run only.");
     return;
   }
-  const baseline = JSON.parse(readFileSync(BASELINE, "utf8")) as typeof report;
-  const bEnv = baseline.meta.env as Record<string, unknown>;
-  for (const k of ["platform", "arch", "image", "fcVersion", "fontDigest"]) {
-    if (bEnv[k] !== (env as Record<string, unknown>)[k]) {
-      console.error(`REFUSING TO JUDGE: environment differs from baseline (${k}: baseline=${String(bEnv[k])} run=${String((env as Record<string, unknown>)[k])}).`);
-      console.error("A difference measured across two environments is not evidence about the code. Re-record the baseline on this environment if the change is intentional.");
-      process.exit(3);
-    }
+  const baseline = selectBaseline(entries, env, ENV_KEYS);
+  if (baseline == null) {
+    console.error("REFUSING TO JUDGE: no recorded baseline matches this environment.");
+    console.error(`this run: ${ENV_KEYS.map((k) => `${k}=${String(env[k])}`).join(" ")}`);
+    for (const line of describeRecordedEnvs(entries, ENV_KEYS)) console.error(`recorded:  ${line}`);
+    console.error("A difference measured across two environments is not evidence about the code. Record a baseline on this environment (--write-baseline) to arm the gate here; existing environments' baselines are preserved.");
+    process.exit(3);
   }
   const baselineMissKeys = new Set(baseline.misses.map((m) => `${m.family}@${m.css}`));
   const regressions = misses.filter((m) => !baselineMissKeys.has(`${m.family}@${m.css}`));

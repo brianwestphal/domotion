@@ -160,11 +160,34 @@ loop, and the disable knob restores the two-slot behavior. The seam test
 
 `--write-baseline` records the run plus an environment fingerprint (platform,
 arch, OS image, fontconfig version, font-inventory digest). The default mode
-compares misses against the committed baseline and **refuses to judge (exit
-3)** when any fingerprint field differs — a difference measured across two
-environments is not evidence about the code. The committed baseline was
-recorded in the pinned Playwright noble image on arm64 (Docker on Apple
-Silicon); a CI x64 runner must record its own before the gate can grade it.
+compares misses against the committed baseline for THIS environment and
+**refuses to judge (exit 3)** when no recorded fingerprint matches — a
+difference measured across two environments is not evidence about the code.
+
+The baseline file is an **env-keyed set** (`tools/family-match-baseline.ts`,
+`{"format": "family-match-baseline-set/1", "baselines": [...]}`): one
+recorded baseline per environment, selected by fingerprint equality, so the
+arm64 Docker-on-Apple-Silicon image and CI's x64 container each carry their
+own entry in the same committed file. A legacy single-report file reads as a
+one-entry set, and `--write-baseline` records or replaces only the current
+environment's entry, preserving the others.
+
+## The CI gate
+
+The `Linux family-match conformance` job in
+`.github/workflows/test-linux.yml` runs on every PR inside the pinned noble
+container: it builds the helper, runs the armed declared-family seam test
+(`src/render/linux-declared-family-cut.test.ts` — the one CI site where the
+nomination-walk pins execute rather than skip), then runs this oracle
+**regression-relative**, exactly like the feature-suite fidelity gates: a
+regression vs this environment's committed entry fails the job; identical or
+improved misses pass. Until a baseline recorded on the CI image is
+committed, the comparator's refuse-to-judge (exit 3) is turned into a green
+run that records a candidate and uploads it in the `family-match-linux`
+artifact — review it, commit `tests/baselines/family-match-linux.json`, and
+the gate arms on the next run. The committed entry as of this writing was
+recorded on arm64 (Docker on Apple Silicon), so the first CI run on the x64
+image is expected to take the candidate path.
 
 ## What this oracle cannot see
 

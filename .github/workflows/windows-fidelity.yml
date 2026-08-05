@@ -102,6 +102,57 @@ jobs:
             tests/output/features-results.json
           if-no-files-found: error
 
+  # Declared-family match conformance oracle (doc 111): scores the DirectWrite
+  # family/style matcher transcription in the win32 helper against what
+  # Chrome-on-this-runner actually paints, over CDP, gated REGRESSION-RELATIVE
+  # against tests/baselines/family-match-windows.json — an env-keyed baseline
+  # set (tools/family-match-baseline.ts). The committed baseline was recorded
+  # on the arm64 Windows 11 VM; windows-latest is x64 WINDOWS SERVER with a
+  # narrower font set (see the font-routing-sweep caveat below), so it is a
+  # DIFFERENT environment with its own entry: until a baseline recorded here
+  # is committed, the comparator refuses to judge (exit 3), which this job
+  # turns into a green run that uploads a baseline candidate artifact (review
+  # it, commit it, and the gate arms on the next run). A regression vs this
+  # environment's committed entry (exit 1) or a setup failure (exit 2) fails
+  # the job. Numbers from this runner say nothing about desktop Windows 11 —
+  # each environment is judged only against itself.
+  family-match:
+    name: Windows family-match conformance
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Build the DirectWrite helper
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Family-match conformance vs Chrome (regression-relative)
+        shell: bash
+        run: |
+          set +e
+          npx tsx tools/family-match-conformance-win32.ts
+          code=$?
+          set -e
+          if [ "$code" = "3" ]; then
+            echo "::notice title=Windows family-match::No committed baseline for this runner environment yet. Recording a candidate and uploading it as the family-match-windows artifact - review it, commit tests/baselines/family-match-windows.json, and this gate arms on the next run."
+            npx tsx tools/family-match-conformance-win32.ts --write-baseline
+            cp tests/baselines/family-match-windows.json family-match-windows.baseline-candidate.json
+            exit 0
+          fi
+          exit $code
+      - name: Upload conformance report (and baseline candidate on first run)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: family-match-windows
+          path: |
+            tests/output/family-match-conformance-windows.json
+            family-match-windows.baseline-candidate.json
+          if-no-files-found: ignore
+
   # Compile the DirectWrite glyph extractor and run its parity test against the
   # real Windows font stack. This is the release-independent validation path for
   # the win32 helper (the release-helpers.yml job builds + uploads the asset; this
