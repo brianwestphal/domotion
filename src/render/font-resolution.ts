@@ -2788,8 +2788,31 @@ export function fcLangProperty(lang?: string): string {
  *
  * Derived from Unicode properties rather than a hand-listed range set, so it
  * tracks the Unicode version rather than freezing one.
+ *
+ * DM-1989: a REGIONAL INDICATOR is excluded, and the reason is an ORDERING in
+ * Blink's segmenter rather than a property. `GetEmojiSegmentationCategory`
+ * (`platform/text/emoji_segmentation_category_inline_header.h:59-65`, rev
+ * 7d859f27) tests them in this sequence:
+ *
+ *     if (Character::IsRegionalIndicator(codepoint))
+ *       return EmojiSegmentationCategory::REGIONAL_INDICATOR;
+ *
+ *     if (Character::IsEmojiEmojiDefault(codepoint))
+ *       return EmojiSegmentationCategory::EMOJI_EMOJI_PRESENTATION;
+ *
+ * The regional-indicator arm returns FIRST, so an RI is never categorised as
+ * emoji-presentation however its `Emoji_Presentation` property reads — and it
+ * does read Yes for U+1F1E6–U+1F1FF, which is why a property-only test gets
+ * this wrong. It is the ragel state machine downstream that turns a PAIR of
+ * them into an emoji sequence; a lone one falls through to text. Measured:
+ * Chrome paints a lone U+1F1FA from FreeSans on Linux, not Noto Color Emoji.
+ *
+ * The pair is beyond what a per-codepoint predicate can express, and does not
+ * need to be: a real flag sequence is painted by the capture layer's raster
+ * overlay, which is keyed on the sequence rather than on this.
  */
 export function isEmojiPresentationCp(cp: number): boolean {
+  if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return false;
   const ch = String.fromCodePoint(cp);
   return /\p{Emoji_Presentation}/u.test(ch) && !/\p{Emoji_Modifier}/u.test(ch);
 }

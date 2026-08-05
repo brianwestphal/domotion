@@ -84,3 +84,43 @@ describe("the query Blink actually sends fontconfig", () => {
     expect(blinkEmojiFallbackQuery(once.cp, once.lang)).toEqual(once);
   });
 });
+
+/**
+ * A REGIONAL INDICATOR is not emoji-presentation, and the reason is an ORDERING
+ * in Blink rather than a Unicode property (DM-1989).
+ *
+ * `GetEmojiSegmentationCategory`
+ * (`platform/text/emoji_segmentation_category_inline_header.h:59-65`, rev
+ * 7d859f27) returns `REGIONAL_INDICATOR` **before** it ever reaches the
+ * `IsEmojiEmojiDefault` arm, so an RI is never categorised as
+ * emoji-presentation — even though `Emoji_Presentation` reads Yes for all of
+ * U+1F1E6–U+1F1FF. A property-only predicate therefore gets it exactly wrong,
+ * which is what shipped: Chrome paints a lone U+1F1FA from FreeSans on Linux
+ * and we routed it to Noto Color Emoji (156 rows on the Linux conformance
+ * sweep).
+ *
+ * It is the ragel state machine downstream that turns a PAIR into a flag.
+ */
+describe("a lone regional indicator is not emoji-presentation (DM-1989)", () => {
+  it("excludes the whole RI block, though Emoji_Presentation says Yes for it", () => {
+    for (const cp of [0x1f1e6, 0x1f1fa, 0x1f1ff]) {
+      // The precondition: the property really does say Yes, so this test is
+      // pinning the ordering rule and not restating the property.
+      expect(/\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))).toBe(true);
+      expect(isEmojiPresentationCp(cp)).toBe(false);
+    }
+  });
+
+  it("still treats ordinary emoji-presentation codepoints as such", () => {
+    // The control — an exclusion that swallowed everything would pass above.
+    for (const cp of [0x1f600, 0x1f46a, 0x1f680, 0x2b50]) {
+      expect(isEmojiPresentationCp(cp)).toBe(true);
+    }
+  });
+
+  it("leaves a lone RI's fallback query unsubstituted", () => {
+    // The consequence that the conformance sweep actually measured: no U+1F46A
+    // swap, no `und-Zsye` locale, so fontconfig is asked about the RI itself.
+    expect(blinkEmojiFallbackQuery(0x1f1fa, "en")).toEqual({ cp: 0x1f1fa, lang: "en" });
+  });
+});
