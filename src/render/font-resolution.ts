@@ -90,6 +90,10 @@ export interface FontInstance {
    *  implementations expose it (fontkit's `Font`, the glyph-helper instance), so
    *  it's typed here rather than cast through `any` at each call site (DM-1067). */
   glyphForCodePoint(codePoint: number): { id: number; advanceWidth?: number; codePoints?: number[] };
+  /** fontkit's CMAP membership test. Present on fontkit-backed instances and
+   *  absent on the native-helper ones, which is why `fontCoversCp` falls back.
+   *  Answers a DIFFERENT question from `glyphForCodePoint` — see `fontCoversCp`. */
+  hasGlyphForCodePoint?(codePoint: number): boolean;
   /** Native (glyph-helper) instances can pre-warm a batch of glyph-coverage
    *  probes so the per-codepoint walk hits a cache. fontkit instances omit it. */
   warmGlyphs?(codePoints: number[]): void;
@@ -190,6 +194,41 @@ export interface FontInstance {
 export function glyphIdForCp(font: FontInstance, cp: number): number {
   const g = font.glyphForCodePoint(cp);
   return g == null ? 0 : g.id;
+}
+
+/**
+ * Does this font COVER `cp` — i.e. does its cmap map the codepoint?
+ *
+ * Distinct from `glyphIdForCp(font, cp) !== 0`, and the difference is not
+ * academic. That test asks whether a Glyph OBJECT can be constructed, which is
+ * an outline question; coverage is a cmap question. The two diverge on a
+ * bitmap-only color font, and Blink asks the cmap one — `FontContainsCharacter`
+ * and the fallback iterator's has-a-glyph test both consult the character map,
+ * not the outline tables.
+ *
+ * Measured on Linux (DM-1986), `NotoColorEmoji.ttf` — CBDT/CBLC, with no `glyf`
+ * and no `CFF`:
+ *
+ *     characterSet includes U+1F600      true
+ *     hasGlyphForCodePoint(U+1F600)      true
+ *     glyphForCodePoint(U+1F600)         undefined
+ *     layout("😀")                        throws
+ *
+ * So every emoji-presentation codepoint failed the coverage check against the
+ * one font on the system that actually covers it, and the resolver discarded a
+ * correct answer — Chrome paints Noto Color Emoji, we fell through to the
+ * primary. The check was accidentally testing "can fontkit build an outline",
+ * which for a colour bitmap font is always no.
+ *
+ * Falls back to the id test when the instance exposes no `hasGlyphForCodePoint`
+ * (the native-helper instances), so nothing that works today changes behaviour.
+ */
+export function fontCoversCp(font: FontInstance, cp: number): boolean {
+  const has = font.hasGlyphForCodePoint;
+  if (typeof has === "function") {
+    try { if (has.call(font, cp) === true) return true; } catch { /* fall through to the id test */ }
+  }
+  return glyphIdForCp(font, cp) !== 0;
 }
 
 const fontInstanceCache = new Map<string, FontInstance>();
@@ -2851,7 +2890,10 @@ function resolveColorEmojiKeyForCp(
   // reset. The keycap bases are the measured example of covered-but-unexpected:
   // Apple Color Emoji's cmap really does map a plain digit.
   const inst = getFontInstance(key, weight, fontSize, slant);
-  if (inst == null || glyphIdForCp(inst, cp) === 0) return null;
+  // DM-1986: the CMAP question, not the outline one. A bitmap-only colour font
+  // (Linux's `NotoColorEmoji.ttf`) maps the codepoint but yields no Glyph
+  // object, so an id test rejected the only font on the system that covers it.
+  if (inst == null || !fontCoversCp(inst, cp)) return null;
   return key;
 }
 
@@ -8120,8 +8162,12 @@ function resolveFontForCodepointInner(
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
-    if (glyphIdForCp(sf, cp) !== 0) return cover(sysKey, null);
-    if (singleton != null && glyphIdForCp(sf, singleton) !== 0) {
+    // DM-1986: coverage is the CMAP question — see `fontCoversCp`. The id test
+    // discarded the live resolver's own answer for every emoji-presentation
+    // codepoint on Linux, because the font it names (`NotoColorEmoji.ttf`) is
+    // bitmap-only and yields no Glyph object.
+    if (fontCoversCp(sf, cp)) return cover(sysKey, null);
+    if (singleton != null && fontCoversCp(sf, singleton)) {
       return cover(sysKey, null, String.fromCodePoint(singleton), true);
     }
     return null;
