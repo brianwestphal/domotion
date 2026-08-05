@@ -76,10 +76,40 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     ).toBe(true);
   });
 
-  it("Linux needs NO helper step — its resolver shells out to fontconfig", () => {
-    // Stated as a test so the asymmetry is deliberate rather than an oversight
-    // someone later 'fixes' by adding a build step for a helper Linux never uses.
-    expect(jobs["test-linux"]).not.toMatch(/linux-glyph-extractor/);
+  // DM-1972: this assertion used to be its own inverse — "Linux needs NO helper
+  // step", stated as a test so the asymmetry could not be 'fixed' by someone
+  // adding a build for a helper Linux never used. That was correct while the
+  // only live Linux mechanism was the `fcfallback` per-codepoint query, which
+  // does shell out to fontconfig directly. It stopped being correct when the
+  // declared-family matcher (`SkFontConfigInterfaceDirect::matchFamilyName`,
+  // Skia rev fd139e79) was transcribed into the helper's `familyMatch` query:
+  // `resolveLinuxFamilyMatch` returns null without a helper that knows it, and
+  // the caller silently degrades to the two-slot key/key-bold table.
+  //
+  // Measured in the pinned noble container — arial@550 resolves to
+  // LiberationSans-Bold with the helper and LiberationSans without, and the
+  // feature suite's text-font-stretch-underline went 0.703% (pass) → 1.989%
+  // (fail), matching the CI number exactly.
+  //
+  // Kept as an explicit test in the inverted direction for the same reason the
+  // original existed: so the requirement is deliberate rather than incidental.
+  it("the Linux sweep job builds the fontconfig helper — its matcher is not free-standing", () => {
+    const job = jobs["test-linux"];
+    expect(job, "test-linux job must exist").toBeDefined();
+    expect(
+      /linux-glyph-extractor/.test(job),
+      "test-linux runs the sweep without building tools/linux-glyph-extractor — the transcribed "
+      + "declared-family matcher will be inert and cut selection drops to the two-slot table",
+    ).toBe(true);
+  });
+
+  it("builds the Linux helper BEFORE the shard runs", () => {
+    const job = jobs["test-linux"];
+    const build = job.indexOf("linux-glyph-extractor");
+    const run = job.indexOf("Run shard");
+    expect(build).toBeGreaterThanOrEqual(0);
+    expect(run).toBeGreaterThanOrEqual(0);
+    expect(build, "the helper must be built before the sweep runs").toBeLessThan(run);
   });
 
   // DM-1843: `include_svg` kept the SVGs in the shard artifacts, but the step
@@ -162,5 +192,75 @@ describe("visual-tests.yml provides the native glyph helper", () => {
         ).toBe(true);
       }
     });
+  });
+});
+
+// DM-1972: the same guard for the Linux FIDELITY GATE, which is a different
+// workflow and was the one actually caught measuring the wrong configuration.
+//
+// `test-linux.yml`'s `regression` job is (or is intended to be) a REQUIRED
+// status check, and it was `npm ci` + `npm run demos:test` with no helper build
+// — so every Linux fidelity number the project had been reading came from a
+// render path the declared-family matcher was not in. It reported a stable,
+// plausible number the whole time, which is precisely why nothing noticed; the
+// sibling family-match job passes because it DOES build the helper.
+//
+// Pinned here rather than trusted because the failure is silent in both
+// directions: dropping the build step turns the gate green about code that is
+// not running, and there is no output difference that would say so.
+describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => {
+  const yaml = readFileSync(
+    resolve(__dirname, "..", ".github", "workflows", "test-linux.yml"), "utf-8",
+  );
+
+  const jobs = (() => {
+    const out: Record<string, string> = {};
+    let cur: string | null = null;
+    let buf: string[] = [];
+    for (const line of yaml.split("\n")) {
+      const m = /^ {2}([a-zA-Z0-9_-]+):\s*$/.exec(line);
+      if (m != null) {
+        if (cur != null) out[cur] = buf.join("\n");
+        cur = m[1];
+        buf = [];
+      } else if (cur != null) buf.push(line);
+    }
+    if (cur != null) out[cur] = buf.join("\n");
+    return out;
+  })();
+
+  it("parses the workflow into jobs (guard is not vacuous)", () => {
+    expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["regression", "family-match"]));
+  });
+
+  it("builds the Linux glyph helper before running the feature suite", () => {
+    const job = jobs["regression"];
+    expect(job, "regression job must exist").toBeDefined();
+    const build = job.indexOf("linux-glyph-extractor/build.sh");
+    // Anchor on the RUN line, not the string `demos:test` — the job's own
+    // rationale comment names the command, and matching that would compare
+    // against prose rather than a step.
+    const run = job.search(/^\s+run: npm run demos:test/m);
+    expect(
+      build, "the fidelity gate runs demos:test without building the helper — it would grade the "
+      + "degraded two-slot cut selection, not the transcribed fontconfig matcher",
+    ).toBeGreaterThanOrEqual(0);
+    expect(build, "the helper must be built before the suite runs").toBeLessThan(run);
+  });
+
+  it("asserts the helper is in the loop, not merely built", () => {
+    // A built binary is not a reached one, and `isGlyphHelperAvailable()` is not
+    // the predicate that distinguishes them: with the in-tree binary absent it
+    // still returns true, because the resolver falls through to downloading the
+    // published release asset — which predates `familyMatch` and answers
+    // "unknown query type". Measured in the pinned noble image. So the gate runs
+    // an explicit disable-and-require-movement check at a discriminating rung.
+    expect(jobs["regression"]).toMatch(/assert-linux-helper-in-loop/);
+  });
+
+  it("installs the fontconfig headers the helper build needs to configure", () => {
+    // A bare cmake install fails at `find_package(Fontconfig)` with a confusing
+    // first error; the same omission red-lit the glyph-extractor-build job.
+    expect(jobs["regression"]).toMatch(/libfontconfig-dev/);
   });
 });

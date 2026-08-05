@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msfgsuaj6dywj7h9",
+          "message": {
+            "text": "These four tests pin the committed baseline FILES, which is a different failure mode from the synthetic-fixture tests above them — and the one that cannot be seen from outside a job log.\n\nWhen an env-keyed set loses the entry for an environment the oracle runs in, that comparator reverts to refuse-to-judge (exit 3). The CI wiring deliberately treats exit 3 as green, so the gate then succeeds on every run while grading nothing. A declining gate and a passing gate are indistinguishable in the check list.\n\nVerified discriminating rather than merely passing: restoring the pre-CI single-entry family-match-linux.json fails the arch-coverage test (expected 1 to be greater than or equal to 2) and passes once the x64 entry is committed. That is exactly the state DM-1968 was filed to fix, so the test would have caught a silent revert to it.\n\nKeyed off FAMILYMATCHENV_KEYS rather than a local copy on purpose — the keys decide which recorded entry a run selects, so a drifted copy in the test would assert a baseline arms while the gate declines to judge.\n",
+            "markdown": "These four tests pin the committed baseline FILES, which is a different failure mode from the synthetic-fixture tests above them — and the one that cannot be seen from outside a job log.\n\nWhen an env-keyed set loses the entry for an environment the oracle runs in, that comparator reverts to refuse-to-judge (exit 3). The CI wiring deliberately treats exit 3 as green, so the gate then succeeds on every run while grading nothing. A declining gate and a passing gate are indistinguishable in the check list.\n\nVerified discriminating rather than merely passing: restoring the pre-CI single-entry `family-match-linux.json` fails the arch-coverage test (`expected 1 to be greater than or equal to 2`) and passes once the x64 entry is committed. That is exactly the state DM-1968 was filed to fix, so the test would have caught a silent revert to it.\n\nKeyed off `FAMILY_MATCH_ENV_KEYS` rather than a local copy on purpose — the keys decide which recorded entry a run selects, so a drifted copy in the test would assert a baseline arms while the gate declines to judge.\n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/family-match-baseline.test.ts"
+                },
+                "region": {
+                  "startLine": 91,
+                  "endLine": 147,
+                  "snippet": {
+                    "text": "// The tests above pin the set SEMANTICS against synthetic fixtures. These pin\n// the COMMITTED FILES, which is a different failure mode and the one that is\n// invisible: when a set loses the entry for an environment the oracle runs in,\n// that comparator silently reverts to refuse-to-judge (exit 3) — which the CI\n// wiring deliberately treats as green. The gate then reports success forever\n// while grading nothing, exactly the shape of the Windows resolver that shipped\n// \"default-on\" while answering nothing for every codepoint. Nothing else in the\n// tree notices, because a declining gate and a passing gate look identical from\n// outside the job log.\n//\n// Keyed off FAMILY_MATCH_ENV_KEYS rather than a local copy so this asserts the\n// same fingerprint the comparators select on.\nconst COMMITTED = [\n  { os: \"linux\", file: \"family-match-linux.json\", keys: FAMILY_MATCH_ENV_KEYS.linux },\n  { os: \"windows\", file: \"family-match-windows.json\", keys: FAMILY_MATCH_ENV_KEYS.win32 },\n] as const;\n\ndescribe.each(COMMITTED)(\"committed $os family-match baseline\", ({ file, keys }) => {\n  const entries = readBaselineSet(resolve(\"tests\", \"baselines\", file));\n\n  it(\"records at least the local arm64 and the x64 CI environment\", () => {\n    // Both oracles run in two places: an arm64 developer environment (Docker on\n    // Apple Silicon / the Parallels VM) and an x64 GitHub runner. An entry per\n    // arch is what makes the gate JUDGE in both rather than decline in one.\n    expect(entries.length).toBeGreaterThanOrEqual(2);\n    expect(new Set(entries.map((e) => e.meta.env.arch))).toEqual(new Set([\"arm64\", \"x64\"]));\n  });\n\n  it(\"gives every recorded environment an entry that selects itself\", () => {\n    // Also proves no two entries share a fingerprint: a duplicate would make\n    // selection order-dependent, and the second copy unreachable.\n    for (const entry of entries) {\n      const picked = selectBaseline(entries, entry.meta.env, keys);\n      expect(picked).not.toBeNull();\n      expect(picked?.meta.capturedAt).toBe(entry.meta.capturedAt);\n    }\n  });\n\n  it(\"still refuses to judge an environment it has not recorded\", () => {\n    // The value of an env-keyed baseline is entirely in this refusal — a set\n    // that matched anything would compare counts across font inventories.\n    const unknown = { ...entries[0].meta.env, fontDigest: \"0000000000000000\" };\n    expect(selectBaseline(entries, unknown, keys)).toBeNull();\n  });\n\n  it(\"carries the fingerprint fields its comparator selects on\", () => {\n    // A recorded entry missing a key can never match: envMatches compares\n    // undefined against the live value, so the gate would decline forever.\n    for (const entry of entries) {\n      for (const key of keys) expect(entry.meta.env[key]).toBeDefined();\n    }\n  });\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "workItemUris": [
+            "DM-1968"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "716686e3462f4c72ee551c0b32183c80"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bf240e4374a8ad64c1df248cabc87d6db7848c33",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

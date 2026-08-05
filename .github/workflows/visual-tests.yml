@@ -214,7 +214,28 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.linux_matrix) }}
     steps:
       - uses: actions/checkout@v4
+      # DM-1972: Linux DOES need the helper now. This job used to skip the build
+      # deliberately, on the rule that the Linux resolver just shells out to
+      # fontconfig — true when the only live mechanism was the `fcfallback`
+      # per-codepoint query, but not since the declared-family matcher
+      # (`SkFontConfigInterfaceDirect::matchFamilyName`, Skia rev fd139e79) was
+      # transcribed into the helper's `familyMatch` query.
+      # `resolveLinuxFamilyMatch` returns null without a helper that knows the
+      # query, and the caller degrades to the old two-slot key/key-bold table —
+      # so a sweep run without this step measures a different renderer, exactly
+      # as the macOS and Windows jobs below have long guarded against.
+      #
+      # Note the published release asset is NOT sufficient: it predates the
+      # query, so an acquired binary answers "unknown query type" and degrades
+      # identically. Measured in this image: `isGlyphHelperAvailable()` true,
+      # `familyMatch` null.
+      - name: Install helper build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
+      - name: Build the Linux glyph helper (fontconfig declared-family matcher)
+        run: bash tools/linux-glyph-extractor/build.sh
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}

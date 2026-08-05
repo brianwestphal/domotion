@@ -80,8 +80,55 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     steps:
       - uses: actions/checkout@v4
+      # DM-1972: this gate measures the HELPER-PRESENT configuration — the
+      # shipped mechanism — and asserts the mechanism is actually in the loop
+      # before scoring anything against it.
+      #
+      # It used to be `npm ci` + `npm run demos:test`, which never built the
+      # helper. So every Linux fidelity number the project had been reading came
+      # from a helper-ABSENT render path, while the Linux declared-family cut
+      # mechanism (`SkFontConfigInterfaceDirect::matchFamilyName`, transcribed
+      # into the helper's `familyMatch` query at Skia rev fd139e79) lives
+      # entirely behind the helper: `resolveLinuxFamilyMatch` returns null
+      # without it and the caller degrades to the old two-slot key/key-bold
+      # table. The gate was green-or-red about code that was not running — the
+      # same shape as the Windows resolver that shipped "default-on" while
+      # answering nothing for every codepoint.
+      #
+      # Why only ONE arm, when both configurations ship: because the gap between
+      # them was measured, not assumed, and on this corpus it is currently zero.
+      # In the pinned noble image at this ref, helper-present vs
+      # DOMOTION_DISABLE_HELPER=1 moved 0 of 114 fixtures — while the resolution
+      # seam itself moves (arial@550 → LiberationSans-Bold vs LiberationSans).
+      # The mechanism is live and the corpus simply contains nothing that
+      # notices it. Running the whole suite a second time per PR to re-derive a
+      # zero is cost without signal; the `assert-linux-helper-in-loop` step
+      # below is what proves the mechanism is live, and it is cheap.
+      #
+      # That zero is itself the finding, and it is NOT permanent: at the base ref
+      # `7d905b4` the same within-run A/B moved one fixture
+      # (`text-font-stretch-underline`, 0.703% pass → 1.989% fail — matching the
+      # CI number exactly). A fixture that discriminates the two paths is
+      # tracked as follow-up work; when one exists, this gate starts grading the
+      # helper rather than merely running it.
+      - name: Install helper build dependencies
+        # Container runs as root (no sudo). The helper links FreeType and
+        # fontconfig both; a bare `cmake` install fails at `find_package`.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
-      - name: Run feature visual-regression suite (Linux container)
+      - name: Build the Linux glyph helper (fontconfig declared-family matcher)
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Assert the helper is actually in the loop
+        # A built binary is not a reached one. This is the disable-and-require-
+        # movement check whose absence let the Windows resolver ship inert for
+        # weeks: CSS weight 550 is the rung that discriminates, because the
+        # degraded two-slot table crosses to bold at 600 while fontconfig's
+        # weight scoring already prefers Bold at 550. A probe at 400 or 700
+        # would show no movement and prove nothing.
+        run: npx tsx tools/assert-linux-helper-in-loop.ts
+      - name: Run feature visual-regression suite (Linux container, helper present)
         # Passes within the Linux text-hinting floor (DM-259 / DM-262): the
         # runner applies a per-platform coverage cap on Linux because FreeType
         # grid-fits native text while Domotion fills unhinted vector outlines.
