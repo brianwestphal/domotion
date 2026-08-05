@@ -1524,6 +1524,45 @@ export const tests: FeatureTest[] = [
     width: 700,
     height: 220,
   },
+  {
+    // DM-1973: the declared-family WEIGHT-SCORING rung, which no other fixture
+    // exercises. The suite already discriminates the Linux matcher's nomination
+    // walk (via `text-font-stretch-underline`, at weight 400), but the other
+    // half of the matcher — where the transcribed rule and the degraded
+    // two-slot `key` / `key-bold` table disagree — lives in the 500-599 band
+    // and had no pixel coverage at all.
+    //
+    // 550 is the rung, and it resolves to a DIFFERENT cut on each platform,
+    // which is why this fixture is written to be graded against each host's own
+    // Chrome rather than against a fixed expectation. Measured over CDP
+    // (`CSS.getPlatformFontsForNode`), Arial at 550:
+    //
+    //   macOS     ArialMT            (crosses at 600 — verified for Arial,
+    //                                 Helvetica, Georgia, Times New Roman and
+    //                                 Verdana alike, and our resolver agrees on
+    //                                 every one of those rungs)
+    //   Linux     LiberationSans-Bold  (fontconfig's weight scoring already
+    //                                 prefers Bold at 550)
+    //   Windows   Arial-BoldMT       (DirectWrite scores 550 closer to bold)
+    //
+    // So on Linux this fixture MOVES between the built helper and
+    // `DOMOTION_DISABLE_HELPER=1`: the fallback two-slot table crosses at 600
+    // and answers the regular cut, which is a visible ink difference rather
+    // than a sub-pixel one. That movement is the whole point — a fixture that
+    // does not move grades nothing.
+    //
+    // The 400 and 700 rows are controls: both paths agree there, so a change
+    // that broke the matcher outright would fail them too and could not be
+    // mistaken for this rung moving.
+    name: "text-declared-family-weight-550",
+    html: `<div style="background:#fff;color:#111;padding:20px;font-size:38px;">
+      <div style="font-family:Arial,sans-serif;font-weight:400;">Hamburgefonstiv 400</div>
+      <div style="font-family:Arial,sans-serif;font-weight:550;">Hamburgefonstiv 550</div>
+      <div style="font-family:Arial,sans-serif;font-weight:700;">Hamburgefonstiv 700</div>
+    </div>`,
+    width: 700,
+    height: 200,
+  },
 ];
 
 // Only auto-run the suite when invoked directly (not when the fixtures are
