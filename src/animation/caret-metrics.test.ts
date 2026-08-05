@@ -81,8 +81,41 @@ describe("firstLineBaseline (DM-1750)", () => {
     const r = firstLineBaseline({ fontSize: 20, lineHeightPx: 0, fontAscentPx: 0, fontDescentPx: 0, contentTop: 0, contentHeight: 40, centerInContentBox: false });
     expect(r.ascentPx).toBe(18);
     expect(r.descentPx).toBe(5);
-    // lineH = 20 × 1.2 = 24, text box round(23) = 23 → boxTop 0.5, baseline 18.5.
-    expect(r.baselineY).toBe(18.5);
+    // lineH = 20 × 1.2 = 24, text box 18 + 5 = 23 → an ODD leading of 1, whose
+    // ascent side floors to 0 → boxTop 0, baseline 18. (Splitting the leading
+    // evenly gave 18.5 — the half-pixel DM-1981 traced to a painted pixel.)
+    expect(r.baselineY).toBe(18);
+  });
+
+  // DM-1981: Blink hands the ascent side `floor(leading / 2)` and the remainder
+  // to the descent side (`core/layout/inline/line_utils.cc:36-45`, rev
+  // 7d859f27). An EVEN leading is the same either way, which is exactly why an
+  // even split looked correct for as long as it did — every case above happens
+  // to be even. These are the two halves of that asymmetry, measured against
+  // Chrome's own painted baseline on Linux (probed with a zero-size
+  // inline-block, whose margin-box bottom sits on the baseline).
+  it("floors the ascent-side half-leading when the leading is odd (DM-1981)", () => {
+    // The failing case, verbatim: WenQuanYi Zen Hei Mono at 12.5px/19px
+    // measures ascent 12 + descent 4 = 16, leaving an odd leading of 3. Chrome
+    // paints the baseline at 73; an even split gives 73.5, which rounds to a
+    // full pixel of ink displacement.
+    const r = firstLineBaseline({ fontSize: 12.5, lineHeightPx: 19, fontAscentPx: 12, fontDescentPx: 4, contentTop: 60, contentHeight: 19, centerInContentBox: false });
+    expect(r.baselineY).toBe(73);
+  });
+
+  it("floors a NEGATIVE leading too, when the text box overflows the line box (DM-1981)", () => {
+    // Same fixture at 16px/19px: ascent 15 + descent 5 = 20 overflows the 19px
+    // line box, so the leading is −1 and floors to −1 (not −0.5). Chrome: 74.
+    const r = firstLineBaseline({ fontSize: 16, lineHeightPx: 19, fontAscentPx: 15, fontDescentPx: 5, contentTop: 60, contentHeight: 19, centerInContentBox: false });
+    expect(r.baselineY).toBe(74);
+  });
+
+  it("leaves an EVEN leading exactly where it was — macOS must not move (DM-1981)", () => {
+    // Menlo at 12.5px/19px on macOS: ascent 12 + descent 3 = 15, leaving an
+    // even 4. Chrome paints 74 and did before this change too, which is the
+    // guard that the floor is a Linux-visible fix and not a macOS regression.
+    const r = firstLineBaseline({ fontSize: 12.5, lineHeightPx: 19, fontAscentPx: 12, fontDescentPx: 3, contentTop: 60, contentHeight: 19, centerInContentBox: false });
+    expect(r.baselineY).toBe(74);
   });
 });
 

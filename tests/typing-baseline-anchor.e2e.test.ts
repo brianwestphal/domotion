@@ -69,6 +69,59 @@ async function ink(buf: Buffer): Promise<{ count: number; minX: number; minY: nu
   return { count, minX, minY, maxX, maxY };
 }
 
+/** Ink mask (darker-than-mid-gray), with the crop's row stride. */
+async function inkMask(buf: Buffer): Promise<{ m: Uint8Array; w: number; h: number }> {
+  const { data, n } = await rawPixels(buf);
+  const m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i * 4;
+    m[i] = (data[o] + data[o + 1] + data[o + 2]) / 3 < 128 ? 1 : 0;
+  }
+  return { m, w: CROP.width, h: n / CROP.width };
+}
+
+/** Ink intersection-over-union with `b` displaced by (dx, dy). */
+function inkIoU(a: Uint8Array, b: Uint8Array, w: number, h: number, dx: number, dy: number): number {
+  let inter = 0, union = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const av = a[y * w + x];
+      const sx = x - dx, sy = y - dy;
+      const bv = sx >= 0 && sx < w && sy >= 0 && sy < h ? b[sy * w + sx] : 0;
+      if (av || bv) union++;
+      if (av && bv) inter++;
+    }
+  }
+  return union === 0 ? 0 : inter / union;
+}
+
+/**
+ * The whole-run displacement that best aligns our ink with Chrome's, searched
+ * over ±3px in both axes.
+ *
+ * DM-1981: this is what "lands pixel-on" actually claims, and it is the only
+ * assertion here that is independent of how the two sides RASTERIZE. A pixel
+ * diff conflates placement with antialiasing and hinting — on Linux, Chrome
+ * paints FreeType-autohinted stems (Blink's defaults are hinting kNormal plus
+ * `setForceAutoHinting(true)`, `platform/fonts/web_font_render_style.cc:17-21`
+ * and :95-97, rev 7d859f27) while our paths mode emits the raw outline, so a
+ * residual is expected there and a placement error can hide inside it. This
+ * measure cannot: a one-pixel offset moves the argmax off (0, 0) whatever the
+ * rasterizers do. Verified to discriminate — before the half-leading fix it
+ * reported dy = −1 on Linux, and (0, 0) after.
+ */
+async function bestShift(expected: Buffer, actual: Buffer): Promise<{ dx: number; dy: number; iou: number }> {
+  const [A, B] = [await inkMask(expected), await inkMask(actual)];
+  let best = { dx: 0, dy: 0, iou: -1 };
+  for (let dx = -3; dx <= 3; dx++) {
+    for (let dy = -3; dy <= 3; dy++) {
+      const iou = inkIoU(A.m, B.m, A.w, A.h, dx, dy);
+      if (iou > best.iou) best = { dx, dy, iou };
+    }
+  }
+  return best;
+}
+
 /** Fraction of pixels whose max channel delta exceeds 32. */
 async function diffFraction(a: Buffer, b: Buffer): Promise<number> {
   const [ra, rb] = [await rawPixels(a), await rawPixels(b)];
@@ -128,11 +181,34 @@ describeBrowser("typing anchor.baseline rasterized alignment (DM-1750)", () => {
     // 4. Pixel-on: the overlay glyphs occupy the same ink bounding box as the
     //    page's own text — definitely no ~11.5px baseline offset — and the
     //    residual diff stays within glyph-path-vs-native-text antialiasing.
-    expect(Math.abs(actInk.minY - expInk.minY)).toBeLessThanOrEqual(2);
-    expect(Math.abs(actInk.maxY - expInk.maxY)).toBeLessThanOrEqual(2);
+    //
+    //    DM-1981: the VERTICAL bounds are held to 1px, not 2. At 2px a whole-run
+    //    one-pixel baseline offset fits inside the tolerance and only shows up
+    //    in the diff fraction, where it is indistinguishable from antialiasing.
+    //    That is exactly how a floored-half-leading bug survived on Linux: the
+    //    envelope assertions passed and the pixel diff was blamed on the hinting
+    //    floor. A one-pixel miss on this axis is the failure this test is for.
+    expect(Math.abs(actInk.minY - expInk.minY)).toBeLessThanOrEqual(1);
+    expect(Math.abs(actInk.maxY - expInk.maxY)).toBeLessThanOrEqual(1);
     expect(Math.abs(actInk.minX - expInk.minX)).toBeLessThanOrEqual(2);
     expect(Math.abs(actInk.maxX - expInk.maxX)).toBeLessThanOrEqual(2);
-    expect(await diffFraction(expected, actual)).toBeLessThan(0.06);
+
+    // 5. The placement claim itself, stated so no rasterization difference can
+    //    absorb it: the ink already lines up best where it sits, with no
+    //    displacement at all.
+    const shift = await bestShift(expected, actual);
+    expect({ dx: shift.dx, dy: shift.dy }).toEqual({ dx: 0, dy: 0 });
+
+    // 6. The residual, which IS rasterization-bound and therefore per-platform.
+    //    macOS is held to the pixel-exact bar. Linux cannot be: Chrome paints
+    //    autohinted stems there and we paint the unhinted outline, so our ink
+    //    measures ~79% of Chrome's at this 12.5px size (and ~96% at 40px — the
+    //    gap shrinks with ppem exactly as grid-fitting predicts, which is how it
+    //    was distinguished from a placement error). That is the documented
+    //    paths-mode hinting floor, not a defect in this overlay. Assertion 5 is
+    //    what guards this test's actual subject on every platform.
+    const RESIDUAL_BOUND = process.platform === "darwin" ? 0.06 : 0.08;
+    expect(await diffFraction(expected, actual)).toBeLessThan(RESIDUAL_BOUND);
   });
 
   it("a border-box anchor without baseline is unchanged (glyphs land an ascent higher)", async () => {

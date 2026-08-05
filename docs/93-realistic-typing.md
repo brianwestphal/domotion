@@ -242,7 +242,21 @@ Chromium's own font metrics) plus the line-box placement math shared with the
 line box in the content box, `<textarea>`/block content lays line boxes from
 the top, and the text box (ascent + descent) centers in the line box under CSS
 half-leading; when the canvas metrics are unavailable a 1.15-em split (0.9 em
-ascent + 0.25 em descent) stands in. `x` still comes from `anchor.at`'s
+ascent + 0.25 em descent) stands in.
+
+The half-leading is **floored on the ascent side**, not split evenly: Blink
+gives the ascent side `floor((line-height − (ascent + descent)) / 2)` and hands
+the remainder to the descent side, so an odd leading puts the baseline one
+pixel higher than an even split would
+(`core/layout/inline/line_utils.cc:36-45`). Ascent and descent are also rounded
+independently before being summed (`platform/fonts/font_metrics.cc:117-118`).
+Both matter only when the leading is odd, which is platform-dependent for the
+same CSS: the doc's Menlo 12.5px/19px example measures ascent 12 + descent 3 on
+macOS (an even leading of 4, where the two rules agree) and 12 + 4 on a Linux
+host resolving a different monospace face (an odd 3, where an even split lands
+the whole run half a pixel low — a full painted pixel once rasterized).
+
+`x` still comes from `anchor.at`'s
 horizontal component (+ `dx`); `dy` remains an additional nudge from the
 measured baseline (default 0). Composes with `fontFamily: "anchor"` (font AND
 baseline from the same measurement). `baseline` on a non-typing overlay kind is

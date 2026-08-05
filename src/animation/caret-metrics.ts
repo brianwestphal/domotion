@@ -212,16 +212,35 @@ export interface LineBoxMeasurement {
  * half-leading, with the baseline `ascent` below the text-box top. This is the
  * math the `typeResample` caret measurement has always used; extracted so the
  * typing overlay's `anchor.baseline` resolution (DM-1750) shares it verbatim.
+ *
+ * The half-leading is FLOORED, not halved evenly. Blink gives the ascent side
+ * `floor((line_height - (ascent + descent)) / 2)` and hands the remainder to the
+ * descent side, so an odd leading lands the baseline one pixel HIGHER than an
+ * even split would (`core/layout/inline/line_utils.cc:36-45`, rev 7d859f27 —
+ * its own comment marks the floor as deliberate). Splitting evenly instead put
+ * the whole run half a pixel low whenever `line-height - (ascent + descent)` was
+ * odd, which rounds to a full painted pixel.
+ *
+ * That asymmetry is invisible on a platform whose metrics happen to make the
+ * leading even, which is why it went unnoticed: Menlo at 12.5px/19px on macOS
+ * measures ascent 12 + descent 3 = 15, leaving an even 4, while the same fixture
+ * on Linux resolves a face measuring 12 + 4 = 16 and leaves an odd 3. The
+ * platform that gates pixel-exact could not see it.
  */
 export function firstLineBaseline(m: LineBoxMeasurement): { baselineY: number; ascentPx: number; descentPx: number } {
   const fontBox = m.fontAscentPx + m.fontDescentPx;
-  const ascentPx = fontBox > 0 ? m.fontAscentPx : m.fontSize * 0.9;
-  const descentPx = fontBox > 0 ? m.fontDescentPx : m.fontSize * 0.25;
-  const textBoxHeight = Math.round(ascentPx + descentPx);
+  // Blink rounds ascent and descent SEPARATELY before summing them
+  // (`platform/fonts/font_metrics.cc:117-118`), so mirror that rather than
+  // rounding the sum — the two differ whenever both halves are fractional.
+  // Canvas hands back already-rounded values for ordinary sizes, so this is a
+  // no-op there and only bites for the tiny-font subpixel case Blink carves out.
+  const ascentPx = fontBox > 0 ? Math.round(m.fontAscentPx) : m.fontSize * 0.9;
+  const descentPx = fontBox > 0 ? Math.round(m.fontDescentPx) : m.fontSize * 0.25;
+  const textBoxHeight = ascentPx + descentPx;
   const lineH = m.lineHeightPx || fontBox || m.fontSize * 1.2;
   const lineTop = m.centerInContentBox
     ? m.contentTop + Math.max(0, (m.contentHeight - lineH) / 2)
     : m.contentTop;
-  const boxTop = lineTop + (lineH - textBoxHeight) / 2;
+  const boxTop = lineTop + Math.floor((lineH - textBoxHeight) / 2);
   return { baselineY: boxTop + ascentPx, ascentPx, descentPx };
 }
