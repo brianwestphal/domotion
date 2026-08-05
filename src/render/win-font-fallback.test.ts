@@ -433,3 +433,42 @@ describe("FontFallbackPriority for a plain-text run", () => {
       .toBe("Segoe UI Emoji"); // FirstAvailableFont walks to the second slot
   });
 });
+
+/**
+ * The `kText → kEmojiText` promotion is GUARDED on the priority already being
+ * `kText`, and applying it unconditionally inverts the emoji-presentation set
+ * (DM-1985).
+ *
+ * `winFallbackPriorityForTextRun` transcribes only the promotion — its name says
+ * "ForTextRun" — so the guard has to live at the call site, which is
+ * `win32FallbackChain` in `font-resolution.ts`. It did not, and every
+ * emoji-presentation codepoint took the mono arm: measured against Chrome on the
+ * Windows VM, 😀 🚀 ⭐ and U+1F46A all resolved Segoe UI Symbol where Chrome
+ * paints Segoe UI Emoji. Fixing it took the `font-variant-emoji` probe from
+ * 31/39 to 35/39 agreeing.
+ *
+ * These cases pin the promotion itself; the guard is covered by the resolver
+ * tests, which is where it lives.
+ */
+describe("winFallbackPriorityForTextRun promotes only what Blink promotes (DM-1985)", () => {
+  it("promotes an emoji codepoint reached as plain text", () => {
+    // U+00A9 © is `\p{Emoji}` with TEXT presentation by default, so a text run
+    // containing it is exactly the case the promotion exists for.
+    expect(winFallbackPriorityForTextRun(0x00a9)).toBe("emoji-text");
+    expect(winFallbackPriorityForTextRun(0x2122)).toBe("emoji-text");
+  });
+
+  it("leaves a non-emoji codepoint as text", () => {
+    // The control: a promotion that fired for everything would satisfy the
+    // assertion above.
+    expect(winFallbackPriorityForTextRun(0x0041)).toBe("text");
+    expect(winFallbackPriorityForTextRun(0x4e00)).toBe("text");
+  });
+
+  it("says emoji-text for a LONE regional indicator", () => {
+    // Not emoji-presentation (Blink's segmenter returns REGIONAL_INDICATOR
+    // before it reaches the emoji-presentation arm), so it arrives as kText and
+    // IS promoted — and Chrome agrees: it answers Segoe UI Symbol for U+1F1FA.
+    expect(winFallbackPriorityForTextRun(0x1f1fa)).toBe("emoji-text");
+  });
+});

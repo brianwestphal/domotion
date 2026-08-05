@@ -4082,6 +4082,29 @@ function win32DeferOrStatic(cp: number, fallback: string[]): string[] {
  * behavior choice, and it can only differ for Arabic or Hebrew text in an
  * explicitly-Courier-New run.
  */
+/**
+ * The Windows fallback priority for one codepoint under one `font-variant-emoji`
+ * setting — Blink's two stages in their actual order (DM-1985).
+ *
+ * 1. `ApplyFontVariantEmojiOnFallbackPriority` (`shaping/harfbuzz_shaper.cc:983-984`,
+ *    rev 7d859f27) rewrites the segmented priority from the CSS property.
+ * 2. `PlatformFallbackFontForCharacter` (`win/font_cache_skia_win.cc:279-284`)
+ *    promotes `kText → kEmojiText` for an `IsEmoji` codepoint — and ONLY from
+ *    `kText`, which is why an emoji-presentation codepoint is untouched by it.
+ *
+ * Getting the guard wrong inverts precisely the emoji-presentation set: 😀🚀⭐
+ * resolved Segoe UI Symbol where Chrome paints Segoe UI Emoji.
+ */
+function winFallbackPriority(
+  cp: number, fve: FontVariantEmojiOverride | undefined,
+): "text" | "emoji-text" | "emoji-emoji" {
+  if (fve === "text" && isEmojiCharCp(cp)) return "emoji-text";
+  if (fve === "emoji" && isEmojiCharCp(cp)) return "emoji-emoji";
+  if (fve === "unicode" && isEmojiPresentationCp(cp)) return "emoji-emoji";
+  if (isEmojiPresentationCp(cp)) return "emoji-emoji";
+  return winFallbackPriorityForTextRun(cp);
+}
+
 export function win32FallbackChain(
   codepoint: number, primaryKey?: string, lang?: string, css?: CssFallbackDescription,
 ): string[] {
@@ -4092,7 +4115,26 @@ export function win32FallbackChain(
   const families = blinkWinHardcodedFamilies(codepoint, {
     generic: primaryKey === "courier" ? "monospace" : "standard",
     lang,
-    priority: winFallbackPriorityForTextRun(codepoint),
+    // DM-1985: the run's SEGMENTED priority, not an unconditional upgrade.
+    // `winFallbackPriorityForTextRun` transcribes Blink's `kText → kEmojiText`
+    // promotion (`win/font_cache_skia_win.cc:279-284`), and that promotion is
+    // guarded on the priority ALREADY being `kText`. An emoji-presentation
+    // codepoint never arrives as `kText` — the shaper's segmentation hands it
+    // `EMOJI_EMOJI_PRESENTATION` (`platform/text/
+    // emoji_segmentation_category_inline_header.h:63-65`), i.e. `kEmojiEmoji` —
+    // so it reaches `GetFallbackFamily`'s colour arm. Applying the promotion to
+    // every `\p{Emoji}` codepoint inverted exactly that set: 😀🚀⭐ and U+1F46A
+    // resolved Segoe UI Symbol where Chrome paints Segoe UI Emoji.
+    //
+    // A lone REGIONAL INDICATOR is deliberately NOT in this set (see
+    // `isEmojiPresentationCp`), and Windows agrees it should not be — Chrome
+    // answers Segoe UI Symbol for it, which is the `emoji-text` arm.
+    //
+    // `font-variant-emoji` sits ABOVE all of it: Blink runs
+    // `ApplyFontVariantEmojiOnFallbackPriority` before this stage reads the
+    // priority, so `text` forces the mono arm and `emoji` the colour one
+    // whatever the codepoint's own presentation says.
+    priority: winFallbackPriority(codepoint, css?.fontVariantEmoji),
   }, (family) => win32FamilyKey(family) != null);
 
   // Style-CARRYING: instantiating the nominated family is
@@ -4172,6 +4214,12 @@ export interface CssFallbackDescription {
    *  the width (the Windows family instantiation passes the full
    *  `SkiaFontStyle`, weight-width-slant). */
   stretch?: number;
+  /** DM-1985: the run's `font-variant-emoji`. Blink applies
+   *  `ApplyFontVariantEmojiOnFallbackPriority` (`harfbuzz_shaper.cc:983-984`)
+   *  BEFORE the fallback stage reads the priority, so the override is upstream
+   *  of the Windows `kText → kEmojiText` promotion rather than beside it.
+   *  Absent = `normal`, and then the codepoint's own segmented priority wins. */
+  fontVariantEmoji?: FontVariantEmojiOverride;
 }
 
 
@@ -8196,7 +8244,9 @@ function resolveFontForCodepointInner(
     return null;
   };
   const staticChain = (): FontResolution | null => {
-    for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize })) {
+    // DM-1985: the run's `font-variant-emoji` reaches the chain, because on
+    // Windows it decides which arm of `GetFallbackFamily` the codepoint takes.
+    for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize, fontVariantEmoji })) {
       if (candidate === "last-resort") continue;
       const cf = getFontInstance(candidate, weight, fontSize, slant);
       if (cf != null && glyphIdForCp(cf, cp) !== 0) {
