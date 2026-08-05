@@ -22,6 +22,7 @@ import { identifyFace } from "../tools/font-conformance.js";
 import { compareShaping } from "../tools/shaping-conformance.js";
 import {
   DEFAULT_FIXTURE,
+  alignMetricsToChrome,
   familyFromFixture,
   fontBytesFromFixture,
   fontSizeFromFixture,
@@ -63,9 +64,14 @@ beforeAll(async () => {
   for (const chromeSide of instances) {
     for (const ourSide of instances) {
       const ours = ourGeometry(TEXT, family, fontSize, ourSide.axes);
+      const chromeXs = rebase(chromeSide.xs);
+      // Both sides on the same metric footing before comparing — Chrome reports
+      // GRID-FITTED (whole-pixel) advances wherever the host's fontconfig leaves
+      // subpixel positioning off, which is the Linux default, and LINEAR ones on
+      // macOS. See `alignMetricsToChrome`; a no-op on the linear side.
       const { verdict, maxDelta } = compareShaping(
-        { glyphCount: chromeSide.glyphCount, faces: [], xs: rebase(chromeSide.xs), width: chromeSide.width },
-        { glyphCount: ours.glyphCount, xs: rebase(ours.xs), ok: ours.ok },
+        { glyphCount: chromeSide.glyphCount, faces: [], xs: chromeXs, width: chromeSide.width },
+        { glyphCount: ours.glyphCount, xs: alignMetricsToChrome(chromeXs, rebase(ours.xs)), ok: ours.ok },
         0.5,
       );
       const ourFace = ourFaceFor(family, fontSize, ourSide.axes);
@@ -122,15 +128,39 @@ describe("the face oracle cannot see a wrong axis instance", () => {
     }
   });
 
-  it("is blind in BOTH directions, not merely lenient", () => {
-    // Measured: Chrome names the named instance it snapped to
-    // (`OpenSansRoman-ExtraBold`), while our side reports the base master
-    // (`OpenSans-Regular`) at every location. So the face oracle does not simply
-    // wave everything through — it scores a CORRECT heavy render as a mismatch
-    // and an INCORRECT default render as agreement. Either reading is a wrong
-    // answer about our axis handling.
+  it("scores an INCORRECT render as agreement — the lenient direction", () => {
+    // Our side reports the base master (`OpenSans-Regular`) at every axis
+    // location, because an instanced variable face keeps the base master's
+    // PostScript name. So a run we painted at the wrong location still matches
+    // by name. This direction holds on every platform.
     const wrongScoredAgree = rows.find((r) => r.chromeInstance === "base" && r.ourInstance === "wght800");
     expect(wrongScoredAgree?.face).toMatch(/^agree/);
+  });
+
+  it("also scores a CORRECT render as a mismatch, wherever Chrome names the instance", () => {
+    // DM-1975: this direction is NOT universal, because it depends on what
+    // Chrome reports rather than on what we do.
+    //
+    //   macOS — CoreText names the named instance Chrome snapped to, so the
+    //           three runs report OpenSansRoman-ExtraBold / -CondensedRegular /
+    //           OpenSans-Regular. Our base-master name then MISMATCHES the
+    //           correct pair, which is the second, sharper blindness.
+    //   Linux — measured in the pinned noble container: Chrome reports
+    //           `OpenSans-Regular` for all three instances. There is no second
+    //           direction to observe; the instrument is blind the lenient way
+    //           only.
+    //
+    // So the precondition is derived from Chrome's own answers rather than from
+    // `process.platform` — the deciding factor is how the platform's font
+    // backend names a variable instance, and asserting it unconditionally made
+    // this test fail on Linux for a reason that says nothing about our renderer.
+    const chromeNames = new Set(instances.map((i) => i.face.postScriptName ?? i.face.familyName));
+    if (chromeNames.size === 1) {
+      // Guard against the assertion silently evaporating: the lenient direction
+      // must still hold, and the shaping oracle below is what covers the rest.
+      expect(rows.filter((r) => r.sameInstance).every((r) => r.face.startsWith("agree"))).toBe(true);
+      return;
+    }
     const rightScoredMismatch = rows.find((r) => r.chromeInstance === "wght800" && r.ourInstance === "wght800");
     expect(rightScoredMismatch?.face).toBe("mismatch");
   });

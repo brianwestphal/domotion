@@ -199,6 +199,75 @@ export async function measureInstances(page: Page, fixturePath: string): Promise
   return out;
 }
 
+/**
+ * Whether Chrome's own positions came from NON-LINEAR (grid-fitted) metrics —
+ * i.e. every successive advance is a whole pixel.
+ *
+ * This is a platform difference in what Chrome measures, not a tolerance knob.
+ * Blink hands Skia `font->setLinearMetrics(use_subpixel_positioning == 1)`
+ * (`platform/fonts/web_font_render_style.cc:113`, rev 7d859f27), and on Linux
+ * `use_subpixel_positioning` comes from the host's fontconfig via the sandbox's
+ * font service — off by default, so linear metrics are off. Skia then takes the
+ * non-linear branch of `SkScalerContext_FreeType::generateMetrics`
+ * (`src/ports/SkFontHost_FreeType.cpp:1381-1388`, Skia rev ebf5052):
+ *
+ *     if (fDoLinearMetrics) {
+ *         advance = ... * SkFT_FixedToScalar(fFace->glyph->linearHoriAdvance);
+ *     } else {
+ *         advance = SkFDot6ToFloat(fFace->glyph->advance.x);   // grid-fitted
+ *     }
+ *
+ * — FreeType's grid-fitted advance, which is a whole number of pixels. macOS
+ * takes the linear branch, which is why the same comparison is sub-pixel there.
+ *
+ * Detected from Chrome's own numbers rather than from `process.platform`,
+ * because the deciding input is the HOST's fontconfig (hint style + subpixel
+ * positioning), not the OS: a desktop Linux configured `hintslight` makes Skia
+ * force `linearMetrics = true` again (same file, lines 963-969) and Chrome's
+ * advances go back to fractional. Keying on the platform would be right in the
+ * CI container and wrong on that host.
+ */
+export function chromeUsesGridFittedAdvances(xs: readonly number[]): boolean {
+  if (xs.length < 3) return false;
+  for (let i = 1; i < xs.length; i++) {
+    const adv = xs[i] - xs[i - 1];
+    if (Math.abs(adv - Math.round(adv)) > 1e-6) return false;
+  }
+  return true;
+}
+
+/**
+ * Re-express our linear positions the way Skia's non-linear-metrics branch
+ * would: round each ADVANCE to a whole pixel, then re-accumulate.
+ *
+ * Rounding the positions instead would be a different (and wrong) operation —
+ * the quantization happens per advance and then accumulates, which is exactly
+ * why the drift grows along the run rather than staying bounded.
+ *
+ * Verified exact, not approximate: over the fixture's three axis instances in
+ * the pinned noble container this reproduces Chrome's positions with a max
+ * delta of 0.0000 px at every one of 45 positions.
+ */
+export function quantizeAdvances(xs: readonly number[]): number[] {
+  if (xs.length === 0) return [];
+  const out = [xs[0]];
+  let acc = xs[0];
+  for (let i = 1; i < xs.length; i++) {
+    acc += Math.round(xs[i] - xs[i - 1]);
+    out.push(acc);
+  }
+  return out;
+}
+
+/**
+ * Our geometry, put on the same metric footing as Chrome's before comparison.
+ * A no-op wherever Chrome reports linear (sub-pixel) advances, so macOS is
+ * untouched and the comparison stays as sharp as it was.
+ */
+export function alignMetricsToChrome(chromeXs: readonly number[], ourXs: readonly number[]): number[] {
+  return chromeUsesGridFittedAdvances(chromeXs) ? quantizeAdvances(ourXs) : [...ourXs];
+}
+
 /** Our renderer's own output for one axis location, read back off the markup. */
 export function ourGeometry(text: string, family: string, fontSize: number, axes: Record<string, number> | null): { xs: number[]; glyphCount: number; ok: boolean } {
   const svg = renderTextAsPath(text, 0, fontSize * 2, {
@@ -364,9 +433,15 @@ async function main(argv: string[]): Promise<number> {
         // by rebasing each list on its own first entry — otherwise every row
         // would "differ" by the body margin and nothing would be measured.
         const rebase = (xs: number[]): number[] => (xs.length === 0 ? xs : xs.map((v) => Math.round((v - xs[0]) * 100) / 100));
+        const chromeXs = rebase(chromeSide.xs);
+        // Put both sides on the same metric footing first — see
+        // `alignMetricsToChrome`. Without this, a Linux run compares our LINEAR
+        // advances against Chrome's GRID-FITTED ones and reports a ~2px drift on
+        // the correct pair, which reads as "our renderer ignores the axis" when
+        // the axis is honored exactly.
         const { verdict, maxDelta } = compareShaping(
-          { glyphCount: chromeSide.glyphCount, faces: [], xs: rebase(chromeSide.xs), width: chromeSide.width },
-          { glyphCount: ours.glyphCount, xs: rebase(ours.xs), ok: ours.ok },
+          { glyphCount: chromeSide.glyphCount, faces: [], xs: chromeXs, width: chromeSide.width },
+          { glyphCount: ours.glyphCount, xs: alignMetricsToChrome(chromeXs, rebase(ours.xs)), ok: ours.ok },
           0.5,
         );
         const ourFace: OurFace = ourFaceFor(family, fontSize, ourSide.axes);

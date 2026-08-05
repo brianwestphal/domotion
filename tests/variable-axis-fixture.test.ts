@@ -23,6 +23,9 @@ import { existsSync, readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import {
   DEFAULT_FIXTURE,
+  alignMetricsToChrome,
+  chromeUsesGridFittedAdvances,
+  quantizeAdvances,
   familyFromFixture,
   fontBytesFromFixture,
   fontSizeFromFixture,
@@ -120,5 +123,56 @@ describe("our side is name-blind and geometry-live", () => {
     // Both axes move the run, and in the directions the axis names imply.
     expect(heavy).toBeGreaterThan(base + 1);
     expect(narrow).toBeLessThan(base - 1);
+  });
+});
+
+// DM-1975: the metric footing the two sides are compared on.
+//
+// Chrome reports GRID-FITTED (whole-pixel) advances wherever the host's
+// fontconfig leaves subpixel positioning off — the Linux default — and LINEAR
+// (fractional) ones on macOS. Comparing our linear positions against grid-fitted
+// ones reported a ~1.9 px drift on the CORRECT axis instance, which reads as
+// "our renderer ignores the author's axis" when the axis is honored exactly.
+//
+// These pin the alignment as a rule rather than a tolerance: it is detected from
+// Chrome's own numbers, it is a no-op on the linear side, and it quantizes
+// ADVANCES (which then accumulate) rather than positions.
+describe("aligning our metrics to Chrome's (grid-fitted vs linear advances)", () => {
+  it("detects grid-fitted advances, and does not mistake linear ones for them", () => {
+    expect(chromeUsesGridFittedAdvances([0, 35, 62, 106, 135])).toBe(true);
+    expect(chromeUsesGridFittedAdvances([0, 35.39, 62.06, 106.5, 135.87])).toBe(false);
+    // Fractional POSITIONS with whole-pixel advances still count: the run may
+    // start at a fractional page offset, and only the deltas are quantized.
+    expect(chromeUsesGridFittedAdvances([0.5, 35.5, 62.5, 106.5])).toBe(true);
+    // Too short to be evidence of anything.
+    expect(chromeUsesGridFittedAdvances([0, 35])).toBe(false);
+  });
+
+  it("quantizes ADVANCES and re-accumulates, not positions", () => {
+    // 0.6 + 0.6 + 0.6: rounding positions gives [0, 1, 1, 2]; rounding advances
+    // and accumulating gives [0, 1, 2, 3]. Skia rounds the advance, which is why
+    // the drift grows along the run instead of staying bounded.
+    expect(quantizeAdvances([0, 0.6, 1.2, 1.8])).toEqual([0, 1, 2, 3]);
+    expect(quantizeAdvances([])).toEqual([]);
+    expect(quantizeAdvances([7.25])).toEqual([7.25]);
+  });
+
+  it("reproduces Chrome's Linux positions exactly from our linear ones", () => {
+    // The real measurement, from the pinned noble container at 48px: our linear
+    // advances, quantized, ARE Chrome's positions — every one, zero delta. That
+    // exactness is the claim; a threshold would have hidden whether the rule was
+    // right or merely close.
+    const chrome = [0, 35, 62, 106, 135, 164, 184, 210, 237, 253, 282, 311, 334, 351, 363];
+    const ours = [0, 35.39, 62.06, 106.5, 135.87, 165.3, 184.92, 210.98, 237.94,
+      254.09, 282.96, 312.4, 335.27, 352.38, 364.5];
+    expect(alignMetricsToChrome(chrome, ours)).toEqual(chrome);
+  });
+
+  it("leaves our geometry untouched when Chrome reports linear advances", () => {
+    // macOS must be unaffected — the comparison there is already sub-pixel and
+    // this must not blunt it.
+    const chrome = [0, 35.39, 62.06, 106.5];
+    const ours = [0, 35.4, 62.1, 106.55];
+    expect(alignMetricsToChrome(chrome, ours)).toEqual(ours);
   });
 });
