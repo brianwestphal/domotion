@@ -270,8 +270,17 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
         const png = await chromeSelectAndShoot(page, c.id, c.start, c.end, LINE_TOPS[c.id]);
         chromePainted.push(mergeSpans(await selectionSpans(page, png)));
       }
-      // Two visually separate pieces for the discontiguous logical range.
-      expect(chromePainted[0].length).toBe(2);
+      // The logical range is discontiguous, so Chrome paints it as SEVERAL
+      // visually separate pieces — which is what makes this case worth having.
+      //
+      // DM-1977: the exact count is Chrome's business and is not portable. It is
+      // 2 on macOS and 3 in the pinned Linux container, where the fixture's
+      // declared families resolve to different faces and the bidi runs split
+      // differently. Asserting "2" made this a claim about the platform's own
+      // bidi painting rather than about our reproduction of it. The real check
+      // is below: our span count and edges must match CHROME's, whatever Chrome
+      // does here.
+      expect(chromePainted[0].length, "the discontiguous case must paint >1 piece, or it tests nothing").toBeGreaterThan(1);
 
       // Our SVG: one selection track per case, both fully swept at t=1500.
       const tracks = cases.map((c) => resolveTextTrack(tree, {
