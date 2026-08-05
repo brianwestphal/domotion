@@ -3,7 +3,14 @@
 //
 //   npx tsx tools/probe-font-variant-emoji.mjs                          # this host
 //   CMD="npx tsx tools/probe-font-variant-emoji.mjs" npm run test:linux-docker
-//   prlctl exec "Windows 11" ...                                        # Windows VM
+//
+// Windows, via the Parallels VM (the mounted share's node_modules are
+// macOS-built, so the tree is copied to a scratch dir with a junction to a
+// Windows node_modules; `tools/scratch/dm1966-win-setup.ps1` does that). The
+// helper path is NOT optional — see note 3:
+//   prlctl exec "Windows 11" powershell -ExecutionPolicy Bypass -Command \
+//     "Set-Location C:\dm1966; $env:DOMOTION_HELPER_PATH='...\domotion-glyph-paths.exe'; \
+//      node node_modules\tsx\dist\cli.mjs tools\probe-font-variant-emoji.mjs"
 //
 // Two instrument notes, both learned by getting them wrong here first:
 //
@@ -16,6 +23,12 @@
 //     resolves to LiberationSans-Regular.ttf on Linux, which Chrome reports as
 //     "Liberation Sans". Comparing key-to-family reported 15 disagreements on a
 //     Linux run where the two had picked the same file.
+//  3. On Windows, run it with the native glyph helper reachable. Without it the
+//     resolver silently falls back to the static chain and the probe grades a
+//     DIFFERENT mechanism: measured 21/39 agreeing without the helper against
+//     31/39 with it. That the number MOVES is also the check that the helper is
+//     in the loop at all — the failure it guards against is a resolver that was
+//     shipped "default-on" and answered nothing for weeks.
 import { chromium } from "@playwright/test";
 import {
   resolveFont, resolveFontKey, resolveFontKeyChain, resolveFontForCodepoint, resolveFontSpec,
