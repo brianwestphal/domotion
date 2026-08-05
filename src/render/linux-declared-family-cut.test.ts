@@ -24,7 +24,7 @@
 // degrades the seam to the two-slot table by design.
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { getFontInstance, resolveFontKey, withSystemFallbackResolution } from "./font-resolution.js";
+import { blinkAlternateFamilyName, getFontInstance, resolveFontKey, withSystemFallbackResolution } from "./font-resolution.js";
 import { isGlyphHelperAvailable, resolveLinuxFamilyMatch } from "./glyph-helper.js";
 
 const LIBERATION = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
@@ -91,5 +91,87 @@ describeLinux("Linux declared-family cut selection in the render path", () => {
     expect(enabled).toBe("LiberationSans-Bold");
     expect(disabled).toBe("LiberationSans");
     expect(enabled).not.toBe(disabled);
+  });
+});
+
+describeLinux("Linux declared-family NOMINATION walk (Blink's stack walk, transcribed)", () => {
+  // These pin the nomination stage against what Chrome-on-noble actually
+  // PAINTS, measured over CDP (tools/scratch/probe-1955-declared-walk.mjs run
+  // in the pinned Playwright noble image): declared "Courier New"/"Courier"
+  // paint Liberation Mono — via the metric-equivalence class and the
+  // Courier → Courier New alias — NOT the WenQuanYi face the `monospace`
+  // generic maps to; rejected names ("Menlo", "Consolas", "Helvetica Neue")
+  // are walked PAST, so a bare stack of them lands on the `-webkit-standard`
+  // stand-in (Liberation Serif), while a `…, monospace` stack still reaches
+  // the generic's calibrated WenQuanYi route.
+  it("nominates the metric-class face for a declared Courier New", () => {
+    const key = resolveFontKey('"Courier New"');
+    expect(key.startsWith("sysfb:")).toBe(true);
+    expect(psName(key, 400)).toBe("LiberationMono");
+    expect(psName(key, 550)).toBe("LiberationMono-Bold");
+  });
+
+  it("reaches the same face for bare Courier through Blink's alias retry", () => {
+    const key = resolveFontKey("Courier");
+    expect(psName(key, 400)).toBe("LiberationMono");
+    expect(psName(key, 700)).toBe("LiberationMono-Bold");
+  });
+
+  it("walks past a rejected name instead of pinning its calibrated table face", () => {
+    // Chrome-on-noble paints bare-"Menlo" / bare-"Consolas" stacks in
+    // Liberation Serif (the family rejects, the stack exhausts, the
+    // `-webkit-standard` browser setting supplies "Times New Roman" →
+    // Liberation Serif). The walk must yield the `times` terminal, not the
+    // old `menlo`/`courier` keys' WenQuanYi routing.
+    expect(resolveFontKey("Menlo")).toBe("times");
+    expect(resolveFontKey("Consolas")).toBe("times");
+    expect(psName(resolveFontKey("Menlo"), 550)).toBe("LiberationSerif-Bold");
+  });
+
+  it("keeps the generic keywords on their calibrated (un-transcribed) routes", () => {
+    // `monospace` is a settings-mapped generic — its concrete family is a
+    // browser-side value, NOT walkable from the renderer checkout — and
+    // measured on noble it paints WenQuanYi Zen Hei Mono, which only the
+    // calibrated route supplies. A stack that rejects into it must land there.
+    expect(resolveFontKey("Menlo, monospace")).toBe("courier");
+    expect(psName("courier", 400)).toBe("WenQuanYiZenHeiMono");
+  });
+
+  it("accepts Helvetica through the Arial alias onto Liberation Sans", () => {
+    const key = resolveFontKey("Helvetica");
+    expect(psName(key, 400)).toBe("LiberationSans");
+    expect(psName(key, 550)).toBe("LiberationSans-Bold");
+  });
+
+  it("disabling the resolver restores the calibrated static nomination", () => {
+    // In-the-loop check for the WALK itself (not just the cut matcher): with
+    // the flag off, "Courier New" must fall back to the static `courier` key.
+    const enabled = resolveFontKey('"Courier New"');
+    const disabled = withSystemFallbackResolution(false, () => resolveFontKey('"Courier New"'));
+    expect(enabled.startsWith("sysfb:")).toBe(true);
+    expect(disabled).toBe("courier");
+  });
+});
+
+// Pure transcription — runs on every platform (no helper, no fonts involved).
+describe("blinkAlternateFamilyName (alternate_font_family.h:74-105, tag 147.0.7727.15)", () => {
+  it("carries exactly Blink's six aliases, both directions where Blink has them", () => {
+    expect(blinkAlternateFamilyName("Courier")).toBe("Courier New");
+    expect(blinkAlternateFamilyName("Courier New")).toBe("Courier"); // !IS_WIN branch
+    expect(blinkAlternateFamilyName("Times")).toBe("Times New Roman");
+    expect(blinkAlternateFamilyName("Times New Roman")).toBe("Times");
+    expect(blinkAlternateFamilyName("Arial")).toBe("Helvetica");
+    expect(blinkAlternateFamilyName("Helvetica")).toBe("Arial");
+  });
+
+  it("compares ASCII-case-insensitively, like EqualIgnoringAsciiCase", () => {
+    expect(blinkAlternateFamilyName("courier NEW")).toBe("Courier");
+    expect(blinkAlternateFamilyName("HELVETICA")).toBe("Arial");
+  });
+
+  it("aliases nothing else", () => {
+    for (const name of ["Georgia", "Menlo", "Consolas", "Helvetica Neue", "sans-serif", ""]) {
+      expect(blinkAlternateFamilyName(name), name).toBeNull();
+    }
   });
 });

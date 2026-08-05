@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -3156,6 +3156,125 @@ function darwinPrimaryCutKey(
 
 // ── Linux declared-family style match (Skia's fontconfig `matchFamilyName`) ──
 
+/**
+ * Blink's family-name alias, tried when a declared family fails to match.
+ *
+ * Transcribed from `AlternateFamilyName`
+ * (`platform/fonts/alternate_font_family.h:74-105`, tag 147.0.7727.15 —
+ * byte-identical at local checkout rev 7d859f27): Courier ↔ Courier New
+ * (the New→plain direction is `!IS_WIN`, so it applies on Linux),
+ * Times ↔ Times New Roman, Arial ↔ Helvetica; every other name has no
+ * alternate. Comparison is ASCII-case-insensitive (`EqualIgnoringAsciiCase`),
+ * so the lower-cased names our stack splitter produces compare the same way.
+ * The retry fires in `FontPlatformDataCache::GetOrCreateFontPlatformData`
+ * (`font_platform_data_cache.cc:74-105`, tag — identical at 7d859f27) for
+ * `kAllowAlternate` requests — the default for every CSS-stack lookup — and,
+ * because `FontMatchAliasesAsLastResort` is `status: "stable"` at the tag,
+ * for `kLastResort` requests too. The alternate is looked up with
+ * `kNoAlternate`, so the alias never chains.
+ *
+ * (`AdjustFamilyNameToAvoidUnsupportedFonts`, the other rewrite in that
+ * header, is entirely `#if BUILDFLAG(IS_WIN)` — a no-op on Linux.)
+ */
+export function blinkAlternateFamilyName(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n === "courier") return "Courier New";
+  if (n === "courier new") return "Courier";
+  if (n === "times") return "Times New Roman";
+  if (n === "times new roman") return "Times";
+  if (n === "arial") return "Helvetica";
+  if (n === "helvetica") return "Arial";
+  return null;
+}
+
+/**
+ * The CSS generic keywords whose concrete family Blink reads from
+ * browser-side `GenericFontFamilySettings` values
+ * (`FontSelector::FamilyNameFromSettings`, `font_selector.cc:20-113`, tag
+ * 147.0.7727.15: serif/sans-serif/cursive/fantasy/monospace/math →
+ * `settings.<Generic>(script)`; standard/-webkit-standard/-webkit-body →
+ * `settings.Standard(script)`), plus `system-ui`, which resolves through
+ * `FontCache::SystemFontFamily()` — also pushed from the browser process.
+ * The renderer checkout carries the MECHANISM but not the VALUES, so these
+ * names are excluded from the transcribed declared-family walk and stay on
+ * the measured static routes (marked un-transcribed in doc 110).
+ */
+const LINUX_SETTINGS_MAPPED_GENERICS: ReadonlySet<string> = new Set([
+  "serif", "sans-serif", "cursive", "fantasy", "monospace", "math",
+  "system-ui", "-webkit-standard", "-webkit-body",
+]);
+
+/**
+ * One Blink family lookup on Linux: the transcribed matcher on the name
+ * itself, then — on rejection — one retry on its `AlternateFamilyName`.
+ * Returns the match plus the spelling that ACCEPTED (the alternate when the
+ * retry is what landed), because that spelling is what per-run style
+ * re-matching must nominate: re-asking with the original, rejected spelling
+ * would reject at every weight.
+ */
+function linuxFamilyMatchWithAlternate(
+  name: string, style: { weight: number; italic?: boolean; stretch?: number },
+): { match: LinuxFamilyMatch; acceptedFamily: string } | null {
+  const direct = resolveLinuxFamilyMatch(name, style);
+  if (direct != null) return { match: direct, acceptedFamily: name };
+  const alt = blinkAlternateFamilyName(name);
+  if (alt != null) {
+    const viaAlt = resolveLinuxFamilyMatch(alt, style);
+    if (viaAlt != null) return { match: viaAlt, acceptedFamily: alt };
+  }
+  return null;
+}
+
+/**
+ * Whether the transcribed Linux nomination walk can be trusted to answer
+ * "Chrome walks past this family" — i.e. the helper is present AND speaks
+ * the `familyMatch` query. Probed with "sans", which
+ * `IsFallbackFontAllowed` accepts on any system with at least one valid
+ * SFNT font, so a null here means the helper predates the query (or the
+ * system has no fonts at all — in which case nothing downstream can render
+ * either). Without this probe an older helper would make the walk reject
+ * EVERY name and the whole stack would collapse to the terminal key.
+ */
+function linuxNominationWalkArmed(): boolean {
+  return process.platform === "linux" && _systemFallbackResolutionEnabled
+    && isGlyphHelperAvailable()
+    && resolveLinuxFamilyMatch("sans", { weight: 400 }) != null;
+}
+
+/**
+ * The transcribed LAST-RESORT chain, reached when a declared family (and its
+ * calibrated stand-in) match nothing on this host. Transcribed from
+ * `FontCache::GetLastResortFallbackFont` (`fonts/skia/font_cache_skia.cc:147-261`,
+ * tag 147.0.7727.15; the checkout at rev 7d859f27 differs only by a UMA-timing
+ * wrapper): `GetFallbackFontFamily(description)` — which for a standard
+ * description is the EMPTY name (`alternate_font_family.h:107-127`) — then
+ * "Sans", then "Arial", then `legacyMakeTypeface(nullptr, style)`, which the
+ * FCI manager forwards to the same matcher with a null family
+ * (`SkFontMgr_FontConfigInterface.cpp:253-256`, Skia rev fd139e79). An empty
+ * family builds a pattern with no FC_FAMILY term, which fontconfig matches
+ * against everything and `IsFallbackFontAllowed` accepts — so on any host
+ * with one valid font the FIRST rung terminates, and the later rungs are
+ * defense-in-depth exactly as they are in Blink. Each rung is a
+ * `kLastResort` lookup, and `FontMatchAliasesAsLastResort` is stable at the
+ * tag, so each rung also gets the alias retry ("Arial" → "Helvetica").
+ *
+ * Our pipeline reaches this stage description-blind (the key model does not
+ * carry the request's generic-family enum), so the first rung is always the
+ * standard-description empty name; the generic-family keywords never get
+ * here because their calibrated table entries resolve upstream.
+ */
+function linuxLastResortMatch(
+  style: { weight: number; italic?: boolean; stretch?: number },
+): { match: LinuxFamilyMatch; acceptedFamily: string } | null {
+  for (const rung of ["", "Sans", "Arial", ""]) {
+    const hit = rung === ""
+      ? (() => { const m = resolveLinuxFamilyMatch("", style); return m != null ? { match: m, acceptedFamily: "" } : null; })()
+      : linuxFamilyMatchWithAlternate(rung, style);
+    if (hit != null) return hit;
+  }
+  return null;
+}
+
 /** Memo for `linuxPrimaryCutKey`, keyed on the key AND the full style. */
 const linuxPrimaryCutCache = new Map<string, { key: string; italic: boolean } | null>();
 
@@ -3168,16 +3287,16 @@ const linuxPrimaryCutCache = new Map<string, { key: string; italic: boolean } | 
  * before any `:style` term), falling back to the family name recorded in the
  * resolved file. No new key→family table is introduced.
  *
- * Deliberately NOT the declared CSS name. The shipping matcher REJECTS names
- * outside a match's family list, the post-substitution alias, and Skia's
- * metric-equivalence classes — measured in the Playwright noble image, bare
- * "Helvetica" / "Courier" / "Georgia" all return false, and Chrome then walks
- * the CSS stack and its last-resort chain ("Sans" → "Arial" →
- * `legacyMakeTypeface(nullptr)`, `fonts/skia/font_cache_skia.cc:146-200`) to
- * end on the same faces this table already routes to. Re-running that whole
- * walk lives a stage above this function (the key was chosen by
- * `resolveFontKey`); what this function owns is the CUT within the family the
- * calibration already established, selected by the transcribed mechanism.
+ * Deliberately NOT the declared CSS name. With the transcribed nomination
+ * walk in `matchFamilyNameToKey`, a declared name the shipping matcher
+ * ACCEPTS never produces a static key on Linux any more — it registers a
+ * `sysfb:` key carrying the accepted spelling. The static declared keys that
+ * still reach this function therefore stand for the stages whose concrete
+ * names are NOT in the renderer checkout: the generic keywords
+ * (browser-side `GenericFontFamilySettings` values) and the `times`
+ * terminal (the `-webkit-standard` stage, `settings.Standard(script)` —
+ * measured on the noble image as "Times New Roman" → Liberation Serif, and
+ * carried here as the calibrated fcMatch base rather than a transcription).
  */
 function linuxFcFamilyForKey(key: string): string | null {
   const entry = LINUX_FONT_PATHS[key];
@@ -3229,9 +3348,20 @@ function linuxPrimaryCutKey(
 
   let result: { key: string; italic: boolean } | null = null;
   try {
+    const style = { weight, italic: italicRequested, stretch };
+    // A `sysfb:` key carries the ACCEPTED spelling from the nomination walk;
+    // re-match it (with the alias retry, since Blink's lookup always carries
+    // it) at this run's full style. A static key stands for a stage whose
+    // concrete name is browser-side (generic keyword / the `-webkit-standard`
+    // terminal), so it nominates the calibrated stand-in family instead.
+    // When even that matches nothing on this host, Blink is out of CSS
+    // families AND out of settings values, which is exactly when it runs
+    // `GetLastResortFallbackFont` — so run the transcribed chain.
     const family = declaredFamily ?? linuxFcFamilyForKey(key);
-    if (family != null) {
-      const match = resolveLinuxFamilyMatch(family, { weight, italic: italicRequested, stretch });
+    const nominated = (family != null ? linuxFamilyMatchWithAlternate(family, style) : null)
+      ?? linuxLastResortMatch(style);
+    if (nominated != null) {
+      const match: LinuxFamilyMatch | null = nominated.match;
       const baseSpec = resolveFontSpec(key);
       // Adopt the matched face only when it is a DIFFERENT face from the one
       // the key already resolves to — same contract as the macOS matcher.
@@ -6057,6 +6187,62 @@ function matchFamilyNameToKey(name: string): string | null {
     // weight/italic against the registered variants — important when the page
     // declared regular + italic + bold but NOT bold-italic (DM-360 / DM-303).
     if (localFontAliasRegistry.has(name)) return `localalias:${name}`;
+    // ── Linux declared-family NOMINATION: the transcribed walk ──
+    // Blink resolves a non-generic CSS family on Linux by ASKING the matcher,
+    // not a table: `FontFallbackList::GetFontData` walks the stack calling
+    // `FontCache::GetFontData(desc, family)` per name
+    // (`font_fallback_list.cc:149-193`, tag 147.0.7727.15 — the walk is
+    // byte-identical at local checkout rev 7d859f27), each call reaching
+    // `SkFontConfigInterfaceDirect::matchFamilyName` (the Linux helper's
+    // `familyMatch` transcription, Skia rev fd139e79); on rejection the cache
+    // retries the aliased name (Courier ↔ Courier New, Times ↔ Times New
+    // Roman, Arial ↔ Helvetica — `font_platform_data_cache.cc:74-105` +
+    // `alternate_font_family.h:74-105`, tag), and when that rejects too Blink
+    // walks PAST the family to the next one in the stack. Mirror exactly
+    // that: accept → register the matched face and record the ACCEPTED
+    // spelling so the per-run style match (`linuxPrimaryCutKey`) re-cuts it;
+    // reject → null so the caller continues the stack. Acceptance is a
+    // family-identity question (request vs post-substitution vs
+    // metric-equivalence class), so one weight-400 probe answers it; the
+    // per-weight CUT is re-matched at render time. Measured over CDP in the
+    // pinned noble image (tools/scratch/probe-1955-declared-walk.mjs):
+    // "Courier New"/"Courier" paint Liberation Mono (metric class / alias),
+    // while rejected names ("Menlo", "Consolas", "Helvetica Neue") walk on —
+    // a bare stack of them lands on `-webkit-standard` → Liberation Serif,
+    // which is what falling through to the `times` terminal below yields.
+    // The generic keywords are EXCLUDED: their concrete families are
+    // browser-side `GenericFontFamilySettings` values that are not in the
+    // renderer checkout (`FontSelector::FamilyNameFromSettings`,
+    // `font_selector.cc:20-113`, tag), so they stay on the measured static
+    // routes below, marked un-transcribed in doc 110. Gated like the rest of
+    // the live Linux resolver (helper + DOMOTION_SYSTEM_FALLBACK), degrading
+    // to the calibrated tables when disarmed — including when the helper
+    // predates the `familyMatch` query (the armed probe), since a walk that
+    // cannot ask the matcher must not declare rejections.
+    if (!LINUX_SETTINGS_MAPPED_GENERICS.has(name) && linuxNominationWalkArmed()) {
+      const walked = linuxFamilyMatchWithAlternate(name, { weight: 400 });
+      if (walked == null) return null; // Chrome walks past this family
+      const { match, acceptedFamily } = walked;
+      // The PostScript name selects the TTC member downstream; a face that
+      // declares none can only be addressed as the file's first face. An
+      // unaddressable face falls THROUGH to the calibrated tables rather
+      // than dropping a family Chrome would paint.
+      const psName = match.postscriptName !== ""
+        ? match.postscriptName
+        : (match.index === 0 ? (match.path.split("/").pop() ?? match.path) : "");
+      if (psName !== "") {
+        const key = `sysfb:${psName}`;
+        registerDynamicSystemFont(
+          key, match.path, match.postscriptName !== "" ? match.postscriptName : psName, "fontkit",
+        );
+        // Two requested spellings can accept onto the same face (e.g.
+        // "Arial" directly and "Helvetica" via its alias) — they then agree
+        // on the accepted spelling, or land on the same family's cuts, so
+        // the last write is safe.
+        declaredFamilyForKey.set(key, acceptedFamily);
+        return key;
+      }
+    }
     // Chrome on macOS resolves the CSS `monospace` generic to Courier (per
     // Blink's font_cache_mac.mm — kMonospaceFamily → kCourier). For author-
     // named monospaces we map to whatever the author asked for if we have
