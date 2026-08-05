@@ -6205,7 +6205,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // family-identity question (request vs post-substitution vs
     // metric-equivalence class), so one weight-400 probe answers it; the
     // per-weight CUT is re-matched at render time. Measured over CDP in the
-    // pinned noble image (tools/scratch/probe-1955-declared-walk.mjs):
+    // pinned noble image (tools/probe-1955-declared-walk.mjs):
     // "Courier New"/"Courier" paint Liberation Mono (metric class / alias),
     // while rejected names ("Menlo", "Consolas", "Helvetica Neue") walk on —
     // a bare stack of them lands on `-webkit-standard` → Liberation Serif,

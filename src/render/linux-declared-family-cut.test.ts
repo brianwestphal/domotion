@@ -96,7 +96,7 @@ describeLinux("Linux declared-family cut selection in the render path", () => {
 
 describeLinux("Linux declared-family NOMINATION walk (Blink's stack walk, transcribed)", () => {
   // These pin the nomination stage against what Chrome-on-noble actually
-  // PAINTS, measured over CDP (tools/scratch/probe-1955-declared-walk.mjs run
+  // PAINTS, measured over CDP (tools/probe-1955-declared-walk.mjs run
   // in the pinned Playwright noble image): declared "Courier New"/"Courier"
   // paint Liberation Mono — via the metric-equivalence class and the
   // Courier → Courier New alias — NOT the WenQuanYi face the `monospace`
