@@ -29,13 +29,29 @@ const PAGE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 /** Scan a screenshot (PNG buffer) for pixels matching a color family and
  *  return their bounding box + count. Decoding happens in-page via canvas
  *  (the compare-pngs pattern — Node has no PNG decoder dependency). */
+// DM-1977: `exclude` lets a caller subtract a BASELINE frame's hits.
+//
+// On Linux the viewer paints text with subpixel (LCD) antialiasing, so glyph
+// edges carry colored fringes — and a fringe pixel satisfies these
+// blue-dominant / red-dominant predicates just as a real caret or selection
+// pixel does. Measured on the composed SVG below: at t=100/500/1000/2000, with
+// no selection painted at all, the "selection" scan already reports 112 hits
+// spanning x=44..149 — exactly the text line's extent. Every subsequent
+// `maxX - minX` therefore measured the TEXT, not the selection, and could never
+// come in under the line's width.
+//
+// Subtracting a baseline frame is exact rather than a tuned threshold: the text
+// does not move during these tracks (the fringe set is byte-stable across those
+// four times), so whatever the platform's antialiasing does, it cancels.
 async function scanInk(
   page: Page,
   png: Buffer,
   mode: "red" | "magenta" | "selection" | "blue",
-): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number }> {
+  exclude?: ReadonlySet<string>,
+): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number; keys: string[] }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return page.evaluate(async (args: { dataUri: string; mode: string }) => {
+  const excludeKeys = exclude != null ? [...exclude] : [];
+  return page.evaluate(async (args: { dataUri: string; mode: string; excludeKeys: string[] }) => {
     const img = new Image();
     await new Promise<void>((res, rej) => {
       img.onload = () => res();
@@ -48,6 +64,8 @@ async function scanInk(
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(img, 0, 0);
     const d = ctx.getImageData(0, 0, img.width, img.height).data;
+    const skip = new Set(args.excludeKeys);
+    const keys: string[] = [];
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, count = 0;
     for (let y = 0; y < img.height; y++) {
       for (let x = 0; x < img.width; x++) {
@@ -60,7 +78,9 @@ async function scanInk(
         // #3b82f6 at ~2/3 alpha over white ≈ rgb(134, 176, 250): strongly
         // blue-dominant, clearly bluer than the near-neutral text/borders.
         else hit = b > 200 && b - r > 60 && b - g > 30;
+        if (hit && skip.has(`${x},${y}`)) hit = false;
         if (hit) {
+          keys.push(`${x},${y}`);
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
           if (y < minY) minY = y;
@@ -69,8 +89,8 @@ async function scanInk(
         }
       }
     }
-    return { minX, maxX, minY, maxY, count };
-  }, { dataUri, mode });
+    return { minX, maxX, minY, maxY, count, keys };
+  }, { dataUri, mode, excludeKeys });
 }
 
 async function setup() {
@@ -167,8 +187,14 @@ describeBrowser("caret + selection track e2e (docs/101)", () => {
       expect(red1300.count).toBeGreaterThan(5);
       expect(Math.abs(red1300.minX - p6.x)).toBeLessThanOrEqual(1.5);
 
+      // DM-1977: baseline the platform's text antialiasing before measuring the
+      // selection. t=2000 is after the caret has moved and before the sweep
+      // starts, so every "selection"-classified pixel in it is a subpixel fringe
+      // on the static text rather than selection ink.
+      const selBaseline = new Set((await scanInk(viewer, await shot(2000), "selection")).keys);
+
       // t=2500 (mid-sweep, 300/600ms): the selection rect is partially grown.
-      const at2500 = await scanInk(viewer, await shot(2500), "selection");
+      const at2500 = await scanInk(viewer, await shot(2500), "selection", selBaseline);
       expect(at2500.count).toBeGreaterThan(20);
       expect(Math.abs(at2500.minX - helloRect.x)).toBeLessThanOrEqual(2);
       const midWidth = at2500.maxX - at2500.minX;
@@ -176,7 +202,7 @@ describeBrowser("caret + selection track e2e (docs/101)", () => {
       expect(midWidth).toBeLessThan(helloRect.width - 2);
 
       // t=3000 (after the sweep): full "Hello" span.
-      const at3000 = await scanInk(viewer, await shot(3000), "selection");
+      const at3000 = await scanInk(viewer, await shot(3000), "selection", selBaseline);
       const fullWidth = at3000.maxX - at3000.minX;
       expect(fullWidth).toBeGreaterThan(midWidth);
       expect(Math.abs(at3000.minX - helloRect.x)).toBeLessThanOrEqual(2);
