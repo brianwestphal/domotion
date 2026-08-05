@@ -185,6 +185,79 @@ export const createEmojiDetect = () => {
     return ignores;
   };
 
+  // DM-1987: ask Chrome, per element, whether TEXT presentation of `cp` still
+  // paints in colour — instead of consulting a frozen list of codepoints.
+  //
+  // Draws `cp + U+FE0E` (VS15). Blink gives an explicit VS15 and
+  // `font-variant-emoji: text` the SAME fallback priority, verified over CDP
+  // `CSS.getPlatformFontsForNode` on every probed row: `plain` resolves Apple
+  // Color Emoji while both `vs15` and `fve-text` resolve the identical face,
+  // whatever that face is.
+  //
+  // This replaces a hardcoded set that was calibrated on ONE font stack and
+  // generalised to all of them. Measured: the live probe reproduces that set
+  // 55/55 on a `Helvetica` stack — where the calibration was taken — and
+  // disagrees on 47 of 55 under `system-ui`, where CDP confirms the LIVE answer
+  // and the frozen set is simply wrong (⚡ U+26A1 and ⭐ U+2B50 stay on a colour
+  // emoji face there, rather than moving to Apple Symbols / STIX Two Math).
+  // Being per-element, it is also per-platform for free, which is what a table
+  // naming Apple Symbols / STIX / PingFang could never be off macOS.
+  //
+  // Returns null when there is no font context to probe with, so the caller
+  // keeps the previous behaviour rather than guessing.
+  const _vs15Cache = new Map();
+  const VS15 = '\uFE0E';
+  const textPresentationPaintsColor = (cp, font) => {
+    if (font == null || font === '') return null;
+    const key = cp + '|' + font;
+    const hit = _vs15Cache.get(key);
+    if (hit !== undefined) return hit;
+    let colored = true; // fail safe: keep rastering when the probe cannot run
+    try {
+      if (_colorCtx == null) {
+        _colorCanvas = document.createElement('canvas');
+        _colorCanvas.width = 48;
+        _colorCanvas.height = 48;
+        _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
+      }
+      const str = String.fromCodePoint(cp) + VS15;
+      const draw = (fill) => {
+        _colorCtx.clearRect(0, 0, 48, 48);
+        _colorCtx.fillStyle = fill;
+        _colorCtx.textBaseline = 'top';
+        _colorCtx.font = '32px ' + font;
+        _colorCtx.fillText(str, 8, 4);
+        return _colorCtx.getImageData(0, 0, 48, 48).data;
+      };
+      const a = draw('#000');
+      const black = new Uint8ClampedArray(a);
+      black.set(a);
+      // Stage 1: chromatic pixels. Catches every ordinary colour glyph.
+      let chromatic = false;
+      for (let i = 0; i < black.length; i += 4) {
+        if (black[i + 3] < 8) continue;
+        if (Math.max(black[i], black[i + 1], black[i + 2])
+          - Math.min(black[i], black[i + 1], black[i + 2]) > 24) { chromatic = true; break; }
+      }
+      if (chromatic) { colored = true; } else {
+        // Stage 2: some colour-emoji glyphs are GRAY (✔️ ✖️), so stage 1 reads
+        // them as monochrome. Discriminate on the defining property instead —
+        // a colour bitmap IGNORES the canvas fill colour. Same two-draw test
+        // `ignoresFillColor` uses; kept separate so its cache stays keyed on
+        // the un-suffixed string.
+        const c = draw('#f00');
+        let ink = false, differs = false;
+        for (let i = 0; i < black.length; i += 4) {
+          if (black[i + 3] >= 8 || c[i + 3] >= 8) ink = true;
+          if (Math.abs(black[i] - c[i]) > 16 || Math.abs(black[i + 1] - c[i + 1]) > 16) { differs = true; break; }
+        }
+        colored = ink && !differs;
+      }
+    } catch (e) { /* keep colored = true */ }
+    _vs15Cache.set(key, colored);
+    return colored;
+  };
+
   // DM-1959: `font-variant-emoji` overrides the raster-vs-path decision the
   // same way it overrides Blink's fallback priority — UNLESS the codepoint
   // carries an explicit VS15/VS16, which wins (the HasVSFallbackPriority guard
@@ -217,7 +290,14 @@ export const createEmojiDetect = () => {
     const fve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
     if (fve === 'emoji') return RE_EMOJI_PROP.test(String.fromCodePoint(cp));
     if (fve === 'unicode' && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return true;
-    if (fve === 'text' && textVariantHasMonoFace(cp)) return false;
+    if (fve === 'text' && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {
+      // DM-1987: measure it, per element, instead of consulting the frozen set.
+      const live = textPresentationPaintsColor(cp, font);
+      if (live !== null) return live;
+      // No font context to probe with — fall back to the old macOS/Helvetica
+      // calibration rather than guessing.
+      if (textVariantHasMonoFace(cp)) return false;
+    }
     // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome
     // routes to the COLOR emoji font even when a text font in the cascade has
     // a monochrome glyph — emoji presentation wins regardless of the author's
