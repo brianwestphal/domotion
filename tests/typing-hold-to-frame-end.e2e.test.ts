@@ -72,6 +72,34 @@ async function ink(buf: Buffer): Promise<{ count: number; minX: number; minY: nu
 }
 
 /** Fraction of pixels whose max channel delta exceeds 32 (visible change). */
+/** Intersection-over-union of the two crops' INK masks, optionally shifting
+ *  `b` by `dx` (for calibration controls).
+ *
+ *  DM-1977: a whole-crop pixel diff is the wrong proxy for "the cut is
+ *  seamless". The overlay paints glyph PATHS and the page paints NATIVE text —
+ *  same outlines, different rasterization — so every glyph edge differs by
+ *  construction, and on a thin serif face the edges are a large fraction of the
+ *  ink. The residual is therefore platform-dependent antialiasing rather than a
+ *  seam, and it exceeded the fixed budget on BOTH platforms. IoU over the ink
+ *  masks measures what the assertion actually means: the same glyphs, in the
+ *  same place. */
+async function inkIoU(a: Buffer, b: Buffer, dx = 0): Promise<number> {
+  const [ra, rb] = [await rawPixels(a), await rawPixels(b)];
+  const width = CROP.width;
+  const isInk = (d: Uint8Array | Uint8ClampedArray, i: number): boolean =>
+    (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3 < 128;
+  let inter = 0, union = 0;
+  for (let i = 0; i < ra.n; i++) {
+    const x = i % width, y = Math.floor(i / width);
+    const xb = x - dx;
+    const A = isInk(ra.data, i);
+    const B = xb >= 0 && xb < width ? isInk(rb.data, y * width + xb) : false;
+    if (A && B) inter++;
+    if (A || B) union++;
+  }
+  return union === 0 ? 1 : inter / union;
+}
+
 async function diffFraction(a: Buffer, b: Buffer): Promise<number> {
   const [ra, rb] = [await rawPixels(a), await rawPixels(b)];
   expect(ra.n).toBe(rb.n);
@@ -133,7 +161,25 @@ describeBrowser("typing holdToFrameEnd rasterized handoff (DM-1749)", () => {
     expect(Math.abs(after.maxX - before.maxX)).toBeLessThanOrEqual(1);
     expect(Math.abs(after.minY - before.minY)).toBeLessThanOrEqual(1);
     expect(Math.abs(after.maxY - before.maxY)).toBeLessThanOrEqual(1);
-    expect(await diffFraction(beforeCut, afterCut)).toBeLessThan(0.05);
+    // DM-1977: the seam is checked by ink OVERLAP, not by a whole-crop pixel
+    // diff. The two sides are different rasterizations of the same outlines —
+    // glyph-path fill vs native text — so every glyph edge differs by
+    // construction, and on this face the edges are a large share of the ink.
+    // The old `diffFraction < 0.05` was measuring that antialiasing floor and
+    // exceeded it on BOTH platforms (macOS 0.0529, Linux 0.0645), so it was not
+    // detecting a seam at all.
+    //
+    // Calibrated against a deliberately-shifted control, which is the failure
+    // this assertion exists to catch:
+    //
+    //           exact   1px shift   2px    3px
+    //   macOS   0.614     0.363     0.173  0.123
+    //   Linux   0.864     0.393     0.140  0.125
+    //
+    // 0.5 sits clear of both exact values and clear of every shifted one, so a
+    // one-pixel jump at the cut still fails.
+    const seamIoU = await inkIoU(beforeCut, afterCut);
+    expect(seamIoU, `cut is not seamless — ink overlap ${seamIoU.toFixed(3)}`).toBeGreaterThan(0.5);
   });
 
   // DM-1796 INVERTED THIS TEST, deliberately. It used to assert the old
