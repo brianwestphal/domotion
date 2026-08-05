@@ -187,11 +187,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build dependencies
-        # The container runs as root, so no sudo. FreeType dev headers + a C++17
-        # toolchain; libfreetype.so.6 is already present (Chromium needs it).
+        # The container runs as root, so no sudo. FreeType + fontconfig dev
+        # headers and a C++17 toolchain; libfreetype.so.6 and libfontconfig.so.1
+        # are already present at runtime (Chromium needs both), but the helper
+        # links against them at build time and CMakeLists.txt `find_package`s
+        # Fontconfig, so the -dev packages are both required to configure.
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
       - name: Build the FreeType helper
         run: bash tools/linux-glyph-extractor/build.sh
