@@ -156,6 +156,19 @@ jobs:
           --env tests/output/run-env.json
           --strict --label "linux / features"
       - name: Run browser-driven e2e tests (capture/layout assertions)
+        # DM-1977: `if: always()` so a failure in an EARLIER step cannot hide
+        # this one. It did, for as long as this suite has existed: the baseline
+        # gate above was failing on a stale 104-fixture baseline, a failed step
+        # ends the job, and so `npm run test:e2e` had never once run here. When
+        # it finally did it reported 13 failures across 9 files — none of them
+        # new, all of them invisible until that moment.
+        #
+        # A skipped step reads as green-by-absence in the run summary, which is
+        # the same failure mode as a gate that reports a plausible number for
+        # code that is not running. Running unconditionally makes the job
+        # noisier while those are worked through, and that is the intended
+        # trade: the alternative is not knowing.
+        if: always()
         # The `*.e2e.test.ts` suite (DM-1075) launches Chromium and asserts
         # capture/render behavior directly (segment positions, external SVG
         # refs) rather than via the perceptual visual diff — which is too
