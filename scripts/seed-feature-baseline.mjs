@@ -58,6 +58,33 @@ for (const r of results.sort((a, b) => a.name.localeCompare(b.name))) {
   if (r.skipped) skipped++; else if (r.pass) pass++; else fail++;
 }
 
+// DM-1972: record WHICH CONFIGURATION produced these numbers, not just which
+// commit. The Linux fidelity gate spent months scoring a helper-absent render
+// path while the declared-family matcher lived behind the helper, and nothing
+// in the baseline said so — a baseline that does not name its configuration
+// cannot be checked against the job that consumes it.
+//
+// `--helper yes|no` is deliberately explicit rather than probed: this script
+// usually runs on a developer's Mac against a CI artifact, so probing the LOCAL
+// machine would record the wrong host's answer with full confidence.
+const helper = arg("--helper", null);
+if (helper != null && helper !== "yes" && helper !== "no") {
+  console.error(`seed-feature-baseline: --helper must be "yes" or "no", got ${helper}`);
+  process.exit(2);
+}
+
+// The richer environment fingerprint diff-against-baseline.mjs compares against
+// (scripts/run-env.mjs). Without it the comparator can only say "the baseline
+// predates environment recording" and cannot tell an OS-image rotation from a
+// code change — which has cost this project five wrong attributions on one
+// fixture.
+const envPath = arg("--env", null);
+let env = null;
+if (envPath != null) {
+  try { env = JSON.parse(readFileSync(envPath, "utf8")); }
+  catch { console.error(`seed-feature-baseline: could not read --env ${envPath}; recording without it`); }
+}
+
 const baseline = {
   meta: {
     suite: "features",
@@ -65,6 +92,8 @@ const baseline = {
     image,
     commit,
     capturedAt: doc.generatedAt ?? null,
+    ...(helper != null ? { helper: helper === "yes" } : {}),
+    ...(env != null ? { env } : {}),
     counts: { total: results.length, pass, fail, skipped },
   },
   fixtures,

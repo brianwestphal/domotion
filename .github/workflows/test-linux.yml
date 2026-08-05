@@ -138,11 +138,22 @@ jobs:
         # platform residuals (e.g. background-clip-text-nested-child-wraps DM-1420,
         # mathml-mi-greek-italic) don't block, but any NEW regression does.
         run: npm run demos:test || true
+      - name: Record run environment
+        # DM-1972: the fingerprint the comparator uses to say "this run was
+        # measured in a DIFFERENT environment than the baseline" BEFORE any
+        # count is read. Without it the report can only note that the baseline
+        # predates environment recording, and an image rotation reads as a code
+        # change — which has cost five wrong attributions on a single fixture.
+        # Uploaded too, so the next re-seed can carry it into the baseline
+        # (`scripts/seed-feature-baseline.mjs --env`).
+        if: always()
+        run: node scripts/run-env.mjs tests/output/run-env.json
       - name: Gate vs committed Linux baseline (regressions only, DM-1405)
         run: >
           node scripts/diff-against-baseline.mjs
           --results tests/output/features-results.json
           --baseline tests/baselines/features-linux.json
+          --env tests/output/run-env.json
           --strict --label "linux / features"
       - name: Run browser-driven e2e tests (capture/layout assertions)
         # The `*.e2e.test.ts` suite (DM-1075) launches Chromium and asserts
@@ -162,6 +173,7 @@ jobs:
           path: |
             tests/output/*.png
             tests/output/features-results.json
+            tests/output/run-env.json
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

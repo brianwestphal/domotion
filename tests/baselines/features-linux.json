@@ -3,11 +3,12 @@
     "suite": "features",
     "os": "linux",
     "image": "playwright-noble",
-    "commit": "8e9bcdfe7ed8b0fc7f58670e658f4a8b7d9d1720",
-    "capturedAt": "2026-07-27T23:39:45.915Z",
+    "commit": "e3a6722",
+    "capturedAt": "2026-08-05T02:53:47.804Z",
+    "helper": true,
     "counts": {
-      "total": 104,
-      "pass": 103,
+      "total": 114,
+      "pass": 113,
       "fail": 1,
       "skipped": 0
     }
@@ -16,15 +17,15 @@
     "background-clip-text-inherited-from-ancestor": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.2768783612322238,
-      "worstTilePct": 1.0566328382946566,
+      "diffPct": 0.27624693043895443,
+      "worstTilePct": 1.0544681471764554,
       "regionCount": 0
     },
     "background-clip-text-nested-child-wraps": {
       "pass": false,
       "skipped": false,
-      "diffPct": 1.614080252228201,
-      "worstTilePct": 3.3142452045169914,
+      "diffPct": 1.6130390301542286,
+      "worstTilePct": 3.3116256323582736,
       "regionCount": 3
     },
     "bg-conic-checkerboard": {
@@ -184,8 +185,8 @@
     "comp-badge": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.013729654580844339,
-      "worstTilePct": 0.2172525838461433,
+      "diffPct": 0.013832668586462288,
+      "worstTilePct": 0.22235107785869662,
       "regionCount": 0
     },
     "comp-button": {
@@ -205,7 +206,7 @@
     "comp-card-badge": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.42121686460218927,
+      "diffPct": 0.4223794646130854,
       "worstTilePct": 0.6371902783905796,
       "regionCount": 0
     },
@@ -226,7 +227,7 @@
     "comp-input-button": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.553316461662534,
+      "diffPct": 0.5605071526213576,
       "worstTilePct": 1.391865476208003,
       "regionCount": 0
     },
@@ -254,8 +255,8 @@
     "counter-style-cyclic-and-prefixed-numeric": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.05773001508295637,
-      "worstTilePct": 0.46693091299019557,
+      "diffPct": 0.011656297134238306,
+      "worstTilePct": 0.13241038602941174,
       "regionCount": 0
     },
     "filter-passthrough": {
@@ -277,6 +278,13 @@
       "skipped": false,
       "diffPct": 0,
       "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "float-paint-order-context-wide": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.7992211404932268,
+      "worstTilePct": 4.305237488360944,
       "regionCount": 0
     },
     "form-controls": {
@@ -324,8 +332,8 @@
     "inline-box-decoration-break": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.9836557639025658,
-      "worstTilePct": 3.817345302181016,
+      "diffPct": 1.0057293558141853,
+      "worstTilePct": 3.4092605253208648,
       "regionCount": 0
     },
     "inline-svg-css-var-attr": {
@@ -391,11 +399,18 @@
       "worstTilePct": 1.150666530910342,
       "regionCount": 0
     },
+    "lineheight-residual": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.5336801999027171,
+      "worstTilePct": 3.2117874938573787,
+      "regionCount": 0
+    },
     "mask-border-gradient-source": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0,
-      "worstTilePct": 0,
+      "diffPct": 0.011579113636194432,
+      "worstTilePct": 0.07769421043464174,
       "regionCount": 0
     },
     "mask-element-ref": {
@@ -415,15 +430,15 @@
     "mathml-mi-greek-italic": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.42223845856112713,
-      "worstTilePct": 1.827356139571306,
+      "diffPct": 0.3728198773698374,
+      "worstTilePct": 1.4820207335978102,
       "regionCount": 1
     },
     "mathml-mi-italic-letters": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.18318628281317725,
-      "worstTilePct": 2.576057102060305,
+      "diffPct": 0.12829037605552548,
+      "worstTilePct": 1.804083413280827,
       "regionCount": 0
     },
     "multi-column-block-decoration-clone": {
@@ -492,14 +507,14 @@
     "pseudo-before-checkmark-rotated": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.5601405865059632,
-      "worstTilePct": 1.7976901948968216,
+      "diffPct": 0.34224805840343697,
+      "worstTilePct": 1.1218398536775003,
       "regionCount": 0
     },
     "pseudo-before-gradient-badge": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.1295702196387665,
+      "diffPct": 0.13341285673848424,
       "worstTilePct": 0.538980124961064,
       "regionCount": 0
     },
@@ -513,7 +528,7 @@
     "pseudo-before-rotated-gradient-badge": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.1516988009197662,
+      "diffPct": 0.15050948609793732,
       "worstTilePct": 1.2032886679446637,
       "regionCount": 0
     },
@@ -590,8 +605,15 @@
     "text-bg-clip-gradient": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.1461150912896758,
-      "worstTilePct": 0.377102743876629,
+      "diffPct": 0.14586806565094002,
+      "worstTilePct": 0.3739012543145803,
+      "regionCount": 0
+    },
+    "text-bidi-override-rtl": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.4860191268119103,
+      "worstTilePct": 2.421599742997132,
       "regionCount": 0
     },
     "text-bold": {
@@ -611,8 +633,29 @@
     "text-decorations": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.6062031344546217,
-      "worstTilePct": 2.954413811161386,
+      "diffPct": 0.5997606885340945,
+      "worstTilePct": 2.626933657407194,
+      "regionCount": 0
+    },
+    "text-feature-settings-liga-off": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 1.1496843544839603,
+      "worstTilePct": 2.768260956509128,
+      "regionCount": 0
+    },
+    "text-font-stretch-underline": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.7027345541528409,
+      "worstTilePct": 2.231918021471114,
+      "regionCount": 0
+    },
+    "text-font-variant-emoji": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.40859055449525294,
+      "worstTilePct": 1.7107143629538104,
       "regionCount": 0
     },
     "text-inline-mixed": {
@@ -625,8 +668,8 @@
     "text-mixed-script": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.6512324943377473,
-      "worstTilePct": 1.6379340544133252,
+      "diffPct": 0.6328363696252276,
+      "worstTilePct": 1.68050875451101,
       "regionCount": 0
     },
     "text-mono": {
@@ -639,8 +682,15 @@
     "text-multiline": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.2807533643243146,
-      "worstTilePct": 3.707399970586612,
+      "diffPct": 0.2600859190472461,
+      "worstTilePct": 3.3699131582157906,
+      "regionCount": 0
+    },
+    "text-noncharacter-tofu": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.17837571796516494,
+      "worstTilePct": 1.7051510895989053,
       "regionCount": 0
     },
     "text-pre-multiline": {
@@ -650,11 +700,25 @@
       "worstTilePct": 1.872618731234869,
       "regionCount": 0
     },
+    "text-private-use-tofu": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.15048215324283026,
+      "worstTilePct": 1.1490369990406228,
+      "regionCount": 0
+    },
     "text-right": {
       "pass": true,
       "skipped": false,
       "diffPct": 0.17591555728778085,
       "worstTilePct": 2.6524855250616137,
+      "regionCount": 0
+    },
+    "text-rtl-in-ltr-line": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.5303869374794752,
+      "worstTilePct": 2.1027028812888418,
       "regionCount": 0
     },
     "text-small": {
@@ -663,6 +727,13 @@
       "diffPct": 0.047651018887152084,
       "worstTilePct": 0.47281803020654684,
       "regionCount": 0
+    },
+    "text-system-ui-cjk-fallback": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.030687473649085313,
+      "worstTilePct": 0.46200081839422513,
+      "regionCount": 1
     },
     "transform-scale-flex-descendants": {
       "pass": true,
@@ -737,8 +808,8 @@
     "zoom-scaled-card-text": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01674925780685322,
-      "worstTilePct": 0.07059151159108275,
+      "diffPct": 0.010674310875060228,
+      "worstTilePct": 0.036219013230182395,
       "regionCount": 0
     }
   }
