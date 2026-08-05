@@ -139,6 +139,40 @@ describe("project conventions", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * DM-1979: opening a URL goes through `openInBrowser`, never a hardcoded
+   * platform binary.
+   *
+   * `tests/review-server.tsx` used to call `spawn("open", …)` directly, wrapped
+   * in a try/catch. On Linux and Windows `open` does not exist, and a missing
+   * binary surfaces as an ASYNCHRONOUS `error` event on the child rather than a
+   * synchronous throw — so the catch never ran, the event had no listener, and
+   * Node escalated it to an uncaught exception. The server printed its URL from
+   * inside `listen` and then died, which from the outside is an unexplained
+   * connection refused. `npm run demos:review` was unusable on any non-macOS
+   * machine, and it silently took down the only browser-side test of either
+   * kerf client UI, whose failure then read as a reconciler bug.
+   *
+   * Text-matched rather than AST-matched on purpose: the defect IS the literal,
+   * and a structural pattern would have to enumerate `spawn` / `spawnSync` /
+   * `execFile` / `execFileSync` to say the same thing. Comments are stripped
+   * first — without that, the fix's own explanatory comment (which quotes the
+   * offending call) trips the guard, which is a false positive that would teach
+   * the next reader to weaken the pattern. `src/cli/common.ts` is excluded
+   * because it is where the three platform branches legitimately live.
+   */
+  it("opens URLs through the shared platform-aware helper, not a hardcoded `open` (DM-1979)", () => {
+    const opener = /(?:spawn|execFile)(?:Sync)?\s*\(\s*["'](?:open|xdg-open|start)["']/;
+    const stripComments = (s: string): string =>
+      s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const scan = [...srcFiles(), resolve(ROOT, "tests", "review-server.tsx")];
+    const offenders = scan
+      .filter((f) => f !== resolve(ROOT, "src", "cli", "common.ts"))
+      .filter((f) => opener.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(ROOT.length + 1));
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("feature-coverage manifest (DM-1459)", () => {

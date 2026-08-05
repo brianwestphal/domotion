@@ -35,7 +35,7 @@ import { readFileSync, existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, 
 import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
-import { spawn, execFile } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 // DM-1667: gh runs ASYNC (promisified execFile) — NOT execFileSync, which blocks
@@ -44,6 +44,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const GH_OPTS = { maxBuffer: 32 * 1024 * 1024 } as const;
 import { raw } from "kerfjs";
+import { openInBrowser } from "../src/cli/common.js";
 import * as esbuild from "esbuild";
 
 // ── Paths ──
@@ -1117,8 +1118,24 @@ async function main(): Promise<void> {
     console.log(`  ${url}`);
     console.log(`  (toggle source in the header · Ctrl+C to stop)`);
     // REVIEW_NO_OPEN skips the browser auto-open (used by the e2e test).
+    //
+    // DM-1979: this used to be a bare `spawn("open", …)` wrapped in try/catch,
+    // which KILLED THE SERVER on Linux and Windows. `open` is macOS-only, and a
+    // missing binary surfaces as an asynchronous `error` event on the child, not
+    // as a synchronous throw — so the `catch` never ran, the event had no
+    // listener, and Node turned it into an uncaught exception. The server
+    // printed its URL from inside `listen` and then died, which reads from the
+    // outside as a connection refused with no explanation. `npm run
+    // demos:review` was unusable on any non-macOS machine, and it took down the
+    // only browser-side test of either kerf client UI, whose failure looked like
+    // a reconciler bug.
+    //
+    // `openInBrowser` is the shared platform-aware opener the `svg-review` and
+    // `svg-scrubber` bins already use (`open` / `cmd /c start` / `xdg-open`),
+    // and it awaits, so a missing opener is a rejected promise rather than a
+    // process-level event.
     if (process.env.REVIEW_NO_OPEN == null || process.env.REVIEW_NO_OPEN === "") {
-      try { spawn("open", [url], { stdio: "ignore", detached: true }).unref(); } catch { /* manual open works */ }
+      void openInBrowser(url);
     }
   });
 }
