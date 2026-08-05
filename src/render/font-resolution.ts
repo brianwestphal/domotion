@@ -4993,8 +4993,51 @@ export function getFontInstance(
         resolveFaceInfoForFile(spec.path, spec.postscriptName).instanceAxes,
         font.variationAxes)
     : null;
-  const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings, wdthStretch,
-    darwinDeclaredAxisPath ? { faceAxes: fontkitFaceAxes, cssWghtPin: false } : undefined);
+  // On Linux, Blink applies NO variation coordinates to a system font AT ALL —
+  // not the CSS weight, not opsz-from-font-size, not wdth, not slnt, not even
+  // author font-variation-settings. `FontCache::CreateFontPlatformData` on the
+  // !IS_WIN path (`skia/font_cache_skia.cc:299-358`, rev 7d859f27) constructs
+  // the FontPlatformData straight from the typeface `matchFamilyStyle`
+  // returned; the only `makeClone` sites in platform/fonts are the webfont
+  // path (`font_custom_platform_data.cc:233`) and mac
+  // (`font_platform_data_mac.mm:199`), and the only VariationSettings()
+  // consumer outside those is the mac font cache. The shaping side just READS
+  // the typeface's existing design position (`harfbuzz_face.cc:571-584`,
+  // `getVariationDesignPosition` → `hb_font_set_variations`). So the face
+  // fontconfig matched — for a variable file, the fvar NAMED INSTANCE its
+  // FC_INDEX tells FreeType to load — IS the face, at that instance's own
+  // coordinates. Measured in the noble container (Lexend VF, wght [100..900],
+  // 100px): CSS 450 paints the Regular instance (847.000px), byte-identical
+  // to CSS 400 — not the wght=450 interpolation (853.969px) the CSS pin
+  // produced — and every other weight lands on a named instance (Thin
+  // 776.313 … Black 915.406), never between two.
+  const linuxSystemAxisPath = process.platform === "linux";
+  const linuxInstanceAxes = linuxSystemAxisPath
+      && font?.variationAxes != null && Object.keys(font.variationAxes).length > 0
+    ? resolveFaceInfoForFile(spec.path, spec.postscriptName).instanceAxes ?? null
+    : null;
+  let instance: FontInstance;
+  if (linuxSystemAxisPath) {
+    // The named instance the resolved PostScript name denotes, or the file's
+    // default master when the matched face IS the base (or the file is
+    // static). Mirrors FreeType loading the named instance by index.
+    instance = font;
+    if (linuxInstanceAxes != null && font.getVariation != null) {
+      try {
+        const v = font.getVariation({ ...linuxInstanceAxes });
+        // Same broken-variation probe as applyVariationAxes: a WOFF2-style
+        // instance that can't expose its parent's tables falls back to the
+        // base face rather than crashing downstream.
+        if ((v as any).unitsPerEm != null) {
+          (v as any)._appliedVariationAxes = clampAxesToFvarRange({ ...linuxInstanceAxes }, font.variationAxes ?? {});
+          instance = v;
+        }
+      } catch { /* keep the base face */ }
+    }
+  } else {
+    instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings, wdthStretch,
+      darwinDeclaredAxisPath ? { faceAxes: fontkitFaceAxes, cssWghtPin: false } : undefined);
+  }
   // DM-1693: expose the static face's natural weight + whether a variable wght
   // axis was baked, so the embedded-font path can decide faux-bold. Read from
   // the ORIGINAL fontkit Font (`font`) — `instance` may be a variation instance
@@ -5005,13 +5048,25 @@ export function getFontInstance(
   if (typeof usWeight === "number" && usWeight >= 1 && usWeight <= 1000) {
     instance.naturalWeight = usWeight;
   }
+  // Linux named-instance case: the face's natural weight is the INSTANCE's
+  // wght coordinate, not the base master's OS/2 value. Blink's Linux
+  // synthetic-bold delta (`font_description.Weight() > 200 +
+  // typeface->fontStyle().weight()`, `skia/font_cache_skia.cc:333-339`) asks
+  // the matched typeface, whose style weight is the fontconfig pattern's —
+  // the named instance's — so a real Bold instance at CSS 700 must read as
+  // weight 700 here or the delta would faux-embolden ink that is already bold.
+  if (linuxInstanceAxes?.wght != null && linuxInstanceAxes.wght >= 1 && linuxInstanceAxes.wght <= 1000) {
+    instance.naturalWeight = linuxInstanceAxes.wght;
+  }
   // `hasWeightAxis` gates faux-bold OFF on the premise that the wght axis was
   // instanced at the requested weight. On the darwin declared path it no
-  // longer is (the weight lives in WHICH face the matcher picked), so the flag
-  // is only honest when the CSS pin actually drove the axis — otherwise the
-  // synthetic-bold rule must consult the face's own bold trait, which is
-  // Chrome's mac rule (`Weight() > 500 && !(traits & kCTFontTraitBold)`).
-  instance.hasWeightAxis = font?.variationAxes?.wght != null && !darwinDeclaredAxisPath;
+  // longer is (the weight lives in WHICH face the matcher picked), and on the
+  // Linux system path the axis is never CSS-driven at all (the fontconfig-
+  // matched named instance is the face), so the flag is only honest when the
+  // CSS pin actually drove the axis — otherwise the synthetic-bold rule must
+  // consult the face itself (mac: the bold trait; Linux: the weight delta
+  // against the matched face's weight).
+  instance.hasWeightAxis = font?.variationAxes?.wght != null && !darwinDeclaredAxisPath && !linuxSystemAxisPath;
   // The face's BOLD trait, which the macOS and Windows synthetic-bold rules
   // both test. Read from the ORIGINAL fontkit Font for the same reason the
   // weight fields above are: a variation instance's OS/2 reflects the base face.
@@ -5510,6 +5565,16 @@ export function __resolveFaceInfoForFileForTest(path: string, postscriptName?: s
   return resolveFaceInfoForFile(path, postscriptName);
 }
 
+/** Test-only dynamic-font registration (not part of the package's public
+ *  barrel): lets a platform-gated test point a `sysfb:`-style key at a font
+ *  file it wrote itself — e.g. a variable TTF on a Linux host whose system
+ *  inventory ships none — and then drive the real `getFontInstance` path. */
+export function __registerDynamicSystemFontForTest(
+  key: string, path: string, postscriptName: string,
+): void {
+  registerDynamicSystemFont(key, path, postscriptName, "fontkit");
+}
+
 /**
  * The file + collection member HarfBuzz should open to shape with `fontKey`, or
  * null when there is no file to open.
@@ -5558,8 +5623,17 @@ export function shapingFaceFor(
   // that happen to coincide today is exactly the shape of bug this area keeps
   // producing. `fileAxes` is null when the requested name is not a physical
   // member, and then no location is derived from a face nobody asked for.
-  const axes = info.fileAxes != null && weight != null && fontSize != null
-    ? (process.platform === "darwin" && !isDarwinSystemUiAxisKey(fontKey)
+  const axes = info.fileAxes != null
+    ? (process.platform === "linux"
+      // The Linux system-font derivation: Blink applies NO variation
+      // coordinates there (`skia/font_cache_skia.cc:299-358` builds the
+      // FontPlatformData straight from the fontconfig-matched typeface), so
+      // the shaper sits on the named instance the resolved PostScript name
+      // denotes — or the default master — exactly like the outline path.
+      ? (info.instanceAxes != null ? { ...info.instanceAxes } : null)
+      : weight == null || fontSize == null
+      ? null
+      : process.platform === "darwin" && !isDarwinSystemUiAxisKey(fontKey)
       // The darwin declared/fallback derivation — the face's own coordinates
       // plus the opsz/font-variation-settings clone pins, never a CSS-valued
       // `wght`. Must stay the same derivation `getFontInstance` uses (that is
