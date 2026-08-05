@@ -252,6 +252,27 @@ with its 400/500 search-band rules and family-bounds thresholds) against the
 declared range — an auto face selects as exactly normal weight `[400, 400]` —
 after stretch and style, per `IsBetterMatchForRequest` order.
 
+**A declared descriptor also decides SYNTHETIC BOLD, and by a platform-independent
+rule** — not by any of the three per-platform system-font predicates. Blink composes
+it from two places. `CSSSegmentedFontFace::GetFontData`
+(`core/css/css_segmented_font_face.cc:116-119`) sets the bold flag from
+`capabilities.weight.maximum < kBoldThreshold (600) && request.weight >= 600`, where
+the capabilities are the DESCRIPTOR's — an absent descriptor is `[400, 400]`, never
+the font's axis range. `FontCustomPlatformData::GetFontPlatformData`
+(`font_custom_platform_data.cc:129-154, 289-293`) then keeps `synthetic_bold = bold`
+untouched on the declared-descriptor branch, exempts only an AUTO-descriptor variable
+face whose `wght` axis maximum exceeds 400 (`has_bold_variations`), and finally gates
+on the buffer's own boldness (`&& !base_typeface_->isBold()`, i.e. the buffer's OS/2
+weight < 600). `registerWebfont` snapshots those three facts into
+`WebfontVariant.synthesisFace`, the pickers stamp them onto the resolved
+`FontInstance.webfontFace`, and `webfontSyntheticBold(face, requestedWeight)` runs the
+rule at the faux-bold seam. So the SAME variable file paints plain at request 700 with
+no descriptor (axis instanced to 700) and emboldened-at-wght-400 when it declares
+`font-weight: 400`. CDP + 1× ink measured at 100 px `Hamburgefonstiv`: Lexend VF
+declared 400 requested 700 paints `Lexend-Regular` at advance 847.000 — the same face
+name and the same advance as its 400 control — with ink 25951.4 vs 21568.9 (+20.3%),
+so neither the reported face nor the width can observe this; only ink can.
+
 The darwin fontkit path therefore pins
 the FACE's own coordinates (`darwinFaceOwnAxes`: the CoreText handle position
 the family/fallback query reported — `FontPath.ctAxes` — or the fvar named
@@ -535,8 +556,10 @@ flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
     W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) +<br/>weight distance (Blink WeightDistance, vs the<br/>font-weight DESCRIPTOR caps; auto = [400,400])"]
     W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
+    W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold}<br/>→ webfontSyntheticBold() at the faux-bold seam<br/>(css_segmented_font_face.cc:116-119 +<br/>font_custom_platform_data.cc:129-154, 289-293)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
     P1 --> P2["score by (stretch distance, italic,<br/>weight distance vs caps) → best"]
+    P2 --> W3
   end
   subgraph LA["localFontAliasRegistry — @font-face src: local()"]
     LA0["pickLocalFontAliasVariant(family, weight, italic)"] --> LA1["score declared variants →<br/>baseKey (e.g. 'georgia') + declared weight/italic<br/>(preserves Chrome's 'no bold-italic declared →<br/>use italic 400 + synthesize' behavior)"]
@@ -849,7 +872,8 @@ Notes:
 
   The proxy exposes a fixed property set, so `carryFontInstanceMetadata` copies
   the facts the embedded-font path reads off a resolved instance
-  (`naturalWeight` / `faceIsBoldTrait` for synthetic bold, `resolvedItalicAngle`
+  (`naturalWeight` / `faceIsBoldTrait` — or `webfontFace`, for a run resolved
+  through the `@font-face` registry — for synthetic bold, `resolvedItalicAngle`
   / `isRoutedItalicCut` for synthetic oblique, `postscriptName`) plus its
   `fontSourceMap` entry — without which two optical instances of one face
   collapse into a single embedded TTF.
@@ -1993,11 +2017,27 @@ at the requested weight, Chrome emboldens the outline algorithmically (Skia
 weight — would otherwise paint the thin natural outline with no synthesis. So
 `renderTextAsEmbedded` bakes the same dilation into the outline via
 `emboldenPathCommands` (`src/render/embolden-outline.ts`, a faithful float port
-of FreeType's `FT_Outline_EmboldenXY`) before `trackGlyphInEmbedFont`. The bake
-fires when `requestedWeight − FontInstance.naturalWeight > 200` and no variable
-`wght` axis carries the weight (`FontInstance.hasWeightAxis`), both populated in
-`getFontInstance`. Most visible on Linux, where `system-ui`/CJK resolve to
-single-weight faces (WenQuanYi Zen Hei = 500). **Gated OFF for
+of FreeType's `FT_Outline_EmboldenXY`) before `trackGlyphInEmbedFont`.
+
+WHEN it fires depends on where the face came from, and the two answers are
+genuinely different rules rather than one rule with a special case:
+
+- **System fonts** — per-platform, because Blink's predicate is per-platform. macOS
+  `Weight() > 500 && !(traits & kCTFontTraitBold)` (`mac/font_cache_mac.mm:424-427`);
+  Windows `Weight() >= 600 && !typeface->isBold()` (`win/font_cache_skia_win.cc:486-488`);
+  Linux the DELTA `Weight() > 200 + typeface weight` (`skia/font_cache_skia.cc:333-339`),
+  which is `FAUX_BOLD_WEIGHT_DELTA`. Read from `FontInstance.naturalWeight` /
+  `faceIsBoldTrait` / `hasWeightAxis`, all populated in `getFontInstance`. Most
+  visible on Linux, where `system-ui`/CJK resolve to single-weight faces
+  (WenQuanYi Zen Hei = 500).
+- **Webfonts** — `webfontSyntheticBold(FontInstance.webfontFace, requestedWeight)`,
+  platform-independent, decided by the `@font-face` `font-weight` descriptor rather
+  than by the file (see the descriptor section above). A webfont run never reaches
+  the per-platform branch: `naturalWeight` / `faceIsBoldTrait` are set only on the
+  system-font path, so before this branch existed a webfont could not synthesize at
+  all.
+
+**Gated OFF for
 `-webkit-text-stroke` runs:** Chrome emboldens in device space (post-hinting), we
 bake in design space — coverage matches, but a ~1px edge residual that a
 high-contrast stroke would trace is left for stroked heavy text (see doc 52).

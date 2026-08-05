@@ -42,6 +42,27 @@ export * from "./win-font-fallback.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
+/**
+ * The three per-variant constants Blink's WEBFONT synthetic-bold rule reads.
+ * All three are properties of the registered `@font-face` variant, not of the
+ * run — the requested weight is the only per-run input, and it is the argument
+ * to `webfontSyntheticBold`.
+ */
+export interface WebfontSynthesisFace {
+  /** The `@font-face` `font-weight` DESCRIPTOR as selection capabilities
+   *  `[min, max]`, or null when the descriptor is auto/absent. Null does NOT
+   *  mean "no capabilities": an auto descriptor SELECTS as exactly normal
+   *  weight `[400, 400]`, so the distinction only changes whether the
+   *  variable-axis exemption below is allowed to fire. */
+  declaredWeightCaps: readonly [number, number] | null;
+  /** The buffer's own `wght` fvar axis maximum, or null when the buffer
+   *  exposes no `wght` axis (a static face). */
+  wghtAxisMax: number | null;
+  /** Whether the BASE buffer declares itself bold — Skia's
+   *  `SkTypeface::isBold()`, i.e. the face's own style weight ≥ 600. */
+  baseIsBold: boolean;
+}
+
 export interface FontInstance {
   /**
    * DM-1894: `script`/`language`/`direction` mirror fontkit's own signature, and
@@ -100,6 +121,12 @@ export interface FontInstance {
    * readable, and callers fall back to the weight comparison.
    */
   faceIsBoldTrait?: boolean;
+  /** Set on instances resolved through the `@font-face` webfont registry, and
+   *  ONLY there. Carries the three per-variant constants Blink's webfont
+   *  synthetic-bold rule reads — see `webfontSyntheticBold`, which is a
+   *  DIFFERENT rule from the per-platform system-font predicates and must not
+   *  be conflated with them. */
+  webfontFace?: WebfontSynthesisFace;
   /** The resolved face's `post.italicAngle` in degrees (0 for an upright face,
    *  negative for a right-leaning italic). Drives the embedded-mode faux-italic
    *  decision (DM-1695): when italic is requested but the resolved face is
@@ -191,6 +218,11 @@ interface WebfontVariant {
    *  range. The legacy `weight` field above remains the scoring scalar for
    *  report rows; selection and instancing consult THIS. */
   weightCaps?: readonly [number, number];
+  /** Snapshot of the three per-variant constants Blink's webfont
+   *  synthetic-bold rule reads (see `webfontSyntheticBold`). Computed once at
+   *  registration from the opened buffer, because all three are properties of
+   *  the FACE, not of the run. */
+  synthesisFace?: WebfontSynthesisFace;
 }
 const webfontRegistry = new Map<string, WebfontVariant[]>();
 
@@ -378,7 +410,8 @@ export function registerWebfont(family: string, weight: number, style: string, b
   // on-disk source path — they came down from a CDN during capture).
   list.push({ weight, italic, font, unicodeRange, buffer,
     ...(stretchCaps != null ? { stretch: stretchCaps } : {}),
-    ...(weightCaps != null ? { weightCaps } : {}) });
+    ...(weightCaps != null ? { weightCaps } : {}),
+    synthesisFace: buildWebfontSynthesisFace(font, weightCaps) });
   webfontRegistry.set(key, list);
 }
 
@@ -455,6 +488,118 @@ export function parseFontWeightDescriptor(value: string | undefined): readonly [
   const b = parseFloat(m[2]);
   if (!Number.isFinite(b) || b < 1 || b > 1000) return undefined;
   return a < b ? [a, b] : [b, a];
+}
+
+/** Blink's `kBoldThreshold` — the weight at or above which a run counts as a
+ *  bold REQUEST (`platform/fonts/font_selection_types.h:182`, rev 7d859f27).
+ *  600, not 700, and not the 500 the macOS SYSTEM-font rule uses. */
+const BLINK_BOLD_THRESHOLD = 600;
+/** Blink's `kNormalWeightValue` (`font_selection_types.h:201`, rev 7d859f27). */
+const BLINK_NORMAL_WEIGHT = 400;
+
+/**
+ * Whether Chrome paints a WEBFONT run synthetic-bold. This is a different rule
+ * from the per-platform system-font predicates in `text-to-path.ts`, and it is
+ * platform-INDEPENDENT: it lives entirely in the CSS/webfont layer, which Blink
+ * compiles once for every platform.
+ *
+ * The rule is composed from two places (both verified byte-identical between
+ * the local checkout at rev 7d859f27 and Chromium tag 147.0.7727.15, the
+ * version Playwright pins — only palette-array plumbing differs in the second
+ * file, well away from these lines):
+ *
+ *  1. `CSSSegmentedFontFace::GetFontData` (`core/css/css_segmented_font_face.cc:
+ *     116-119`) decides the `bold` flag handed down:
+ *
+ *         requested_font_description.SetSyntheticBold(
+ *             font_selection_capabilities_.weight.maximum < kBoldThreshold &&
+ *             font_selection_request.weight >= kBoldThreshold &&
+ *             font_description.SyntheticBoldAllowed());
+ *
+ *     Note what the first term reads: the `@font-face` font-weight DESCRIPTOR
+ *     capabilities, NOT the font's axis range. An absent/auto descriptor is
+ *     `[400, 400]` (`core/css/font_face.cc:669-672` builds `normal_capabilities`
+ *     and the auto branch at 870-873 keeps it, flagged `kSetFromAuto`), so an
+ *     auto-descriptor face is a bold-synthesis CANDIDATE for every request
+ *     ≥ 600 — including a variable face whose axis reaches 900.
+ *
+ *  2. `FontCustomPlatformData::GetFontPlatformData`
+ *     (`platform/fonts/font_custom_platform_data.cc:129-154, 289-293`) starts
+ *     from `synthetic_bold = bold` and exempts exactly one case — a VARIABLE
+ *     face (`kVariableTrueType` / `kVariableCFF2`) whose weight capabilities
+ *     were set FROM AUTO and which exposes a valid `wght` axis:
+ *
+ *         bool has_bold_variations = wght_range.maximum > kNormalWeightValue;
+ *         synthetic_bold = bold && !has_bold_variations &&
+ *                          selection_request.weight >= kBoldThreshold;
+ *
+ *     …and finally gates the whole thing on the buffer's own boldness:
+ *
+ *         synthetic_bold && !base_typeface_->isBold()
+ *
+ *     `SkTypeface::isBold()` is `onGetFontStyle().weight() >= kSemiBold_Weight`
+ *     (600) — Skia `src/core/SkTypeface.cpp:491-493`, `include/core/SkFontStyle.h:25`,
+ *     rev ebf5052.
+ *
+ * The DECLARED-descriptor branch never reaches the exemption, which is the
+ * whole point: a variable face declared `font-weight: 400` pins wght = 400 AND
+ * paints emboldened, where the same file with no descriptor instances wght = 700
+ * and paints plain.
+ *
+ * `SyntheticBoldAllowed()` (`font-synthesis-weight: auto`) is not modeled: the
+ * `font-synthesis` property is not captured at all today, so every run is
+ * treated as allowing synthesis — the same assumption the system-font faux-bold
+ * seam already makes.
+ */
+/**
+ * Snapshot the three per-variant constants `webfontSyntheticBold` needs, at
+ * registration time, from the buffer fontkit just opened.
+ *
+ * `wghtAxisMax` is quantized onto the FontSelectionValue quarter grid (16.16
+ * fixed point with two fractional bits, `platform/fonts/font_selection_types.h:
+ * 40-105`) because that is what Blink's `FontSelectionValue(wght_parameters->max)`
+ * does before comparing it to `kNormalWeightValue`; it is null when the buffer
+ * has no `wght` axis, or when the axis range is degenerate (Blink's
+ * `wght_range.IsValid()` guard — an invalid range skips the exemption block
+ * entirely, leaving `synthetic_bold = bold`).
+ *
+ * `baseIsBold` mirrors `SkTypeface::isBold()` on the base typeface: the face's
+ * own declared style weight ≥ 600. `OS/2.usWeightClass` is where that weight
+ * comes from for a font opened from a buffer.
+ */
+function buildWebfontSynthesisFace(font: FontInstance, weightCaps: readonly [number, number] | undefined): WebfontSynthesisFace {
+  const f = font as unknown as {
+    variationAxes?: Record<string, { min?: number; max?: number }>;
+    "OS/2"?: { usWeightClass?: number };
+  };
+  const wght = f.variationAxes?.wght;
+  const rawMin = wght?.min, rawMax = wght?.max;
+  const quantize = (x: number): number => Math.trunc(x * 4) / 4;
+  const wghtAxisMax = wght != null && typeof rawMax === "number" && typeof rawMin === "number" && rawMin <= rawMax
+    ? quantize(rawMax)
+    : null;
+  const usWeight = f["OS/2"]?.usWeightClass;
+  return {
+    declaredWeightCaps: weightCaps ?? null,
+    wghtAxisMax,
+    baseIsBold: typeof usWeight === "number" && usWeight >= BLINK_BOLD_THRESHOLD,
+  };
+}
+
+export function webfontSyntheticBold(face: WebfontSynthesisFace, requestedWeight: number): boolean {
+  // `capabilities.weight` for the matched face: the declared descriptor range,
+  // or normal weight when the descriptor is auto/absent.
+  const caps = face.declaredWeightCaps ?? [BLINK_NORMAL_WEIGHT, BLINK_NORMAL_WEIGHT];
+  const bold = caps[1] < BLINK_BOLD_THRESHOLD && requestedWeight >= BLINK_BOLD_THRESHOLD;
+  if (!bold) return false;
+  // The auto-descriptor variable-face exemption. Only reachable when the
+  // descriptor is auto (`IsRangeSetFromAuto()`) AND the buffer exposes a wght
+  // axis — a declared descriptor keeps `synthetic_bold = bold` untouched.
+  if (face.declaredWeightCaps == null && face.wghtAxisMax != null
+      && face.wghtAxisMax > BLINK_NORMAL_WEIGHT) {
+    return false;
+  }
+  return !face.baseIsBold;
 }
 
 /** True iff `cp` falls in any of the inclusive `[from, to]` intervals. */
@@ -654,8 +799,24 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
-    { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null });
+  return tagWebfontInstance(applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
+    { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null }), best);
+}
+
+/**
+ * Stamp the matched variant's synthetic-bold face constants onto the instance
+ * the renderer will use, so the faux-bold seam can tell a webfont run from a
+ * system-font one (the two obey DIFFERENT Blink rules) without threading the
+ * registry through.
+ *
+ * Mutation is safe here because every field is a per-variant CONSTANT: each
+ * `registerWebfont` call opens its own fontkit `Font`, so no two variants share
+ * an instance, and re-picking the same variant at another weight writes the
+ * same values back.
+ */
+function tagWebfontInstance(instance: FontInstance, variant: WebfontVariant): FontInstance {
+  if (variant.synthesisFace != null) instance.webfontFace = variant.synthesisFace;
+  return instance;
 }
 
 /**
@@ -820,8 +981,8 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
-    { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null });
+  return tagWebfontInstance(applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
+    { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null }), best);
 }
 
 /**
@@ -7408,7 +7569,8 @@ function harfbuzzShapedScriptOverride(
  * metric surface — so everything else a resolved instance carries comes back
  * `undefined` through it. That is harmless for a one-character override and not
  * harmless for a whole run: the embedded-font path reads `naturalWeight` /
- * `faceIsBoldTrait` to decide synthetic bold, `resolvedItalicAngle` /
+ * `faceIsBoldTrait` (or `webfontFace`, for a run resolved through the
+ * `@font-face` registry) to decide synthetic bold, `resolvedItalicAngle` /
  * `isRoutedItalicCut` for synthetic oblique, and looks the instance up in
  * `fontSourceMap` to fold the resolved axis location into the subset key. Losing
  * that last one silently collapses two optical instances of one face into a
@@ -7421,6 +7583,7 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   proxy.naturalWeight = base.naturalWeight;
   proxy.hasWeightAxis = base.hasWeightAxis;
   proxy.faceIsBoldTrait = base.faceIsBoldTrait;
+  proxy.webfontFace = base.webfontFace;
   proxy.resolvedItalicAngle = base.resolvedItalicAngle;
   proxy.hasSlantAxis = base.hasSlantAxis;
   proxy.isRoutedItalicCut = base.isRoutedItalicCut;
