@@ -122,9 +122,36 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
           expect(Math.abs(p!.x - expected.x), `${c.id}@${o} column x`).toBeLessThanOrEqual(1);
           expect(Math.abs((p!.columnWidthPx ?? 0) - expected.w), `${c.id}@${o} column width`).toBeLessThanOrEqual(1);
         }
-        // The caret marches DOWN the column as the offset grows.
+        // The caret marches DOWN the column as the offset grows — but only as
+        // far as CHROME's own caret does.
+        //
+        // DM-1977: this used to assert a strict increase at every offset, which
+        // is a claim about the platform's layout rather than about our
+        // addressing, and Chrome does not satisfy it everywhere. Measured in the
+        // pinned noble container, where `"Hiragino Sans"` is absent and Chrome
+        // falls back to WenQuanYi Zen Hei, its OWN collapsed-range carets for
+        // `縦書きのテスト` are y = 20, 20, 20, 47, 74, 101, 128, 155 — the first
+        // three offsets share a position. Our side reproduced that faithfully
+        // (the ≤1px agreement above passes at every offset) and then failed a
+        // sanity check for tracking Chrome correctly.
+        //
+        // So the invariant is taken from Chrome per step: we must advance
+        // exactly where it advances, and hold exactly where it holds. That is
+        // strictly stronger than the old check on any platform where Chrome IS
+        // monotonic, and it is still meaningful where Chrome is not.
         const ys = Array.from({ length: c.len + 1 }, (_, o) => resolveCaretPoint(tree, { animId: c.id }, o)!.baselineY);
-        for (let i = 1; i < ys.length; i++) expect(ys[i], `${c.id} monotonic @${i}`).toBeGreaterThan(ys[i - 1]);
+        const chromeYs: number[] = [];
+        for (let o = 0; o <= c.len; o++) chromeYs.push((await chromeCaret(page, c.id, o)).y);
+        for (let i = 1; i < ys.length; i++) {
+          if (chromeYs[i] > chromeYs[i - 1]) {
+            expect(ys[i], `${c.id} advances where chrome advances @${i}`).toBeGreaterThan(ys[i - 1]);
+          } else {
+            expect(ys[i], `${c.id} holds where chrome holds @${i}`).toBeCloseTo(ys[i - 1], 0);
+          }
+        }
+        // Guard against the whole check evaporating: SOME offset must advance,
+        // or the text is not being laid out down the column at all.
+        expect(ys[ys.length - 1], `${c.id} advances overall`).toBeGreaterThan(ys[0]);
 
         // A range yields one rect spanning the column and covering the swept
         // stretch, matching Chrome's own client rect.
@@ -139,7 +166,16 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
         expect(Math.abs(r.y - chromeRects[0].y), `${c.id} rect y`).toBeLessThanOrEqual(1);
         expect(Math.abs(r.height - chromeRects[0].h), `${c.id} rect height (ours ${r.height} vs chrome ${chromeRects[0].h})`).toBeLessThanOrEqual(1.5);
         // Edges step DOWNWARD and the last one is the rect's bottom.
-        for (let i = 1; i < r.edges.length; i++) expect(r.edges[i]).toBeGreaterThan(r.edges[i - 1]);
+        //
+        // DM-1977: non-decreasing rather than strictly increasing, for the same
+        // measured reason as the caret sequence above — where the platform's
+        // font puts two logical offsets at one position (WenQuanYi Zen Hei in
+        // the noble container does this for the first characters of the vrl
+        // run), the per-character edges between them coincide. Requiring a
+        // strict step asserted a property of the platform's layout, not of our
+        // addressing. The overall descent is still required, just below.
+        for (let i = 1; i < r.edges.length; i++) expect(r.edges[i]).toBeGreaterThanOrEqual(r.edges[i - 1]);
+        expect(r.edges[r.edges.length - 1], `${c.id} edges descend overall`).toBeGreaterThan(r.edges[0]);
         expect(r.edges[r.edges.length - 1]).toBeCloseTo(r.y + r.height, 5);
       }
     } finally {
