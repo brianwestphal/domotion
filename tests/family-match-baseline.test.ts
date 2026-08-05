@@ -9,9 +9,9 @@
 import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
-  describeRecordedEnvs, readBaselineSet, selectBaseline, writeBaselineSet,
+  FAMILY_MATCH_ENV_KEYS, describeRecordedEnvs, readBaselineSet, selectBaseline, writeBaselineSet,
   type FamilyMatchReport,
 } from "../tools/family-match-baseline.js";
 
@@ -85,5 +85,59 @@ describe("family-match baseline sets", () => {
     expect(lines).toHaveLength(2);
     expect(lines[0]).toContain("arch=arm64");
     expect(lines[1]).toContain("arch=x64");
+  });
+});
+
+// The tests above pin the set SEMANTICS against synthetic fixtures. These pin
+// the COMMITTED FILES, which is a different failure mode and the one that is
+// invisible: when a set loses the entry for an environment the oracle runs in,
+// that comparator silently reverts to refuse-to-judge (exit 3) — which the CI
+// wiring deliberately treats as green. The gate then reports success forever
+// while grading nothing, exactly the shape of the Windows resolver that shipped
+// "default-on" while answering nothing for every codepoint. Nothing else in the
+// tree notices, because a declining gate and a passing gate look identical from
+// outside the job log.
+//
+// Keyed off FAMILY_MATCH_ENV_KEYS rather than a local copy so this asserts the
+// same fingerprint the comparators select on.
+const COMMITTED = [
+  { os: "linux", file: "family-match-linux.json", keys: FAMILY_MATCH_ENV_KEYS.linux },
+  { os: "windows", file: "family-match-windows.json", keys: FAMILY_MATCH_ENV_KEYS.win32 },
+] as const;
+
+describe.each(COMMITTED)("committed $os family-match baseline", ({ file, keys }) => {
+  const entries = readBaselineSet(resolve("tests", "baselines", file));
+
+  it("records at least the local arm64 and the x64 CI environment", () => {
+    // Both oracles run in two places: an arm64 developer environment (Docker on
+    // Apple Silicon / the Parallels VM) and an x64 GitHub runner. An entry per
+    // arch is what makes the gate JUDGE in both rather than decline in one.
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(entries.map((e) => e.meta.env.arch))).toEqual(new Set(["arm64", "x64"]));
+  });
+
+  it("gives every recorded environment an entry that selects itself", () => {
+    // Also proves no two entries share a fingerprint: a duplicate would make
+    // selection order-dependent, and the second copy unreachable.
+    for (const entry of entries) {
+      const picked = selectBaseline(entries, entry.meta.env, keys);
+      expect(picked).not.toBeNull();
+      expect(picked?.meta.capturedAt).toBe(entry.meta.capturedAt);
+    }
+  });
+
+  it("still refuses to judge an environment it has not recorded", () => {
+    // The value of an env-keyed baseline is entirely in this refusal — a set
+    // that matched anything would compare counts across font inventories.
+    const unknown = { ...entries[0].meta.env, fontDigest: "0000000000000000" };
+    expect(selectBaseline(entries, unknown, keys)).toBeNull();
+  });
+
+  it("carries the fingerprint fields its comparator selects on", () => {
+    // A recorded entry missing a key can never match: envMatches compares
+    // undefined against the live value, so the gate would decline forever.
+    for (const entry of entries) {
+      for (const key of keys) expect(entry.meta.env[key]).toBeDefined();
+    }
   });
 });

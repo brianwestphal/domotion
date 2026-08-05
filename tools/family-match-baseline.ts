@@ -40,6 +40,24 @@ interface BaselineSetFile {
   baselines: FamilyMatchReport[];
 }
 
+/**
+ * The fingerprint fields across which a comparison is invalid, per platform —
+ * the single source of truth for both the comparators and the test that pins
+ * the committed files. Kept here rather than in each comparator because a test
+ * carrying its own copy would pin a contract the gate does not enforce: the
+ * keys decide which recorded entry a run selects, so a drifted copy would
+ * assert a baseline arms while the gate declines to judge (or vice versa).
+ *
+ * The two lists differ because the platforms expose different things worth
+ * fingerprinting: Linux's routing is decided by fontconfig, so its version and
+ * the container image are load-bearing; Windows has no fontconfig and its
+ * inventory tracks the OS build.
+ */
+export const FAMILY_MATCH_ENV_KEYS = {
+  linux: ["platform", "arch", "image", "fcVersion", "fontDigest"],
+  win32: ["platform", "arch", "osBuild", "fontDigest"],
+} as const satisfies Record<string, readonly string[]>;
+
 /** All recorded baselines in the file — [] when the file does not exist. */
 export function readBaselineSet(file: string): FamilyMatchReport[] {
   if (!existsSync(file)) return [];

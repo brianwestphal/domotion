@@ -1,38 +1,81 @@
 {
-  "meta": {
-    "suite": "family-match",
-    "os": "windows",
-    "capturedAt": "2026-08-04T02:03:19.349Z",
-    "env": {
-      "platform": "win32",
-      "arch": "arm64",
-      "osBuild": "Microsoft Windows [Version 10.0.26200.8875]",
-      "fontCount": 143,
-      "fontDigest": "797e90249018b793"
+  "format": "family-match-baseline-set/1",
+  "baselines": [
+    {
+      "meta": {
+        "suite": "family-match",
+        "os": "windows",
+        "capturedAt": "2026-08-04T02:03:19.349Z",
+        "env": {
+          "platform": "win32",
+          "arch": "arm64",
+          "osBuild": "Microsoft Windows [Version 10.0.26200.8875]",
+          "fontCount": 143,
+          "fontDigest": "797e90249018b793"
+        },
+        "weights": [
+          100,
+          200,
+          300,
+          350,
+          400,
+          450,
+          500,
+          550,
+          600,
+          700,
+          800,
+          900
+        ]
+      },
+      "summary": {
+        "families": 44,
+        "cases": 528,
+        "scored": 516,
+        "agree": 516,
+        "rejectAgree": 24,
+        "skipped": 12,
+        "misses": 0
+      },
+      "misses": []
     },
-    "weights": [
-      100,
-      200,
-      300,
-      350,
-      400,
-      450,
-      500,
-      550,
-      600,
-      700,
-      800,
-      900
-    ]
-  },
-  "summary": {
-    "families": 44,
-    "cases": 528,
-    "scored": 516,
-    "agree": 516,
-    "rejectAgree": 24,
-    "skipped": 12,
-    "misses": 0
-  },
-  "misses": []
+    {
+      "meta": {
+        "suite": "family-match",
+        "os": "windows",
+        "capturedAt": "2026-08-05T01:18:35.078Z",
+        "env": {
+          "platform": "win32",
+          "arch": "x64",
+          "osBuild": "Microsoft Windows [Version 10.0.26100.33158]",
+          "fontCount": 147,
+          "fontDigest": "c379b2deaaab30c2"
+        },
+        "weights": [
+          100,
+          200,
+          300,
+          350,
+          400,
+          450,
+          500,
+          550,
+          600,
+          700,
+          800,
+          900
+        ]
+      },
+      "summary": {
+        "families": 44,
+        "cases": 528,
+        "scored": 516,
+        "agree": 516,
+        "rejectAgree": 24,
+        "skipped": 12,
+        "misses": 0
+      },
+      "misses": []
+    }
+  ]
 }

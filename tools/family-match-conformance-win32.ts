@@ -58,12 +58,14 @@ import { existsSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
 import { win32FamilySuffixAdjustment } from "../src/render/win32-family-suffix.js";
-import { readBaselineSet, selectBaseline, describeRecordedEnvs, writeBaselineSet } from "./family-match-baseline.js";
+import {
+  FAMILY_MATCH_ENV_KEYS, readBaselineSet, selectBaseline, describeRecordedEnvs, writeBaselineSet,
+} from "./family-match-baseline.js";
 
 const WEIGHTS = [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900] as const;
 const BASELINE = resolve("tests", "baselines", "family-match-windows.json");
 /** Fingerprint fields across which comparison is invalid (env-keyed baselines). */
-const ENV_KEYS = ["platform", "arch", "osBuild", "fontDigest"] as const;
+const ENV_KEYS = FAMILY_MATCH_ENV_KEYS.win32;
 const HELPER = process.env.DOMOTION_HELPER_PATH
   ?? resolve("tools", "win32-glyph-extractor", "domotion-glyph-paths.exe");
 const FONT_DIR = join(process.env.WINDIR ?? "C:\\Windows", "Fonts");

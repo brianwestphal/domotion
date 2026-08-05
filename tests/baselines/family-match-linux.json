@@ -1,39 +1,83 @@
 {
-  "meta": {
-    "suite": "family-match",
-    "os": "linux",
-    "capturedAt": "2026-08-04T01:34:00.894Z",
-    "env": {
-      "platform": "linux",
-      "arch": "arm64",
-      "image": "Ubuntu 24.04.4 LTS",
-      "fcVersion": "fontconfig version 2.15.0",
-      "fontCount": 50,
-      "fontDigest": "c1daf4866d26664d"
+  "format": "family-match-baseline-set/1",
+  "baselines": [
+    {
+      "meta": {
+        "suite": "family-match",
+        "os": "linux",
+        "capturedAt": "2026-08-04T01:34:00.894Z",
+        "env": {
+          "platform": "linux",
+          "arch": "arm64",
+          "image": "Ubuntu 24.04.4 LTS",
+          "fcVersion": "fontconfig version 2.15.0",
+          "fontCount": 50,
+          "fontDigest": "c1daf4866d26664d"
+        },
+        "weights": [
+          100,
+          200,
+          300,
+          350,
+          400,
+          450,
+          500,
+          550,
+          600,
+          700,
+          800,
+          900
+        ]
+      },
+      "summary": {
+        "families": 192,
+        "cases": 2304,
+        "scored": 2292,
+        "agree": 2292,
+        "rejectAgree": 2184,
+        "skipped": 12,
+        "misses": 0
+      },
+      "misses": []
     },
-    "weights": [
-      100,
-      200,
-      300,
-      350,
-      400,
-      450,
-      500,
-      550,
-      600,
-      700,
-      800,
-      900
-    ]
-  },
-  "summary": {
-    "families": 192,
-    "cases": 2304,
-    "scored": 2292,
-    "agree": 2292,
-    "rejectAgree": 2184,
-    "skipped": 12,
-    "misses": 0
-  },
-  "misses": []
+    {
+      "meta": {
+        "suite": "family-match",
+        "os": "linux",
+        "capturedAt": "2026-08-05T01:18:06.322Z",
+        "env": {
+          "platform": "linux",
+          "arch": "x64",
+          "image": "Ubuntu 24.04.4 LTS",
+          "fcVersion": "fontconfig version 2.15.0",
+          "fontCount": 50,
+          "fontDigest": "c1daf4866d26664d"
+        },
+        "weights": [
+          100,
+          200,
+          300,
+          350,
+          400,
+          450,
+          500,
+          550,
+          600,
+          700,
+          800,
+          900
+        ]
+      },
+      "summary": {
+        "families": 192,
+        "cases": 2304,
+        "scored": 2292,
+        "agree": 2292,
+        "rejectAgree": 2184,
+        "skipped": 12,
+        "misses": 0
+      },
+      "misses": []
+    }
+  ]
 }
