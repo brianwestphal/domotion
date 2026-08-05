@@ -181,6 +181,16 @@ interface WebfontVariant {
    *  (`RangeSetFromAuto`) and INSTANCES against the font's own wdth axis
    *  range. */
   stretch?: readonly [number, number];
+  /** The `@font-face` `font-weight` DESCRIPTOR as selection capabilities
+   *  `[min, max]`, per the same `FontFace::GetFontSelectionCapabilities`
+   *  rule (`core/css/font_face.cc:860-930`, rev 7d859f27): `normal` is
+   *  `[400, 400]`, `bold` is `[700, 700]`, a single number is `[v, v]`, a
+   *  two-value range has decreasing endpoints swapped. Undefined =
+   *  descriptor auto/absent, which SELECTS as normal weight `[400, 400]`
+   *  (`RangeSetFromAuto`) and INSTANCES against the font's own wght axis
+   *  range. The legacy `weight` field above remains the scoring scalar for
+   *  report rows; selection and instancing consult THIS. */
+  weightCaps?: readonly [number, number];
 }
 const webfontRegistry = new Map<string, WebfontVariant[]>();
 
@@ -341,8 +351,15 @@ export function getEmbeddedFontFaceCss(): string {
  * `stretch` is the raw `@font-face { font-stretch: ... }` descriptor value
  * ("condensed", "75%", "50% 100%"); omitted/"auto"/unparseable registers the
  * variant with auto capabilities. See `parseFontStretchDescriptor`.
+ *
+ * `weightDesc` is the raw `@font-face { font-weight: ... }` descriptor value
+ * ("bold", "700", "300 500"); omitted/"auto"/unparseable registers the
+ * variant with auto weight capabilities. The scalar `weight` parameter stays
+ * as the legacy pre-collapsed number (the capture side's
+ * `parseWeightDescriptor`) for report rows; selection and instancing use the
+ * descriptor capabilities. See `parseFontWeightDescriptor`.
  */
-export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>, stretch?: string): void {
+export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>, stretch?: string, weightDesc?: string): void {
   const key = family.toLowerCase().replace(/^["']|["']$/g, "");
   let font: FontInstance;
   try {
@@ -355,10 +372,13 @@ export function registerWebfont(family: string, weight: number, style: string, b
   const italic = style != null && style !== "" && style.toLowerCase() !== "normal";
   const list = webfontRegistry.get(key) ?? [];
   const stretchCaps = parseFontStretchDescriptor(stretch);
+  const weightCaps = parseFontWeightDescriptor(weightDesc);
   // DM-652: retain the raw buffer so embedded-font mode can `@font-face`
   // it as a `data:` URI without re-reading from disk (webfonts have no
   // on-disk source path — they came down from a CDN during capture).
-  list.push({ weight, italic, font, unicodeRange, buffer, ...(stretchCaps != null ? { stretch: stretchCaps } : {}) });
+  list.push({ weight, italic, font, unicodeRange, buffer,
+    ...(stretchCaps != null ? { stretch: stretchCaps } : {}),
+    ...(weightCaps != null ? { weightCaps } : {}) });
   webfontRegistry.set(key, list);
 }
 
@@ -399,6 +419,41 @@ export function parseFontStretchDescriptor(value: string | undefined): readonly 
   if (m[2] == null) return [a, a];
   const b = parseFloat(m[2]);
   if (!Number.isFinite(b) || b < 0) return undefined;
+  return a < b ? [a, b] : [b, a];
+}
+
+/**
+ * Parse an `@font-face` `font-weight` DESCRIPTOR value into selection
+ * capabilities `[min, max]`, or undefined for auto/absent/unparseable.
+ *
+ * Transcribed from the weight section of `FontFace::GetFontSelectionCapabilities`
+ * (`core/css/font_face.cc:860-930`, rev 7d859f27, checkout of 2026-06-27):
+ * `normal` is `[400, 400]`, `bold` is `[700, 700]` (both set-explicitly — they
+ * PIN the wght instancing, unlike auto); a single number in `[1, 1000]` is
+ * `[v, v]`; a two-value range with both endpoints in `[1, 1000]` has decreasing
+ * endpoints swapped ("User agents must swap the computed value of the
+ * startpoint and endpoint of the range in order to forbid decreasing ranges",
+ * css-fonts-4). `auto`, an absent descriptor, and anything out of range or
+ * unparseable (Blink's parser rejects those before they are stored; its
+ * defensive `return normal_capabilities` branches leave the weight range's
+ * default `kSetFromAuto` type in place) yield undefined — normal-weight
+ * capabilities flagged as set-from-auto, meaning selection scores the face as
+ * exactly weight 400 and the INSTANCING clamp falls back to the font's own
+ * wght axis range.
+ */
+export function parseFontWeightDescriptor(value: string | undefined): readonly [number, number] | undefined {
+  if (value == null) return undefined;
+  const v = value.trim().toLowerCase();
+  if (v === "" || v === "auto") return undefined;
+  if (v === "normal") return [400, 400];
+  if (v === "bold") return [700, 700];
+  const m = /^([\d.]+)(?:\s+([\d.]+))?$/.exec(v);
+  if (m == null) return undefined;
+  const a = parseFloat(m[1]);
+  if (!Number.isFinite(a) || a < 1 || a > 1000) return undefined;
+  if (m[2] == null) return [a, a];
+  const b = parseFloat(m[2]);
+  if (!Number.isFinite(b) || b < 1 || b > 1000) return undefined;
   return a < b ? [a, b] : [b, a];
 }
 
@@ -463,6 +518,93 @@ function webfontStretchDistance(
   return lo - Math.min(request, bounds.min);
 }
 
+/** A variant's weight SELECTION capabilities: the declared `font-weight`
+ *  descriptor range, or normal weight `[400, 400]` when the descriptor is
+ *  auto/absent — Blink's `FontFace::GetFontSelectionCapabilities` selects an
+ *  auto face as exactly normal weight (`core/css/font_face.cc:871-874`, rev
+ *  7d859f27). */
+function variantWeightCaps(v: WebfontVariant): readonly [number, number] {
+  return v.weightCaps ?? [400, 400];
+}
+
+/** The union of the family's weight capabilities — the weight component of
+ *  Blink's `capabilities_bounds_`, consulted by `webfontWeightDistance`'s
+ *  off-side thresholds. */
+function webfontWeightBounds(variants: WebfontVariant[]): { min: number; max: number } {
+  let min = Infinity, max = -Infinity;
+  for (const v of variants) {
+    const [lo, hi] = variantWeightCaps(v);
+    if (lo < min) min = lo;
+    if (hi > max) max = hi;
+  }
+  return { min, max };
+}
+
+/**
+ * Distance from a weight request to a variant's capabilities, transcribed from
+ * `FontSelectionAlgorithm::WeightDistance`
+ * (`platform/fonts/font_selection_algorithm.cc:98-135`, rev 7d859f27, checkout
+ * of 2026-06-27):
+ *
+ *   - a range containing the request is distance 0;
+ *   - a request in the `[400, 500]` search band prefers, in order: the nearest
+ *     face at/under 500 above the request, then faces below the request
+ *     (scored from the 500 threshold down), then faces above 500 (scored from
+ *     `min(request, bounds.min)`);
+ *   - a request under 400 prefers lighter faces — a face entirely below scores
+ *     its gap, a face entirely above scores from `min(request, bounds.min)`;
+ *   - a request over 500 mirrors that, preferring bolder faces (a too-light
+ *     face scores from `max(request, bounds.max)`).
+ *
+ * Checked AFTER stretch and style, which is Blink's `IsBetterMatchForRequest`
+ * order. With CSS weights confined to `[1, 1000]` every branch stays under
+ * 1000 (= `WEBFONT_STYLE_MISMATCH`), so style keeps strict priority.
+ */
+function webfontWeightDistance(
+  caps: readonly [number, number], request: number, bounds: { min: number; max: number },
+): number {
+  const [lo, hi] = caps;
+  if (request >= lo && request <= hi) return 0;
+  // kLowerWeightSearchThreshold = 400, kUpperWeightSearchThreshold = 500
+  // (`platform/fonts/font_selection_types.h:215-219`, rev 7d859f27).
+  if (request >= 400 && request <= 500) {
+    if (lo > request && lo <= 500) return lo - request;
+    if (hi < request) return 500 - hi;
+    // lo > 500
+    return lo - Math.min(request, bounds.min);
+  }
+  if (request < 400) {
+    if (hi < request) return request - hi;
+    // lo > request
+    return lo - Math.min(request, bounds.min);
+  }
+  // request > 500
+  if (lo > request) return lo - request;
+  // hi < request
+  return Math.max(request, bounds.max) - hi;
+}
+
+/**
+ * Domotion-specific tie-break UNDER `webfontWeightDistance`: the legacy
+ * per-variant scalar weight (for `@font-face`-sourced variants the collapsed
+ * descriptor; for resource-path variants the font's own OS/2 weight), scaled
+ * so it can only separate variants whose Blink weight distances TIE. The
+ * resource-discovery path (fonts found only via network requests, no
+ * parseable CSS) registers every face with auto capabilities — all of them
+ * select as `[400, 400]`, so without this a bold run would take whichever
+ * face registered first. Blink's distances live on the FontSelectionValue
+ * quarter grid (minimum nonzero step 0.25); |Δweight| ≤ 999 × 1e-4 < 0.1
+ * stays strictly below it.
+ */
+const WEBFONT_WEIGHT_TIEBREAK_SCALE = 1e-4;
+
+/** The composed weight term for the variant pickers: Blink's WeightDistance
+ *  over the descriptor capabilities, plus the sub-quarter legacy tie-break. */
+function webfontWeightScore(v: WebfontVariant, request: number, bounds: { min: number; max: number }): number {
+  return webfontWeightDistance(variantWeightCaps(v), request, bounds)
+    + Math.abs(v.weight - request) * WEBFONT_WEIGHT_TIEBREAK_SCALE;
+}
+
 // Score-composition scales. The hierarchy is: unicode-range coverage (a
 // Domotion-specific tofu-avoidance bias, see pickWebfontVariant) dominates
 // stretch, stretch dominates style, style dominates weight — the last three
@@ -500,18 +642,20 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
   const bounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
     if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
-    const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
+    const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
+      + webfontWeightScore(v, weight, weightBounds);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
   return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
-    { wdthCapabilities: best.stretch ?? null, wdthAlways: true });
+    { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null });
 }
 
 /**
@@ -520,10 +664,11 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
  * unit tests verify scoring (weight, italic, unicode-range) without needing
  * to introspect glyph paths.
  */
-export function __pickWebfontVariantMetaForTest(family: string, weight: number, italic: boolean, stretch: number = 100): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]>; stretch?: readonly [number, number] } | null {
+export function __pickWebfontVariantMetaForTest(family: string, weight: number, italic: boolean, stretch: number = 100): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]>; stretch?: readonly [number, number]; weightCaps?: readonly [number, number] } | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
   const bounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
   const LATIN_PROBE = 0x0041;
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
@@ -531,29 +676,32 @@ export function __pickWebfontVariantMetaForTest(family: string, weight: number, 
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
-    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
+    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
+      + webfontWeightScore(v, weight, weightBounds);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch };
+  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch, weightCaps: best.weightCaps };
 }
 
 /** Test-only meta variant for `pickWebfontVariantForCodepoint` (DM-557). */
-export function __pickWebfontVariantMetaForCodepointForTest(family: string, weight: number, italic: boolean, codepoint: number, stretch: number = 100): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]>; stretch?: readonly [number, number] } | null {
+export function __pickWebfontVariantMetaForCodepointForTest(family: string, weight: number, italic: boolean, codepoint: number, stretch: number = 100): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]>; stretch?: readonly [number, number]; weightCaps?: readonly [number, number] } | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
   const bounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
     if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
-    const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
+    const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
+      + webfontWeightScore(v, weight, weightBounds);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch };
+  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch, weightCaps: best.weightCaps };
 }
 
 /** Drop all registered webfonts. Call at the start of a fresh capture run. */
@@ -657,6 +805,7 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
   // covers everything) match here trivially, so non-partitioned fonts are
   // unaffected.
   const LATIN_PROBE = 0x0041; // 'A'
+  const weightBounds = webfontWeightBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
@@ -666,12 +815,13 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
     // is far worse than rendering upright glyphs for an italic request, where
     // the renderer can fall back to synthesized italic via `slant`.
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
-    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
+    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
+      + webfontWeightScore(v, weight, weightBounds);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
   return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
-    { wdthCapabilities: best.stretch ?? null, wdthAlways: true });
+    { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null });
 }
 
 /**
@@ -687,6 +837,7 @@ function pickWebfontVariantWithBuffer(family: string, weight: number, slant: num
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
   const bounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
   const LATIN_PROBE = 0x0041;
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
@@ -695,7 +846,8 @@ function pickWebfontVariantWithBuffer(family: string, weight: number, slant: num
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
-    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + Math.abs(v.weight - weight);
+    const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
+      + webfontWeightScore(v, weight, weightBounds);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null || best.buffer == null) return null;
@@ -5892,6 +6044,17 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
      *  the ≠100 gate (`MatchSystemUIFont` only sets wdth when the width moved
      *  off normal). */
     wdthAlways?: boolean;
+    /** The `@font-face` `font-weight` DESCRIPTOR as selection capabilities
+     *  `[min, max]` — same rule as `wdthCapabilities`, one axis over: Blink
+     *  clamps the request into the DESCRIPTOR range when one is declared, and
+     *  only falls back to the font's own wght axis range when the descriptor
+     *  is auto (`FontCustomPlatformData::GetFontPlatformData`,
+     *  `font_custom_platform_data.cc:136-154`, rev 7d859f27). A face declared
+     *  `font-weight: 700` therefore pins wght = 700 for EVERY request —
+     *  measured over CDP: Lexend VF (wght [100..900]) declared 700 and
+     *  requested at 400 paints `Lexend-Bold` (width 886.281 at 100px), where
+     *  an axis-range clamp would paint `Lexend-Regular` (847.000). */
+    wghtCapabilities?: readonly [number, number] | null;
   },
 ): FontInstance {
   if (font.variationAxes == null || Object.keys(font.variationAxes).length === 0 || font.getVariation == null) {
@@ -5909,13 +6072,19 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
   const q = (x: number): number => Math.trunc(x * 4) / 4;
   const webfontClamps = opts?.wdthAlways === true || opts?.wdthCapabilities != null;
   if (font.variationAxes.wght != null && opts?.cssWghtPin !== false) {
-    axes.wght = webfontClamps
+    const wghtCaps = opts?.wghtCapabilities;
+    axes.wght = wghtCaps != null
+      // Declared `font-weight` descriptor: the request clamps into the
+      // DESCRIPTOR range first (`selection_capabilities.weight.clampToRange`,
+      // `font_custom_platform_data.cc:136-139`) — which is what pins a
+      // `font-weight: 700` face at wght 700 regardless of the run's request.
+      // The raw axis-range clamp still applies at instancing (Skia's `SkTPin`
+      // on Chrome's side, `clampAxesToFvarRange` + the instancer on ours).
+      ? Math.min(Math.max(q(weight), q(wghtCaps[0])), q(wghtCaps[1]))
+      : webfontClamps
       // `FontCustomPlatformData::GetFontPlatformData`'s auto-weight branch
-      // (`font_custom_platform_data.cc:136-154`): the request clamped into the
-      // QUANTIZED axis range. (A declared `font-weight` descriptor would clamp
-      // into the descriptor capabilities instead; the registry records a
-      // single scoring weight and cannot yet distinguish a declared 400 from
-      // an absent descriptor — tracked as a follow-up.)
+      // (`font_custom_platform_data.cc:141-154`): the request clamped into the
+      // QUANTIZED axis range.
       ? Math.min(Math.max(q(weight), q(font.variationAxes.wght.min ?? weight)), q(font.variationAxes.wght.max ?? weight))
       : weight;
   }

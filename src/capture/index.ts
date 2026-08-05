@@ -461,7 +461,10 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
           continue;
         }
         const weightNum = parseWeightDescriptor(item.weight);
-        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch);
+        // `item.weight` is the RAW descriptor string ("" = auto/absent) —
+        // the registry parses it into selection capabilities; `weightNum` is
+        // the legacy pre-collapsed scalar for the report row.
+        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch, item.weight);
         report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
       } else {
         const meta = await readFontMetadata(buf);
@@ -588,7 +591,14 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         if (rule.constructor.name !== "CSSFontFaceRule") continue;
         const r = rule as CSSFontFaceRule;
         const family = r.style.getPropertyValue("font-family").trim().replace(/^["']|["']$/g, "");
-        const weight = r.style.getPropertyValue("font-weight") || "400";
+        // The RAW `font-weight` DESCRIPTOR. Empty string = auto/absent — kept
+        // distinct from a declared "400": an auto descriptor lets a variable
+        // face's own wght range bound the instancing, while a declared value
+        // (even "normal"/"400") PINS the axis to the descriptor clamp
+        // (Blink's RangeSetFromAuto vs SetExplicitly split). The legacy
+        // numeric collapse for report rows happens Node-side
+        // (`parseWeightDescriptor`, which maps "" to 400).
+        const weight = r.style.getPropertyValue("font-weight") || "";
         const style = r.style.getPropertyValue("font-style") || "normal";
         // The `font-stretch` DESCRIPTOR (Chrome also serializes it under the
         // spec's newer `font-width` name). Empty string = auto/absent — the
@@ -834,7 +844,9 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   if (familyMatch == null) return null;
   const family = familyMatch[1].trim().replace(/^["']|["']$/g, "").trim();
   if (family === "") return null;
-  const weight = (/font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "400";
+  // The raw `font-weight` descriptor; "" = auto/absent (kept distinct from a
+  // declared "400" — only a declared value pins a variable face's wght axis).
+  const weight = (/font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "";
   const style = (/font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "normal";
   // The `font-stretch` descriptor (or its spec-renamed `font-width` form).
   // Undefined = auto/absent; the registry then treats the face's selection

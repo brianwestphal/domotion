@@ -56,7 +56,7 @@ flowchart TD
     A0["captureElementTree()"] --> A1["resetGeneration()<br/>clear embedded-font subset builder<br/>+ paths-mode glyph-defs registry"]
     A0 --> A2["discoverAndRegisterWebfonts(page)<br/>after document.fonts.ready"]
     A2 --> A3{"@font-face src?"}
-    A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange)<br/>→ webfontRegistry"]
+    A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange,<br/>stretch desc, weight desc)<br/>→ webfontRegistry"]
     A3 -->|"all local() → system font"| A5["registerLocalFontAlias(family,<br/>resolvedKey, weight, italic)<br/>→ localFontAliasRegistry"]
   end
 
@@ -235,7 +235,22 @@ instead (measured on the `Skia` family, which has both mechanisms available:
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
 WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`
 applies only `opsz` + `font-variation-settings` on top of that face
-(`font_platform_data_mac.mm:113-208`). The darwin fontkit path therefore pins
+(`font_platform_data_mac.mm:113-208`). On the webfont path the `wght`
+coordinate follows the same descriptor rule as `wdth`, one axis over
+(`font_custom_platform_data.cc:136-154`): the request clamps into the
+`@font-face` `font-weight` DESCRIPTOR capabilities when one is declared —
+`normal`/`bold`/a number/a two-value range, parsed per
+`FontFace::GetFontSelectionCapabilities` (`core/css/font_face.cc:860-930`)
+into `WebfontVariant.weightCaps` — and only falls back to the font's own
+quantized axis range when the descriptor is auto/absent. So a face declared
+`font-weight: 700` pins wght 700 for EVERY request (CDP-measured: Lexend VF
+declared 700 paints `Lexend-Bold` at requested weight 400), and a declared
+range `300 500` clamps a 700 request to 500 (`Lexend-Medium`). The descriptor
+is a SELECTION capability too: the variant pickers score Blink's
+`FontSelectionAlgorithm::WeightDistance` (`font_selection_algorithm.cc:98-135`,
+with its 400/500 search-band rules and family-bounds thresholds) against the
+declared range — an auto face selects as exactly normal weight `[400, 400]` —
+after stretch and style, per `IsBetterMatchForRequest` order. The darwin fontkit path therefore pins
 the FACE's own coordinates (`darwinFaceOwnAxes`: the CoreText handle position
 the family/fallback query reported — `FontPath.ctAxes` — or the fvar named
 instance the PostScript name denotes) instead of a CSS-derived `wght`. The
@@ -496,10 +511,10 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) + |Δweight|"]
-    W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped to the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
+    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) +<br/>weight distance (Blink WeightDistance, vs the<br/>font-weight DESCRIPTOR caps; auto = [400,400])"]
+    W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
-    P1 --> P2["score by (stretch distance, italic, |Δweight|) → best"]
+    P1 --> P2["score by (stretch distance, italic,<br/>weight distance vs caps) → best"]
   end
   subgraph LA["localFontAliasRegistry — @font-face src: local()"]
     LA0["pickLocalFontAliasVariant(family, weight, italic)"] --> LA1["score declared variants →<br/>baseKey (e.g. 'georgia') + declared weight/italic<br/>(preserves Chrome's 'no bold-italic declared →<br/>use italic 400 + synthesize' behavior)"]
