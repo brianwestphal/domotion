@@ -7818,7 +7818,25 @@ export function fontFeatureValueShapingOverride(
    *  receives the unprojected list. */
   features: string[],
 ): FontInstance {
-  const hbFace = shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings);
+  // The shaper must open the SAME face the outlines come from. Prefer the
+  // resolved instance's own source file over re-deriving one from the font key:
+  // a key like `sf-pro` or `georgia` names a FAMILY, and the run's slant/weight
+  // pick a sibling file or TTC member from it. `shapingFaceFor(fontKey, …)`
+  // resolves the key's base spec, so an ITALIC run shaped against the upright
+  // face and then drew those glyph ids out of the italic one — every glyph
+  // wrong, not subtly off. Measured on `system-ui` at 800: fontkit returns ids
+  // 716,847,577,… for the italic face and the proxy returned 739,894,588,… —
+  // the upright face's ids for the same string.
+  //
+  // `getFontSourceInfo` is the file the outlines are actually taken from, so
+  // agreement is by construction rather than by two derivations coinciding.
+  // Falls back to the key-based derivation when the instance names no physical
+  // member (webfont buffers, CoreText named instances with no sfnt member),
+  // which is the case the fallback was always serving.
+  const src = getFontSourceInfo(base);
+  const hbFace = src != null && src.nameMatched && src.faceIndex != null
+    ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
+    : shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings);
   if (hbFace == null) return base;
   const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
   if (hbInst === base) return base; // HarfBuzz declined the file
