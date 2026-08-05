@@ -605,6 +605,13 @@ export const captureScript =
         fontVariantEastAsian: cs.fontVariantEastAsian,
         fontVariantNumeric: cs.fontVariantNumeric,
         fontVariantLigatures: cs.fontVariantLigatures,
+        // CSS font-synthesis-{weight,style,small-caps} — `auto` or `none`. Not a
+        // hint: Blink ANDs each into the corresponding synthesis decision, so
+        // `none` means Chrome paints the thin/upright/lowercase face where we
+        // would otherwise embolden, shear, or scale. DM-1971.
+        fontSynthesisWeight: cs.fontSynthesisWeight,
+        fontSynthesisStyle: cs.fontSynthesisStyle,
+        fontSynthesisSmallCaps: cs.fontSynthesisSmallCaps,
         // CSS font-variant-emoji — a genuine face-selection input (it overrides
         // the run's emoji-vs-text fallback priority and forces VS15/VS16 into
         // the glyph lookups). The renderer threads it into the per-codepoint

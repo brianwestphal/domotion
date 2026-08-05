@@ -733,6 +733,23 @@ export interface CapturedStyles {
   /** CSS font-variant-ligatures — e.g. 'no-common-ligatures', 'discretionary-ligatures'.
    *  Mapped to OpenType features (liga off / dlig …). DM-1117. */
   fontVariantLigatures?: string;
+  /**
+   * The three `font-synthesis` longhands — `'auto'` (synthesis permitted, the
+   * initial value) or `'none'`. DM-1971.
+   *
+   * Blink ANDs these into every synthesis decision rather than treating them as
+   * a hint: `SyntheticBoldAllowed()` / `SyntheticItalicAllowed()` are each one
+   * comparison against the `auto` keyword
+   * (`platform/fonts/font_description.h:312-320`, rev 7d859f27), and they gate
+   * both the webfont path (`core/css/css_segmented_font_face.cc:116-123`) and
+   * the per-platform system-font paths. Without them every run is treated as
+   * `auto`, so an author who writes `font-synthesis-weight: none` — a real
+   * choice for icon fonts and for type systems shipping real cuts — gets
+   * emboldened ink from us where Chrome paints the thin face.
+   */
+  fontSynthesisWeight?: string;
+  fontSynthesisStyle?: string;
+  fontSynthesisSmallCaps?: string;
   /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
   direction?: string;
   /** BCP-47 language tag inherited from `el.lang` / nearest ancestor `[lang]` /

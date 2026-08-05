@@ -184,6 +184,10 @@ export function textToPathMarkup(
    *  which wins (the `HasVSFallbackPriority` guard,
    *  `shaping/harfbuzz_shaper.cc:184-198`, rev 7d859f27). */
   fontVariantEmoji?: FontVariantEmojiOverride,
+  /** DM-1971: the run's `font-synthesis` permissions. Only `smallCaps` acts on
+   *  this branch — paths mode emits raw outlines and applies neither faux-bold
+   *  nor faux-oblique, so their vetoes have nothing to veto here. */
+  fontSynthesis?: FontSynthesisAllowance,
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -419,7 +423,13 @@ export function textToPathMarkup(
   const wantC2pc   = features_.includes("c2pc");
   const wantUnic   = features_.includes("unic");
   const availableFeatures = primaryFont.availableFeatures ?? [];
-  const hasFeature = (f: string) => availableFeatures.includes(f);
+  // DM-1971: `font-synthesis-small-caps: none` vetoes only the SYNTHESIZED
+  // form — the scaled-uppercase stand-in taken when the face has no `smcp`.
+  // A face that really carries the feature is unaffected, because that is a
+  // real OpenType substitution rather than a synthesis, and Blink's
+  // `font_synthesis_small_caps_` gates the same narrow thing.
+  const capsSynthOk = synthesisAllowed(fontSynthesis, "smallCaps");
+  const hasFeature = (f: string) => !capsSynthOk || availableFeatures.includes(f);
   // Determine the synthesized scale for lowercase / uppercase letters under
   // each variant. `null` means do not transform (keep native glyph at 1.0).
   // Chromium uses a single synthesis multiplier for ALL caps variants:
@@ -1611,6 +1621,8 @@ function renderTextAsEmbedded(
   fontStretch?: string,
   /** The run's `font-variant-emoji` override (`normal` = undefined). */
   fontVariantEmoji?: FontVariantEmojiOverride,
+  /** DM-1971: the run's `font-synthesis` permissions. Absent = `auto`. */
+  fontSynthesis?: FontSynthesisAllowance,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -1703,7 +1715,13 @@ function renderTextAsEmbedded(
   function computeRunShaping(run: FontRun): { shapingText: string; perCharScale: number[] } {
     const availableFeatures = Array.isArray((run.font as { availableFeatures?: string[] }).availableFeatures)
       ? ((run.font as { availableFeatures: string[] }).availableFeatures) : [];
-    const fontHas = (f: string) => availableFeatures.includes(f);
+    // DM-1971: same narrow veto as the paths branch — see `capsSynthOk` there.
+    // Reporting the feature as PRESENT is how the veto is expressed: every
+    // synthesis site below is `want<F> && !fontHas("<f>")`, so a present
+    // feature means no stand-in, and shaping still asks for the tag (harmless
+    // when the face lacks it, correct when it does not).
+    const capsSynthOk = synthesisAllowed(fontSynthesis, "smallCaps");
+    const fontHas = (f: string) => !capsSynthOk || availableFeatures.includes(f);
     let synthLower = 1; // scale for lowercase letters
     let synthUpper = 1; // scale for same-case chars (upper / digit / punct / symbol)
     if (wantSmcp && !fontHas("smcp")) { synthLower = SMALL_CAP_SCALE; }
@@ -1887,7 +1905,14 @@ function renderTextAsEmbedded(
     // other direction: a static webfont requested at 500 measured IDENTICAL to
     // its 400 control (ink 17510.0 both), because the webfont threshold is 600.
     const webfontFace = run.font.webfontFace;
-    const faceLacksWeight = webfontFace != null
+    // DM-1971: `font-synthesis-weight: none` vetoes faux-bold outright. Blink
+    // ANDs `SyntheticBoldAllowed()` into BOTH synthesis paths — the webfont one
+    // (`core/css/css_segmented_font_face.cc:116-119`) and the per-platform
+    // system-font ones — so the veto sits above the whole ternary rather than
+    // inside either branch. It gates the stroke path too, because
+    // `resolveFakeBoldTextStroke` reads this same flag.
+    const faceLacksWeight = !synthesisAllowed(fontSynthesis, "weight") ? false
+      : webfontFace != null
       ? webfontSyntheticBold(webfontFace, weight)
       : run.font.hasWeightAxis !== true &&
       faceNaturalWeight != null &&
@@ -1922,6 +1947,32 @@ function renderTextAsEmbedded(
     const emboldenStrengthFU = fakeBoldStroke.emboldenFill
       ? emboldenStrengthForFont(run.font.unitsPerEm) : 0;
 
+    // DM-1695: faux-italic. When italic is requested (slant ≠ 0) but the resolved
+    // face is UPRIGHT (no italic sibling was routed to, no `slnt` axis carried the
+    // slant), Chrome synthesizes an oblique by shearing the glyph. Bake the same
+    // shear into the embedded outline (the @font-face descriptor stays italic, so
+    // the consumer synthesizes nothing). A shear is a pure affine transform, so —
+    // unlike faux-bold — it reproduces Chrome's device-space skew exactly and is
+    // safe on stroked runs too (no gate). `italicAngle` is the resolved face's
+    // own slant: a real italic face (|angle| ≥ 1°) already leans, so skip it.
+    // `isRoutedItalicCut` covers the faces that lean but under-report it — some
+    // TTC members ship `post.italicAngle` 0 despite a visibly slanted outline,
+    // and shearing those a second time doubled their lean.
+    let shearFactor = 0;
+    if (
+      // DM-1971: `font-synthesis-style: none` vetoes the synthesized oblique —
+      // Blink's `SyntheticItalicAllowed()`, ANDed in at the same place as the
+      // bold one (`core/css/css_segmented_font_face.cc:120-123`). A face that
+      // really leans is unaffected: the conditions below already exclude it.
+      synthesisAllowed(fontSynthesis, "style") &&
+      slant !== 0 &&
+      run.font.hasSlantAxis !== true &&
+      run.font.isRoutedItalicCut !== true &&
+      (run.font.resolvedItalicAngle == null || Math.abs(run.font.resolvedItalicAngle) < 1)
+    ) {
+      shearFactor = OBLIQUE_SHEAR;
+    }
+
     // DM-1722: for a STATIC-weight source on the hinted path (no wght axis,
     // no faux-bold bake), the glyph outlines are identical at every requested
     // CSS weight — the file is what it is. Requested weight then only matters
@@ -1947,28 +1998,19 @@ function renderTextAsEmbedded(
     const weightPart = staticWeightShared
       ? `w=*|src=${srcInfo!.path}#${srcInfo!.faceIndex}`
       : `w=${weight}`;
-    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}`;
+    // DM-1971: the SYNTHESIS BAKE is part of the entry's identity. Two runs can
+    // agree on family, weight, slant, features and axes and still need different
+    // outlines, because one baked a faux-bold dilation or a faux-oblique shear
+    // and the other was vetoed by `font-synthesis`. Without this, the second run
+    // silently reuses the first's entry and paints the synthesis it asked NOT to
+    // have — measured: `font-style: italic` with and without
+    // `font-synthesis-style: none` both resolved to one italic entry, so the
+    // veto changed nothing in the output. (The bold pair escaped only by
+    // accident: `emboldenStrengthFU` already forces `weightPart` off the shared
+    // `w=*` form, so its two arms keyed apart for an unrelated reason.)
+    const synthPart = `|b=${emboldenStrengthFU}|sh=${shearFactor}`;
+    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`;
 
-    // DM-1695: faux-italic. When italic is requested (slant ≠ 0) but the resolved
-    // face is UPRIGHT (no italic sibling was routed to, no `slnt` axis carried the
-    // slant), Chrome synthesizes an oblique by shearing the glyph. Bake the same
-    // shear into the embedded outline (the @font-face descriptor stays italic, so
-    // the consumer synthesizes nothing). A shear is a pure affine transform, so —
-    // unlike faux-bold — it reproduces Chrome's device-space skew exactly and is
-    // safe on stroked runs too (no gate). `italicAngle` is the resolved face's
-    // own slant: a real italic face (|angle| ≥ 1°) already leans, so skip it.
-    // `isRoutedItalicCut` covers the faces that lean but under-report it — some
-    // TTC members ship `post.italicAngle` 0 despite a visibly slanted outline,
-    // and shearing those a second time doubled their lean.
-    let shearFactor = 0;
-    if (
-      slant !== 0 &&
-      run.font.hasSlantAxis !== true &&
-      run.font.isRoutedItalicCut !== true &&
-      (run.font.resolvedItalicAngle == null || Math.abs(run.font.resolvedItalicAngle) < 1)
-    ) {
-      shearFactor = OBLIQUE_SHEAR;
-    }
 
     // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
     // embedded builder can hb-subset the ORIGINAL (hinted) font instead of the
@@ -2384,6 +2426,43 @@ export interface TextFontOptions {
    * in the text wins over the property.
    */
   fontVariantEmoji?: FontVariantEmojiOverride;
+  /**
+   * CSS `font-synthesis`, as the three permissions Blink derives from it.
+   * Absent (or a `true` field) means `auto` — synthesis permitted, which is the
+   * initial value and today's unconditional behavior.
+   *
+   * Blink does not treat these as hints. `SyntheticBoldAllowed()` and
+   * `SyntheticItalicAllowed()` are each one comparison against the `auto`
+   * keyword (`platform/fonts/font_description.h:312-320`, rev 7d859f27), ANDed
+   * into the synthesis decision on BOTH paths that make one — the webfont path
+   * (`core/css/css_segmented_font_face.cc:116-123`) and the per-platform
+   * system-font paths. So `none` is a hard veto, not a preference. DM-1971.
+   */
+  fontSynthesis?: FontSynthesisAllowance;
+}
+
+/**
+ * Whether each kind of font synthesis is permitted on a run — the renderer's
+ * form of the three `font-synthesis` longhands. A missing field means permitted
+ * (`auto`), so an options object that omits this behaves exactly as before.
+ */
+export interface FontSynthesisAllowance {
+  /** `font-synthesis-weight` — gates faux-bold (fill bake AND stroke). */
+  weight?: boolean;
+  /** `font-synthesis-style` — gates faux-oblique (the shear). */
+  style?: boolean;
+  /** `font-synthesis-small-caps` — gates SYNTHESIZED small caps, i.e. the
+   *  scaled-lowercase stand-in taken when the face has no `smcp`. A face that
+   *  really carries `smcp` is unaffected: that is a real feature, not a
+   *  synthesis. */
+  smallCaps?: boolean;
+}
+
+/** Read one `font-synthesis` permission, defaulting to permitted (`auto`). */
+export function synthesisAllowed(
+  a: FontSynthesisAllowance | undefined, kind: keyof FontSynthesisAllowance,
+): boolean {
+  return a?.[kind] !== false;
 }
 
 /** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */
@@ -2446,7 +2525,8 @@ export function renderTextAsPath(
 ): string | null {
   const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
     features, lang, variationSettings, textStrokeWidth, textStrokeColor,
-    paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji } = options;
+    paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji,
+    fontSynthesis } = options;
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
   const weight = cssWeightOf(options.fontWeight);
@@ -2499,11 +2579,12 @@ export function renderTextAsPath(
     // exhausted, etc.) — paths-mode is the safe always-correct fallback.
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
-      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji);
+      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
+      fontSynthesis);
     if (embedded != null) return embedded;
   }
 
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis);
   if (result == null || result.markup === "") return null;
 
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);

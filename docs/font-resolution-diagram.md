@@ -2064,6 +2064,33 @@ genuinely different rules rather than one rule with a special case:
   system-font path, so before this branch existed a webfont could not synthesize at
   all.
 
+**Vetoed by `font-synthesis` (DM-1971).** Both bakes — and the synthesized
+small-caps stand-in — sit behind the three CSS `font-synthesis` longhands, which
+Blink treats as hard vetoes rather than hints: `SyntheticBoldAllowed()` and
+`SyntheticItalicAllowed()` are each one comparison against the `auto` keyword
+(`platform/fonts/font_description.h:312-320`) and are ANDed into the decision on
+both the webfont path (`core/css/css_segmented_font_face.cc:116-123`) and every
+per-platform system-font path. The three longhands are captured onto
+`CapturedStyles` and reach the renderer as `TextFontOptions.fontSynthesis`; an
+absent field means `auto`, so a run that says nothing behaves exactly as it did
+before the property was modeled.
+
+Measured against Chrome on macOS at 64px Papyrus (one upright regular cut, no
+`smcp`, so all three fire) as the 1× ink integral — the only observable, since
+synthetic bold moves neither the advance nor the reported platform face: weight
+700 `auto` 7069.1 against `none` 5822.0, which is *exactly* the weight-400
+control; italic `auto` 5868.5 against `none` 5822.0, exactly the upright control;
+small-caps `auto` 4018.4 against `none` 5822.0, exactly the no-caps control.
+
+**The bake is part of the embedded entry's IDENTITY.** `instanceKey` carries the
+resolved embolden strength and shear factor, because two runs can agree on
+family, weight, slant, features and axes and still need different outlines when
+one baked a synthesis and the other was vetoed. Without that term the second run
+silently reuses the first's entry: `font-style: italic` with and without
+`font-synthesis-style: none` collapsed to one italic entry and the veto changed
+nothing in the output. (The bold pair escaped only by accident — a non-zero
+embolden strength already forces `weightPart` off its shared `w=*` form.)
+
 **Gated OFF for
 `-webkit-text-stroke` runs:** Chrome emboldens in device space (post-hinting), we
 bake in design space — coverage matches, but a ~1px edge residual that a

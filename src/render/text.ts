@@ -7,6 +7,7 @@
 import bidiFactory from "bidi-js";
 import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureInkMetrics, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
 import type { FontVariantEmojiOverride } from "./font-resolution.js";
+import type { FontSynthesisAllowance } from "./text-to-path.js";
 import { r, esc } from "./format.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 
@@ -1037,6 +1038,23 @@ function fontVariantEmojiOf(styles: { fontVariantEmoji?: string }): FontVariantE
   return v === "text" || v === "emoji" || v === "unicode" ? v : undefined;
 }
 
+/**
+ * The run's `font-synthesis` permissions, from the three captured longhands.
+ *
+ * Returns `undefined` when all three are `auto` — the initial value and the
+ * overwhelmingly common case — so the options object is byte-identical to what
+ * it was before this existed and no downstream decision changes. DM-1971.
+ */
+function fontSynthesisOf(styles: {
+  fontSynthesisWeight?: string; fontSynthesisStyle?: string; fontSynthesisSmallCaps?: string;
+}): FontSynthesisAllowance | undefined {
+  const weight = styles.fontSynthesisWeight !== "none";
+  const style = styles.fontSynthesisStyle !== "none";
+  const smallCaps = styles.fontSynthesisSmallCaps !== "none";
+  if (weight && style && smallCaps) return undefined;
+  return { weight, style, smallCaps };
+}
+
 function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | undefined): string[] | undefined {
   const v = segVariant != null && segVariant !== "" ? segVariant : (elCaps ?? "");
   if (/\ball-small-caps\b/.test(v)) return ["smcp", "c2sc"];
@@ -1387,6 +1405,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
     dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiOverrideFor(el),
     fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),
+    fontSynthesis: fontSynthesisOf(el.styles),
   });
   if (result != null) {
     // baselineY = textTop + fontAscent. Using fontSize here would put the
@@ -1642,7 +1661,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       features: segFeatures, lang: el.styles.lang, variationSettings: elVariationSettings,
       textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
       bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
-      fontVariantEmoji: fontVariantEmojiOf(el.styles),
+      fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
     });
     if (result != null) { segParts.push(result); }
     else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
@@ -1747,7 +1766,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles),
+        fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
       if (result != null) parts.push(`  ${result}`);
     }
@@ -1763,7 +1782,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles),
+        fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
       if (result != null) parts.push(`  ${result}`);
     }
@@ -1828,7 +1847,7 @@ export function renderInputText(opts: RenderTextOpts): string {
         features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles),
+        fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
       if (segResult != null) segParts.push(segResult);
     }
