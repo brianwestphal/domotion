@@ -91,6 +91,9 @@ describeBrowser("non-floated `initial-letter` raised cap", () => {
           specifiedFontSize: parseFloat(fl.fontSize),
           pseudoHeight: parseFloat(fl.height),
           capRatio: h.actualBoundingBoxAscent / 100,
+          pseudoWidth: parseFloat(fl.width),
+          glyphInkW100: (() => { const t = cv.measureText("T");
+            return (t.actualBoundingBoxLeft || 0) + (t.actualBoundingBoxRight || 0); })(),
           ascentRatio: h.fontBoundingBoxAscent / 100,
           rangeTop: range.getBoundingClientRect().top,
           float: fl.float,
@@ -126,7 +129,16 @@ describeBrowser("non-floated `initial-letter` raised cap", () => {
       // SIZE: the effective size is the pseudo's content height over the
       // font's cap-height ratio — NOT the specified `2.8em`, and not the
       // advance-width quotient that under-reports it.
-      const expectedFs = m.pseudoHeight / m.capRatio;
+      // DM-1977: the expected size is the pseudo's content-box INK width over
+      // the glyph's ink width at the probe size — a like-for-like ratio.
+      //
+      // This used to be `pseudoHeight / capRatio`, which assumed Chrome's
+      // reported pseudo `height` IS the cap height it sized the glyph to. That
+      // holds on macOS/Georgia and fails on Linux: with the stack falling
+      // through to Liberation Serif, Chrome reports `height: 69` while painting
+      // a 67 px cap, so the height quotient over-sized by ~4% and `fontAscent`,
+      // `baseline` and `capTop` all inherited it.
+      const expectedFs = 100 * m.pseudoWidth / m.glyphInkW100;
       expect(seg.fontSize!).toBeCloseTo(expectedFs, 0);
       expect(Math.abs(seg.fontSize! - m.specifiedFontSize)).toBeGreaterThan(10);
 

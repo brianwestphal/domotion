@@ -485,24 +485,43 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           const flFloatForSize = flStyle.float || flStyle.cssFloat || '';
           const pseudoComputedH = parseFloat(flStyle.height);
           const glyphInkH100 = (probeM.actualBoundingBoxAscent || 0) + (probeM.actualBoundingBoxDescent || 0);
+          // The glyph's painted INK width at the 100 px probe size — the
+          // like-for-like divisor for the pseudo's content-box width, which is
+          // itself an ink extent (DM-1977).
+          const glyphInkW100 = (probeM.actualBoundingBoxLeft || 0) + (probeM.actualBoundingBoxRight || 0);
           if ((flFloatForSize === 'left' || flFloatForSize === 'right')
               && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && glyphInkH100 > 0) {
             effectiveFs = 100 * pseudoComputedH / glyphInkH100;
-          } else if (!flIsFloatSize
-              && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && capHeightRatio > 0) {
+          } else if (!flIsFloatSize && glyphInkW100 > 0) {
             // NON-floated initial letter (`float: none`, e.g. a raised cap).
-            // Chrome sizes it so its CAP-HEIGHT equals the pseudo's computed
-            // content height — measured across nine `initial-letter` variants,
-            // `height` is exactly `(size - 1) x parent line-height + parent
-            // cap-height` in every case. So the effective font-size is
-            // `height / capHeightRatio`. This is the accurate derivation; the
-            // width quotient above divides the pseudo's INK width by the
-            // canvas ADVANCE width, so it under-reports by the side bearings
-            // (1.8% on Georgia, 7% on Arial). Verified at 8x DPI against the
-            // painted ink: for `initial-letter: 3 3` Georgia the painted ink
-            // implies 97.93 px (width) / 97.96 px (height), the height/cap
-            // derivation gives 97.96 px, the advance quotient gives 96.16 px.
-            effectiveFs = pseudoComputedH / capHeightRatio;
+            //
+            // `flStyle.width` is the pseudo's content-box width, which Chrome
+            // sizes to the glyph's painted INK extent — so dividing it by the
+            // glyph's INK width at 100 px yields the effective size directly.
+            //
+            // DM-1977: this replaces `pseudoComputedH / capHeightRatio`. That
+            // derivation rested on `height` being exactly `(size - 1) x parent
+            // line-height + parent cap-height`, which holds on macOS/Georgia
+            // but NOT on Linux: measured in the pinned noble container with the
+            // stack falling through to Liberation Serif, Chrome reports
+            // `height: 69` while painting a 67 px cap. The height quotient then
+            // over-sizes the cap by ~4%, and `fontAscent` / `baseline` /
+            // `capTop` all inherit it.
+            //
+            // The old comment rejected a width quotient because it "divides the
+            // pseudo's INK width by the canvas ADVANCE width, so it under-
+            // reports by the side bearings". That objection is about the
+            // DIVISOR, not the numerator — using the canvas INK width removes
+            // it and makes the ratio like-for-like. Measured both ways:
+            //
+            //   macOS   pseudoW 65.78 / ink 67.14 -> 97.98   (height gave 97.96,
+            //                                                 painted ~98.14)
+            //   Linux   pseudoW 66.00 / ink 65.00 -> 101.54  (height gave 106.15,
+            //                                                 painted ~101.5-103)
+            //
+            // So macOS is unchanged to within 0.02%, and Linux moves onto the
+            // painted cap instead of 4% past it.
+            effectiveFs = 100 * pseudoComputedW / glyphInkW100;
           }
           effectiveAscent = effectiveFs * ascentRatio;
           // NOTE: the segment's vertical position is NOT adjusted here.
