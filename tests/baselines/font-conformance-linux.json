@@ -3,7 +3,7 @@
     "suite": "font-conformance",
     "os": "linux",
     "image": "playwright-v1.59.1-noble-x64",
-    "capturedAt": "2026-08-05T22:25:16.017Z",
+    "capturedAt": "2026-08-05T22:50:11.666Z",
     "platform": "linux",
     "arch": "x64",
     "node": "v24.14.1",
@@ -32,36 +32,35 @@
     "missingShards": [],
     "envConflicts": [],
     "complete": true,
-    "commit": "2b340476a84ac9be4991af6180064d7eceb3e1e6"
+    "commit": "5ec2789215e83dedbaa701af2b32cc9ef78456b8"
   },
   "summary": {
     "comparisons": 1783614,
-    "agree-exact": 448670,
+    "agree-exact": 448826,
     "agree-same-file": 0,
     "agree-alias": 0,
     "agree-tofu": 1330546,
     "agree-not-painted": 0,
-    "mismatch": 4343,
+    "mismatch": 4187,
     "mismatch-we-paint": 0,
     "mismatch-we-tofu": 55,
     "allowlisted": 0,
-    "mismatchTotal": 4398,
-    "mismatchDifferentFamily": 4398,
+    "mismatchTotal": 4242,
+    "mismatchDifferentFamily": 4242,
     "mismatchSameFamilyDifferentCut": 0,
-    "distinctMismatchPairs": 37
+    "distinctMismatchPairs": 36
   },
   "byStack": {
-    "\"Times New Roman\" @16/400/normal": 424,
-    "Menlo, Consolas, \"DejaVu Sans Mono\", monospace @17/400/normal": 2125,
-    "system-ui, -apple-system, sans-serif @20/700/normal": 472,
-    "system-ui, -apple-system, sans-serif @13/400/normal": 472,
-    "system-ui, -apple-system, sans-serif @13/400/italic": 480,
-    "sans-serif @32/700/normal": 425
+    "\"Times New Roman\" @16/400/normal": 398,
+    "Menlo, Consolas, \"DejaVu Sans Mono\", monospace @17/400/normal": 2099,
+    "system-ui, -apple-system, sans-serif @20/700/normal": 446,
+    "system-ui, -apple-system, sans-serif @13/400/normal": 446,
+    "system-ui, -apple-system, sans-serif @13/400/italic": 454,
+    "sans-serif @32/700/normal": 399
   },
   "byPair": {
     "LiberationSerif → UnifontUpper": 337,
     "LiberationSerif → FreeSans": 1400,
-    "FreeSans → NotoColorEmoji": 156,
     "LiberationSerif → FreeSerif": 157,
     "UnifontUpper → LiberationSerif": 7,
     "LiberationSerif → Unifont": 6,
