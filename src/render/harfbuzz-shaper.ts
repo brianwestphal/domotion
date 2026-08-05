@@ -133,6 +133,42 @@ function faceCount(data: Uint8Array): number {
  *     harfbuzzjs as published      647 1415 1292  902  900
  *     vendored build               647  656 1359  700  971
  */
+/**
+ * DM-1964: font sources that exist only as BYTES, addressed by a synthetic
+ * `fontPath`.
+ *
+ * A webfont registered from an `@font-face` is held as a Buffer and never
+ * written to disk, so `shapingFaceFor` — which resolves a font key to a file —
+ * returns null for it and every HarfBuzz reroute declined. The consequence was
+ * silent and wrong rather than merely absent: `font-feature-settings: "liga" 0`
+ * on a webfont kept its fontkit shaping, and fontkit's `layout` is enable-only,
+ * so the disable was dropped and the ligature painted.
+ *
+ * `hb.Blob` takes an ArrayBuffer, so the byte source is all HarfBuzz ever
+ * needed. The synthetic id lets it travel through the existing `fontPath`
+ * plumbing — including the proxy memo key, whose STABILITY is load-bearing
+ * (`renderTextAsPath` groups runs by proxy identity, so a fresh id per call
+ * would end the run at every character and hand a contextual shaper
+ * one-character runs). Hence the id is memoized on the buffer's identity.
+ */
+const hbBufferSources = new Map<string, Uint8Array>();
+const hbBufferIds = new WeakMap<object, string>();
+const HB_BUFFER_PREFIX = "\u0000hbbuf:";
+
+/**
+ * Register font bytes as a shapeable source and return the synthetic
+ * `fontPath` that `makeHarfbuzzShapingInstance` accepts for them. Idempotent
+ * per buffer identity — the same buffer always yields the same id.
+ */
+export function registerHbBufferSource(bytes: Uint8Array): string {
+  const existing = hbBufferIds.get(bytes);
+  if (existing != null) return existing;
+  const id = `${HB_BUFFER_PREFIX}${hbBufferSources.size}`;
+  hbBufferIds.set(bytes, id);
+  hbBufferSources.set(id, bytes);
+  return id;
+}
+
 function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null {
   const cacheKey = `${fontPath}#${faceIndex ?? "?"}`;
   if (hbFontCache.has(cacheKey)) return hbFontCache.get(cacheKey)!;
@@ -143,7 +179,9 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
     // shapes with a DIFFERENT face. Refusing leaves the caller on its existing
     // CoreText / fontkit shaping — a different shaper, but the right font.
     if (faceIndex == null) throw new Error("unidentified face");
-    const data = readFileSync(fontPath);
+    // A registered buffer supplies its own bytes; everything else is a file.
+    const registered = hbBufferSources.get(fontPath);
+    const data = registered ?? readFileSync(fontPath);
     // `hb.Blob` wants an ArrayBuffer; a Node Buffer is a view onto a (possibly
     // larger, pooled) ArrayBuffer, so slice out exactly this file's bytes.
     const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;

@@ -797,9 +797,25 @@ Notes:
   `makeHarfbuzzShapingInstance` `outlinesFromBase` proxy with the FULL list
   bound; HarfBuzz honors the zero via the lookup mask (GSUB) or the AAT OFF
   selector (`hb-aat-map.cc:79`, rev `4de187d`). fontkit-facing `layout()` call
-  sites receive the enable-only projection (`fontkitFeatureList`). A key with
-  no on-disk file (webfont buffer) keeps its previous shaping — the disable is
-  unexpressed there, a documented residual (doc 108).
+  sites receive the enable-only projection (`fontkitFeatureList`).
+
+  **A webfont run reaches the reroute through its BYTES** (DM-1964). A webfont
+  registered from an `@font-face` is held only as a Buffer, so
+  `shapingFaceFor` — which resolves a font key to a FILE — had nothing to
+  return and the reroute declined for every one of them, leaving the run on
+  fontkit's enable-only shaping and dropping the disable entirely.
+  `tagWebfontInstance` now carries the file's bytes onto the resolved instance
+  as `FontInstance.webfontBuffer`, and `registerHbBufferSource`
+  (`harfbuzz-shaper.ts`) makes them addressable through the same `fontPath`
+  plumbing a file uses — `hb.Blob` takes an ArrayBuffer, so the bytes were all
+  HarfBuzz ever needed. The synthetic id is memoized on buffer identity because
+  the proxy's identity is load-bearing upstream (`renderTextAsPath` groups runs
+  by comparing font overrides by identity). Measured on a single-face ligating
+  face registered as a webfont, "office waffle affix flight": 19 glyphs
+  ligated, **19 under `"liga" 0` before and 26 after** — one per character.
+  A `.ttc` buffer is declined rather than shaped as member 0, since a buffer
+  carries no name to resolve a member by. A key with neither a file nor a
+  buffer still keeps its previous shaping.
 
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.

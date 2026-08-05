@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
-import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 // Speculative-composition rollback (see `snapshotGeneration` below): re-exported
@@ -128,6 +128,14 @@ export interface FontInstance {
    *  DIFFERENT rule from the per-platform system-font predicates and must not
    *  be conflated with them. */
   webfontFace?: WebfontSynthesisFace;
+  /** DM-1964: the `@font-face` file's own bytes, on instances resolved through
+   *  the webfont registry and ONLY there. A webfont is never written to disk,
+   *  so `shapingFaceFor` (which resolves a font key to a FILE) has nothing to
+   *  return for it and every HarfBuzz reroute declined — silently keeping
+   *  fontkit's enable-only shaping, which drops `font-feature-settings` disables
+   *  outright. `hb.Blob` takes an ArrayBuffer, so the bytes are all the shaper
+   *  needed; `registerHbBufferSource` turns them into a source it can open. */
+  webfontBuffer?: Buffer;
   /** The resolved face's `post.italicAngle` in degrees (0 for an upright face,
    *  negative for a right-leaning italic). Drives the embedded-mode faux-italic
    *  decision (DM-1695): when italic is requested but the resolved face is
@@ -817,6 +825,8 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
  */
 function tagWebfontInstance(instance: FontInstance, variant: WebfontVariant): FontInstance {
   if (variant.synthesisFace != null) instance.webfontFace = variant.synthesisFace;
+  // DM-1964: carry the file's bytes so the HarfBuzz reroutes can open the face.
+  if (variant.buffer != null) instance.webfontBuffer = variant.buffer;
   return instance;
 }
 
@@ -7801,11 +7811,43 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
  *
  * Same construction as `harfbuzzShapedScriptOverride`: HarfBuzz supplies the
  * shaping (ids, positions, clusters), the base instance supplies the outlines
- * (`outlinesFromBase`), and the run keeps its resolved face. Returns the base
- * unchanged when the key has no on-disk file HarfBuzz can open (a webfont
- * buffer, an unresolvable key) — the run then keeps its previous shaping, and
- * the disable stays unexpressed there (a documented residual).
+ * (`outlinesFromBase`), and the run keeps its resolved face.
+ *
+ * A webfont has no on-disk file, and until DM-1964 that meant the reroute
+ * declined for every `@font-face` run — leaving them on fontkit's enable-only
+ * shaping, i.e. dropping the disable this function exists to express. The
+ * retained `@font-face` bytes now serve as the face (`webfontShapingFace`).
+ * Returns the base unchanged only when there is neither a file nor a buffer.
  */
+/**
+ * DM-1964: the HarfBuzz face for a run resolved through the webfont registry,
+ * built from the retained `@font-face` bytes.
+ *
+ * Face index 0 rather than a lookup: an `@font-face` src names ONE face, and a
+ * collection would be rejected by `getHbEntry`'s `hb_face_count` bounds check
+ * (Blink's own, `harfbuzz_face_from_typeface.cc:38-42`) rather than shaped with
+ * the wrong member.
+ *
+ * The axes are the location `applyVariationAxes` already resolved for this
+ * instance — the same value `getFontSourceInfo` reports for a file-backed one,
+ * read from the same field, so the shaper and the outlines sit on one master by
+ * construction rather than by two derivations agreeing.
+ */
+function webfontShapingFace(base: FontInstance):
+    { path: string; faceIndex: number; axes: Record<string, number> | null } | null {
+  const bytes = base.webfontBuffer;
+  if (bytes == null) return null;
+  // Decline a COLLECTION rather than assume member 0. An `@font-face` src names
+  // one face and is never a `.ttc` in practice, but the buffer carries no name
+  // to resolve a member by — and shaping the wrong member of a collection is
+  // precisely the defect `getHbEntry`'s "unidentified face" refusal exists to
+  // prevent (every glyph wrong, not subtly off). Falling back to fontkit here
+  // loses the disable, which is the lesser failure and the pre-existing one.
+  if (bytes.length >= 4 && bytes.readUInt32BE(0) === 0x74746366 /* 'ttcf' */) return null;
+  const applied = (base as unknown as { _appliedVariationAxes?: Record<string, number> })._appliedVariationAxes;
+  return { path: registerHbBufferSource(bytes), faceIndex: 0, axes: applied ?? null };
+}
+
 export function fontFeatureValueShapingOverride(
   base: FontInstance,
   fontKey: string,
@@ -7836,7 +7878,12 @@ export function fontFeatureValueShapingOverride(
   const src = getFontSourceInfo(base);
   const hbFace = src != null && src.nameMatched && src.faceIndex != null
     ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
-    : shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings);
+    : shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings)
+    // DM-1964: a webfont has no on-disk file, so both derivations above come
+    // back empty and the reroute used to decline — leaving the run on fontkit's
+    // enable-only shaping, i.e. dropping the very disable this function exists
+    // to express. The bytes are the same thing a path would have been read into.
+    ?? webfontShapingFace(base);
   if (hbFace == null) return base;
   const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
   if (hbInst === base) return base; // HarfBuzz declined the file
