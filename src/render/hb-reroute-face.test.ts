@@ -24,7 +24,7 @@
 // derivations happening to coincide.
 import { describe, expect, it } from "vitest";
 import {
-  resolveFont, resolveFontKey, fontFeatureValueShapingOverride,
+  resolveFont, resolveFontKey, fontFeatureValueShapingOverride, getFontSourceInfo,
 } from "./font-resolution.js";
 
 const TEXT = "italic outline";
@@ -42,10 +42,18 @@ function shaped(font: ReturnType<typeof resolveFont>): { ids: string; adv: numbe
 }
 
 describe("HarfBuzz feature-reroute keeps the shaping face (DM-1982)", () => {
-  // Each family whose italic is a SEPARATE file or TTC member — the shape of
-  // face the key-based derivation could not reach. A family the host lacks
-  // simply drops out rather than asserting nothing.
-  for (const family of ["system-ui", "Georgia", "Times", "Helvetica"]) {
+  // Each family whose italic / bold is a SEPARATE file or TTC member — the
+  // shape of face the key-based derivation could not reach. A family the host
+  // lacks simply drops out rather than asserting nothing.
+  //
+  // `Arial` leads the list because it is the one that discriminates on BOTH
+  // platforms: measured, it routes all four (weight x slant) combinations to
+  // distinct files on macOS (Arial / Arial Italic / Arial Bold / Arial Bold
+  // Italic) and on Linux (LiberationSans Regular / Italic / Bold / BoldItalic).
+  // The macOS-flavored families below add coverage where they exist; on Linux
+  // `system-ui` in particular resolves ONE face for both slants, so a list
+  // without Arial would leave the container asserting nothing.
+  for (const family of ["Arial", "system-ui", "Georgia", "Times", "Helvetica"]) {
     for (const slant of [0, 1]) {
       it(`${family} at slant ${slant}: the proxy shapes the same glyphs as the base instance`, () => {
         const key = resolveFontKey(family);
@@ -67,13 +75,33 @@ describe("HarfBuzz feature-reroute keeps the shaping face (DM-1982)", () => {
     }
   }
 
-  it("is DISCRIMINATING: the upright and italic cuts really do use different ids", () => {
-    // Without this, every assertion above could pass on a host where the two
-    // cuts happen to share a glyph order — and the test would be vacuous
-    // exactly where the bug lived.
-    const upright = shaped(resolveFont("system-ui", WEIGHT, SIZE, 0, undefined, 100));
-    const italic = shaped(resolveFont("system-ui", WEIGHT, SIZE, 1, undefined, 100));
-    if (upright == null || italic == null) return;
-    expect(italic.ids).not.toBe(upright.ids);
+  it("is DISCRIMINATING: some family above really does route to a different FILE", () => {
+    // Without this, every assertion above could pass on a host where nothing
+    // routes anywhere — vacuous exactly where the bug lived.
+    //
+    // The check is on the FILE, not on the glyph ids, because the file is what
+    // the bug was about: the proxy opened the family's base member while the
+    // outlines came from a sibling. Ids are a downstream symptom, and a
+    // platform-dependent one — measured in the pinned Linux container, Arial's
+    // four cuts resolve to four distinct Liberation files that nonetheless
+    // share a glyph ORDER, so the ids agree across them. (Which also means the
+    // bug was benign on Linux for these families: wrong file, same ids. It was
+    // not benign on macOS, where Times and Helvetica are TTC members with
+    // genuinely different orders.)
+    //
+    // Asked across the whole list rather than of one family, because whether a
+    // family routes at all is a per-host fact: `system-ui` resolves to two
+    // files on macOS and to ONE on Linux, where the slant is synthesized.
+    const routes = ["Arial", "system-ui", "Georgia", "Times", "Helvetica"].filter((family) => {
+      const seen = new Set<string>();
+      for (const [w, sl] of [[400, 0], [400, 1], [800, 0], [800, 1]] as const) {
+        const src = getFontSourceInfo(resolveFont(family, w, SIZE, sl, undefined, 100));
+        if (src != null) seen.add(`${src.path}#${src.faceIndex}`);
+      }
+      return seen.size > 1;
+    });
+    // A host where NOTHING routes cannot exercise the bug at all, and should say
+    // so loudly rather than report ten green vacuous assertions.
+    expect(routes.length).toBeGreaterThan(0);
   });
 });

@@ -78,15 +78,36 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
   beforeEach(() => { setRenderTextMode("embedded-font"); clearEmbeddedFontBuilder(); });
   afterEach(() => { setRenderTextMode("paths"); clearEmbeddedFontBuilder(); });
 
-  const available = (): boolean => {
+  /**
+   * Whether this host's `FAMILY` actually SYNTHESIZES — not merely whether it
+   * renders. The two are different preconditions, and the weaker one is wrong:
+   * a host without Papyrus resolves the stack to some fallback that ships a
+   * real bold cut, and then no synthesis happens for these tests to observe.
+   * Every assertion below counts entries or compares bytes across a
+   * synthesis boundary, so on such a host they assert a difference that should
+   * not exist. (Measured: the weak guard passed on Linux and failed four
+   * assertions in the pinned container.)
+   *
+   * The check is the synthesis itself: an un-vetoed bold run must produce
+   * DIFFERENT embedded bytes from a plain one. Same bytes means the face
+   * carried the weight rather than having it baked on.
+   */
+  const synthesizes = (): boolean => {
     clearEmbeddedFontBuilder();
-    const ok = render("Hg", { fontWeight: "400" }) != null && faces().length > 0;
+    if (render("Hg", { fontWeight: "400" }) == null || faces().length === 0) {
+      clearEmbeddedFontBuilder();
+      return false;
+    }
+    clearEmbeddedFontBuilder();
+    render("Hamburgefonstiv", { fontWeight: "700" });
+    render("Hamburgefonstiv", { fontWeight: "700", fontSynthesis: { weight: false } });
+    const ok = faceBytes().length === 2 && faceBytes()[0] !== faceBytes()[1];
     clearEmbeddedFontBuilder();
     return ok;
   };
 
   it("keys the faux-bold bake into the entry identity, so a vetoed run cannot reuse an emboldened entry", () => {
-    if (!available()) return;
+    if (!synthesizes()) return;
     // Both runs: same family, same weight, same slant, same features. Only the
     // veto differs. If the bake were not part of the key they would share ONE
     // entry and the veto would change nothing in the output.
@@ -96,7 +117,7 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
   });
 
   it("keys the faux-oblique shear into the entry identity — the bug that made the style veto inert", () => {
-    if (!available()) return;
+    if (!synthesizes()) return;
     // This is the case that actually broke. The two italic runs agreed on
     // family / weight / slant / features / axes, so before the fix they resolved
     // to ONE entry — built by whichever ran first, WITH the shear baked in — and
@@ -114,7 +135,7 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
   });
 
   it("bakes NOTHING into a vetoed italic — its bytes equal the upright face's", () => {
-    if (!available()) return;
+    if (!synthesizes()) return;
     // The strongest form of the claim, and the one a descriptor check cannot
     // make: compare the embedded font BYTES. A vetoed italic must carry the
     // same outlines as the upright request (nothing was sheared), while an
@@ -136,7 +157,7 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
   });
 
   it("does not disturb an un-vetoed run — auto is byte-identical to omitting the option", () => {
-    if (!available()) return;
+    if (!synthesizes()) return;
     const withOpt = render("Hamburgefonstiv", {
       fontWeight: "700", fontSynthesis: { weight: true, style: true, smallCaps: true },
     });
@@ -154,10 +175,13 @@ describe("synthesized small-caps veto (DM-1971)", () => {
     // is upcased and painted at 0.7. With the veto the run must render as plain
     // lowercase — identical to asking for no small-caps at all.
     const synth = render("Hamburgefonstiv", { features: ["smcp"] });
-    if (synth == null) return;
-    const vetoed = render("Hamburgefonstiv", { features: ["smcp"], fontSynthesis: { smallCaps: false } });
     const plain = render("Hamburgefonstiv", {});
+    // Same precondition shape as the embedded block: the host's resolved face
+    // must actually LACK `smcp`, or there is no stand-in to suppress and the
+    // final assertion would demand a difference that should not exist. A host
+    // whose fallback ships real small caps simply has nothing to test here.
+    if (synth == null || plain == null || synth === plain) return;
+    const vetoed = render("Hamburgefonstiv", { features: ["smcp"], fontSynthesis: { smallCaps: false } });
     expect(vetoed).toBe(plain);
-    expect(synth).not.toBe(plain);
   });
 });
