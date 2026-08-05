@@ -62,6 +62,15 @@ fi
 
 echo ">>> Image:   ${IMAGE}"
 echo ">>> Command: ${RUN_CMD}"
+# DM-1976: print the output dir, because the redirect below is the single most
+# expensive thing about this script to not notice. It was documented only in a
+# comment, and a session spent measuring a font A/B in here read
+# `tests/output/features-results.json` — the HOST's stale file — in both arms,
+# got "0 of 114 fixtures moved" for a mechanism that moves one, and filed a bug
+# against this script. The suite was correct the whole time; the reader was
+# looking at the wrong file. Anything that consumes results from a run in here
+# must read THIS path.
+echo ">>> Results: ${DOMOTION_OUTPUT_DIR:-/work/tests/output-linux} (host: ${DOMOTION_OUTPUT_DIR:-tests/output-linux}) — NOT tests/output/"
 echo
 
 docker pull "${IMAGE}"
