@@ -48,11 +48,58 @@ Chrome reports one x per **source character**; we report one per **glyph**. When
 
 ## Corpus
 
-**Derived, not authored.** `--extract-runs` walks the fixture corpus, and for every text node records `(text, fontFamily, fontSize, fontWeight, fontStyle, fontVariationSettings, fontStretch, fontFeatureSettings)` from the element's **computed** style. A hand-written list of "interesting" strings is precisely the sampled artifact this tool replaces — it would contain only the cases someone already thought of.
+**Derived, not authored.** `--extract-runs` walks the fixture corpus, and for every text node records `(text, fontFamily, fontSize, fontWeight, fontStyle, fontVariationSettings, fontStretch, fontFeatureSettings, letterSpacing, textRendering, fontVariantLigatures)` from the element's **computed** style. A hand-written list of "interesting" strings is precisely the sampled artifact this tool replaces — it would contain only the cases someone already thought of.
 
 Runs are filtered to non-empty, ≤24 characters, and **whitespace-free**. The last is not cosmetic: Chrome's `glyphCount` includes the space glyphs HarfBuzz produced, while our renderer usually emits no position for them (no ink) — but **does** on at least one path (measured: the emoji path emits one entry per character, spaces included). Normalizing by subtracting the whitespace count papers over that with an assumption that is false somewhere, so the corpus excludes the question instead. Nothing is lost for shaping: ligatures, joining, reordering and mark attachment are all *within-word* phenomena, and a space is a word boundary.
 
 A run whose family is defined by an **`@font-face` rule** is dropped as well, and for the same reason rather than a new one. No `@font-face` travels with a run: `chromeShaping` re-declares the run's font *properties* on a synthesized page, so the family name resolves through the stack to whatever the probe page can find, and our side falls through too. The two then agree about a font the fixture never painted — agreement that reads as coverage while measuring nothing. Measured on the corpus's own `20-font-face.html`, whose rules are `src: local(...)` only: the fixture paints `TestSerif` as **Georgia** and `TestMono` as **Menlo**, the probe page paints them as **Times** and **Courier**, and the 32 runs scored 28 `agree-exact` / 4 `agree-count`. Excluding them costs nothing today — the default corpus contained **0** such runs, because all of that fixture's text is multi-word and the whitespace rule had already dropped it — and it keeps the corpus honest the moment either the whitespace split widens or a real webfont fixture lands. Pinned by `tests/shaping-corpus-fontface-exclusion.e2e.test.ts`, which asserts the exclusion **and** a control fixture identical but for the rule, so a extractor that harvested nothing could not pass.
+
+### letter-spacing and text-rendering are SHAPING inputs, not layout ones
+
+Blink emits `liga` / `clig` / `calt` **disables** whenever `letter-spacing` is
+non-zero or `text-rendering` is `optimizeSpeed` — `FontFeatureRange::FromFontDescription`
+(`platform/fonts/shaping/font_features.cc:52-86`, rev `7d859f27`) — and the
+`letter_spacing` term is the FIRST in that disjunction, so it outranks the
+author's `font-variant-ligatures` keyword outright. `font-variant-ligatures` is
+recorded alongside them, both because its keyword disables are a shaping input in
+their own right and because without it a letter-spaced run and a letter-spaced
+run that also asks for `common-ligatures` dedupe to one spec — and that pair is
+the case that separates a veto from an overridable default.
+
+The corpus could grade none of this. Re-extracting `external/html-test` with all
+three captured gives **29 non-zero letter-spacing runs and ZERO `optimizeSpeed`
+runs**, and none of the 29 sits on a ligating face with ligating text. So
+`tests/fixtures/shaping/letter-spacing-ligature-vetoes.html` supplies the
+discriminating rows, the same way `font-feature-disables.html` does for the
+keyword path: Times and Helvetica, whose common ligatures fire, under each veto.
+Measured over CDP at 24px (macOS, Chromium 147.0.7727.15) — `plain` is the
+ligated count and every veto column gives the un-ligated one:
+
+| word | plain | letter-spacing | optimizeSpeed | letter-spacing + `common-ligatures` |
+| --- | --- | --- | --- | --- |
+| `office` / `waffle` / `flight` | 5 | 6 | 6 | 6 |
+| `affix` | 4 | 5 | 5 | 5 |
+
+**Confirmed in the loop, not merely plumbed.** Per the standing rule that a flag
+being on is not evidence a mechanism runs, the sweep was scored twice — once with
+the vetoes applied and once with them forced off — and the answer was required to
+move. `MISMATCH count` goes **0 → 24**, which is exactly the 8 letter-spaced +
+8 `optimizeSpeed` + 8 keyword-outranked rows.
+
+**What the tier numbers did, and why the drop is an improvement.** The corpus
+grew 2,470 → 2,498 runs, and `agree-exact` fell 2,436 → 2,417. That is not a
+regression: **19 previously-"exact" rows moved to `agree-count`** because the
+probe page now re-declares the letter-spacing the fixture had, where before it
+silently dropped it. Those rows had been agreeing about a run neither side was
+rendering — the same vacuous-agreement failure the `font-feature-settings`
+re-declaration exists to prevent, one property over.
+
+Positions for a letter-spaced run land in `agree-count` by construction and stay
+there: the renderer receives spacing as captured per-character `xOffsets`, and
+this probe supplies none, so our x values are the un-spaced ones. That is a limit
+of the instrument rather than a shaping disagreement, and it is confined to the
+non-gating tier — the **glyph count**, which is what `mismatch-count` scores, is
+unaffected by it and is the axis these vetoes actually move.
 
 ### The variable axis is part of a run's identity
 
@@ -151,6 +198,7 @@ Pinned by `tests/variable-axis-oracle-pair.e2e.test.ts`.
 - **`font-stretch` is now in the committed corpus.** The field had been modelled by the schema, extractor, probe page and our-side call for a while, but `tools/shaping-conformance-runs.json` predated it and so carried no stretch at all. Re-extraction picked it up: the corpus is now **2,454 runs, 8 of them carrying a non-`100%` stretch** (and 32 axis-bearing, unchanged).
 - **Webfont runs still cannot be swept**, and the corpus contains none to sweep. `chromeShaping` synthesizes its probe page with `setContent` and no `@font-face`, and our side has no webfont registered because there is no capture step. Rather than sweep them wrongly the extractor now **excludes** `@font-face`-resolved families outright (see [Corpus](#corpus)). `tests/fixtures/variable-axis/variable-axis.html` is driven by `tools/variable-axis-oracle-pair.ts` instead. Re-measured against the corpus as it stands — see [Webfont sweeping](#webfont-sweeping--measured-and-declined) below: **0** of 8,880 text-bearing elements across all 296 fixtures render in a custom face, so building the plumbing would add coverage for zero runs.
 - **Only axis- and feature-bearing text nodes are split on whitespace.** Every other node must be whitespace-free as a whole or it is dropped, so multi-word runs are unswept. Splitting universally grows the corpus 10.65× — **measured, and declined**; see [Universal whitespace splitting](#universal-whitespace-splitting--measured-and-declined) below. The `--split-words` switch keeps the measurement reproducible.
+- **Positions of letter-spaced runs are unchecked.** They score `agree-count` by construction — the oracle's probe page applies the spacing and our side does not, because the renderer takes spacing as captured `xOffsets` and there is no capture step here. The glyph count still grades correctly, which is what the letter-spacing ligature veto moves. Closing it would mean re-deriving Blink's spacing application inside the oracle, i.e. a second derivation of the kind this tool exists to avoid.
 - **Feature DISABLES on webfont-buffer runs remain unexpressed.** The HarfBuzz reroute (`fontFeatureValueShapingOverride`) needs an on-disk file to open; a webfont held only as a buffer keeps its previous shaping, so a `"liga" 0` on a webfont run is still dropped there. Coupled to the webfont-sweep gap above.
 
 ## Universal whitespace splitting — measured, and declined

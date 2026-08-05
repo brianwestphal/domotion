@@ -53,7 +53,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { join, resolve } from "node:path";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { clearFontResolutionCaches } from "../src/render/font-resolution.js";
-import { parseFontFeatureSettings, parseFontVariationSettings } from "../src/render/text.js";
+import {
+  parseFontFeatureSettings, parseFontVariationSettings, resolveFontVariantFeatures, mergeFeatureLists,
+} from "../src/render/text.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,6 +128,46 @@ export interface RunSpec {
    * parses; the extractor always writes it.
    */
   fontFeatureSettings?: string;
+  /**
+   * The run's computed `letter-spacing` and `text-rendering` (DM-1983).
+   *
+   * Both are SHAPING inputs, not just layout ones. Blink's feature emission
+   * disables `liga`/`clig`/`calt` whenever letter-spacing is non-zero or
+   * `text-rendering` is `optimizeSpeed` — `FontFeatureRange::FromFontDescription`
+   * (`platform/fonts/shaping/font_features.cc:52-86`, rev 7d859f27) — and the
+   * first term of that disjunction outranks the author's `font-variant-ligatures`
+   * keyword outright. A corpus without them sweeps a population in which neither
+   * veto can fire, so a regression in either would not turn this red.
+   *
+   * The graded consequence is the GLYPH COUNT: "ffi" is one glyph ligated and
+   * three unligated, and glyph count is what `mismatch-count` scores. The
+   * POSITIONS of a letter-spaced run are expected to land in the non-gating
+   * `agree-count` tier instead, because the renderer receives spacing as
+   * captured per-character xOffsets and this probe supplies none — that is a
+   * known limit of the instrument, not a disagreement about shaping.
+   *
+   * Optional on read so a corpus file written before these existed still parses;
+   * the extractor always writes them.
+   */
+  letterSpacing?: string;
+  textRendering?: string;
+  /**
+   * The run's computed `font-variant-ligatures` (DM-1983).
+   *
+   * Recorded for two reasons. It is a shaping input in its own right — the
+   * keyword disables (`none`, `no-common-ligatures`, `no-contextual`) are the
+   * path DM-1960 routed through HarfBuzz, and the corpus could previously see
+   * them only where an author happened to spell the same thing as
+   * `font-feature-settings: "liga" 0`.
+   *
+   * And without it the corpus cannot distinguish a letter-spaced run from a
+   * letter-spaced run that ALSO asks for `common-ligatures` — the two dedupe to
+   * one spec. That pair is the case worth having: letter-spacing is the first
+   * term of Blink's disjunction, so the keyword does not survive it, and a model
+   * that treated these properties as an overridable default would agree on every
+   * other row and disagree only there.
+   */
+  fontVariantLigatures?: string;
   fixtures: number;
   example: string;
 }
@@ -291,6 +333,9 @@ export async function extractRuns(
         const fvs = cs.fontVariationSettings === "" ? "normal" : cs.fontVariationSettings;
         const stretch = cs.fontStretch === "" ? "100%" : cs.fontStretch;
         const ffs = cs.fontFeatureSettings === "" ? "normal" : cs.fontFeatureSettings;
+        const ls = cs.letterSpacing === "" ? "normal" : cs.letterSpacing;
+        const tr = cs.textRendering === "" ? "auto" : cs.textRendering;
+        const fvl = cs.fontVariantLigatures === "" ? "normal" : cs.fontVariantLigatures;
         for (const node of Array.from(el.childNodes)) {
           if (node.nodeType !== 3) continue;
           const raw = (node.textContent ?? "").trim();
@@ -352,6 +397,9 @@ export async function extractRuns(
               fontVariationSettings: fvs,
               fontStretch: stretch,
               fontFeatureSettings: ffs,
+              letterSpacing: ls,
+              textRendering: tr,
+              fontVariantLigatures: fvl,
             }));
           }
         }
@@ -407,6 +455,17 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
       // terminates the style attribute and silently drops the declaration.
       + `${s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal"
         ? `;font-feature-settings:${esc(s.fontFeatureSettings)}` : ""}`
+      // Re-declare letter-spacing and text-rendering (DM-1983). Both change
+      // which FEATURES Chrome shapes with, so a probe page that omits them
+      // shapes a ligature the fixture did not have — and then compares that
+      // against our side, which is also being told nothing, producing agreement
+      // that says nothing. Same failure mode as omitting the feature list above.
+      + `${s.letterSpacing != null && s.letterSpacing !== "normal"
+        ? `;letter-spacing:${esc(s.letterSpacing)}` : ""}`
+      + `${s.textRendering != null && s.textRendering !== "auto"
+        ? `;text-rendering:${esc(s.textRendering)}` : ""}`
+      + `${s.fontVariantLigatures != null && s.fontVariantLigatures !== "normal"
+        ? `;font-variant-ligatures:${esc(s.fontVariantLigatures)}` : ""}`
       + `">${esc(s.text)}</div>`).join("")
   }</body></html>`;
   await page.setContent(html, { waitUntil: "load" });
@@ -484,7 +543,17 @@ export function ourShaping(spec: RunSpec): OurShaping {
     // rather than disabling a default-on feature. The fixture corpus declares
     // exactly that (`"liga" 0, "dlig" 0`), so this is a disagreement the sweep
     // should now be able to see rather than one it silently reproduces.
-    features: parseFontFeatureSettings(spec.fontFeatureSettings),
+    // DM-1983: merged through the SHIPPED `mergeFeatureLists`, and derived by
+    // the shipped `resolveFontVariantFeatures`, so the oracle exercises the real
+    // derivation rather than a second one that can drift from it. This is where
+    // the letter-spacing / optimizeSpeed vetoes enter: they push `-liga`,
+    // `-clig` and `-calt`, which is what stops a ligature from forming and
+    // therefore what the glyph-count comparison can see.
+    features: mergeFeatureLists(
+      parseFontFeatureSettings(spec.fontFeatureSettings),
+      resolveFontVariantFeatures(undefined, undefined, spec.fontVariantLigatures,
+        spec.letterSpacing, spec.textRendering),
+    ),
   });
   if (svg == null) return { glyphCount: 0, xs: [], ok: false };
   // EVERY `<text>` element, not the first: a run spanning more than one font

@@ -1244,7 +1244,11 @@ export function parseFontVariationSettings(css: string | undefined): Record<stri
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
+// Exported for the shaping conformance oracle (DM-1983), which must combine the
+// run's feature sources through the SHIPPED merge rather than a second one that
+// could drift from it — the same reason it calls `parseFontFeatureSettings` and
+// `resolveFontVariantFeatures` instead of re-deriving either.
+export function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
   if (a == null) return b;
   if (b == null) return a;
   const seen = new Set<string>();

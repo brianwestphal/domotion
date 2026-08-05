@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>letter-spacing and text-rendering disable ligatures</title>
+<!--
+  Shaping-oracle fixture (tools/shaping-conformance.ts extracts its runs).
+
+  Sibling of font-feature-disables.html, for the other two inputs that switch
+  ligatures off. Blink emits `liga`/`clig`/`calt` disables whenever
+  letter-spacing is non-zero or `text-rendering` is `optimizeSpeed`
+  (`FontFeatureRange::FromFontDescription`,
+  platform/fonts/shaping/font_features.cc:52-86, Chromium rev 7d859f27), and the
+  broad corpus could not grade either: it recorded neither property, so every
+  swept run had letter-spacing `normal` and text-rendering `auto`. Re-extracting
+  the html-test corpus with both properties captured yields 29 non-zero
+  letter-spacing runs out of 2,470 and ZERO optimizeSpeed runs, and none of the
+  29 sits on a ligating face with ligating text - so the vetoes still would not
+  have been exercised.
+
+  Times and Helvetica are used because their common ligatures DO fire, which is
+  what makes the glyph count move. Measured over CDP at 24px on macOS
+  (Chromium 147.0.7727.15) - `plain` is the ligated count, and all three veto
+  columns give the un-ligated one:
+
+    times/helv  office   plain 5   letter-spacing 6   optimizeSpeed 6   ls+liga 6
+    times/helv  waffle   plain 5   letter-spacing 6   optimizeSpeed 6   ls+liga 6
+    times/helv  affix    plain 4   letter-spacing 5   optimizeSpeed 5   ls+liga 5
+    times/helv  flight   plain 5   letter-spacing 6   optimizeSpeed 6   ls+liga 6
+
+  So a veto that is dropped rather than honored surfaces as a mismatch-count
+  row, which is the gating tier.
+
+  The `ls-liga` rows are the ones worth keeping deliberately: they ask for
+  `font-variant-ligatures: common-ligatures` AND carry letter-spacing, and Chrome
+  still shapes without ligatures. Letter-spacing is the FIRST term of Blink's
+  disjunction, so no keyword survives it. A model that treated these properties
+  as a default the author could override would pass every other row here and
+  fail only these.
+
+  The `plain` rows pin the ENABLED side, so a change that disabled ligatures
+  unconditionally would fail too rather than looking like an improvement.
+
+  Single words on purpose: the extractor takes a whole text node only when it
+  contains no whitespace unless the run is feature-bearing, and a
+  letter-spacing-bearing run is not feature-bearing.
+
+  POSITIONS are expected to land in the non-gating `agree-count` tier for the
+  letter-spaced rows: the renderer receives spacing as captured per-character
+  xOffsets and the oracle's probe page supplies none, so our x values are the
+  un-spaced ones. That is a limit of the instrument, not a shaping disagreement,
+  and the glyph count - which is what this fixture exists to move - is unaffected
+  by it.
+-->
+<style>
+  body { font-size: 24px; margin: 16px; }
+  .times { font-family: Times, serif; }
+  .helv { font-family: Helvetica, sans-serif; }
+  .ls { letter-spacing: 2px; }
+  .speed { text-rendering: optimizeSpeed; }
+  .ls-liga { letter-spacing: 2px; font-variant-ligatures: common-ligatures; }
+</style>
+
+<div class="times">office</div>
+<div class="times">waffle</div>
+<div class="times">affix</div>
+<div class="times">flight</div>
+<div class="helv">office</div>
+<div class="helv">waffle</div>
+<div class="helv">affix</div>
+<div class="helv">flight</div>
+
+<div class="times ls">office</div>
+<div class="times ls">waffle</div>
+<div class="times ls">affix</div>
+<div class="times ls">flight</div>
+<div class="helv ls">office</div>
+<div class="helv ls">waffle</div>
+<div class="helv ls">affix</div>
+<div class="helv ls">flight</div>
+
+<div class="times speed">office</div>
+<div class="times speed">waffle</div>
+<div class="times speed">affix</div>
+<div class="times speed">flight</div>
+<div class="helv speed">office</div>
+<div class="helv speed">waffle</div>
+<div class="helv speed">affix</div>
+<div class="helv speed">flight</div>
+
+<div class="times ls-liga">office</div>
+<div class="times ls-liga">waffle</div>
+<div class="times ls-liga">affix</div>
+<div class="times ls-liga">flight</div>
+<div class="helv ls-liga">office</div>
+<div class="helv ls-liga">waffle</div>
+<div class="helv ls-liga">affix</div>
+<div class="helv ls-liga">flight</div>
