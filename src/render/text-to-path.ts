@@ -2287,7 +2287,13 @@ function renderTextAsEmbedded(
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
     let strokeAttr = "";
-    if (fakeBoldStroke.strokeWidthPx > 0 && textStrokeColor != null && textStrokeColor !== "") {
+    // DM-1970: a synthetic-bold frame is painted in the FILL color and has no
+    // CSS stroke behind it, so it carries its own colour rather than reading
+    // `textStrokeColor` (which is null on these runs — the old guard would have
+    // dropped the frame entirely).
+    if (fakeBoldStroke.strokeIsFakeBold === true && fakeBoldStroke.strokeWidthPx > 0) {
+      strokeAttr = ` stroke="${esc(fill)}" stroke-width="${r2(fakeBoldStroke.strokeWidthPx)}"`;
+    } else if (fakeBoldStroke.strokeWidthPx > 0 && textStrokeColor != null && textStrokeColor !== "") {
       // `fakeBoldStroke.strokeWidthPx` is the CSS width plus Chrome-on-Linux's
       // synthetic-bold inflation when this run's face lacks the weight (see the
       // faux-bold block above); elsewhere it's the CSS width unchanged.

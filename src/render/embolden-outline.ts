@@ -164,13 +164,47 @@ export function resolveFakeBoldTextStroke(opts: {
   faceLacksWeight: boolean;
   fontSizePx: number;
   platform?: NodeJS.Platform;
-}): { emboldenFill: boolean; strokeWidthPx: number } {
+}): { emboldenFill: boolean; strokeWidthPx: number; strokeIsFakeBold?: boolean } {
   const platform = opts.platform ?? process.platform;
   const strokeActive = opts.strokeWidthPx > 0;
-  // Unstroked runs keep the existing DM-1693 behavior: bake the embolden
-  // whenever the face lacks the weight (all platforms).
+  // DM-1970: an unstroked run emits Skia's OWN operation rather than an outline
+  // dilation approximating it.
+  //
+  // `useStrokeForFakeBold` (Skia src/core/SkScalerContext.cpp:1019-1041, rev
+  // ebf5052) does not dilate anything: it clears the embolden flag, sets
+  // `kFrameAndFill` with `fFrameWidth = textSize * fakeBoldScale`, and takes a
+  // default paint's miter join and miter limit. macOS reaches it unconditionally
+  // from `SkTypeface_Mac::onFilterRec` (src/ports/SkTypeface_mac_ct.cpp:887) and
+  // FreeType platforms from `SkTypeface_FreeType::onFilterRec`. An SVG
+  // `stroke-width` on the emitted `<text>`, painted in the fill color, IS that
+  // operation — fill, then a centered frame over it.
+  //
+  // The dilation it replaces overshot badly, and by a size-dependent amount
+  // because its strength had no size term at all. Measured against Chrome on
+  // macOS (Papyrus at weight 700, ink DELTA over the un-emboldened control,
+  // which is the only figure that isolates the synthesis from the underlying
+  // rasterization difference):
+  //
+  //           bake    stroke
+  //   100px   1.53x   1.00x
+  //    48px   3.54x   1.57x
+  //
+  // The 1.53x at 100px independently reproduces the 1.474-1.507x recorded when
+  // this defect was filed, so the instrument agrees with the original finding.
+  // Below ~24px Chrome's own embolden delta collapses toward zero (and measures
+  // NEGATIVE at 12px), so that end is a rasterization floor rather than a
+  // strength error, and no strength choice can be fitted to it.
+  //
+  // This also deletes the 0.73 reconciliation factor and the missing size term
+  // together: both fall out of `extra` by construction rather than being
+  // calibrated.
   if (!strokeActive) {
-    return { emboldenFill: opts.faceLacksWeight, strokeWidthPx: 0 };
+    if (!opts.faceLacksWeight) return { emboldenFill: false, strokeWidthPx: 0 };
+    return {
+      emboldenFill: false,
+      strokeWidthPx: skiaFakeBoldStrokeExtraPx(opts.fontSizePx),
+      strokeIsFakeBold: true,
+    };
   }
   // Stroked runs: only Linux inflates (Skia's stroke-based fake bold); other
   // platforms keep the pre-existing thin-fill + exact-width stroke.

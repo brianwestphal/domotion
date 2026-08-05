@@ -75,10 +75,25 @@ describe("resolveFakeBoldTextStroke", () => {
     }
   });
 
-  it("unstroked runs keep the DM-1693 behavior: embolden whenever the face lacks the weight", () => {
+  it("unstroked runs emit Skia's FRAME, not an outline dilation (DM-1970)", () => {
+    // DM-1693 baked a design-space dilation here. Skia does not dilate: it sets
+    // kFrameAndFill with `fFrameWidth = textSize * fakeBoldScale` and a default
+    // paint's miter join (`useStrokeForFakeBold`,
+    // src/core/SkScalerContext.cpp:1019-1041, rev ebf5052), reached
+    // unconditionally on macOS from `SkTypeface_Mac::onFilterRec` and on
+    // FreeType platforms from its own `onFilterRec`. So this is the same
+    // operation on every platform, which is why the loop below expects no
+    // per-platform difference.
     for (const platform of ["linux", "darwin", "win32"] as const) {
-      expect(resolveFakeBoldTextStroke({ ...base, strokeWidthPx: 0, faceLacksWeight: true, platform }).emboldenFill).toBe(true);
-      expect(resolveFakeBoldTextStroke({ ...base, strokeWidthPx: 0, faceLacksWeight: false, platform }).emboldenFill).toBe(false);
+      const bold = resolveFakeBoldTextStroke({ ...base, strokeWidthPx: 0, faceLacksWeight: true, platform });
+      expect(bold.emboldenFill).toBe(false);
+      expect(bold.strokeIsFakeBold).toBe(true);
+      expect(bold.strokeWidthPx).toBeCloseTo(skiaFakeBoldStrokeExtraPx(base.fontSizePx), 6);
+
+      const plain = resolveFakeBoldTextStroke({ ...base, strokeWidthPx: 0, faceLacksWeight: false, platform });
+      expect(plain.emboldenFill).toBe(false);
+      expect(plain.strokeWidthPx).toBe(0);
+      expect(plain.strokeIsFakeBold).not.toBe(true);
     }
   });
 });
