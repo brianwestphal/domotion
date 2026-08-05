@@ -67,6 +67,12 @@ async function chromeCaretX(page: Page, id: string, offset: number): Promise<num
 }
 
 /** Paint the logical range with Chrome's Selection API and screenshot it. */
+/** The same clip with NO selection — the fringe baseline for Chrome's side. */
+async function chromeClearAndShoot(page: Page, top: number): Promise<Buffer> {
+  await page.evaluate(`(() => { getSelection().removeAllRanges(); return null; })()`);
+  return page.screenshot({ clip: { x: 0, y: top, width: W, height: 34 } });
+}
+
 async function chromeSelectAndShoot(page: Page, id: string, start: number, end: number, top: number): Promise<Buffer> {
   await page.evaluate(`(() => {
     var tn = document.getElementById(${JSON.stringify(id)}).firstChild;
@@ -108,6 +114,27 @@ async function selectionSpans(page: Page, png: Buffer): Promise<Array<[number, n
 
 /** Merge touching/overlapping spans so a comparison is about the painted INK,
  *  not about where the engine chose to split its rects. */
+/**
+ * DM-1977: drop spans that are already present with NOTHING selected.
+ *
+ * A column counts as selected if any pixel in it is blue-dominant, and on Linux
+ * the browser paints text with subpixel (LCD) antialiasing — so glyph edges
+ * carry coloured fringes that satisfy that predicate on their own. Measured:
+ * rendering this page with no selection and no tracks still yields
+ * `[[23,25],[50,52],[57,59],[78,80],[98,100],[115,118],[128,130],[141,143],[149,151]]`.
+ *
+ * Whole SPANS are dropped rather than the baseline COLUMNS being subtracted,
+ * and that distinction is load-bearing: several fringe columns fall INSIDE the
+ * real selection runs (50-52 and 57-59 sit within a genuine [47,66] span), so
+ * removing columns would split one real piece into three and make the count
+ * worse rather than better.
+ */
+function dropBaselineSpans(spans: Array<[number, number]>, baseline: Array<[number, number]>): Array<[number, number]> {
+  const isBaseline = (s: [number, number]): boolean =>
+    baseline.some((b) => Math.abs(b[0] - s[0]) <= 1 && Math.abs(b[1] - s[1]) <= 1);
+  return spans.filter((s) => !isBaseline(s));
+}
+
 function mergeSpans(spans: Array<[number, number]>, slack = 2): Array<[number, number]> {
   const sorted = [...spans].sort((a, b) => a[0] - b[0]);
   const out: Array<[number, number]> = [];
@@ -267,8 +294,9 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       // Chrome's painted spans for each case, from its own Selection API.
       const chromePainted: Array<Array<[number, number]>> = [];
       for (const c of cases) {
+        const bare = await selectionSpans(page, await chromeClearAndShoot(page, LINE_TOPS[c.id]));
         const png = await chromeSelectAndShoot(page, c.id, c.start, c.end, LINE_TOPS[c.id]);
-        chromePainted.push(mergeSpans(await selectionSpans(page, png)));
+        chromePainted.push(mergeSpans(dropBaselineSpans(await selectionSpans(page, png), bare)));
       }
       // The logical range is discontiguous, so Chrome paints it as SEVERAL
       // visually separate pieces — which is what makes this case worth having.
@@ -294,6 +322,25 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
         textTracks: tracks,
       });
 
+      // DM-1977: the same fringe baseline for OUR side — this page composed with
+      // no tracks at all, so every span it yields is antialiasing rather than
+      // selection ink. Measured to contain exactly the spurious 2px spans that
+      // were inflating our count from 2 to 7.
+      const bareSvg = generateAnimatedSvg({
+        width: W, height: H, background: "#ffffff",
+        frames: [{ svgContent: frameSvg, duration: 3000 }],
+      });
+      const bareViewer = await ctx.newPage();
+      await loadSeekableSvg(bareViewer, bareSvg);
+      await seekTo(bareViewer, 1500);
+      const ourBaseline: Record<string, Array<[number, number]>> = {};
+      for (const c of cases) {
+        ourBaseline[c.id] = await selectionSpans(
+          bareViewer,
+          await bareViewer.screenshot({ clip: { x: 0, y: LINE_TOPS[c.id], width: W, height: 34 } }),
+        );
+      }
+
       const viewer = await ctx.newPage();
       await loadSeekableSvg(viewer, svg);
       await seekTo(viewer, 1500);
@@ -301,7 +348,7 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       for (let i = 0; i < cases.length; i++) {
         const c = cases[i];
         const png = await viewer.screenshot({ clip: { x: 0, y: LINE_TOPS[c.id], width: W, height: 34 } });
-        const ours = mergeSpans(await selectionSpans(viewer, png));
+        const ours = mergeSpans(dropBaselineSpans(await selectionSpans(viewer, png), ourBaseline[c.id]));
         const label = `${c.id}[${c.start},${c.end})`;
         expect(ours.length, `${label} span count (ours ${JSON.stringify(ours)} vs chrome ${JSON.stringify(chromePainted[i])})`).toBe(chromePainted[i].length);
         for (let k = 0; k < ours.length; k++) {
@@ -314,7 +361,7 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       // still touches the range's right edge but not yet its left edge.
       await seekTo(viewer, 200);
       const midPng = await viewer.screenshot({ clip: { x: 0, y: LINE_TOPS.rtl, width: W, height: 34 } });
-      const mid = mergeSpans(await selectionSpans(viewer, midPng));
+      const mid = mergeSpans(dropBaselineSpans(await selectionSpans(viewer, midPng), ourBaseline.rtl));
       const full = chromePainted[1];
       expect(mid.length).toBeGreaterThan(0);
       const midRight = Math.max(...mid.map((s) => s[1]));
