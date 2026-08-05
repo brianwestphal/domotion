@@ -54,10 +54,16 @@ shortest possible map:
   live by the win32 helper's DirectWrite `FindFamilyName` rather than a baked
   filename table;
   `unicode-classification.ts` owns the Unicode predicates;
-  `embolden-outline.ts` bakes synthetic (faux) bold + oblique into embedded glyph
-  outlines when the resolved face lacks the requested weight/style — a float port
-  of FreeType's `FT_Outline_EmboldenXY` (DM-1693) plus an affine shear for
-  faux-italic (DM-1695), for Linux single-weight / no-italic faces;
+  `synthesis-decision.ts` owns WHETHER a resolved face needs synthetic bold /
+  oblique (`faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` — three
+  different per-platform Blink rules plus a fourth webfont-descriptor one, and
+  the `font-synthesis` vetoes), read by BOTH render modes so neither re-derives
+  a font decision;
+  `embolden-outline.ts` owns HOW — `skiaFakeBoldStrokeExtraPx` /
+  `resolveFakeBoldTextStroke` reproduce Skia's fake-bold stroke frame
+  (`useStrokeForFakeBold`), and `shearPathCommands` bakes the faux-italic shear
+  into an embedded outline (paths mode applies the same factor as a group
+  transform instead);
   `embedded-font-builder.ts` builds the per-instance subset `glyf` TTF —
   hinting-preserving hb-subset of the original file when the entry is pure
   (variable sources fully instanced at the resolved axis location via

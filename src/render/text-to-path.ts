@@ -28,7 +28,12 @@ import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFon
 // one implementation instead of restating it; see `esc` for the disposition.
 import { esc as escAttr } from "./format.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
-import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont, OBLIQUE_SHEAR, resolveFakeBoldTextStroke } from "./embolden-outline.js";
+import { emboldenStrengthForFont, OBLIQUE_SHEAR, resolveFakeBoldTextStroke, skiaFakeBoldStrokeExtraPx } from "./embolden-outline.js";
+// DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
+// live in one module because BOTH render modes ask them. Re-exported below so
+// the long-standing `text-to-path.js` import sites keep working.
+import { faceNeedsSyntheticBold, faceNeedsSyntheticOblique, synthesisAllowed, type FontSynthesisAllowance } from "./synthesis-decision.js";
+export { faceNeedsSyntheticBold, faceNeedsSyntheticOblique, synthesisAllowed, type FontSynthesisAllowance } from "./synthesis-decision.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
@@ -79,7 +84,6 @@ import {
   syntheticMarkCenteringOffsetPx,
   win,
   stackPrimaryIsSystemUi,
-  webfontSyntheticBold,
 } from "./font-resolution.js";
 export * from "./font-resolution.js";
 
@@ -184,10 +188,27 @@ export function textToPathMarkup(
    *  which wins (the `HasVSFallbackPriority` guard,
    *  `shaping/harfbuzz_shaper.cc:184-198`, rev 7d859f27). */
   fontVariantEmoji?: FontVariantEmojiOverride,
-  /** DM-1971: the run's `font-synthesis` permissions. Only `smallCaps` acts on
-   *  this branch — paths mode emits raw outlines and applies neither faux-bold
-   *  nor faux-oblique, so their vetoes have nothing to veto here. */
+  /** DM-1971 / DM-1984: the run's `font-synthesis` permissions. Read by the
+   *  small-caps stand-in below AND by the per-run faux-bold frame. */
   fontSynthesis?: FontSynthesisAllowance,
+  /**
+   * DM-1984: paints Skia's synthetic-bold frame on the runs that need it. The
+   * fill color travels because the frame IS the fill color — `useStrokeForFakeBold`
+   * frame-and-fills with one paint (Skia `src/core/SkScalerContext.cpp:1019-1041`,
+   * rev ebf5052).
+   *
+   * PER RUN rather than on the outer group, which is the decision this
+   * parameter exists to encode. The outer-group version was measured and is
+   * WORSE THAN NO SYNTHESIS AT ALL on a mixed-script line: Papyrus (no bold cut)
+   * + CJK at weight 700, best-shift IoU against Chrome — 0.6997 with an
+   * outer-group frame, 0.8882 with none, 0.8736 for the plain control. The
+   * fallback run routes to a real bold cut (HiraginoSans W6) and needs no
+   * frame; giving it one closes the counters of glyphs whose perimeter dwarfs
+   * the Latin run's, so the spurious frame costs more than the missing one
+   * gained. Absent ⇒ no frame anywhere (what a `-webkit-text-stroke` run does,
+   * since that already occupies the stroke attributes).
+   */
+  fauxBold?: { fill: string },
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -197,6 +218,15 @@ export function textToPathMarkup(
 
   const primaryFontKey = resolveFontKey(fontFamily);
   const fontKeyChain = resolveFontKeyChain(fontFamily);
+
+  // DM-1984: the synthetic-bold frame for ONE run's glyph group. `groupScale`
+  // is that group's own `scale(s,-s)` factor, so the emitted width lands at
+  // `extra` CSS px after the transform — a fallback run on a face with a
+  // different unitsPerEm gets its own conversion rather than the primary's.
+  const fauxBoldAttrFor = (runFont: FontInstance, groupScale: number): string =>
+    fauxBold != null && groupScale > 0 && faceNeedsSyntheticBold(runFont, weight, fontSynthesis)
+      ? ` stroke="${escAttr(fauxBold.fill)}" stroke-width="${r2(skiaFakeBoldStrokeExtraPx(fontSize) / groupScale)}"`
+      : "";
 
   // Split the text into runs by font. Code points that primary lacks (Arabic,
   // CJK, …) get routed to a fallback font. Each run keeps its order; this
@@ -466,7 +496,7 @@ export function textToPathMarkup(
   // When synthesizing small-caps we need per-char rendering at variable scales,
   // so we route around singleFontMarkup which emits one fixed-scale group.
   if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps) {
-    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch);
+    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, fauxBoldAttrFor);
   }
 
   // Content with captured per-char xOffsets. Primary runs and non-shaping
@@ -598,7 +628,7 @@ export function textToPathMarkup(
                 xOffsets[nextI] - xOffsets[i], fontSize, runScale);
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
             }
-            groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})">${uses.join("")}</g>`);
+            groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"${fauxBoldAttrFor(run.font, chScale)}>${uses.join("")}</g>`);
             if (cssX > rightEdge) rightEdge = cssX;
           } else if (isPua && suppressedNotdef) {
             // DM-769: see singleFontMarkup branch for the full rationale.
@@ -808,7 +838,7 @@ export function textToPathMarkup(
           }
           if (uses.length > 0) {
             const cssX = Number(segMinX.toFixed(3));
-            groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
+            groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})"${fauxBoldAttrFor(run.font, sc)}>${uses.join("")}</g>`);
             const segRight = segMinX + segFontUnits * runScale;
             if (segRight > rightEdge) rightEdge = segRight;
           }
@@ -842,7 +872,7 @@ export function textToPathMarkup(
     }
     if (uses.length > 0) {
       const sc = Number(runScale.toFixed(5));
-      groups.push(`<g transform="translate(${r2(xCss)},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
+      groups.push(`<g transform="translate(${r2(xCss)},0) scale(${sc},${-sc})"${fauxBoldAttrFor(run.font, sc)}>${uses.join("")}</g>`);
     }
     xCss += runX * runScale;
   }
@@ -956,6 +986,12 @@ function singleFontMarkup(
   /** CSS `font-stretch` percentage — part of the glyph-def identity (see
    *  `ensureGlyphDef`). */
   stretch: number = 100,
+  /** DM-1984: builds the synthetic-bold frame attribute for this font at the
+   *  emitted group's own scale. Supplied by `textToPathMarkup`, which owns the
+   *  decision; a single-font run is the case where the outer group and the run
+   *  coincide, so the placement is moot here — it stays a callback purely so
+   *  the two branches cannot drift on WHETHER to synthesize. */
+  fauxBoldAttrFor?: (font: FontInstance, groupScale: number) => string,
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
   const run = features != null && features.length > 0
@@ -1004,7 +1040,7 @@ function singleFontMarkup(
       textIdx += sourceClusterSpan(text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, false);
     }
     return {
-      markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
+      markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})"${fauxBoldAttrFor?.(font, sc) ?? ""}>${uses.join("")}</g>` : "",
       width: xOffsets[xOffsets.length - 1] + nativeWidth / Math.max(1, text.length),
     };
   }
@@ -1071,7 +1107,7 @@ function singleFontMarkup(
     x += pos.xAdvance;
   }
   return {
-    markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
+    markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})"${fauxBoldAttrFor?.(font, sc) ?? ""}>${uses.join("")}</g>` : "",
     width: usePerChar ? (xOffsets![xOffsets!.length - 1] + nativeWidth / run.glyphs.length) : (targetWidth ?? nativeWidth),
   };
 }
@@ -1842,99 +1878,12 @@ function renderTextAsEmbedded(
     // fill) or the fill emboldens with the stroke kept at `w` (stroke-first +
     // opaque fill, where the fill covers the stroke's inner half). Other
     // platforms keep the previous behavior (embolden only unstroked runs).
-    const faceNaturalWeight = run.font.naturalWeight;
-    // DM-1880: Blink's synthetic-bold predicate is DIFFERENT ON EACH PLATFORM.
-    // There is no single "Blink rule" to transcribe here — all three read from
-    // `external/chromium`, rev 7d859f27:
-    //
-    //   macOS   mac/font_cache_mac.mm:424-427
-    //           desired_bold = Weight() > 500;
-    //           synthetic = desired_bold && !(traits & kCTFontTraitBold)
-    //
-    //   Linux   skia/font_cache_skia.cc:333-339          (also Android/Fuchsia)
-    //           Weight() > FontSelectionValue(200) + typeface->fontStyle().weight()
-    //
-    //   Windows win/font_cache_skia_win.cc:486-488
-    //           Weight() >= kBoldThreshold && !typeface->isBold()
-    //           (kBoldThreshold = 600, font_selection_types.h:182;
-    //            Skia's isBold() is the face's own declared weight >= 600)
-    //
-    // A DELTA on Linux, a THRESHOLD PAIR on macOS and Windows, and the two
-    // thresholds are not even the same number (500 vs 600).
-    //
-    // What shipped was the delta — which is exactly right for Linux and wrong
-    // for the other two. The clean divergence is weight 600 on a 400 face:
-    // macOS and Windows both synthesise (600 > 500; 600 >= 600, face not bold)
-    // and the delta does not (600 - 400 = 200, not > 200), so `font-weight: 600`
-    // on a static non-bold face painted the thin natural outline where Chrome
-    // paints emboldened ink. It also fired the other way on a 500-weight face
-    // that declares itself bold: the delta synthesises at 800 where macOS and
-    // Windows, asking the face's own bold flag, synthesise nothing.
-    //
-    // Worth stating because the ticket asked to "port Blink's predicate", which
-    // presumes one exists: porting the Windows rule everywhere would have broken
-    // Linux, where the delta IS the transcription.
-    //
-    // Honest substitution: macOS's test is CoreText's `kCTFontTraitBold`
-    // symbolic trait, which we cannot read here; `faceNaturalWeight >= 600` is
-    // the stand-in, and it is the same line Skia draws for `isBold()`. Faces
-    // whose declared weight and symbolic trait disagree will differ from Chrome.
-    //
-    // `hasWeightAxis` has no counterpart in Blink and is kept: a variable face
-    // is instanced at the requested axis location before it reaches here, so it
-    // already reports itself at that weight and there is nothing to synthesise.
-    // DM-1880: the face's own BOLD flag, which is what macOS and Windows both
-    // ask for. `faceIsBoldTrait` is the real thing — OS/2 `fsSelection` bit 5
-    // for a fontkit face, CoreText's `kCTFontTraitBold` for a helper-backed one.
-    // The weight comparison is only a fallback for a face that reports neither,
-    // and it is the substitution that measurably regressed a fixture when it was
-    // used as the primary signal, so it must not quietly become one again.
-    const faceIsBold = run.font.faceIsBoldTrait
-      ?? (faceNaturalWeight != null && faceNaturalWeight >= 600);
-    // A run resolved through the `@font-face` registry obeys a DIFFERENT rule,
-    // and a platform-independent one: Chrome's webfont synthetic bold is
-    // decided in the CSS layer (whether the declared font-weight DESCRIPTOR
-    // reaches bold, not whether the FILE does), so none of the per-platform
-    // system-font predicates below apply. Measured over CDP + 1x ink at 100px
-    // "Hamburgefonstiv": a variable webfont declared `font-weight: 400` and
-    // requested at 700 paints Lexend-Regular at ink 25951.4 against 21568.9
-    // for the same face at request 400 — a +20.3% dilation on an unchanged
-    // advance (847.000 px both) and an unchanged reported face name, which is
-    // why neither width nor `CSS.getPlatformFontsForNode` can see it.
-    // Reusing macOS's `weight > 500` predicate here would also be wrong in the
-    // other direction: a static webfont requested at 500 measured IDENTICAL to
-    // its 400 control (ink 17510.0 both), because the webfont threshold is 600.
-    const webfontFace = run.font.webfontFace;
-    // DM-1971: `font-synthesis-weight: none` vetoes faux-bold outright. Blink
-    // ANDs `SyntheticBoldAllowed()` into BOTH synthesis paths — the webfont one
-    // (`core/css/css_segmented_font_face.cc:116-119`) and the per-platform
-    // system-font ones — so the veto sits above the whole ternary rather than
-    // inside either branch. It gates the stroke path too, because
-    // `resolveFakeBoldTextStroke` reads this same flag.
-    const faceLacksWeight = !synthesisAllowed(fontSynthesis, "weight") ? false
-      : webfontFace != null
-      ? webfontSyntheticBold(webfontFace, weight)
-      : run.font.hasWeightAxis !== true &&
-      faceNaturalWeight != null &&
-      (hostPlatform() === "darwin"
-        // macOS: `desired_bold = Weight() > 500`, then `&& !(traits & kCTFontTraitBold)`
-        // (`mac/font_cache_mac.mm:424-427`). Note the threshold is 500, not the
-        // 600 Windows uses — they are different numbers in Blink, not a typo here.
-        ? weight > 500 && !faceIsBold
-        : hostPlatform() === "win32"
-        // Windows only, for now. Linux keeps the delta because the delta IS its
-        // transcription. macOS is ALSO wrong today, and is deliberately left
-        // wrong rather than half-fixed: its rule tests CoreText's
-        // `kCTFontTraitBold` symbolic trait, and standing in
-        // `faceNaturalWeight >= 600` for that regressed
-        // `2070-209F-superscripts-and-subscripts` (0.0138 → 0.0574) with nothing
-        // gained across 818 fixtures. A face declaring weight 500 that carries
-        // the bold trait is treated as not-bold by the stand-in, so we synthesise
-        // where Chrome does not. Fixing it properly means plumbing the real trait
-        // out of the CoreText helper; until then the delta is the better wrong
-        // answer, and saying so beats shipping a transcription that measures worse.
-        ? weight >= 600 && !faceIsBold
-        : weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA);
+    // DM-1984: the predicate itself moved to `synthesis-decision.ts` so paths
+    // mode reads the SAME one rather than re-deriving it. Its per-platform
+    // transcription (macOS `Weight() > 500` + `kCTFontTraitBold`, Linux's
+    // `> 200 + typeface weight` delta, Windows' `>= 600` + `isBold()`, and the
+    // fourth platform-independent webfont-descriptor rule) is documented there.
+    const faceLacksWeight = faceNeedsSyntheticBold(run.font, weight, fontSynthesis);
     const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
     const fakeBoldStroke = resolveFakeBoldTextStroke({
       strokeWidthPx: (textStrokeWidth != null && textStrokeWidth > 0
@@ -1947,31 +1896,14 @@ function renderTextAsEmbedded(
     const emboldenStrengthFU = fakeBoldStroke.emboldenFill
       ? emboldenStrengthForFont(run.font.unitsPerEm) : 0;
 
-    // DM-1695: faux-italic. When italic is requested (slant ≠ 0) but the resolved
-    // face is UPRIGHT (no italic sibling was routed to, no `slnt` axis carried the
-    // slant), Chrome synthesizes an oblique by shearing the glyph. Bake the same
-    // shear into the embedded outline (the @font-face descriptor stays italic, so
-    // the consumer synthesizes nothing). A shear is a pure affine transform, so —
-    // unlike faux-bold — it reproduces Chrome's device-space skew exactly and is
-    // safe on stroked runs too (no gate). `italicAngle` is the resolved face's
-    // own slant: a real italic face (|angle| ≥ 1°) already leans, so skip it.
-    // `isRoutedItalicCut` covers the faces that lean but under-report it — some
-    // TTC members ship `post.italicAngle` 0 despite a visibly slanted outline,
-    // and shearing those a second time doubled their lean.
-    let shearFactor = 0;
-    if (
-      // DM-1971: `font-synthesis-style: none` vetoes the synthesized oblique —
-      // Blink's `SyntheticItalicAllowed()`, ANDed in at the same place as the
-      // bold one (`core/css/css_segmented_font_face.cc:120-123`). A face that
-      // really leans is unaffected: the conditions below already exclude it.
-      synthesisAllowed(fontSynthesis, "style") &&
-      slant !== 0 &&
-      run.font.hasSlantAxis !== true &&
-      run.font.isRoutedItalicCut !== true &&
-      (run.font.resolvedItalicAngle == null || Math.abs(run.font.resolvedItalicAngle) < 1)
-    ) {
-      shearFactor = OBLIQUE_SHEAR;
-    }
+    // DM-1695: faux-italic. Embedded mode BAKES the shear into the outline (the
+    // @font-face descriptor stays italic, so the consumer synthesizes nothing).
+    // A shear is a pure affine transform, so — unlike faux-bold — it reproduces
+    // Chrome's device-space skew exactly and is safe on stroked runs too (no
+    // gate). Paths mode applies the same factor as a group `skewX`; the
+    // WHETHER is the shared predicate, only the HOW differs. DM-1984.
+    const shearFactor = faceNeedsSyntheticOblique(run.font, slant, fontSynthesis)
+      ? OBLIQUE_SHEAR : 0;
 
     // DM-1722: for a STATIC-weight source on the hinted path (no wght axis,
     // no faux-bold bake), the glyph outlines are identical at every requested
@@ -2447,30 +2379,6 @@ export interface TextFontOptions {
   fontSynthesis?: FontSynthesisAllowance;
 }
 
-/**
- * Whether each kind of font synthesis is permitted on a run — the renderer's
- * form of the three `font-synthesis` longhands. A missing field means permitted
- * (`auto`), so an options object that omits this behaves exactly as before.
- */
-export interface FontSynthesisAllowance {
-  /** `font-synthesis-weight` — gates faux-bold (fill bake AND stroke). */
-  weight?: boolean;
-  /** `font-synthesis-style` — gates faux-oblique (the shear). */
-  style?: boolean;
-  /** `font-synthesis-small-caps` — gates SYNTHESIZED small caps, i.e. the
-   *  scaled-lowercase stand-in taken when the face has no `smcp`. A face that
-   *  really carries `smcp` is unaffected: that is a real feature, not a
-   *  synthesis. */
-  smallCaps?: boolean;
-}
-
-/** Read one `font-synthesis` permission, defaulting to permitted (`auto`). */
-export function synthesisAllowed(
-  a: FontSynthesisAllowance | undefined, kind: keyof FontSynthesisAllowance,
-): boolean {
-  return a?.[kind] !== false;
-}
-
 /** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */
 export function cssWeightOf(fontWeight: string | number): number {
   return typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
@@ -2590,7 +2498,16 @@ export function renderTextAsPath(
     if (embedded != null) return embedded;
   }
 
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis);
+  // DM-1984: `-webkit-text-stroke` already occupies the stroke attributes, and
+  // Chrome's own handling of the two together is a per-platform mapping onto a
+  // single flat paint (`resolveFakeBoldTextStroke`). Rather than run two stroke
+  // sources against each other, a stroked run keeps the outer-group treatment
+  // below and takes the primary font's decision; an unstroked run — every
+  // ordinary one — gets the per-run frame.
+  const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0
+    && textStrokeColor != null && textStrokeColor !== "";
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
+    wantsTextStroke ? undefined : { fill });
   if (result == null || result.markup === "") return null;
 
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
@@ -2635,16 +2552,59 @@ export function renderTextAsPath(
   // parent (it doesn't inherit through `<use>` consistently). Instead,
   // pre-multiply the stroke width by the inverse scale so the post-
   // transform paint matches the requested CSS width.
+  // DM-1984: synthetic bold + oblique in PATHS mode. Until now this branch
+  // applied neither — a `font-weight: 700` run on a face with no bold cut
+  // painted the thin natural outline, and a `font-style: italic` run on an
+  // upright face painted it upright. Embedded mode has synthesized both since
+  // DM-1693/DM-1695, and paths mode ships (the visual suites pin it, and it is
+  // the always-correct fallback whenever a run cannot be embedded), so the
+  // fidelity gap was real rather than theoretical.
+  //
+  // The WHETHER is the shared predicate — `faceNeedsSyntheticBold` /
+  // `faceNeedsSyntheticOblique`, the same functions the embedded branch calls.
+  // Only the HOW differs: embedded mode bakes the shear into the outline and
+  // strokes the `<text>`; here the shear is a group transform and the frame
+  // rides on the PER-RUN groups (see `textToPathMarkup`'s `fauxBold` parameter
+  // for the measurement that settled the placement).
   let strokeAttr = "";
-  if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
+  if (wantsTextStroke) {
     const inverseScale = font.unitsPerEm / fontSize;
-    const swInEm = textStrokeWidth * inverseScale;
-    strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(swInEm)}"`;
+    // A stroked run keeps the outer-group treatment: the stroke attributes are
+    // already spoken for, so the two stroke sources are resolved into one width
+    // by the same per-platform mapping the embedded branch uses, taking the
+    // PRIMARY font's synthesis decision. `emboldenFill` (Linux, stroke-first,
+    // opaque fill) asks the FILL to carry the dilation with the stroke left at
+    // its CSS width; paths mode cannot do that without re-keying every glyph
+    // def, which is exactly the work the frame model removed — so take the
+    // other arm of the same mapping and widen the stroke. Residual: the band
+    // from the outline out to `extra/2` paints stroke-colored where Chrome
+    // paints it fill-colored, under a quarter pixel at body sizes.
+    const fakeBold = resolveFakeBoldTextStroke({
+      strokeWidthPx: textStrokeWidth!,
+      strokeFirst: paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder),
+      fillIsTransparent: isFullyTransparentColor(fill),
+      faceLacksWeight: faceNeedsSyntheticBold(font, weight, fontSynthesis),
+      fontSizePx: fontSize,
+    });
+    const swPx = fakeBold.emboldenFill
+      ? textStrokeWidth! + skiaFakeBoldStrokeExtraPx(fontSize)
+      : fakeBold.strokeWidthPx;
+    strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(swPx * inverseScale)}"`;
     if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
       strokeAttr += ` paint-order="stroke fill"`;
     }
   }
-  return `<g transform="translate(${r2(x)},${r2(baselineY)})" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
+
+  // DM-1695 shear, as an SVG transform rather than a baked outline. Glyphs
+  // paint inside inner `scale(s,-s)` groups, so the y axis is FLIPPED by the
+  // time they reach this group's user space: a design-space `x += 0.25·y`
+  // (y-up) is `x -= 0.25·y` here. `skewX` is expressed as a matrix so the
+  // factor stays exact rather than round-tripping through tan(-14.036°).
+  // Composed AFTER the translate, so the shear pivots on the baseline origin —
+  // which is where Chrome's `SkFont.setSkewX` pivots too.
+  const shear = faceNeedsSyntheticOblique(font, slant, fontSynthesis)
+    ? ` matrix(1,0,${-OBLIQUE_SHEAR},1,0,0)` : "";
+  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
 }
 
 /**

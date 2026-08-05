@@ -2038,13 +2038,61 @@ baseline correction CoreText only reports through the system-registered font):
 the probe is applied only when that handle is confirmed to be the requested face,
 so a face-wide baseline correction can never be read off a substituted font.
 
-**Synthetic (faux) bold bake (DM-1693):** when the resolved face has no variant
-at the requested weight, Chrome emboldens the outline algorithmically (Skia
-`SkFont.setEmbolden`); the embedded `@font-face` — tagged with the requested
-weight — would otherwise paint the thin natural outline with no synthesis. So
-`renderTextAsEmbedded` bakes the same dilation into the outline via
-`emboldenPathCommands` (`src/render/embolden-outline.ts`, a faithful float port
-of FreeType's `FT_Outline_EmboldenXY`) before `trackGlyphInEmbedFont`.
+**Synthetic (faux) bold (DM-1693, remodelled DM-1970, extended to paths mode
+DM-1984):** when the resolved face has no variant at the requested weight, Chrome
+emboldens it; the embedded `@font-face` — tagged with the requested weight —
+would otherwise paint the thin natural outline with no synthesis.
+
+What Chrome does is a STROKE FRAME, not an outline dilation, and we emit the same
+operation rather than an approximation of it. `SkScalerContextRec::useStrokeForFakeBold`
+(Skia `src/core/SkScalerContext.cpp:1019-1041`, rev ebf5052) clears the embolden
+flag, switches the paint to `kFrameAndFill` and sets
+`fFrameWidth = textSize * fakeBoldScale`, where `fakeBoldScale` interpolates
+1/24 at ≤9 px to 1/32 at ≥36 px (`src/core/SkTextFormatParams.h:16-29`). macOS
+reaches it unconditionally from `SkTypeface_Mac::onFilterRec`
+(`src/ports/SkTypeface_mac_ct.cpp:887`) and FreeType platforms from
+`SkTypeface_FreeType::onFilterRec`. So an SVG `stroke-width` in the FILL color,
+over the same outline, IS the operation — `skiaFakeBoldStrokeExtraPx` computes it
+and `resolveFakeBoldTextStroke` (`src/render/embolden-outline.ts`) decides how it
+combines with an author `-webkit-text-stroke`. The dilation this replaced
+overshot by a size-dependent amount because its strength had no size term at all
+(measured against Chrome, ink delta over the un-emboldened control: 1.53× at
+100 px, 3.54× at 48 px; the frame measures 1.00×).
+
+**Both render modes synthesize, and they read ONE predicate to decide.**
+`faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique`
+(`src/render/synthesis-decision.ts`) own the WHETHER; the modes differ only in
+the HOW:
+
+| | embedded-font mode | paths mode |
+|---|---|---|
+| bold | `stroke-width` on the emitted `<text>` | `stroke` + `stroke-width` on each per-run `<g scale(s,-s)>` group, converted by **that run's** scale |
+| oblique | shear baked into the outline (`shearPathCommands`) before `trackGlyphInEmbedFont` | `matrix(1,0,-0.25,1,0,0)` on the outer group, composed after the `translate` so it pivots on the baseline |
+
+Paths mode carried NEITHER until DM-1984 — a `font-weight: 700` run on a face
+with no bold cut painted the thin natural outline, and a `font-style: italic` run
+on an upright face painted it upright. The mode ships: the feature/showcase
+visual suites pin it, and it is the always-correct fallback whenever a run cannot
+be embedded.
+
+The **per-run** placement of the frame is load-bearing rather than incidental.
+The outer group is one font's; the runs inside it may be several. Measured on a
+mixed Latin+CJK line at weight 700 with a Papyrus primary (no bold cut) and a
+Hiragino fallback (which has one), best-shift IoU against Chrome's paint:
+per-run 0.9286, plain control 0.8736, no synthesis at all 0.8882, **outer-group
+frame 0.6997** — worse than doing nothing, because the fallback run already
+routes to a real bold cut and a spurious frame closes the counters of glyphs
+whose perimeter dwarfs the Latin run's. A `-webkit-text-stroke` run is the one
+exception: the stroke attributes are already spoken for, so it keeps the
+outer-group treatment and takes the primary font's decision.
+
+The paths-mode oblique is a group transform rather than a baked outline because a
+shear is a pure affine transform and the group's origin already IS the baseline
+origin. The sign is NOT derivable by inspection — the inner `scale(s,-s)` groups
+flip the y axis between the design space the factor is defined in and the user
+space the transform applies in — so it is pinned by measurement: against Chrome's
+italic paint, the applied shear scores 0.8792, no shear 0.4337, and the WRONG
+sign 0.2553, i.e. worse than not shearing at all.
 
 WHEN it fires depends on where the face came from, and the two answers are
 genuinely different rules rather than one rule with a special case:
@@ -2091,10 +2139,17 @@ silently reuses the first's entry: `font-style: italic` with and without
 nothing in the output. (The bold pair escaped only by accident — a non-zero
 embolden strength already forces `weightPart` off its shared `w=*` form.)
 
-**Gated OFF for
-`-webkit-text-stroke` runs:** Chrome emboldens in device space (post-hinting), we
-bake in design space — coverage matches, but a ~1px edge residual that a
-high-contrast stroke would trace is left for stroked heavy text (see doc 52).
+**`-webkit-text-stroke` runs** resolve the two stroke sources into one width via
+`resolveFakeBoldTextStroke`, per platform: on Linux Chrome inflates the stroke
+pass itself by the same `extra` (`fFrameWidth += extra`), so the emitted stroke
+widens to `w + extra` — or, under `paint-order: stroke` with an opaque fill, the
+FILL carries the dilation and the stroke stays at `w`. Paths mode cannot take
+that second arm without re-keying every glyph def, so it widens the stroke there
+too; the residual is the band from the outline out to `extra/2` painting
+stroke-colored where Chrome paints it fill-colored, under a quarter pixel at body
+sizes. Chrome emboldens in device space (post-hinting) and we work in design
+space, so a ~1px edge residual that a high-contrast stroke would trace remains
+for stroked heavy text (see doc 52).
 
 **Synthetic (faux) oblique bake (DM-1695):** the italic mirror. When italic is
 requested but the resolved face is upright (no italic sibling was routed to, no
@@ -2111,7 +2166,9 @@ needed because `Helvetica-LightOblique` and `HelveticaNeue-BoldItalic` report
 alone sheared them a second time), all populated in `getFontInstance`. A shear is a pure affine transform — it commutes with the
 uniform font scaling, so unlike the embolden it reproduces Chrome's device-space
 skew EXACTLY at every size and is applied to stroked runs too (no gate). Embolden
-then shear when both apply (bold-italic on a no-bold-no-italic face).
+then shear when both apply (bold-italic on a no-bold-no-italic face). Paths mode
+applies the identical factor as a group transform rather than a baked outline —
+see the two-mode table above.
 
 ---
 
