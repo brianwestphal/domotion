@@ -59,7 +59,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   `npm run fonts:family-match:win32` scores 516/516 on the Windows 11 VM.
   Both platforms verified in the loop by disabling
   (`DOMOTION_SYSTEM_FALLBACK=0` / `DOMOTION_DISABLE_HELPER=1`) and requiring
-  the resolved face to move.
+  the resolved face to move. The env fingerprint now carries the **Chromium
+  build** as well, since Chrome's answers are what these oracles grade;
+  `envMatches` skips a field absent on either side ("cannot tell", not
+  "known different") so adding it did not disarm the committed sets, and the
+  check arms per environment as each is re-seeded.
 - **Linux declared-family NOMINATION walk (doc 110, DM-1955)** — **Shipped.**
   The stage ABOVE the cut matcher now runs Blink's stack walk verbatim for
   non-generic names on Linux: ask the transcribed matcher per name, retry a
@@ -1044,6 +1048,25 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   semantics and the macOS monochrome-emoji replacement, and applied to the
   raster-emoji overlay routing — see doc 15). All three committed baselines await a
   re-seed from CI, since re-extraction moved each corpus's `generatedAt`.
+  **The report now records `meta.chromium`**, the build that produced the
+  Chrome side of every comparison, read from `browser.version()` on the
+  launched binary rather than from Playwright's declared revision (a
+  Windows VM launches a 148 build out of a `chromium-1217` directory). It
+  is checked for agreement across a run's shards and compared against the
+  baseline, so a run under a different browser is **refused rather than
+  judged** — added after four `font-variant-emoji: emoji` rows read as a
+  Windows-specific divergence for a week and turned out to be a 147→148
+  behaviour change, reproducible on macOS with the platform held constant.
+  The same field now rides in the family-match env fingerprint (docs
+  110/111) and in the visual sweep's `run-env.json` (doc 66, where it
+  *warns* rather than refuses, since that gate is regression-relative).
+  Two instrument fixes landed alongside: the batch memory reset now also
+  drops `glyph-helper.ts`'s own per-codepoint memos (a full-corpus macOS
+  run had been losing four of twenty shards to
+  `JavaScript heap out of memory`), and `DOMOTION_HELPER_NO_SERVE=1`
+  forces the one-shot helper transport so the persistent channel's cost is
+  measurable without changing the answers — 0.615 ms/codepoint with it,
+  24.480 ms without.
 - **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
   always-in-sync Mermaid flow diagram of the *entire* font-resolution
   system, synthesizing docs 03/30/40/42/51/52/80: family-stack→key, the

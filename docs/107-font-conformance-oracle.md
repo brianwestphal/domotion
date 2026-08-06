@@ -422,6 +422,22 @@ DOMOTION_DISABLE_HELPER=1 npx tsx tools/font-conformance.ts --max-stacks 1 --sha
 DOMOTION_SYSTEM_FALLBACK=0 npx tsx tools/font-conformance.ts --max-stacks 1 --shard 1/50 --out /tmp/off
 ```
 
+**The sibling switch, for the TRANSPORT rather than the answer.** `DOMOTION_HELPER_NO_SERVE=1` keeps the helper and its answers exactly as they are and forces the one-shot `spawnSync` path instead of the persistent channel. Use it when a *throughput* number is in question — `DOMOTION_DISABLE_HELPER` is not a substitute there, because it changes the answers and so compares two different resolvers rather than two transports.
+
+```sh
+npx tsx tools/font-conformance.ts --max-stacks 1 --shard 1/40 --out /tmp/on
+DOMOTION_HELPER_NO_SERVE=1 npx tsx tools/font-conformance.ts --max-stacks 1 --shard 1/40 --out /tmp/off
+```
+
+Measured on macOS over 7,312 codepoints, reports byte-identical:
+
+| | ours | per codepoint | throughput |
+| --- | ---: | ---: | ---: |
+| channel on | 4.5 s | 0.615 ms | 1,032/s |
+| channel off | 179.0 s | 24.480 ms | 40/s |
+
+That 24 ms is one process spawn per codepoint, and 40/s is within noise of the 47/s a Windows sweep measured on a Parallels VM where the same code on a GitHub Windows runner measures 636–695/s — which is what makes a degraded channel the leading explanation for the VM's number rather than a property of the platform.
+
 Run on all three, each on one stack:
 
 | Platform | live resolver on | off | reading |

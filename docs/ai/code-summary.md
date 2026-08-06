@@ -53,6 +53,15 @@ shortest possible map:
   `win32FallbackChain` is a thin adapter over it, and `IsFontPresent` is answered
   live by the win32 helper's DirectWrite `FindFamilyName` rather than a baked
   filename table;
+  `glyph-helper.ts` is the node side of the per-platform native helpers, and
+  owns the **persistent channel** (stdio on macOS/Linux, a named pipe on
+  Windows) plus the memos the platform answers land in. Two of those memos are
+  keyed per codepoint and are therefore unbounded in the codepoint universe —
+  `clearGlyphHelperCodepointMemos()` drops them and is called from
+  `clearFontResolutionCaches()`, which is what keeps an exhaustive sweep inside
+  a bounded heap. `DOMOTION_HELPER_NO_SERVE=1` forces the one-shot `spawnSync`
+  transport so the channel's *cost* can be measured without changing the
+  *answers* (doc 107 § Verifying the instrument);
   `unicode-classification.ts` owns the Unicode predicates;
   `synthesis-decision.ts` owns WHETHER a resolved face needs synthetic bold /
   oblique (`faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` — three
