@@ -296,6 +296,25 @@ export function fontCoversCp(font: FontInstance, cp: number): boolean {
 const coverageBitsets = new Map<string, Uint8Array | null>();
 
 function nativeFaceCoversCp(font: FontInstance, cp: number): boolean | null {
+  // `DOMOTION_NO_COVERAGE_BITSET=1` makes every caller fall through to its own
+  // platform probe. This exists to be TURNED OFF: a purely-performance seam is
+  // only answer-neutral if disabling it leaves the answers byte-identical, and
+  // an unchanged answer with the seam supposedly live means something
+  // intercepted ahead of it. Same reasoning as `DOMOTION_DISABLE_HELPER` /
+  // `DOMOTION_SYSTEM_FALLBACK=0`.
+  if (process.env.DOMOTION_NO_COVERAGE_BITSET === "1") return null;
+  // A file's cmap only stands in for the PLATFORM's coverage answer where the
+  // platform's answer is itself a cmap lookup — DirectWrite's `HasCharacter`
+  // and fontconfig's charset are, CoreText's is not, and the gap is real
+  // rather than theoretical. Measured on a 5M-comparison macOS slice: 364
+  // comparisons left agree-exact because the bitset reported Hiragino Sans GB
+  // as not covering U+2011 and the chain walked past it to Arial Unicode MS.
+  // No member of `Hiragino Sans GB.ttc` maps U+2011 in its cmap (checked, all
+  // four) — yet CoreText answers that it covers it, and CHROME PAINTS
+  // HiraginoSansGB-W3 for it. So on macOS the file's cmap is not the table
+  // that decides the answer, and the probe is the mechanism, not an
+  // optimization target.
+  if (hostPlatform() === "darwin") return null;
   // Only helper-backed faces: a fontkit instance answered above.
   if (typeof font.hasGlyphForCodePoint === "function") return null;
   const src = getFontSourceInfo(font);
@@ -2903,6 +2922,12 @@ function resolveSystemFallbackKeyForCp(
         // DM-1721: carry DirectWrite's resolved axis values (variable faces
         // only) into the dynamic spec so the hinted-subset pin can adopt them.
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName, "native", resolved.resolvedAxes);
+        // Same as the darwin branch above: the helper already decided coverage
+        // while it held the face open, so the caller need not re-ask over IPC.
+        // On Windows the field is exact rather than optimistic — the extractor
+        // only reports a face after `HasCharacter(cp)` succeeded, and nothing
+        // re-selects it afterwards (unlike CoreText's in-family re-selection).
+        if (resolved.covered !== undefined) _sysfbCoverage.set(`${key}|${cp}`, resolved.covered);
       }
     }
   } catch { key = null; }
@@ -7677,6 +7702,12 @@ export function clearFontResolutionCaches(): void {
   // unit tests. The two are the same class of state and must be dropped
   // together.
   _sysfbCoverage.clear();
+  // 136 KB per physical face, and the key set grows with every face the
+  // resolver reaches — a full-corpus sweep touches hundreds, so this is the
+  // same unbounded-growth shape as the memos above rather than a fixed cost.
+  // Rebuilding one is a single fontkit open, which is what this whole entry
+  // point trades memory for.
+  coverageBitsets.clear();
   clearGlyphHelperCodepointMemos();
 }
 
@@ -8328,7 +8359,27 @@ function resolveFontForCodepointInner(
   // so gating on it mis-routes those. Left as a documented 2-codepoint residual.
 
   // 0. Primary fast-path: literal coverage in the run's primary font.
-  if (glyphIdForCp(primaryFont, cp) !== 0) return cover(primaryFontKey, null);
+  //
+  // On a helper-backed primary this is one IPC round trip PER CODEPOINT and it
+  // dominates the whole resolver: a stack-traced Windows walk over 4000
+  // codepoints issued 4353 glyph probes, 4000 of them from right here (92%).
+  //
+  // The bitset is consulted in ONE DIRECTION ONLY — it can prove the face does
+  // NOT cover the codepoint (skip the probe), but a positive still has to be
+  // confirmed by the platform. Reading it both ways is not answer-neutral, and
+  // the asymmetry is not theoretical: a full-corpus macOS slice moved 364
+  // comparisons out of agree-exact, every one of them a chain walk stopping
+  // early at Arial Unicode MS because the FILE's cmap claimed a codepoint its
+  // CoreText probe reported as uncovered. A helper face is resolved by
+  // PostScript NAME on macOS, and CoreText may hand back a different face than
+  // the path we recorded ("Client requested name X, it will get Y"), so the
+  // file's cmap is not necessarily the table Chrome consulted. Non-coverage
+  // survives that gap — the walk has to keep going either way — which is also
+  // where nearly all the probes are: Arial's cmap holds 3,506 of 292,466
+  // assigned codepoints, so the negative answer is the common one.
+  if (nativeFaceCoversCp(primaryFont, cp) !== false && glyphIdForCp(primaryFont, cp) !== 0) {
+    return cover(primaryFontKey, null);
+  }
 
   // DM-1659: SF Pro Text/Display and the system font resolve to SFNS (matching
   // Chrome's PAINTED glyph shapes — see matchFamilyNameToKey). But SFNS lacks a
@@ -8407,7 +8458,15 @@ function resolveFontForCodepointInner(
   for (const key of fontKeyChain) {
     const inst = instanceFor(key);
     if (inst == null) continue;
-    if (glyphIdForCp(inst, cp) !== 0) return cover(key, key === primaryFontKey ? null : inst);
+    // Same prove-non-coverage-only use of the bitset as the primary fast-path
+    // above — see the reasoning there for why a positive is never taken from
+    // the file. Both sites need it, not just one: the primary probe used to
+    // warm the helper instance's per-codepoint cache, so skipping it up there
+    // merely MOVED the round trip down here (measured — 4000 probes left the
+    // fast path and 3912 reappeared on this line).
+    if (nativeFaceCoversCp(inst, cp) !== false && glyphIdForCp(inst, cp) !== 0) {
+      return cover(key, key === primaryFontKey ? null : inst);
+    }
     if (singleton != null && glyphIdForCp(inst, singleton) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, String.fromCodePoint(singleton), true);
     }

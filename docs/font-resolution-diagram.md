@@ -2234,6 +2234,8 @@ see the two-mode table above.
 | ideograph document cache (base+weight+style+size → first sysfb answer, § 8b) | **document** (`beginCharacterFallbackDocument` … `end…`) | scope close — deliberately NOT by `clearFontResolutionCaches` (modeled Chrome state, not a memo) |
 | `helperFontCache` / `helperOutlineCache` | process | `clearFontResolutionCaches` † · `__clearGlyphFallbackCaches` (test) |
 | `_systemFallbackCache` (macOS/Windows) / `_fcFallbackCache` (Linux) — the helper's OWN per-codepoint memo, one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † (via `clearGlyphHelperCodepointMemos`) · `clearGlyphHelperCache` (test) |
+| `coverageBitsets` (font file path + physical face index → 136 KB cmap bitset) | process | `clearFontResolutionCaches` † |
+| `_sysfbCoverage` (sysfb key + cp → covered?) — coverage the helper decided while it still held the nominated face open | process | `clearFontResolutionCaches` † |
 | `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |
 | `glyphDefs` (paths mode) | generation | `clearGlyphDefs` / `resetGeneration` |
 | `embeddedFonts` + subset builder | generation | `clearEmbeddedFonts` / `resetGeneration` |
