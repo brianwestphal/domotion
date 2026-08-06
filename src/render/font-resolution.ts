@@ -2792,6 +2792,11 @@ function resolveSystemFallbackKeyForCp(
         // property of the NAME), so the axis-location derivation can pin the
         // face's own coordinates instead of a CSS-derived `wght`.
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName, "native", undefined, resolved.ctAxes);
+        // The helper decided coverage while it still had the face open, so the
+        // caller does not have to ask again over IPC. Recorded per (face,
+        // codepoint) because that is what the question is about; `undefined`
+        // from an older binary simply leaves the caller's own probe in place.
+        if (resolved.covered !== undefined) _sysfbCoverage.set(`${key}|${cp}`, resolved.covered);
         // The substituted handle's variation axes + CURRENT position, observable
         // only here. Blink's clone gate compares against it (CoreText pre-sets
         // `opsz` on some handles), so the instantiated-name stamp in
@@ -3305,6 +3310,17 @@ function fallbackFamilyCutKey(
 // Memo for `fallbackFamilyCutKey`, keyed on the candidate family + codepoint +
 // CSS description. Process-global, like the other font caches.
 const fallbackFamilyCutCache = new Map<string, string | null>();
+
+/**
+ * Coverage answers the platform helper volunteered alongside a nomination.
+ *
+ * Keyed per (face key, codepoint) and therefore UNBOUNDED in the codepoint
+ * universe, like the other per-codepoint memos in this file — so it is dropped
+ * by `clearFontResolutionCaches()` with them. That is not a detail: an
+ * unbounded per-codepoint map with no caller clearing it is exactly what made a
+ * full-corpus sweep exhaust the heap earlier in this cycle.
+ */
+const _sysfbCoverage = new Map<string, boolean>();
 
 /** Test-only: drive the per-codepoint live system-fallback resolver directly
  *  (DM-1403). Honors the platform routing + the `DOMOTION_SYSTEM_FALLBACK`
@@ -7660,6 +7676,7 @@ export function clearFontResolutionCaches(): void {
   // still exhausted the heap, because the helper memo had no caller outside the
   // unit tests. The two are the same class of state and must be dropped
   // together.
+  _sysfbCoverage.clear();
   clearGlyphHelperCodepointMemos();
 }
 
@@ -8441,7 +8458,12 @@ function resolveFontForCodepointInner(
     // discarded the live resolver's own answer for every emoji-presentation
     // codepoint on Linux, because the font it names (`NotoColorEmoji.ttf`) is
     // bitmap-only and yields no Glyph object.
-    if (fontCoversCp(sf, cp)) return cover(sysKey, null);
+    // The helper now answers coverage with the nomination (as the Linux
+    // `fcfallback` query always has), so the second round trip this line used to
+    // cost is gone wherever the binary reports it. `??` rather than a default:
+    // an older helper omits the field, and treating "absent" as "not covered"
+    // would silently discard every live answer.
+    if (_sysfbCoverage.get(`${sysKey}|${cp}`) ?? fontCoversCp(sf, cp)) return cover(sysKey, null);
     if (singleton != null && fontCoversCp(sf, singleton)) {
       return cover(sysKey, null, String.fromCodePoint(singleton), true);
     }

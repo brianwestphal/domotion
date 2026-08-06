@@ -303,6 +303,19 @@ interface FallbackResponseEntry {
    *  coordinates is a property of the handle, only observable here. Absent for
    *  static faces and older helper binaries. */
   ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
+  /** Whether the reported face actually has a glyph for `cp`, decided inside the
+   *  helper where the font is already open. The caller needs this — Blink's
+   *  fallback iterator only uses a stage's font when it has a glyph — and until
+   *  the helper answered it, the caller asked in a SECOND round trip.
+   *
+   *  It cannot be inferred from `found`: `CTFontCreateForString` does return a
+   *  face that renders the string, but the in-family re-selection Blink runs on
+   *  the nomination replaces it with a different cut at the requested traits,
+   *  and that cut need not carry the character.
+   *
+   *  Absent on older helper binaries, which is why the caller keeps its probe as
+   *  a fallback rather than treating a missing field as "not covered". */
+  covered?: boolean;
 }
 interface FamilyResponse {
   type: "family";
@@ -1196,6 +1209,10 @@ export interface SystemFallbackFont {
    *  the state Blink's clone gate (`VariableAxisChangeEffective`) compares
    *  against. See `FallbackResponseEntry.ctAxes`. */
   ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
+  /** Whether this face covers the codepoint it was resolved for, answered by the
+   *  helper alongside the nomination. `undefined` on a binary that predates the
+   *  field — the caller then probes as it always did. */
+  covered?: boolean;
 }
 
 // Keyed on `<basePostscriptName>\u0000<cp>\u0000<weight>\u0000<italic>\u0000<size>`,
@@ -1531,7 +1548,7 @@ export function resolveSystemFallbackFonts(
   for (const e of r.fonts) {
     if (!asked.has(e.cp)) { outOfDomain++; continue; }
     const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
-      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes, ctAxes: e.ctAxes }
+      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes, ctAxes: e.ctAxes, covered: e.covered }
       : null;
     _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp, req), resolved);
     out.set(e.cp, resolved);

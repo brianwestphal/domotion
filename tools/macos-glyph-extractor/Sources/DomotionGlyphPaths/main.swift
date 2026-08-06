@@ -1225,6 +1225,33 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
         // with baked-in coordinates is a property of THIS handle, not of the
         // file — report the state so the Node side can mirror the clone gate.
         if let ctAxes = ctAxesReport(substitute) { entry["ctAxes"] = ctAxes }
+        // Whether the face we are about to name actually covers the codepoint.
+        //
+        // The caller has to know this — Blink's fallback iterator only uses a
+        // stage's font when it has a glyph — and until now it asked in a SECOND
+        // round trip, on a face this process already has open. Measured over a
+        // 4,000-codepoint stride: 0.67 such probes per codepoint on macOS and
+        // 4.43 on Windows, 28% and 74% of the resolver's cost, each one a
+        // 223-byte request answered by 1,704 bytes of outline the caller throws
+        // away.
+        //
+        // It cannot be inferred from `found`. `CTFontCreateForString` does
+        // return a face that renders the string, but the in-family re-selection
+        // above (`GetAlternateFontPlatformData`, font_cache_mac.mm:200-280)
+        // replaces it with a different cut at the requested traits, and that cut
+        // need not carry the character. So the test runs on `substitute` as it
+        // stands after re-selection, which is the face actually being reported.
+        //
+        // Linux's `fcfallback` has always answered both questions in one query,
+        // which is why that platform issues no coverage round trips at all.
+        var covGlyphs = [CGGlyph](repeating: 0, count: 2)
+        var covChars = Array(String(UnicodeScalar(cp) ?? UnicodeScalar(0)!).utf16)
+        var covered = false
+        if !covChars.isEmpty
+            && CTFontGetGlyphsForCharacters(substitute, &covChars, &covGlyphs, covChars.count) {
+            covered = covGlyphs.contains { $0 != 0 }
+        }
+        entry["covered"] = covered
         out.append(entry)
     }
     return ["type": "fallback", "fonts": out]
