@@ -2501,7 +2501,17 @@ function resolveSystemFallbackKeyForCp(
   // function of it, so a lang-blind key would serve whichever locale asked first
   // to every later caller — and on a multilingual page that is silently wrong
   // rather than loudly broken.
-  const cacheKey = `${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}`;
+  // `hostPlatform()` joins the key for the same reason the base and the locale
+  // do: the answer is a function of it. In production it is constant and the
+  // component is dead weight — but `withHostPlatform()` makes it vary, and a
+  // platform-blind key then serves whichever platform asked first to every
+  // later caller. Measured: replaying a Linux cassette under an override and
+  // then asking again WITHOUT the override returned the Linux face, so a
+  // cross-platform test could assert Linux behaviour and be reading a poisoned
+  // memo. That is the same hazard the base and locale components already carry,
+  // one axis over, and it is invisible in production precisely because nothing
+  // in production varies it.
+  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and
@@ -3152,7 +3162,8 @@ function fallbackFamilyCutKey(
   // answers with Times New Roman without erroring, so a name-only base would
   // silently walk Times' cascade and could return an unrelated family.
   if (base.startsWith(".") && (spec.path == null || spec.path === "")) return null;
-  const cacheKey = `${candidate}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
+  // Platform joins the key here too — see the note at `resolveSystemFallbackKeyForCp`.
+  const cacheKey = `${hostPlatform()}|${candidate}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
   const cached = fallbackFamilyCutCache.get(cacheKey);
   if (cached !== undefined) return cached;
   let key: string | null = null;
