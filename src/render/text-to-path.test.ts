@@ -504,10 +504,45 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
     }
   });
   it("is NULL for DEDICATED-shaper scripts (CoreText already matches Chrome there)", () => {
-    expect(complexShaperBaseMarkDecomposition(0x0F43)).toBeNull(); // Tibetan GHA (regressed before the exclusion)
     expect(complexShaperBaseMarkDecomposition(0x0958)).toBeNull(); // Devanagari QA (Indic shaper)
     expect(complexShaperBaseMarkDecomposition(0x09DC)).toBeNull(); // Bengali RRA
     expect(complexShaperBaseMarkDecomposition(0x1026)).toBeNull(); // Myanmar UU
+  });
+  /**
+   * Tibetan and Sinhala were in `DEDICATED_SHAPER_RANGES` and are not dedicated
+   * scripts. HarfBuzz has no `hb-ot-shaper-tibetan.cc` at all, and its Indic
+   * group is exactly nine scripts with Sinhala absent
+   * (`hb-ot-shaper.hh:224-232`); both `HB_SCRIPT_TIBETAN` (`:276`) and
+   * `HB_SCRIPT_SINHALA` (`:280`) fall through to `_hb_ot_shaper_use` (`:414`).
+   *
+   * The assertion this replaces pinned the defect — it required Tibetan GHA to
+   * return null, which suppressed the rerouting hook for precisely the scripts
+   * USE's `NO_SHORT_CIRCUIT` normalization decomposes, i.e. the case the hook
+   * exists to serve. It was written from the same wrong premise as the range
+   * list, so it agreed with it and the pair looked self-consistent.
+   */
+  it("decomposes Tibetan — it is a USE script, not a dedicated-shaper one", () => {
+    // Tibetan GHA U+0F43 = GA U+0F42 + subjoined HA U+0FB7, i.e. base-then-mark.
+    const d = complexShaperBaseMarkDecomposition(0x0F43);
+    expect(d).toBe("གྷ");
+    const cps = [...d!];
+    expect(/\p{M}/u.test(cps[0])).toBe(false);
+    expect(/\p{M}/u.test(cps[cps.length - 1])).toBe(true);
+  });
+  it("still declines Sinhala — for the base-first filter, NOT the shaper classification", () => {
+    // Sinhala moved to the USE side of the split with Tibetan, but its composed
+    // vowel signs decompose MARK + MARK: U+0DDC = U+0DD9 + U+0DCF, and both are
+    // spacing marks (Mc). `nfdBaseMarkDecomposition`'s "first element must not
+    // be a mark" filter rejects that, so the answer is null either way.
+    //
+    // Asserted separately from the dedicated-shaper cases on purpose: same
+    // return value, different mechanism, and conflating them is how the old
+    // assertion made a wrong range list look self-consistent. Note the filter
+    // itself has no HarfBuzz analogue — HarfBuzz decomposes pairwise and
+    // recursively with a per-level `has_glyph` test — so this expectation
+    // documents our current gate, not Chrome's behaviour.
+    expect(/\p{M}/u.test("ෙ")).toBe(true);
+    expect(complexShaperBaseMarkDecomposition(0x0DDC)).toBeNull();
   });
   it("is NULL for the default shaper's composed Latin/Greek/Cyrillic diacritics", () => {
     expect(complexShaperBaseMarkDecomposition(0x00E9)).toBeNull(); // é (e + combining acute)

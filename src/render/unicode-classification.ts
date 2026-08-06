@@ -201,8 +201,11 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
 }
 
 // DM-1197: Unicode blocks whose script HarfBuzz shapes with a DEDICATED shaper
-// (Indic / Thai-Lao / Tibetan / Myanmar / Khmer / Arabic / Hebrew / Hangul-Jamo)
-// rather than the Universal Shaping Engine. These are EXCLUDED from the
+// rather than the Universal Shaping Engine. The set is exactly the shapers that
+// exist as `hb-ot-shaper-*.cc` files: Indic, Thai(+Lao), Myanmar, Khmer,
+// Arabic(+Syriac), Hebrew, Hangul. **Tibetan is not one of them** — the file
+// does not exist and `HB_SCRIPT_TIBETAN` falls through to USE — and neither is
+// Sinhala; both were listed here and both were wrong. These are EXCLUDED from the
 // base+mark HarfBuzz rerouting below: the CoreText-vs-Chrome divergence that
 // motivates it is a USE shaper behavior (its `NO_SHORT_CIRCUIT` normalization
 // always decomposes), which the dedicated shapers don't trigger. The exclusion
@@ -216,9 +219,19 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
 const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x0590, 0x05FF], // Hebrew
   [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF], // Arabic + supplements
-  [0x0900, 0x0DFF], // Indic: Devanagari … Sinhala
+  // Indic: Devanagari … Malayalam. ENDS AT 0x0D7F, not 0x0DFF — HarfBuzz's
+  // Indic group is exactly nine scripts (Bengali, Devanagari, Gujarati,
+  // Gurmukhi, Kannada, Malayalam, Oriya, Tamil, Telugu — `hb-ot-shaper.hh:224-232`)
+  // and **Sinhala is not one of them**. `HB_SCRIPT_SINHALA` (`:280`) sits in the
+  // block that returns `_hb_ot_shaper_use` (`:414`), so Sinhala 0x0D80-0x0DFF
+  // belongs to the USE side of this split.
+  [0x0900, 0x0D7F],
   [0x0E00, 0x0EFF], // Thai + Lao
-  [0x0F00, 0x0FFF], // Tibetan
+  // Tibetan is NOT here: there is no `hb-ot-shaper-tibetan.cc`, and
+  // `HB_SCRIPT_TIBETAN` (`hb-ot-shaper.hh:276`) falls through to the same USE
+  // return as Sinhala. Listing it excluded exactly the scripts USE's
+  // `NO_SHORT_CIRCUIT` normalization decomposes — i.e. the case the base+mark
+  // rerouting hook exists to serve — and made `resolveDottedCircleHbRun` bail.
   [0x1000, 0x109F], // Myanmar
   [0x1780, 0x17FF], [0x19E0, 0x19FF], // Khmer
   [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF], // Hangul (Jamo / Compat / Ext-B / Syllables)
