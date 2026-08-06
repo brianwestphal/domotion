@@ -1589,10 +1589,27 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   "symbols":         { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
   "zapf-dingbats":   { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
   "stix-math":       { fcMatch: "FreeSerif", path: `${FREEFONT}/FreeSerif.ttf` },
-  // cursive / fantasy — no dedicated face in the image; let fontconfig substitute.
+  // cursive / fantasy. Asking fontconfig for its own `cursive` / `fantasy`
+  // aliases is the intuitive move and it is the WRONG QUESTION: Blink never
+  // asks fontconfig for these. `FontSelector::FamilyNameFromSettings` maps the
+  // generic to a browser-side settings value — `settings.Cursive(script)` /
+  // `settings.Fantasy(script)` (`platform/fonts/font_selector.cc:80-83`, rev
+  // 7d859f27) — and when the configured family is not installed that value
+  // falls through to the same face `serif` resolves to.
+  //
+  // Measured in the pinned noble image (Chromium 147.0.7727.0, CDP
+  // `CSS.getPlatformFontsForNode`): Chrome answers **Liberation Serif** for
+  // both generics. fontconfig's aliases answer WenQuanYi Zen Hei, and that gap
+  // cost 448,990 mismatches — 63.5% of the platform's entire full-corpus
+  // mismatch mass — because the generic is the run's PRIMARY, so one wrong
+  // answer applies to every codepoint the stack touches.
+  //
+  // `snell` keeps the fontconfig alias: it is an author-NAMED family, not a
+  // settings-mapped generic, so Blink resolves it through the normal family
+  // matcher and a substitute is the right behaviour.
   "snell":           { fcMatch: "cursive" },
-  "apple-chancery":  { fcMatch: "cursive" },
-  "papyrus":         { fcMatch: "fantasy" },
+  "apple-chancery":  { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
+  "papyrus":         { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
   // source-serif-pro intentionally omitted — when fontconfig has no match it
   // resolves to a generic, which would mask the "not installed → fall through
   // the family chain" behavior. Returning null lets the chain walk on, same
@@ -1931,7 +1948,14 @@ export function platformFontKeys(): string[] {
 }
 
 export function resolveFontSpec(key: string): FontPath | null {
-  if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
+  // Platform joins the memo key because the ANSWER is per-platform — the switch
+  // below picks a different table for each. In production `hostPlatform()` never
+  // varies and the component is dead weight; under `withHostPlatform()` it does,
+  // and a name-only key then serves whichever platform asked first. Third cache
+  // in this file to need it, for the same reason and with the same production
+  // impact: none.
+  const memoKey = `${hostPlatform()}|${key}`;
+  if (resolvedSpecCache.has(memoKey)) return resolvedSpecCache.get(memoKey)!;
   let resolved: FontPath | null;
   if (key.startsWith("sysfb:") || key.startsWith("winfam:")) {
     // Already discovered on this host — by the live per-codepoint resolver
@@ -1947,7 +1971,7 @@ export function resolveFontSpec(key: string): FontPath | null {
     }
     resolved = relocateMissingSpec(resolved);
   }
-  resolvedSpecCache.set(key, resolved);
+  resolvedSpecCache.set(memoKey, resolved);
   return resolved;
 }
 
@@ -7052,38 +7076,16 @@ function matchFamilyNameToKey(name: string): string | null {
     // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
     // Author-named "Snell Roundhand" / "Brush Script MT" still get their
     // explicit families.
-    if (name === "apple chancery") return "apple-chancery";
+    if (name === "cursive" || name === "apple chancery") return "apple-chancery";
     if (name === "snell roundhand" || name === "brush script mt") return "snell";
     // Chrome on macOS resolves the CSS `fantasy` generic to Papyrus
     // (empirical probe: 313.94px = Papyrus's exact advance on the sample).
-    if (name === "papyrus") return "papyrus";
-    // …and the two GENERIC keywords are per-platform, because Blink resolves
-    // them from a browser-side settings value rather than from anything the
-    // renderer carries: `FontSelector::FamilyNameFromSettings` maps `cursive` →
-    // `settings.Cursive(script)` and `fantasy` → `settings.Fantasy(script)`
-    // (`platform/fonts/font_selector.cc:80-83`, rev 7d859f27). The renderer
-    // checkout has the MECHANISM and not the VALUES, so each platform's answer
-    // has to be measured against its own Chrome.
     //
-    // Measured on the pinned noble container (Chromium 147.0.7727.0, CDP
-    // `CSS.getPlatformFontsForNode`): BOTH generics answer **Liberation Serif**
-    // there — the configured cursive/fantasy family is not installed, so the
-    // settings value falls through to the same face `serif` resolves to.
-    //
-    // Until this branch existed, Linux inherited the macOS keys and both
-    // generics landed on **WenQuanYi Zen Hei**, because `apple-chancery` and
-    // `papyrus` have no Linux entry and fall through to the CJK catch-all. That
-    // was never a "measured static route" for Linux — it was a macOS
-    // calibration leaking one platform over, and it cost 448,990 mismatches:
-    // 63.5% of the platform's entire full-corpus mismatch mass, invisible to
-    // every gate because neither stack is in the canonical six-stack slice.
-    //
-    // win32 is deliberately UNCHANGED and unmeasured. Chrome's Windows defaults
-    // (Comic Sans MS / Impact) are normally installed, so the same reasoning
-    // does not obviously apply, and guessing would repeat the mistake being
-    // fixed here.
-    if (name === "cursive") return hostPlatform() === "linux" ? "times" : "apple-chancery";
-    if (name === "fantasy") return hostPlatform() === "linux" ? "times" : "papyrus";
+    // Both keys are LOGICAL and resolve per platform through the three path
+    // tables — on Windows `apple-chancery` is `comic.ttf` and `papyrus` is
+    // `impact.ttf`, which are Chrome's Windows defaults. The macOS-flavoured
+    // key names are a naming wart, not a routing one.
+    if (name === "fantasy" || name === "papyrus") return "papyrus";
     // DM-1189 / DM-1199 / DM-1196 / DM-1183: `Helvetica Neue` is its OWN face,
     // NOT plain Helvetica. Verified with Chrome's `getPlatformFontsForNode`:
     // `font-family: 'Helvetica Neue'` paints from Helvetica Neue (HelveticaNeue.ttc),
