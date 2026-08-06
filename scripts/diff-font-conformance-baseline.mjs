@@ -67,6 +67,12 @@ export function comparability(runMeta, baseMeta) {
     if (a != null && b != null && String(a) !== String(b)) reasons.push(`${what}: run ${a}, baseline ${b}`);
   };
   cmp("runner image", runMeta?.image, baseMeta?.image);
+  // The Chrome side of every comparison came out of this build. A baseline
+  // captured under a different one is not a baseline for this run — measured:
+  // the four `font-variant-emoji: emoji` rows that read as a Windows-specific
+  // divergence for a week reproduce exactly on macOS once the browser is moved
+  // from 147 to 148, platform held constant.
+  cmp("Chromium version", runMeta?.chromium, baseMeta?.chromium);
   cmp("Unicode version", runMeta?.unicode, baseMeta?.unicode);
   cmp("stack corpus generatedAt", runMeta?.corpus?.generatedAt, baseMeta?.corpus?.generatedAt);
   cmp("font inventory digest", runMeta?.fontInventory?.digest, baseMeta?.fontInventory?.digest);
@@ -177,6 +183,7 @@ function main() {
     `| runner image | \`${run.meta?.image ?? "?"}\` |`,
     `| font inventory | \`${run.meta?.fontInventory?.digest ?? "?"}\` (${run.meta?.fontInventory?.count ?? "?"} entries) |`,
     `| Unicode / ICU | ${run.meta?.unicode ?? "?"} / ${run.meta?.icu ?? "?"} |`,
+    `| Chromium | \`${run.meta?.chromium ?? "?"}\` |`,
     `| corpus | \`${run.meta?.corpus?.file ?? "?"}\` |`,
     "",
   );

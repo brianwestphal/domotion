@@ -159,6 +159,7 @@ describe("sliceOf", () => {
 describe("comparability", () => {
   const meta = {
     image: "playwright-v1.59.1-noble-x64",
+    chromium: "147.0.7727.15",
     unicode: "16.0",
     corpus: { generatedAt: "2026-07-29T23:19:22.108Z" },
     fontInventory: { digest: "abc123" },
@@ -179,6 +180,20 @@ describe("comparability", () => {
     // Node's ICU decides which codepoints exist at all, so a bump changes the
     // denominator and the set of things asked about.
     expect(comparability({ ...meta, unicode: "17.0" }, meta)[0]).toMatch(/Unicode/);
+  });
+
+  it("refuses a run whose BROWSER changed, even at the same runner image", () => {
+    // The whole Chrome side of every comparison comes out of this build, so a
+    // baseline captured under a different one is not a baseline for this run.
+    //
+    // Not hypothetical: `font-variant-emoji: emoji` moves U+00A9 / U+2122 /
+    // U+203C / U+263A to the colour font in 147.0.7727.15 and leaves them on
+    // the primary in 148.0.7778.96 — measured on ONE host with the platform
+    // held constant, after that difference had read as Windows-specific for a
+    // week. Every other field here matched throughout.
+    const r = comparability({ ...meta, chromium: "148.0.7778.96" }, meta);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatch(/Chromium/);
   });
 
   it("refuses a run whose installed fonts changed", () => {

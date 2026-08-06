@@ -65,7 +65,14 @@ const COLUMNS = [
   { label: "fve:unicode", suffix: "", css: "font-variant-emoji:unicode" },
 ];
 
-const browser = await chromium.launch();
+// `CHROMIUM_EXECUTABLE` pins the build. Two hosts can resolve the same
+// Playwright revision folder and still launch browsers reporting different
+// Chromium versions, which turns a version difference into what reads as a
+// platform difference. Measured: this Mac's default launch reported 147 while
+// the Windows VM's reported 148, both from `chromium-1217`.
+const browser = await chromium.launch(
+  process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {},
+);
 const page = await browser.newPage();
 const cdp = await page.context().newCDPSession(page);
 await cdp.send("DOM.enable");
@@ -97,7 +104,12 @@ for (let i = 0; i < cells.length; i++) {
 const at = (cpIdx, colLabel) =>
   faces[cpIdx * COLUMNS.length + COLUMNS.findIndex((c) => c.label === colLabel)];
 
-console.log(`platform=${process.platform}  stack=${STACK}  ${SIZE}px`);
+// The browser version is part of the answer, not decoration. Chrome's VS-aware
+// fallback (`SystemFallbackEmojiVSSupport`) shipped at a particular milestone,
+// so two hosts running different Chromium builds are two different oracles —
+// and a per-platform divergence measured across a version gap would look
+// exactly like a platform difference.
+console.log(`platform=${process.platform}  chromium=${browser.version()}  stack=${STACK}  ${SIZE}px`);
 console.log(["codepoint".padEnd(9), ...COLUMNS.map((c) => c.label.padEnd(16))].join("") + "verdict");
 let divergent = 0;
 for (const [i, [cp, name, kind]] of CPS.entries()) {

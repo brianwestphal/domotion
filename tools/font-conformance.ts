@@ -1480,6 +1480,21 @@ async function main(): Promise<number> {
         node: process.version,
         unicode: process.versions.unicode,
         icu: process.versions.icu,
+        // The build that produced every answer on the CHROME side, and the most
+        // load-bearing field in this block — Blink's font selection is what is
+        // being measured, so a different browser is a different oracle.
+        //
+        // It was missing until a `font-variant-emoji` divergence read as
+        // Windows-specific for a week and turned out to be a version
+        // difference: ©/™/‼/☺ move to the colour font under the CSS property in
+        // 147.0.7727.15 and stay on the primary in 148.0.7778.96, measured on
+        // ONE host with the platform held constant. Nothing recorded here could
+        // have shown that, while `image`, `fontInventory` and `icu` all matched.
+        //
+        // Read from the launched browser, never inferred from the Playwright
+        // revision directory: the Windows VM launches a 148 build out of a
+        // folder named `chromium-1217`, which is where the confusion started.
+        chromium: browser.version(),
         stacksFile: opts.stacksFile,
         stackCorpusGeneratedAt: corpus.generatedAt,
         stackCorpusPlatform: corpus.platform ?? null,

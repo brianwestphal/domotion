@@ -52,6 +52,10 @@ const ENV_FIELDS = [
   ["platform", (s) => s.report?.meta?.platform],
   ["arch", (s) => s.report?.meta?.arch],
   ["node", (s) => s.report?.meta?.node],
+  // The browser that produced the Chrome side. A run whose shards launched
+  // different Chromium builds is two oracles merged into one number, and the
+  // fields around it can all agree while that is true.
+  ["Chromium version", (s) => s.report?.meta?.chromium],
   ["Unicode version", (s) => s.report?.meta?.unicode],
   ["ICU version", (s) => s.report?.meta?.icu],
   ["stack corpus generatedAt", (s) => s.report?.meta?.stackCorpusGeneratedAt],
@@ -162,6 +166,7 @@ export function mergeShards(shards, opts = {}) {
       platform: meta?.platform ?? null,
       arch: meta?.arch ?? null,
       node: meta?.node ?? null,
+      chromium: meta?.chromium ?? null,
       unicode: meta?.unicode ?? null,
       icu: meta?.icu ?? null,
       corpus: {
