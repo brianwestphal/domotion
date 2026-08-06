@@ -2728,9 +2728,16 @@ function resolveSystemFallbackKeyForCp(
       // cannot reproduce run segmentation in general; this is the one place the
       // difference is measurable, and without the exclusion the fix trades 1,698
       // fixed rows for 15 newly-broken ones.
-      if (!suppressEmojiPresentation
-          && /\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))
-          && !/\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp))) {
+      // Via `isEmojiPresentationCp` rather than the property test inlined here
+      // before. The two had drifted: that copy read `Emoji_Presentation` and so
+      // missed the emoji-modifier BASES, which Blink's categoriser classifies
+      // ahead of the presentation property — leaving 250 mismatching rows in a
+      // 5M-comparison slice where Chrome painted Apple Color Emoji for U+261D /
+      // U+26F9 / U+270C / U+270D and we painted HiraMinProN or STIX Two Math.
+      // One predicate, one place, so the next correction cannot reach one copy
+      // and not the other; the shared one also excludes lone regional
+      // indicators, which this site never did.
+      if (!suppressEmojiPresentation && isEmojiPresentationCp(cp)) {
         const emoji = resolveInstalledFont(COLOR_EMOJI_FONT_MAC);
         if (emoji != null && emoji.path !== "" && emoji.postscriptName !== "") {
           const emojiKey = `sysfb:${emoji.postscriptName}`;
@@ -3034,7 +3041,33 @@ export function fcLangProperty(lang?: string): string {
 export function isEmojiPresentationCp(cp: number): boolean {
   if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return false;
   const ch = String.fromCodePoint(cp);
-  return /\p{Emoji_Presentation}/u.test(ch) && !/\p{Emoji_Modifier}/u.test(ch);
+  if (/\p{Emoji_Modifier}/u.test(ch)) return false;
+  // An emoji-modifier BASE is emoji-presentation whatever its
+  // `Emoji_Presentation` property says — and, like the regional-indicator case
+  // above, that is an ORDERING rather than a property. The categoriser tests
+  // `IsEmojiModifierBase` BEFORE `IsEmojiEmojiDefault`
+  // (`emoji_segmentation_category_inline_header.h:53-65`, rev 7d859f27), so a
+  // text-default base is categorised `EMOJI_MODIFIER_BASE`, never
+  // `EMOJI_TEXT_PRESENTATION` — and the ragel grammar's `emoji_presentation`
+  // rule admits that whole category.
+  //
+  // Read the grammar at the revision `DEPS` PINS, not upstream HEAD: Chromium
+  // pins google/emoji-segmenter `955936be8b391e00835257059607d7c5b72ce744`
+  // (`DEPS:378`), where the rule is `… | TAG_BASE | EMOJI_MODIFIER_BASE | …`.
+  // Upstream later split the category into `_TEXT` / `_EMOJI` halves and
+  // narrowed the rule to `_EMOJI`, which is the OPPOSITE answer for exactly
+  // these codepoints. When Chromium rolls that pin, this line changes with it.
+  //
+  // Measured consequence: the nine `Emoji_Presentation=No` modifier bases
+  // (U+261D U+26F9 U+270C U+270D U+1F3CB U+1F3CC U+1F574 U+1F575 U+1F590)
+  // account for ~6,038 disagreeing rows in the full-corpus Linux sweep, where
+  // Chrome paints Noto Color Emoji and a property-only reading paints FreeSans
+  // or Unifont. Chrome reaches the colour face only because emoji presentation
+  // sends the query down the substituted-codepoint/`und-Zsye` branch — Noto
+  // Color Emoji is LAST in the `:lang=en` fontconfig order, so no walk of that
+  // order could ever have found it.
+  if (/\p{Emoji_Modifier_Base}/u.test(ch)) return true;
+  return /\p{Emoji_Presentation}/u.test(ch);
 }
 
 /**

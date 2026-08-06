@@ -457,15 +457,17 @@ static FT_Long resolveFaceIndex(FT_Library lib, const std::string& path,
 // `fc-match ":charset=<hex>"` does.
 //
 // Blink: `linux/font_cache_linux.cc:89-97` → `gfx::GetFallbackFontForChar(c,
-// locale, …)`. That implementation (`ui/gfx/font_fallback_linux.cc` — fetched
-// from chromium.googlesource.com, since the local checkout carries only
-// `third_party/blink/renderer/**`, so it cannot be pinned to our revision the
-// way Blink files can) does:
+// locale, …)`. That implementation is `ui/gfx/font_fallback_linux.cc:424-535`,
+// readable in the local checkout at rev 7d859f27 like any Blink file — an
+// earlier note here said it had to be fetched because the checkout carries only
+// `third_party/blink/renderer/**`, which was wrong: `sparse-checkout add
+// ui/gfx` brings it in. It does:
 //
-//     FcPatternAddString(pattern, FC_LANG, locale)
+//     FcPatternAddString(pattern, FC_LANG, locale)   // deleted if locale empty
+//     FcPatternAddBool(pattern, FC_SCALABLE, FcTrue)
 //     FcConfigSubstitute(config, pattern, FcMatchPattern)
 //     FcDefaultSubstitute(pattern)
-//     FcFontSort(config, pattern, FcTrue, nullptr, &result)
+//     FcFontSort(config, pattern, /*trim=*/FcFalse, nullptr, &result)
 //     → walk the sorted set; take the FIRST font whose charset covers the char
 //     → read back FC_FILE and FC_INDEX
 //
@@ -506,8 +508,14 @@ static FcFontSet* sortedSetForLang(const std::string& lang) {
   FcDefaultSubstitute(pattern);
 
   FcResult result;
-  // trim=FcTrue matches Chrome: the set keeps only fonts that add coverage.
-  FcFontSet* fonts = FcFontSort(config, pattern, FcTrue, nullptr, &result);
+  // trim=FcFalse, which is what Blink passes (`font_fallback_linux.cc:473`).
+  // This line previously read `FcTrue` and claimed that matched Chrome; it does
+  // not. The ANSWER is the same either way — trimming elides a face only when
+  // its coverage is already contained in the union of the faces before it, so
+  // any elided face that covers the codepoint is preceded by one that also
+  // does, and the FIRST covering face is unchanged — but the call should be the
+  // call Blink makes rather than one argued to be equivalent.
+  FcFontSet* fonts = FcFontSort(config, pattern, FcFalse, nullptr, &result);
   FcPatternDestroy(pattern);
   cache[lang] = fonts;  // may be null; cached either way so we retry once only
   return fonts;

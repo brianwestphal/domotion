@@ -1317,7 +1317,7 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji)"] --> SREM{"darwin AND Emoji_Presentation=Yes<br/>AND NOT suppressed?<br/>(font-variant-emoji:text forces kText priority for \p{Emoji} cps —<br/>ApplyFontVariantEmojiOnFallbackPriority, harfbuzz_shaper.cc:184-198)"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji)"] --> SREM{"darwin AND isEmojiPresentationCp(cp)<br/>AND NOT suppressed?<br/>(emoji-modifier BASES included — categoriser order, not the<br/>Emoji_Presentation property; lone modifiers/regional indicators excluded.<br/>font-variant-emoji:text forces kText priority for \p{Emoji} cps —<br/>ApplyFontVariantEmojiOnFallbackPriority, harfbuzz_shaper.cc:184-198)"}
   SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
   SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
@@ -1460,12 +1460,37 @@ Three consequences worth holding onto:
   `AppleColorEmoji`: that scores well while leaving the stage missing, so any
   other face the UI cascade reaches first would still be wrong.
 
-  The gate is the Unicode property `Emoji_Presentation`, which is what Blink's
-  `kEmojiEmoji` priority derives from (`IsEmojiPresentationEmoji` = `kEmojiEmoji |
-  kEmojiEmojiWithVS`, `font_fallback_priority.h:45-48`). Derived, not curated —
+  The gate is `isEmojiPresentationCp(cp)` — one predicate shared by every
+  platform's emoji stage, which is what Blink's `kEmojiEmoji` priority derives
+  from (`IsEmojiPresentationEmoji` = `kEmojiEmoji | kEmojiEmojiWithVS`,
+  `font_fallback_priority.h:45-48`). Derived, not curated —
   `isEmojiCodepoint`'s hand-listed ranges miss ⌚ U+231A / ⌛ U+231B / ⏩ U+23E9 /
   ⏪ U+23EA because nobody sampled Miscellaneous Technical, which is exactly the
   block the defect showed up in.
+
+  It is **not** simply the Unicode `Emoji_Presentation` property, and the
+  difference is an ORDERING in Blink's categoriser rather than a property.
+  `GetEmojiSegmentationCategory`
+  (`platform/text/emoji_segmentation_category_inline_header.h:53-65`) tests
+  `IsEmojiModifierBase` **before** `IsEmojiEmojiDefault`, so an emoji-modifier
+  base is categorised `EMOJI_MODIFIER_BASE` whatever its presentation property
+  says — and the ragel grammar's `emoji_presentation` rule admits that whole
+  category. Lone `Emoji_Modifier`s and lone regional indicators are excluded for
+  the mirror-image reason: their categories are *absent* from that rule.
+
+  **Read the grammar at the revision `DEPS` pins.** Chromium pins
+  google/emoji-segmenter `955936be…` (`DEPS:378`), where the rule reads
+  `… | TAG_BASE | EMOJI_MODIFIER_BASE | …`. Upstream later split the category
+  into `_TEXT` / `_EMOJI` halves and narrowed the rule to `_EMOJI` — the
+  opposite answer for exactly these codepoints. This behaviour tracks Chromium's
+  pin and changes when Chromium rolls it.
+
+  Measured across all three platforms: the nine `Emoji_Presentation=No` modifier
+  bases (U+261D U+26F9 U+270C U+270D U+1F3CB U+1F3CC U+1F574 U+1F575 U+1F590)
+  routed to text faces on every platform — Noto Color Emoji vs FreeSans/Unifont
+  on Linux (~6,038 sweep rows), Segoe UI Emoji vs Segoe UI Symbol on Windows
+  (~3,958), Apple Color Emoji vs HiraMinProN/STIX Two Math on macOS (250 rows in
+  a 5M-comparison slice, now 1).
 - **A TEXT-presentation emoji DOES reach the cascade, and Blink re-asks it from a
   monochrome base** — `GetSubstituteFont`'s replacement (`mac/font_cache_mac.mm:163-184`).
   When the cascade answers with an Apple colour emoji face and the character is
