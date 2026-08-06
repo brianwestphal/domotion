@@ -571,7 +571,17 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
   if (persistentDisabled) return null;
   if (serverProc == null && !startPersistent(bin)) return null;
   try {
+    // Envelope-level split, DEMO_TIMING-gated: the `helperms-q:` accumulators one
+    // level up time the WHOLE round trip, which cannot distinguish "the helper is
+    // slow" from "we are spending it on serialisation and bytes". These four
+    // labels plus the two byte counters are what separate them.
+    const _s0 = profNow();
     const line = Buffer.from(JSON.stringify(request) + "\n", "utf-8");
+    if (renderProfileEnabled) {
+      profAccum("helperenv:serialize", profNow() - _s0);
+      profAccum("helperenv:bytes-out", line.length);
+    }
+    const _w0 = profNow();
     let off = 0;
     const wDeadline = Date.now() + 30_000;
     while (off < line.length) {
@@ -585,6 +595,11 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
         throw e;
       }
     }
+    if (renderProfileEnabled) profAccum("helperenv:write", profNow() - _w0);
+    // Everything between the last byte written and the newline arriving: the
+    // helper's own work plus both pipe traversals. Not separable from this side.
+    const _r0 = profNow();
+    let bytesIn = 0;
     const tmp = Buffer.allocUnsafe(1 << 20);
     const rDeadline = Date.now() + 30_000;
     while (!serverLeftover.includes("\n")) {
@@ -598,13 +613,19 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
         }
         throw e;
       }
-      if (n > 0) serverLeftover += tmp.toString("utf-8", 0, n);
+      if (n > 0) { serverLeftover += tmp.toString("utf-8", 0, n); bytesIn += n; }
       else if (n === 0) throw new Error("helper closed stdout"); // EOF
     }
+    if (renderProfileEnabled) {
+      profAccum("helperenv:roundtrip", profNow() - _r0);
+      profAccum("helperenv:bytes-in", bytesIn);
+    }
+    const _p0 = profNow();
     const nl = serverLeftover.indexOf("\n");
     const respLine = serverLeftover.slice(0, nl);
     serverLeftover = serverLeftover.slice(nl + 1);
     const resp = JSON.parse(respLine) as HelperResponse;
+    if (renderProfileEnabled) profAccum("helperenv:parse", profNow() - _p0);
     persistentEverWorked = true;
     return resp;
   } catch {
