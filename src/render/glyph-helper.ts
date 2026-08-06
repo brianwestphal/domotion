@@ -628,6 +628,12 @@ function callHelper(request: HelperRequest): HelperResponse {
   const persistent = callHelperPersistent(request, bin);
   if (persistent != null) {
     profAccum("helper-spawnSync", profNow() - _t0);
+    // …and the MILLISECONDS per query type, beside the counts above. The two
+    // answer different questions and the counts alone mislead: a profile of the
+    // macOS resolver found MORE `glyphs` coverage probes than `fallback` asks
+    // (19,777 vs 15,263), which reads as "coverage dominates" — while by time
+    // the fallback ask is 49% of the total and coverage 33%, because a
+    // `fallback` round-trip costs roughly twice a `glyphs` one.
     if (renderProfileEnabled) {
       const q0 = request.queries[0];
       if (q0 != null) profAccum(`helperms-q:${q0.type}`, profNow() - _t0);
