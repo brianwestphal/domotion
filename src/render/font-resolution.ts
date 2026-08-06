@@ -7203,12 +7203,39 @@ function matchFamilyNameToKey(name: string): string | null {
         return key;
       }
     }
-    // Chrome on macOS resolves the CSS `monospace` generic to Courier (per
-    // Blink's font_cache_mac.mm — kMonospaceFamily → kCourier). For author-
-    // named monospaces we map to whatever the author asked for if we have
-    // it on disk; SF Mono is only used when explicitly requested. Consolas
-    // isn't installed on macOS — Chrome falls back to Times metrics there,
-    // but for fidelity-of-intent we route it to Courier.
+    // Chrome on THIS host resolves the CSS `monospace` generic to Courier, and
+    // that is a MEASUREMENT rather than a transcription — read the next
+    // paragraph before "correcting" it to Menlo.
+    //
+    // The citation this comment used to carry ("font_cache_mac.mm —
+    // kMonospaceFamily → kCourier") is not real: `kCourier` is not a symbol
+    // anywhere in the Chromium tree, and `kMonospaceFamily`
+    // (`core/css/resolver/font_builder.cc:90`) resolves to the literal family
+    // name `monospace`, not to a face. The actual chain is
+    //
+    //     kMonospaceFamily
+    //       -> font_family_names::kMonospace          (font_builder.cc:90-91)
+    //       -> FontSelector::FamilyNameFromSettings   -> settings.Fixed(script)
+    //       -> IDS_FIXED_FONT_FAMILY                  (prefs_tab_helper.cc:149)
+    //
+    // — a per-platform localized resource. `locale_settings_mac.grd` says
+    // **Menlo**. So the table says one thing and this host's Chrome paints
+    // another, and the discrepancy is NOT ours to resolve by picking the
+    // table: mapping the generic to Menlo was tried and measured
+    // (5,031,450-comparison conformance slice) at **+35,583 mismatches**,
+    // 3.354% -> 4.062%. Reverted.
+    //
+    // Chrome's generics differ BY MACHINE at one browser version (147.0.7727.15):
+    // this Mac answers Courier / Helvetica / Times, while the CI runner answers
+    // Menlo / Arial / Times New Roman — all three shifting together. Whatever
+    // sits between the pref default and the painted face is unidentified, so
+    // either value fits one machine and breaks the other. Do not change this
+    // without a probe run ON the runner.
+    //
+    // For author-named monospaces we map to whatever the author asked for if
+    // we have it on disk; SF Mono is only used when explicitly requested.
+    // Consolas isn't installed on macOS — Chrome falls back to Times metrics
+    // there, but for fidelity-of-intent we route it to Courier.
     //
     // `ui-monospace` is NOT recognized by Chrome on macOS (DM-269 probe:
     // painted T width = 9.77, q = 8.0 — same as Times, not Courier or SF
