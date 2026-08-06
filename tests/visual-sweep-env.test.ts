@@ -115,6 +115,26 @@ describe("envComparability", () => {
     expect(envComparability(null, MACOS_26_5)).toEqual([]);
     expect(envComparability(MACOS_26_5, null)).toEqual([]);
   });
+
+  it("flags a BROWSER change on an otherwise identical machine", () => {
+    // The same shape as the image rotation above, one layer down. Chromium is
+    // on both sides of a visual diff — it paints expected.png and rasterizes
+    // our SVG into actual.png — so a build change moves both, and every other
+    // field here stays identical while it does.
+    //
+    // Measured, one macOS host, platform held constant: `font-variant-emoji:
+    // emoji` moves U+00A9 U+2122 U+203C U+263A to the colour emoji font in
+    // 147.0.7727.15 and leaves them on the run's primary in 148.0.7778.96.
+    const on147 = computeRunEnv({ ...MACOS_26_5, chromium: "147.0.7727.15" });
+    const on148 = computeRunEnv({ ...MACOS_26_5, chromium: "148.0.7778.96" });
+    expect(on147.image).toBe(on148.image);
+    expect(on147.fontInventory?.digest).toBe(on148.fontInventory?.digest);
+    expect(envComparability(on147, on148)).toEqual([
+      expect.stringContaining("Chromium"),
+    ]);
+    // …and an older baseline that predates the field still reads as comparable.
+    expect(envComparability(on147, MACOS_26_5)).toEqual([]);
+  });
 });
 
 describe("mergeShardEnvs", () => {
@@ -153,6 +173,26 @@ describe("mergeShardEnvs", () => {
     // Fields the shards DO agree on still fold normally.
     expect(combined.image).toBe("macos26-arm64");
     expect(combined.arch).toBe("arm64");
+  });
+
+  it("refuses to fold shards that launched DIFFERENT browser builds", () => {
+    // The same failure as the OS split, on the axis that was unrecorded until
+    // now — and the one a sharded sweep is most exposed to, since each shard
+    // resolves its own browser. A run blended across two Chromium builds must
+    // not present one of them as the run's environment.
+    const on147 = computeRunEnv({ ...MACOS_26_5, chromium: "147.0.7727.15" });
+    const on148 = computeRunEnv({ ...MACOS_26_5, chromium: "148.0.7778.96" });
+    const { combined, heterogeneous, conflicts } = mergeShardEnvs([
+      { shard: 1, env: on147 }, { shard: 2, env: on147 }, { shard: 3, env: on148 },
+    ]);
+    expect(heterogeneous).toBe(true);
+    const c = conflicts.find((x) => x.field === "Chromium");
+    expect(c).toBeDefined();
+    expect(c!.values[0]).toEqual({ value: "147.0.7727.15", shards: [1, 2] });
+    expect(c!.values[1]).toEqual({ value: "148.0.7778.96", shards: [3] });
+    expect(combined.chromium).toBeNull();
+    // …while everything the shards agree on still folds.
+    expect(combined.osRelease).toBe("25.5.0");
   });
 
   it("does not treat a shared value as agreement when only one shard reported it", () => {

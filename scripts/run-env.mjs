@@ -26,6 +26,16 @@
 //   imageVersion   GitHub's image build id. Moves on every image rotation,
 //                  including ones that change nothing we care about.
 //   osRelease      the kernel version. What caught this case.
+//   chromium       the BROWSER BUILD. Chromium is on both sides of a visual
+//                  diff — it paints `expected.png` and it rasterizes our SVG
+//                  into `actual.png` — so a build change moves both, and not
+//                  necessarily by the same amount. Measured on one macOS host
+//                  with the platform held constant: `font-variant-emoji: emoji`
+//                  moves U+00A9 U+2122 U+203C U+263A to the colour emoji font in
+//                  147.0.7727.15 and leaves them on the run's primary in
+//                  148.0.7778.96. A fixture containing any of those would flip
+//                  between the two builds while every other field here stayed
+//                  identical — the same shape as the image rotation above.
 //   fontInventory  the installed font set — the SEMANTIC ground truth, since
 //                  font selection is what a sweep measures. An image rotation
 //                  that leaves fonts alone keeps the digest stable. The full
@@ -51,6 +61,7 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
  * @property {string|null} image           the existing `meta.image` id, unchanged
  * @property {string|null} imageVersion    GitHub's image build id (`ImageVersion`)
  * @property {string|null} osRelease       `os.release()` — the kernel version
+ * @property {string|null} chromium        the browser build (`browser.version()`)
  * @property {string|null} platform
  * @property {string|null} arch
  * @property {string|null} node
@@ -66,7 +77,7 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
  * false sameness this record exists to detect.
  *
  * @param {{image?: string|null, imageVersion?: string|null, osRelease?: string|null,
- *          platform?: string|null, arch?: string|null, node?: string|null,
+ *          chromium?: string|null, platform?: string|null, arch?: string|null, node?: string|null,
  *          fontInventory?: {digest?: string|null, count?: number|null, entries?: string[]|null}|null}} [inputs]
  * @returns {RunEnv}
  */
@@ -80,6 +91,7 @@ export function computeRunEnv(inputs = {}) {
     image: str(inputs.image),
     imageVersion: str(inputs.imageVersion),
     osRelease: str(inputs.osRelease),
+    chromium: str(inputs.chromium),
     platform: str(inputs.platform),
     arch: str(inputs.arch),
     node: str(inputs.node),
@@ -98,6 +110,7 @@ const ENV_FIELDS = [
   ["image", (e) => e?.image],
   ["runner image version", (e) => e?.imageVersion],
   ["OS release", (e) => e?.osRelease],
+  ["Chromium", (e) => e?.chromium],
   ["platform", (e) => e?.platform],
   ["arch", (e) => e?.arch],
   ["font inventory digest", (e) => e?.fontInventory?.digest],
@@ -178,6 +191,7 @@ export function mergeShardEnvs(entries) {
   assign("image", (e) => e?.image, (v) => { combined.image = v; });
   assign("runner image version", (e) => e?.imageVersion, (v) => { combined.imageVersion = v; });
   assign("OS release", (e) => e?.osRelease, (v) => { combined.osRelease = v; });
+  assign("Chromium", (e) => e?.chromium, (v) => { combined.chromium = v; });
   assign("platform", (e) => e?.platform, (v) => { combined.platform = v; });
   assign("arch", (e) => e?.arch, (v) => { combined.arch = v; });
   assign("node", (e) => e?.node, (v) => { combined.node = v; });
@@ -192,8 +206,37 @@ export function mergeShardEnvs(entries) {
   return { combined, heterogeneous: conflicts.length > 0, conflicts };
 }
 
+/**
+ * The Chromium build Playwright resolves HERE, read by launching it.
+ *
+ * Launched rather than declared, and the distinction is the whole point.
+ * Playwright's `browsers.json` and `chromium.executablePath()` report the
+ * revision Playwright *intends*; neither is a promise about the binary that
+ * actually runs. Measured: a Windows VM launched 148.0.7778.96 out of a
+ * directory named `chromium-1217` — the pinned 147 revision — and
+ * `executablePath()` reported that 1217 path. Recording the declared value
+ * would have written 147 for a run that used 148, i.e. manufactured exactly the
+ * false sameness this whole record exists to detect.
+ *
+ * Honest limit, worth stating rather than eliding: this is a SEPARATE launch
+ * from the sweep's, so it records what the harness would resolve, not what one
+ * particular harness process did. Those can differ only if the installed
+ * browser changes mid-job, which does not happen — but it is "what this machine
+ * resolves", not "what that run used".
+ *
+ * Best-effort: a machine with no browser installed records `null`, which reads
+ * as "cannot tell" like every other field here. It must never fail a sweep.
+ */
+async function launchedChromiumVersion() {
+  try {
+    const { chromium } = await import("@playwright/test");
+    const browser = await chromium.launch();
+    try { return browser.version(); } finally { await browser.close(); }
+  } catch { return null; }
+}
+
 /** Gather the real environment on this machine. */
-export function captureRunEnv({ withInventory = true } = {}) {
+export async function captureRunEnv({ withInventory = true } = {}) {
   let osRelease = null;
   let playwrightVersion = null;
   if (process.env.ImageOS == null || process.env.ImageOS.trim() === "") {
@@ -227,6 +270,7 @@ export function captureRunEnv({ withInventory = true } = {}) {
   }
   return computeRunEnv({
     image,
+    chromium: await launchedChromiumVersion(),
     // GitHub host runners expose the image BUILD id here. This is the field
     // whose absence let two different macOS images read as the same runner.
     imageVersion: process.env.ImageVersion,
@@ -238,16 +282,17 @@ export function captureRunEnv({ withInventory = true } = {}) {
   });
 }
 
-function main() {
+async function main() {
   const outPath = process.argv[2];
-  const env = captureRunEnv();
+  const env = await captureRunEnv();
   const json = `${JSON.stringify(env, null, 2)}\n`;
   if (outPath) writeFileSync(outPath, json);
   else process.stdout.write(json);
   console.error(
     `run-env: image=${env.image ?? "?"} imageVersion=${env.imageVersion ?? "?"} ` +
-    `osRelease=${env.osRelease ?? "?"} fonts=${env.fontInventory?.digest ?? "?"}`,
+    `osRelease=${env.osRelease ?? "?"} chromium=${env.chromium ?? "?"} ` +
+    `fonts=${env.fontInventory?.digest ?? "?"}`,
   );
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

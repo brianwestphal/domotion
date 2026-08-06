@@ -128,6 +128,20 @@ Both are now guarded. `scripts/run-env.mjs` records `ImageVersion`, `os.release(
 
 This mirrors the guard the font-conformance oracle already had (`comparability()` in `scripts/diff-font-conformance-baseline.mjs`, doc 107), which refuses to judge across a change in runner image, font inventory, ICU version or slice. The visual sweep simply never had one.
 
+### The browser is part of the environment too
+
+The record above covers the machine. It did not, until 2026-08, cover **Chromium** — which for a visual sweep is the sharpest omission available, because Chromium is on *both* sides of the diff: it paints `expected.png` and it rasterizes our SVG into `actual.png`. A build change moves both, and not necessarily by the same amount.
+
+Measured on one macOS host with the platform held constant: `font-variant-emoji: emoji` moves U+00A9 U+2122 U+203C U+263A to the colour emoji font in **147.0.7727.15** and leaves them on the run's primary in **148.0.7778.96**. A fixture containing any of those flips between the two builds while `image`, `imageVersion`, `osRelease` and the font digest all stay identical — the same shape as the image rotation above, one layer down.
+
+`run-env.mjs` now records `chromium`, and three properties of how are load-bearing:
+
+- **It launches the browser to read `browser.version()`**, rather than reading Playwright's `browsers.json` or `chromium.executablePath()`. Those report the revision Playwright *intends*, which is not a promise about the binary that runs — measured, a Windows VM launched a 148 build out of a directory named `chromium-1217` (the pinned 147 revision) and `executablePath()` reported that 1217 path. Recording the declared value would have written 147 for a run that used 148.
+- **`mergeShardEnvs` folds it like every other field**, so a run whose shards launched different builds reports the conflict and leaves `chromium` null instead of presenting one shard's browser as the run's. A sharded sweep is exposed to this precisely because each shard resolves its own browser.
+- **It WARNS rather than refuses.** The font oracles decline to judge across a browser change; this gate is regression-relative and its banner already sits above the counts, so a warning carries the same information without turning a legitimate browser bump into a red build that cannot be cleared until someone re-seeds. Deliberate, and the trade is: a browser change here is reported and the numbers still print.
+
+Honest limit: `run-env.mjs` is a separate step from the sweep, so its launch records what the harness *would* resolve on this machine, not what one particular harness process did. Those differ only if the installed browser changes mid-job.
+
 ## A merge is only a measurement if every shard reached it
 
 The aggregate downloads `results-*` and merges whatever it finds. That meant a run which **lost a shard produced a smaller corpus rather than an error** — and the loss is silent in the direction that matters, because the missing shard's failures are not there to be counted.

@@ -171,6 +171,10 @@ const baseFails = [...baseline.values()].filter(isFail).length;
 const md = [heading, ""];
 const metaBits = [];
 if (meta.image) metaBits.push(`image \`${meta.image}\``);
+// The browser is on BOTH sides of a visual diff — it paints expected.png and it
+// rasterizes our SVG — so it belongs beside the image id, not buried in the env
+// record. `envComparability` above already WARNS when it moves.
+if (meta.env?.chromium) metaBits.push(`chromium \`${meta.env.chromium}\``);
 if (meta.commit) metaBits.push(`baseline commit \`${String(meta.commit).slice(0, 8)}\``);
 if (meta.capturedAt) metaBits.push(`captured ${meta.capturedAt}`);
 if (metaBits.length) md.push(`Baseline: ${metaBits.join(" · ")}`, "");
