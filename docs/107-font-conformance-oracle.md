@@ -501,6 +501,28 @@ Correctness is not traded for it: every cleared entry is a pure function of its 
 
 Each batch's resident size is printed alongside progress, and the peak lands in the summary, so a long run can be seen to be bounded rather than merely not-yet-dead.
 
+#### The reset reached only half of it
+
+The paragraph above was true and incomplete, and the gap only surfaced when the sweep was widened from the canonical slice to the whole corpus. `clearFontResolutionCaches()` drops the memos `font-resolution.ts` owns — including `systemFallbackKeyCache`, its per-codepoint one. But the *answers* that memo caches come from `glyph-helper.ts`, which keeps its own per-codepoint map (`_systemFallbackCache` on macOS/Windows, `_fcFallbackCache` on Linux), keyed on `(base face, codepoint, weight, style, size, locale, …)`. Nothing outside the unit tests had ever cleared it, so it retained one entry per codepoint per distinct base for the life of the process.
+
+That is invisible at the canonical slice and fatal beyond it, for a reason worth stating plainly: **the workflow shards one stack per shard**, so the slice puts ~292k entries in each process. A full-corpus run at 20 shards puts 22 stacks in one process — 6.4M entries. Measured on the first attempt (2026-08-04, `max_stacks=450`, `shards=20`, macOS): **four of twenty shards died with `JavaScript heap out of memory`** about two hours in, a fifth died on a `setContent` timeout, and the aggregate correctly withheld its verdict on 15/20 reports.
+
+Two things follow, and the second is the more useful one:
+
+- `clearFontResolutionCaches()` now also clears the helper's per-codepoint memos (`clearGlyphHelperCodepointMemos()`). They are the same class of state as the memo directly above them, and every entry is a pure function of its key. The cost is near zero at the default `--reset-every 1`: within a batch each codepoint is asked once, and across batches the codepoints are disjoint, so nothing that would have hit is being dropped.
+- **Resident size could not have caught this, and the sweep now measures the retained quantity directly.** Per-stack peak RSS across a four-stack local run was **821 / 851 / 881 / 873 MB** — flat, on a run whose memo was growing the whole time, because RSS is dominated by transient allocation and swings by hundreds of MB *within* a single stack. Progress lines and the summary now carry `memo=<entries>` / `peak fallback memo`, which is retained state: bounded by the batch when the reset reaches it, and rising monotonically when it does not.
+
+  Measured A/B, same slice (`--max-stacks 1 --shard 1/6`, 48,745 codepoints, batch 8,000), the fix being the only difference:
+
+  | | memo entries per batch | peak |
+  | --- | --- | --- |
+  | without the helper-memo clear | 3,200 → 9,893 → 17,660 → 20,556 → 20,556 → 20,556 | **20,556, monotone** |
+  | with it | 3,200 → 6,693 → 7,767 → 2,896 → 0 → 0 | **7,767, ≤ batch** |
+
+  Answer-neutral, checked rather than asserted: the two runs' report bodies are **identical** — same 48,745 comparisons, same 12,136 exact agreements, same 10 mismatch rows, same four routes.
+
+The `setContent` failure was the same class of problem — a 30-second default treated as a correctness limit on how long Blink may take to lay out 8,000 cells that drag in fonts from all over the host. It now runs on a 120-second budget with exactly one retry, and re-throws on the second failure; a batch is never skipped, because a hole in a sweep that still reports a codepoint count reads as a complete answer.
+
 ### The CI gate must not pass by losing data
 
 The sharded workflow (`.github/workflows/font-conformance.yml`) previously ran each shard with `|| true` — intended so one shard's *mismatches* wouldn't cancel its siblings. But a shard that **dies** writes no `report.json`, the aggregate step skipped missing reports with a log line, and the gate then tested a mismatch total summed over the survivors. A run whose mismatch-bearing shards ran out of memory would therefore report zero mismatches and go green.

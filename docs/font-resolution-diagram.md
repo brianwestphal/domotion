@@ -2200,6 +2200,7 @@ see the two-mode table above.
 | `dynamicSystemFontPaths` (sysfb: → FontPath) | process | **never** — a registry, not a memo (grows as resolver fires) |
 | ideograph document cache (base+weight+style+size → first sysfb answer, § 8b) | **document** (`beginCharacterFallbackDocument` … `end…`) | scope close — deliberately NOT by `clearFontResolutionCaches` (modeled Chrome state, not a memo) |
 | `helperFontCache` / `helperOutlineCache` | process | `clearFontResolutionCaches` † · `__clearGlyphFallbackCaches` (test) |
+| `_systemFallbackCache` (macOS/Windows) / `_fcFallbackCache` (Linux) — the helper's OWN per-codepoint memo, one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † (via `clearGlyphHelperCodepointMemos`) · `clearGlyphHelperCache` (test) |
 | `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |
 | `glyphDefs` (paths mode) | generation | `clearGlyphDefs` / `resetGeneration` |
 | `embeddedFonts` + subset builder | generation | `clearEmbeddedFonts` / `resetGeneration` |
@@ -2215,7 +2216,18 @@ its prefix as the answer. Clearing is safe (every entry is a pure function of
 its key; a cold lookup re-derives it) but costs the file / CoreText reads again.
 `dynamicSystemFontPaths` is excluded on purpose — `resolveFontSpec` consults it,
 so dropping it would make a previously-resolvable `sysfb:` key stop resolving,
-and it is bounded by distinct fonts rather than by codepoints anyway. See
+and it is bounded by distinct fonts rather than by codepoints anyway.
+
+**Both per-codepoint layers have to be dropped together, and for a while only
+one was.** `systemFallbackKeyCache` memoizes the *decision*; the platform
+*answer* it is derived from lives in `glyph-helper.ts`'s own map, keyed on
+`(base face, codepoint, weight, style, size, locale, …)`. That one had no caller
+outside the unit tests, so it retained an entry per codepoint per base for the
+life of the process — invisible in a render, invisible at the conformance
+oracle's canonical slice (one stack per shard), and fatal the first time a sweep
+put 22 stacks in one process: four of twenty macOS shards died with
+`JavaScript heap out of memory`. `clearFontResolutionCaches()` now calls
+`clearGlyphHelperCodepointMemos()` as its last step. See
 [doc 107 § Memory](107-font-conformance-oracle.md#memory-why-the-sweep-resets-its-own-caches).
 
 The two **generation-scoped** registries are also transactional: they hand out

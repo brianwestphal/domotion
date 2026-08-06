@@ -1978,12 +1978,52 @@ export function resolveFaceTraitBold(
   return out;
 }
 
+/**
+ * Drop ONLY the two memos keyed per codepoint — the CoreText cascade answers and
+ * the fontconfig fallback answers.
+ *
+ * Everything else this module memoizes is keyed by family or by face, so it is
+ * bounded by the host's font inventory (hundreds of entries). These two are
+ * keyed by `(base face, codepoint, …)` and are therefore unbounded in the
+ * codepoint universe: one entry per codepoint per distinct base, kept for the
+ * life of the process.
+ *
+ * That is fine for a render, which touches the codepoints on one page. It is not
+ * fine for an exhaustive sweep. Measured: the font-conformance oracle's
+ * full-corpus macOS run put 22 stacks × 292,466 codepoints through one process
+ * and **four of twenty shards died with `JavaScript heap out of memory`**, while
+ * the canonical six-stack slice — one stack per shard, so 292k entries rather
+ * than 6.4M — had never shown it. The oracle already trimmed the memos
+ * `font-resolution.ts` owns every batch; the ones actually holding the bytes sat
+ * one module below and had no caller outside the unit tests.
+ *
+ * Separate from `clearGlyphHelperCache()` because that one also forgets which
+ * helper binary was resolved, which would re-probe the filesystem on every
+ * trim. Every dropped entry is a pure function of its key, so this costs
+ * re-queries and never a different answer.
+ */
+export function clearGlyphHelperCodepointMemos(): void {
+  _systemFallbackCache.clear();
+  _fcFallbackCache.clear();
+}
+
+/**
+ * How many per-codepoint memo entries are currently retained.
+ *
+ * Diagnostic only — it exists so "these memos are bounded across a batch reset"
+ * is assertable rather than argued. A test that merely calls the clear function
+ * and checks nothing would pass against the defect it is guarding, which is how
+ * this grew unbounded with a clear function already sitting in the file.
+ */
+export function glyphHelperCodepointMemoSize(): number {
+  return _systemFallbackCache.size + _fcFallbackCache.size;
+}
+
 export function clearGlyphHelperCache(): void {
   _traitBoldCache.clear();
   helperAvailable = null;
   helperPath = undefined;
-  _systemFallbackCache.clear();
-  _fcFallbackCache.clear();
+  clearGlyphHelperCodepointMemos();
   _installedFontCache.clear();
   _familyStyleMatchCache.clear();
   _linuxFamilyMatchCache.clear();

@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, type LinuxFamilyMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -7457,6 +7457,14 @@ export function clearFontResolutionCaches(): void {
   _famAvailCache.clear();
   win32FamilyKeyCache.clear();
   darwinHandleAxesMap.clear();
+  // `systemFallbackKeyCache` above is this module's per-codepoint memo; the
+  // answers it memoizes come from `glyph-helper.ts`, which keeps its OWN
+  // per-codepoint memo one layer down. Trimming only the upper one bounded the
+  // cheap half of the growth and left the expensive half — a full-corpus sweep
+  // still exhausted the heap, because the helper memo had no caller outside the
+  // unit tests. The two are the same class of state and must be dropped
+  // together.
+  clearGlyphHelperCodepointMemos();
 }
 
 /**

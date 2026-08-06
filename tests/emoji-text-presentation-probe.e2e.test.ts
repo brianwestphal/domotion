@@ -22,7 +22,7 @@
  * same browser, so it is as meaningful on the Linux and Windows runners as here.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 
 /** Two stacks that DISAGREE on macOS — the whole point is that the answer is
  *  per-stack, so a single-stack check could not catch the defect being fixed. */
@@ -34,8 +34,7 @@ const CPS = [0x26a1, 0x2614, 0x2648, 0x2b50, 0x2b1b, 0x2b55, 0x1f600, 0x1f310, 0
 
 let browser: Browser;
 let page: Page;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- CDP session type is not exported
-let cdp: any;
+let cdp: CDPSession;
 
 beforeAll(async () => {
   browser = await chromium.launch();

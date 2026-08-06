@@ -106,7 +106,7 @@ import {
   stackPrimaryIsSystemUi,
   stretchPercent,
 } from "../src/render/font-resolution.js";
-import { resolveInstalledFont } from "../src/render/glyph-helper.js";
+import { glyphHelperCodepointMemoSize, resolveInstalledFont } from "../src/render/glyph-helper.js";
 import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
 
 // ---------------------------------------------------------------------------
@@ -824,6 +824,10 @@ export function probePageHtml(cps: number[], spec: StackSpec, lang: string): str
     + `</style></head><body><div id=w>${cells}</div></body></html>`;
 }
 
+/** See `layOutBatch`. Generous rather than tuned — it exists to distinguish a
+ *  slow layout from a hung one, and only the second reading should fail a run. */
+const SET_CONTENT_TIMEOUT_MS = 120_000;
+
 class ChromeOracle {
   constructor(
     private readonly page: Page,
@@ -864,8 +868,31 @@ class ChromeOracle {
     return f == null ? null : (f.postScriptName ?? f.familyName);
   }
 
+  /**
+   * Lay out one batch's probe page, with a raised budget and exactly one retry.
+   *
+   * `setContent`'s 30-second default is a limit on how long Blink may take to
+   * lay out 8,000 inline-block cells whose codepoints drag in fonts from all
+   * over the host — on a loaded runner that is a plausible amount of work, not
+   * evidence of a hang. One shard of the full-corpus macOS sweep died on exactly
+   * this, 47 minutes into a job whose surviving siblings ran for two hours.
+   *
+   * The retry is bounded at one and re-throws on the second failure. It must
+   * never degrade into skipping the batch: a skipped batch would leave a hole in
+   * a sweep that reports a codepoint count, and the count would still look right.
+   */
+  private async layOutBatch(cps: number[], spec: StackSpec): Promise<void> {
+    const html = probePageHtml(cps, spec, this.lang);
+    try {
+      await this.page.setContent(html, { timeout: SET_CONTENT_TIMEOUT_MS });
+    } catch (e) {
+      process.stdout.write(`    (setContent slow — retrying this batch once: ${(e as Error).message})\n`);
+      await this.page.setContent(html, { timeout: SET_CONTENT_TIMEOUT_MS });
+    }
+  }
+
   async facesFor(cps: number[], spec: StackSpec): Promise<ChromeFace[][]> {
-    await this.page.setContent(probePageHtml(cps, spec, this.lang));
+    await this.layOutBatch(cps, spec);
     const { root } = await this.cdp.send("DOM.getDocument");
     const { nodeIds } = await this.cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
     if (nodeIds.length !== cps.length) {
@@ -1293,6 +1320,7 @@ async function main(): Promise<number> {
     let chromeMs = 0;
     let oursMs = 0;
     let peakRssMb = 0;
+    let peakMemoEntries = 0;
     const t0 = Date.now();
 
     for (const spec of stacks) {
@@ -1418,9 +1446,18 @@ async function main(): Promise<number> {
         // merely not dead yet.
         const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
         if (rssMb > peakRssMb) peakRssMb = rssMb;
+        // …and the size of the per-codepoint fallback memos, which is the
+        // quantity RSS could not answer. Resident size is dominated by transient
+        // allocation and swings by hundreds of MB between batches, so a memo
+        // growing without bound hid inside the noise for four stacks and only
+        // became visible on CI, two hours and eight stacks later, as an OOM.
+        // This number is retained state: bounded by the batch when the reset
+        // reaches it, and monotonically rising when it does not.
+        const memoEntries = glyphHelperCodepointMemoSize();
+        if (memoEntries > peakMemoEntries) peakMemoEntries = memoEntries;
         process.stdout.write(
           `    ${done}/${universe.length}  mismatches=${mismatchRowsSeen}  `
-          + `rss=${rssMb}MB  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
+          + `rss=${rssMb}MB  memo=${memoEntries}  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
         );
       }
     }
@@ -1517,6 +1554,11 @@ async function main(): Promise<number> {
     lines.push(`wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`);
     lines.push(`throughput         ${Math.round((comparisons / wallMs) * 1000).toLocaleString()} comparisons/s`);
     lines.push(`peak rss           ${peakRssMb} MB  (memo reset every ${opts.resetEvery || "never"} batches)`);
+    // Retained, not transient. A figure near the batch size means the reset is
+    // reaching the per-codepoint memos; one near `codepoints × stacks` means it
+    // is not, and the run is on its way to the heap limit however healthy the
+    // peak RSS above looks.
+    lines.push(`peak fallback memo ${peakMemoEntries.toLocaleString()} entries  (batch ${opts.batch.toLocaleString()})`);
     lines.push("");
     lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
     lines.push(`agree same-file    ${counts["agree-same-file"].toLocaleString()}  ${pct(counts["agree-same-file"])}`);
