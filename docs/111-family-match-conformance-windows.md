@@ -85,13 +85,16 @@ the enabled path measures.
 ## Baseline discipline
 
 Identical to doc 110: `--write-baseline` records the run plus an environment
-fingerprint (platform, arch, OS build, font-inventory digest); the comparator
+fingerprint (platform, arch, **Chromium version**, OS build, font-inventory
+digest); the comparator
 refuses to judge (exit 3) when no recorded fingerprint matches this run's.
 The baseline file is an **env-keyed set** (`tools/family-match-baseline.ts`):
 one entry per environment, selected by fingerprint equality, so the arm64
 Windows 11 VM and CI's x64 runner carry separate entries in the same
 committed file (a legacy single-report file reads as a one-entry set;
 `--write-baseline` records or replaces only the current environment's entry).
+See doc 110's baseline section for why the browser version is in the fingerprint
+and how a newly-added field arms without disarming the committed set.
 
 ## The CI gate
 

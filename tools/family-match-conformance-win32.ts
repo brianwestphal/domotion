@@ -106,7 +106,7 @@ function installedFamilies(): Map<string, Set<string>> {
   return out;
 }
 
-function runEnv(): Record<string, string | number> {
+function runEnv(chromium_: string): Record<string, string | number> {
   let osBuild = "unknown";
   try {
     osBuild = execFileSync("cmd", ["/c", "ver"], { encoding: "utf8" }).trim();
@@ -115,6 +115,9 @@ function runEnv(): Record<string, string | number> {
   return {
     platform: process.platform,
     arch: process.arch,
+    // The browser that produced Chrome's side of every comparison. See
+    // FAMILY_MATCH_ENV_KEYS for why it is part of the fingerprint.
+    chromium: chromium_,
     osBuild,
     fontCount: files.length,
     fontDigest: createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 16),
@@ -229,9 +232,10 @@ async function main(): Promise<void> {
     if (chrome === d.ours.postscriptName) agree++;
     else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours.postscriptName ?? "(none)" });
   }
+  const chromiumVersion = browser.version();
   await browser.close();
 
-  const env = runEnv();
+  const env = runEnv(chromiumVersion);
   const report = {
     meta: { suite: "family-match", os: "windows", capturedAt: new Date().toISOString(), env, weights: WEIGHTS },
     summary: { families: families.length, cases: cases.length, scored, agree, rejectAgree, skipped, misses: misses.length },

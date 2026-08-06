@@ -90,7 +90,7 @@ function installedFamilies(): Map<string, Set<string>> {
 }
 
 /** Environment fingerprint — the fields across which comparison is invalid. */
-function runEnv(): Record<string, string | number> {
+function runEnv(chromium_: string): Record<string, string | number> {
   let image = "unknown";
   try {
     image = readFileSync("/etc/os-release", "utf8").match(/PRETTY_NAME="([^"]+)"/)?.[1] ?? "unknown";
@@ -106,6 +106,9 @@ function runEnv(): Record<string, string | number> {
   return {
     platform: process.platform,
     arch: process.arch,
+    // The browser that produced Chrome's side of every comparison. See
+    // FAMILY_MATCH_ENV_KEYS for why it is part of the fingerprint.
+    chromium: chromium_,
     image,
     fcVersion,
     fontCount: inventory === "" ? 0 : inventory.split("\n").length,
@@ -220,9 +223,10 @@ async function main(): Promise<void> {
     if (chrome === d.ours.postscriptName) agree++;
     else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours.postscriptName ?? "(none)" });
   }
+  const chromiumVersion = browser.version();
   await browser.close();
 
-  const env = runEnv();
+  const env = runEnv(chromiumVersion);
   const report = {
     meta: { suite: "family-match", os: "linux", capturedAt: new Date().toISOString(), env, weights: WEIGHTS },
     summary: { families: families.length, cases: cases.length, scored, agree, rejectAgree, skipped, misses: misses.length },

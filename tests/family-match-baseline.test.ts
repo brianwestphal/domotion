@@ -54,6 +54,31 @@ describe("family-match baseline sets", () => {
     expect(selectBaseline(entries, { ...ARM, fontDigest: "cccc" }, KEYS)).toBeNull();
   });
 
+  it("treats a fingerprint field ABSENT on either side as cannot-tell, not as a difference", () => {
+    // This is what lets a new field join the fingerprint without disarming every
+    // committed baseline until someone re-seeds. `chromium` was added after
+    // these files were recorded, and an older entry must keep selecting itself.
+    //
+    // Not cosmetic: the alternative — treating absent as a mismatch — turns the
+    // gate into a permanent refuse-to-judge, which from outside a CI job log
+    // looks exactly like a passing gate.
+    const KEYS_WITH_BROWSER = [...KEYS, "chromium"] as const;
+    const legacy = report(ARM); // no `chromium` recorded
+    expect(selectBaseline([legacy], { ...ARM, chromium: "147.0.7727.15" }, KEYS_WITH_BROWSER)).not.toBeNull();
+  });
+
+  it("discriminates on the new field once BOTH sides carry it", () => {
+    // The other half, and the one that makes the leniency above safe: as soon
+    // as a baseline is recorded with a browser version, a run under a different
+    // one stops matching it. Measured reason it belongs in the fingerprint —
+    // `font-variant-emoji: emoji` moves U+00A9 to the colour font in Chromium
+    // 147 and leaves it on the primary in 148, platform held constant.
+    const recorded = report({ ...ARM, chromium: "147.0.7727.15" });
+    const KEYS_WITH_BROWSER = [...KEYS, "chromium"] as const;
+    expect(selectBaseline([recorded], { ...ARM, chromium: "147.0.7727.15" }, KEYS_WITH_BROWSER)).not.toBeNull();
+    expect(selectBaseline([recorded], { ...ARM, chromium: "148.0.7778.96" }, KEYS_WITH_BROWSER)).toBeNull();
+  });
+
   it("appends a new environment while preserving the recorded one byte-for-byte", () => {
     const file = tmpFile();
     writeFileSync(file, JSON.stringify(report(ARM, [{ family: "F", css: 700, chrome: "A", ours: "B" }])) + "\n");
@@ -134,10 +159,27 @@ describe.each(COMMITTED)("committed $os family-match baseline", ({ file, keys })
   });
 
   it("carries the fingerprint fields its comparator selects on", () => {
-    // A recorded entry missing a key can never match: envMatches compares
-    // undefined against the live value, so the gate would decline forever.
+    // A recorded entry missing a key it is SELECTED on is only comparable
+    // because `envMatches` treats an absent field as cannot-tell. That is a
+    // deliberate escape hatch for adding a field, not a licence to leave
+    // fingerprints incomplete — so everything except the named exemption is
+    // required here.
+    //
+    // `chromium` joined the fingerprint after these files were recorded. The
+    // measured reason it belongs there: `font-variant-emoji: emoji` moves
+    // U+00A9 to the colour font in Chromium 147 and leaves it on the primary in
+    // 148, platform held constant — so two runs under different browsers are
+    // two different oracles. Until each environment is re-seeded, its entry
+    // lacks the field and the browser axis is simply not being checked for it.
+    //
+    // REMOVE THE EXEMPTION once every committed entry carries `chromium`; the
+    // loop below then pins the whole fingerprint again.
+    const AWAITING_RESEED = new Set(["chromium"]);
     for (const entry of entries) {
-      for (const key of keys) expect(entry.meta.env[key]).toBeDefined();
+      for (const key of keys) {
+        if (AWAITING_RESEED.has(key) && entry.meta.env[key] === undefined) continue;
+        expect(entry.meta.env[key], `${entry.meta.env.arch}: ${key}`).toBeDefined();
+      }
     }
   });
 });

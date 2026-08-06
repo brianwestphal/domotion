@@ -54,8 +54,8 @@ interface BaselineSetFile {
  * inventory tracks the OS build.
  */
 export const FAMILY_MATCH_ENV_KEYS = {
-  linux: ["platform", "arch", "image", "fcVersion", "fontDigest"],
-  win32: ["platform", "arch", "osBuild", "fontDigest"],
+  linux: ["platform", "arch", "chromium", "image", "fcVersion", "fontDigest"],
+  win32: ["platform", "arch", "chromium", "osBuild", "fontDigest"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** All recorded baselines in the file — [] when the file does not exist. */
@@ -66,11 +66,24 @@ export function readBaselineSet(file: string): FamilyMatchReport[] {
   return [parsed as FamilyMatchReport];
 }
 
-/** True when every fingerprint key agrees between the two environments. */
+/**
+ * True when every fingerprint key agrees between the two environments.
+ *
+ * A key ABSENT on either side is skipped rather than counted as disagreement,
+ * and the distinction is "cannot tell" versus "known different" — the same rule
+ * the face oracle's comparator follows. It is what lets a new fingerprint field
+ * be added without disarming every committed baseline until someone re-seeds:
+ * an older entry that predates the field keeps matching, and the check arms by
+ * itself the first time a baseline is recorded carrying it.
+ *
+ * The leniency only ever applies to a newly-added key, because every entry
+ * already carries the older ones. If that stops being true — a recorder that
+ * drops `fontDigest`, say — the right fix is at the recorder, not here.
+ */
 function envMatches(
   a: Record<string, unknown>, b: Record<string, unknown>, keys: readonly string[],
 ): boolean {
-  return keys.every((k) => a[k] === b[k]);
+  return keys.every((k) => a[k] == null || b[k] == null || a[k] === b[k]);
 }
 
 /**

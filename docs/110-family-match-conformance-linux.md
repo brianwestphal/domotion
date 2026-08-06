@@ -159,7 +159,8 @@ loop, and the disable knob restores the two-slot behavior. The seam test
 ## Baseline discipline
 
 `--write-baseline` records the run plus an environment fingerprint (platform,
-arch, OS image, fontconfig version, font-inventory digest). The default mode
+arch, **Chromium version**, OS image, fontconfig version, font-inventory
+digest). The default mode
 compares misses against the committed baseline for THIS environment and
 **refuses to judge (exit 3)** when no recorded fingerprint matches — a
 difference measured across two environments is not evidence about the code.
@@ -171,6 +172,21 @@ arm64 Docker-on-Apple-Silicon image and CI's x64 container each carry their
 own entry in the same committed file. A legacy single-report file reads as a
 one-entry set, and `--write-baseline` records or replaces only the current
 environment's entry, preserving the others.
+
+**The browser is part of the fingerprint**, and it is the field the set went
+without longest. Chrome's answers are what this oracle grades, so two runs under
+different builds are two different oracles — measured: `font-variant-emoji:
+emoji` moves U+00A9 to the colour font in Chromium 147.0.7727.15 and leaves it on
+the run's primary in 148.0.7778.96, on one host with the platform held constant.
+Read it from `browser.version()`, never from the Playwright revision directory: a
+local VM launched a 148 build out of a folder named `chromium-1217`.
+
+A fingerprint field ABSENT on either side is skipped rather than counted as a
+difference ("cannot tell", not "known different"), which is what let `chromium`
+join without disarming every committed baseline until each environment is
+re-seeded. The check arms by itself the first time an entry is recorded carrying
+it. `tests/family-match-baseline.test.ts` pins both halves and names the
+exemption so it is removed once every entry carries the field.
 
 ## The CI gate
 
