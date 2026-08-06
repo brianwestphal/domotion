@@ -1466,6 +1466,39 @@ Three consequences worth holding onto:
   `isEmojiCodepoint`'s hand-listed ranges miss ⌚ U+231A / ⌛ U+231B / ⏩ U+23E9 /
   ⏪ U+23EA because nobody sampled Miscellaneous Technical, which is exactly the
   block the defect showed up in.
+- **A TEXT-presentation emoji DOES reach the cascade, and Blink re-asks it from a
+  monochrome base** — `GetSubstituteFont`'s replacement (`mac/font_cache_mac.mm:163-184`).
+  When the cascade answers with an Apple colour emoji face and the character is
+  `Character::IsEmoji`, Blink rebuilds the ask from an `"Apple Symbols"` base
+  carrying **that colour font's own cascade list** and asks again. There is no
+  priority term in the condition; the priority acts as the early return above.
+
+  So the gate is `isEmojiCharCp(cp)` alone, and a DEFAULT run over a
+  text-presentation-default emoji reaches it exactly as a `font-variant-emoji:
+  text` run does. It was narrower than that for a while — restricted to the
+  override — which was not a transcription of anything, just where the rule had
+  been left while its effect went unmeasured.
+
+  **The replacement's OUTPUT is then guarded, and this part is knowingly
+  partial.** The re-ask can come back having found no monochrome face at all,
+  and Chrome does not paint that answer. Blink reaches that outcome through the
+  VS-aware fallback walk — each candidate tested for the *sequence*, a candidate
+  whose colour-ness contradicts the request reported as `kUnmatchedVSGlyphId`
+  (`shaping/harfbuzz_face.cc:191-204`), and one `kIgnoreVariationSelector` restart
+  when the walk empties (`shaping/harfbuzz_shaper.cc:1008-1019`). We model none
+  of that walk. What we model is its one consequence at this seam: **if the
+  re-ask lands back on an Apple colour emoji face, keep the pre-replacement
+  answer.** Measured on a `system-ui` stack, U+1F321 🌡 re-asks to plain
+  `AppleColorEmoji` while Chrome paints `.Apple Color Emoji UI` — precisely the
+  substitute the replacement started from, so keeping the original is the only
+  answer the discarded branch can leave behind, not a heuristic.
+
+  Measured three ways on the emoji-range slice (6 stacks × 7,000 codepoints):
+  the narrow gate scores 585 mismatches, the widened gate **alone** scores 843,
+  and the widened gate with the guard scores 585 again — byte-identical reports
+  to the narrow gate. The middle arm is what proves the widened gate is live
+  rather than inert; the outer two are what say the guard restores exactly the
+  rows it disturbed.
 - **A `system-ui` run's base is the UI FONT, and it is not nameable** (DM-1859).
   `system-ui` never enters the normal family matcher: `mac/font_cache_mac.mm:409-412`
   routes it to `MatchSystemUIFont`, which builds the font with

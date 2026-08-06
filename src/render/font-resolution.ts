@@ -2144,6 +2144,21 @@ function fallbackBaseFor(
  *  the hidden `.AppleColorEmojiUI` variant the UI-font cascade reaches. */
 const COLOR_EMOJI_FONT_MAC = "Apple Color Emoji";
 
+/**
+ * Blink's `IsAppleColorEmojiFont` (`mac/font_cache_mac.mm:117-125`) — a family
+ * name test, case-insensitive, over exactly two names.
+ *
+ * The hidden `.Apple Color Emoji UI` arm is not incidental: it is the face a
+ * `system-ui` run's cascade reaches, so a predicate carrying only the public
+ * name would answer "not colour emoji" for every system-ui run and silently
+ * disable everything gated on it.
+ */
+function isAppleColorEmojiFamily(familyName: string | undefined): boolean {
+  if (familyName == null) return false;
+  const n = familyName.toLowerCase();
+  return n === "apple color emoji" || n === ".apple color emoji ui";
+}
+
 /** DM-1859. Route a `system-ui` run's per-codepoint fallback through the
  *  helper's UI-font base mode, so CoreText walks the cascade Blink walks.
  *
@@ -2470,6 +2485,13 @@ function resolveSystemFallbackKeyForCp(
   fontVariantEmoji?: FontVariantEmojiOverride,
 ): string | null {
   const suppressEmojiPresentation = fontVariantEmoji === "text" && isEmojiCharCp(cp);
+  /** Blink's condition for the monochrome-emoji replacement, verbatim: an
+   *  `Emoji` character, with no reference to the run's priority
+   *  (`mac/font_cache_mac.mm:163-165`). The priority is honored one level up as
+   *  an early return for emoji-presentation runs, which the by-name
+   *  short-circuit below mirrors — so a run that reaches here has already passed
+   *  the same filter Blink applies. */
+  const wantMonoEmojiReplacement = isEmojiCharCp(cp);
   const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
       const base = fallbackBaseFor(primaryKey, weight, fontSize, slant, stretch);
   // The base joins the cache key for the same reason the CSS description does:
@@ -2571,7 +2593,7 @@ function resolveSystemFallbackKeyForCp(
       // CoreText CTFontCreateForString via the native helper (always on), THEN
       // the in-family re-selection at the requested traits + weight that Blink
       // runs on the nominated face (font_cache_mac.mm:242-267).
-      const resolved = resolveSystemFallbackFonts([cp], base.name, {
+      let resolved = resolveSystemFallbackFonts([cp], base.name, {
         weight, italic: slant !== 0, fontSize, basePath: base.path,
         // DM-1859: a `system-ui` run's cascade is walked from the platform UI
         // font, which the helper builds with `CTFontCreateUIFontForLanguage` the
@@ -2586,15 +2608,51 @@ function resolveSystemFallbackKeyForCp(
         // It is what produces the measured `font-variant-emoji: text` answers:
         // ⚡ U+26A1 → Apple Symbols (covers it directly), ⭐ U+2B50 → STIX Two
         // Math (via the cascade), 😀 U+1F600 → back to Apple Color Emoji (no
-        // monochrome face exists in the cascade). Gated on the forced-text
-        // suppression: in the default pipeline an emoji-presentation run never
-        // reaches this stage (the short-circuit above answers first). Whether
-        // a DEFAULT kText run on a text-default emoji character should also
-        // set it (Blink applies the replacement to any such ask) is tracked as
-        // a follow-up — flipping it here changes answers the conformance
-        // baseline has already scored.
-        ...(suppressEmojiPresentation ? { monoEmojiReplacement: true } : {}),
+        // monochrome face exists in the cascade).
+        //
+        // Gated on `Character::IsEmoji` alone, which is Blink's own condition —
+        // there is no priority term in the `if`, and the priority acts one level
+        // up as an early return for emoji-presentation runs
+        // (`font_cache_mac.mm:314-324`), which our by-name short-circuit above
+        // mirrors. So a DEFAULT run over a TEXT-presentation-default emoji
+        // reaches the replacement, exactly as it does in Blink. The narrower
+        // "only under `font-variant-emoji: text`" gate this replaced was not a
+        // transcription of anything; it was where the rule had been left while
+        // its effect on the conformance baseline was unmeasured.
+        ...(wantMonoEmojiReplacement ? { monoEmojiReplacement: true } : {}),
       }).get(cp);
+      // …and discard a replacement that failed to find a monochrome face.
+      //
+      // KNOWINGLY PARTIAL, and worth saying so plainly rather than presenting it
+      // as the mechanism. Blink asks this question with the full VS-aware
+      // fallback walk: under a forced/derived text presentation each candidate
+      // is tested for the SEQUENCE rather than the bare codepoint, a candidate
+      // whose colour-ness contradicts the request is reported as
+      // `kUnmatchedVSGlyphId` and skipped (`shaping/harfbuzz_face.cc:191-204`),
+      // and an exhausted walk restarts once with `kIgnoreVariationSelector`
+      // (`shaping/harfbuzz_shaper.cc:1008-1019`). We model none of that; the
+      // full mirror is tracked separately.
+      //
+      // What we model is the one consequence that reaches this seam: when the
+      // re-ask lands back on an Apple colour emoji face, the replacement found
+      // nothing monochrome, and Chrome does not paint that answer — it paints
+      // the face it had BEFORE the replacement. Measured on a system-ui stack:
+      // U+1F321 🌡 re-asks to plain `AppleColorEmoji` while Chrome paints
+      // `.Apple Color Emoji UI`, which is precisely the pre-replacement
+      // substitute. Keeping the original is therefore not a heuristic — it is
+      // the only answer the discarded branch can leave behind.
+      //
+      // `isAppleColorEmojiFamily` is Blink's own `IsAppleColorEmojiFont`
+      // predicate (`mac/font_cache_mac.mm:117-125`), applied to the RESULT
+      // rather than to the substitute.
+      if (wantMonoEmojiReplacement && resolved != null
+          && isAppleColorEmojiFamily(resolved.familyName)) {
+        const unreplaced = resolveSystemFallbackFonts([cp], base.name, {
+          weight, italic: slant !== 0, fontSize, basePath: base.path,
+          ...(useSystemUiBase ? { systemUi: true } : {}),
+        }).get(cp);
+        if (unreplaced != null && unreplaced.path !== "") resolved = unreplaced;
+      }
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
         // The handle's axis position also lands on the spec (opsz excluded at
