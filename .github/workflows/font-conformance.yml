@@ -44,7 +44,7 @@ on:
         description: 'DM-1887. Codepoint shards per stack shard (2nd matrix axis). 1 = the stack-only fan-out this workflow shipped with. Total jobs = shards x cp_shards, so mind the ~20-job concurrency ceiling. Widen for LINUX first: its per-job overhead is 49s against macOS''s 156s (36% of the job), so extra macOS jobs mostly buy more npm / Playwright / Swift setup.'
         default: '1'
       max_stacks:
-        description: 'Cap on the number of corpus stacks (most-used first). Empty = the whole corpus (~14h per platform, sharded).'
+        description: 'Cap on the number of corpus stacks (most-used first). Use "all" for the whole corpus (hours per platform, sharded) — NOT an empty string: GitHub substitutes the default for an empty workflow_dispatch input, so a run meant to sweep everything silently swept the canonical six.'
         default: '6'
       range:
         description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'

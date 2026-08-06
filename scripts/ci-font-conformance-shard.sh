@@ -39,7 +39,18 @@ if [ -n "${CP_TOTAL:-}" ] && [ "${CP_TOTAL}" != "1" ]; then
 fi
 [ -n "${STACKS:-}" ] && args+=(--stacks "$STACKS")
 [ -n "${RANGE:-}" ] && args+=(--range "$RANGE")
-[ -n "${MAX_STACKS:-}" ] && args+=(--max-stacks "$MAX_STACKS")
+# `all` (and `0`) mean "no cap", i.e. the whole corpus.
+#
+# The obvious way to say that from the workflow — leave the input empty — does
+# NOT work: GitHub substitutes an input's DEFAULT for an empty-string
+# workflow_dispatch value, so a dispatch meant to sweep 434 stacks arrives here
+# as the canonical six and reports a perfectly plausible number for a slice
+# nobody asked for. An explicit sentinel is the only form that survives the
+# round-trip.
+case "${MAX_STACKS:-}" in
+  ""|all|ALL|0) ;;
+  *) args+=(--max-stacks "$MAX_STACKS") ;;
+esac
 [ "${NO_PUA:-false}" = "true" ] && args+=(--no-pua)
 [ "${STRICT_ALIAS:-false}" = "true" ] && args+=(--strict-alias)
 
