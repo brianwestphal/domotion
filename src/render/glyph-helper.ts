@@ -475,6 +475,26 @@ function startPersistentViaPipe(bin: string): boolean {
 
 function startPersistent(bin: string): boolean {
   if (persistentDisabled) return false;
+  // `DOMOTION_HELPER_NO_SERVE=1` forces the one-shot `spawnSync` path, so the
+  // channel's contribution can be MEASURED rather than assumed.
+  //
+  // It exists because the channel is otherwise unfalsifiable from outside: when
+  // it silently degrades, every query still returns the right answer and only
+  // the wall clock moves — and a wall clock has no baseline unless you can turn
+  // the mechanism off. `DOMOTION_DISABLE_HELPER` is not a substitute: that
+  // disables the helper entirely and therefore changes the ANSWERS, so a
+  // throughput comparison against it grades two different resolvers.
+  //
+  // The concrete question it was added for: a Windows conformance sweep on a
+  // Parallels VM measured 47 comparisons/s where the same code on a GitHub
+  // Windows runner measures 636-695/s. A per-codepoint process spawn lands
+  // right around 20 ms, i.e. ~50/s, which makes a degraded channel the leading
+  // hypothesis — and this switch is how it gets confirmed or refuted instead of
+  // repeated.
+  if (process.env.DOMOTION_HELPER_NO_SERVE === "1") {
+    persistentDisabled = true;
+    return false;
+  }
   // macOS (CoreText, DM-1031), Linux (FreeType, DM-1034), and Windows
   // (DirectWrite, DM-1035) all implement `--serve`. An old binary on any
   // platform that predates `--serve` still self-heals: it dies on the unknown
@@ -2023,6 +2043,32 @@ export function clearGlyphHelperCache(): void {
   _traitBoldCache.clear();
   helperAvailable = null;
   helperPath = undefined;
+  // …and the resolved TRANSPORT, for the same reason as the resolved path.
+  //
+  // `persistentDisabled` is a once-per-process latch: the channel sets it when
+  // it cannot start, and nothing cleared it. That is right for a helper binary
+  // that genuinely cannot serve — it stops us re-spawning a doomed child on
+  // every call — but it also made `DOMOTION_HELPER_NO_SERVE` a one-way switch,
+  // so a process that ever ran with it set kept the slow transport afterwards
+  // even with the variable removed. A test measuring the two transports in one
+  // process therefore compared the slow path against itself and reported the
+  // switch as inert, which is how this was found.
+  //
+  // Re-arming is self-healing and cheap: a binary that really cannot serve
+  // fails its first round-trip and latches again.
+  //
+  // The RUNNING channel has to go with it. `callHelper` only calls
+  // `startPersistent` when `serverProc` is null, so leaving a live child in
+  // place means the transport never gets re-decided — clearing the latch alone
+  // changed nothing, and `DOMOTION_HELPER_NO_SERVE` stayed inert for any
+  // process that had already opened a channel. That is exactly how the switch
+  // looked like a no-op in its own test.
+  try { serverProc?.kill(); } catch { /* already gone */ }
+  serverProc = null;
+  serverInFd = undefined;
+  serverOutFd = undefined;
+  serverLeftover = "";
+  persistentDisabled = false;
   clearGlyphHelperCodepointMemos();
   _installedFontCache.clear();
   _familyStyleMatchCache.clear();
