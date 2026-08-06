@@ -628,6 +628,10 @@ function callHelper(request: HelperRequest): HelperResponse {
   const persistent = callHelperPersistent(request, bin);
   if (persistent != null) {
     profAccum("helper-spawnSync", profNow() - _t0);
+    if (renderProfileEnabled) {
+      const q0 = request.queries[0];
+      if (q0 != null) profAccum(`helperms-q:${q0.type}`, profNow() - _t0);
+    }
     return persistent;
   }
   // Fallback: original one-shot spawnSync.

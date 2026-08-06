@@ -42,6 +42,8 @@ Agreement is tiered, and the tiers are the point — a single pass/fail number w
 
 `agree-count` rows are recorded in full in `report.json`, not merely tallied: it is the tier a 3px mark misplacement lands in, and a tier you can only see the size of is one nobody acts on. The summary also prints the median / p90 / max position delta across it.
 
+`report.json`'s `meta` also records **`chromium`** — the build that produced Chrome's side, read from `browser.version()` on the launched binary rather than from Playwright's declared revision, which is not a promise about what actually runs. This oracle grades Blink's behaviour, so two runs under different browsers are two different oracles, and every other field in `meta` can match while that is true. The face oracle (doc 107) records the same field and *refuses to judge* across a change; this one has no committed baseline yet, so it records without gating — when a baseline lands, the field is already there to key on rather than something to add retroactively.
+
 ### The structural blind spot, stated plainly
 
 Chrome reports one x per **source character**; we report one per **glyph**. Whenever shaping is not 1:1 — any ligature, any Indic or Arabic cluster — the two lists differ in length and **cannot be compared pairwise at all**, even though the counts agree. Those runs get the `agree-count-clustered` tier. Scoring them as position disagreements would invent findings; scoring them as exact would hide that positions went unchecked. This is the same lesson as the face oracle's retired `agree-same-file` tier, which scored different cuts of one `.ttc` as agreement and hid 2,064 real wrong-cut picks.
