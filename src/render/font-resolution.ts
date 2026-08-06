@@ -228,7 +228,105 @@ export function fontCoversCp(font: FontInstance, cp: number): boolean {
   if (typeof has === "function") {
     try { if (has.call(font, cp) === true) return true; } catch { /* fall through to the id test */ }
   }
+  // Deliberately NOT routed through the local cmap bitset. This function serves
+  // faces the PLATFORM nominated (`sysfb:`), and for those the mapping from
+  // CoreText's name to a physical sfnt member is exactly what `FontSourceInfo`
+  // documents as unreliable — a container reports 268 named instances against
+  // 32 physical members. Measured: routing this site through the bitset moved
+  // one conformance row from `agree-exact` to `agree-tofu`, while the same
+  // bitset agreed with the helper on 11,988 of 11,988 static-chain pairs. The
+  // walk's candidates are OUR keys resolved through OUR path tables, so their
+  // face index is trustworthy; a CoreText nomination's is not.
   return glyphIdForCp(font, cp) !== 0;
+}
+
+/**
+ * Coverage bitsets for HELPER-BACKED faces, so the commonest query in the
+ * resolver stops being IPC.
+ *
+ * ## Why this is worth a cache
+ *
+ * A native face has no `hasGlyphForCodePoint`, so every "does this font cover
+ * this codepoint" goes to the helper. Measured over a 4,000-codepoint stride:
+ * **0.67 such probes per codepoint on macOS and 4.43 on Windows**, where they
+ * are 28% and 74% of the resolver's entire cost.
+ *
+ * The work behind one is a cmap lookup on an already-open font. Captured off
+ * the wire, a single probe is a 223-byte request answered by **1,704 bytes** —
+ * `{"id":184,"advance":1000,"bbox":{…},"d":"M 461.6 821.3 Q …"}` — because the
+ * `glyphs` query returns the outline. The caller wants `!== 0` and discards the
+ * rest.
+ *
+ * Coverage is a property of the FILE, so it can be read once locally instead:
+ *
+ *     PingFang (CJK)  58.3 MB file, 34,550 codepoints, 49 ms to read
+ *     Helvetica        2.3 MB file,  2,068 codepoints,  0 ms to read
+ *     …either way a 136 KB bitset, and 0.004 µs per lookup
+ *
+ * 136 KB is FIXED — a bitset over the whole codepoint space — so a huge CJK
+ * face costs no more than a Latin one. Against a 0.31 ms round trip the lookup
+ * is ~77,000× cheaper.
+ *
+ * ## Why the key is (file, face index) and not the instance
+ *
+ * The cmap does not vary with `wght` / `opsz` / any axis — variations change
+ * outlines, not which characters exist. So every instance of a face shares one
+ * bitset, which collapses the key space to something a process can hold.
+ *
+ * ## When it declines to answer
+ *
+ * Returns null — and the caller falls back to the helper — whenever the face
+ * cannot be honestly identified in the file:
+ *
+ *  - no recorded source path;
+ *  - `faceIndex` null, which `FontSourceInfo` documents as "the PostScript name
+ *    is not among the file's physical members". CoreText enumerates a
+ *    container's NAMED INSTANCES (PingFangUI.ttc reports 268) while fontkit
+ *    sees its 32 physical members, so a CoreText face can have no member of
+ *    that name at all. Reading member 0 there would answer for a face nobody
+ *    asked about — different scripts in the same container have different
+ *    cmaps, so that is a wrong answer, not an approximation;
+ *  - the file will not open, or the member has no readable character set.
+ *
+ * Deliberately NOT applied to fontkit-backed instances: those already answer
+ * `hasGlyphForCodePoint` in-process above, and their `glyphIdForCp` asks a
+ * different question (can an outline be built) that a cmap bitset would silently
+ * change — the DM-1986 divergence, in reverse.
+ */
+const coverageBitsets = new Map<string, Uint8Array | null>();
+
+function nativeFaceCoversCp(font: FontInstance, cp: number): boolean | null {
+  // Only helper-backed faces: a fontkit instance answered above.
+  if (typeof font.hasGlyphForCodePoint === "function") return null;
+  const src = getFontSourceInfo(font);
+  if (src == null || src.path === "" || src.faceIndex == null) return null;
+  const key = `${src.path}|${src.faceIndex}`;
+  let bits = coverageBitsets.get(key);
+  if (bits === undefined) {
+    bits = buildCoverageBitset(src.path, src.faceIndex);
+    coverageBitsets.set(key, bits);
+  }
+  if (bits == null) return null;
+  return (bits[cp >> 3] & (1 << (cp & 7))) !== 0;
+}
+
+function buildCoverageBitset(path: string, faceIndex: number): Uint8Array | null {
+  try {
+    const opened = fontkit.openSync(path);
+    // A collection exposes `fonts`; `faceIndex` is the PHYSICAL member index,
+    // which is what the array is ordered by.
+    const collection = (opened as unknown as { fonts?: unknown[] }).fonts;
+    const face = Array.isArray(collection) ? collection[faceIndex] : opened;
+    const cps = (face as unknown as { characterSet?: number[] } | undefined)?.characterSet;
+    if (!Array.isArray(cps) || cps.length === 0) return null;
+    const bits = new Uint8Array(0x110000 >> 3);
+    for (const c of cps) {
+      if (c >= 0 && c <= 0x10ffff) bits[c >> 3] |= 1 << (c & 7);
+    }
+    return bits;
+  } catch {
+    return null;
+  }
 }
 
 const fontInstanceCache = new Map<string, FontInstance>();
@@ -8355,11 +8453,18 @@ function resolveFontForCodepointInner(
     for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize, fontVariantEmoji })) {
       if (candidate === "last-resort") continue;
       const cf = getFontInstance(candidate, weight, fontSize, slant);
-      if (cf != null && glyphIdForCp(cf, cp) !== 0) {
+      // The coverage test, answered from a local cmap bitset when the face can
+      // be identified in its file and from the helper otherwise. This walk is
+      // where ~64% of the resolver's coverage probes come from — 4.43 per
+      // codepoint on Windows — and each one is a round trip whose answer the
+      // font file already holds. `nativeFaceCoversCp` returns null rather than
+      // guessing when it cannot name the face, so the helper stays the
+      // authority for exactly the cases it is needed for.
+      if (cf != null && (nativeFaceCoversCp(cf, cp) ?? glyphIdForCp(cf, cp) !== 0)) {
         const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
         if (cut != null) {
           const cutFont = getFontInstance(cut, weight, fontSize, slant);
-          if (cutFont != null && glyphIdForCp(cutFont, cp) !== 0) return cover(cut, null);
+          if (cutFont != null && (nativeFaceCoversCp(cutFont, cp) ?? glyphIdForCp(cutFont, cp) !== 0)) return cover(cut, null);
         }
         return cover(candidate, null);
       }
