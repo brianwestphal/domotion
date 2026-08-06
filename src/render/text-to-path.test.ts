@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { resolveInstalledFont } from "./glyph-helper.js";
+import { withHostPlatform } from "./host-platform.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
@@ -133,23 +134,45 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("-apple-system, sans-serif")).toBe("helvetica");
   });
 
-  it("routes cursive to Apple Chancery (DM-290)", () => {
+  it("routes cursive to Apple Chancery on macOS (DM-290)", () => {
     // Empirical probe at 16px: Chrome cursive paints at 290.08px which
     // matches Apple Chancery exactly (Snell Roundhand is 263.84px — a
     // ~10% drift if we picked Snell). Author-named "Snell Roundhand" /
     // "Brush Script MT" still get the snell key since those are explicit.
-    expect(resolveFontKey("cursive")).toBe("apple-chancery");
+    //
+    // Scoped to darwin rather than asserted bare: Blink resolves this generic
+    // from a browser-side settings value, so it is a per-platform answer and
+    // the bare assertion silently claimed macOS's answer for every platform.
+    expect(withHostPlatform("darwin", () => resolveFontKey("cursive"))).toBe("apple-chancery");
+    // An author-NAMED family is not a generic and stays platform-independent.
     expect(resolveFontKey("Apple Chancery")).toBe("apple-chancery");
     expect(resolveFontKey("Snell Roundhand")).toBe("snell");
     expect(resolveFontKey("Brush Script MT")).toBe("snell");
   });
 
-  it("routes fantasy to Papyrus (DM-290)", () => {
+  it("routes fantasy to Papyrus on macOS (DM-290)", () => {
     // Empirical probe at 16px: Chrome fantasy paints at 313.94px which
     // matches Papyrus exactly. Without this mapping the keyword fell
     // through to Times metrics (292.38px), which is ~7% narrower.
-    expect(resolveFontKey("fantasy")).toBe("papyrus");
+    expect(withHostPlatform("darwin", () => resolveFontKey("fantasy"))).toBe("papyrus");
     expect(resolveFontKey("Papyrus")).toBe("papyrus");
+  });
+
+  it("routes BOTH generics to the serif face on Linux, where Chrome does", () => {
+    // The defect this replaced: `cursive`/`fantasy` inherited the macOS keys,
+    // and `apple-chancery`/`papyrus` have no Linux entry, so both fell through
+    // to the CJK catch-all (WenQuanYi Zen Hei). Measured against Chrome in the
+    // pinned noble container, both generics answer Liberation Serif — the same
+    // face `serif` resolves to — because the configured cursive/fantasy family
+    // is not installed and the settings value falls through.
+    //
+    // Cost of the leak: 448,990 mismatches, 63.5% of the platform's entire
+    // full-corpus mismatch mass, invisible to every gate because neither stack
+    // is in the canonical six-stack baseline slice.
+    expect(withHostPlatform("linux", () => resolveFontKey("cursive"))).toBe("times");
+    expect(withHostPlatform("linux", () => resolveFontKey("fantasy"))).toBe("times");
+    // …and the same key `serif` takes, which is the actual claim.
+    expect(withHostPlatform("linux", () => resolveFontKey("serif"))).toBe("times");
   });
 });
 

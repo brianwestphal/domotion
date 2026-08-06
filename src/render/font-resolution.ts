@@ -7052,11 +7052,38 @@ function matchFamilyNameToKey(name: string): string | null {
     // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
     // Author-named "Snell Roundhand" / "Brush Script MT" still get their
     // explicit families.
-    if (name === "cursive" || name === "apple chancery") return "apple-chancery";
+    if (name === "apple chancery") return "apple-chancery";
     if (name === "snell roundhand" || name === "brush script mt") return "snell";
     // Chrome on macOS resolves the CSS `fantasy` generic to Papyrus
     // (empirical probe: 313.94px = Papyrus's exact advance on the sample).
-    if (name === "fantasy" || name === "papyrus") return "papyrus";
+    if (name === "papyrus") return "papyrus";
+    // …and the two GENERIC keywords are per-platform, because Blink resolves
+    // them from a browser-side settings value rather than from anything the
+    // renderer carries: `FontSelector::FamilyNameFromSettings` maps `cursive` →
+    // `settings.Cursive(script)` and `fantasy` → `settings.Fantasy(script)`
+    // (`platform/fonts/font_selector.cc:80-83`, rev 7d859f27). The renderer
+    // checkout has the MECHANISM and not the VALUES, so each platform's answer
+    // has to be measured against its own Chrome.
+    //
+    // Measured on the pinned noble container (Chromium 147.0.7727.0, CDP
+    // `CSS.getPlatformFontsForNode`): BOTH generics answer **Liberation Serif**
+    // there — the configured cursive/fantasy family is not installed, so the
+    // settings value falls through to the same face `serif` resolves to.
+    //
+    // Until this branch existed, Linux inherited the macOS keys and both
+    // generics landed on **WenQuanYi Zen Hei**, because `apple-chancery` and
+    // `papyrus` have no Linux entry and fall through to the CJK catch-all. That
+    // was never a "measured static route" for Linux — it was a macOS
+    // calibration leaking one platform over, and it cost 448,990 mismatches:
+    // 63.5% of the platform's entire full-corpus mismatch mass, invisible to
+    // every gate because neither stack is in the canonical six-stack slice.
+    //
+    // win32 is deliberately UNCHANGED and unmeasured. Chrome's Windows defaults
+    // (Comic Sans MS / Impact) are normally installed, so the same reasoning
+    // does not obviously apply, and guessing would repeat the mistake being
+    // fixed here.
+    if (name === "cursive") return hostPlatform() === "linux" ? "times" : "apple-chancery";
+    if (name === "fantasy") return hostPlatform() === "linux" ? "times" : "papyrus";
     // DM-1189 / DM-1199 / DM-1196 / DM-1183: `Helvetica Neue` is its OWN face,
     // NOT plain Helvetica. Verified with Chrome's `getPlatformFontsForNode`:
     // `font-family: 'Helvetica Neue'` paints from Helvetica Neue (HelveticaNeue.ttc),
