@@ -115,6 +115,7 @@ The capture function is serialized to a string and executed inside the captured 
 - **`npm run lint`** must pass. It is `eslint . --max-warnings 0`, and CI's `lint` job runs that exact command — so a warning fails the build, not just an error. Zero is a fair bar because the tree really does report zero; fix a new warning at its source rather than raising the threshold or reaching for a blanket `eslint-disable`. Note that ESLint flat config does **not** read `.gitignore`, so gitignored-but-lintable trees (`tools/scratch/`, `.tmp/`, the in-repo agent worktrees under `.claude/worktrees/`) are listed explicitly in `eslint.config.js`'s `ignores` — without them a dev machine lints several thousand files CI never sees, and `npm run lint` stops being the same command in the two places.
 - **`npm run demos:test`** is the primary regression signal — every feature has a fixture; new features need fixtures.
 - The `html-test-suite` against `external/html-test/*.html` is the broad-coverage signal. Some failures are pre-existing and tracked separately; new code shouldn't introduce regressions there.
+- **Read the raw `diffPct`, not the pass/fail or the rounded display.** The suites print `0.00% of image` for anything that rounds to zero, and the per-fixture PASS threshold is deliberately lenient — so a real geometry change can move the output while the fixture reads identical in both arms. Measured twice in one session: a decoration fixture PASSED at `0.00%` before AND after a change whose emitted SVG differed by a whole line segment, and a before/after comparison script silently reported "0 of 115 fixtures changed" because it read a `diffPercent` key that does not exist (the field is **`diffPct`**) and compared `None` to `None` 115 times. When comparing runs, assert the field you read is present and non-null before believing a null result.
 
 ### JSX Runtime
 
@@ -143,6 +144,19 @@ When the vendored docs go stale, the `lint` job is what tells you: `ai-assistant
 - **Always use American-English spelling and grammar** in code, comments, docs, commit messages, ticket notes, and UI copy. Prefer `color` over `colour`, `behavior` over `behaviour`, `optimize` over `optimise`, `synthesize` over `synthesise`, `rasterize` over `rasterise`, `center` over `centre`, `gray` over `grey`, `honor` over `honour`, `defense` over `defence`, `labeled` over `labelled`, etc. The one exception is when quoting a CSS keyword that the spec accepts in both forms (e.g. the `grey` color keyword in the CSS color-name map and its parsing regex) — those literals must match what Chromium accepts.
 
 ## Investigation
+
+### Try to DISPROVE it cheaply before proving it expensively
+
+**Before running any long test to confirm a change works, run the cheapest experiment that could show it does NOT.** Reach for the expensive suite only once quick falsification has failed.
+
+The long runs here are 2 min (`demos:test`), ~25 min (a conformance arm), ~10+ min (a CI sweep) — and they routinely return a **confident green that means nothing**, because a passing sweep cannot distinguish "the change is correct" from "the change never ran". A disproof attempt distinguishes them in seconds. Ask "what would show this is false?" and do that first:
+
+- *"This sweep exercises my change"* → grep the fixtures for the property under test. Measured: a 154-fixture CI sweep for a skip-ink change returned every tile byte-identical to five decimals, because the 819 `unicode` fixtures carry exactly one underline rule — `p.meta a:hover`, which never applies in a static capture. A 5-second grep would have killed the plan before dispatch.
+- *"These two implementations are equivalent"* → diff the emitted markup, not the pixels. One `grep dasharray` showed a single `stroke-dasharray="6 4.2"` line becoming three reading `6 3.6` / `6 2.8` / `6 3.9` — i.e. that splitting a decoration into sub-segments is NOT the same as clipping one line. The feature suite reported the same thing two minutes later, less legibly.
+- *"The face reports X"* → print it. `sf-pro` requested at 400/700/900 reports `naturalWeight: 400` every time; that one probe disproved a ticket's premise outright. It was run only AFTER a full suite run showed 7 fixtures regressing — backwards, and the suite run was redundant.
+- *"This change can only affect X"* → enumerate the affected set exhaustively, offline. Done in the right order on the primary-decomposition fix: the enumeration took seconds, bounded the blast radius to 5 codepoints on darwin and 11 on linux, and PREDICTED the exact conformance deltas (−45 and −99, both confirmed).
+
+**The order is the point, not just the existence of the probe.** Cheap probe → hypothesis survives → then the long run, now with a prediction to check it against. A long run with no prior prediction can only hand you a number; it cannot tell you whether the number means anything. See also the pass/fail warning under Quality gates — read raw `diffPct`, not the rounded display.
 
 ### Code search (prefer ast-grep for structure)
 
