@@ -554,18 +554,79 @@ export function isLeftReorderingMatra(cp: number): boolean {
   return false;
 }
 
-// DM-1215: right-to-left SMP scripts that bear combining marks. When the
-// synthetic dotted circle is inserted for an orphaned mark in one of these,
-// Chrome paints the cell RTL — "mark ◌" (tofu LEFT, circle RIGHT) — not the
-// LTR "◌ mark". The mark renders at the cell origin and the ◌ to its right,
-// the same layout the pre-base left-matra branch uses. Inclusive [lo, hi].
-// (BMP RTL scripts — Hebrew / Arabic / Syriac / Thaana — keep the existing
-// non-synthetic paths and are intentionally out of scope here.)
+// DM-1215 / DM-2019: right-to-left SMP scripts. When the synthetic dotted
+// circle is inserted for an orphaned mark in one of these, Chrome paints the
+// cell RTL — "mark ◌" (tofu LEFT, circle RIGHT) — not the LTR "◌ mark". The
+// mark renders at the cell origin and the ◌ to its right, the same layout the
+// pre-base left-matra branch uses. Inclusive [lo, hi]. (BMP RTL scripts —
+// Hebrew / Arabic / Syriac / Thaana / Nko / Samaritan / Mandaic — keep the
+// existing non-synthetic paths and are intentionally out of scope here.)
+//
+// Transcribed from HarfBuzz's `hb_script_get_horizontal_direction`
+// (`hb-common.cc:522-613`, checked out at `external/harfbuzz`, rev 4de187d)
+// rather than hand-curated: every `HB_DIRECTION_RTL` case whose Unicode block
+// falls in the SMP. This is a straight port, not a sample — the earlier table
+// was missing Cypriot, Imperial Aramaic, Palmyrene, Nabataean, Hatran,
+// Phoenician, Lydian, Meroitic Hieroglyphs, Meroitic Cursive, Old South
+// Arabian, Old North Arabian, Avestan, Inscriptional Parthian, Inscriptional
+// Pahlavi, Psalter Pahlavi, and Old Turkic — all named in the ticket — PLUS
+// Cypriot, Imperial Aramaic, and Rumi Numeral Symbols (Script=Arabic, a
+// distinct block from the already-covered Arabic Extended-C), none of which
+// the ticket's own prose list named. Those three were only caught by porting
+// the FULL HarfBuzz switch and checking it against live Unicode Script data
+// (`unicode-classification.test.ts`'s table-equality sweep) rather than
+// against the ticket's list alone — evidence for doing the port rather than
+// trusting a hand-written enumeration a second time.
+//
+// Deliberately NOT added: Old Hungarian. HarfBuzz's own switch returns
+// `HB_DIRECTION_INVALID` for it (`hb-common.cc:604`, grouped with Old Italic /
+// Runic / Tifinagh under "can be written either direction") — it is NOT
+// unconditionally RTL. Adding it would have introduced a divergence from
+// Chrome rather than fixed one.
+//
+// Verified inert for the current caller (`text-to-path.ts`'s orphaned-mark
+// dotted-circle orientation check, which only ever passes a MARK codepoint):
+// every newly-added script's assigned SMP range has ZERO combining-mark
+// (`\p{M}`) codepoints, so this expansion cannot change any currently-emitted
+// SVG. Kept anyway per the standing "guaranteed parity by construction, not
+// less code" policy — a hand-curated approximation is the defect even where
+// it currently scores clean — and to make `isRtlScriptCodepoint` a correct
+// general predicate for whatever next reads it, not one narrowed to today's
+// single call site.
+//
+// Also REMOVED two pre-existing entries the table-equality test caught:
+// Indic Siyaq Numbers (U+1EC70-1ECBF) and Ottoman Siyaq Numbers
+// (U+1ED00-1ED4F) are Script=Common, not Arabic — `hb_script_get_horizontal_
+// direction` has no RTL (or INVALID) case for Common, so it falls through to
+// the function's default `HB_DIRECTION_LTR`. DM-1215's commit message lists
+// the scripts it actually verified against Chrome's painted output (Sogdian,
+// Old Uyghur, Garay), and these two are not among them — they were added by
+// grouping with the also-Arabic-adjacent "Arabic Mathematical Alphabetic
+// Symbols" entry rather than checked. Also verified inert either way: like
+// the additions above, both blocks have ZERO combining-mark codepoints, so
+// this correction cannot change any currently-emitted SVG either.
 const RTL_SMP_SCRIPT_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x10800, 0x1083F], // Cypriot
+  [0x10840, 0x1085F], // Imperial Aramaic
+  [0x10860, 0x1087F], // Palmyrene
+  [0x10880, 0x108AF], // Nabataean
+  [0x108E0, 0x108FF], // Hatran
+  [0x10900, 0x1091F], // Phoenician
+  [0x10920, 0x1093F], // Lydian
+  [0x10980, 0x1099F], // Meroitic Hieroglyphs
+  [0x109A0, 0x109FF], // Meroitic Cursive
   [0x10A00, 0x10A5F], // Kharoshthi
+  [0x10A60, 0x10A7F], // Old South Arabian
+  [0x10A80, 0x10A9F], // Old North Arabian
   [0x10AC0, 0x10AFF], // Manichaean
+  [0x10B00, 0x10B3F], // Avestan
+  [0x10B40, 0x10B5F], // Inscriptional Parthian
+  [0x10B60, 0x10B7F], // Inscriptional Pahlavi
+  [0x10B80, 0x10BAF], // Psalter Pahlavi
+  [0x10C00, 0x10C4F], // Old Turkic
   [0x10D00, 0x10D3F], // Hanifi Rohingya
   [0x10D40, 0x10D8F], // Garay
+  [0x10E60, 0x10E7F], // Rumi Numeral Symbols (Script=Arabic)
   [0x10E80, 0x10EBF], // Yezidi
   [0x10EC0, 0x10EFF], // Arabic Extended-C
   [0x10F00, 0x10F2F], // Old Sogdian
@@ -575,8 +636,6 @@ const RTL_SMP_SCRIPT_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x10FE0, 0x10FFF], // Elymaic
   [0x1E800, 0x1E8DF], // Mende Kikakui
   [0x1E900, 0x1E95F], // Adlam
-  [0x1EC70, 0x1ECBF], // Indic Siyaq Numbers
-  [0x1ED00, 0x1ED4F], // Ottoman Siyaq Numbers
   [0x1EE00, 0x1EEFF], // Arabic Mathematical Alphabetic Symbols
 ];
 

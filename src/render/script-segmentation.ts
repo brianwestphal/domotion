@@ -44,25 +44,55 @@
  * upstream by per-codepoint font resolution, which is what produces the runs fed
  * to this function.
  *
- * ## Common and Inherited
+ * ## Common, Inherited, and Script_Extensions
  *
  * A naive "split whenever the script property changes" would shred ordinary
  * text, because spaces, digits and most punctuation are `Common` and combining
  * marks are `Inherited`. Blink resolves those into the surrounding script via
- * script extensions and a merge-set walk (`script_run_iterator.cc:143`, `:263`).
+ * `uscript_getScriptExtensions` and a merge-set walk (`ICUScriptData::GetScripts`
+ * + `ScriptRunIterator::MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`).
  *
- * We get the same outcome from the same data: `getScript` here is
- * `unicode-properties`' — *the very table fontkit's own shaper consults* to pick
- * a script (see its `layout()`, which skips Common/Inherited/Unknown and takes
- * the first real script). So segmentation and shaping agree by construction
- * rather than by two tables being kept in sync, and the source is Unicode data
- * rather than a hand-listed range set.
+ * An earlier version of this module treated EVERY Common/Inherited character as
+ * unconditionally neutral — always attaches to whatever segment is open, never
+ * itself a boundary — on the theory that `getScript` (the `unicode-properties`
+ * table fontkit's own shaper also consults) made segmentation and shaping
+ * "agree by construction". **That claim is true only for the Script property in
+ * isolation, and is FALSE the moment a Common character's Script_Extensions set
+ * has more than one member.** `uscript_getScriptExtensions` for U+3001 (、,
+ * IDEOGRAPHIC COMMA) returns {Bopomofo, Han, Hangul, Hiragana, Katakana,
+ * Mongolian, Yi} — a real constraint, not a wildcard — so Blink starts a NEW
+ * segment right before the 、 in `"ABC、漢"`, while unconditional neutrality
+ * keeps it glued to `"ABC"`. A different segment means a different OpenType
+ * script tag reaches GSUB/GPOS, so `palt` / kana-forms / Han features apply or
+ * don't.
  *
- * The one behaviour worth stating: a Common/Inherited character extends the
- * CURRENT segment, so an inter-script space attaches to the run before it, and
- * leading neutrals attach to the first real script that follows. That matches
- * the merge-set walk, which carries the resolved script forward until a
- * genuinely conflicting script appears.
+ * `./script-extensions.generated.ts` (regenerate with
+ * `node tools/generate-script-extensions.mjs`) holds the exceptions: every
+ * codepoint whose Script_Extensions is NOT the trivial {Script} set, with its
+ * exact member list. Per the Unicode Character Database's own design (UAX #24
+ * "Script"), scx data only exists as an exception list for Common/Inherited
+ * codepoints — confirmed empirically by the generator's own live sweep over
+ * every assigned codepoint, not merely assumed — so the table only needs
+ * those ~570 exceptions rather than a full per-codepoint enumeration.
+ *
+ * `scriptSetFor` and the merge-set walk in `segmentForShaping` mirror
+ * `ICUScriptData::GetScripts` + `ScriptRunIterator::MergeSets` for the part
+ * that affects run boundaries. Two details worth stating because they are
+ * easy to get backwards from the algorithm's shape alone (both verified
+ * against source, not inferred):
+ *
+ * - A Common character with EXACTLY ONE Script_Extensions member (a
+ *   "preferred script", e.g. the Runic punctuation at U+16EB-16ED) is STILL a
+ *   wildcard — Blink keeps Common at the head of the resolved set for that
+ *   case (`:184-189`). Only two-or-more members drops Common from the set and
+ *   requires real intersection (`:190-199`, "ignore common").
+ * - An Inherited character's Script_Extensions can NEVER gate run membership,
+ *   trivial or not — Blink's inherited branch always writes the Inherited
+ *   sentinel itself back to the head of the resolved set (`:202-214`), so
+ *   `MergeSets`' "next is Common/Inherited, always continue" fast path
+ *   (`:504-510`) applies unconditionally to Inherited characters. (Not ported
+ *   for that reason: it can never observably differ from treating Inherited
+ *   as neutral, which is what this module already did.)
  *
  * Not ported: Blink's paired-bracket tracking (`OpenBracket`/`CloseBracket`,
  * `script_run_iterator.cc:431-450`), which reuses an opening bracket's resolved
@@ -73,6 +103,7 @@
  */
 import bidiFactory from "bidi-js";
 import { getScript } from "unicode-properties";
+import { SCRIPT_EXTENSIONS_RANGES, type ScriptExtensionsRange } from "./script-extensions.generated.js";
 
 const _bidi = bidiFactory();
 
@@ -189,9 +220,90 @@ export interface ShapingSegment {
   rtl: boolean;
 }
 
-/** Scripts that carry no direction or script identity of their own. */
-function isNeutralScript(script: string): boolean {
-  return script === "Common" || script === "Inherited" || script === "Unknown";
+/**
+ * Binary search over `SCRIPT_EXTENSIONS_RANGES` (sorted, non-overlapping,
+ * generated by `tools/generate-script-extensions.mjs`) for the exceptional
+ * Script_Extensions entry covering `cp`, if any. Returns `undefined` for the
+ * overwhelming majority of codepoints, whose Script_Extensions is trivially
+ * `{Script}` and needs no table lookup.
+ */
+function scriptExtensionsEntry(cp: number): ScriptExtensionsRange | undefined {
+  let lo = 0;
+  let hi = SCRIPT_EXTENSIONS_RANGES.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const r = SCRIPT_EXTENSIONS_RANGES[mid];
+    if (cp < r.lo) hi = mid - 1;
+    else if (cp > r.hi) lo = mid + 1;
+    else return r;
+  }
+  return undefined;
+}
+
+/**
+ * The wildcard sentinel: a character whose resolved script set starts with
+ * Common/Inherited (`dst.at(0) <= USCRIPT_INHERITED` in Blink's terms), which
+ * `MergeSets` always treats as "continue the run, don't touch the accumulated
+ * set" (`script_run_iterator.cc:504-516`). See the module docstring for which
+ * characters land here.
+ */
+const ANY_SCRIPT = "any";
+type ScriptSet = typeof ANY_SCRIPT | ReadonlySet<string>;
+
+/**
+ * The compatible-script SET for `cp`, mirroring Blink's `ICUScriptData::GetScripts`
+ * (`script_run_iterator.cc:118-215`, rev 7d859f27) to the extent it affects run
+ * boundaries — bracket handling and the Han/Hiragana/Bopomofo priority pick are
+ * intentionally not ported (see the module docstring).
+ *
+ * `"Unknown"` (an unassigned/unrecognized codepoint) is kept as a wildcard —
+ * a conservative simplification against Blink's actual USCRIPT_UNKNOWN
+ * ordinal, preserved from this module's pre-existing behavior rather than
+ * introduced by this change, since a genuinely unassigned codepoint reaching
+ * here is not the case this ticket is about.
+ */
+function scriptSetFor(cp: number, primary: string): ScriptSet {
+  if (primary === "Inherited" || primary === "Unknown") return ANY_SCRIPT;
+  if (primary !== "Common") return new Set([primary]);
+  const entry = scriptExtensionsEntry(cp);
+  // A single Script_Extensions member is a "preferred script", not a real
+  // constraint — Blink keeps Common at the head of the set for that case too
+  // (`:184-189`). Only two-or-more members drops Common and requires genuine
+  // intersection (`:190-199`).
+  if (entry == null || entry.scripts.length <= 1) return ANY_SCRIPT;
+  return new Set(entry.scripts);
+}
+
+/**
+ * Intersect the run's accumulated script constraint with a new character's
+ * set, mirroring `ScriptRunIterator::MergeSets` (`script_run_iterator.cc:491-565`)
+ * for the piece that decides run continuation. `next` must already be a real
+ * (non-wildcard) set — callers check `charSet !== ANY_SCRIPT` first, since a
+ * wildcard next character never touches `current` at all.
+ *
+ * Returns `null` when the sets are disjoint (a genuine script boundary), the
+ * intersection otherwise. An `ANY_SCRIPT` current set has no constraint yet,
+ * so it simply adopts `next` — the "current is common/inherited, use next
+ * set" branch (`:512-516`).
+ */
+function mergeScriptSets(current: ScriptSet, next: ReadonlySet<string>): ReadonlySet<string> | null {
+  if (current === ANY_SCRIPT) return next;
+  const intersection = new Set<string>();
+  for (const s of next) if (current.has(s)) intersection.add(s);
+  return intersection.size > 0 ? intersection : null;
+}
+
+/**
+ * The label reported on an emitted `ShapingSegment`. Deterministic but
+ * informational only: fontkit re-derives the actual shaping script from the
+ * segment's own text at the call site (`text-to-path.ts`), so this doesn't
+ * feed the shaper.
+ */
+function resolveSegmentScript(openSet: ScriptSet): string {
+  if (openSet === ANY_SCRIPT) return "Common";
+  let best: string | undefined;
+  for (const s of openSet) if (best === undefined || s < best) best = s;
+  return best ?? "Common";
 }
 
 /**
@@ -210,42 +322,44 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
 
   const segments: ShapingSegment[] = [];
   let segStart = 0;
-  // The segment's resolved script — null while it has seen only neutrals, which
-  // is how leading spaces attach to the first real script rather than forming a
-  // segment of their own.
-  let segScript: string | null = null;
+  // The run's accumulated script constraint — the wildcard sentinel while the
+  // segment has seen only neutrals (plain Common/Inherited, or a Common
+  // character with one preferred-script extension), which is how leading
+  // neutrals attach to the first real script that follows.
+  let openSet: ScriptSet = ANY_SCRIPT;
   let segLevel = levels?.[0] ?? 0;
 
   for (let i = 0; i < text.length;) {
     const cp = text.codePointAt(i)!;
     const width = cp > 0xffff ? 2 : 1;
     const level = levels?.[i] ?? 0;
-    const script = getScript(cp);
+    const charSet = scriptSetFor(cp, getScript(cp));
 
     // A level change is a bidi-run boundary and always splits, even mid-script:
     // Blink shapes each bidi run with its own direction, so a script spanning
     // two levels is two shaping calls.
     const levelChanged = level !== segLevel;
-    // A neutral never conflicts — it extends whatever segment is open.
-    const scriptChanged = !isNeutralScript(script) && segScript != null && script !== segScript;
+    // A wildcard character never conflicts — it extends whatever is open. A
+    // real constraint set conflicts only when it fails to intersect the run's
+    // accumulated set, which is the Script_Extensions-aware replacement for
+    // the old "any non-neutral script differs from segScript" check — see the
+    // module docstring for why a plain Script-equality test was wrong.
+    const merged: ScriptSet | null = charSet === ANY_SCRIPT ? openSet : mergeScriptSets(openSet, charSet);
+    const scriptChanged = charSet !== ANY_SCRIPT && merged === null;
 
     if (i > segStart && (levelChanged || scriptChanged)) {
-      segments.push({ start: segStart, end: i, script: segScript ?? "Common", rtl: (segLevel & 1) === 1 });
+      segments.push({ start: segStart, end: i, script: resolveSegmentScript(openSet), rtl: (segLevel & 1) === 1 });
       segStart = i;
-      segScript = isNeutralScript(script) ? null : script;
+      openSet = charSet;
       segLevel = level;
-    } else if (segScript == null && !isNeutralScript(script)) {
-      segScript = script;
-      // Adopt this character's level too: a segment that has so far held only
-      // neutrals has no direction of its own, and the neutrals belong with the
-      // strong character that resolves them.
-      if (i === segStart) segLevel = level;
+    } else {
+      openSet = merged ?? charSet;
     }
 
     i += width;
   }
 
-  segments.push({ start: segStart, end: text.length, script: segScript ?? "Common", rtl: (segLevel & 1) === 1 });
+  segments.push({ start: segStart, end: text.length, script: resolveSegmentScript(openSet), rtl: (segLevel & 1) === 1 });
   return segments;
 }
 
@@ -257,17 +371,25 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
  * range (`harfbuzz_shaper.cc:1157-1161`), because Latin-1 cannot contain a
  * script or direction boundary. Most runs answer false here and cost one
  * `getScript` per character and nothing else.
+ *
+ * Mirrors the same merge-set walk as `segmentForShaping` (not a separate,
+ * looser approximation of it) — a Common character with a multi-member
+ * Script_Extensions set (e.g. CJK punctuation) can force a boundary on its
+ * own, even against a SINGLE surrounding real script, so a plain
+ * "two different real scripts seen" check would miss it and silently keep
+ * the old broken behavior for exactly the case this module now fixes.
  */
 export function needsSegmentation(text: string, levels?: ArrayLike<number>): boolean {
-  let seen: string | null = null;
   const level0 = levels?.[0] ?? 0;
+  let openSet: ScriptSet = ANY_SCRIPT;
   for (let i = 0; i < text.length;) {
     const cp = text.codePointAt(i)!;
     if ((levels?.[i] ?? 0) !== level0) return true;
-    const script = getScript(cp);
-    if (!isNeutralScript(script)) {
-      if (seen != null && script !== seen) return true;
-      seen = script;
+    const charSet = scriptSetFor(cp, getScript(cp));
+    if (charSet !== ANY_SCRIPT) {
+      const merged = mergeScriptSets(openSet, charSet);
+      if (merged === null) return true;
+      openSet = merged;
     }
     i += cp > 0xffff ? 2 : 1;
   }
