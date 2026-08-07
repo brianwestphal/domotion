@@ -69,6 +69,37 @@ CI runs a **pushed git ref**, not your local working tree (`tools/run-ci-visual-
 
 This is the only case where committing/pushing without an explicit "commit this" request is expected — it's a validation branch, not a merge. See the `tests/html-test-suite.tsx` bullet below and `docs/66-ci-visual-tests.md` for the sharding details; a single shard is reproducible locally with `HTML_TEST_SHARD=i/N`.
 
+## Background Tasks
+
+**Anything that runs longer than a couple of minutes goes through [pueue](https://github.com/Nukesor/pueue), not a bare background shell.** In this repo the archetypes are a **conformance arm** (`tools/font-conformance.ts`, ~6 min for the 6-stack slice and hours for the full corpus), any **container run** through `scripts/test-linux-docker.sh`, `npm run demos:test` (~2 min) and the broader `demos:test:html` / `:unicode` sweeps, and `npm run test:coverage:all`. The rule covers any gate, build, capture or suite — anything you would otherwise start and then poll.
+
+**Every `pueue` invocation needs `dangerouslyDisableSandbox: true`.** The client talks to the daemon over a unix socket at `~/Library/Application Support/pueue/`, and a command sandbox refuses it — `Operation not permitted (os error 1)`. It is not worth re-testing: `pueue status` fails sandboxed even once the config exists. Start the daemon once per machine with `(pueued -d >/dev/null 2>&1 &)` — also unsandboxed, since it cannot create its config dir otherwise.
+
+This is the same class as the rest of this repo's tooling: `tsx`, Playwright, `docker`, the `demos:test*` suites and `tools/crop-regions.ts` all fail under the default sandbox (the `tsx` CLI dies on an IPC-pipe `EPERM`), and `git push` fails through the proxy. Queueing them changes nothing about that — see the sandbox bullet at the end of this section.
+
+**Redirect its output and detach it, exactly as written.** A bare `pueued -d` from a tool call leaves the calling shell hung forever: the daemon inherits that shell's stdout, never closes it, and the pipeline never sees EOF. Worse, stopping that hung shell **kills the daemon with it** — it is reparented to init but stays in the shell's process group, so a group signal reaches it. `PPID 1` looks like safety and is not.
+
+**Wait on the exit code, never on a string in the log.** This is the whole reason for the rule. A `until grep -q "phase summary" out.log; do sleep 5; done` loop once spun for **43 minutes** waiting for a sentinel that `| tail -12` had already truncated out of the file — the condition could never match, and nothing said so. `pueue` reports `Success` or `Failed (7)` from the process itself, so there is no sentinel to get wrong and no truncation to be defeated by.
+
+```bash
+ID=$(pueue add -p -l dm-gate -- npm run demos:test)   # -p prints the id, -l labels it
+pueue wait "$ID"                                       # blocks; prints the terminal status
+pueue log "$ID" -l 40                                  # tail; -f for the whole thing
+```
+
+- **`pueue add` inherits the current directory** (`-w` overrides), so a task sees the repo it was queued from.
+- **`--after <id>`** chains without a round trip — queue the gate `--after` the build and let the daemon sequence them.
+- **`pueue follow <id>`** is `tail -f`; **`pueue kill <id>`** stops one; **`pueue clean`** clears finished tasks.
+- **`pueue status "label %= dm-"`** lists by label prefix, and `status` takes a small query language (`columns=`, filters, `order_by`, `limit`). Label tasks per session so a listing is legible when several are in flight.
+- Tasks **outlive the session**, which is the point — but it also means a forgotten one keeps running. Check `pueue status` before assuming the queue is empty.
+- **Queued tasks run outside the sandbox, by construction.** The daemon is unsandboxed (it has to be), and every task is its child — so `pueue add` is a sandbox exemption whatever the client needed to reach it. Worth knowing because the call site does not look like one. Queue only what you would have been willing to run with `dangerouslyDisableSandbox` anyway, which for this repo means its own gates and builds.
+
+**Do not use it for short commands.** A `git status` or a single vitest file through pueue is pure overhead and costs a sandbox exemption; run those directly.
+
+**Two failure modes this repo has already paid for, which pueue removes.** A backgrounded A/B once stopped when the agent that started it stopped, stranding a finished arm unread for an hour — a queued task outlives the session by construction. And a `git worktree add … | tail -1` pipeline silently swallowed a fatal error because a pipeline's exit status is the last command's, so `set -e` never fired and three subsequent steps ran against a directory that did not exist; waiting on `pueue`'s own exit code cannot be defeated that way.
+
+**Still check the first lines of a queued task's log rather than only its exit code.** A conformance arm that reports `Success` can have run without the native glyph helper (`glyph helper … unavailable — using fontkit instead`), which silently changes what was measured. The exit code tells you the process finished, not that it measured the right thing.
+
 ## Code Organization
 
 > The codebase was reorganized into subdirectories (`src/render/`, `src/animation/`,
