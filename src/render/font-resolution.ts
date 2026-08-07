@@ -8514,6 +8514,52 @@ function resolveFontForCodepointInner(
     return getFontInstance(key, weight, fontSize, slant, fvs);
   };
 
+  // 0b. The primary's DECOMPOSITION checks, when the chain cannot give them.
+  //
+  // Step 0 above tests the primary for LITERAL coverage only; the singleton and
+  // base+mark paths live in the chain walk below. So a font received those two
+  // checks only if it also appeared in `fontKeyChain` — and the primary is
+  // absent from the chain exactly when the chain is EMPTY. That equivalence is
+  // structural, not incidental: `resolveFontKey` returns the first name that
+  // matches and `resolveFontKeyChain` collects every name that matches, so if
+  // any name matched at all the key is in the chain. The primary is only
+  // outside it when nothing matched and `resolveFontKey`'s standard-font
+  // terminal supplied the answer (`:7536-7539`), which `resolveFontKeyChain`
+  // deliberately excludes ("callers append their own terminal").
+  //
+  // Measured on the darwin conformance corpus: 9 of 450 stacks reach here —
+  // bare `math` / `emoji` / `fangsong` / `ui-monospace` / `ui-rounded` /
+  // `ui-sans-serif`, and named families that are not installed. Every one has
+  // an empty chain, so there is nothing to order against and this cannot
+  // reorder a declared family.
+  //
+  // Blink has no analogue of "decomposition applies only to chain members": it
+  // consults each family through the same machinery however the family entered
+  // the list, and HarfBuzz's normalizer decides per FONT, with no notion of how
+  // that font was reached. `decompose_current_character`
+  // (`hb-ot-shape-normalize.cc:150-201`, rev 4de187d) takes the composed glyph
+  // when `c->font->get_nominal_glyph (u, &glyph, …)` finds one and otherwise
+  // calls `decompose`, whose every branch is gated on that same per-font lookup
+  // of the PIECES (`:108-147` — `font->get_nominal_glyph (b, &b_glyph)` for the
+  // mark, `has_a` for the base). That is the literal-then-decompose order we
+  // give the chain, applied to whatever font is current.
+  //
+  // The asymmetry was ours, and it surfaced as +5 conformance mismatches the
+  // moment a correct `ui-serif` classification moved that stack onto the
+  // terminal.
+  if (fontKeyChain.length === 0) {
+    if (singleton != null && glyphIdForCp(primaryFont, singleton) !== 0) {
+      return cover(primaryFontKey, null, String.fromCodePoint(singleton), true);
+    }
+    if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
+      const hbFace = shapingFaceFor(primaryFontKey, weight, fontSize, slant, variationSettings);
+      if (hbFace != null) {
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
+        if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
+      }
+    }
+  }
+
   // 1. kFontFamily — walk the declared families (literal, then in-font decomp).
   for (const key of fontKeyChain) {
     const inst = instanceFor(key);

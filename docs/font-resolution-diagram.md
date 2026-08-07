@@ -748,8 +748,12 @@ flowchart TD
   F1 -->|"yes"| F1H["cover(primaryKey)"]
   F1 -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
-  FSF1 --> F2
-  FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
+  FSF1 --> F0B
+  FSF -->|"no"| F0B{"fontKeyChain is EMPTY?<br/>(⟺ primary came from resolveFontKey's<br/>standard-font terminal, which<br/>resolveFontKeyChain excludes)"}
+  F0B -->|"yes"| F0BA["0b. PRIMARY decomposition — the checks<br/>step 1 would have given it:<br/>· canonical NFD singleton?<br/>· else base+mark NFD covered by primary?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
+  F0BA -->|"hit"| F0BH["cover(primaryKey, decomposed)"]
+  F0BA -->|"none"| F2
+  F0B -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
   F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
@@ -1018,6 +1022,30 @@ Notes:
 - Step 1 confines NFD decomposition to the DECLARED cascade (so it never
   over-renders into deep fallback faces Chrome can't reach — the DM-1080 hazard;
   Arial Unicode MS covers +85 CJK-compat cells via in-font decomposition).
+- **Step 0b exists because "the declared cascade" did not include the primary in
+  one case.** Step 0 tests the primary for LITERAL coverage only; both
+  decomposition checks live in step 1's loop. So a font received them only if it
+  also appeared in `fontKeyChain` — and the primary is absent from that chain
+  exactly when the chain is EMPTY. The equivalence is structural, not
+  incidental: `resolveFontKey` returns the first family name that MATCHES while
+  `resolveFontKeyChain` collects EVERY name that matches, so if any name matched
+  at all the resolved key is in the chain. The primary sits outside it only when
+  nothing matched and `resolveFontKey`'s standard-font terminal supplied the
+  answer — the terminal `resolveFontKeyChain` deliberately omits ("callers
+  append their own"). Measured on the conformance corpora, 9 of 450 stacks reach
+  this on each of darwin and linux (bare `math` / `fangsong` / `ui-monospace` /
+  `ui-rounded` / `ui-sans-serif`, plus named families that are not installed),
+  all resolving to `times`, and the movable codepoints are 5 on darwin and 11 on
+  linux — all at or below U+2FFF on both.
+
+  Upstream has no analogue of "decomposition applies only to chain members":
+  HarfBuzz's `decompose_current_character` (`hb-ot-shape-normalize.cc:150-201`,
+  rev `4de187d`) takes the composed glyph when the CURRENT font has one and
+  otherwise calls `decompose`, whose branches are all gated on that same
+  per-font lookup of the decomposed pieces (`:108-147`). Which font is current,
+  and how it was reached, does not enter the rule. The asymmetry was ours, and
+  it surfaced as +5 conformance mismatches the moment a transcription-correct
+  `ui-serif` classification moved that stack onto the terminal.
 - Step 1's third check (**all platforms**) mirrors HarfBuzz's normalizer
   (`hb-ot-shape-normalize.cc`): a codepoint with a canonical **base+mark** NFD
   (`nfdBaseMarkDecomposition` — e.g. U+21AE ↮ → U+2194 ↔ + U+0338 combining long
