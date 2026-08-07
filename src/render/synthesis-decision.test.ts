@@ -69,12 +69,29 @@ describe("faceNeedsSyntheticBold — three platform rules, not one", () => {
     expect(withHostPlatform("darwin", () => faceNeedsSyntheticBold(noFlag700, 900, undefined))).toBe(false);
   });
 
-  it("never synthesizes over a variable `wght` axis", () => {
-    // The instance is already AT the requested weight, so there is nothing to
-    // synthesize. No counterpart in Blink — the axis is applied upstream.
-    const variable: SynthesisFace = { naturalWeight: 400, faceIsBoldTrait: false, hasWeightAxis: true };
+  it("short-circuits a variable `wght` face — a DEVIATION, pinned with its reason", () => {
+    // Blink has no system-font variable-axis exemption; its predicates read the
+    // INSTANTIATED typeface, which reports the weight actually being painted.
+    // Ours does not — measured, `sf-pro` requested at 400/700/900 reports
+    // `naturalWeight: 400, faceIsBoldTrait: false` every time — so without this
+    // guard a variable face takes synthetic bold on top of an already-bold
+    // instance. Deleting it moved 7 feature fixtures, net worse.
+    //
+    // Pinned so the deviation is visible rather than folklore: when the
+    // instantiated weight starts being reported, this test should be the thing
+    // that fails, and the guard should then be deleted.
+    const notReported: SynthesisFace = { naturalWeight: 400, faceIsBoldTrait: false, hasWeightAxis: true };
     for (const p of ["darwin", "win32", "linux"] as const) {
-      expect(withHostPlatform(p, () => faceNeedsSyntheticBold(variable, 900, undefined))).toBe(false);
+      expect(withHostPlatform(p, () => faceNeedsSyntheticBold(notReported, 900, undefined))).toBe(false);
+    }
+  });
+
+  it("would synthesize for that same face if the axis flag were absent", () => {
+    // The counterfactual, so the assertion above is known to be the guard doing
+    // the work rather than the platform predicates declining anyway.
+    const noFlag: SynthesisFace = { naturalWeight: 400, faceIsBoldTrait: false };
+    for (const p of ["darwin", "win32", "linux"] as const) {
+      expect(withHostPlatform(p, () => faceNeedsSyntheticBold(noFlag, 900, undefined))).toBe(true);
     }
   });
 

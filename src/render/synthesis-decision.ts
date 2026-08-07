@@ -80,9 +80,10 @@ export type SynthesisFace = Pick<FontInstance,
  * layer from the declared `font-weight` DESCRIPTOR, not from the file — so none
  * of the system-font predicates apply to it (`webfontSyntheticBold`).
  *
- * `hasWeightAxis` has no counterpart in Blink and is kept: a variable face is
- * instanced at the requested axis location before it reaches here, so it
- * already reports itself at that weight and there is nothing to synthesize.
+ * `hasWeightAxis` has no counterpart in Blink and is kept — but NOT for the
+ * reason once given here. The old claim was that a variable face "already
+ * reports itself at that weight"; measured, it does not (see the guard below).
+ * It is a deliberate deviation compensating for that reporting gap.
  *
  * Honest substitution, unchanged from where this lived inline: macOS's test is
  * CoreText's `kCTFontTraitBold` symbolic trait. `faceIsBoldTrait` carries the
@@ -105,11 +106,59 @@ export function faceNeedsSyntheticBold(
   if (!synthesisAllowed(fontSynthesis, "weight")) return false;
   if (font.webfontFace != null) return webfontSyntheticBold(font.webfontFace, requestedWeight);
   const faceNaturalWeight = font.naturalWeight;
-  if (font.hasWeightAxis === true || faceNaturalWeight == null) return false;
-  const faceIsBold = font.faceIsBoldTrait ?? faceNaturalWeight >= 600;
+  if (faceNaturalWeight == null) return false;
   const platform = hostPlatform();
-  if (platform === "darwin") return requestedWeight > 500 && !faceIsBold;
-  if (platform === "win32") return requestedWeight >= 600 && !faceIsBold;
+
+  // The variable-`wght` short-circuit. Blink has NO system-font counterpart —
+  // upstream's variable-axis exemption exists only on the webfont path, gated
+  // on `IsRangeSetFromAuto()` and `wght_range.maximum > kNormalWeightValue`
+  // (`platform/fonts/opentype/font_custom_platform_data.cc:141-153`), which
+  // `webfontSyntheticBold` already applies above. So this line is a deviation,
+  // and it is kept deliberately rather than by oversight.
+  //
+  // It compensates for a reporting gap on OUR side. Blink's predicates read the
+  // INSTANTIATED typeface — `typeface->fontStyle().weight()` and
+  // `kCTFontTraitBold` both describe the variation instance actually being
+  // painted. Ours do not: measured on this checkout, `sf-pro` requested at 400,
+  // 700 and 900 reports `naturalWeight: 400, faceIsBoldTrait: false` every
+  // time. The axis reaches the outlines but never the metadata.
+  //
+  // So with this line removed, every variable system face takes synthetic bold
+  // ON TOP of an already-bold variation instance. That is not theoretical —
+  // deleting it moved 7 feature fixtures, net worse, the largest by +0.29pp.
+  //
+  // The parity fix is to report the instantiated weight, not to delete this
+  // guard; once `naturalWeight` / `faceIsBoldTrait` describe the instance, each
+  // platform predicate below reaches the right answer on its own and this line
+  // becomes dead. Until then, removing it trades a small deviation for a
+  // visible double-bold.
+  if (font.hasWeightAxis === true) return false;
+  if (platform === "darwin") {
+    // `mac/font_cache_mac.mm:425-427`, rev 7d859f27:
+    //   desired_bold = Weight() > 500
+    //   synthetic = desired_bold && !(matched_font_traits & kCTFontTraitBold)
+    // The trait is the WHOLE test upstream — there is no numeric fallback,
+    // because CoreText always answers. Ours can be absent when the native
+    // helper is unavailable, and defaulting that to "not bold" would synthesize
+    // a second bold on top of every real Bold face; the declared-weight test is
+    // the degradation for that case only, not part of the transcription.
+    const faceIsBold = font.faceIsBoldTrait ?? faceNaturalWeight >= 600;
+    return requestedWeight > 500 && !faceIsBold;
+  }
+  if (platform === "win32") {
+    // `win/font_cache_skia_win.cc:486-488`: `Weight() >= kBoldThreshold &&
+    // !typeface->isBold()`, with `kBoldThreshold = 600`
+    // (`font_selection_types.h:182`). Here the numeric test IS the definition —
+    // Skia's `isBold()` is the face's own declared weight >= 600 — so the
+    // fallback and the trait agree by construction.
+    const faceIsBold = font.faceIsBoldTrait ?? faceNaturalWeight >= 600;
+    return requestedWeight >= 600 && !faceIsBold;
+  }
+  // Linux (also Android/Fuchsia) — `skia/font_cache_skia.cc:333-337`:
+  //   Weight() > FontSelectionValue(200) + typeface->fontStyle().weight()
+  // A DELTA against the matched face's own weight, not a fixed threshold, and
+  // it never consults a bold trait. Porting either threshold rule here would
+  // break it.
   return requestedWeight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA;
 }
 
