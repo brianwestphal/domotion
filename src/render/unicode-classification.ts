@@ -190,11 +190,23 @@ export function isTrimmableCjkPunct(cp: number): boolean {
 // bare mark with NO dotted circle (so DM-1027's Latin combining marks correctly
 // get none). Ranges are inclusive [start, end]. Kept as a flat sorted list — the
 // gate only runs for an uncovered category-M codepoint, which is rare.
+//
+// Thai (0x0E00-0x0E7F) and Lao (0x0E80-0x0EFF) are likewise DELIBERATELY
+// ABSENT — both were here until this fix, and the pairing turns out to have
+// been wrong. `HB_SCRIPT_THAI` and `HB_SCRIPT_LAO` both dispatch to the SAME
+// dedicated shaper (`hb-ot-shaper.hh:205-208`, rev 4de187d — both `case`s fall
+// through to `return &_hb_ot_shaper_thai;`), and that shaper
+// (`hb-ot-shaper-thai.cc`) contains no `0x25CC` / dotted-circle reference at
+// all (grepped the full file, rev 4de187d — zero matches). Thai/Lao's PUA
+// mark-reordering state machine (`SL_mappings`, `thai_pua_shape`) shifts a
+// mark glyph's OUTLINE; it never inserts a circle glyph. So an orphaned,
+// uncovered Thai/Lao mark paints as a bare tofu in Chrome, and this table's
+// membership was making Domotion draw a circle Chrome never draws.
 const COMPLEX_SHAPER_MARK_RANGES: ReadonlyArray<readonly [number, number]> = [
   // BMP Indic / SE-Asian
   [0x0900, 0x097F], [0x0980, 0x09FF], [0x0A00, 0x0A7F], [0x0A80, 0x0AFF],
   [0x0B00, 0x0B7F], [0x0B80, 0x0BFF], [0x0C00, 0x0C7F], [0x0C80, 0x0CFF],
-  [0x0D00, 0x0D7F], [0x0D80, 0x0DFF], [0x0E00, 0x0E7F], [0x0E80, 0x0EFF],
+  [0x0D00, 0x0D7F], [0x0D80, 0x0DFF],
   [0x0F00, 0x0FFF], [0x1000, 0x109F], [0x1700, 0x171F], [0x1720, 0x173F],
   [0x1740, 0x175F], [0x1760, 0x177F], [0x1780, 0x17FF], [0x1900, 0x194F],
   [0x1980, 0x19DF], [0x1A00, 0x1A1F], [0x1A20, 0x1AAF], [0x1B00, 0x1B7F],
@@ -455,6 +467,53 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // shapers mid-join. That is the same reasoning as Hebrew's FB1D-FB4F.
   [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF],
   [0xFB50, 0xFDFF], [0xFE70, 0xFEFF],
+
+  // Myanmar + its three Extended blocks, and Khmer + Khmer Symbols. Unlike the
+  // six entries above, the measurement behind these two is fontkit-vs-HarfBuzz,
+  // not CoreText-vs-HarfBuzz — because on macOS, `unicode-font-routing.darwin.
+  // generated.ts` routes the Myanmar and Khmer BASE blocks to "Myanmar Sangam
+  // MN" / "Khmer Sangam MN", neither of which is `extractor: "native"`, so
+  // these scripts are shaped by fontkit today, not the CoreText helper.
+  // fontkit's own dispatch table sends `khmr` to `IndicShaper` and has NO entry
+  // at all for `mymr` (falls through to `DefaultShaper`) — vs. HarfBuzz's real
+  // dedicated Myanmar/Khmer Ragel shapers (`hb-ot-shaper-myanmar.cc`,
+  // `hb-ot-shaper-khmer.cc`, rev 4de187d) — so the mechanism is wrong by
+  // construction even though, measured against the specific system fonts these
+  // blocks resolve to on this host, the observable output currently agrees:
+  // representative samples (Khmer coeng clusters — ខ្ញុំ, កម្ពុជា, an orphaned
+  // coeng+consonant with no base; Myanmar medial-ra/e-vowel reordering —
+  // ကြော, မြန်မာ, kinzi ငျ်္က, an out-of-order upper vowel sign before its
+  // base) all returned IDENTICAL glyph ids and advances from fontkit and from
+  // harfbuzzjs on Myanmar Sangam MN / Khmer Sangam MN — both fonts implement
+  // their reordering through generic GSUB features a non-specialized shaper
+  // still applies, so the wrong dispatch has no reachable glyph/advance
+  // divergence on these faces today. Rerouted anyway, per the standing "font
+  // goal is guaranteed parity with Chromium's mechanism, not less code" policy
+  // — an approximation that currently scores well is still the defect — and
+  // because the reroute is then provably a no-op for present output (measured
+  // inert = zero regression risk), not a speculative one.
+  [0x1000, 0x109F],                                             // Myanmar
+  [0xAA60, 0xAA7F], [0xA9E0, 0xA9FF], [0x116D0, 0x116FF],        // Myanmar Extended A/B/C
+  [0x1780, 0x17FF], [0x19E0, 0x19FF],                            // Khmer + Khmer Symbols
+
+  // Bengali. UNLIKE Myanmar/Khmer above, this one is NOT measured inert:
+  // fontkit's `IndicShaper` IS the shaper HarfBuzz's Indic group would also
+  // pick for Bengali (`beng` is one of HarfBuzz's nine Indic-shaper scripts,
+  // `hb-ot-shaper.hh:224-232`), so the shaper CHOICE was already right. What's
+  // missing is a feature fontkit's reimplementation doesn't have at all: HarfBuzz's
+  // vowel-constraint preprocessing (`_hb_preprocess_text_vowel_constraints`,
+  // `hb-ot-shaper-vowel-constraints.cc:58-446`, rev 4de187d) inserts a dotted
+  // circle MID-SEQUENCE, with a base present, before a dependent vowel sign
+  // that Unicode's Bengali orthography rules disallow directly after that
+  // base. Measured directly on the block's actual production face (Kohinoor
+  // Bangla, via fontkit — the base Bengali block is not `extractor: "native"`
+  // either): U+0985 BENGALI LETTER A + U+09BE BENGALI VOWEL SIGN AA shapes to
+  // 2 glyphs [4, 18] under fontkit and 3 glyphs [4, 104, 18] under harfbuzzjs
+  // — id 104 is the font's own U+25CC glyph, GPOS-inserted between the base
+  // and the vowel sign. This is the concrete case the ticket investigation
+  // named, and it is a real, visible glyph-COUNT divergence, not a cluster-map
+  // nuance: Domotion previously never drew the circle.
+  [0x0980, 0x09FF],                                              // Bengali
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.
