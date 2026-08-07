@@ -76,8 +76,30 @@ import { getScript } from "unicode-properties";
 
 const _bidi = bidiFactory();
 
-/** Cheap test for any strong-RTL or bidi-control character. */
-const _RTL_RE = /[֐-ࣿיִ-﷿ﹰ-﻿‏‫‮⁧]/;
+/**
+ * Cheap test for any strong-RTL or bidi-control character.
+ *
+ * This is a FAST PATH, not the answer: everything it admits goes on to
+ * `bidi-js`'s `getEmbeddingLevels`, which implements the real Unicode Bidi
+ * Algorithm. So the only requirement is that it be **conservative** — a false
+ * positive costs one extra call that returns all-zero levels, while a false
+ * negative skips the UBA entirely and shapes the run left-to-right.
+ *
+ * It covered the BMP only, so every SMP RTL script was rejected here and never
+ * reached bidi-js: Adlam, Kharoshthi, Sogdian, Old Uyghur, Garay, Mende
+ * Kikakui, Yezidi, Chorasmian, Elymaic, Hanifi Rohingya, Manichaean, Old
+ * Turkic, Old Hungarian, Phoenician, Nabataean, Palmyrene, Hatran, Lydian,
+ * Meroitic, Avestan, the Pahlavi scripts, and the Arabic Mathematical
+ * Alphabetic Symbols.
+ *
+ * The two added ranges are deliberately BROAD rather than a curated per-script
+ * list. U+10800-10FFF and U+1E800-1EFFF bracket the SMP's RTL blocks, and
+ * over-inclusion is free for the reason above — whereas a hand-listed set is
+ * exactly what left the previous version short. Upstream asks
+ * `hb_script_get_horizontal_direction` (`hb-ot-shape.cc:590`); we let bidi-js
+ * answer that and use this only to decide whether to ask.
+ */
+const _RTL_RE = /[֐-ࣿיִ-﷿ﹰ-﻿‏‫‮⁧\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u;
 
 /**
  * Per-code-unit bidi embedding levels for `text`, or `undefined` when the text
