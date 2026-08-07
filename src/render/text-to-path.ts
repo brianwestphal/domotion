@@ -39,6 +39,7 @@ import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-f
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
+import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
@@ -1436,6 +1437,14 @@ function splitTextIntoFontRuns(
    *  `resolveSystemFallbackKeyForCp`'s `declaredFamily` param. */
   fontFamily?: string,
 ): FontRun[] {
+  // Prototype (default OFF): fallback at shaped-cluster granularity — Blink's
+  // shape-then-requeue mechanism instead of the per-codepoint cmap walk below.
+  // `DOMOTION_CLUSTER_FALLBACK=1` enables it; a decline (null) falls through to
+  // the shipping path. See docs/113-cluster-granularity-fallback.md.
+  if (clusterFallbackEnabled()) {
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji);
+    if (shaped != null) return shaped;
+  }
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
   // codepoint in `text` in a single helper round-trip. The per-codepoint

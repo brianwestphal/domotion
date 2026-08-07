@@ -42,6 +42,18 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 113 (`docs/113-cluster-granularity-fallback.md`)** — **Design +
+  measured prototype (flag-gated, default OFF).** Blink runs font fallback at
+  SHAPED-CLUSTER granularity (shape with the current font, requeue only the
+  `.notdef` clusters — `ExtractShapeResults`); Domotion decides per codepoint
+  from cmap coverage before any shaping. Probed against Chrome via CDP: the
+  shipping path matches Chrome's per-glyph font assignment on 6/10
+  partially-covered-cluster cases, the prototype
+  (`DOMOTION_CLUSTER_FALLBACK=1`, `src/render/cluster-fallback.ts`) on 9/10.
+  Also carries the static-chain retirement measurement: over the conformance
+  universe × top-6 stacks, `staticChain()` answered 6 of 916k system-stage
+  decisions on macOS and 0 of 780k on Linux. The existing unicode-grid sweeps
+  are one-codepoint-per-cell and structurally cannot grade this mechanism.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's

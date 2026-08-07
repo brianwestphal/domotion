@@ -8475,6 +8475,56 @@ export function fontFeatureValueShapingOverride(
   return hbInst;
 }
 
+/**
+ * Stage-attribution counters for the per-codepoint resolver. Investigation
+ * instrumentation for the shaped-cluster-granularity design work (docs/113):
+ * the question "now that the live system-fallback resolvers are default-on,
+ * how often does the static per-block chain still answer at all?" decides
+ * whether the sampled chains can be retired, and it can only be answered by
+ * counting at the decision sites. Unconditional cheap increments; no behavior
+ * change. Read with `_getFontStageStats()`, reset with `_resetFontStageStats()`.
+ */
+export interface FontStageStats {
+  /** Total `resolveFontForCodepoint` decisions. */
+  calls: number;
+  /** Answered by the primary literal fast path (step 0). */
+  fastPathPrimary: number;
+  /** Reached the kSystemFonts stand-in (live resolver and/or static chain). */
+  systemStageReached: number;
+  /** Live resolver consulted / answered. */
+  liveAsked: number;
+  liveAnswered: number;
+  /** Static chain consulted / answered. */
+  staticAsked: number;
+  staticAnswered: number;
+  /** Private-use / noncharacter early terminal (no system fallback, per Blink). */
+  noSystemFallback: number;
+  /** Fell all the way through to the uncovered terminal. */
+  uncovered: number;
+  /** candidate key → count, for the static-chain answers only. */
+  staticKeyTally: Map<string, number>;
+  /** primary font key → count, for the static-chain answers only. */
+  staticPrimaryTally: Map<string, number>;
+  /** Sample of codepoints the static chain answered for (capped). */
+  staticCpSample: number[];
+}
+const _stageStats: FontStageStats = {
+  calls: 0, fastPathPrimary: 0, systemStageReached: 0,
+  liveAsked: 0, liveAnswered: 0, staticAsked: 0, staticAnswered: 0,
+  noSystemFallback: 0, uncovered: 0,
+  staticKeyTally: new Map(), staticPrimaryTally: new Map(), staticCpSample: [],
+};
+const STATIC_CP_SAMPLE_CAP = 20000;
+export function _getFontStageStats(): FontStageStats {
+  return { ..._stageStats, staticKeyTally: new Map(_stageStats.staticKeyTally), staticPrimaryTally: new Map(_stageStats.staticPrimaryTally), staticCpSample: [..._stageStats.staticCpSample] };
+}
+export function _resetFontStageStats(): void {
+  _stageStats.calls = 0; _stageStats.fastPathPrimary = 0; _stageStats.systemStageReached = 0;
+  _stageStats.liveAsked = 0; _stageStats.liveAnswered = 0; _stageStats.staticAsked = 0; _stageStats.staticAnswered = 0;
+  _stageStats.noSystemFallback = 0; _stageStats.uncovered = 0;
+  _stageStats.staticKeyTally.clear(); _stageStats.staticPrimaryTally.clear(); _stageStats.staticCpSample.length = 0;
+}
+
 export function resolveFontForCodepoint(
   cp: number,
   primaryFont: FontInstance,
@@ -8526,6 +8576,7 @@ function resolveFontForCodepointInner(
   fontVariantEmoji?: FontVariantEmojiOverride,
   declaredFamily?: string,
 ): FontResolution {
+  _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     ({ key, fontOverride, emitCh, decomposed, covered: true });
@@ -8604,6 +8655,7 @@ function resolveFontForCodepointInner(
   // where nearly all the probes are: Arial's cmap holds 3,506 of 292,466
   // assigned codepoints, so the negative answer is the common one.
   if (nativeFaceCoversCp(primaryFont, cp) !== false && glyphIdForCp(primaryFont, cp) !== 0) {
+    _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null);
   }
 
@@ -8781,6 +8833,7 @@ function resolveFontForCodepointInner(
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
+    _stageStats.liveAsked++;
     const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily);
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
@@ -8794,13 +8847,21 @@ function resolveFontForCodepointInner(
     // cost is gone wherever the binary reports it. `??` rather than a default:
     // an older helper omits the field, and treating "absent" as "not covered"
     // would silently discard every live answer.
-    if (_sysfbCoverage.get(`${sysKey}|${cp}`) ?? fontCoversCp(sf, cp)) return cover(sysKey, null);
+    if (_sysfbCoverage.get(`${sysKey}|${cp}`) ?? fontCoversCp(sf, cp)) { _stageStats.liveAnswered++; return cover(sysKey, null); }
     if (singleton != null && fontCoversCp(sf, singleton)) {
+      _stageStats.liveAnswered++;
       return cover(sysKey, null, String.fromCodePoint(singleton), true);
     }
     return null;
   };
+  const recordStaticAnswer = (candidateKey: string): void => {
+    _stageStats.staticAnswered++;
+    _stageStats.staticKeyTally.set(candidateKey, (_stageStats.staticKeyTally.get(candidateKey) ?? 0) + 1);
+    _stageStats.staticPrimaryTally.set(primaryFontKey, (_stageStats.staticPrimaryTally.get(primaryFontKey) ?? 0) + 1);
+    if (_stageStats.staticCpSample.length < STATIC_CP_SAMPLE_CAP) _stageStats.staticCpSample.push(cp);
+  };
   const staticChain = (): FontResolution | null => {
+    _stageStats.staticAsked++;
     // DM-1985: the run's `font-variant-emoji` reaches the chain, because on
     // Windows it decides which arm of `GetFallbackFamily` the codepoint takes.
     for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize, fontVariantEmoji })) {
@@ -8817,8 +8878,9 @@ function resolveFontForCodepointInner(
         const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
         if (cut != null) {
           const cutFont = getFontInstance(cut, weight, fontSize, slant);
-          if (cutFont != null && (nativeFaceCoversCp(cutFont, cp) ?? glyphIdForCp(cutFont, cp) !== 0)) return cover(cut, null);
+          if (cutFont != null && (nativeFaceCoversCp(cutFont, cp) ?? glyphIdForCp(cutFont, cp) !== 0)) { recordStaticAnswer(cut); return cover(cut, null); }
         }
+        recordStaticAnswer(candidate);
         return cover(candidate, null);
       }
     }
@@ -8856,9 +8918,11 @@ function resolveFontForCodepointInner(
   // 35.20px wide against Helvetica's 20.28px `.notdef` at 32px.
   const noSystemFallback = isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp);
   if (noSystemFallback) {
+    _stageStats.noSystemFallback++;
     return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
   }
 
+  _stageStats.systemStageReached++;
   if (_liveFallbackFirst) {
     const live = liveFallback();
     if (live != null) return live;
@@ -8876,6 +8940,7 @@ function resolveFontForCodepointInner(
   if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
 
   // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.
+  _stageStats.uncovered++;
   return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
 }
 

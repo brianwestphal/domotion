@@ -45,6 +45,10 @@ shortest possible map:
   resolver→glyph emission, with all platform branching + specific fonts) is
   mapped in `docs/font-resolution-diagram.md` — a canonical always-in-sync
   Mermaid reference; keep it current with any font-routing change.**
+  `cluster-fallback.ts` is the flag-gated (`DOMOTION_CLUSTER_FALLBACK=1`,
+  default OFF) prototype of Blink's shaped-cluster fallback — shape with the
+  current font, requeue only the `.notdef` clusters — see
+  `docs/113-cluster-granularity-fallback.md`.
   `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows
   per-script fallback stage** — the 74-row `InitializeScriptFontMap` table,
   `GetFontBasedOnUnicodeBlock`, the emoji/math font lists, the Han locale
