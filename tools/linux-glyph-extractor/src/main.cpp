@@ -492,9 +492,17 @@ static FT_Long resolveFaceIndex(FT_Library lib, const std::string& path,
 //   in : { type:"fcfallback", cps:[...], lang?:"en" }
 //   out: { type:"fcfallback", fonts:[ {cp,found:true,path,index,isBold,isItalic,family}
 //                                   | {cp,found:false} ] }
+//
+// Forward declaration: `fcIsValidPattern` (rev fd139e79's `isValidPattern`
+// port) is defined below alongside `runFamilyMatchQuery`, but `runFcFallbackQuery`
+// needs it too — Blink's fallback walk applies the SAME per-candidate filter
+// (`IsValidFontFromPattern`, `ui/gfx/font_fallback_linux.cc:38-56`) that
+// `SkFontConfigInterfaceDirect::isValidPattern` applies for family matching.
+static bool fcIsValidPattern(FcPattern* p);
+
 static FcFontSet* sortedSetForLang(const std::string& lang) {
   // Keyed by language: FcFontSort's answer is a function of the pattern, and the
-  // only thing we put in the pattern is FC_LANG.
+  // only things we put in the pattern are FC_LANG and FC_SCALABLE.
   static std::map<std::string, FcFontSet*> cache;
   auto it = cache.find(lang);
   if (it != cache.end()) return it->second;
@@ -504,6 +512,10 @@ static FcFontSet* sortedSetForLang(const std::string& lang) {
   if (pattern == nullptr) return nullptr;
   FcPatternAddString(pattern, FC_LANG,
                      reinterpret_cast<const FcChar8*>(lang.c_str()));
+  // DM-2017: this was documented above (`font_fallback_linux.cc:463`) but never
+  // actually added to the pattern — the comment described Blink's algorithm
+  // correctly while the code silently omitted the FC_SCALABLE term.
+  FcPatternAddBool(pattern, FC_SCALABLE, FcTrue);
   FcConfigSubstitute(config, pattern, FcMatchPattern);
   FcDefaultSubstitute(pattern);
 
@@ -538,6 +550,14 @@ static std::string runFcFallbackQuery(const JsonValue& query) {
     if (fonts != nullptr) {
       for (int f = 0; f < fonts->nfont && !emitted; f++) {
         FcPattern* font = fonts->fonts[f];
+        // DM-2017: `IsValidFontFromPattern` (`font_fallback_linux.cc:38-56`) runs
+        // BEFORE the charset test in `FillFallbackList` (`:492-505`) — scalable,
+        // TrueType-or-CFF, and readable — so a bitmap / unreadable / wrong-format
+        // face never even reaches the coverage question, exactly like a face
+        // Chrome's own fallback list never included in the first place. `fcIsValidPattern`
+        // already ports this (built for the family-match query below); reuse it
+        // rather than checking only FC_FILE readability here as before.
+        if (!fcIsValidPattern(font)) continue;
         FcCharSet* charset = nullptr;
         if (FcPatternGetCharSet(font, FC_CHARSET, 0, &charset) != FcResultMatch
             || charset == nullptr || !FcCharSetHasChar(charset, cp)) {
@@ -840,12 +860,24 @@ static std::string runFamilyMatchQuery(FT_Library lib, const JsonValue& query) {
   // trim = 0, exactly as the shipping matchFamilyName (rev fd139e79:662). The
   // newer Skia tree's direct FcFontMatch stage does not exist in the pinned
   // build and is deliberately not reproduced.
+  //
+  // DM-2017: this was flagged as needing re-verification against the revision
+  // Chromium actually pins (Chromium 7d859f27 pins Skia `62efacd3`, newer than
+  // both this transcription's fd139e79 and the checkout's own ebf5052 HEAD) —
+  // specifically whether `MatchFont` scans PAST an unacceptable first valid
+  // pattern for a second one. Checked against `62efacd3:src/ports/
+  // SkFontConfigInterface_direct.cpp` directly (`git show`, since sparse-checkout
+  // HEAD is a different commit): `MatchFont` at that revision is
+  // STRUCTURALLY IDENTICAL to the fd139e79 transcription below — same
+  // break-on-first-valid loop, same single-pattern accept/reject, no second
+  // scan. Nothing to port; the port already matches the pinned build.
   FcFontSet* fontSet = FcFontSort(config, pattern, 0, nullptr, &result);
   FcPatternDestroy(pattern);
   if (fontSet == nullptr) return notFound;
 
-  // `MatchFont` (rev fd139e79:553-590): take the FIRST valid pattern in sort
-  // order, then accept or reject THAT one — no further scanning.
+  // `MatchFont` (rev fd139e79:553-590, confirmed unchanged in substance at the
+  // Chromium-pinned 62efacd3): take the FIRST valid pattern in sort order, then
+  // accept or reject THAT one — no further scanning.
   FcPattern* match = nullptr;
   for (int i = 0; i < fontSet->nfont; i++) {
     if (fcIsValidPattern(fontSet->fonts[i])) { match = fontSet->fonts[i]; break; }

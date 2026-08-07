@@ -167,15 +167,17 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     expect(perAsker[0]).toContain("fontVariantEmoji");
   });
 
-  it("keeps every remaining run-context asker's argument list ending in systemUiPrimary, lang, stretch, fontVariantEmoji", () => {
+  it("keeps every remaining run-context asker's argument list ending in systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily", () => {
     // Pins the ORDER too: `resolveSystemFallbackKeyForCp` takes
     // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch,
-    // fontVariantEmoji), and the trailing four are optional with defaults — so a
-    // transposition is a silently mis-keyed memo rather than a type error
-    // wherever the types line up.
+    // fontVariantEmoji, declaredFamily), and the trailing five are optional
+    // with defaults — so a transposition is a silently mis-keyed memo rather
+    // than a type error wherever the types line up. `declaredFamily` is the
+    // RAW CSS font-family stack, consulted by the Linux standard-style retry
+    // (the primary-vs-declared-name divergence this ticket closed).
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
-      expect(args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji"), `${name}: ${args}`).toBe(true);
+      expect(args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily"), `${name}: ${args}`).toBe(true);
     }
   });
 

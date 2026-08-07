@@ -50,7 +50,8 @@ export function synthesisAllowed(
  *  fabricating a whole font. */
 export type SynthesisFace = Pick<FontInstance,
   "naturalWeight" | "faceIsBoldTrait" | "webfontFace"
-  | "hasSlantAxis" | "isRoutedItalicCut" | "resolvedItalicAngle">;
+  | "hasSlantAxis" | "isRoutedItalicCut" | "resolvedItalicAngle"
+  | "linuxFallbackIsBold" | "linuxFallbackIsItalic">;
 
 /**
  * Whether Chrome would synthesize BOLD for this resolved face at this weight.
@@ -79,6 +80,15 @@ export type SynthesisFace = Pick<FontInstance,
  * platform-INDEPENDENT, rule: Chrome decides webfont synthetic bold in the CSS
  * layer from the declared `font-weight` DESCRIPTOR, not from the file — so none
  * of the system-font predicates apply to it (`webfontSyntheticBold`).
+ *
+ * DM-2017: a Linux face resolved through the LIVE PER-CODEPOINT FALLBACK
+ * (`resolveFcFallbackFonts`'s `fcfallback` query, not a declared family or the
+ * static chain) obeys a FIFTH rule, and it is not the Linux delta above.
+ * `FontCache::PlatformFallbackFontForCharacter` builds the substitute
+ * `FontPlatformData` and then explicitly OVERRIDES its synthetic-bold flag
+ * from fontconfig's own `is_bold` bit (`linux/font_cache_linux.cc:110-117,
+ * 132-136`) — a binary test shaped like the Windows rule above, not the delta.
+ * See `FontInstance.linuxFallbackIsBold`.
  *
  * No variable-`wght` exemption is needed here: `naturalWeight` and
  * `faceIsBoldTrait` describe the INSTANTIATED variation instance — the same
@@ -112,9 +122,25 @@ export function faceNeedsSyntheticBold(
   // inside either branch.
   if (!synthesisAllowed(fontSynthesis, "weight")) return false;
   if (font.webfontFace != null) return webfontSyntheticBold(font.webfontFace, requestedWeight);
+  const platform = hostPlatform();
+  // DM-2017: a Linux LIVE-FALLBACK pick (the `fcfallback` resolver) is
+  // governed by a BINARY test against fontconfig's OWN is_bold classification
+  // of the chosen candidate, not the general per-platform rule below — see
+  // `FontInstance.linuxFallbackIsBold`. Checked before the `naturalWeight`
+  // null-guard: a fallback face's fontconfig classification can be present
+  // even when its OS/2 weight class isn't readable.
+  //   `linux/font_cache_linux.cc:110-117`, rev 7d859f27:
+  //     should_set_synthetic_bold = !fallback_font.is_bold &&
+  //         description.Weight() >= kBoldThreshold && SyntheticBoldAllowed();
+  // This OVERRIDES whatever `CreateFontPlatformData`'s internal delta test
+  // (the plain Linux branch below) would have computed — Blink calls
+  // `platform_data->SetSyntheticBold(should_set_synthetic_bold)` explicitly
+  // right after resolving the substitute face (`:132-136`).
+  if (platform === "linux" && font.linuxFallbackIsBold != null) {
+    return requestedWeight >= 600 && !font.linuxFallbackIsBold;
+  }
   const faceNaturalWeight = font.naturalWeight;
   if (faceNaturalWeight == null) return false;
-  const platform = hostPlatform();
 
   if (platform === "darwin") {
     // `mac/font_cache_mac.mm:425-427`, rev 7d859f27:
@@ -157,6 +183,12 @@ export function faceNeedsSyntheticBold(
  * faces that lean but UNDER-REPORT it — some `.ttc` members ship an angle of 0
  * despite a visibly slanted outline, and shearing those a second time doubled
  * their lean.
+ *
+ * DM-2017: a Linux LIVE-FALLBACK pick is the one exception to all of the
+ * above — Blink's `PlatformFallbackFontForCharacter` sets synthetic italic
+ * from fontconfig's own `is_italic` bit, not from the resolved outline's own
+ * angle (`linux/font_cache_linux.cc:118-125`, mirroring the bold override in
+ * `faceNeedsSyntheticBold`). See `FontInstance.linuxFallbackIsItalic`.
  */
 export function faceNeedsSyntheticOblique(
   font: SynthesisFace,
@@ -167,8 +199,11 @@ export function faceNeedsSyntheticOblique(
   // Blink's `SyntheticItalicAllowed()`, ANDed in at the same place as the bold
   // one (`core/css/css_segmented_font_face.cc:120-123`). A face that really
   // leans is unaffected: the conditions below already exclude it.
-  return synthesisAllowed(fontSynthesis, "style")
-    && slant !== 0
+  if (!synthesisAllowed(fontSynthesis, "style")) return false;
+  if (hostPlatform() === "linux" && font.linuxFallbackIsItalic != null) {
+    return slant !== 0 && !font.linuxFallbackIsItalic;
+  }
+  return slant !== 0
     && font.hasSlantAxis !== true
     && font.isRoutedItalicCut !== true
     && (font.resolvedItalicAngle == null || Math.abs(font.resolvedItalicAngle) < 1);

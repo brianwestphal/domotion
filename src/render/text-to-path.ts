@@ -301,7 +301,7 @@ export function textToPathMarkup(
       // The property must not override an explicit VS15/VS16 in the text
       // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
       const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, effFve);
+      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, effFve, fontFamily);
       // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
       // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
       // placing one on a system color font here would split it out of the
@@ -1431,6 +1431,10 @@ function splitTextIntoFontRuns(
   stretch: number = 100,
   /** The run's `font-variant-emoji` override (`normal` = undefined). */
   fontVariantEmoji?: FontVariantEmojiOverride,
+  /** DM-2017: the run's RAW CSS `font-family` stack, passed through to the
+   *  Linux live resolver's standard-style retry — see
+   *  `resolveSystemFallbackKeyForCp`'s `declaredFamily` param. */
+  fontFamily?: string,
 ): FontRun[] {
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
@@ -1570,7 +1574,7 @@ function splitTextIntoFontRuns(
     // Explicit VS15/VS16 wins over `font-variant-emoji` (`HasVSFallbackPriority`,
     // `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
     const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve);
+    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;
     const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
@@ -1685,7 +1689,7 @@ function renderTextAsEmbedded(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily);
   if (runs.length === 0) return null;
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -2963,7 +2967,7 @@ export function measureInkMetrics(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const fontKeyChain = resolveFontKeyChain(fontFamily);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
@@ -3027,7 +3031,7 @@ export function renderStretchyFenceGlyph(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
-    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch);
+    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 
@@ -3098,7 +3102,7 @@ export function renderRadicalGlyph(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
-    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch);
+    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 

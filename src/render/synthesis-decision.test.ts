@@ -107,6 +107,62 @@ describe("faceNeedsSyntheticBold — three platform rules, not one", () => {
       expect(withHostPlatform(p, () => faceNeedsSyntheticBold(webfont, 500, undefined))).toBe(false);
     }
   });
+
+  describe("a Linux LIVE-FALLBACK pick obeys fontconfig's own is_bold bit, not the delta (DM-2017)", () => {
+    // `linux/font_cache_linux.cc:110-117`: should_set_synthetic_bold =
+    // !fallback_font.is_bold && description.Weight() >= kBoldThreshold(600).
+    // A BINARY test, shaped like the Windows rule, that OVERRIDES whatever the
+    // general Linux delta below would have computed for this one stage.
+
+    it("synthesizes bold where the delta rule alone says no — the bug this ticket fixed", () => {
+      // naturalWeight 500, requested 700: delta is exactly 200, and the delta
+      // rule is a STRICT `>` — so a pure delta test (what shipped before this
+      // fix, ignoring the fontconfig bit entirely) answers false here. A bold
+      // run over a regular fallback face painted with no synthetic-bold
+      // geometry at all: "too light", read as a rasterization gap rather than
+      // the missing-logic bug it was.
+      const nonBoldFallback: SynthesisFace = { naturalWeight: 500, linuxFallbackIsBold: false };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(nonBoldFallback, 700, undefined))).toBe(true);
+      // Control: the SAME face/weight with the field absent (a declared-family
+      // or static-chain face, never touched by this fix) still takes the old
+      // delta rule and still says no — proving the new branch is additive, not
+      // a change to every Linux face.
+      const sameFaceNoFlag: SynthesisFace = { naturalWeight: 500 };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(sameFaceNoFlag, 700, undefined))).toBe(false);
+    });
+
+    it("suppresses a false-positive the delta rule alone would add", () => {
+      // naturalWeight 400, requested 700: delta is 300 > 200, so the OLD Linux
+      // rule alone says "synthesize" — but Blink's fallback override reads
+      // fontconfig's own is_bold=true here and does not, because the chosen
+      // face IS already bold. A regression that ignored the fontconfig bit
+      // (or reverted to the delta) would double-embolden this face.
+      const boldFallback: SynthesisFace = { naturalWeight: 400, linuxFallbackIsBold: true };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(boldFallback, 700, undefined))).toBe(false);
+      const sameFaceNoFlag: SynthesisFace = { naturalWeight: 400 };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(sameFaceNoFlag, 700, undefined))).toBe(true);
+    });
+
+    it("uses the exact kBoldThreshold (600), not macOS's 500 or a rounded number", () => {
+      const notBold: SynthesisFace = { naturalWeight: 300, linuxFallbackIsBold: false };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(notBold, 599, undefined))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(notBold, 600, undefined))).toBe(true);
+    });
+
+    it("is Linux-only — darwin and win32 ignore the field entirely", () => {
+      // The two threshold platforms have their own, already-correct rule
+      // (`faceIsBoldTrait`); a fallback-only marker must not leak into them.
+      const face: SynthesisFace = { naturalWeight: 500, faceIsBoldTrait: false, linuxFallbackIsBold: true };
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticBold(face, 700, undefined))).toBe(true);
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticBold(face, 700, undefined))).toBe(true);
+    });
+
+    it("still obeys `font-synthesis-weight: none`", () => {
+      const nonBoldFallback: SynthesisFace = { naturalWeight: 500, linuxFallbackIsBold: false };
+      expect(withHostPlatform("linux",
+        () => faceNeedsSyntheticBold(nonBoldFallback, 700, { weight: false }))).toBe(false);
+    });
+  });
 });
 
 describe("faceNeedsSyntheticOblique", () => {
@@ -129,6 +185,42 @@ describe("faceNeedsSyntheticOblique", () => {
     expect(faceNeedsSyntheticOblique(upright, -1, { style: false })).toBe(false);
     // …and is not vetoed by the weight longhand.
     expect(faceNeedsSyntheticOblique(upright, -1, { weight: false })).toBe(true);
+  });
+
+  describe("a Linux LIVE-FALLBACK pick obeys fontconfig's own is_italic bit (DM-2017)", () => {
+    // `linux/font_cache_linux.cc:118-125`: should_set_synthetic_italic =
+    // !fallback_font.is_italic && description.Style() == kItalicSlopeValue.
+    // Mirrors the bold override above; overrides the outline-angle test for
+    // this one stage rather than adding to it.
+
+    it("shears a fallback face fontconfig reports as upright", () => {
+      const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
+      // Note the angle here (-12°) would, under the GENERAL rule, read as
+      // "already leans" and skip the shear — proving this is a REPLACEMENT of
+      // that test for a fallback pick, not an addition on top of it: Blink
+      // trusts fontconfig's classification of the chosen face over the
+      // outline's own reported angle at this stage.
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, -1, undefined))).toBe(true);
+    });
+
+    it("leaves a fallback face fontconfig reports as already italic alone", () => {
+      // Inverse: angle 0 (would read "needs a shear" under the general rule)
+      // but fontconfig says this candidate IS italic — no double-shear.
+      const italicFallback: SynthesisFace = { resolvedItalicAngle: 0, linuxFallbackIsItalic: true };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(italicFallback, -1, undefined))).toBe(false);
+    });
+
+    it("is Linux-only — darwin and win32 ignore the field entirely", () => {
+      const face: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(face, -1, undefined))).toBe(false);
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(face, -1, undefined))).toBe(false);
+    });
+
+    it("still obeys `font-synthesis-style: none`", () => {
+      const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
+      expect(withHostPlatform("linux",
+        () => faceNeedsSyntheticOblique(uprightFallback, -1, { style: false }))).toBe(false);
+    });
   });
 });
 

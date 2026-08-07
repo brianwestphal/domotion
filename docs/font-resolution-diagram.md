@@ -1186,6 +1186,19 @@ Arrows→`[helvetica, free-sans]` · Geometric→`[helvetica, cjk]` · Misc Symb
 Math Alpha→`[free-sans, free-serif]` · Letterlike/Math Ops→`[free-sans, helvetica]` · CJK BMP→`[cjk]` ·
 Pictograph residue→`[free-sans]` · else generated `UNICODE_FONT_RANGES_LINUX` → `[]`.
 
+`linuxDeferOrStatic(cp, fallback, primaryKey, lang, css)` is the "defer to the
+live fc-match resolver" gate behind the Dingbats / Chess / Math-Alpha /
+Letterlike / Pictograph-residue / generated-table branches above — it PROBES
+`resolveSystemFallbackKeyForCp` and returns `[]` (defer) when the live resolver
+already covers `cp`, or `fallback` (the static route) when it doesn't. That
+probe now carries the run's actual `weight` / `slant` / `fontSize` / `primaryKey`
+/ `lang` / `stretch` / `fontVariantEmoji` — the same arguments `linuxFallbackChain`
+itself received, threaded straight through — rather than asking with `cp` alone
+(weight 400, no primary, no locale). The gap mattered for locale: the fc-fallback
+sorted set is keyed by `lang` (§8), so probing without it could defer (or fail to
+defer) on a Han-unification-sensitive codepoint based on a DIFFERENT sorted set
+than the one the real per-codepoint resolution stage consults a moment later.
+
 ### 7c. `win32FallbackChain` — Blink's hardcoded Windows stage, transcribed
 
 On Windows, `FontCache::PlatformFallbackFontForCharacter` asks a **hardcoded
@@ -1373,6 +1386,37 @@ flowchart TD
   SRR --> SRcache["cache & return"]
   SRNull --> SRcache
 ```
+
+**Linux only, BEFORE `SRL`: the standard-style retry.** For a bold or italic
+run (`slant !== 0 || weight >= 600`, emoji-presentation excluded), the resolver
+first retries the SAME family at style normal / weight 400
+(`FallbackOnStandardFontStyle`, `skia/font_cache_skia.cc:119-144`) — a family's
+bold cut can lack a glyph its regular cut has, so this recovers a codepoint that
+would otherwise leave the family entirely. The retry target is Blink's
+`Family().FamilyName()` — the LITERAL first name in the CSS `font-family` stack
+— not `primaryKey` (the already-matched key `resolveFontKey` settled on after
+walking the whole stack). Those diverge exactly when the stack's first declared
+name is rejected by the matcher and a LATER name is accepted: `primaryKey` names
+the accepted family, but Blink is still asking about the rejected one and fails
+through rather than substituting a different family's regular cut. The resolver
+re-matches just the head token (`matchFamilyNameToKey`, the same per-name
+accept/reject predicate `resolveFontKey` used) and only retries when it agrees
+with `primaryKey` — the caller threads the run's raw `font-family` stack
+through as `declaredFamily` for exactly this check. A hit short-circuits
+straight to `primaryKey` (registered in `systemFallbackKeyCache`, skipping
+`SRL` entirely); a miss falls through to `SRL` as normal.
+
+**`SRL`'s `FcFontSort` walk filters candidates before the charset test**, the
+way `gfx::CachedFontSet::FillFallbackList` does
+(`ui/gfx/font_fallback_linux.cc:463`, `:38-56`, `:492-505`): the pattern carries
+`FC_SCALABLE`, and each candidate must pass `IsValidFontFromPattern` — scalable,
+TrueType-or-CFF, and readable — before its charset is even consulted. The
+helper's `runFcFallbackQuery` reuses the SFNT-format + readability check already
+built for the declared-family matcher (`fcIsValidPattern`, §G3d's transcription
+of `SkFontConfigInterfaceDirect::isValidPattern`) rather than duplicating it.
+Inert on the bare CI image (every installed face there is a readable, scalable
+TrueType/OpenType file), so this affects only a desktop Linux profile with a
+mixed bitmap/vector font inventory — the roadmapped Noto desktop calibration.
 
 ### 8·0. How the question reaches the OS: the helper transport
 
@@ -2240,6 +2284,26 @@ genuinely different rules rather than one rule with a special case:
   the per-platform branch: `naturalWeight` / `faceIsBoldTrait` are set only on the
   system-font path, so before this branch existed a webfont could not synthesize at
   all.
+- **A Linux LIVE-FALLBACK pick** (the `fcfallback` resolver's answer, not a
+  declared family or the static chain) takes a FIFTH rule instead of the Linux
+  delta above — checked first, and it OVERRIDES rather than adds to it.
+  `FontCache::PlatformFallbackFontForCharacter` builds the substitute face and
+  then explicitly sets its synthetic-bold/-italic flags from fontconfig's own
+  `is_bold` / `is_italic` classification of the CHOSEN candidate
+  (`linux/font_cache_linux.cc:106-125`) — a BINARY test shaped like the Windows
+  rule (`!is_bold && Weight() >= 600`), not the delta `CreateFontPlatformData`
+  would otherwise have computed internally. `resolveFcFallbackFonts` parses
+  these bits off the helper's `fcfallback` answer;
+  `resolveLinuxSystemFallbackKeyForCp` threads them into the registered
+  `FontPath` (`linuxFallbackIsBold` / `linuxFallbackIsItalic`); `getFontInstance`
+  copies them onto the resulting `FontInstance`, separately from
+  `faceIsBoldTrait` (an OS/2-table fact, not a fontconfig-classification one).
+  `faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` consult them ahead of
+  the general Linux tests whenever present — i.e. only for a face this specific
+  resolver produced. Before this wiring existed, the helper emitted the bits and
+  the Node side parsed them, but nothing read the parsed value: a bold run over
+  a fallback-only codepoint used the delta rule (right for a declared family,
+  wrong for this stage) and could paint with no synthetic-bold geometry at all.
 
 **Vetoed by `font-synthesis` (DM-1971).** Both bakes — and the synthesized
 small-caps stand-in — sit behind the three CSS `font-synthesis` longhands, which

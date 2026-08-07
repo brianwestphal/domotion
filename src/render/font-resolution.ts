@@ -134,6 +134,27 @@ export interface FontInstance {
    * readable, and callers fall back to the weight comparison.
    */
   faceIsBoldTrait?: boolean;
+  /**
+   * DM-2017: set ONLY on a face resolved through the Linux live per-codepoint
+   * SYSTEM-FALLBACK path (`resolveFcFallbackFonts`'s `fcfallback` query), from
+   * the fontconfig `FC_WEIGHT` / `FC_SLANT` classification of the CHOSEN
+   * candidate — the same `isBold` / `isItalic` bits Blink reads back and uses
+   * to MUTATE the description before painting (`linux/font_cache_linux.cc:
+   * 106-125`, rev 7d859f27). Deliberately a DIFFERENT field from
+   * `faceIsBoldTrait`: that one is a fact about the file's own OS/2 table and
+   * feeds the darwin/win32 threshold-pair rules and the general Linux DELTA
+   * rule's fallback path; this pair feeds a THIRD rule that applies only to a
+   * fallback pick, because Blink's `PlatformFallbackFontForCharacter`
+   * explicitly OVERRIDES whatever `CreateFontPlatformData`'s internal delta
+   * test computed (`platform_data->SetSyntheticBold(should_set_synthetic_bold)`,
+   * `font_cache_linux.cc:132-136`) with a binary test against fontconfig's
+   * own bits instead. Undefined for every other Linux face (declared-family
+   * resolution, the static fallback chain, non-Linux platforms), where the
+   * existing rules are unchanged. See `faceNeedsSyntheticBold` /
+   * `faceNeedsSyntheticOblique`.
+   */
+  linuxFallbackIsBold?: boolean;
+  linuxFallbackIsItalic?: boolean;
   /** Set on instances resolved through the `@font-face` webfont registry, and
    *  ONLY there. Carries the three per-variant constants Blink's webfont
    *  synthetic-bold rule reads — see `webfontSyntheticBold`, which is a
@@ -1233,6 +1254,13 @@ interface FontPath {
    *  7d859f27 — identical). Absent for static faces, static-table keys, and
    *  helper binaries predating the family-query axis report. */
   ctAxes?: DarwinHandleAxis[];
+  /** DM-2017: the fontconfig `FC_WEIGHT` / `FC_SLANT` classification of a face
+   *  registered by the Linux `fcfallback` live resolver — see
+   *  `FontInstance.linuxFallbackIsBold` / `linuxFallbackIsItalic` for why this
+   *  travels separately from the file's own OS/2 trait. Absent for every
+   *  other spec (static tables, declared-family matches, other platforms). */
+  linuxFallbackIsBold?: boolean;
+  linuxFallbackIsItalic?: boolean;
 }
 
 // DM-1014: pick the LastResort font Chrome actually paints with on this
@@ -2010,9 +2038,17 @@ function registerDynamicSystemFont(
   extractor: "fontkit" | "native" = "native",
   resolvedAxes?: Record<string, number>,
   ctAxes?: DarwinHandleAxis[],
+  /** DM-2017: fontconfig's own bold/italic classification of this face, from
+   *  the Linux `fcfallback` live resolver only — see
+   *  `FontPath.linuxFallbackIsBold` / `linuxFallbackIsItalic`. */
+  linuxFallbackIsBold?: boolean,
+  linuxFallbackIsItalic?: boolean,
 ): void {
   if (dynamicSystemFontPaths.has(key)) return;
-  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor, resolvedAxes, ctAxes });
+  dynamicSystemFontPaths.set(key, {
+    path, postscriptName, extractor, resolvedAxes, ctAxes,
+    linuxFallbackIsBold, linuxFallbackIsItalic,
+  });
   resolvedSpecCache.delete(key); // in case a prior null was cached
 }
 
@@ -2632,6 +2668,14 @@ function resolveSystemFallbackKeyForCp(
    *  `resolveFontForCodepointInner` routes to the color-emoji face before this
    *  stage is reached.) */
   fontVariantEmoji?: FontVariantEmojiOverride,
+  /** DM-2017: the run's RAW CSS `font-family` stack (Chrome's unresolved,
+   *  comma-separated `getComputedStyle()` value), consulted ONLY by the Linux
+   *  standard-style retry below — see the comment there for why `primaryKey`
+   *  (the already-matched key) is the wrong thing to retry with. Optional so
+   *  the many direct callers of this function (tests, the darwin/win32 paths)
+   *  keep their exact behavior; omitted → the retry trusts `primaryKey`, which
+   *  is only wrong when the stack's first declared name was itself rejected. */
+  declaredFamily?: string,
 ): string | null {
   const suppressEmojiPresentation = fontVariantEmoji === "text" && isEmojiCharCp(cp);
   /** Blink's condition for the monochrome-emoji replacement, verbatim: an
@@ -2869,17 +2913,39 @@ function resolveSystemFallbackKeyForCp(
       // `kBoldThreshold` is 600 (`font_description.h`), the same constant the
       // helper already uses for the synthetic-bold trait.
       if ((suppressEmojiPresentation || !isEmojiPresentationCp(cp)) && (slant !== 0 || weight >= 600) && primaryKey != null) {
-        // The standard-style face of the SAME family. `getFontInstance` is
-        // memoised, so this costs a map hit after the first bold codepoint.
-        const standard = getFontInstance(primaryKey, 400, fontSize, 0);
-        if (standard != null && glyphIdForCp(standard, cp) !== 0) {
-          // Blink returns the family's own face here and sets the synthetic-bold
-          // / synthetic-italic flags from the ORIGINAL description; our renderer
-          // derives those from the requested weight against the resolved face,
-          // so returning the key is sufficient and keeps that decision in one
-          // place rather than duplicating the predicate.
-          systemFallbackKeyCache.set(cacheKey, primaryKey);
-          return primaryKey;
+        // DM-2017: Blink's retry is `FontFaceCreationParams(substitute_description
+        // .Family().FamilyName())` — the LITERAL first name in the CSS
+        // `font-family` stack (`skia/font_cache_skia.cc:126-127`), asked
+        // independently of whatever the whole-stack walk settled on. `primaryKey`
+        // is that walk's RESULT, not its first token — the two diverge exactly
+        // when the page declares a family the matcher rejects (not installed, no
+        // acceptable fontconfig substitute) followed by one it accepts, e.g.
+        // `font-family: Verdana, Georgia` on a host without Verdana: `primaryKey`
+        // is Georgia's key, but Blink is still asking about Verdana specifically
+        // and, finding no acceptable match for IT, fails through to system
+        // fallback — it does not retry Georgia's regular cut. Re-matching just
+        // the head token (not the whole stack) against the SAME accept/reject
+        // predicate `resolveFontKey` used tells us which case this is: equal to
+        // `primaryKey` means the head token IS what produced it (the common
+        // case — retry is faithful), anything else means Blink would be asking
+        // about a family we never resolved, so we fail through exactly as it
+        // does rather than substitute a different family's regular cut.
+        const declaredHeadName = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
+        const headMatchesPrimary = declaredHeadName == null
+          || matchFamilyNameToKey(declaredHeadName) === primaryKey;
+        if (headMatchesPrimary) {
+          // The standard-style face of the SAME family. `getFontInstance` is
+          // memoised, so this costs a map hit after the first bold codepoint.
+          const standard = getFontInstance(primaryKey, 400, fontSize, 0);
+          if (standard != null && glyphIdForCp(standard, cp) !== 0) {
+            // Blink returns the family's own face here and sets the synthetic-bold
+            // / synthetic-italic flags from the ORIGINAL description; our renderer
+            // derives those from the requested weight against the resolved face,
+            // so returning the key is sufficient and keeps that decision in one
+            // place rather than duplicating the predicate.
+            systemFallbackKeyCache.set(cacheKey, primaryKey);
+            return primaryKey;
+          }
         }
       }
       // DM-1403/DM-1416: fontconfig live fallback for Linux, default-on (gated
@@ -3267,7 +3333,16 @@ function resolveLinuxSystemFallbackKeyForCp(
     const base = viaHelper.family ?? viaHelper.path.split("/").pop() ?? "fallback";
     const name = viaHelper.index > 0 ? `${base}#${viaHelper.index}` : base;
     const key = `sysfb:${name}`;
-    registerDynamicSystemFont(key, viaHelper.path, name, "fontkit");
+    // DM-2017: fontconfig's own is_bold/is_italic classification of THIS
+    // candidate, threaded through so the synthetic-bold/italic decision below
+    // can apply Blink's fallback-specific binary rule
+    // (`linux/font_cache_linux.cc:106-125`) instead of the general Linux delta
+    // rule, which is right for a DECLARED family but not for this stage — see
+    // `FontInstance.linuxFallbackIsBold` for the full rationale.
+    registerDynamicSystemFont(
+      key, viaHelper.path, name, "fontkit", undefined, undefined,
+      viaHelper.isBold, viaHelper.isItalic,
+    );
     return key;
   }
 
@@ -3401,12 +3476,20 @@ export function __resolveSystemFallbackKeyForCpForTest(
   cp: number, weight = 400, slant = 0, fontSize = 16,
   primaryKey?: string, systemUiPrimary = false, lang?: string, stretch = 100,
   fontVariantEmoji?: FontVariantEmojiOverride,
+  declaredFamily?: string,
 ): string | null {
-  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji);
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily);
 }
 
-/** Test-only window into the platform path resolver (DM-258). */
-export function __resolveFontSpecForTest(key: string): { path: string; postscriptName?: string; extractor?: string } | null {
+/** Test-only window into the platform path resolver (DM-258). Widened by
+ *  DM-2017 to expose `linuxFallbackIsBold` / `linuxFallbackIsItalic` so a test
+ *  can confirm the Linux `fcfallback` resolver's is_bold/is_italic bits
+ *  actually reach the registered spec, without needing to open the (possibly
+ *  off-host) font file they describe. */
+export function __resolveFontSpecForTest(key: string): {
+  path: string; postscriptName?: string; extractor?: string;
+  linuxFallbackIsBold?: boolean; linuxFallbackIsItalic?: boolean;
+} | null {
   return resolveFontSpec(key);
 }
 
@@ -3533,20 +3616,40 @@ const isPictographResidueBlock = (cp: number): boolean =>
 // pick by construction (DM-1416). Returns the static `fallback` only when fc-match
 // can't cover the codepoint (safety net). Used for symbol/letterlike blocks whose
 // frozen static routes drifted from the current image's Chrome.
-function linuxDeferOrStatic(cp: number, fallback: string[]): string[] {
+function linuxDeferOrStatic(
+  cp: number, fallback: string[],
+  /** DM-2017: the run's ACTUAL weight/slant/fontSize/primary/locale — this
+   *  probe used to ask `resolveSystemFallbackKeyForCp` with just `cp` (weight
+   *  400, no primary, no locale), a DIFFERENT question from the one the live
+   *  resolver answers for real when it actually resolves the codepoint
+   *  (`fallbackFontChain`'s caller passes weight/slant/primaryKey/lang in
+   *  full — `resolveFontForCodepointInner`'s `liveFallback`). The gap is
+   *  mostly harmless for WEIGHT (the fontconfig sorted set this resolver
+   *  walks is keyed by locale, not by weight), but `lang` genuinely changes
+   *  which sorted set gets consulted — a Han-unification-sensitive codepoint
+   *  can be covered under one locale's sort and not another's, so probing
+   *  under the wrong locale can defer (or fail to defer) on a DIFFERENT
+   *  verdict than the real per-codepoint stage reaches a moment later. */
+  primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+): string[] {
   // Linux-only runtime behavior: consult fc-match (Linux's system-fallback
   // backend). On a non-Linux host — the dev machine running the calibration
   // unit tests directly — return the static route so this stays host-agnostic
   // and `resolveSystemFallbackKeyForCp` (which would use CoreText/DirectWrite
   // off-Linux) is never consulted for Linux logic.
   if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled
-      && resolveSystemFallbackKeyForCp(cp) != null) {
+      && resolveSystemFallbackKeyForCp(
+        cp, css?.weight, css?.slant, css?.fontSize, primaryKey, false, lang,
+        css?.stretch, css?.fontVariantEmoji,
+      ) != null) {
     return [];
   }
   return fallback;
 }
 
-export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
+export function linuxFallbackChain(
+  codepoint: number, primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+): string[] {
   // DM-1404: on a mainstream desktop Noto host, route through the Noto-calibrated
   // per-block table instead of the bare image's WenQuanYi/FreeFont routes.
   if (linuxFontProfile() === "noto") return linuxNotoFallbackChain(codepoint);
@@ -3573,9 +3676,9 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
     return monoPrimary ? [primaryKey!, "cjk"] : ["helvetica", "cjk"];
   }
   // Dingbats — FreeSans (probe: ✂✈❤ → FreeSans).
-  if (isDingbatsBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "free-serif"]);
+  if (isDingbatsBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "free-serif"], primaryKey, lang, css);
   // Chess pieces — FreeSerif (probe: ♔♚ → FreeSerif).
-  if (cp >= 0x2654 && cp <= 0x265F) return linuxDeferOrStatic(cp, ["free-serif", "free-sans"]);
+  if (cp >= 0x2654 && cp <= 0x265F) return linuxDeferOrStatic(cp, ["free-serif", "free-sans"], primaryKey, lang, css);
   // Diagonal arrows ↗↙ — WenQuanYi (probe: arrows-diag → WenQuanYi); the rest of
   // the Arrows block → Liberation Sans (probe: ←→↑↓↔ → Liberation Sans).
   if (cp === 0x2197 || cp === 0x2199) return ["cjk", "helvetica"];
@@ -3596,12 +3699,12 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // resolver (2b), which picks exactly Chrome's font on this image.
   if (cp >= 0x2600 && cp <= 0x26FF) return ["helvetica"];
   // Mathematical Alphanumeric — FreeSans + FreeSerif (probe: 𝐀𝒜𝕊 → FreeSans/FreeSerif).
-  if (isMathAlphanumericBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "free-serif"]);
+  if (isMathAlphanumericBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "free-serif"], primaryKey, lang, css);
   // Superscripts / Subscripts — Liberation Sans + FreeSans (probe: aₙ₁).
   if (isSuperSubscriptBlock(cp)) return ["helvetica", "free-sans"];
   // Letterlike — mostly FreeSans (ℝ™ℕℤ), but some codepoints Chrome routes to
   // WenQuanYi / IPAGothic; defer to fc-match (= Chrome) with FreeSans as the net.
-  if (isLetterlikeBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "helvetica"]);
+  if (isLetterlikeBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "helvetica"], primaryKey, lang, css);
   // Math Operators — Liberation Sans covers ∑∫≠ etc.; the set-theory / logic
   // operators it lacks (∀∃∅∇∈∉∧∨∪∴ …) Chrome routes to WenQuanYi Zen Hei via
   // fontconfig, NOT FreeSans (verified vs getPlatformFontsForNode). Liberation
@@ -3615,7 +3718,7 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   }
   // Pictographs / Transport residue not caught by the color-emoji raster path
   // (doc 15) — FreeSans as a monochrome last resort.
-  if (isPictographResidueBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans"]);
+  if (isPictographResidueBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans"], primaryKey, lang, css);
   // DM-984: per-Unicode-block fallback derived from a Chrome CDP sweep inside
   // the Playwright Docker container — `CSS.getPlatformFontsForNode` for every
   // block in tools/unicode-fixtures/*.html. Resolved to bare-image paths by
@@ -3631,7 +3734,7 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // so it tracks Chrome's pick by construction (DM-1416). The generated table is
   // kept only as the post-fc-match safety net.
   const generatedKey = lookupLinuxUnicodeFontRange(codepoint);
-  return linuxDeferOrStatic(codepoint, generatedKey != null ? [generatedKey] : []);
+  return linuxDeferOrStatic(codepoint, generatedKey != null ? [generatedKey] : [], primaryKey, lang, css);
 }
 
 /** Binary-search the generated `UNICODE_FONT_RANGES_LINUX` for a codepoint. */
@@ -4468,7 +4571,10 @@ export function fallbackFontChain(
   // Platform-aware routing (DM-259 / DM-260). Each platform's Chromium cascades
   // through entirely different faces (CoreText vs fontconfig vs DirectWrite), so
   // each has its own empirically-probed chain.
-  if (hostPlatform() === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
+  // DM-2017: css now reaches Linux too, so `linuxDeferOrStatic`'s probe can
+  // match the weight/slant/fontSize/lang the real per-codepoint resolution
+  // uses instead of asking a different (weight-400/no-locale) question.
+  if (hostPlatform() === "linux") return linuxFallbackChain(codepoint, primaryKey, lang, css);
   // DM-1878: win32 gets the description too. It used to be dropped here, so the
   // nominated family was always instantiated at NORMAL weight — Blink passes the
   // run's `SkiaFontStyle()` and lets DirectWrite pick the cut.
@@ -5935,6 +6041,16 @@ export function getFontInstance(
       ? (fsSelection & 0x20) !== 0
       : fsSelection.bold === true;
   }
+  // DM-2017: fontconfig's own is_bold/is_italic classification of a Linux
+  // live-fallback pick, copied from the spec onto the instance so
+  // `faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` can apply Blink's
+  // fallback-specific binary rule. Deliberately independent of the
+  // `faceIsBoldTrait` OS/2 read just above — see `FontInstance
+  // .linuxFallbackIsBold` for why the two must not be conflated. Undefined for
+  // every spec but a Linux `fcfallback` pick, so this never affects a declared
+  // family or another platform.
+  if (spec.linuxFallbackIsBold != null) instance.linuxFallbackIsBold = spec.linuxFallbackIsBold;
+  if (spec.linuxFallbackIsItalic != null) instance.linuxFallbackIsItalic = spec.linuxFallbackIsItalic;
   // ...but on macOS, ASK CORETEXT, because OS/2 bit 5 is not the same fact and
   // this was shipped as though it were. Blink tests
   // `CTFontGetSymbolicTraits(ct_font) & kCTFontTraitBold`
@@ -8378,10 +8494,16 @@ export function resolveFontForCodepoint(
    *  VS15/VS16 — the property must not override an explicit selector
    *  (`HasVSFallbackPriority` guard, `harfbuzz_shaper.cc:184-198`, rev 7d859f27). */
   fontVariantEmoji?: FontVariantEmojiOverride,
+  /** DM-2017: the run's RAW CSS `font-family` stack, passed through to the
+   *  Linux live resolver's standard-style retry — see
+   *  `resolveSystemFallbackKeyForCp`'s `declaredFamily` param. Optional; the
+   *  many direct callers of this function (unit tests, calibration harnesses)
+   *  keep their exact behavior when they omit it. */
+  declaredFamily?: string,
 ): FontResolution {
   return harfbuzzShapedScriptOverride(
     cp,
-    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji),
+    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily),
     primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings,
   );
 }
@@ -8402,6 +8524,7 @@ function resolveFontForCodepointInner(
   systemUiPrimary: boolean = false,
   stretch: number = 100,
   fontVariantEmoji?: FontVariantEmojiOverride,
+  declaredFamily?: string,
 ): FontResolution {
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
@@ -8658,7 +8781,7 @@ function resolveFontForCodepointInner(
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch, fontVariantEmoji);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily);
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
