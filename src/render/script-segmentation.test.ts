@@ -80,6 +80,53 @@ describe("shaping segmentation (DM-1894)", () => {
     expect(s.map((x) => x.script)).toEqual(["Han", "Devanagari"]);
   });
 
+  describe("Script_Extensions-aware Common characters (DM-2019)", () => {
+    // U+3001 IDEOGRAPHIC COMMA (、) is Script=Common, but its Script_Extensions
+    // is the restricted set {Bopomofo, Han, Hangul, Hiragana, Katakana,
+    // Mongolian, Yi} (verified against live Unicode data, not assumed) — NOT
+    // Latin. A plain "Common is always neutral" rule keeps it glued to
+    // whatever precedes it; Blink's real ScriptRunIterator only glues it to a
+    // NEIGHBOR whose script is one of those seven.
+
+    it("starts a NEW segment at 、 rather than keeping it in the preceding Latin run", () => {
+      // The ticket's worked example. Both the fixed and the pre-fix segmenter
+      // produce two segments here — the discriminating difference is WHERE
+      // the boundary falls, not the count: 、 merges with the following Han
+      // character (Han is a genuine member of its Script_Extensions set) into
+      // one segment, rather than being absorbed into the Latin run before it.
+      // Confirmed to actually discriminate: run against the pre-fix segmenter
+      // (`git show HEAD~:src/render/script-segmentation.ts`), the boundary
+      // fell after 、 ("ABC、" | "漢") instead of before it ("ABC" | "、漢").
+      expect(seg("ABC、漢")).toEqual([
+        { text: "ABC", script: "Latin", rtl: false },
+        { text: "、漢", script: "Han", rtl: false },
+      ]);
+    });
+
+    it("genuinely three-segments when NEITHER neighbor shares a script with 、", () => {
+      // The sharper discriminator: Ω (Greek) is not in 、's Script_Extensions
+      // set, so it cannot absorb 、 either, and 、 cannot merge back into the
+      // preceding Latin run. Three real boundaries, none of them a plain
+      // Script-property change (、 is Common on both sides). The pre-fix
+      // segmenter produces exactly TWO segments here ("ABC、" | "Ω"), so this
+      // case discriminates on segment COUNT, not just boundary position.
+      expect(seg("ABC、Ω")).toEqual([
+        { text: "ABC", script: "Latin", rtl: false },
+        { text: "、", script: "Bopomofo", rtl: false },
+        { text: "Ω", script: "Greek", rtl: false },
+      ]);
+    });
+
+    it("still treats plain Common punctuation as neutral — this is a targeted fix, not a broader split", () => {
+      // The regression guard for the OTHER half of the ticket's claim: a
+      // Common character with a SINGLE Script_Extensions member (a "preferred
+      // script", not a real constraint per Blink's `count == 1` branch) stays
+      // a wildcard, and a Common character with no scx exception at all
+      // (ordinary punctuation, spaces, digits) is unaffected.
+      expect(seg("Hello, world! 42")).toHaveLength(1);
+    });
+  });
+
   it("attaches leading neutrals to the script that follows them", () => {
     // A leading space has no script of its own; making it a segment would shape
     // it separately from the word it belongs to.
@@ -107,6 +154,12 @@ describe("shaping segmentation (DM-1894)", () => {
     expect(needsSegmentation("abc 123", bidiLevelsFor("abc 123"))).toBe(false);
     expect(needsSegmentation("Hello مرحبا", bidiLevelsFor("Hello مرحبا"))).toBe(true);
     expect(needsSegmentation("你好 world", bidiLevelsFor("你好 world"))).toBe(true);
+    // DM-2019: a SINGLE surrounding real script is enough for a restricted-scx
+    // Common character to force a boundary — a "two different real scripts
+    // seen" check alone would miss this (only Latin ever appears in this
+    // string), so the fast path has to run the same merge-set walk as
+    // segmentForShaping, not a looser approximation of it.
+    expect(needsSegmentation("ABC、", bidiLevelsFor("ABC、"))).toBe(true);
   });
 
   it("computes bidi levels only for text that can have a direction boundary", () => {
