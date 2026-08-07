@@ -16,11 +16,26 @@
  */
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Both generators read `external/harfbuzz`, which is a LOCAL checkout — it is
+ * gitignored and no CI job clones it. Without this guard the gate does not
+ * merely skip on a machine that lacks it; the generator exits non-zero, the
+ * regenerated file never appears, and the byte-comparison fails, turning every
+ * checkout without the upstream source red for a reason that has nothing to do
+ * with drift.
+ *
+ * Skipping is the honest behaviour: the gate's whole claim is "the committed
+ * table still matches what the generator derives from upstream", and with no
+ * upstream present there is nothing to compare against. A skip says that; a
+ * failure would assert drift that was never measured.
+ */
+const harfbuzzAvailable = existsSync(path.join(repoRoot, "external/harfbuzz/src"));
 
 function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: string) {
   const generatedPath = path.join(repoRoot, generatedRelPath);
@@ -40,7 +55,7 @@ function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: s
   }
 }
 
-describe("generated Unicode table drift gates (DM-2020)", () => {
+(harfbuzzAvailable ? describe : describe.skip)("generated Unicode table drift gates", () => {
   it("harfbuzz-default-ignorable-ranges.generated.ts matches its generator", () => {
     assertGeneratorIsUpToDate(
       "tools/generate-harfbuzz-default-ignorable-ranges.mjs",
