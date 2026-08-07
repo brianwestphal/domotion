@@ -40,7 +40,7 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
 import {
@@ -3069,9 +3069,24 @@ export function computeSkipInkGaps(
   let layout;
   try { layout = font.layout(text, fontkitFeatureList(features)); } catch { return []; }
   const scale = fontSize / font.unitsPerEm;
-  const yTop = decorationCenterYRel - decorationThickness / 2;
-  const yBot = decorationCenterYRel + decorationThickness / 2;
-  const pad = Math.max(0.5, decorationThickness * 0.5);
+  // Blink insets the decoration rect by 0.5px top and bottom before asking for
+  // intercepts — "In order to ignore intersects less than 0.5px, inflate by
+  // -0.5" (`core/paint/text_painter.cc:589-590`, Chromium rev 7d859f27). The
+  // band is therefore one pixel SHORTER than the painted line, which is what
+  // stops a glyph that merely grazes the line's edge from opening a gap. A
+  // 1px-thick line degenerates to a zero-height band, and Blink accepts that.
+  const yTop = decorationCenterYRel - decorationThickness / 2 + 0.5;
+  const yBot = decorationCenterYRel + decorationThickness / 2 - 0.5;
+  // Horizontal dilation of each intercept. Blink: `min(thickness, 13)`, applied
+  // as `clip_rect.Outset(OutsetsF::VH(1.0, dilation))` — VH is (vertical,
+  // horizontal), so the whole value goes on each horizontal side
+  // (`text_painter.cc:607-608`, constant `kDecorationClipMaxDilation` at `:46`).
+  //
+  // This previously read `max(0.5, thickness * 0.5)` and cited a
+  // `kIntersectionExtension` that does not exist anywhere in Chromium. The
+  // fitted value is HALF the real one below the cap, so every gap was painted
+  // narrower than Chrome paints it.
+  const pad = Math.min(decorationThickness, 13);
   const rawGaps: Array<[number, number]> = [];
   const anchoredGaps: Array<[number, number]> = [];
   let xCursor = 0;
@@ -3081,7 +3096,16 @@ export function computeSkipInkGaps(
     const pos = layout.positions[i];
     const anchor = charXOffsets?.[charCursor];
     const fkGlyphX = xCursor + (pos.xOffset || 0) * scale;
-    const range = glyphPathIntercepts(glyph.path, fkGlyphX, scale, yTop, yBot);
+    // Blink drops the intercepts of characters that may not skip ink, PER
+    // CHARACTER rather than per run (`ShapeResultBloberizer::IsSkipInkException`,
+    // `platform/fonts/shaping/shape_result_bloberizer.cc:228-234`) — so in
+    // mixed text the Latin glyphs still open gaps while the CJK ones beside
+    // them do not. The character is the glyph's own source character, which is
+    // why this is read at `charCursor` rather than from the run.
+    const srcCp = text.codePointAt(charCursor);
+    const range = srcCp != null && !canTextDecorationSkipInk(srcCp)
+      ? null
+      : glyphPathIntercepts(glyph.path, fkGlyphX, scale, yTop, yBot);
     if (range != null) {
       rawGaps.push([range.minX - pad, range.maxX + pad]);
       // Anchored variant: shift this glyph's intercept so its pen origin sits

@@ -463,11 +463,17 @@ interface DecorationLineCtx {
  * Emit one decoration line at (y, thickness) honoring text-decoration-style
  * (extracted from `renderTextDecoration`, DM-1458). For wavy: a cubic-Bezier
  * sin-wave path matching Chromium's `WavyPath`. For double: two parallel lines.
- * For solid / dashed / dotted: a single <line> with optional dasharray. Skip-ink
- * gaps (solid + double + wavy underlines) come via the `ctx` closures, which
- * stay bound to the run's geometry. Body unchanged, so output is byte-identical.
+ * For solid / dashed / dotted: a single <line> with optional dasharray.
+ *
+ * `skipsInk` says whether THIS line participates in `text-decoration-skip-ink`.
+ * Underline and overline do; line-through never does, and that is upstream's
+ * explicit choice rather than an omission — `PaintLineThroughDecorations`
+ * carries the comment "No skip: ink for line-through" and cites
+ * https://github.com/w3c/csswg-drafts/issues/711
+ * (`core/paint/text_decoration_painter.cc:214-247`, Chromium rev 7d859f27).
+ * Gaps come via the `ctx` closures, which stay bound to the run's geometry.
  */
-function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: DecorationLineCtx): string {
+function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: DecorationLineCtx): string {
   const { style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments } = ctx;
   if (style === "wavy") {
     // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
@@ -532,7 +538,7 @@ function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: Dec
     // than the discontinuity which makes the visual indistinguishable from
     // Chrome's per-glyph break style.
     const bandThickness = 2 * waveAmplitude + tc;
-    const wavyGaps = isUnderline ? computeGapsAt(yWave - baselineY, bandThickness) : [];
+    const wavyGaps = skipsInk ? computeGapsAt(yWave - baselineY, bandThickness) : [];
     const subs = subSegments(wavyGaps);
     // DM-1698: PHASE-COHERENT waves across skip-ink gaps. Chrome paints ONE
     // continuous wave for the whole run and clips out the descender gaps
@@ -600,7 +606,7 @@ function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: Dec
     // (top + bot) / 2.
     const bandCenter = (top + bot) / 2;
     const bandThickness = (bot - top) + stroke;
-    const dblGaps = isUnderline
+    const dblGaps = skipsInk
       ? computeGapsAt(bandCenter - baselineY, bandThickness)
       : [];
     const subs = subSegments(dblGaps);
@@ -610,8 +616,9 @@ function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: Dec
     ).join("");
   }
   // Solid (or dashed / dotted): single line span with optional dasharray.
-  // Skip-ink applies only to solid (Chromium short-circuits dashed / dotted).
-  const wantSkip = isUnderline && (style == null || style === "solid" || style === "");
+  // Blink does not gate skip-ink on the line style, so dashed and dotted get
+  // gaps too — see the dispatch cited at `skipInkActive`.
+  const wantSkip = skipsInk;
   const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
   const subs = subSegments(solidGaps);
   if (style === "dashed" || style === "dotted") {
@@ -718,13 +725,17 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
     { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition });
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
-  // Skip-ink applies to solid + double + wavy underlines per Chromium's
-  // current behaviour (`decoration_line_painter.cc::Paint`; verified against
-  // Chrome's painted output for the 20-deep-wavy-underline-descenders
-  // fixture — DM-814). Dashed / dotted still short-circuit. We compute gaps
-  // once if any underline emit needs them.
-  const skipInkActive = (skipInk == null || skipInk === "auto") && runText != null && runText !== ""
-    && (style == null || style === "solid" || style === "double" || style === "wavy" || style === "");
+  // Skip-ink is style-AGNOSTIC in Blink. `TextDecorationPainter` calls
+  // `ClipDecorationLine` for underline and overline alike, reading only
+  // `TextDecorationSkipInk()` and never the line style
+  // (`core/paint/text_decoration_painter.cc:180-207`, Chromium rev 7d859f27) —
+  // so dashed and dotted skip ink too. The single exemption is the
+  // spelling/grammar marker, which `continue`s before reaching the clip.
+  //
+  // This previously short-circuited dashed / dotted and cited
+  // `decoration_line_painter.cc::Paint`, which contains no skip-ink logic at
+  // all; the gating and the citation were both wrong.
+  const skipInkActive = (skipInk == null || skipInk === "auto") && runText != null && runText !== "";
   // Compute X-range gaps where the underline rect crosses glyph ink. Returned
   // gaps are run-relative (0 = segX); subSegments() splits the underline span
   // around them.
@@ -770,7 +781,9 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
     lines.push(emitDecorationLine(baselineY - m.strikeoutOffsetY, m.strikeoutThickness, false, decorationLineCtx));
   }
   if (has("overline")) {
-    lines.push(emitDecorationLine(baselineY - m.overlineOffsetY, m.overlineThickness, false, decorationLineCtx));
+    // Overline skips ink in Blink exactly as underline does — the same
+    // `ClipDecorationLine` call with the same `skip_ink` value.
+    lines.push(emitDecorationLine(baselineY - m.overlineOffsetY, m.overlineThickness, true, decorationLineCtx));
   }
   return lines.join("");
 }
