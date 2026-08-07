@@ -823,9 +823,9 @@ Notes:
 
   The list is grown **one script at a time**, each with its own full macOS
   unicode sweep, because a script's blast radius is every face that covers it.
-  It now holds **all six scripts the measurement found a glyph or position
-  difference in**, each landed as its own commit with its own full macOS unicode
-  sweep and a control ref swept twice:
+  It holds **the six scripts the CoreText-vs-HarfBuzz measurement found a
+  glyph or position difference in**, each landed as its own commit with its
+  own full macOS unicode sweep and a control ref swept twice:
 
   | script | ranges | disagreements | what actually differed |
   | --- | --- | ---: | --- |
@@ -836,9 +836,41 @@ Notes:
   | Hebrew | 0590–05FF, FB1D–FB4F | 76 | cluster map (advance/offset are two encodings of one ink) |
   | Arabic | 0600–06FF, 0750–077F, 0870–089F, 08A0–08FF, FB50–FDFF, FE70–FEFF | 75 | cluster map; 8 glyph-count on an unreachable face |
 
-  The four remaining dedicated-shaper scripts — **Myanmar, Bengali, Khmer,
-  Tamil** — are deliberately NOT here: every one of their disagreements is
-  cluster-map-only, and moving them was not authorized on that evidence alone.
+  Of the original four "cluster-map-only, not authorized" holdouts —
+  **Myanmar, Bengali, Khmer, Tamil** — three have since moved, on a
+  DIFFERENT measurement basis than the CoreText comparison above:
+
+  | script | ranges | measurement | what actually differed |
+  | --- | --- | --- | --- |
+  | Myanmar | 1000–109F, AA60–AA7F, A9E0–A9FF, 116D0–116FF | fontkit-vs-HarfBuzz, direct | **nothing found** — measured inert; rerouted for parity-by-construction (fontkit has no `mymr` shaper entry at all) |
+  | Khmer | 1780–17FF, 19E0–19FF | fontkit-vs-HarfBuzz, direct | **nothing found** — measured inert; rerouted for parity-by-construction (fontkit sends `khmr` to `IndicShaper`, HarfBuzz uses a dedicated Khmer shaper) |
+  | Bengali | 0980–09FF | fontkit-vs-HarfBuzz, direct | **glyph count** — HarfBuzz's vowel-constraint preprocessing inserts a mid-sequence U+25CC fontkit's `IndicShaper` never does |
+
+  These three moved because their BASE BLOCKS route to a font key that is not
+  `extractor: "native"` on macOS (`u-myanmar-sangam-mn`, `u-khmer-sangam-mn`,
+  `u-kohinoor-bangla`), so they are shaped by **fontkit directly today, not
+  the CoreText helper** — `npm run fonts:shaper-ab`'s CoreText-vs-HarfBuzz
+  comparison (the table above) never exercised their actual production path
+  at all, which is why its "cluster-map-only" verdict for them was never the
+  right question. Measured instead with `getFontInstance(key,…).layout(text)`
+  (fontkit) against `harfbuzzShapeRun(shapingFaceFor(key,…)…)` directly, on
+  the real resolved faces: Myanmar and Khmer agreed on every sample tried
+  (their fonts implement reordering through generic GSUB features a
+  non-specialized shaper still applies) — a genuine parity-by-construction
+  move, not a visible-bug fix. Bengali did not agree: U+0985 + U+09BE (a
+  sequence Bengali orthography disallows) shapes to 2 glyphs under fontkit and
+  3 under HarfBuzz, the third being the font's own U+25CC GPOS-inserted
+  between the base and the vowel sign. **Tamil is still not rerouted** — its
+  CoreText-vs-HarfBuzz disagreements are cluster-map-only and its
+  fontkit-vs-HarfBuzz agreement has not been checked.
+
+  This "check whether the base block is actually native-routed before trusting
+  a CoreText-vs-HarfBuzz comparison" step generalizes: the same investigation
+  found Sinhala and five of the six Arabic-misrouted scripts (N'Ko, Mandaic,
+  Phags-Pa, Manichaean, Psalter Pahlavi) are ALSO fontkit-routed on macOS and
+  measured inert on the samples tried (not yet rerouted — tracked separately),
+  while Mongolian's key IS `extractor: "native"`, so its fontkit dispatch bug
+  is unreached on this platform regardless of any comparison's result.
 
   The reason a script is on this list is a measurement, not an assumption: `npm
   run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over

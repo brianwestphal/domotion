@@ -68,7 +68,7 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x094D)).toBe(true);  // ◌् VIRAMA
     expect(usesHarfbuzzShaping(0x0900)).toBe(true);
     expect(usesHarfbuzzShaping(0x097F)).toBe(true);
-    expect(usesHarfbuzzShaping(0x0980)).toBe(false); // Bengali — cluster-only, excluded
+    expect(usesHarfbuzzShaping(0x0980)).toBe(true);  // Bengali — rerouted separately, see "covers Bengali"
     expect(usesHarfbuzzShaping(0xA8E0)).toBe(false); // Devanagari Extended — not measured
     expect(usesHarfbuzzShaping(0x1CD0)).toBe(false); // Vedic Extensions — a different route
   });
@@ -103,14 +103,44 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     // commit and its own CI sweep. Flipping one without updating this line
     // means the sweep did not happen.
     for (const cp of [
-      0x1000, // Myanmar ka — cluster-only, deliberately excluded
-      0x0995, // Bengali ka — cluster-only
-      0x1780, // Khmer ka — cluster-only
       0x0B95, // Tamil ka — cluster-only
       0x0F40, // Tibetan ka — never measured as glyph-differing
+      0x0A05, // Gurmukhi — vowel-constraint script, not (yet) rerouted
     ]) {
       expect(usesHarfbuzzShaping(cp)).toBe(false);
     }
+  });
+
+  it("covers Myanmar and its three Extended blocks", () => {
+    expect(usesHarfbuzzShaping(0x1000)).toBe(true);   // Myanmar KA
+    expect(usesHarfbuzzShaping(0x109F)).toBe(true);   // Myanmar block end
+    expect(usesHarfbuzzShaping(0x109E)).toBe(true);   // Myanmar SYMBOL SHAN ONE (just inside)
+    expect(usesHarfbuzzShaping(0xAA60)).toBe(true);   // Myanmar Extended-A start
+    expect(usesHarfbuzzShaping(0xAA7F)).toBe(true);   // Myanmar Extended-A end
+    expect(usesHarfbuzzShaping(0xA9E0)).toBe(true);   // Myanmar Extended-B start
+    expect(usesHarfbuzzShaping(0xA9FF)).toBe(true);   // Myanmar Extended-B end
+    expect(usesHarfbuzzShaping(0x116D0)).toBe(true);  // Myanmar Extended-C start
+    expect(usesHarfbuzzShaping(0x116FF)).toBe(true);  // Myanmar Extended-C end
+    expect(usesHarfbuzzShaping(0x0FFF)).toBe(false);  // just below the base block
+    expect(usesHarfbuzzShaping(0x10A0)).toBe(false);  // Georgian — a different script entirely
+  });
+
+  it("covers Bengali", () => {
+    expect(usesHarfbuzzShaping(0x0985)).toBe(true);   // BENGALI LETTER A
+    expect(usesHarfbuzzShaping(0x09BE)).toBe(true);   // BENGALI VOWEL SIGN AA
+    expect(usesHarfbuzzShaping(0x0980)).toBe(true);   // block start
+    expect(usesHarfbuzzShaping(0x09FF)).toBe(true);   // block end
+    expect(usesHarfbuzzShaping(0x0A00)).toBe(false);  // Gurmukhi — not (yet) rerouted
+  });
+
+  it("covers Khmer and Khmer Symbols", () => {
+    expect(usesHarfbuzzShaping(0x1780)).toBe(true);   // Khmer KA
+    expect(usesHarfbuzzShaping(0x17D2)).toBe(true);   // Khmer COENG
+    expect(usesHarfbuzzShaping(0x17FF)).toBe(true);   // base block end
+    expect(usesHarfbuzzShaping(0x19E0)).toBe(true);   // Khmer Symbols start
+    expect(usesHarfbuzzShaping(0x19FF)).toBe(true);   // Khmer Symbols end
+    expect(usesHarfbuzzShaping(0x177F)).toBe(false);  // just below the base block
+    expect(usesHarfbuzzShaping(0x1800)).toBe(false);  // Mongolian — a different script
   });
 
   it("a rerouted script stays a DEDICATED-shaper script", () => {
@@ -199,6 +229,77 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
     for (const cp of [0x0041, 0x0F40]) {
       const res = resolveFontForCodepoint(cp, base, k!, 400, 16, 0, undefined, undefined, [k!]);
       expect(res.fontOverride).toBeNull();
+    }
+  });
+});
+
+// Myanmar, Khmer and Bengali all resolve to a font key that is NOT
+// `extractor: "native"` on this platform (`u-myanmar-sangam-mn`,
+// `u-khmer-sangam-mn`, `u-kohinoor-bangla` — see the block comment on
+// `HARFBUZZ_SHAPED_RANGES`), so — unlike the Arial-Unicode-MS Thai proof above
+// — the BASE instance here is fontkit's own, not the CoreText helper's. That
+// makes `outlinesFromBase` exercise the OTHER half of its contract: drawing
+// HarfBuzz's glyph ids through fontkit's `getGlyph`, not the helper's.
+describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", () => {
+  function resolveOverride(fontKey: string, cp: number): { override: unknown; base: ReturnType<typeof getFontInstance> } {
+    const base = getFontInstance(fontKey, 400, 16, 0);
+    if (base == null) throw new Error(`${fontKey} did not open`);
+    const res = resolveFontForCodepoint(cp, base, fontKey, 400, 16, 0, undefined, undefined, [fontKey]);
+    return { override: res.fontOverride, base };
+  }
+
+  it("Bengali: inserts HarfBuzz's mid-sequence vowel-constraint dotted circle, with fontkit's outlines", () => {
+    // U+0985 BENGALI LETTER A + U+09BE BENGALI VOWEL SIGN AA is a broken
+    // cluster under Bengali orthography — no consonant can take that vowel
+    // sign directly after a bare vowel letter — and HarfBuzz's vowel-
+    // constraint preprocessing (`_hb_preprocess_text_vowel_constraints`,
+    // `hb-ot-shaper-vowel-constraints.cc:58-446`, rev 4de187d) inserts U+25CC
+    // BETWEEN the two before shaping. fontkit's `IndicShaper` has no
+    // equivalent pass and shapes the pair straight through: 2 glyphs, no
+    // circle. This is the concrete case the ticket named.
+    const { override, base } = resolveOverride("u-kohinoor-bangla", 0x0985);
+    expect(override).not.toBeNull();
+    const o = override as NonNullable<ReturnType<typeof getFontInstance>>;
+    const TEXT = "অা";
+    const hb = o.layout(TEXT);
+    const fk = base!.layout(TEXT);
+    expect(fk.glyphs.length).toBe(2);   // fontkit: no dotted circle
+    expect(hb.glyphs.length).toBe(3);   // HarfBuzz: base, ◌, vowel sign
+    const circleId = base!.glyphForCodePoint(0x25CC).id;
+    expect(circleId).not.toBe(0); // the face must actually carry U+25CC
+    expect(hb.glyphs.map((g) => g.id)).toEqual([fk.glyphs[0].id, circleId, fk.glyphs[1].id]);
+    // And the outline for every glyph — including the inserted circle, which
+    // has no source codepoint of its own — comes from fontkit's `getGlyph`,
+    // not from HarfBuzz's own `glyphToPath`.
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    for (const g of hb.glyphs) {
+      expect(g.path.commands.length).toBeGreaterThan(0);
+      expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
+    }
+  });
+
+  it("Myanmar and Khmer: reroute is active and stable, even though it is currently glyph-agreeing", () => {
+    // Unlike Bengali above, these two are measured INERT for the samples this
+    // project has checked (see the `HARFBUZZ_SHAPED_RANGES` comment) — so the
+    // discriminating assertion is not "the glyphs differ" but "the mechanism
+    // is genuinely wired up": an override exists, it is stable across calls
+    // (the run-grouping identity invariant), and its outlines are fontkit's.
+    for (const [fontKey, cp, text] of [
+      ["u-myanmar-sangam-mn", 0x1000, "ကြော"],
+      ["u-khmer-sangam-mn", 0x1780, "ខ្ញុំ"],
+    ] as const) {
+      const a = resolveOverride(fontKey, cp);
+      const b = resolveOverride(fontKey, cp);
+      expect(a.override).not.toBeNull();
+      expect(a.override).toBe(b.override); // stable proxy identity
+      const o = a.override as NonNullable<ReturnType<typeof getFontInstance>>;
+      const hb = o.layout(text);
+      const getGlyph = (a.base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(a.base);
+      expect(hb.glyphs.length).toBeGreaterThan(0);
+      for (const g of hb.glyphs) {
+        expect(g.path.commands.length).toBeGreaterThan(0);
+        expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
+      }
     }
   });
 });

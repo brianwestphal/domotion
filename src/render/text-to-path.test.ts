@@ -459,7 +459,6 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
     expect(usesComplexShaperDottedCircle(0x11A01)).toBe(true); // Zanabazar Square
     expect(usesComplexShaperDottedCircle(0x11D3A)).toBe(true); // Masaram Gondi
     expect(usesComplexShaperDottedCircle(0x0903)).toBe(true);  // Devanagari sign visarga
-    expect(usesComplexShaperDottedCircle(0x0E31)).toBe(true);  // Thai vowel sign
     expect(usesComplexShaperDottedCircle(0x0F71)).toBe(true);  // Tibetan vowel sign
     expect(usesComplexShaperDottedCircle(0x1789)).toBe(true);  // Khmer
     expect(usesComplexShaperDottedCircle(0xA8E0)).toBe(true);  // Devanagari Extended
@@ -476,6 +475,19 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
     expect(usesComplexShaperDottedCircle(0x1DC0)).toBe(false); // …-Supplement
     expect(usesComplexShaperDottedCircle(0x20D0)).toBe(false); // …-for-Symbols
     expect(usesComplexShaperDottedCircle(0xFE20)).toBe(false); // Combining Half Marks
+  });
+  it("is FALSE for Thai and Lao — `_hb_ot_shaper_thai` never inserts a dotted circle", () => {
+    // `HB_SCRIPT_THAI` and `HB_SCRIPT_LAO` both dispatch to `_hb_ot_shaper_thai`
+    // (`hb-ot-shaper.hh:205-208`, rev 4de187d), and that shaper
+    // (`hb-ot-shaper-thai.cc`) has no `0x25CC` reference anywhere in the file —
+    // its PUA mark-reordering machinery shifts a mark's OUTLINE, it never draws
+    // a circle. An orphaned, uncovered Thai/Lao mark paints as a bare tofu in
+    // Chrome; these two ranges used to say otherwise.
+    expect(usesComplexShaperDottedCircle(0x0E31)).toBe(false); // Thai vowel sign (MAI HAN-AKAT)
+    expect(usesComplexShaperDottedCircle(0x0E01)).toBe(false); // Thai KO KAI (non-mark, block sanity)
+    expect(usesComplexShaperDottedCircle(0x0EB1)).toBe(false); // Lao vowel sign MAI KAN
+    expect(usesComplexShaperDottedCircle(0x0E80)).toBe(false); // Lao block start
+    expect(usesComplexShaperDottedCircle(0x0EFF)).toBe(false); // Lao block end
   });
   it("is FALSE for non-mark scripts and base letters", () => {
     expect(usesComplexShaperDottedCircle(0x0041)).toBe(false); // Latin A
