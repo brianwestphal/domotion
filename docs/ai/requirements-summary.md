@@ -77,13 +77,22 @@ they describe (see `CLAUDE.md` "Documentation"):
   measured static routes — their concrete families are browser-side settings
   values, stated as un-transcribed in doc 110.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
-  first-run baselines).** Both oracles run per-PR (`Linux family-match
-  conformance` in test-linux.yml, `Windows family-match conformance` in
-  windows-fidelity.yml), regression-relative against env-keyed baseline SETS
+  first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in
   the same committed file). The first CI run on each x64 image records a
   candidate baseline and uploads it as an artifact; committing it arms the
-  gate.
+  gate. **`Linux family-match conformance` runs per PR** (test-linux.yml);
+  **`Windows family-match conformance` is manual-dispatch only**
+  (windows-fidelity.yml) under the best-effort Windows policy — see the support
+  tiers in doc 42 and the platform section of CLAUDE.md.
+
+- **PLATFORM SUPPORT TIERS.** macOS and Linux are **first-class** for
+  font-capture precision — calibrated, per-PR gated, and a parity defect on
+  either is a real defect. Windows is **best-effort**: it must keep working
+  (install, run, correct SVG, no crashes), and its win32 routing/calibration
+  stays in the tree, but exact font-capture precision is not a goal and a
+  Windows-only divergence is not a release blocker. Windows fidelity and
+  conformance runs are on-demand, not routine.
 
 - **Doc 104 §3.1 (DM-1796) — typing-overlay handoff seam, FIXED.** A `typing`
   overlay used to fade out starting 150 ms before its window ended and sit fully

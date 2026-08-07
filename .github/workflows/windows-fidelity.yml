@@ -5,15 +5,16 @@ name: Windows fidelity
 # in a Linux container — Wine's dwrite reimplementation does not match real
 # Windows fallback, and the Windows system fonts aren't redistributable.
 #
-# Runs on PRs that touch render-affecting paths (the renderer, capture, the
-# glyph extractors, the visual fixtures/runner, or the deps that drive
-# rendering) — so visual regressions are caught on the PRs that can cause them,
-# with ~0 cost on docs/CI-only PRs (DM-262, path-filtered triggers). Also
-# available via manual dispatch. The win32 fallback chain is calibrated and the
-# feature suite passes within the documented Windows text-hinting floor
-# (DM-836 / DM-262), so the `regression` job is green on a clean branch and goes
-# red on genuine breakage. (Making these checks *blocking* is a branch-protection
-# setting in the repo's GitHub settings, separate from this trigger.)
+# MANUAL DISPATCH ONLY — Windows font-capture precision is best-effort. Every
+# job here still works and the `regression` gate is still baseline-relative and
+# meaningful; none of it runs automatically. Dispatch it deliberately: before a
+# release, after touching the win32 routing or the DirectWrite helper, or when
+# chasing a Windows-specific report.
+#
+# The win32 fallback chain is calibrated and the feature suite passes within the
+# documented Windows text-hinting floor (DM-836 / DM-262), so `regression` is
+# green on a clean branch and red on genuine breakage — it is simply no longer
+# consulted on every PR.
 #
 # Produces two downloadable artifacts:
 #   - font-widths-windows  : Chromium-on-Windows painted advance widths (JSON),
@@ -26,12 +27,23 @@ name: Windows fidelity
 # Windows font stack — the release-independent way to validate the win32 helper.
 
 on:
+  # MANUAL DISPATCH ONLY. Windows font-capture precision is best-effort — see
+  # the platform-support section of CLAUDE.md — so this no longer runs per PR.
+  #
+  # It previously ran on EVERY pull request with no `paths:` filter, because the
+  # `regression` job was meant to be a required check and a path-skipped
+  # required check blocks PRs forever. Under the best-effort policy it is not a
+  # required check, so that reasoning no longer applies and the per-PR cost is
+  # not justified: a Windows-only divergence is not a release blocker.
+  #
+  # Still worth dispatching deliberately — before a release, after a change to
+  # the win32 routing or the DirectWrite helper, or when investigating a
+  # Windows-specific report. The baseline-relative gate below still works; it
+  # just is not run for you.
+  #
+  # NOTE: removing the required-check status is a branch-protection setting in
+  # the repo's GitHub settings and cannot be done from this file.
   workflow_dispatch:
-  # DM-1405: NO `paths:` filter — see test-linux.yml. The `regression` job is
-  # meant to be a REQUIRED check; a path-skipped required check blocks PRs
-  # forever, so this runs on every PR and gates relative to the committed
-  # baseline (below).
-  pull_request:
 
 env:
   # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
@@ -39,9 +51,6 @@ env:
 
 jobs:
   font-width-probe:
-    # DM-1405: paths filter dropped so the required `regression` gate always
-    # reports on PRs; keep the diagnostics/build jobs on-demand (not every PR).
-    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -159,7 +168,6 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
-    if: github.event_name != 'pull_request'   # DM-1405: on-demand, not every PR (also currently red — DM-1421)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -195,7 +203,6 @@ jobs:
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
     runs-on: windows-latest
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -222,7 +229,6 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
-    if: github.event_name != 'pull_request'   # DM-1405: diagnostic, on-demand only
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
