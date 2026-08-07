@@ -40,7 +40,7 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
 import {
@@ -1347,15 +1347,27 @@ export function insertSyntheticDottedCircles(
           && glyphIdForCp(primaryFont, cp) !== 0
           && glyphIdForCp(primaryFont, 0x25CC) !== 0
           && !fontAutoInsertsDottedCircle(primaryFont, ch)
-          // DM-1229: U+302A–302F (combining CJK/Hangul tone marks) must NOT take
-          // this "◌ + centered-mark" path. Real HarfBuzz on the BARE mark in
-          // Arial Unicode MS already reproduces Chrome exactly — it inserts the ◌
-          // and orders the cluster as [mark, ◌] (mark to the LEFT of the circle).
-          // Prepending an explicit ◌ here instead yields "◌ + mark" (◌ to the
-          // left, dots to the right) — the reverse of Chrome. Leaving them bare
-          // routes them through the DM-1215 dotted-circle HarfBuzz path (see
-          // `resolveDottedCircleHbRun`), which matches.
-          && !(cp >= 0x302a && cp <= 0x302f)
+          // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
+          // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
+          // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks
+          // and do NOT get this treatment from HarfBuzz) must NOT take this
+          // "◌ + centered-mark" path. Real HarfBuzz on the bare mark in Arial
+          // Unicode MS already reproduces Chrome exactly by routing through the
+          // DM-1215 dotted-circle HarfBuzz path (see `resolveDottedCircleHbRun`)
+          // instead of our own synthesis here.
+          //
+          // The ordering our own synthesis would otherwise hard-code is NOT
+          // simply "[mark, ◌]" — HarfBuzz's own rule (`hb-ot-shaper-hangul.cc:
+          // 231-247`) picks `[u, ◌]` (mark left) unless `is_zero_width_char`
+          // says the tone-mark glyph has zero advance in the run's font, in
+          // which case it picks `[◌, u]` (circle left) instead; letting real
+          // HarfBuzz shape the run (rather than re-deriving that rule here)
+          // reproduces whichever ordering the font calls for. HarfBuzz's other
+          // "move an ALREADY-attached tone mark in front of a valid preceding
+          // syllable" rule (same file, :215-226) is a different code path
+          // (a real base exists; this is the ORPHANED branch) and stays
+          // unmodeled here — noted rather than implied as covered.
+          && !(cp >= 0x302e && cp <= 0x302f)
           // DM-1126: skip LEFT-reordering matras (pre-base vowels, e.g. Grantha
           // U+11347/11348). Chrome paints them "matra ◌" (the matra reorders
           // BEFORE the synthetic circle), not "◌ + centered-mark" — the centering
@@ -2196,7 +2208,25 @@ function renderTextAsEmbedded(
       if (!glyphInkless) {
         perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
       }
-      runCursorFontUnits += pos.xAdvance;
+      // DM-2020: HarfBuzz doesn't just hide a default-ignorable's ink after
+      // shaping — `hb_ot_zero_width_default_ignorables` (hb-ot-shape.cc:779-796,
+      // rev 4de187d) zeroes its ADVANCE too, so it never widens the run even
+      // when it sits attached to a base (the ATTACHED case is the one that
+      // reaches here — an orphaned one was already dropped by
+      // `stripOrphanedDefaultIgnorables` upstream and never gets this far).
+      // Scoped to `isHarfbuzzDefaultIgnorable` specifically, NOT the broader
+      // `glyphInkless`/`isLegitimatelyInklessCodepoint` set above — that set
+      // also covers genuine whitespace (Zs), whose advance is real width and
+      // must NOT be zeroed. Whenever a captured `xOffset` exists for the NEXT
+      // character this is inert (each glyph is anchored at its own captured
+      // position, so a stray advance here never propagates), but it is not
+      // inert for a run with no captured offsets — the accumulated-advance
+      // fallback path this same file uses when Chrome didn't record per-char
+      // positions — or for a multi-glyph cluster's WITHIN-cluster cursor,
+      // both of which read `runCursorFontUnits`/`clusterCursorFU` directly.
+      const srcCpsForAdvance = srcCpForInk != null ? [srcCpForInk] : (glyph.codePoints ?? []);
+      const zeroAdvance = srcCpsForAdvance.length > 0 && srcCpsForAdvance.every((cp) => isHarfbuzzDefaultIgnorable(cp));
+      runCursorFontUnits += zeroAdvance ? 0 : pos.xAdvance;
     }
     if (glyphFailed || perGlyph.length === 0 || runCssFamily == null) return null;
 

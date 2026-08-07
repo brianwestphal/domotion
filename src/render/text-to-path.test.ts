@@ -718,17 +718,29 @@ describe("orphaned complex marks get a HarfBuzz dotted circle (DM-1215)", () => 
   });
 });
 
-describe("insertSyntheticDottedCircles: CJK/Hangul tone marks stay bare for HarfBuzz (DM-1229)", () => {
+describe("insertSyntheticDottedCircles: Hangul tone marks stay bare for HarfBuzz (DM-1229 / DM-2020)", () => {
   const AU = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf";
   const HAVE_AU = fs.existsSync(AU);
-  // U+302A–302F are covered by Arial Unicode MS (DM-1174 routes them there). When
-  // the capture probe flags one as circled, the covered-centering branch would
-  // prepend an explicit "◌" — but real HarfBuzz on the BARE mark already inserts
-  // and orders the ◌ the way Chrome paints it ([mark, ◌], dots LEFT of the
-  // circle). Prepending "◌" instead yields "◌ + mark" (the reverse). So these
-  // marks must pass through UNCHANGED, leaving the DM-1215 HarfBuzz path to do it.
-  it.skipIf(!HAVE_AU)("does NOT prepend a ◌ to a probe-flagged tone mark (Arial Unicode primary)", () => {
-    for (const cp of [0x302a, 0x302b, 0x302c, 0x302d, 0x302e, 0x302f]) {
+  // U+302E–302F are the actual Hangul tone marks (`isHangulTone`,
+  // `hb-ot-shaper-hangul.cc:130`, rev 4de187d) and are covered by Arial
+  // Unicode MS (DM-1174 routes them there). When the capture probe flags one
+  // as circled, the covered-centering branch would prepend an explicit "◌" —
+  // but real HarfBuzz on the BARE mark already inserts the ◌ (in whichever
+  // order the font's tone-mark advance calls for — see the DM-2020 comment
+  // on the exclusion guard), so these marks must pass through UNCHANGED,
+  // leaving the DM-1215 HarfBuzz path to do it.
+  //
+  // DM-2020: U+302A–302D are DELIBERATELY NOT covered by this test anymore.
+  // They are the unrelated Mandarin/CJK ideographic tone marks — HarfBuzz's
+  // `isHangulTone` macro never matched them, only the code here wrongly
+  // grouped them with the Hangul pair — and their Script (Bopomofo) has no
+  // dedicated HarfBuzz shaper, so `hb_syllabic_insert_dotted_circles` is
+  // never in their shaping path at all; this fix's exclusion range no longer
+  // covers them, and whether Domotion's synthetic-circle path should ever
+  // fire for them is a separate, unverified question this ticket does not
+  // resolve — asserting an outcome for them here would be guessing.
+  it.skipIf(!HAVE_AU)("does NOT prepend a ◌ to a probe-flagged Hangul tone mark (Arial Unicode primary)", () => {
+    for (const cp of [0x302e, 0x302f]) {
       const ch = String.fromCodePoint(cp);
       const { text } = insertSyntheticDottedCircles(ch, undefined, '"Arial Unicode MS"', 400, 32, 0, undefined, undefined, [0]);
       expect(text).toBe(ch); // bare — NOT "◌" + ch (which would be 2 chars / the reversed layout)
@@ -761,6 +773,15 @@ describe("isLeftReorderingMatra (pre-base vowel reorder gate)", () => {
     expect(isLeftReorderingMatra(0x113C9)).toBe(false); // Tulu-Tigalari AU length mark (Right)
     expect(isLeftReorderingMatra(0x0301)).toBe(false);  // Combining acute
     expect(isLeftReorderingMatra(0x0041)).toBe(false);  // Latin A
+  });
+  // DM-2020: added by regenerating the table from HarfBuzz's own compiled USE
+  // category lookup (VPre ∪ VMPre) instead of the hand-picked UCD
+  // intersection, which never named the VMPre category these three belong
+  // to. Discriminating: all three returned `false` (wrongly) before the fix.
+  it("matches the VMPre-category members the hand-curated table was missing", () => {
+    expect(isLeftReorderingMatra(0x0F3F)).toBe(true);   // Tibetan sign SNA LDAN
+    expect(isLeftReorderingMatra(0x1C34)).toBe(true);   // Lepcha vowel sign AA
+    expect(isLeftReorderingMatra(0x1C35)).toBe(true);   // Lepcha vowel sign II
   });
 });
 
@@ -847,8 +868,41 @@ describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
       expect(isStrippableOrphanIgnorable(cp)).toBe(true);
     }
   });
+  // DM-2020: widened to HarfBuzz's full default-ignorable table (formerly a
+  // hand-picked 3-range subset that missed these). Discriminating against the
+  // pre-fix predicate: every one of these returned false before the fix.
+  it("flags the rest of HarfBuzz's default-ignorable table the old 3-range subset missed", () => {
+    for (const cp of [
+      0x00AD,   // SOFT HYPHEN
+      0x034F,   // COMBINING GRAPHEME JOINER
+      0x061C,   // ARABIC LETTER MARK
+      0x17B4, 0x17B5,     // Khmer inherent vowels
+      0x180B, 0x180D, 0x180E, // Mongolian FVS + vowel separator
+      0x200B, 0x200E, 0x200F, // ZWSP, LRM, RLM (NOT ZWJ/ZWNJ — see below)
+      0x202A, 0x202E,     // bidi embedding/override
+      0x2060, 0x2064, 0x206F, // word joiner .. nominal digit shapes
+      0xFEFF,             // BOM / ZWNBSP
+      0xFFF0, 0xFFF8,     // reserved block HarfBuzz still hides
+      0x1D173, 0x1D17A,   // musical-notation format controls
+    ]) {
+      expect(isStrippableOrphanIgnorable(cp)).toBe(true);
+    }
+  });
   it("does NOT flag joiners, spaces, or ordinary text (they carry width / shaping meaning)", () => {
-    for (const cp of [0x200B, 0x200C, 0x200D, 0x20, 0xA0, 0x41, 0x6F22, 0x0301]) {
+    // ZWJ/ZWNJ are deliberately carved OUT of HarfBuzz's own default-ignorable
+    // table for this predicate (see the function's docstring) — everything
+    // else here was never in HarfBuzz's table at all.
+    for (const cp of [0x200C, 0x200D, 0x20, 0xA0, 0x41, 0x6F22, 0x0301]) {
+      expect(isStrippableOrphanIgnorable(cp)).toBe(false);
+    }
+  });
+  // DM-2020 headline case: U+06DD ARABIC END OF AYAH is Unicode category `Cf`
+  // (Format) but is NOT in HarfBuzz's default-ignorable table — it carries a
+  // real, visible glyph in Arabic faces and must never be treated as
+  // strippable/ignorable. Same for the other Format-but-visible codepoints
+  // the ticket named.
+  it("does NOT flag Format-category codepoints HarfBuzz does not hide (visible glyphs)", () => {
+    for (const cp of [0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x06DD, 0x070F, 0x0890, 0x0891, 0x08E2, 0x110BD]) {
       expect(isStrippableOrphanIgnorable(cp)).toBe(false);
     }
   });
@@ -947,6 +1001,30 @@ describe("isLegitimatelyInklessCodepoint (per-glyph fallback guard)", () => {
   it("does NOT flag inkable glyphs — letters, digits, CJK, combining marks, Math-Alpha", () => {
     const inkable = [0x41, 0x61, 0x30, 0x6F22, 0x4E00, 0x0301, 0x05D0, 0x0E01, 0x1D400];
     for (const cp of inkable) expect(isLegitimatelyInklessCodepoint(cp)).toBe(false);
+  });
+
+  // DM-2020: the predicate used to match the WHOLE Unicode `Cf` (Format)
+  // general category, which is broader than "never paints ink". These are
+  // all `Cf` and all carry a real, visible glyph in fonts that support their
+  // script — HarfBuzz does not hide any of them (`hb-unicode.hh:167-198`,
+  // rev 4de187d) — so this predicate must not either. U+06DD ARABIC END OF
+  // AYAH is the ticket's named case (visible in every Arabic face, e.g.
+  // macOS GeezaPro glyph id 93, confirmed with real outline commands);
+  // discriminating: every one of these returned `true` (wrongly) before the
+  // fix, since the old predicate was `\p{Cf}` alone.
+  it("does NOT flag Format-category codepoints with real glyphs — was the DM-2020 bug (blanket \\p{Cf})", () => {
+    const formatButVisible = [
+      0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, // Arabic number-sign marks
+      0x06DD, // ARABIC END OF AYAH — the ticket's headline case
+      0x070F, // SYRIAC ABBREVIATION MARK
+      0x0890, 0x0891, // Arabic pound/piastre mark above
+      0x08E2, // ARABIC DISPUTED END OF AYAH
+      0xFFF9, 0xFFFA, 0xFFFB, // interlinear annotation anchor/separator/terminator
+      0x110BD, 0x110CD, // Kaithi number sign / number sign above
+      0x13430, 0x1343F, // Egyptian Hieroglyph format controls
+      0x1BCA0, 0x1BCA3, // Shorthand Format controls (HarfBuzz's table comment explicitly excludes these)
+    ];
+    for (const cp of formatButVisible) expect(isLegitimatelyInklessCodepoint(cp)).toBe(false);
   });
 });
 
@@ -2672,6 +2750,69 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(1);
+  });
+});
+
+// DM-2020: the ticket's headline case, exercised through the SHIPPED DEFAULT
+// render mode (embedded-font) rather than `paths` — the visual suites pin
+// `paths`, so this codepoint had ZERO pixel coverage in the default mode
+// before this test. U+06DD ARABIC END OF AYAH is Unicode category `Cf`
+// (Format) but carries a real, visible glyph in Arabic-capable faces
+// (verified: macOS "Arial" — `/System/Library/Fonts/Supplemental/Arial.ttf`
+// — resolves it to glyph id 1612 with 97 outline commands, and every other
+// Arabic face checked, e.g. GeezaPro, agrees). The pre-fix
+// `isLegitimatelyInklessCodepoint` matched the whole `Cf` category and
+// suppressed this glyph's emission entirely in `renderTextAsEmbedded`.
+//
+// A LONE "\u{06DD}" would NOT discriminate this bug: with only one
+// character, suppressing its only glyph empties `perGlyph`, and
+// `renderTextAsEmbedded` returns null for an empty run — `renderTextAsPath`
+// then silently falls through to the ALWAYS-correct `paths` renderer (which
+// never consulted this predicate), masking the bug. The real, silent
+// failure mode needs a MULTI-glyph run where the AYAH mark is only one of
+// several characters, so the run still embeds successfully but is missing
+// exactly that one glyph — which is what these tests use.
+describe("renderTextAsPath: embedded-font mode does not drop U+06DD's visible glyph (DM-2020)", () => {
+  beforeEach(() => { clearWebfonts(); clearEmbeddedFonts(); setRenderTextMode("embedded-font"); });
+  afterEach(() => { setRenderTextMode("paths"); });
+
+  function puaCodepointsFromMarkup(out: string): number[] {
+    const cps: number[] = [];
+    const re = /<text[^>]*>([^<]*)<\/text>/g;
+    let m;
+    while ((m = re.exec(out)) != null) {
+      for (let i = 0; i < m[1].length; ) {
+        const cp = m[1].codePointAt(i)!;
+        cps.push(cp);
+        i += cp > 0xFFFF ? 2 : 1;
+      }
+    }
+    return cps;
+  }
+
+  it("emits one PUA glyph per source character, including the AYAH mark (not silently dropped)", () => {
+    const out = renderTextAsPath("A\u{06DD}B", 0, 0, { fontSize: 32, fontFamily: "Arial", fontWeight: "400", fill: "#000" });
+    expect(out).not.toBeNull();
+    // Discriminating count: the pre-fix bug drops exactly the AYAH glyph, so
+    // this reads 2 (A, B) unfixed and 3 (A, AYAH, B) fixed.
+    const cps = puaCodepointsFromMarkup(out!);
+    expect(cps.length).toBe(3);
+  });
+
+  it("the emitted @font-face subset carries a REAL outline for the AYAH glyph, not an empty/absent one", () => {
+    const out = renderTextAsPath("A\u{06DD}B", 0, 0, { fontSize: 32, fontFamily: "Arial", fontWeight: "400", fill: "#000" });
+    expect(out).not.toBeNull();
+    const cps = puaCodepointsFromMarkup(out!);
+    expect(cps.length).toBe(3);
+    const ayahPua = cps[1]; // middle glyph, source order preserved
+    const css = getEmbeddedFontFaceCss();
+    const b64Match = /base64,([A-Za-z0-9+/=]+)"\)/.exec(css);
+    expect(b64Match).not.toBeNull();
+    const ttf = Buffer.from(b64Match![1], "base64");
+    const reparsed = fontkit.create(ttf) as unknown as { glyphForCodePoint(cp: number): { id: number; path: { commands: unknown[] } } };
+    const glyph = reparsed.glyphForCodePoint(ayahPua);
+    expect(glyph.id).not.toBe(0); // 0 = .notdef → the glyph was never tracked into the subset
+    expect(glyph.path.commands.length).toBeGreaterThan(0); // real ink, not an empty outline
   });
 });
 
