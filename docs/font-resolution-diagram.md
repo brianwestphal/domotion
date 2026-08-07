@@ -2204,9 +2204,36 @@ genuinely different rules rather than one rule with a special case:
   Windows `Weight() >= 600 && !typeface->isBold()` (`win/font_cache_skia_win.cc:486-488`);
   Linux the DELTA `Weight() > 200 + typeface weight` (`skia/font_cache_skia.cc:333-339`),
   which is `FAUX_BOLD_WEIGHT_DELTA`. Read from `FontInstance.naturalWeight` /
-  `faceIsBoldTrait` / `hasWeightAxis`, all populated in `getFontInstance`. Most
-  visible on Linux, where `system-ui`/CJK resolve to single-weight faces
-  (WenQuanYi Zen Hei = 500).
+  `faceIsBoldTrait`, both populated in `getFontInstance`. Most visible on Linux,
+  where `system-ui`/CJK resolve to single-weight faces (WenQuanYi Zen Hei = 500).
+
+  Both fields describe the INSTANTIATED variation position, not the file's
+  default instance — the same fact `typeface->fontStyle().weight()` /
+  `kCTFontTraitBold` describe for Blink. That took a dedicated fix: fontkit's
+  `getVariation` never rewrites the OS/2 table or PostScript name to match the
+  coordinates it instanced, so reading either straight off the returned
+  instance answers for the DEFAULT master regardless of which `wght` was
+  requested — measured, `sf-pro` instanced at 400/700/900 all read
+  `naturalWeight: 400, faceIsBoldTrait: false`. `getFontInstance` corrects this
+  when `hasWeightAxis` is true (a genuine CSS-valued `wght` push — macOS
+  `system-ui`, or the general non-darwin-declared/non-Linux-system path most
+  platforms take) by reading `_appliedVariationAxes.wght` — the exact
+  coordinate `applyVariationAxes` instanced — back into `naturalWeight`, and
+  recomputing `faceIsBoldTrait` from it (`>= 600`, the same threshold the
+  fallback below already used). `hasWeightAxis` itself is never read by
+  `faceNeedsSyntheticBold` anymore: before this fix it short-circuited the
+  whole predicate to `false` whenever true, as a deliberate deviation
+  compensating for the reporting gap (Blink has no such system-font
+  exemption); once the reporting was corrected, each platform predicate above
+  reaches the same "not bold" answer on its own — so the guard is provably
+  dead and was deleted. The field survives only as the gate for this
+  correction and is asserted false on the Linux system-font path (the
+  fontconfig-matched named instance never gets a CSS-valued push at all).
+  A declared family's own face/named-instance coordinates (e.g. `Skia`'s wght
+  axis in QuickDraw units `[0.48..3.2]`) are deliberately excluded — pushing
+  those non-CSS-comparable numbers into `naturalWeight` would corrupt it, so
+  `hasWeightAxis` stays false there and the base-face OS/2 / CoreText reads
+  stand.
 - **Webfonts** — `webfontSyntheticBold(FontInstance.webfontFace, requestedWeight)`,
   platform-independent, decided by the `@font-face` `font-weight` descriptor rather
   than by the file (see the descriptor section above). A webfont run never reaches

@@ -5905,14 +5905,16 @@ export function getFontInstance(
   if (linuxInstanceAxes?.wght != null && linuxInstanceAxes.wght >= 1 && linuxInstanceAxes.wght <= 1000) {
     instance.naturalWeight = linuxInstanceAxes.wght;
   }
-  // `hasWeightAxis` gates faux-bold OFF on the premise that the wght axis was
-  // instanced at the requested weight. On the darwin declared path it no
-  // longer is (the weight lives in WHICH face the matcher picked), and on the
-  // Linux system path the axis is never CSS-driven at all (the fontconfig-
-  // matched named instance is the face), so the flag is only honest when the
-  // CSS pin actually drove the axis — otherwise the synthetic-bold rule must
-  // consult the face itself (mac: the bold trait; Linux: the weight delta
-  // against the matched face's weight).
+  // `hasWeightAxis` records whether a wght coordinate was pushed from the
+  // CSS-VALUED request, as opposed to a declared family's own face/named-
+  // instance coordinates (which are not CSS-comparable — see the DM-2023
+  // block below) or no axis push at all. On the darwin declared path the wght
+  // axis is never CSS-driven (the weight lives in WHICH face the matcher
+  // picked), and on the Linux system path there is no CSS-driven axis either
+  // (the fontconfig-matched named instance is the face) — so the flag is only
+  // true when the CSS pin actually drove the axis. Read below to correct
+  // `naturalWeight` / `faceIsBoldTrait` to the instantiated position, and by
+  // the Linux-system-font-axes test to pin that the Linux path never sets it.
   instance.hasWeightAxis = font?.variationAxes?.wght != null && !darwinDeclaredAxisPath && !linuxSystemAxisPath;
   // The face's BOLD trait, which the macOS and Windows synthetic-bold rules
   // both test. Read from the ORIGINAL fontkit Font for the same reason the
@@ -5947,6 +5949,39 @@ export function getFontInstance(
     if (ps != null && ps !== "") {
       const ctTrait = resolveFaceTraitBold(ps, resolveFontSpec(key)?.path);
       if (ctTrait != null) instance.faceIsBoldTrait = ctTrait;
+    }
+  }
+  // DM-2023: everything set above describes the DEFAULT instance, because it
+  // is read from the ORIGINAL fontkit `font` (its OS/2 table, and — on darwin
+  // — a CoreText query keyed by the face's un-instanced PostScript name).
+  // Chrome has no equivalent gap: `typeface->fontStyle().weight()` and
+  // `kCTFontTraitBold` both describe the typeface Blink actually painted, i.e.
+  // the INSTANTIATED one.
+  //
+  // `hasWeightAxis` (just above) already identifies exactly the case where a
+  // wght coordinate was pushed from the CSS-VALUED request — macOS
+  // `system-ui`, or the general (non-darwin-declared, non-Linux-system) path
+  // most platforms take — as opposed to a declared family's own face/named-
+  // instance coordinates, which are NOT CSS-comparable (`Skia`'s wght axis is
+  // QuickDraw units `[0.48..3.2]`; pushing 1.95 into a CSS-weight field would
+  // corrupt it). Gate the correction on that same condition: only then is
+  // `_appliedVariationAxes.wght` — the exact coordinate `applyVariationAxes`
+  // instanced — a CSS-weight number, and only then does it get to overrule the
+  // base-face reads above. naturalWeight becomes the instantiated coordinate,
+  // and faceIsBoldTrait is recomputed from it with the same threshold
+  // `faceNeedsSyntheticBold`'s own fallback already uses (`>= 600`) — the base
+  // face's OS/2 bit / CoreText trait is not a fact about this position, so it
+  // must not survive past it unexamined. (`getVariation` never rewrites OS/2
+  // or the PostScript name to match the instanced coordinates, which is the
+  // reporting gap itself: measured pre-fix, `sf-pro` instanced at 400/700/900
+  // all read `naturalWeight: 400, faceIsBoldTrait: false`, the unchanged
+  // default.)
+  if (instance.hasWeightAxis === true) {
+    const appliedWght = (instance as unknown as { _appliedVariationAxes?: Record<string, number> })
+      ._appliedVariationAxes?.wght;
+    if (typeof appliedWght === "number" && appliedWght >= 1 && appliedWght <= 1000) {
+      instance.naturalWeight = appliedWght;
+      instance.faceIsBoldTrait = appliedWght >= 600;
     }
   }
   // DM-1695: expose the face's italic angle + whether a slnt axis carried the

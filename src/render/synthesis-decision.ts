@@ -49,7 +49,7 @@ export function synthesisAllowed(
  *  holding a partial instance (or a test fixture) can pass one without
  *  fabricating a whole font. */
 export type SynthesisFace = Pick<FontInstance,
-  "naturalWeight" | "faceIsBoldTrait" | "hasWeightAxis" | "webfontFace"
+  "naturalWeight" | "faceIsBoldTrait" | "webfontFace"
   | "hasSlantAxis" | "isRoutedItalicCut" | "resolvedItalicAngle">;
 
 /**
@@ -80,10 +80,17 @@ export type SynthesisFace = Pick<FontInstance,
  * layer from the declared `font-weight` DESCRIPTOR, not from the file — so none
  * of the system-font predicates apply to it (`webfontSyntheticBold`).
  *
- * `hasWeightAxis` has no counterpart in Blink and is kept — but NOT for the
- * reason once given here. The old claim was that a variable face "already
- * reports itself at that weight"; measured, it does not (see the guard below).
- * It is a deliberate deviation compensating for that reporting gap.
+ * No variable-`wght` exemption is needed here: `naturalWeight` and
+ * `faceIsBoldTrait` describe the INSTANTIATED variation instance — the same
+ * fact `typeface->fontStyle().weight()` / `kCTFontTraitBold` describe for
+ * Blink — so a face already instanced at the requested weight reaches "not
+ * bold" on its own, through the same per-platform tests below that a static
+ * face does. (Before that reporting fix, a variable `wght` axis reached the
+ * outlines but never the metadata — `sf-pro` instanced at 400/700/900 all
+ * reported `naturalWeight: 400, faceIsBoldTrait: false`, the unchanged
+ * default — and this predicate carried a dedicated short-circuit to
+ * compensate. See `font-resolution.ts`'s `getFontInstance` for where the
+ * instantiated position is now read.)
  *
  * Honest substitution, unchanged from where this lived inline: macOS's test is
  * CoreText's `kCTFontTraitBold` symbolic trait. `faceIsBoldTrait` carries the
@@ -109,30 +116,6 @@ export function faceNeedsSyntheticBold(
   if (faceNaturalWeight == null) return false;
   const platform = hostPlatform();
 
-  // The variable-`wght` short-circuit. Blink has NO system-font counterpart —
-  // upstream's variable-axis exemption exists only on the webfont path, gated
-  // on `IsRangeSetFromAuto()` and `wght_range.maximum > kNormalWeightValue`
-  // (`platform/fonts/opentype/font_custom_platform_data.cc:141-153`), which
-  // `webfontSyntheticBold` already applies above. So this line is a deviation,
-  // and it is kept deliberately rather than by oversight.
-  //
-  // It compensates for a reporting gap on OUR side. Blink's predicates read the
-  // INSTANTIATED typeface — `typeface->fontStyle().weight()` and
-  // `kCTFontTraitBold` both describe the variation instance actually being
-  // painted. Ours do not: measured on this checkout, `sf-pro` requested at 400,
-  // 700 and 900 reports `naturalWeight: 400, faceIsBoldTrait: false` every
-  // time. The axis reaches the outlines but never the metadata.
-  //
-  // So with this line removed, every variable system face takes synthetic bold
-  // ON TOP of an already-bold variation instance. That is not theoretical —
-  // deleting it moved 7 feature fixtures, net worse, the largest by +0.29pp.
-  //
-  // The parity fix is to report the instantiated weight, not to delete this
-  // guard; once `naturalWeight` / `faceIsBoldTrait` describe the instance, each
-  // platform predicate below reaches the right answer on its own and this line
-  // becomes dead. Until then, removing it trades a small deviation for a
-  // visible double-bold.
-  if (font.hasWeightAxis === true) return false;
   if (platform === "darwin") {
     // `mac/font_cache_mac.mm:425-427`, rev 7d859f27:
     //   desired_bold = Weight() > 500
