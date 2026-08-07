@@ -7,6 +7,21 @@
  * table is private to its predicate. Behavior-identical lift.
  */
 
+import { HARFBUZZ_DEFAULT_IGNORABLE_RANGES } from "./harfbuzz-default-ignorable-ranges.generated.js";
+import { USE_LEFT_MATRA_RANGES } from "./use-left-matra-ranges.generated.js";
+
+/** True when `cp` is in HarfBuzz's `is_default_ignorable` set — see
+ *  `harfbuzz-default-ignorable-ranges.generated.ts` for the transcription +
+ *  provenance. This is NOT the Unicode `Cf` general category or the UCD
+ *  `Default_Ignorable_Code_Point` property; both are broader than what
+ *  HarfBuzz actually hides. */
+export function isHarfbuzzDefaultIgnorable(cp: number): boolean {
+  for (const [lo, hi] of HARFBUZZ_DEFAULT_IGNORABLE_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
 /**
  * Decompose a Mathematical Alphanumeric Symbols codepoint (U+1D400–U+1D7FF)
  * into its base letter / digit plus the implied bold / italic style.
@@ -111,25 +126,34 @@ export function mathAlphaToBase(cp: number): { base: number; bold: boolean; ital
   return null;
 }
 
-// High-confidence "this codepoint never paints ink" set: control (Cc), format
-// (Cf), line/paragraph/space separators (Zl/Zp/Zs), the invisible math
-// operators (Sm but inkless), variation selectors, and tags. fontkit correctly
-// returns an empty outline for these, so they must NOT trigger the helper —
-// otherwise ordinary text (a narrow no-break space, a bidi control) would spawn
-// the helper / trigger the DM-886 download for no reason. Empirically (DM-891),
-// every macOS glyph fontkit returns empty for falls in this set, and the helper
-// agrees they're empty — so the fallback is inert on macOS by design and only
-// fires for a genuinely-undecodable inkable glyph (Linux/Windows CFF/CJK).
-const INKLESS_CATEGORY_RE = /^[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Zs}]$/u;
+// High-confidence "this codepoint never paints ink" set: control (Cc),
+// line/paragraph/space separators (Zl/Zp/Zs) — categories where fontkit
+// correctly returns an empty outline on every macOS glyph tested (DM-891) —
+// UNION HarfBuzz's own default-ignorable table (`isHarfbuzzDefaultIgnorable`,
+// covering ZWSP/ZWJ/ZWNJ, bidi controls, variation selectors + supplement,
+// tags, soft hyphen, CGJ, the Mongolian FVS block, and the musical-notation
+// format controls).
+//
+// DM-2020: this deliberately does NOT include the general Unicode `Cf`
+// (Format) category, which it did until this fix. `Cf` is broader than
+// "never paints ink" — U+06DD ARABIC END OF AYAH ۝, U+0600-0605 (Arabic
+// number-sign marks), U+070F SYRIAC ABBREVIATION MARK, U+0890/0891, U+08E2,
+// U+FFF9-FFFB (interlinear annotation anchors), U+110BD/110CD (Kaithi
+// number signs), U+13430-1343F (Egyptian Hieroglyph format controls) and
+// U+1BCA0-1BCA3 (Shorthand Format controls, explicitly excluded by
+// HarfBuzz's own table comment) are all `Cf` and all carry a real, visible
+// glyph in fonts that support their script — HarfBuzz does not hide them
+// (`hb-unicode.hh:167-198`, rev 4de187d). Blanket-matching `Cf` suppressed
+// emission of U+06DD's glyph in the embedded-font render path even though a
+// real Arabic face (e.g. macOS GeezaPro) has ink for it — the bug this
+// predicate now no longer produces the affected 36-codepoint set for
+// (enumerated offline against `isHarfbuzzDefaultIgnorable`, not sampled).
+const INKLESS_CATEGORY_RE = /^[\p{Cc}\p{Zl}\p{Zp}\p{Zs}]$/u;
 export function isLegitimatelyInklessCodepoint(cp: number): boolean {
   let s: string;
   try { s = String.fromCodePoint(cp); } catch { return false; }
   if (INKLESS_CATEGORY_RE.test(s)) return true;
-  if (cp >= 0x2061 && cp <= 0x2064) return true;   // invisible math operators
-  if (cp >= 0xFE00 && cp <= 0xFE0F) return true;    // variation selectors
-  if (cp >= 0xE0100 && cp <= 0xE01EF) return true;  // variation selectors supplement
-  if (cp >= 0xE0000 && cp <= 0xE007F) return true;  // tags
-  return false;
+  return isHarfbuzzDefaultIgnorable(cp);
 }
 
 // The Unicode `Ideographic` binary property, exactly as Blink consults it:
@@ -527,28 +551,21 @@ export function nfdBaseMarkDecomposition(cp: number): string | null {
 // vowel) and U+113C7/C8 (Left_And_Right vowels) all paint tofu-then-circle,
 // while U+113C9 (Right vowel) paints circle-then-tofu. (Two-part Left_And_Right
 // vowels render as a single .notdef tofu on the no-font path, so they reorder
-// wholesale like a pure Left matra.) Flat sorted ranges, inclusive [lo, hi];
-// only consulted for an already-qualified orphaned uncovered mark, so the linear
-// scan is cheap.
-const LEFT_REORDER_MATRA_RANGES: ReadonlyArray<readonly [number, number]> = [
-  [0x93F, 0x93F], [0x94E, 0x94E], [0x9BF, 0x9BF], [0x9C7, 0x9C8],
-  [0x9CB, 0x9CC], [0xA3F, 0xA3F], [0xABF, 0xABF], [0xB47, 0xB48],
-  [0xB4B, 0xB4C], [0xBC6, 0xBC8], [0xBCA, 0xBCC], [0xD46, 0xD48],
-  [0xD4A, 0xD4C], [0xDD9, 0xDDE], [0x1031, 0x1031], [0x1084, 0x1084],
-  [0x17BE, 0x17C5], [0x1A19, 0x1A19], [0x1A6E, 0x1A72], [0x1B3E, 0x1B41],
-  [0x1BA6, 0x1BA6], [0x1C27, 0x1C29], [0xA9BA, 0xA9BB], [0xAA2F, 0xAA30],
-  [0xAAEB, 0xAAEB], [0xAAEE, 0xAAEE], [0x110B1, 0x110B1], [0x1112C, 0x1112C],
-  [0x111B4, 0x111B4], [0x111CE, 0x111CE], [0x112E1, 0x112E1], [0x11347, 0x11348],
-  [0x1134B, 0x1134C], [0x113C2, 0x113C2], [0x113C5, 0x113C5], [0x113C7, 0x113C8],
-  [0x11436, 0x11436], [0x114B1, 0x114B1], [0x114B9, 0x114B9], [0x114BB, 0x114BC],
-  [0x114BE, 0x114BE], [0x115B0, 0x115B0], [0x115B8, 0x115BB], [0x116AE, 0x116AE],
-  [0x11726, 0x11726], [0x1182D, 0x1182D], [0x11935, 0x11935], [0x11937, 0x11938],
-  [0x119D2, 0x119D2], [0x119E4, 0x119E4], [0x11CB1, 0x11CB1], [0x11EF5, 0x11EF5],
-  [0x11F3E, 0x11F3F],
-];
-
+// wholesale like a pure Left matra.)
+//
+// DM-2020: the range table itself (`USE_LEFT_MATRA_RANGES`) is now GENERATED
+// by decoding HarfBuzz's own compiled USE syllabic-category lookup table
+// (`use-left-matra-ranges.generated.ts` — VPre ∪ VMPre, see that file for
+// provenance) rather than hand-curated. The hand list this replaced was
+// missing U+0F3F, U+1C34 and U+1C35 because its stated derivation (UCD
+// IndicPositionalCategory "Left" ∩ IndicSyllabicCategory=Vowel_Dependent)
+// never named the VMPre category those three belong to; decoding HarfBuzz's
+// table directly sidesteps re-deriving its own category-merge logic by hand
+// a second time. Confirmed by the generator's self-check: all 97
+// previously-committed members decode to VPre/VMPre with zero removals, and
+// exactly the 3 members above are the only ones added.
 export function isLeftReorderingMatra(cp: number): boolean {
-  for (const [lo, hi] of LEFT_REORDER_MATRA_RANGES) {
+  for (const [lo, hi] of USE_LEFT_MATRA_RANGES) {
     if (cp >= lo && cp <= hi) return true;
   }
   return false;
@@ -656,18 +673,35 @@ export function isRtlScriptCodepoint(cp: number): boolean {
 // renders through the normal pipeline — only the INSERTION is synthetic.
 //
 // DM-1158: code points HarfBuzz/Chrome treat as default-ignorable AND hide
-// entirely (zero-width, no glyph) when the font lacks them — variation
-// selectors, variation selectors supplement, and language tags. Unlike a
+// entirely (zero-width, no glyph) when the font lacks them. Unlike a
 // genuinely-missing inkable glyph (which Chrome paints as a .notdef tofu),
 // these paint NOTHING when uncovered. Our fallback chain otherwise routes an
 // orphaned, uncovered one to the CoreText last-resort box, so each painted a
 // tofu (the FE00-FE0F variation-selector fixture rendered a box per cell).
-// Deliberately narrow: separators (spaces) keep their width and joiners
-// (ZWJ/ZWNJ) carry shaping meaning, so neither is in scope here.
+//
+// DM-2020: widened from a hand-picked 3-range subset (variation selectors,
+// variation selectors supplement, tags) to HarfBuzz's FULL default-ignorable
+// table (`isHarfbuzzDefaultIgnorable`) — the hand subset missed soft hyphen,
+// CGJ, U+061C, the Khmer inherent-vowel pair (U+17B4/17B5), the Mongolian
+// FVS + vowel-separator block (U+180B-180E), most of the bidi/format-control
+// block (only 200B-200F/202A-202E were ever consulted for THIS predicate's
+// callers, and the range now correctly also carries 2060-206F and FEFF),
+// U+FFF0-FFF8, and the musical-notation format controls (U+1D173-1D17A).
+// Enumerated offline before this fix: 3,781 codepoints the narrow subset
+// missed, the overwhelming majority in the unassigned tail of the tag
+// supplement plane (U+E01F0-E0FFF) with the meaningful, reachable remainder
+// exactly the ranges named above.
+//
+// ZWJ/ZWNJ (U+200C/200D) are explicitly carved back OUT even though
+// HarfBuzz's table includes them (page 0x20's 200B-200F run) — deliberately
+// narrower than a pure port, same as separators (spaces): both carry
+// shaping/width meaning this function's caller must preserve, and stripping
+// an orphaned joiner would be a no-op for shaping anyway (there is nothing
+// for it to join without a base), so the carve-out changes nothing
+// observable while keeping the predicate's stated contract explicit.
 export function isStrippableOrphanIgnorable(cp: number): boolean {
-  return (cp >= 0xFE00 && cp <= 0xFE0F)      // variation selectors
-      || (cp >= 0xE0100 && cp <= 0xE01EF)    // variation selectors supplement
-      || (cp >= 0xE0000 && cp <= 0xE007F);   // tags
+  if (cp === 0x200C || cp === 0x200D) return false; // ZWNJ / ZWJ: shaping meaning
+  return isHarfbuzzDefaultIgnorable(cp);
 }
 
 /**

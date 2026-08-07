@@ -72,9 +72,12 @@ real-file fonts (helper-instance / webfont glyphs have no entry and never fire).
 ## Why it's inert on macOS
 
 Inherited verbatim from DM-891. The fallback fires only for a glyph that is
-**plausibly inkable** (`isLegitimatelyInklessCodepoint` excludes Cc/Cf/Zl/Zp/Zs,
-the invisible math operators, variation selectors, and tags) yet came back empty
-from fontkit. Empirically, every macOS glyph fontkit returns empty for is in
+**plausibly inkable** (`isLegitimatelyInklessCodepoint` excludes Cc/Zl/Zp/Zs plus
+HarfBuzz's own default-ignorable table — soft hyphen, CGJ, ZWSP/ZWJ/ZWNJ, bidi
+controls, variation selectors + supplement, tags, and a few narrow blocks; NOT
+the whole Unicode `Cf` category, which is broader than "never paints ink" and
+includes real, visible glyphs like U+06DD ARABIC END OF AYAH) yet came back
+empty from fontkit. Empirically, every macOS glyph fontkit returns empty for is in
 that inkless set **and** the helper agrees it's empty — so the embedded fallback,
 like the `paths` one, never activates on macOS today. Its genuine targets are
 Linux/Windows CFF/CJK faces fontkit opens but can't fully decode, which only get
