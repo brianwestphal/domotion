@@ -260,6 +260,18 @@ shortest possible map:
   conformance" in test-linux.yml, "Windows family-match conformance" in
   windows-fidelity.yml) that self-record a candidate baseline artifact on a
   runner environment with no committed entry.
+- **Decoration geometry** — `tools/decoration-oracle.ts`
+  (`npm run decorations:oracle`, `docs/112-decoration-geometry-oracle.md`)
+  grades text-decoration GEOMETRY (bar y/thickness, skip-ink painted segments)
+  three ways per case: Chrome's paint measured out of a dsf-4 screenshot with
+  the decoration forced red, Blink's transcribed rules fed with in-page
+  inputs, and Domotion's emitted SVG parsed analytically. Exists because
+  whole-fixture pixel-diff structurally rewards the WRONG decoration
+  constants (they were fitted against the rasterization gap). The C-vs-R
+  transcription leg always gates (84/84 at landing); C-vs-S skip-ink gates by
+  default; R-vs-S is the armable acceptance gate for the
+  decoration-transcription work. Pure pieces pinned by
+  `tests/decoration-oracle.test.ts`.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face

@@ -42,6 +42,18 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
+  **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
+  grades text-decoration GEOMETRY against Chrome's paint and Blink's
+  transcribed rules, because whole-fixture pixel-diff structurally rewards
+  the wrong decoration constants (they were fitted against the rasterization
+  gap). Its Chrome-vs-rule transcription leg passes 84/84 on macOS at
+  landing; the rule-vs-SVG leg fails by design (61/84) until the
+  decoration-geometry transcription replaces `getDecorationMetrics`'s
+  empirical constants, and arming `--gate-svg-geometry` is that work's
+  acceptance gate. Discrimination proven: restoring the known-wrong skip-ink
+  dilation (`max(0.5, t/2)` vs Blink's `min(t, 13)`) drops the skip-ink leg
+  from 4/7 to 1/7 with edge errors growing from ≤1.45px to 3.95px.
 - **Docs 110 + 111 (`docs/110-family-match-conformance-linux.md`,
   `docs/111-family-match-conformance-windows.md`, DM-1938)** — **Shipped.**
   The declared-family style matcher now runs Blink's own mechanism on all
