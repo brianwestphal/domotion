@@ -616,9 +616,25 @@ function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: Decora
     ).join("");
   }
   // Solid (or dashed / dotted): single line span with optional dasharray.
-  // Blink does not gate skip-ink on the line style, so dashed and dotted get
-  // gaps too — see the dispatch cited at `skipInkActive`.
-  const wantSkip = skipsInk;
+  //
+  // Blink does not gate skip-ink on the line style — dashed and dotted DO skip
+  // ink upstream. We nonetheless exclude them here, because the mechanism
+  // differs in a way that matters only for a patterned line: Blink CLIPS a
+  // single painted line, so the dash pattern is computed once across the whole
+  // run and the clip merely removes ink from it. We SPLIT the run into
+  // sub-segments and emit one `<line>` each, and `decorationDashPattern`
+  // re-fits the gap per segment so a whole number of dashes spans it — which
+  // restarts the phase and changes the rhythm at every gap.
+  //
+  // Measured: enabling it turned one `stroke-dasharray="6 4.2"` line into three
+  // reading `6 3.6`, `6 2.8`, `6 3.9`, and moved the skip-ink fixture from
+  // 0.1412% to 0.1637% against Chrome. Correct-in-principle, worse in practice.
+  //
+  // Doing this faithfully means computing the pattern over the full span and
+  // clipping — emitting one line plus a clip path rather than N lines — which
+  // is a change to how decorations are emitted, not to when skip-ink applies.
+  // Until then a dashed line keeps its correct pattern and skips no ink.
+  const wantSkip = skipsInk && !(style === "dashed" || style === "dotted");
   const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
   const subs = subSegments(solidGaps);
   if (style === "dashed" || style === "dotted") {

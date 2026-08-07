@@ -328,6 +328,37 @@ export const tests: FeatureTest[] = [
     width: 420,
     height: 160,
   },
+  // Skip-ink EXCLUSIONS. Chrome refuses to interrupt a decoration line for
+  // characters `Character::CanTextDecorationSkipInk` rejects — `/ \ _`, the CJK
+  // ideograph-or-symbol property, and the Hangul / Linear B Ideograms blocks —
+  // so underlined CJK and Korean paint an UNBROKEN line while Latin descenders
+  // beside them still open gaps.
+  //
+  // This fixture exists because the sweep that was supposed to cover it cannot:
+  // the 819 per-block unicode fixtures carry exactly one underline rule,
+  // `p.meta a:hover`, which never applies in a static capture and is Latin
+  // anyway. A filtered CJK sweep over them returns every tile byte-identical
+  // whatever the skip-ink code does, so it reports a confident green for a
+  // mechanism it never ran. Underlined CJK had to become a fixture to be
+  // testable at all.
+  //
+  // The mixed row is the one that discriminates a per-character implementation
+  // from a per-run one: Blink drops intercepts at each character index, so the
+  // `jp` keeps its gaps while the ideographs beside it do not.
+  {
+    name: "text-decoration-skip-ink-exclusions",
+    html: `<div style="padding: 16px; background: #fff; color: #111; font-family: -apple-system, sans-serif; font-size: 24px; line-height: 2;">
+      <div><span style="text-decoration: underline">\u65e5\u672c\u8a9e\u6f22\u5b57</span></div>
+      <div><span style="text-decoration: underline">\ud55c\uad6d\uc5b4 \uc9c0\uae08</span></div>
+      <div><span style="text-decoration: underline">a/b\\c_d</span></div>
+      <div><span style="text-decoration: underline">jumping gaps</span></div>
+      <div><span style="text-decoration: underline">\u65e5jp\u8a9e gy</span></div>
+      <div><span style="text-decoration: overline">overline jumping</span></div>
+      <div><span style="text-decoration: underline dashed">dashed jumping</span></div>
+    </div>`,
+    width: 460,
+    height: 400,
+  },
   // DM-1960: `font-feature-settings: "liga" 0` (and the font-variant-ligatures
   // no-* keywords) must DISABLE a face's default-on ligatures the way Chrome
   // does — Blink hands HarfBuzz every setting with its value intact
