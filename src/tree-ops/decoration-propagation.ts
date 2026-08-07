@@ -112,6 +112,11 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
       }
       next = [...(next ?? []), {
         baselines,
+        // The decorating box's captured FloatAscent / FloatDescent — the
+        // metrics-font ascent Blink's decoration offsets anchor on
+        // (`decoration.used_font = decorating_box->GetUsedFont()`).
+        fontAscent: el.fontAscent,
+        fontDescent: el.fontDescent,
         line: s.textDecorationLine,
         style: s.textDecorationStyle,
         color: (s.textDecorationColor != null && s.textDecorationColor !== "" && s.textDecorationColor !== "currentcolor")

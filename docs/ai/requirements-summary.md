@@ -47,13 +47,15 @@ they describe (see `CLAUDE.md` "Documentation"):
   grades text-decoration GEOMETRY against Chrome's paint and Blink's
   transcribed rules, because whole-fixture pixel-diff structurally rewards
   the wrong decoration constants (they were fitted against the rasterization
-  gap). Its Chrome-vs-rule transcription leg passes 84/84 on macOS at
-  landing; the rule-vs-SVG leg fails by design (61/84) until the
-  decoration-geometry transcription replaces `getDecorationMetrics`'s
-  empirical constants, and arming `--gate-svg-geometry` is that work's
-  acceptance gate. Discrimination proven: restoring the known-wrong skip-ink
-  dilation (`max(0.5, t/2)` vs Blink's `min(t, 13)`) drops the skip-ink leg
-  from 4/7 to 1/7 with edge errors growing from ≤1.45px to 3.95px.
+  gap). The decoration-geometry transcription (DM-2012) has since landed:
+  `getDecorationMetrics` / `emitDecorationLine` emit Blink's rules exactly —
+  fragment-top anchoring on the captured FloatAscent, fs/10 auto thickness,
+  gap `max(1, ceil(t/2))` zeroed by an explicit offset, per-style paint snap
+  — and ALL THREE legs pass and gate by default (transcription 84/84,
+  skip-ink 7/7, rule-vs-SVG 84/84). Discrimination proven: restoring the
+  known-wrong skip-ink dilation (`max(0.5, t/2)` vs Blink's `min(t, 13)`)
+  drops the skip-ink leg from 4/7 to 1/7 with edge errors growing from
+  ≤1.45px to 3.95px.
 - **Docs 110 + 111 (`docs/110-family-match-conformance-linux.md`,
   `docs/111-family-match-conformance-windows.md`, DM-1938)** — **Shipped.**
   The declared-family style matcher now runs Blink's own mechanism on all

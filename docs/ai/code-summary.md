@@ -267,11 +267,11 @@ shortest possible map:
   the decoration forced red, Blink's transcribed rules fed with in-page
   inputs, and Domotion's emitted SVG parsed analytically. Exists because
   whole-fixture pixel-diff structurally rewards the WRONG decoration
-  constants (they were fitted against the rasterization gap). The C-vs-R
-  transcription leg always gates (84/84 at landing); C-vs-S skip-ink gates by
-  default; R-vs-S is the armable acceptance gate for the
-  decoration-transcription work. Pure pieces pinned by
-  `tests/decoration-oracle.test.ts`.
+  constants (they were fitted against the rasterization gap — since removed:
+  `getDecorationMetrics` / `emitDecorationLine` now transcribe Blink's rules
+  and all three legs pass and gate by default, 84/84 + 7/7 + 84/84). Pure
+  pieces pinned by `tests/decoration-oracle.test.ts`; the emit snap by
+  `src/render/decoration-emit.test.ts`.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face

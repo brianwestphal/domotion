@@ -2617,47 +2617,131 @@ export function isTextToPathAvailable(fontFamily: string): boolean {
 
 /** The decoration-specific CSS inputs to `getDecorationMetrics`. */
 export interface DecorationStyleOptions {
-  /** CSS `text-decoration-thickness` — when set to a length value (e.g. "5px"),
-   *  overrides the auto thickness. Pass `undefined` or `auto` to use the auto
-   *  rule. DM-431. */
+  /** CSS `text-decoration-thickness` as captured from the computed style —
+   *  `auto`, `from-font`, or a length/percentage (percent of font size). */
   thicknessOverride?: string;
-  /** CSS `text-underline-offset` — when set to a length value, adds this much
-   *  EXTRA distance below the baseline (on top of the auto offset). DM-431. */
+  /** CSS `text-underline-offset` — `auto`, or a length/percentage (percent of
+   *  font size). An EXPLICIT length also zeroes Blink's auto underline gap
+   *  (`core/layout/text_decoration_offset.cc:22-29`, rev 7d859f27). */
   underlineOffsetCss?: string;
   /**
-   * DM-1819/DM-1820: CSS `text-underline-position`. Captured since DM-936 but,
-   * until now, read only by the VERTICAL text path — so in horizontal text
-   * `under` rendered as `auto` and the underline cut straight through the
-   * descenders instead of clearing them.
-   *
-   *   `auto` (default) / `from-font` — just below the alphabetic baseline (the
-   *     empirical auto rule below; `from-font` would use the face's own
-   *     `post.underlinePosition`, which for the faces we resolve lands within a
-   *     rounding of the auto rule, so it is deliberately NOT special-cased).
-   *   `under` — below ALL descenders, i.e. at the font's descent depth. This is
-   *     what Chromium's `ComputeUnderlineOffsetForUnder` does: it drops the line
-   *     to the under edge of the content box rather than offsetting from the
-   *     baseline.
-   *   `left` / `right` — vertical-writing-mode only; horizontally they behave as
-   *     `auto` (handled by falling through).
+   * CSS `text-underline-position` (`auto` / `from-font` / `under` / `left` /
+   * `right`, possibly space-combined). Horizontal-tb resolution mirrors
+   * `ResolveUnderlinePosition` (`core/paint/text_decoration_info.cc:23-53`):
+   * `under` wins, then `from-font`; `left`/`right` are vertical-only and
+   * resolve to `auto` here.
    */
   underlinePositionCss?: string;
+  /** Chromium's `FontMetrics::FloatAscent` for the METRICS font — the captured
+   *  `fontAscent` (canvas `measureText().fontBoundingBoxAscent` IS FloatAscent
+   *  at the alphabetic baseline — `core/html/canvas/text_metrics.cc:133-138`).
+   *  Every decoration offset is anchored on it. Falls back to `0.8 × fontSize`
+   *  when the capture carries no ascent (programmatic trees, unit tests). */
+  fontAscent?: number;
+  /** Chromium's `FloatDescent` — consulted only as the last-resort input to
+   *  the normalized-typo-descent fallback for `text-underline-position: under`
+   *  when the face has no usable OS/2 typo metrics
+   *  (`platform/fonts/simple_font_data.cc:384-388`). */
+  fontDescent?: number;
+}
+
+/** `LayoutUnit::FromFloatRound` — round to the nearest 1/64 CSS px. */
+const LU = (v: number): number => Math.round(v * 64) / 64;
+/** C `roundf` — round half AWAY FROM ZERO (JS `Math.round` rounds -1.5 → -1;
+ *  `roundf(-1.5)` → -2, and text-underline-offset can be negative). */
+const roundHalfAwayFromZero = (v: number): number => Math.sign(v) * Math.round(Math.abs(v));
+
+/**
+ * A captured `text-decoration-thickness` / `text-underline-offset` computed
+ * value in px. Lengths compute to px; percentages stay percentages and
+ * resolve against the font size for BOTH properties
+ * (`ComputeDecorationThickness` — `FloatValueForLength(len, used_font_size)`,
+ * `core/paint/text_decoration_info.cc:88-90`; `StyleUnderlineOffsetToPixels`,
+ * `core/layout/text_decoration_offset.cc:122-135`). `em` accepted for
+ * robustness (computed styles serialize it to px). Returns null for keywords
+ * or unparsable input.
+ */
+function decorationLengthPx(spec: string, fontSize: number): number | null {
+  const m = /^(-?[\d.]+)(px|em|%)?$/.exec(spec.trim());
+  if (m == null) return null;
+  const v = parseFloat(m[1]);
+  if (Number.isNaN(v)) return null;
+  if (m[2] === "em") return v * fontSize;
+  if (m[2] === "%") return (v / 100) * fontSize;
+  return v;
 }
 
 /**
- * Resolve text-decoration line placement from the font's actual `post`/`OS/2`
- * tables (SK-1236). Chromium uses these same metric tables, so reading them
- * directly tightens decoration alignment vs the previous fontSize-fraction
- * approximation — most visible on SF Mono (underline ~0.75px higher than the
- * generic 15%-of-fontSize estimate) and on large-fontSize text.
+ * `NormalizedTypoDescent` in px (`platform/fonts/simple_font_data.cc:339-415`,
+ * rev 7d859f27): OS/2 sTypoAscender/sTypoDescender (descender stored negative,
+ * negated on read) normalized so the pair sums to the em size while keeping
+ * their ratio; the normalized ascent is LayoutUnit-rounded and the descent is
+ * `LU(em) − normalizedAscent`. Falls back to FloatAscent/FloatDescent when the
+ * typo ascender is missing or non-positive, exactly as
+ * `ComputeNormalizedTypoAscentAndDescent` does; 0 when nothing is usable.
+ */
+function normalizedTypoDescentPx(
+  fontSize: number, font: FontInstance | null, ascF: number, descF: number,
+): number {
+  const tryNorm = (a: number, d: number): number | null => {
+    const height = a + d;
+    if (height <= 0 || a < 0 || a > height) return null;
+    const normAsc = LU((a * fontSize) / height);
+    return LU(fontSize) - normAsc;
+  };
+  const os2 = font?.["OS/2"];
+  if (os2?.typoAscender != null && os2.typoDescender != null && os2.typoAscender > 0) {
+    const ntd = tryNorm(os2.typoAscender, -os2.typoDescender);
+    if (ntd != null) return ntd;
+  }
+  return tryNorm(ascF, descF) ?? 0;
+}
+
+/**
+ * Text-decoration geometry, transcribed from Blink (Chromium rev 7d859f27) —
+ * NOT fitted to pixels. The returned tops are relative to the text FRAGMENT
+ * TOP (the line-over edge Blink anchors `local_origin_` at) and unsnapped;
+ * the paint-time snap is applied at the emit site because it differs per
+ * line style (`decoration_line_painter.cc` SnapYAxis for solid/double,
+ * GetSnappedPointsForTextLine for dashed/dotted, none for wavy).
  *
- * Returns offsets in px from the baseline (sign convention noted on each
- * field). Falls back to the legacy 15%/30%/95% approximations when the font
- * fails to resolve.
+ * Inputs: the ascent is Chromium's own captured FloatAscent (see
+ * `DecorationStyleOptions.fontAscent`); only `from-font` (post table
+ * underline position/thickness) and `under` (OS/2 typo metrics) read font
+ * tables, through the same face the glyph path resolves — a condensed run's
+ * decoration reads the condensed cut's metrics.
  *
- * Resolves the face at the run's `font-stretch` width, like the glyph path:
- * a condensed run's underline reads the condensed cut's metrics, not the
- * normal cut's.
+ * Rules (fs = font size, t = resolved thickness, ascF = FloatAscent,
+ * ascI = lroundf(ascF) — `FontMetrics::Ascent`, LU = LayoutUnit round):
+ *   thickness   auto → fs/10; from-font → face underline thickness (or auto);
+ *               length/% → roundf(px)  (`text_decoration_info.cc:65-92`);
+ *               then max(1, t)  (`:449-451`)
+ *   underline   auto: trunc(ascI + gap + roundf(extra)),
+ *                 gap = extraIsAuto ? max(1, ceil(t/2)) : 0
+ *                 (`text_decoration_offset.cc:16-35`)
+ *               from-font: roundf(ascF + underlinePos + extra), underlinePos
+ *                 positive below baseline (Skia `fUnderlinePosition`; macOS
+ *                 negates `CTFontGetUnderlinePosition` —
+ *                 `external/skia` `src/ports/SkScalerContext_mac_ct.cpp`,
+ *                 rev ebf5052)  (`text_decoration_offset.cc:37-48`)
+ *               under: floor(LU(ascF + NTD) + LU(extra)) + 1
+ *                 (`text_decoration_offset.cc:52-89`,
+ *                 `FontVerticalPositionType::BottomOfEmHeight` =
+ *                 −NormalizedTypoDescent, `simple_font_data.cc:417-431`)
+ *   overline    floor(LU(ascF − ascI)) − floor(t)   (TextTop, `:52-89`;
+ *               text-underline-offset does NOT apply —
+ *               `text_decoration_info.cc:357-370`)
+ *   line-through 2·ascF/3 − t/2, unrounded  (`text_decoration_info.cc:385-386`)
+ *
+ * The former implementation carried empirically-fitted constants (thickness
+ * `ceil(fs/20)`, gap `1.5·t`, strike `round(fs/3)+t/2`, overline `fs−t/2`)
+ * that were tuned to compensate for the SVG-vs-HTML rasterization gap. Under
+ * the project's parity boundary — identical to Chrome UP TO rasterization,
+ * which the consumer's SVG renderer owns — those constants injected a
+ * GEOMETRY error to offset a RASTER error we do not own. The geometry oracle
+ * (`tools/decoration-oracle.ts`, `npm run decorations:oracle`) gates this
+ * transcription; whole-fixture pixel-diff must not, because it structurally
+ * rewards the fitted values.
  */
 export function getDecorationMetrics(
   fontOptions: TextFontOptions,
@@ -2668,72 +2752,67 @@ export function getDecorationMetrics(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
-  // Chromium's text-decoration auto rules (verified vs source — see below):
-  //   thickness = max(1, fontSize / 10)             [text_decoration_info.cc:ComputeDecorationThickness]
-  //   underline_gap = max(1, ceil(thickness / 2))   [text_decoration_offset.cc:ComputeUnderlineOffsetAuto]
-  //   line_through = 2 * FloatAscent / 3 - thickness / 2   [text_decoration_info.cc]
-  //
-  // BUT: our SVG output is rasterized by Chrome'\\'s SVG painter at consume
-  // time, which uses a different sub-pixel grid + AA distribution than the
-  // HTML text painter that produced the reference PNG (the DM-418 SVG-vs-
-  // HTML rasterization gap). Emitting the source-verified sub-pixel values
-  // (thickness 1.6 + offset 1 for 16 px) measurably regresses the visual
-  // diff vs Chrome'\\'s HTML output by ~10-30% per fixture compared to the
-  // integer-rounded empirical formulas below — the empirical values were
-  // tuned to compensate for the rasterization mismatch.
-  //
-  // Empirical rule: thickness = max(1, ceil(fontSize / 20)). Auto underline
-  // gap = 1.5 * thickness (puts SVG stroke center half-pixel below an
-  // integer pixel boundary so 1px strokes paint a single solid row at small
-  // sizes). Empirically derived via `scripts/probe-text-decorations.mjs`
-  // against rendered Helvetica from 12-32 px. DM-398 / DM-431.
-  const autoThicknessPx = Math.max(1, Math.ceil(fontSize / 20));
-  let thicknessPx = autoThicknessPx;
-  if (thicknessOverride != null && thicknessOverride !== "" && thicknessOverride !== "auto" && thicknessOverride !== "from-font") {
-    const explicit = parseFloat(thicknessOverride);
-    if (!isNaN(explicit) && explicit > 0) thicknessPx = explicit;
+  const upem = font?.unitsPerEm ?? 1000;
+  const ascF = decoration.fontAscent ?? fontSize * 0.8;
+  // `FontMetrics::Ascent()` = lroundf(FloatAscent) (`platform/fonts/font_metrics.h:109`).
+  const ascI = Math.round(ascF);
+  const descF = decoration.fontDescent ?? Math.max(0, fontSize - ascF);
+
+  // Thickness — `ComputeDecorationThickness` (`text_decoration_info.cc:65-92`).
+  const thSpec = (thicknessOverride ?? "auto").trim();
+  let t: number;
+  if (thSpec === "" || thSpec === "auto") {
+    t = fontSize / 10;
+  } else if (thSpec === "from-font") {
+    // `UnderlineThickness().value_or(auto)` — fontkit's `post.underlineThickness`
+    // in font units; a missing/zero metric means "not provided" and falls back.
+    const fromFont = font != null ? (font.underlineThickness * fontSize) / upem : NaN;
+    t = Number.isFinite(fromFont) && fromFont > 0 ? fromFont : fontSize / 10;
+  } else {
+    const px = decorationLengthPx(thSpec, fontSize);
+    t = px != null ? roundHalfAwayFromZero(px) : fontSize / 10;
   }
-  let extraUnderlineOffset = 0;
-  if (underlineOffsetCss != null && underlineOffsetCss !== "" && underlineOffsetCss !== "auto") {
-    const v = parseFloat(underlineOffsetCss);
-    if (!isNaN(v)) extraUnderlineOffset = v;
+  // `max(1, t)` for non-SVG text (`text_decoration_info.cc:449-451`).
+  t = Math.max(1, t);
+
+  // text-underline-offset — `StyleUnderlineOffsetToPixels`
+  // (`text_decoration_offset.cc:122-135`; auto → 0, percent of font size).
+  const offSpec = (underlineOffsetCss ?? "auto").trim();
+  const offIsAuto = offSpec === "" || offSpec === "auto";
+  const extra = offIsAuto ? 0 : (decorationLengthPx(offSpec, fontSize) ?? 0);
+
+  // Underline position — `ResolveUnderlinePosition` for horizontal-tb
+  // (`text_decoration_info.cc:23-53`): `under` wins, then `from-font`;
+  // `left`/`right` resolve to auto.
+  const posTokens = (underlinePositionCss ?? "").trim().toLowerCase().split(/\s+/);
+  let underlineTop: number;
+  if (posTokens.includes("under")) {
+    // `ComputeUnderlineOffsetForUnder` with BottomOfEmHeight
+    // (`text_decoration_offset.cc:52-89,112-118`): the LayoutUnit sum is
+    // floored, then +1 on the line-under side.
+    const ntd = normalizedTypoDescentPx(fontSize, font, ascF, descF);
+    underlineTop = Math.floor(LU(ascF + ntd) + LU(extra)) + 1;
+  } else if (posTokens.includes("from-font") && font != null && Number.isFinite(font.underlinePosition)) {
+    // `ComputeUnderlineOffsetFromFont` (`text_decoration_offset.cc:37-48`).
+    // fontkit's post value is negative below the baseline; Skia's
+    // `fUnderlinePosition` is positive below, so negate.
+    const posPx = (-font.underlinePosition * fontSize) / upem;
+    underlineTop = roundHalfAwayFromZero(ascF + posPx + extra);
+  } else {
+    // `ComputeUnderlineOffsetAuto` (`text_decoration_offset.cc:16-35`) — also
+    // the from-font fallback when the face metric is unavailable (`:103-107`).
+    const gap = offIsAuto ? Math.max(1, Math.ceil(t / 2)) : 0;
+    underlineTop = Math.trunc(ascI + gap + roundHalfAwayFromZero(extra));
   }
-  let underlineOffsetY = 1.5 * thicknessPx + extraUnderlineOffset;
-  // DM-1819/DM-1820: `under` drops the line clear of the descenders. The font's
-  // descent IS that depth (it is the bottom of the em box below the baseline),
-  // so use it in place of the baseline-relative auto gap; `text-underline-offset`
-  // still applies on top, as it does for `auto`.
-  const underlinePos = (underlinePositionCss ?? "").trim().toLowerCase();
-  if (underlinePos.split(/\s+/).includes("under") && font != null) {
-    const descentPx = Math.abs(font.descent) * (fontSize / font.unitsPerEm);
-    if (descentPx > 0) underlineOffsetY = descentPx + thicknessPx + extraUnderlineOffset;
-  }
-  const underlineThickness = thicknessPx;
-  // Empirical strike: stroke top sits at `round(baseline) - round(fontSize / 3)`
-  // (probed at 14 / 22 / 32 px sans-serif / Times / Menlo). The Chromium-
-  // source formula `2 * FloatAscent / 3 - thickness / 2` produces values
-  // ~1.5 px lower (Chromium uses HHEA ascent ~0.77 of em, vs the empirical
-  // 1/3 of em rule). The empirical formula matches Chrome'\\'s SVG-rasterized
-  // output better despite differing from the source HTML rule. DM-398.
-  const strikeoutOffsetY = Math.round(fontSize / 3) + thicknessPx * 0.5;
-  const strikeoutThickness = thicknessPx;
-  // Chromium paints overline with stroke top at the em-box top — i.e.
-  // `round(baseline) - fontSize`. fontkit's HHEA ascent (used previously)
-  // sits ~3 px below this on Helvetica because Chrome uses winAscent for
-  // legacy MS-style fonts on macOS. DM-398.
-  const overlineOffsetY = fontSize - thicknessPx * 0.5;
-  if (font == null) {
-    return {
-      underlineOffsetY, underlineThickness,
-      strikeoutOffsetY, strikeoutThickness,
-      overlineOffsetY, overlineThickness: thicknessPx,
-    };
-  }
-  return {
-    underlineOffsetY, underlineThickness,
-    strikeoutOffsetY, strikeoutThickness,
-    overlineOffsetY, overlineThickness: underlineThickness,
-  };
+
+  // Overline — TextTop (`text_decoration_offset.cc:52-89`;
+  // `VerticalPosition(TextTop)` = int Ascent, `simple_font_data.cc:417-424`).
+  const overlineTop = Math.floor(LU(ascF - ascI)) - Math.floor(t);
+
+  // Line-through (`text_decoration_info.cc:385-386`), unrounded.
+  const lineThroughTop = (2 * ascF) / 3 - t / 2;
+
+  return { thickness: t, underlineTop, overlineTop, lineThroughTop };
 }
 
 /**

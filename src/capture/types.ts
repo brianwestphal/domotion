@@ -772,12 +772,14 @@ export interface CapturedStyles {
   /** `text-decoration-style` — 'solid' / 'dashed' / 'dotted' / 'double' /
    *  'wavy'. Undefined or 'solid' = plain line. */
   textDecorationStyle?: string;
-  /** `text-decoration-thickness` — explicit length (e.g. `5px`) or `auto`.
-   *  When set to a length, overrides the auto thickness in
-   *  `getDecorationMetrics`. DM-431. */
+  /** `text-decoration-thickness` — `auto`, `from-font`, or a length /
+   *  percentage (percent of font size). Resolved by `getDecorationMetrics`
+   *  per Blink's `ComputeDecorationThickness` (auto → fontSize/10,
+   *  explicit → `roundf(px)`). DM-431. */
   textDecorationThickness?: string;
-  /** `text-underline-offset` — extra distance below the baseline for the
-   *  underline stroke. Adds to the auto offset. DM-431. */
+  /** `text-underline-offset` — `auto` or a length / percentage added to the
+   *  underline position. An explicit length also ZEROES Blink's auto
+   *  underline gap (`core/layout/text_decoration_offset.cc:22-29`). DM-431. */
   textUnderlineOffset?: string;
   /** DM-936: `text-underline-position` (`auto` / `from-font` / `under` /
    *  `left` / `right`) — drives where the underline paints. Needed for
@@ -853,6 +855,13 @@ export interface PropagatedDecoration {
   fontSize: number;
   fontWeight: string;
   fontStyle?: string;
+  /** Decorating box's captured Chrome `FloatAscent` / `FloatDescent`
+   *  (`fontAscent` / `fontDescent` on the decorating element). The renderer
+   *  anchors the propagated decoration's offsets on this ascent — Blink
+   *  positions from the decorating box's used font, not the decorated
+   *  text's. Absent (older cached trees) falls back to `0.8 × fontSize`. */
+  fontAscent?: number;
+  fontDescent?: number;
   /** DM-1732: the decorating element's OWN text baselines (rounded viewport
    *  px, one per its text segment/line). Blink paints a propagated decoration
    *  at the DECORATING box's line position (`offset_from_decorating_box` in

@@ -387,11 +387,13 @@ export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, 
  * this matches how browsers paint decoration on each inline box instead of
  * one continuous line across gaps. Returns "" when no decoration applies.
  *
- * `baselineY` is the segment's baseline in viewport coords. Position and
- * thickness come from the font's `post.underlinePosition` / `underlineThickness`
- * (underline) and `OS/2.yStrikeoutPosition` / `yStrikeoutSize` (line-through)
- * tables — the same metrics Chromium consults — so placement matches the
- * browser within ~0.5px instead of relying on fontSize fractions (SK-1236).
+ * Geometry is Blink's, transcribed (Chromium rev 7d859f27): offsets anchor on
+ * the text FRAGMENT TOP via the captured FloatAscent (`getDecorationMetrics`),
+ * and the paint-time y-snap (`decoration_line_painter.cc` SnapYAxis /
+ * RoundDownThickness) is applied per line at emit. Only `from-font` and
+ * `text-underline-position: under` consult font tables (post underline
+ * metrics, OS/2 typo metrics); the auto rules are font-size / ascent driven.
+ * Gated by `npm run decorations:oracle` (rule-vs-SVG leg), NOT by pixel-diff.
  */
 /** Args for {@link renderTextDecoration} — an options object so the 15 fields
  *  can't be transposed at the (two) call sites. */
@@ -400,7 +402,23 @@ interface TextDecorationOptions {
   decorationColor: string;
   style: string | undefined;
   segX: number;
-  baselineY: number;
+  /** Text fragment top (line-over edge) of the DECORATING box's line, in
+   *  viewport px. Blink anchors every decoration offset here
+   *  (`local_origin_.line_over` in `core/paint/text_decoration_info.cc`); for
+   *  a propagated decoration this is the ancestor's line, reconstructed as
+   *  its picked baseline minus its captured FloatAscent. */
+  fragTop: number;
+  /** FloatAscent of the METRICS font (the decorating box's — captured
+   *  `fontAscent`). Undefined falls back to `0.8 × fontSize`. */
+  fontAscent?: number;
+  /** FloatDescent of the metrics font — only feeds the `under`-position
+   *  normalized-typo-descent fallback. */
+  fontDescent?: number;
+  /** TRUE (unrounded) baseline of the RUN's painted glyphs, viewport px —
+   *  the y the skip-ink intercept band is expressed against, since glyph
+   *  outlines are shaped baseline-relative. For a propagated decoration this
+   *  stays the run's own baseline (the ink IS the run's glyphs). */
+  runBaselineY: number;
   segWidth: number;
   fontSize: number;
   fontFamily: string;
@@ -446,12 +464,11 @@ interface TextDecorationOptions {
   metricsFontStyle?: string;
 }
 
-interface DecorationLineCtx {
+export interface DecorationLineCtx {
   /** CSS text-decoration-style. */
   style: string | undefined;
-  explicitThickness: boolean;
-  fontSize: number;
-  baselineY: number;
+  /** True (unrounded) baseline of the run's glyphs — skip-ink band anchor. */
+  runBaselineY: number;
   /** The decoration run's x origin — the phase anchor for wavy (DM-1698). */
   segX: number;
   decorationColor: string;
@@ -460,21 +477,50 @@ interface DecorationLineCtx {
 }
 
 /**
- * Emit one decoration line at (y, thickness) honoring text-decoration-style
- * (extracted from `renderTextDecoration`, DM-1458). For wavy: a cubic-Bezier
- * sin-wave path matching Chromium's `WavyPath`. For double: two parallel lines.
- * For solid / dashed / dotted: a single <line> with optional dasharray.
+ * Emit one decoration line honoring text-decoration-style (extracted from
+ * `renderTextDecoration`, DM-1458). `yTop` is the decoration rect's TOP in
+ * viewport px, UNSNAPPED — `fragTop + getDecorationMetrics().<line>Top` — and
+ * `t` the resolved (unsnapped) thickness. The paint-time snap is applied here
+ * per style, transcribed from `core/paint/decoration_line_painter.cc`
+ * (Chromium rev 7d859f27):
  *
- * `skipsInk` says whether THIS line participates in `text-decoration-skip-ink`.
- * Underline and overline do; line-through never does, and that is upstream's
- * explicit choice rather than an omission — `PaintLineThroughDecorations`
- * carries the comment "No skip: ink for line-through" and cites
+ *   solid/double  SnapYAxis: top → floor(top + 0.5), height →
+ *                 max(floor(t), 1)  (`:21-23,40-45,104-124`); the double's
+ *                 second bar offsets by ±(t+1) / floor(t+1) from the first
+ *                 (`text_decoration_info.cc:259-284`) and snaps independently
+ *                 (`:462-472` — each `DrawLineAsRect` call snaps its own rect)
+ *   dashed/dotted GetSnappedPointsForTextLine: midY = floor(top + max(t/2,
+ *                 0.5)), plus 0.5 when roundf(t) is odd; stroke width stays
+ *                 the unsnapped t  (`:47-53,55-76`)
+ *   wavy          no snap; the stroked cubic's centerline sits at
+ *                 top + wavy_offset + 0.5  (`WavyGeometry::PathOrigin` +
+ *                 `PaintRibbon`, `:298-304,325-349`)
+ *
+ * `line` picks the second-bar / wavy offset sign; `skipsInk` says whether
+ * THIS line participates in `text-decoration-skip-ink`. Underline and
+ * overline do; line-through never does, and that is upstream's explicit
+ * choice rather than an omission — `PaintLineThroughDecorations` carries the
+ * comment "No skip: ink for line-through" and cites
  * https://github.com/w3c/csswg-drafts/issues/711
- * (`core/paint/text_decoration_painter.cc:214-247`, Chromium rev 7d859f27).
- * Gaps come via the `ctx` closures, which stay bound to the run's geometry.
+ * (`core/paint/text_decoration_painter.cc:214-247`).
+ * Gaps come via the `ctx` closures, which stay bound to the run's geometry;
+ * the intercept band is derived from the UNSNAPPED rect, matching
+ * `DecorationLinePainter::Bounds` (`text_painter.cc:589-590` insets it 0.5px
+ * inside `computeSkipInkGaps`). Exported for unit testing (not in the
+ * package barrel).
  */
-function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: DecorationLineCtx): string {
-  const { style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments } = ctx;
+export function emitDecorationLine(
+  yTop: number, t: number, line: "underline" | "overline" | "line-through",
+  skipsInk: boolean, ctx: DecorationLineCtx,
+): string {
+  const { style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments } = ctx;
+  // Second-bar / wavy offset from the first bar's top —
+  // `text_decoration_info.cc:259-284`: +(t+1) below for underline, −(t+1)
+  // above for overline, floor(t+1) for line-through (floored so the double
+  // gap doesn't change size with the downstream snap; wavy uses 0 there).
+  const doubleOffset = line === "underline" ? t + 1 : line === "overline" ? -(t + 1) : Math.floor(t + 1);
+  // `RoundDownThickness` — the snapped bar height for solid / double.
+  const hSnap = Math.max(Math.floor(t), 1);
   if (style === "wavy") {
     // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
     //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
@@ -482,52 +528,28 @@ function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: Decora
     // Each wavelength is one cubic Bezier with both control points at
     // `wavelength/2` x — `cp1.y = +cp_distance`, `cp2.y = -cp_distance` —
     // producing an S-curve from `(0, 0)` through a peak / trough back to
-    // `(wavelength, 0)`. Total visual amplitude ≈ `cp_distance * 0.289`.
+    // `(wavelength, 0)`. Blink strokes this centerline at the resolved
+    // thickness; the visual amplitude is implicit in the curve (measured
+    // ≈ 0.278 × cp_distance — used below only to size the skip-ink band).
     //
     // Earlier we rendered as quadratic Q curves with the control point at
     // `±cp_distance` directly; that paints visual amplitude `cp_distance/2`
     // — about 70% taller than Chrome — making 18 px wavy underlines look
-    // exaggerated. Switch to cubic to reproduce Chrome's geometry. (DM-446.)
-    //
-    // Thickness uses Chromium's auto-rule `max(1, fontSize/10)` rather than
-    // `getDecorationMetrics`'s `fontSize/20` empirical formula. The
-    // empirical rule compensates for an SVG-vs-HTML pixel-grid mismatch on
-    // axis-aligned solid strokes; curves don't hit that artifact, and the
-    // smaller value paints a visibly thinner stroke than Chrome.
-    const tc = explicitThickness ? Math.max(1, t) : Math.max(1, fontSize / 10);
-    const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
-    const cpDist = 0.5 + Math.round(3 * tc + 0.5);
-    // DM-830: re-probed against native Chromium (`tools/probe-wavy-geom5.mjs`)
-    // at fs={12, 16, 24, 36} × thickness={1, 2, 3, 4, 6}, measuring wave
-    // centre-y and peak amplitude against the descender-less 'm' baseline.
-    // Two findings differed from the earlier DM-446 calibration:
-    //
-    //  (1) Chrome paints amplitude `~0.278 × cpDist` (was 0.289). Across the
-    //      sample matrix: t=1→1.25, t=2→2.00, t=3→3.00, t=4→3.75, t=6→5.50
-    //      — Chrome's `cpDist`-to-amplitude ratio is consistently 0.27-0.28,
-    //      NOT the cubic-Bezier-geometric 0.289 = √3/(2π/n) factor we'd
-    //      derived analytically. Either Chrome uses a different
-    //      bezier-flatness setting or its wavy is actually a different
-    //      curve family at the painted scale.
-    //
-    //  (2) Wave centre-y is INDEPENDENT of fontSize (the previous formula
-    //      `y + 2 * amplitude` produced wave-y identical across font sizes
-    //      because `y = baseline + 1.5×t` itself was thickness-only; the
-    //      empirical pattern just confirms this). Centre-y DOES depend on
-    //      thickness: yCenter - baseline ≈ 2 + t/2 + amplitude. This is
-    //      consistent with "the wave's TOP edge sits exactly at the solid-
-    //      underline BOTTOM edge, leaving descender region clear" — where
-    //      Chrome's auto solid underline at thickness `t` paints at
-    //      baseline + 2 - t/2 to baseline + 2 + t/2.
-    //
-    // `y` passed into `emitLine` already equals `baseline + 1.5×t + extra`
-    // (the extra is the author's text-underline-offset). The new formula
-    // `yWave = y + amp + 2 - t` algebraically reduces to
-    // `baseline + 2 + 0.5×t + amp + extra`, matching the probed wave centre.
-    // For uniform text-underline-offset = 0, errors stay ≤ 0.4 px across
-    // the probed thickness range.
+    // exaggerated. Cubic reproduces Chrome's geometry. (DM-446.)
+    const wavelength = 1 + 2 * Math.round(2 * t + 0.5);
+    const cpDist = 0.5 + Math.round(3 * t + 0.5);
     const waveAmplitude = 0.278 * cpDist;
-    const yWave = y + waveAmplitude + 2 - tc;
+    // Placement, transcribed: the wavy ribbon's CENTERLINE sits at the line
+    // rect's top + wavy_offset + 0.5 (`WavyGeometry::PathOrigin` translates
+    // the y=0 centerline by `line.origin().y + wavy_offset`, and
+    // `PaintRibbon` strokes it at `path_origin.y + 0.5` —
+    // `decoration_line_painter.cc:298-304,334-337`). The wavy offset is the
+    // same ±(t+1) / 0 family as the double offset
+    // (`text_decoration_info.cc:259-284`). This replaces the previous
+    // empirical `y + amplitude + 2 − t` placement, whose bare `+2` was
+    // fitted to probed paint rather than transcribed.
+    const wavyOffset = line === "line-through" ? 0 : doubleOffset;
+    const yWave = yTop + wavyOffset + 0.5;
     // DM-814: skip-ink for wavy. Compute gaps using the wave's full
     // vertical extent (2*amplitude + stroke thickness) so a descender that
     // pokes into the wave's PEAK or TROUGH zones breaks the wave, not just
@@ -537,8 +559,8 @@ function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: Decora
     // hypothetical continuous wave, but the descender gap is usually wider
     // than the discontinuity which makes the visual indistinguishable from
     // Chrome's per-glyph break style.
-    const bandThickness = 2 * waveAmplitude + tc;
-    const wavyGaps = skipsInk ? computeGapsAt(yWave - baselineY, bandThickness) : [];
+    const bandThickness = 2 * waveAmplitude + t;
+    const wavyGaps = skipsInk ? computeGapsAt(yWave - runBaselineY, bandThickness) : [];
     const subs = subSegments(wavyGaps);
     // DM-1698: PHASE-COHERENT waves across skip-ink gaps. Chrome paints ONE
     // continuous wave for the whole run and clips out the descender gaps
@@ -582,37 +604,34 @@ function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: Decora
         if (d === "") d = `M ${r(gx + qx0)} ${r(yWave + qy0)}`;
         d += ` C ${r(gx + qx1)} ${r(yWave + qy1)} ${r(gx + qx2)} ${r(yWave + qy2)} ${r(gx + qx3)} ${r(yWave + qy3)}`;
       }
-      if (d !== "") parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
+      if (d !== "") parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(t)}"/>`);
     }
     return parts.join("");
   }
   if (style === "double") {
-    // Double: two parallel lines. Per Chromium's `decoration_line_painter
-    // .cc::DrawLineAsRect`, kDouble extends the single-underline rect to
-    // 3×thickness tall and emits a stroke at each end — i.e., the TOP
-    // stroke sits at the single-underline position and the BOTTOM stroke
-    // sits 2×thickness below it. Total height = 3×thickness.
-    //
-    // Earlier we centered the double on the single-underline position,
-    // which placed the top of the top stroke AT the baseline. The skip-ink
-    // intercept band then began at y_rel=0 and false-triggered on every
-    // baseline-resting glyph (d / o / u / b / l / e ...) producing the
-    // shredded-line artifact reported in DM-446.
-    const stroke = Math.max(1, t);
-    const top = y;
-    const bot = y + 2 * stroke;
-    // Skip-ink band spans both strokes plus their stroke widths:
-    // [top - stroke/2, bot + stroke/2] = 3×stroke tall, centered at
-    // (top + bot) / 2.
-    const bandCenter = (top + bot) / 2;
-    const bandThickness = (bot - top) + stroke;
+    // Double: two parallel bars. The second bar sits `doubleOffset` from the
+    // first (+(t+1) below for underline, −(t+1) above for overline,
+    // floor(t+1) for line-through — `text_decoration_info.cc:259-284`), and
+    // EACH bar snaps its own rect through SnapYAxis, exactly as Blink's two
+    // `DrawLineAsRect` calls do (`decoration_line_painter.cc:462-472`).
+    const top1 = Math.floor(yTop + 0.5);
+    const top2 = Math.floor(yTop + doubleOffset + 0.5);
+    // Skip-ink band = `DecorationLinePainter::Bounds` for kDoubleStroke: the
+    // UNSNAPPED first rect extended to cover the offset bar —
+    // top = min(y, y + doubleOffset), height = t + |doubleOffset|
+    // (`decoration_line_painter.cc:423-431`); `computeSkipInkGaps` applies
+    // the 0.5px inset (`text_painter.cc:589-590`).
+    const bandTop = Math.min(yTop, yTop + doubleOffset);
+    const bandThickness = t + Math.abs(doubleOffset);
     const dblGaps = skipsInk
-      ? computeGapsAt(bandCenter - baselineY, bandThickness)
+      ? computeGapsAt(bandTop + bandThickness / 2 - runBaselineY, bandThickness)
       : [];
     const subs = subSegments(dblGaps);
+    const yA = top1 + hSnap / 2;
+    const yB = top2 + hSnap / 2;
     return subs.map(({ x0, x1 }) =>
-      `<line x1="${r(x0)}" y1="${r(top)}" x2="${r(x1)}" y2="${r(top)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
-      + `<line x1="${r(x0)}" y1="${r(bot)}" x2="${r(x1)}" y2="${r(bot)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
+      `<line x1="${r(x0)}" y1="${r(yA)}" x2="${r(x1)}" y2="${r(yA)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
+      + `<line x1="${r(x0)}" y1="${r(yB)}" x2="${r(x1)}" y2="${r(yB)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
     ).join("");
   }
   // Solid (or dashed / dotted): single line span with optional dasharray.
@@ -635,21 +654,34 @@ function emitDecorationLine(y: number, t: number, skipsInk: boolean, ctx: Decora
   // is a change to how decorations are emitted, not to when skip-ink applies.
   // Until then a dashed line keeps its correct pattern and skips no ink.
   const wantSkip = skipsInk && !(style === "dashed" || style === "dotted");
-  const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
+  // Intercept band = the UNSNAPPED rect (`DecorationLinePainter::Bounds` for
+  // kSolidStroke returns `geometry.line` before any snap).
+  const solidGaps = wantSkip ? computeGapsAt(yTop + t / 2 - runBaselineY, t) : [];
   const subs = subSegments(solidGaps);
   if (style === "dashed" || style === "dotted") {
     // Dashed / dotted use Chromium's real dash geometry (see
     // decorationDashPattern) instead of the old fixed `2t 2t` / `t t`
     // dasharrays, which painted visibly shorter, denser dashes than Chrome.
+    //
+    // Y placement is `GetSnappedPointsForTextLine` — midY = floor(top +
+    // max(t/2, 0.5)) — plus the odd-integer-thickness half-pixel shift of
+    // `DrawLineAsStroke` (`decoration_line_painter.cc:47-53,71-76`); the
+    // stroke width stays the UNSNAPPED t (only the dash intervals round).
+    const yMid = Math.floor(yTop + Math.max(t / 2, 0.5)) + (Math.round(t) % 2 !== 0 ? 0.5 : 0);
     return subs.map(({ x0, x1 }) => {
       const pat = decorationDashPattern(style, t, x1 - x0);
       const px0 = x0 + pat.inset;
       const px1 = x1 - pat.inset;
-      return `<line x1="${r(px0)}" y1="${r(y)}" x2="${r(px1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${pat.attrs}/>`;
+      return `<line x1="${r(px0)}" y1="${r(yMid)}" x2="${r(px1)}" y2="${r(yMid)}" stroke="${decorationColor}" stroke-width="${r(t)}"${pat.attrs}/>`;
     }).join("");
   }
+  // Solid: SnapYAxis — rect top floor(y + 0.5), height max(floor(t), 1) —
+  // emitted as a centered stroke so the painted rect is exactly the snapped
+  // one (`decoration_line_painter.cc:40-45,104-124`).
+  const yTopSnapped = Math.floor(yTop + 0.5);
+  const yLine = yTopSnapped + hSnap / 2;
   return subs.map(({ x0, x1 }) =>
-    `<line x1="${r(x0)}" y1="${r(y)}" x2="${r(x1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"/>`
+    `<line x1="${r(x0)}" y1="${r(yLine)}" x2="${r(x1)}" y2="${r(yLine)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
   ).join("");
 }
 
@@ -723,7 +755,7 @@ export function decorationDashPattern(style: "dashed" | "dotted", thickness: num
 
 function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
-    textDecorationLine, decorationColor, style, segX, baselineY, segWidth,
+    textDecorationLine, decorationColor, style, segX, fragTop, runBaselineY, segWidth,
     fontSize, fontFamily, fontWeight, fontStyle, fontStretch, thicknessOverride,
     underlineOffset, underlinePosition, runText, skipInk, features, runXOffsets,
   } = opts;
@@ -738,7 +770,8 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const mFontStyle = opts.metricsFontStyle ?? fontStyle;
   const m = getDecorationMetrics(
     { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle, fontStretch },
-    { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition });
+    { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition,
+      fontAscent: opts.fontAscent, fontDescent: opts.fontDescent });
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
   // Skip-ink is style-AGNOSTIC in Blink. `TextDecorationPainter` calls
@@ -779,27 +812,22 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
     if (cursor < x1) out.push({ x0: cursor, x1 });
     return out.filter((r) => r.x1 - r.x0 > 0.25);
   }
-  // Emit one decoration line at (y, thickness) honoring the text-decoration-style.
-  // (DM-345.) For wavy: build a sin-wave path. For double: two parallel
-  // lines with a 1×thickness gap. For solid/dashed/dotted: a single
-  // <line> with optional stroke-dasharray.
-  const explicitThickness = thicknessOverride != null && thicknessOverride !== ""
-    && thicknessOverride !== "auto" && thicknessOverride !== "from-font";
+  // Emit one decoration line per applied line kind. `fragTop + m.<line>Top`
+  // is the UNSNAPPED rect top in viewport px; `emitDecorationLine` applies
+  // the per-style paint snap (see its doc).
   const decorationLineCtx: DecorationLineCtx = {
-    // `fontSize` feeds the wavy auto-thickness rule (`max(1, fontSize/10)`)
-    // — a decoration-metrics quantity, so the decorating box's size (DM-1723).
-    style, explicitThickness, fontSize: mFontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments,
+    style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments,
   };
   if (has("underline")) {
-    lines.push(emitDecorationLine(baselineY + m.underlineOffsetY, m.underlineThickness, true, decorationLineCtx));
+    lines.push(emitDecorationLine(fragTop + m.underlineTop, m.thickness, "underline", true, decorationLineCtx));
   }
   if (has("line-through")) {
-    lines.push(emitDecorationLine(baselineY - m.strikeoutOffsetY, m.strikeoutThickness, false, decorationLineCtx));
+    lines.push(emitDecorationLine(fragTop + m.lineThroughTop, m.thickness, "line-through", false, decorationLineCtx));
   }
   if (has("overline")) {
     // Overline skips ink in Blink exactly as underline does — the same
     // `ClipDecorationLine` call with the same `skip_ink` value.
-    lines.push(emitDecorationLine(baselineY - m.overlineOffsetY, m.overlineThickness, true, decorationLineCtx));
+    lines.push(emitDecorationLine(fragTop + m.overlineTop, m.thickness, "overline", true, decorationLineCtx));
   }
   return lines.join("");
 }
@@ -807,7 +835,13 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
 /** Geometry + run context shared by every applied decoration of one run. */
 interface AppliedDecorationRunCtx {
   segX: number;
-  baselineY: number;
+  /** The run's text fragment top (captured `textTop` / segment y), viewport px. */
+  fragTop: number;
+  /** Captured Chrome FloatAscent of the run's font (`fontAscent`); undefined
+   *  falls back to `0.8 × fontSize`. */
+  fontAscent?: number;
+  /** Captured FloatDescent — feeds only the `under`-position NTD fallback. */
+  fontDescent?: number;
   segWidth: number;
   fontSize: number;
   fontFamily: string;
@@ -862,10 +896,23 @@ function renderAppliedTextDecorations(
   run: AppliedDecorationRunCtx,
 ): string {
   const parts: string[] = [];
+  const runAscent = run.fontAscent ?? run.fontSize * 0.8;
+  // TRUE (unrounded) baseline of the run's glyphs — the skip-ink anchor and
+  // the propagated-baseline comparison point.
+  const runBaselineY = run.fragTop + runAscent;
   for (const pd of el.propagatedDecorations ?? []) {
+    // Blink anchors a propagated decoration at the DECORATING box's line
+    // (`offset_from_decorating_box`, `text_decoration_info.cc:325-335`).
+    // Reconstruct that box's fragment top from its picked baseline minus its
+    // captured FloatAscent (the baselines are captured integer-rounded, so
+    // this carries up to 0.5px of capture rounding for shifted sub/sup lines;
+    // same-line children use the run's own unrounded baseline).
+    const pdAscent = pd.fontAscent ?? pd.fontSize * 0.8;
+    const pdBaseline = pickPropagatedBaseline(pd.baselines, runBaselineY, pd.fontSize);
     parts.push(renderTextDecoration({
       textDecorationLine: pd.line, decorationColor: pd.color ?? fallbackColor, style: pd.style,
-      segX: run.segX, baselineY: pickPropagatedBaseline(pd.baselines, run.baselineY, pd.fontSize), segWidth: run.segWidth,
+      segX: run.segX, fragTop: pdBaseline - pdAscent, runBaselineY, segWidth: run.segWidth,
+      fontAscent: pdAscent, fontDescent: pd.fontDescent,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       // `font-stretch` inherits, and `PropagatedDecoration` captures no stretch
       // of its own, so the decorated element's computed value is the decorating
@@ -887,7 +934,8 @@ function renderAppliedTextDecorations(
       ? el.styles.textDecorationColor : fallbackColor;
     parts.push(renderTextDecoration({
       textDecorationLine: ownLine, decorationColor: ownColor, style: el.styles.textDecorationStyle,
-      segX: run.segX, baselineY: run.baselineY, segWidth: run.segWidth,
+      segX: run.segX, fragTop: run.fragTop, runBaselineY, segWidth: run.segWidth,
+      fontAscent: run.fontAscent, fontDescent: run.fontDescent,
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       fontStretch: el.styles.fontStretch,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
@@ -1479,17 +1527,17 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     fontSynthesis: fontSynthesisOf(el.styles),
   });
   if (result != null) {
-    // baselineY = textTop + fontAscent. Using fontSize here would put the
-    // underline ~1px too low (fontSize includes descent; baseline sits at
-    // ascent above textTop, not at the line-bottom). DM-265.
-    // Round to integer px so Chrome's pixel-aligned decoration paint
-    // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
-    const decoBaselineY = Math.round(tt + (segAscent ?? segFontSize));
+    // Decorations anchor on the text fragment TOP (`tt`) + the captured
+    // FloatAscent — the same pair Blink's decoration offsets are expressed
+    // against (`local_origin_.line_over` + `FontMetrics` in
+    // `core/paint/text_decoration_info.cc`). No pre-rounding here: the
+    // paint-time snap is applied per line style inside `emitDecorationLine`.
     // DM-1723/DM-1725: the element's own decoration plus every ancestor
     // decorating box's propagated entry paint independently (Blink's
     // AppliedTextDecorations accumulation).
     const decoMarkup = renderAppliedTextDecorations(el, segColor, {
-      segX: tl, baselineY: decoBaselineY, segWidth: el.textWidth ?? 0,
+      segX: tl, fragTop: tt, fontAscent: segAscent, fontDescent: el.fontDescent,
+      segWidth: el.textWidth ?? 0,
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
       runText: pathText, features, runXOffsets: xOffsetsRel ?? undefined,
     });
@@ -1758,12 +1806,14 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
         segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`);
       }
     }
-    const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
     // DM-1723/DM-1725: the element's own decoration plus every ancestor
     // decorating box's propagated entry paint independently (Blink's
-    // AppliedTextDecorations accumulation).
+    // AppliedTextDecorations accumulation). Decorations anchor on the
+    // segment's fragment top + captured FloatAscent, unrounded — the paint
+    // snap happens per line inside `emitDecorationLine`.
     const decoMarkup = renderAppliedTextDecorations(el, fillColor, {
-      segX: seg.x, baselineY: segDecoBaselineY, segWidth: seg.width,
+      segX: seg.x, fragTop: seg.y, fontAscent: segAscent, fontDescent: el.fontDescent,
+      segWidth: seg.width,
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
       runText: reordered.text, features: segFeatures, runXOffsets: segXOffsets ?? undefined,
     });

@@ -50,12 +50,12 @@
  *           constant `kDecorationClipMaxDilation` at :46); a half-sized pad
  *           moves every gap edge by t/2 and fails here.
  *   R vs S  "svg-geometry" — the gate for Domotion's own decoration
- *           geometry. OFF by default (--gate-svg-geometry to arm): the
- *           shipped renderer still carries empirical constants tuned against
- *           the rasterization gap (`src/render/text-to-path.ts`,
- *           getDecorationMetrics), so this leg fails BY DESIGN until the
- *           decoration-geometry transcription lands. Arming it is that
- *           ticket's acceptance gate.
+ *           geometry. ON by default (--no-gate-svg-geometry to demote) since
+ *           the decoration-geometry transcription landed:
+ *           `getDecorationMetrics` + `emitDecorationLine` now emit Blink's
+ *           rules exactly, and this leg passes 84/84. It was off while the
+ *           renderer carried the empirical constants the transcription
+ *           replaced.
  *
  * Transcribed rules (all horizontal-tb, alphabetic baseline, zoom 1,
  * Chromium rev 7d859f27; ascF = FloatAscent, ascI = lround(ascF), fs = used
@@ -113,7 +113,7 @@
  *
  * Usage:
  *   npx tsx tools/decoration-oracle.ts [--only <substr>] [--json <path>]
- *       [--gate-svg-geometry] [--no-gate-skip-ink] [--keep <dir>]
+ *       [--no-gate-svg-geometry] [--no-gate-skip-ink] [--keep <dir>]
  *
  * Exit codes: 0 all armed gates pass; 1 an armed gate failed; 2 setup error.
  */
@@ -132,9 +132,10 @@ const TOL_TRANSCRIPTION = 0.2;
  *  markup), so 0.3 covers serialization rounding only. */
 const TOL_SVG_GEOMETRY = 0.3;
 /** C vs S skip-ink gap edges, CSS px. Covers fontkit-vs-Skia outline
- *  intersection drift plus today's empirical band-depth offset (<=0.5px at
- *  auto thickness). A halved dilation moves an edge by t/2 — 1.2px at 24px
- *  auto, 2.5px at explicit 5px — which this must catch. */
+ *  intersection drift (the band-depth offset the renderer's former empirical
+ *  constants added is gone since the decoration-geometry transcription).
+ *  A halved dilation moves an edge by t/2 — 1.2px at 24px auto, 2.5px at
+ *  explicit 5px — which this must catch. */
 const TOL_GAP_EDGE = 0.9;
 /** Painted segments narrower than this (CSS px) are ignored on both sides —
  *  Blink itself discards intercepts shallower than 0.5px via the band inset,
@@ -734,7 +735,9 @@ async function main(): Promise<number> {
   const only = opt("--only");
   const jsonPath = opt("--json");
   const keepDir = opt("--keep");
-  const gateSvgGeometry = flag("--gate-svg-geometry");
+  // Default-armed since the decoration-geometry transcription landed
+  // (`--gate-svg-geometry` still accepted as a no-op for older invocations).
+  const gateSvgGeometry = !flag("--no-gate-svg-geometry");
   const gateSkipInk = !flag("--no-gate-skip-ink");
   if (keepDir != null) mkdirSync(keepDir, { recursive: true });
 
@@ -848,7 +851,7 @@ async function main(): Promise<number> {
   if (failedSvgGeometry.length > 0 && (gateSvgGeometry || process.env.DOMOTION_ORACLE_VERBOSE === "1")) {
     printLeg("svg-geometry failures", failedSvgGeometry, (r) => r.svgGeometry);
   } else if (failedSvgGeometry.length > 0) {
-    console.log(`\n(svg-geometry leg: ${failedSvgGeometry.length} failing cases — expected while getDecorationMetrics keeps its empirical constants; run with --gate-svg-geometry or DOMOTION_ORACLE_VERBOSE=1 for detail)`);
+    console.log(`\n(svg-geometry leg: ${failedSvgGeometry.length} failing cases — gate demoted; drop --no-gate-svg-geometry or set DOMOTION_ORACLE_VERBOSE=1 for detail)`);
   }
   if (jsonPath != null) {
     writeFileSync(jsonPath, JSON.stringify({

@@ -34,16 +34,19 @@ geometry, not on aggregate pixel difference.
   `text-underline-position` (auto / `under` / `from-font`).
 - **C vs S — "skip-ink"** (gates by default; `--no-gate-skip-ink` to demote):
   compares the PAINTED SEGMENTS of the decoration (positive space — see below)
-  between Chrome's paint and the emitted SVG, per edge. Status at landing:
-  4/7 pass; the 3 failures are real, precisely-attributed defects of the
-  renderer's current empirical decoration constants (dilation driven by the
-  empirical `ceil(fontSize/20)` thickness instead of Blink's `fontSize/10`,
-  and the band sitting deeper than Blink's), expected to green when the
-  decoration-geometry transcription lands.
-- **R vs S — "svg-geometry"** (off by default; `--gate-svg-geometry` to arm):
-  the acceptance gate for the decoration-geometry transcription work. It fails
-  by design (61/84 at landing) while `getDecorationMetrics` keeps its
-  empirical constants; arming it is that change's done-signal.
+  between Chrome's paint and the emitted SVG, per edge. Status: **7/7** since
+  the decoration-geometry transcription landed. (At the oracle's landing it
+  was 4/7 — the 3 failures were precisely attributed to the renderer's
+  then-empirical constants: dilation driven by a `ceil(fontSize/20)`
+  thickness instead of Blink's `fontSize/10`, and the band sitting deeper
+  than Blink's. Correcting the constants greened them, as predicted.)
+- **R vs S — "svg-geometry"** (gates by default; `--no-gate-svg-geometry` to
+  demote): the acceptance gate for the renderer's decoration geometry.
+  Status: **84/84** — `getDecorationMetrics` + `emitDecorationLine` emit
+  Blink's transcribed rules exactly (fragment-top anchoring on the captured
+  FloatAscent, per-style paint snap at emit). While the renderer carried its
+  empirical constants this leg failed 61/84 by design and was off by
+  default; it was armed, and defaulted on, when the transcription landed.
 
 ## Transcribed rules (Chromium rev `7d859f27`)
 
@@ -142,11 +145,11 @@ whole-fixture pixel-diff inverted.
 ## Usage
 
 ```sh
-npm run decorations:oracle                     # full grid (~3s), gates: transcription + skip-ink
+npm run decorations:oracle                     # full grid (~3s), gates: transcription + skip-ink + svg-geometry
 npx tsx tools/decoration-oracle.ts --only helvetica.24   # substring case filter
 npx tsx tools/decoration-oracle.ts --json report.json    # full per-case JSON dump
 npx tsx tools/decoration-oracle.ts --keep out/           # keep per-case 4x PNGs + chunk SVGs
-npx tsx tools/decoration-oracle.ts --gate-svg-geometry   # arm the R-vs-S gate (decoration-transcription acceptance)
+npx tsx tools/decoration-oracle.ts --no-gate-svg-geometry # demote the R-vs-S gate to informational
 npx tsx tools/decoration-oracle.ts --no-gate-skip-ink    # demote the skip-ink gate to informational
 ```
 

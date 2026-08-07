@@ -85,7 +85,15 @@ export interface FontInstance {
   /** Available OpenType feature tags (e.g. ['liga', 'kern', 'smcp']). Used by
    *  the synthesized-small-caps path to detect when smcp is missing. */
   availableFeatures?: string[];
-  "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
+  "OS/2"?: {
+    yStrikeoutPosition?: number; yStrikeoutSize?: number;
+    /** sTypoAscender / sTypoDescender (font units; descender stored negative).
+     *  Feed the normalized-typo-descent rule for `text-underline-position:
+     *  under` (`platform/fonts/simple_font_data.cc:360-415`, rev 7d859f27).
+     *  Present on fontkit-backed instances; native-helper instances omit them
+     *  and the rule falls back to FloatAscent/FloatDescent normalization. */
+    typoAscender?: number; typoDescender?: number;
+  };
   /** Glyph-coverage probe. `id === 0` is `.notdef` (no coverage). Both backing
    *  implementations expose it (fontkit's `Font`, the glyph-helper instance), so
    *  it's typed here rather than cast through `any` at each call site (DM-1067). */
@@ -8833,16 +8841,30 @@ export function syntheticMarkCenteringOffsetPx(primaryFont: FontInstance, ch: st
 
 
 export interface FontRun { fontKey: string; font: FontInstance; text: string; startIdx: number; endIdx: number; isPrimary: boolean }
+/**
+ * Text-decoration geometry, transcribed from Blink (Chromium rev 7d859f27).
+ * All values are UNSNAPPED CSS px — the paint-time y-snap
+ * (`decoration_line_painter.cc` `SnapYAxis` / `RoundDownThickness`) is
+ * applied where the line is emitted, because the solid/double snap differs
+ * from the dashed/dotted midpoint snap and wavy is not snapped at all.
+ */
 export interface DecorationMetrics {
-  /** Underline stroke center, px below baseline (positive = below). */
-  underlineOffsetY: number;
-  underlineThickness: number;
-  /** Line-through stroke center, px above baseline (positive = above). */
-  strikeoutOffsetY: number;
-  strikeoutThickness: number;
-  /** Overline stroke center, px above baseline (positive = above). */
-  overlineOffsetY: number;
-  overlineThickness: number;
+  /** Resolved decoration thickness — `ComputeDecorationThickness`
+   *  (`core/paint/text_decoration_info.cc:65-92`: auto → fontSize/10,
+   *  `from-font` → the face's underline thickness metric, length/percent →
+   *  `roundf(px)`), then `max(1, t)` (`:449-451`). */
+  thickness: number;
+  /** Underline rect TOP, px below the text fragment's top edge
+   *  (`core/layout/text_decoration_offset.cc:16-48,52-89,91-120`). */
+  underlineTop: number;
+  /** Overline rect TOP, px below the fragment top —
+   *  `floor(LU(FloatAscent − Ascent)) − floor(t)`
+   *  (`text_decoration_offset.cc:52-89`, `FontVerticalPositionType::TextTop`). */
+  overlineTop: number;
+  /** Line-through rect TOP, px below the fragment top —
+   *  `2·FloatAscent/3 − t/2`, unrounded
+   *  (`core/paint/text_decoration_info.cc:385-386`). */
+  lineThroughTop: number;
 }
 
 export function mergeGaps(gaps: Array<[number, number]>): Array<[number, number]> {

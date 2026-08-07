@@ -2229,81 +2229,131 @@ describe("resolveFontKey: chain walking", () => {
   });
 });
 
-describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
-  // Empirical formula tuned for SVG rasterization (NOT Chromium's source
-  // formula `fontSize / 10` — that one is theoretically correct but produces
-  // worse visual match against Chrome'\\'s HTML render due to the SVG-vs-HTML
-  // rasterization gap documented in DM-418).
-  it("uses 1px stroke for body sizes (≤ 19px)", () => {
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 12, fontWeight: "400" }).underlineThickness).toBe(1);
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" }).underlineThickness).toBe(1);
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }).underlineThickness).toBe(1);
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 18, fontWeight: "400" }).underlineThickness).toBe(1);
+describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium rev 7d859f27)", () => {
+  // Every value below is a transcription of Blink source, not a fit against
+  // rendered pixels — the geometry oracle (`tools/decoration-oracle.ts`) holds
+  // the emitted SVG to these same rules. Inputs pin `fontAscent` (Chromium's
+  // FloatAscent, captured from canvas metrics at render time) so the
+  // assertions are font-inventory-independent; the family is unresolvable on
+  // purpose except where a real face's tables are the thing under test.
+  const FF = "NotAFontFamily12345";
+  const base = { fontFamily: FF, fontSize: 16, fontWeight: "400" };
+
+  it("auto thickness = fontSize / 10, min 1 (text_decoration_info.cc:65-72,449-451)", () => {
+    expect(getDecorationMetrics({ ...base, fontSize: 16 }, { fontAscent: 15 }).thickness).toBeCloseTo(1.6, 10);
+    expect(getDecorationMetrics({ ...base, fontSize: 24 }, { fontAscent: 22 }).thickness).toBeCloseTo(2.4, 10);
+    expect(getDecorationMetrics({ ...base, fontSize: 32.5 }, { fontAscent: 30 }).thickness).toBeCloseTo(3.25, 10);
+    // max(1, t): an 8px font's 0.8px auto thickness clamps to 1.
+    expect(getDecorationMetrics({ ...base, fontSize: 8 }, { fontAscent: 7 }).thickness).toBe(1);
   });
 
-  it("bumps to 2px stroke at heading sizes (≥ 20px)", () => {
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" }).underlineThickness).toBe(2);
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 24, fontWeight: "400" }).underlineThickness).toBe(2);
-    expect(getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32, fontWeight: "400" }).underlineThickness).toBe(2);
+  it("explicit thickness = roundf(px), percent/em of font size (text_decoration_info.cc:88-92)", () => {
+    expect(getDecorationMetrics(base, { thicknessOverride: "5px", fontAscent: 15 }).thickness).toBe(5);
+    // The former implementation parseFloat'd "10%" into 10px; Blink resolves
+    // percent against the font size THEN rounds: 10% of 16 = 1.6 → 2.
+    expect(getDecorationMetrics(base, { thicknessOverride: "10%", fontAscent: 15 }).thickness).toBe(2);
+    expect(getDecorationMetrics(base, { thicknessOverride: "0.2em", fontAscent: 15 }).thickness).toBe(3); // 3.2 → roundf → 3
+    expect(getDecorationMetrics(base, { thicknessOverride: "3.5px", fontAscent: 15 }).thickness).toBe(4); // roundf half away
+    // roundf(0.4) = 0, then max(1, 0) = 1.
+    expect(getDecorationMetrics(base, { thicknessOverride: "0.4px", fontAscent: 15 }).thickness).toBe(1);
   });
 
-  it("emits underlineOffsetY = 1.5 × thickness", () => {
-    const m14 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" });
-    expect(m14.underlineOffsetY).toBe(1.5);
-    const m22 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" });
-    expect(m22.underlineOffsetY).toBe(3);
+  it("from-font thickness consults the RESOLVED face — unknown families reach the standard-font fallback, as Blink's PrimaryFont() does (text_decoration_info.cc:78-84)", () => {
+    // `resolveFont` routes an unknown family to the platform default face, so
+    // the from-font metric is that face's post table, clamped by max(1, t).
+    const t = getDecorationMetrics(base, { thicknessOverride: "from-font", fontAscent: 15 }).thickness;
+    expect(Number.isFinite(t)).toBe(true);
+    expect(t).toBeGreaterThanOrEqual(1);
   });
 
-  it("emits strikeoutOffsetY ≈ fontSize/3 above baseline", () => {
-    const m14 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" });
-    expect(m14.strikeoutOffsetY).toBe(Math.round(14 / 3) + 0.5);
-    const m22 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" });
-    expect(m22.strikeoutOffsetY).toBe(Math.round(22 / 3) + 1);
+  it.skipIf(!MACOS_FONTS)("from-font thickness reads the face's post.underlineThickness (text_decoration_info.cc:82-84)", () => {
+    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" }, { thicknessOverride: "from-font", fontAscent: 30 });
+    // Helvetica's post table thickness is thinner than the 3.25px auto value
+    // at 32.5px — the oracle's from-font cases paint a 1px snapped bar.
+    expect(m.thickness).toBeLessThan(2);
+    expect(m.thickness).toBeGreaterThanOrEqual(1);
   });
 
-  it("emits overlineOffsetY ≈ fontSize above baseline (top of em-box)", () => {
-    const m14 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 14, fontWeight: "400" });
-    expect(m14.overlineOffsetY).toBe(14 - 0.5);
-    const m22 = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 22, fontWeight: "400" });
-    expect(m22.overlineOffsetY).toBe(22 - 1);
+  it("auto underline top = trunc(ascI + gap + roundf(extra)), gap = max(1, ceil(t/2)) (text_decoration_offset.cc:16-35)", () => {
+    // fs 16, t 1.6 → gap max(1, ceil(0.8)) = 1; ascF 15 → ascI 15 → top 16.
+    expect(getDecorationMetrics(base, { fontAscent: 15 }).underlineTop).toBe(16);
+    // ascI = lroundf(FloatAscent): ascF 15.5 rounds to 16 → top 17.
+    expect(getDecorationMetrics(base, { fontAscent: 15.5 }).underlineTop).toBe(17);
+    // fs 32.5 → t 3.25 → gap ceil(1.625) = 2; ascF 30 → top 32.
+    expect(getDecorationMetrics({ ...base, fontSize: 32.5 }, { fontAscent: 30 }).underlineTop).toBe(32);
   });
 
-  it("honors explicit text-decoration-thickness length (DM-431)", () => {
-    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "5px" });
-    expect(m.underlineThickness).toBe(5);
-    expect(m.underlineOffsetY).toBe(7.5);
-    expect(m.strikeoutThickness).toBe(5);
-    expect(m.overlineOffsetY).toBe(13.5);
+  it("an explicit text-underline-offset ZEROES the auto gap (text_decoration_offset.cc:22-29)", () => {
+    // ascF 15, offset 4px: top = 15 + 0 + 4 = 19 (not 15 + 1 + 4).
+    expect(getDecorationMetrics(base, { underlineOffsetCss: "4px", fontAscent: 15 }).underlineTop).toBe(19);
+    // Negative offsets lift the line: 15 + 0 − 2 = 13.
+    expect(getDecorationMetrics(base, { underlineOffsetCss: "-2px", fontAscent: 15 }).underlineTop).toBe(13);
+    // Percent of font size: 25% of 16 = 4 → 19.
+    expect(getDecorationMetrics(base, { underlineOffsetCss: "25%", fontAscent: 15 }).underlineTop).toBe(19);
+    // roundf on the offset: 0.15em = 2.4 → 2 → 17.
+    expect(getDecorationMetrics(base, { underlineOffsetCss: "0.15em", fontAscent: 15 }).underlineTop).toBe(17);
   });
 
-  it("falls back to auto thickness when text-decoration-thickness is 'auto' or 'from-font' (DM-431)", () => {
-    const auto = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "auto" });
-    expect(auto.underlineThickness).toBe(1);
-    const fromFont = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "from-font" });
-    expect(fromFont.underlineThickness).toBe(1);
+  it.skipIf(!MACOS_FONTS)("under position: floor(LU(ascF + NTD) + LU(extra)) + 1 (text_decoration_offset.cc:52-89,112-118)", () => {
+    // The unknown family resolves to the macOS standard-font fallback (Times):
+    // OS/2 sTypoAscender 1536 / sTypoDescender −512 at upem 2048 →
+    // normalized ascent LU(1536·16/2048) = 12, NTD = 16 − 12 = 4
+    // (simple_font_data.cc:360-415).
+    const m = getDecorationMetrics(base, { underlinePositionCss: "under", fontAscent: 12, fontDescent: 4 });
+    expect(m.underlineTop).toBe(17); // floor(LU(12 + 4)) + 1
+    const withOffset = getDecorationMetrics(base, { underlinePositionCss: "under", underlineOffsetCss: "4px", fontAscent: 12, fontDescent: 4 });
+    expect(withOffset.underlineTop).toBe(21); // floor(16 + 4) + 1
   });
 
-  it("adds explicit text-underline-offset to underlineOffsetY (DM-431)", () => {
-    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { underlineOffsetCss: "6px" });
-    expect(m.underlineOffsetY).toBe(7.5);
+  it.skipIf(!MACOS_FONTS)("from-font position = roundf(ascF + face underline position + extra) (text_decoration_offset.cc:37-48)", () => {
+    // Times (the macOS standard-font fallback): post.underlinePosition −155
+    // at upem 2048 → +1.2109375px below the baseline at 16px (Skia's
+    // fUnderlinePosition sign — positive below; macOS negates
+    // CTFontGetUnderlinePosition, external/skia SkScalerContext_mac_ct.cpp
+    // rev ebf5052).
+    const m = getDecorationMetrics(base, { underlinePositionCss: "from-font", fontAscent: 15 });
+    expect(m.underlineTop).toBe(16); // roundf(15 + 1.2109375) = 16
+    const withOffset = getDecorationMetrics(base, { underlinePositionCss: "from-font", underlineOffsetCss: "3px", fontAscent: 15 });
+    expect(withOffset.underlineTop).toBe(19); // roundf(15 + 1.2109375 + 3)
   });
 
-  it("falls back to auto offset when text-underline-offset is 'auto' (DM-431)", () => {
-    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { underlineOffsetCss: "auto" });
-    expect(m.underlineOffsetY).toBe(1.5);
+  it.skipIf(!MACOS_FONTS)("from-font position = roundf(ascF + post underline position) (text_decoration_offset.cc:37-48)", () => {
+    const auto = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" }, { fontAscent: 30 });
+    const fromFont = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" }, { underlinePositionCss: "from-font", fontAscent: 30 });
+    // The face metric places the line ABOVE the auto gap position for
+    // Helvetica (post.underlinePosition is shallower than gap+ascent), and
+    // the result is integer (roundf).
+    expect(Number.isInteger(fromFont.underlineTop)).toBe(true);
+    expect(fromFont.underlineTop).toBeLessThanOrEqual(auto.underlineTop);
   });
 
-  it("combines explicit thickness + offset overrides (DM-431)", () => {
-    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 16, fontWeight: "400" }, { thicknessOverride: "5px", underlineOffsetCss: "6px" });
-    expect(m.underlineThickness).toBe(5);
-    expect(m.underlineOffsetY).toBe(13.5);
+  it("overline top = floor(LU(ascF − ascI)) − floor(t) (text_decoration_offset.cc:52-89, TextTop)", () => {
+    // ascF 15 (integer): LU(0) → 0; floor(1.6) = 1 → top −1.
+    expect(getDecorationMetrics(base, { fontAscent: 15 }).overlineTop).toBe(-1);
+    // ascF 15.6 → ascI 16 → LU(−0.4) = −0.40625 → floor −1; −1 − 1 = −2.
+    expect(getDecorationMetrics(base, { fontAscent: 15.6 }).overlineTop).toBe(-2);
+    // text-underline-offset does NOT move the overline
+    // (text_decoration_info.cc:357-370).
+    expect(getDecorationMetrics(base, { underlineOffsetCss: "6px", fontAscent: 15 }).overlineTop).toBe(-1);
+  });
+
+  it("line-through top = 2·ascF/3 − t/2, unrounded (text_decoration_info.cc:385-386)", () => {
+    expect(getDecorationMetrics(base, { fontAscent: 15 }).lineThroughTop).toBeCloseTo((2 * 15) / 3 - 0.8, 10);
+    expect(getDecorationMetrics(base, { thicknessOverride: "5px", fontAscent: 15 }).lineThroughTop).toBeCloseTo(10 - 2.5, 10);
+  });
+
+  it("falls back to fontAscent = 0.8 × fontSize when no ascent is captured", () => {
+    // ascF 12.8 → ascI 13, t 1.6 → gap 1 → top 14.
+    expect(getDecorationMetrics(base).underlineTop).toBe(14);
   });
 });
 
 describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
-  // Underline rect for 18px Helvetica auto thickness sits at +1.5 px from
-  // baseline (1.5 * thickness=1). Descender stems on `j p g y` cross this
-  // band; ascender-only / x-height-only letters do not.
+  // Band centered ~1.5px below the baseline — roughly where an auto underline
+  // paints for 18px text. Descender stems on `j p g y` cross this band;
+  // ascender-only / x-height-only letters do not. (The band inputs here are
+  // arbitrary test geometry; the REAL band comes from the caller's unsnapped
+  // decoration rect per `DecorationLinePainter::Bounds`.)
   const FS = 18;
   const FF = "Helvetica";
   const FW = "400";
