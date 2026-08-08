@@ -115,6 +115,17 @@ interface Assignment {
  *    emitter picks its per-char vs run-text branch per run from the flag. */
 export interface ShapedSplitOptions {
   mode?: "embedded" | "paths";
+  /**
+   * The run's OpenType features (HarfBuzz feature strings), threaded into the
+   * shape-then-requeue verdict below. Blink's `ShapeRange` passes the run's
+   * `font_features` into the SAME shape call that decides `.notdef` cluster
+   * membership (`platform/fonts/shaping/harfbuzz_shaper.cc:627-787`, rev
+   * 7d859f27) — a `-liga` or letter-spacing veto can change which glyphs a
+   * cluster maps to and therefore its coverage verdict. Omitted = default
+   * features, which is what every current caller passes; wiring a live value
+   * through from the render call sites is a separate, additive follow-up.
+   */
+  features?: string[];
 }
 
 /** Common/Inherited have no "likely script" — `Character::HasLikelyScript` is
@@ -207,16 +218,19 @@ function shapeVerdicts(
   scriptTag: string | undefined,
   lang: string | undefined,
   fontSize: number,
+  /** The run's OpenType features — see `ShapedSplitOptions.features`. */
+  features?: string[],
 ): ClusterVerdict[] | null {
   const item = fullText.slice(range.start, range.end);
   const pre = fullText.slice(Math.max(0, range.start - CONTEXT_UNITS), range.start);
   const post = fullText.slice(range.end, range.end + CONTEXT_UNITS);
   const axesKey = face.axes == null ? "" : JSON.stringify(face.axes);
-  const cacheKey = `${face.path}#${face.faceIndex}|${fontSize}|${axesKey}|${rtl ? "r" : "l"}|${scriptTag ?? ""}|${lang ?? ""}|${pre} ${item} ${post}`;
+  const featuresKey = features == null || features.length === 0 ? "" : features.join(",");
+  const cacheKey = `${face.path}#${face.faceIndex}|${fontSize}|${axesKey}|${rtl ? "r" : "l"}|${scriptTag ?? ""}|${lang ?? ""}|${featuresKey}|${pre} ${item} ${post}`;
   const cached = verdictCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
-  const shaped = harfbuzzShapeRun(face.path, face.faceIndex, item, rtl ? "rtl" : "ltr", fontSize, face.axes, undefined, {
+  const shaped = harfbuzzShapeRun(face.path, face.faceIndex, item, rtl ? "rtl" : "ltr", fontSize, face.axes, features, {
     context: { fullText, itemOffset: range.start, itemLength: range.end - range.start },
     script: scriptTag,
     language: lang,
@@ -833,7 +847,7 @@ function splitShapedInner(
       const rangeVs = ignoreVS ? [] : segVsSequences;
       const nextQueue: QueueRange[] = [];
       for (const range of queue) {
-        const verdicts = shapeVerdicts(current.face, text, range, seg.rtl, scriptTag, lang, fontSize);
+        const verdicts = shapeVerdicts(current.face, text, range, seg.rtl, scriptTag, lang, fontSize, opts?.features);
         if (verdicts == null) {
           // Unshapeable with this font — the whole range stays queued (or
           // terminally commits to the first candidate below when isLast).

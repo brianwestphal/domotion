@@ -605,6 +605,9 @@ export const captureScript =
         fontVariantEastAsian: cs.fontVariantEastAsian,
         fontVariantNumeric: cs.fontVariantNumeric,
         fontVariantLigatures: cs.fontVariantLigatures,
+        // CSS font-variant-position — maps to the OpenType subs/sups
+        // features (`font_features.cc:230-239`, rev 7d859f27). DM-2048.
+        fontVariantPosition: cs.fontVariantPosition,
         // CSS font-synthesis-{weight,style,small-caps} — `auto` or `none`. Not a
         // hint: Blink ANDs each into the corresponding synthesis decision, so
         // `none` means Chrome paints the thin/upright/lowercase face where we

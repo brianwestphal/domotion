@@ -733,6 +733,9 @@ export interface CapturedStyles {
   /** CSS font-variant-ligatures — e.g. 'no-common-ligatures', 'discretionary-ligatures'.
    *  Mapped to OpenType features (liga off / dlig …). DM-1117. */
   fontVariantLigatures?: string;
+  /** CSS font-variant-position — 'normal' | 'sub' | 'super'. Mapped to the
+   *  OpenType subs/sups features (`font_features.cc:230-239`, rev 7d859f27). */
+  fontVariantPosition?: string;
   /**
    * The three `font-synthesis` longhands — `'auto'` (synthesis permitted, the
    * initial value) or `'none'`. DM-1971.

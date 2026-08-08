@@ -1168,8 +1168,24 @@ export function resolveFontVariantFeatures(
   letterSpacing?: string,
   /** Computed `text-rendering`. Only `optimizeSpeed` acts. DM-1963. */
   textRendering?: string,
+  /** Computed `font-kerning` (`normal` | `none` | `auto`). DM-2048. */
+  kerning?: string,
+  /** Computed `font-variant-position` (`normal` | `sub` | `super`). DM-2048. */
+  variantPosition?: string,
 ): string[] | undefined {
   const out: string[] = [];
+  // font-kerning: none → -kern, transcribed from `FontFeatureRange::
+  // FromFontDescription` (`platform/fonts/shaping/font_features.cc:39-50`,
+  // rev 7d859f27). `normal` leaves kern on (HarfBuzz enables it by default)
+  // and `auto` — Blink's `kAutoKerning`, the initial value — ALSO falls
+  // through untouched, so only the literal `none` keyword pushes anything.
+  // Blink emits `-vkrn` for a vertical run instead, but vertical
+  // writing-mode text is rasterized before it reaches this pipeline
+  // (`docs/reference/raster-image-fallback-cases.md` E6 / SK-1128), so the
+  // horizontal tag is the only one reachable here. `-kern` is a disable, so
+  // (per `font-features.ts`) the run is routed through HarfBuzz shaping —
+  // fontkit has no way to switch a default-on feature off.
+  if (kerning === "none") out.push("-kern");
   for (const kw of (eastAsian ?? "").split(/\s+/)) {
     const tag = EAST_ASIAN_FEATURE[kw];
     if (tag != null) out.push(tag);
@@ -1233,7 +1249,39 @@ export function resolveFontVariantFeatures(
   if (!spaced && historical === "enabled") out.push("hlig");
   if (spaced || contextual === "disabled" || (contextual === "normal" && defaultIsOff)) out.push("-calt");
 
+  // font-variant-position → subs/sups, transcribed from `FontFeatureRange::
+  // FromFontDescription` (`platform/fonts/shaping/font_features.cc:230-239`,
+  // rev 7d859f27) — the two keywords are mutually exclusive so at most one
+  // tag is pushed, matching Blink's `if`/`if` (not `if`/`else if`, but the
+  // computed value can only be one of `sub` or `super` at a time).
+  if (variantPosition === "sub") out.push("subs");
+  else if (variantPosition === "super") out.push("sups");
+
   return out.length > 0 ? out : undefined;
+}
+
+// DM-2048: `chws` is enabled by default whenever `text-spacing-trim: normal`
+// makes `ShouldTrimAdjacent` true (`text_spacing_trim.h:23-25`, rev
+// 7d859f27) — Domotion never captures a non-`normal` `text-spacing-trim`, so
+// this is unconditional. Blink appends the default AFTER walking the
+// author's `font-feature-settings`, and skips it when the author's list
+// already carries `chws` (any value) or a non-zero `halt`/`palt`
+// (`platform/fonts/shaping/font_features.cc:197-228`, rev 7d859f27). A
+// vertical run would use `vchw` instead, but vertical writing-mode text is
+// rasterized before it reaches this pipeline (`docs/reference/
+// raster-image-fallback-cases.md` E6 / SK-1128), so only the horizontal tag
+// is reachable here. `chws` is GPOS-only and enable-only, so fontkit can
+// carry it without a HarfBuzz reroute.
+export function resolveChwsFeature(ffsFeatures: string[] | undefined): string[] | undefined {
+  if (ffsFeatures != null) {
+    for (const f of ffsFeatures) {
+      const enabled = !f.startsWith("-");
+      const tag = enabled ? f.split("=")[0] : f.slice(1);
+      if (tag === "chws") return undefined;
+      if (enabled && (tag === "halt" || tag === "palt")) return undefined;
+    }
+  }
+  return ["chws"];
 }
 
 /** Blink's `LetterSpacing() != 0` — `normal` and `0px` are both zero. DM-1963. */
@@ -1280,18 +1328,22 @@ export function parseFontFeatureSettings(css: string | undefined): string[] | un
       out.push(`-${tag}`);
       continue;
     }
-    // DM-1267: map `numr` / `dnom` to `sups` / `subs`. Authors use bare
-    // `font-feature-settings: "numr"` as a faux-superscript (Apple's
-    // `sup.footnote` footnote numbers). Chrome/HarfBuzz apply `numr` on
-    // explicit request and substitute the font's small raised numerator glyph,
-    // but fontkit only fires the font's `numr`/`dnom` GSUB lookups inside a
-    // `frac` run (they're frac-contextual in SF Pro / most fonts), so a bare
-    // `numr` is a no-op and the digit renders full-size on the baseline. `sups`
-    // / `subs` ARE applied standalone by fontkit and select near-identical
-    // glyphs (same advance; SF Pro's sups "1" sits ~0.8px higher than its numr
-    // "1" at 19px) — a faithful stand-in that reproduces the small raised mark.
-    const mapped = tag === "numr" ? "sups" : tag === "dnom" ? "subs" : tag;
-    out.push(num === 1 ? mapped : `${mapped}=${num}`);
+    // `numr` / `dnom` are kept verbatim, the way Blink keeps every
+    // `font-feature-settings` entry (`font_features.cc:203-225` above) — a
+    // previous revision remapped them to `sups`/`subs` because fontkit only
+    // fires a font's `numr`/`dnom` GSUB lookups inside a `frac` run and a bare
+    // `numr` was a fontkit no-op. That was a fitted stand-in (measured "SF
+    // Pro's sups '1' sits ~0.8px higher than its numr '1'"), not what Chrome
+    // does: Chrome requests the real `numr`/`dnom` tags globally, and
+    // HarfBuzz's `hb_ot_shape_collect_features` registers them as ordinary
+    // user features (`hb-ot-shape.cc:351-353`, rev 4de187d) — the automatic
+    // fraction-slash masking at `:685-744` is an ADDITIONAL restriction for
+    // the `frac` auto-detection path and does not gate an explicitly
+    // requested global feature. `featureListNeedsHbShaping` now routes any
+    // run carrying `numr`/`dnom` through the HarfBuzz proxy
+    // (`fontFeatureValueShapingOverride`) instead of fontkit, so the real
+    // GSUB lookup applies.
+    out.push(num === 1 ? tag : `${tag}=${num}`);
   }
   return out.length > 0 ? out : undefined;
 }
@@ -1446,13 +1498,18 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // DM-822: pre-divide xOffsetsRel by cx when an anisotropic correction
   // wrap will multiply positions on emit. No-op for uniform-scale text.
   const xOffsetsRel = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
+  const ffsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
   const features = mergeFeatureLists(
     mergeFeatureLists(
-      resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
-      resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
-        el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering),
+      mergeFeatureLists(
+        resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
+        resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
+          el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering,
+          el.styles.fontKerning, el.styles.fontVariantPosition),
+      ),
+      ffsFeatures,
     ),
-    parseFontFeatureSettings(el.styles.fontFeatureSettings),
+    resolveChwsFeature(ffsFeatures),
   );
   const variationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
   // DM-495: when the only segment is a pseudo with its own typography
@@ -1747,13 +1804,18 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // resolveCapsFeatures (module scope) for the full spec mapping. Merge with
     // author-set `font-feature-settings` (DM-564) — e.g. Inter's `cv11`
     // single-story `a` alternate is set by next/font marketing pages.
+    const segFfsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
     const segFeatures = mergeFeatureLists(
       mergeFeatureLists(
-        resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
-        resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
-        el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering),
+        mergeFeatureLists(
+          resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
+          resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
+          el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering,
+          el.styles.fontKerning, el.styles.fontVariantPosition),
+        ),
+        segFfsFeatures,
       ),
-      parseFontFeatureSettings(el.styles.fontFeatureSettings),
+      resolveChwsFeature(segFfsFeatures),
     );
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.

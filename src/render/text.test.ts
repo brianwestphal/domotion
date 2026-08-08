@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveFontVariantFeatures } from "./text.js";
+import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveChwsFeature, resolveFontVariantFeatures } from "./text.js";
+import { featureListNeedsHbShaping } from "./font-features.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -232,16 +233,23 @@ describe("parseFontFeatureSettings (DM-564)", () => {
     expect(parseFontFeatureSettings('"dlig" 0, "liga" 0')).toEqual(["-dlig", "-liga"]);
   });
 
-  it("DM-1267: maps numr/dnom to sups/subs (fontkit applies those standalone)", () => {
-    // Authors use bare `font-feature-settings: "numr"` as a faux-superscript
-    // (Apple's `sup.footnote` footnote numbers). fontkit only fires a font's
-    // numr/dnom GSUB lookups inside a `frac` run, so a bare numr is a no-op;
-    // sups/subs ARE applied standalone and select near-identical glyphs.
-    expect(parseFontFeatureSettings('"numr"')).toEqual(["sups"]);
-    expect(parseFontFeatureSettings('"dnom"')).toEqual(["subs"]);
-    expect(parseFontFeatureSettings('"numr", "kern"')).toEqual(["sups", "kern"]);
-    // Non-mapped tags pass through unchanged alongside.
-    expect(parseFontFeatureSettings('"tnum", "numr"')).toEqual(["tnum", "sups"]);
+  it("keeps numr/dnom verbatim — Blink passes every setting through unchanged (font_features.cc:203-225)", () => {
+    // DM-2048: a previous revision remapped `numr`/`dnom` to `sups`/`subs` as a
+    // fitted stand-in for a fontkit limitation (fontkit only fires a font's
+    // numr/dnom GSUB lookups inside a `frac` run, so a bare numr was a
+    // fontkit no-op). Chrome does not do this — `FontFeatureRange::
+    // FromFontDescription` appends every `font-feature-settings` entry
+    // verbatim, and `featureListNeedsHbShaping` now routes a run carrying
+    // numr/dnom through real HarfBuzz shaping instead (see
+    // `font-features.test.ts`), so the stand-in is no longer needed.
+    expect(parseFontFeatureSettings('"numr"')).toEqual(["numr"]);
+    expect(parseFontFeatureSettings('"dnom"')).toEqual(["dnom"]);
+    expect(parseFontFeatureSettings('"numr", "kern"')).toEqual(["numr", "kern"]);
+    expect(parseFontFeatureSettings('"tnum", "numr"')).toEqual(["tnum", "numr"]);
+    // A disabled numr/dnom still passes through as a HarfBuzz-syntax disable
+    // (already true before this change — the remap only applied to the
+    // enabled/valued branch).
+    expect(parseFontFeatureSettings('"numr" 0')).toEqual(["-numr"]);
   });
 
   it("DM-1960: keeps explicit values > 1 as HarfBuzz `tag=N` entries", () => {
@@ -365,6 +373,81 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
     expect(resolveFontVariantFeatures(undefined, undefined, "no-historical-ligatures")).toBeUndefined();
     expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures no-discretionary-ligatures"))
       .toEqual(["-liga", "-clig"]);
+  });
+
+  // The upstream shape: `FontFeatureRange::FromFontDescription`,
+  // `platform/fonts/shaping/font_features.cc:39-50`, rev 7d859f27 —
+  // `kNoneKerning` pushes `-kern` (vertical would push `-vkrn`, unreachable
+  // here since vertical writing-mode text is rasterized before this pipeline,
+  // `docs/reference/raster-image-fallback-cases.md` E6); `kNormalKerning` and
+  // `kAutoKerning` push nothing (kern is on by default in HarfBuzz).
+  it("font-kerning: none pushes -kern (font_features.cc:39-50)", () => {
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "none"))
+      .toEqual(["-kern"]);
+  });
+
+  it("font-kerning: normal / auto push nothing", () => {
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "normal"))
+      .toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "auto"))
+      .toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined))
+      .toBeUndefined();
+  });
+
+  // `-kern` is a HarfBuzz-only disable — the routing predicate must see it.
+  it("font-kerning: none routes the run through HarfBuzz shaping", () => {
+    expect(featureListNeedsHbShaping(resolveFontVariantFeatures(
+      undefined, undefined, undefined, undefined, undefined, "none"))).toBe(true);
+  });
+
+  // `FontFeatureRange::FromFontDescription`, `font_features.cc:230-239`, rev
+  // 7d859f27 — `kSubVariantPosition` → `subs`, `kSuperVariantPosition` → `sups`.
+  // The two are mutually exclusive (Chrome's computed `font-variant-position`
+  // is a single keyword), so only one tag is ever pushed.
+  it("font-variant-position maps sub/super to subs/sups (font_features.cc:230-239)", () => {
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "sub"))
+      .toEqual(["subs"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "super"))
+      .toEqual(["sups"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "normal"))
+      .toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, undefined))
+      .toBeUndefined();
+  });
+});
+
+// DM-2048: `chws` defaults on whenever `text-spacing-trim: normal` makes
+// `ShouldTrimAdjacent` true (`text_spacing_trim.h:23-25`, rev 7d859f27),
+// which is unconditional since Domotion never captures another value.
+// `FontFeatureRange::FromFontDescription` appends it AFTER walking the
+// author's `font-feature-settings`, skipping the default when the author
+// already declared `chws` (any value) or a non-zero `halt`/`palt`
+// (`platform/fonts/shaping/font_features.cc:197-228`, rev 7d859f27).
+describe("resolveChwsFeature (DM-2048, font_features.cc:197-228)", () => {
+  it("appends chws when the author set nothing", () => {
+    expect(resolveChwsFeature(undefined)).toEqual(["chws"]);
+    expect(resolveChwsFeature([])).toEqual(["chws"]);
+    expect(resolveChwsFeature(["cv11"])).toEqual(["chws"]);
+  });
+
+  it("skips the default when the author already declared chws, at any value", () => {
+    expect(resolveChwsFeature(["chws"])).toBeUndefined();
+    expect(resolveChwsFeature(["-chws"])).toBeUndefined();
+    expect(resolveChwsFeature(["chws=2"])).toBeUndefined();
+  });
+
+  it("skips the default when the author set a NON-ZERO halt or palt", () => {
+    expect(resolveChwsFeature(["halt"])).toBeUndefined();
+    expect(resolveChwsFeature(["palt"])).toBeUndefined();
+    expect(resolveChwsFeature(["palt=1"])).toBeUndefined();
+  });
+
+  it("does NOT skip the default for a ZERO-value halt/palt — Blink's check is `feature.value &&`", () => {
+    // `feature.value && (feature.tag == halt_or_vhal || feature.tag == palt_or_vpal)`
+    // — a disabled (0-value) halt/palt does not veto the default chws.
+    expect(resolveChwsFeature(["-halt"])).toEqual(["chws"]);
+    expect(resolveChwsFeature(["-palt"])).toEqual(["chws"]);
   });
 });
 

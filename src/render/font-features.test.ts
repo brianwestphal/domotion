@@ -17,6 +17,21 @@ describe("featureListNeedsHbShaping", () => {
     expect(featureListNeedsHbShaping(["cv11", "-kern"])).toBe(true);
     expect(featureListNeedsHbShaping(["salt=2"])).toBe(true);
   });
+
+  // DM-2048: `numr`/`dnom` fire a font's GSUB lookups only inside a `frac`
+  // run under fontkit, so a bare request needs HarfBuzz (which applies a
+  // globally-requested feature wherever the font's lookup matches — see
+  // `hb-ot-shape.cc:351-353`, rev 4de187d) to reproduce Chrome's paint.
+  it("is true for a bare numr/dnom entry, even with no disable or value", () => {
+    expect(featureListNeedsHbShaping(["numr"])).toBe(true);
+    expect(featureListNeedsHbShaping(["dnom"])).toBe(true);
+    expect(featureListNeedsHbShaping(["cv11", "numr"])).toBe(true);
+  });
+
+  it("is false for a tag that merely CONTAINS numr/dnom as a substring", () => {
+    // Guards the exact-match: `f === "numr"`, not `f.includes("numr")`.
+    expect(featureListNeedsHbShaping(["numrx"])).toBe(false);
+  });
 });
 
 describe("fontkitFeatureList", () => {

@@ -25,12 +25,16 @@
  */
 
 /** True when any entry carries state fontkit cannot express — a disable
- *  (`-liga`) or an explicit value (`aalt=2`). Such a list requires HarfBuzz
- *  shaping to match Chrome. */
+ *  (`-liga`) or an explicit value (`aalt=2`) — or is `numr`/`dnom`, which
+ *  fontkit applies only inside a `frac`-run GSUB context while HarfBuzz applies
+ *  them wherever requested (see `parseFontFeatureSettings`'s citation of
+ *  `hb-ot-shape.cc:351-353`, HarfBuzz rev 4de187d). Such a list requires
+ *  HarfBuzz shaping to match Chrome. */
 export function featureListNeedsHbShaping(features: string[] | undefined): boolean {
   if (features == null) return false;
   for (const f of features) {
     if (f.startsWith("-") || f.includes("=")) return true;
+    if (f === "numr" || f === "dnom") return true;
   }
   return false;
 }
