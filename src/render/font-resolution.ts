@@ -169,6 +169,14 @@ export interface FontInstance {
    *  outright. `hb.Blob` takes an ArrayBuffer, so the bytes are all the shaper
    *  needed; `registerHbBufferSource` turns them into a source it can open. */
   webfontBuffer?: Buffer;
+  /** The matched `@font-face` variant's `unicode-range` descriptor, on
+   *  instances resolved through the webfont registry and only when the variant
+   *  declares one. The cluster-granularity splitter clamps its shaped-cluster
+   *  verdicts to it, mirroring how Blink passes the segmented face's range set
+   *  into shaping so out-of-range characters read as `.notdef` and re-queue
+   *  (`ShapeRange(..., current_font_data_for_range_set->Ranges(), ...)`,
+   *  `harfbuzz_shaper.cc:1119`, rev 7d859f27). */
+  webfontUnicodeRange?: Array<[number, number]>;
   /** The resolved face's `post.italicAngle` in degrees (0 for an upright face,
    *  negative for a right-leaning italic). Drives the embedded-mode faux-italic
    *  decision (DM-1695): when italic is requested but the resolved face is
@@ -1012,6 +1020,9 @@ function tagWebfontInstance(instance: FontInstance, variant: WebfontVariant): Fo
   if (variant.synthesisFace != null) instance.webfontFace = variant.synthesisFace;
   // DM-1964: carry the file's bytes so the HarfBuzz reroutes can open the face.
   if (variant.buffer != null) instance.webfontBuffer = variant.buffer;
+  // Carry the variant's `unicode-range` so the cluster-granularity splitter can
+  // clamp shaped-cluster verdicts to it (Blink's segmented-face range set).
+  if (variant.unicodeRange != null) instance.webfontUnicodeRange = variant.unicodeRange;
   return instance;
 }
 
@@ -8417,7 +8428,7 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
  * read from the same field, so the shaper and the outlines sit on one master by
  * construction rather than by two derivations agreeing.
  */
-function webfontShapingFace(base: FontInstance):
+export function webfontShapingFace(base: FontInstance):
     { path: string; faceIndex: number; axes: Record<string, number> | null } | null {
   const bytes = base.webfontBuffer;
   if (bytes == null) return null;

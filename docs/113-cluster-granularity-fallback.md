@@ -1,9 +1,13 @@
-# 113 — Font fallback at shaped-cluster granularity (design)
+# 113 — Font fallback at shaped-cluster granularity
 
-Status: **design + measured prototype** — not shipped. The prototype is
-flag-gated (`DOMOTION_CLUSTER_FALLBACK=1`, default OFF) in
-`src/render/cluster-fallback.ts`; the shipping per-codepoint path is unchanged
-with the flag off. Implementation lands under follow-up tickets.
+Status: **SHIPPED, default-on** for the embedded-font run splitter.
+`src/render/cluster-fallback.ts` replaces `splitTextIntoFontRuns`' per-codepoint
+cmap walk; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy walk for an A/B,
+and a decline (a face HarfBuzz cannot open) falls back to it automatically. The
+shipped implementation scores **10/10** on the Chrome probe corpus of §2 (the
+design-time prototype scored 9/10; script itemization closed its one miss). The
+glyph-path emitter (`textToPathMarkup`'s in-function walk) still decides per
+codepoint — porting it is a tracked follow-up.
 
 All Chromium references are to `external/chromium` at rev **7d859f27
 (2026-06-27)**; HarfBuzz references to `external/harfbuzz` at rev **4de187d
@@ -43,8 +47,12 @@ per-codepoint oracle). The unit is wrong, and no table can fix a wrong unit.
 ## 2. Verified divergence classes (Chrome ground truth, CDP `CSS.getPlatformFontsForNode`)
 
 Probed against Playwright Chromium on macOS before designing anything, per the
-falsify-first rule. Ten (font, text) cases; the shipping path matches Chrome's
-per-glyph font assignment on **6/10**, the prototype on **9/10**:
+falsify-first rule. Ten (font, text) cases; the legacy per-codepoint path
+matches Chrome's per-glyph font assignment on **6/10**, the design-time
+prototype on **9/10**, and the shipped implementation on **10/10** (the
+"prototype" column below is preserved as the design-time record; the shipped
+splitter additionally passes the Geneva `e`+U+0E48 case because script
+itemization now precedes the requeue loop):
 
 | case | Chrome paints | shipping path | prototype |
 |---|---|---|---|
@@ -89,9 +97,8 @@ would have scored the wrong unit at 100% forever.
 
 ## 4. Architecture
 
-The prototype (`src/render/cluster-fallback.ts`) is the design in miniature;
-the follow-up implementation replaces `splitTextIntoFontRuns`'s per-codepoint
-walk with it:
+The shipped implementation (`src/render/cluster-fallback.ts`) replaces
+`splitTextIntoFontRuns`'s per-codepoint walk:
 
 ```
 capture text
@@ -129,26 +136,61 @@ capture text
   NFD machinery are retirement candidates *after* the mechanism ships — not
   before, and each retirement needs its own A/B.
 
-### Blink details the implementation must keep (and the prototype does not)
+### Blink details the shipped implementation carries (closed from the prototype)
 
-- **Context**: Blink fills the *whole* text into the hb buffer with an item
-  offset/length (`CaseMappingHarfBuzzBufferFiller`, `hb_buffer_add_utf16(span,
-  size, start_index, num_characters)`), so re-queued ranges shape with joining
-  context. The prototype shapes substrings; a lam re-queued off the end of an
-  Arabic word would lose its init/medial form. harfbuzzjs's `Buffer.addText`
-  has no offset/length parameters — the implementation needs a small wasm-API
-  addition (hb_buffer_add_utf8 with item bounds) or pre/post-context feeding.
-- **Direction/script on the buffer**: Blink sets them explicitly from the bidi
-  run and itemizer; the prototype guesses (`guessSegmentProperties`).
-- **The last-resort stage**: Blink shapes once more with Times (macOS) before
-  committing `.notdef`. The prototype skips straight to the terminal; on the
-  probe corpus the outcome was identical (Times covered none of the failing
-  clusters), but that is a property of the corpus, not of the design.
-- **`kUnmatchedVSGlyphId`** (variation-selector re-cycling with
-  `kReshapeQueueReset`, `harfbuzz_shaper.cc:1009-1020`) and the U+3000
-  synthesized-space special case (`:684-691`) are unmodeled.
-- **Webfont primaries** currently decline (no exported bytes→face seam in the
-  prototype); `webfontShapingFace` exists and closes this.
+- **Script itemization first**: `segmentForShaping` (the RunSegmenter mirror,
+  with bidi levels from `bidiLevelsFor`) runs before the requeue loop; each
+  segment gets its own FontFallbackIterator, exactly as `ShapeSegment` is
+  invoked per `RunSegmenterRange`. This is what closed the Geneva `e`+U+0E48
+  probe miss.
+- **Context**: the buffer is filled with the *whole* text plus item
+  offset/length. The design-time note that harfbuzzjs's `Buffer.addText` lacks
+  offset/length parameters was **stale** — the vendored build's `addText(text,
+  itemOffset, itemLength)` maps directly onto `hb_buffer_add_utf16`'s item
+  bounds, so no wasm-API addition was needed. Re-queued ranges therefore keep
+  Arabic joining context, and cluster values come back as absolute indices.
+- **Direction/script/language on the buffer**: set explicitly per segment
+  (`hb_buffer_set_script` via the generated UCD-name→ISO 15924 table
+  `script-iso15924.generated.ts`, direction from the segment's bidi level,
+  language from the run's `lang`), after `guessSegmentProperties` so the
+  explicit values win.
+- **The last-resort stage**: `GetLastResortFallbackFont` is shaped before the
+  terminal — Times then Lucida Grande on macOS (`mac/font_cache_mac.mm:376-394`),
+  the "Sans"/"Arial" resolution of `skia/font_cache_skia.cc:146-175` mapped to
+  the calibrated `helvetica` (Linux) / `arial` (win32) keys — deduped like any
+  candidate, with `kFirstCandidateForNotdefGlyph` re-returning the first
+  candidate so ITS `.notdef` paints.
+- **U+3000 synthesized-space** (`harfbuzz_shaper.cc:684-691`): a U+3000 shaped
+  to the current font's SPACE glyph reads `.notdef` unless shaping with the
+  last font, so a font with a real ideographic-space glyph is found.
+- **`kUnmatchedVSGlyphId` re-cycling**: modeled outside the glyph funcs (wasm
+  fonts take no callbacks) — `variationGlyph` asks the identical cmap-14
+  question per (base, selector) pair, the VS15/VS16 presentation rule
+  substitutes `isColorEmojiFontKey` for Blink's
+  `TypefaceHasAnySupportedColorTable`, an unmatched sequence re-queues its
+  cluster, and exhausting the list with unmatched sequences left triggers the
+  `kReshapeQueueReset` restart in ignore-VS mode. `font-variant-emoji`
+  emoji/unicode forcing rides the same path as a synthesized VS16.
+- **Webfont primaries and unicode-range partitions**: the primary shapes via
+  its retained `@font-face` bytes (`webfontShapingFace` /
+  `registerHbBufferSource`); a range-partitioned family walks its variants as
+  kSegmentedFace faces (contribution checked against the hint list, subsetted
+  variants exempt from the unique-set dedup), with cluster verdicts clamped to
+  the variant's `unicode-range` — the stand-in for Blink passing the face's
+  range set into `ShapeRange` (`harfbuzz_shaper.cc:1119`).
+- **Shape-verdict cache**: keyed on face, size, axes, direction, script,
+  language, and the item text with five code units of context per side —
+  exact, because `hb_buffer_t::CONTEXT_LENGTH` is 5 (`hb-buffer.hh`, rev
+  4de187d). LRU-capped at 4096.
+
+### Calibrated Domotion behaviors deliberately preserved (retirement = own A/B)
+
+- The DM-1215 dotted-circle cluster runs (◌ + mark through real HarfBuzz in the
+  mark's font) are pinned before the requeue loop.
+- Decomposed resolver answers (math-alpha base substitution, cross-font NFD)
+  commit the hint character directly with the substituted text.
+- The ◌-insertion and orphaned-ignorable text rewrites still run upstream at
+  the `renderTextAsPath` funnel, unchanged.
 
 ## 5. The static-chain question (measurement)
 
@@ -253,8 +295,8 @@ split at the exact cluster boundary Chrome uses.
 
 ## 8. Flags and instrumentation (in-tree now)
 
-- `DOMOTION_CLUSTER_FALLBACK=1` — enable the prototype split
-  (`src/render/cluster-fallback.ts`; a decline falls back to the shipping path).
+- `DOMOTION_CLUSTER_FALLBACK=0` — restore the legacy per-codepoint walk (the
+  shaped splitter is the default; a decline also falls back per call).
 - `DOMOTION_CLUSTER_FALLBACK_DEBUG=1` — print invoked/accepted counters at exit
   (armed-mechanism proof for A/Bs; a flag being on is not evidence a mechanism
   ran).

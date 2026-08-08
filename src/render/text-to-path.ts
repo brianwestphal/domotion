@@ -1437,12 +1437,13 @@ function splitTextIntoFontRuns(
    *  `resolveSystemFallbackKeyForCp`'s `declaredFamily` param. */
   fontFamily?: string,
 ): FontRun[] {
-  // Prototype (default OFF): fallback at shaped-cluster granularity — Blink's
-  // shape-then-requeue mechanism instead of the per-codepoint cmap walk below.
-  // `DOMOTION_CLUSTER_FALLBACK=1` enables it; a decline (null) falls through to
-  // the shipping path. See docs/113-cluster-granularity-fallback.md.
+  // Default: fallback at shaped-cluster granularity — Blink's shape-then-
+  // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
+  // 7d859f27) instead of the per-codepoint cmap walk below. A decline (null)
+  // falls through to the legacy walk, and `DOMOTION_CLUSTER_FALLBACK=0`
+  // restores it wholesale for an A/B. See docs/113-cluster-granularity-fallback.md.
   if (clusterFallbackEnabled()) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji);
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily);
     if (shaped != null) return shaped;
   }
   const runs: FontRun[] = [];

@@ -51,7 +51,18 @@ interface ShapeResult {
 // The PostScript name is part of the key because a path alone does not identify
 // a face: macOS ships most system families as `.ttc` collections, and the cut we
 // resolve is usually not the first member (see `faceIndexForPostScriptName`).
-interface HbEntry { font: { glyphToPath(id: number): string }; pathCache: Map<number, PathCommand[]> }
+interface HbEntry {
+  font: {
+    glyphToPath(id: number): string;
+    /** hb_font_get_nominal_glyph — undefined when the cmap has no entry. */
+    nominalGlyph(unicode: number): number | undefined;
+    /** hb_font_get_variation_glyph — the cmap-14 sequence lookup Blink's
+     *  variation-selector handling consults; undefined when the face carries no
+     *  glyph for (base, selector). */
+    variationGlyph(unicode: number, variationSelector: number): number | undefined;
+  };
+  pathCache: Map<number, PathCommand[]>;
+}
 const hbFontCache = new Map<string, HbEntry | null>();
 
 // Mirror of `glyph-helper.ts::parseSvgPath` — HarfBuzz's glyphToPath emits the
@@ -203,7 +214,7 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
     if (count > 0 && faceIndex >= 0 && faceIndex < count) {
       const face = new hb.Face(blob, faceIndex);
       const font = new hb.Font(face);
-      entry = { font: font as unknown as { glyphToPath(id: number): string }, pathCache: new Map() };
+      entry = { font: font as unknown as HbEntry["font"], pathCache: new Map() };
     }
   } catch {
     entry = null; // unreadable / non-file path — caller falls back to normal shaping
@@ -330,6 +341,37 @@ export function harfbuzzShapeRun(
    * morx common ligatures exactly as Chrome does. Omitted = default features.
    */
   features?: string[],
+  /**
+   * Blink-parity buffer options for the cluster-granularity splitter
+   * (`cluster-fallback.ts`). All optional; existing callers are unchanged.
+   */
+  opts?: {
+    /**
+     * The full surrounding text plus the item bounds of the slice to shape.
+     * Blink fills the WHOLE text into the hb buffer with an item offset/length
+     * (`CaseMappingHarfBuzzBufferFiller` → `hb_buffer_add_utf16(span, size,
+     * start_index, num_characters)`, `harfbuzz_shaper.cc:1092-1094`, rev
+     * 7d859f27), so a re-queued range keeps its joining/normalization context —
+     * a lam re-queued off the end of an Arabic word still takes its init/medial
+     * form. `text` must equal `fullText.slice(itemOffset, itemOffset +
+     * itemLength)`; the returned `clusters` are then indices into `fullText`.
+     */
+    context?: { fullText: string; itemOffset: number; itemLength: number };
+    /**
+     * ISO 15924 script tag for `hb_buffer_set_script`. Blink sets the
+     * RunSegmenter segment's script explicitly and never lets HarfBuzz guess
+     * (`ShapeRange` ← `harfbuzz_shaper.cc:1120-1123` → `:339-341`).
+     */
+    script?: string;
+    /** BCP-47 language for `hb_buffer_set_language` (same Blink cite). */
+    language?: string;
+    /**
+     * Skip outline extraction — the cluster-granularity splitter only needs
+     * glyph ids and clusters for its shaped/notdef verdict, and `glyphToPath`
+     * is the expensive call.
+     */
+    verdictOnly?: boolean;
+  },
 ): ShapeResult | null {
   const entry = getHbEntry(fontPath, faceIndex);
   if (entry == null) return null;
@@ -350,11 +392,22 @@ export function harfbuzzShapeRun(
   // FinalizationRegistry (no manual destroy/free); this only fires for the rare
   // divergent codepoints, so the per-call allocation is negligible.
   const buf = new hb.Buffer();
-  buf.addText(text);
+  // With a context, fill the WHOLE text and clamp the shaped item to its
+  // bounds — `hb_buffer_add_utf16`'s item_offset/item_length, the same call
+  // Blink's buffer filler makes. Cluster values are then absolute indices
+  // into `fullText`.
+  const ctx = opts?.context;
+  if (ctx != null) buf.addText(ctx.fullText, ctx.itemOffset, ctx.itemLength);
+  else buf.addText(text);
   // Infer script + language from content, as Blink does via ICU, then override
   // the direction when the caller knows it. Order matters: guessing also sets a
   // direction, so the explicit set has to come second or it is overwritten.
   buf.guessSegmentProperties();
+  // Explicit script/language when the caller (the run segmenter) resolved
+  // them — Blink's hb_buffer_set_script / hb_buffer_set_language, applied
+  // after the guess for the same override-ordering reason as direction.
+  if (opts?.script != null) buf.setScript(opts.script);
+  if (opts?.language != null) buf.setLanguage(opts.language);
   // harfbuzzjs takes HarfBuzz's numeric hb_direction_t, not a string:
   // HB_DIRECTION_LTR = 4, HB_DIRECTION_RTL = 5 (`hb.Direction`).
   if (direction != null) buf.setDirection(direction === "rtl" ? hb.Direction.RTL : hb.Direction.LTR);
@@ -374,14 +427,22 @@ export function harfbuzzShapeRun(
   const glyphs: ShapedGlyph[] = [];
   const positions: ShapeResult["positions"] = [];
   const clusters: number[] = [];
+  const clusterSource = ctx != null ? ctx.fullText : text;
   for (const g of infos) {
     const gid = g.codepoint;
-    let cmds = pathCache.get(gid);
-    if (cmds == null) {
-      cmds = parseSvgPath(font.glyphToPath(gid));
-      pathCache.set(gid, cmds);
+    let cmds: PathCommand[];
+    if (opts?.verdictOnly === true) {
+      cmds = [];
+    } else {
+      const cached = pathCache.get(gid);
+      if (cached == null) {
+        cmds = parseSvgPath(font.glyphToPath(gid));
+        pathCache.set(gid, cmds);
+      } else {
+        cmds = cached;
+      }
     }
-    const srcCp = text.codePointAt(g.cluster);
+    const srcCp = clusterSource.codePointAt(g.cluster);
     glyphs.push({
       id: gid,
       path: { commands: cmds },
@@ -397,6 +458,34 @@ export function harfbuzzShapeRun(
     clusters.push(g.cluster);
   }
   return { glyphs, positions, clusters };
+}
+
+/**
+ * Direct glyph queries against a HarfBuzz-openable face, for the
+ * cluster-granularity splitter's Blink-parity special cases:
+ *
+ * - `nominalGlyph` answers the U+3000 rule — `ExtractShapeResults` treats a
+ *   U+3000 shaped to the SPACE glyph as `.notdef` unless shaping with the last
+ *   font, because HarfBuzz synthesizes IDEOGRAPHIC SPACE from the space glyph
+ *   (`harfbuzz_shaper.cc:684-691`, rev 7d859f27, crbug.com/1193282).
+ * - `variationGlyph` is the cmap-14 sequence lookup behind Blink's
+ *   `kUnmatchedVSGlyphId` sentinel (`HarfBuzzGetGlyph`,
+ *   `shaping/harfbuzz_face.cc:169-207`): a face with the base glyph but no
+ *   glyph for (base, selector) is treated as NOT shaping the sequence, so the
+ *   cluster re-queues in search of a face that has it.
+ *
+ * Returns null when the face cannot be opened; glyph ids are 0 when absent.
+ */
+export function harfbuzzGlyphQuery(fontPath: string, faceIndex: number | null): {
+  nominalGlyph(cp: number): number;
+  variationGlyph(cp: number, selector: number): number;
+} | null {
+  const entry = getHbEntry(fontPath, faceIndex);
+  if (entry == null) return null;
+  return {
+    nominalGlyph: (cp) => entry.font.nominalGlyph(cp) ?? 0,
+    variationGlyph: (cp, selector) => entry.font.variationGlyph(cp, selector) ?? 0,
+  };
 }
 
 /** `${path}#${faceIndex}` → does the face carry both tables. */
