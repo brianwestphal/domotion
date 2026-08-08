@@ -2271,7 +2271,7 @@ describe("synthesized small-caps (DM-294)", () => {
   // path: lowercase letters render as uppercase glyphs at ~0.7× the font
   // size, while uppercase letters stay at full size. The renderer mirrors
   // this when it sees `features: ['smcp']` and the font lacks the feature.
-  it.skipIf(!MACOS_FONTS)("renders lowercase letters as uppercase glyphs at the small-cap scale", () => {
+  it.skipIf(!MACOS_FONTS)("renders lowercase letters as uppercase glyphs at the small-cap scale, ROUNDED to a whole pixel (simple_font_data.cc:310-314 lroundf)", () => {
     // Render "abc" at 16px Helvetica with smcp.
     const out = renderTextAsPath("abc", 0, 0, {
       fontSize: 16, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
@@ -2279,17 +2279,22 @@ describe("synthesized small-caps (DM-294)", () => {
     });
     expect(out).not.toBeNull();
     // Synth path emits one <g transform="translate(x,0) scale(s,-s)"> per
-    // char. With SMALL_CAP_SCALE = 0.7 and 16/2048 unit scale, the per-char
-    // scale is 16/2048 * 0.7 ≈ 0.00547. Confirm that we see the small-cap
-    // scale on each <g> (not the full-size 0.00781).
+    // char. Blink's `CreateScaledFontData` doesn't scale continuously — it
+    // rounds the SIZE first: `lroundf(ComputedSize() * 0.7)`. At 16px that's
+    // lroundf(11.2) = 11, so the per-char scale is 11/2048 ≈ 0.0053711, not
+    // the unrounded 16×0.7/2048 ≈ 0.0054688 a flat-0.7 constant would give.
+    // The two differ by ~10⁻⁴ — this assertion's precision (6 decimals) is
+    // tight enough to fail against the unrounded constant.
     const matches = out!.match(/scale\(([^,]+),/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(3);
     // Outer scale on the wrapper <g transform="translate(x,baselineY)"> is
     // 1, so we look at the inner per-char scales (4 total: 1 outer + 3 char).
-    // Each should be ≈ 0.00547 (small-cap), not 0.00781 (full).
+    // Each should be ≈ 11/2048 (rounded small-cap), not 16/2048 (full) NOR
+    // the unrounded 16×0.7/2048.
     const charScales = matches.slice(1, 4).map((m) => parseFloat(m.replace(/scale\(/, "")));
     for (const s of charScales) {
-      expect(s).toBeCloseTo(16 / 2048 * 0.7, 3);
+      expect(s).toBeCloseTo(11 / 2048, 5);
+      expect(s).not.toBeCloseTo(16 / 2048 * 0.7, 5);
     }
   });
 
@@ -2305,6 +2310,49 @@ describe("synthesized small-caps (DM-294)", () => {
     for (const s of charScales) {
       expect(s).toBeCloseTo(16 / 2048, 3);
     }
+  });
+});
+
+describe("synthesized small-caps (DM-294): embedded-font mode font-size ROUNDING (simple_font_data.cc:310-314 lroundf)", () => {
+  // Same fix as the paths-mode describe block above, exercised through the
+  // OTHER branch that carries its own `SMALL_CAP_SCALE` constant
+  // (`renderTextAsEmbedded`, the default `embedded-font` render mode) — the
+  // two branches must not drift on this. Here the scale shows up directly as
+  // the emitted `<text font-size="...">`, not a `<g scale(...)>` factor.
+  //
+  // Monaco.ttf, not SFNS.ttf: SFNS (San Francisco, the system-UI face the
+  // other describe blocks in this file use) genuinely carries an OpenType
+  // `smcp` table — probed via fontkit's `availableFeatures` — so `smcp`
+  // resolves as a REAL substitution there and this synthesis path never
+  // fires. Monaco is a real single-file (non-TTC) system font that lacks
+  // `smcp`/`c2sc`/etc. entirely, so `font-variant: small-caps` synthesizes,
+  // same as the CLAUDE.md-documented Helvetica/Arial/Georgia/Times case the
+  // paths-mode tests above use.
+  const MONACO_PATH = "/System/Library/Fonts/Monaco.ttf";
+  const fontBuf = fs.existsSync(MONACO_PATH) ? fs.readFileSync(MONACO_PATH) : null;
+
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFonts();
+    setRenderTextMode("embedded-font");
+  });
+
+  afterEach(() => {
+    setRenderTextMode("paths");
+  });
+
+  it.skipIf(fontBuf == null)("emits the synthesized small-caps font-size at lroundf(fontSize × 0.7), not the unrounded product", () => {
+    registerWebfont("MonacoTest", 400, "normal", fontBuf!);
+    const out = renderTextAsPath("abc", 0, 0, {
+      fontSize: 16, fontFamily: "MonacoTest", fontWeight: "400", fill: "#000",
+      xOffsets: [0, 8, 16], features: ["smcp"],
+    });
+    expect(out).not.toBeNull();
+    // At 16px, Blink's `lroundf(ComputedSize() * 0.7)` = lroundf(11.2) = 11 —
+    // Chrome's actual synthesized small-caps glyph size. A flat 0.7 constant
+    // would emit the unrounded product, 11.2.
+    expect(out!).toMatch(/font-size="11"/);
+    expect(out!).not.toMatch(/font-size="11\.2"/);
   });
 });
 
@@ -3296,6 +3344,57 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     const notdef = helvetica.getGlyph(0);
     expect(Math.min(...nums)).toBe(Math.min(notdef.bbox.minX, notdef.bbox.minY));
     expect(Math.max(...nums)).toBe(Math.max(notdef.bbox.maxX, notdef.bbox.maxY));
+  });
+
+  // Same rule, MULTI-run branch (a mixed-script line, e.g. Latin + CJK, so
+  // `splitTextIntoFontRuns` produces more than one run and the per-char loop
+  // this test exercises is the one at `textToPathMarkup`'s multi-font path,
+  // not `singleFontMarkup` above). This branch used to carry its OWN
+  // synthetic-tofu construct — a hand-drawn hollow rect (~0.7 × advance wide,
+  // 0.65 em tall, 0.03 em border) substituted for the uncovered PUA glyph —
+  // a workaround for the same pre-DM-769 defect `singleFontMarkup`'s comment
+  // documents, never removed from this second copy. Chrome paints the run's
+  // OWN font's real `.notdef` here too (`font_fallback_iterator.cc:159-164`),
+  // so this asserts the multi-run branch now does the same thing the
+  // single-run branch already does: emit the real glyph via `ensureGlyphDef`
+  // (a `<use href="#gN">`), not a synthesized `<path fill-rule="evenodd">` /
+  // `<rect>` standing in for it.
+  it.skipIf(!MACOS_FONTS)("paints the run's OWN font's .notdef for an uncovered private-use codepoint in a MULTI-run line", () => {
+    clearGlyphDefs();
+    setRenderTextMode("paths");
+    // "H" + PUA (both resolve to the Helvetica primary run) + CJK (a second,
+    // distinct fallback run) — the CJK run is what pushes `runs.length` above
+    // 1 and routes the Helvetica run through the multi-run per-char loop
+    // instead of the `runs.length === 1` single-font fast path.
+    const out = renderTextAsPath("H\u{E000}中文", 0, 0, {
+      fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
+      xOffsets: [0, 18, 36, 68],
+    });
+    expect(out).not.toBeNull();
+    // No synthetic stand-in markup anywhere in the output.
+    expect(out!).not.toContain("fill-rule=\"evenodd\"");
+    expect(out!).not.toContain("<rect ");
+
+    const defs = getGlyphDefs();
+    const ds = [...defs.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
+    // One def per distinct glyph id emitted (H, PUA .notdef, and the two CJK
+    // glyphs — four distinct outlines).
+    expect(ds.length).toBe(4);
+    // The SECOND def (PUA's, in emission order — "H" is first) is Helvetica's
+    // own `.notdef`, painted as a real glyph rather than the synthetic tofu.
+    const notdefD = ds[1];
+    const nums = notdefD.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+
+    type Bbox = { minX: number; minY: number; maxX: number; maxY: number };
+    const ttc = fontkit.openSync("/System/Library/Fonts/Helvetica.ttc") as unknown as {
+      fonts: { postscriptName: string; getGlyph(id: number): { bbox: Bbox } }[];
+    };
+    const helvetica = ttc.fonts.find((f) => f.postscriptName === "Helvetica")!;
+    const notdef = helvetica.getGlyph(0);
+    expect(Math.min(...nums)).toBe(Math.min(notdef.bbox.minX, notdef.bbox.minY));
+    expect(Math.max(...nums)).toBe(Math.max(notdef.bbox.maxX, notdef.bbox.maxY));
+    // And it's reached through a <use>, not inlined as a standalone <path>/<rect>.
+    expect(out!).toMatch(/<use href="#g\d+" x="0" y="0"\/>/);
   });
 
   // RTL detection compared the first glyph's codepoint against the run's last

@@ -68,7 +68,6 @@ import {
   haltInfoFor,
   isEmojiCodepoint,
   isNonCharacterCodepoint,
-  isPrivateUseCodepoint,
   mergeGaps,
   opticalCutOpszFor,
   pickWebfontVariantForCodepoint,
@@ -514,7 +513,18 @@ export function textToPathMarkup(
   // fonts (Helvetica/Arial/SF Pro/Georgia/Times/Menlo) ship neither pcap
   // nor c2pc, so the petite path always synthesizes at 0.7 to match Chrome's
   // painted output. (DM-444 follow-up.)
-  const SMALL_CAP_SCALE = 0.7;
+  //
+  // Blink doesn't apply that 0.7 as a continuous scale, though:
+  // `SimpleFontData::CreateScaledFontData` (same file) rounds the SCALED
+  // SIZE to a whole pixel before building the scaled font —
+  // `lroundf(font_description.ComputedSize() * scale_factor)` — and the
+  // synthesized glyph is built at THAT integer size. At 16px Chrome's
+  // small-caps glyph is a 11px face (16 × 0.7 = 11.2 → round → 11), not an
+  // unrounded 11.2px one. `SMALL_CAP_SCALE` here is expressed as a per-size
+  // RATIO (`roundedSize / fontSize`) rather than a flat 0.7 so downstream
+  // multiplications (`runScale * SMALL_CAP_SCALE`) land on the same rounded
+  // pixel size Blink does.
+  const SMALL_CAP_SCALE = Math.round(fontSize * 0.7) / fontSize;
   let synthLowerScale: number | null = null;
   let synthUpperScale: number | null = null;
   if (wantSmcp && !hasFeature("smcp")) synthLowerScale = SMALL_CAP_SCALE;
@@ -630,7 +640,6 @@ export function textToPathMarkup(
           // tofu's outline. (DM-334.)
           const nextI = i + ch.length;
           const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
-          const isPua = isPrivateUseCodepoint(cp);
           // `font-variant-emoji` moves the raster-overlay boundary (explicit
           // VS15/VS16 wins — same guard as the resolver call above): under
           // `text`, an emoji routed to a MONOCHROME face by the suppressed
@@ -645,7 +654,6 @@ export function textToPathMarkup(
               ? isEmojiCodepoint(cp, nextCp) && isColorEmojiFontKey(run.fontKey)
               : isEmojiCodepoint(cp, nextCp) || (isEmojiCharCp(cp) && isColorEmojiFontKey(run.fontKey));
           const uses: string[] = [];
-          let suppressedNotdef = false;
           for (const g of layout.glyphs) {
             const gCmds = commandsFor(g, run.fontKey, weight, fontSize, slant);
             if (gCmds.length === 0) continue;
@@ -656,9 +664,21 @@ export function textToPathMarkup(
             // chain can land a real MONOCHROME glyph (e.g. FreeSans has ✨
             // U+2728), which must still be suppressed or it paints under the
             // color raster. DM-842.
-            if (isEmoji) { suppressedNotdef = true; continue; }
-            // PUA: suppress only the .notdef tofu; a real icon-font glyph emits.
-            if (isPua && g.id === 0) { suppressedNotdef = true; continue; }
+            if (isEmoji) continue;
+            // A PUA codepoint with no covering icon font paints its `.notdef`
+            // like any other uncovered codepoint — see `singleFontMarkup`'s
+            // comment on the same removal for the single-font branch. Chrome's
+            // fallback iterator lands on the run's own font and paints THAT
+            // font's `.notdef` (`font_fallback_iterator.cc:159-164`), so the
+            // synthetic hollow-rect stand-in this branch used to draw here (a
+            // box ~0.7 × advance wide, 0.65 em tall, with a 0.03 em border) was
+            // a workaround for a defect one layer up, not behavior Chrome
+            // exhibits — and even where it fired, it measured narrower,
+            // shorter and far thinner-stroked than Helvetica's real `.notdef`
+            // (0.71 em vs 0.90 em wide). Uncovered-PUA is otherwise rare (this
+            // fires only for a codepoint neither the primary nor any fallback
+            // in the run's chain covers), so this is expected to move no
+            // current fixture — it's a consistency fix, not a visible one.
             const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, gCmds, stretch);
             uses.push(`<use href="#${defId}" x="0" y="0"/>`);
           }
@@ -672,38 +692,6 @@ export function textToPathMarkup(
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
             }
             groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"${fauxBoldAttrFor(run.font, chScale)}>${uses.join("")}</g>`);
-            if (cssX > rightEdge) rightEdge = cssX;
-          } else if (isPua && suppressedNotdef) {
-            // DM-769: see singleFontMarkup branch for the full rationale.
-            // Multi-run text path — the per-char Y-flip scale wrapping is
-            // applied here too, so emit a tofu path in font units inside
-            // the scale group. The hollow shape is a `<path>` with outer +
-            // inner sub-rectangles and `fill-rule="evenodd"` so the
-            // wrapping group's `fill="<textColor>"` paints the ring while
-            // leaving the inside transparent.
-            const cssX = Number(xOffsets[i].toFixed(3));
-            const advancePx = nextI < text.length
-              ? (xOffsets[nextI] - xOffsets[i])
-              : fontSize * 0.6;
-            const upem = run.font.unitsPerEm;
-            const advanceFu = (advancePx / chScale) * (upem / fontSize);
-            const tofuW = Math.max(2, advanceFu * 0.7);
-            const tofuH = upem * 0.65;
-            const cornerInsetX = (advanceFu - tofuW) / 2;
-            const borderFu = Math.max(upem / Math.max(4, fontSize), upem * 0.03);
-            const x0 = cornerInsetX;
-            const x1 = x0 + tofuW;
-            const y0 = 0;
-            const y1 = tofuH;
-            const ix0 = x0 + borderFu;
-            const ix1 = x1 - borderFu;
-            const iy0 = y0 + borderFu;
-            const iy1 = y1 - borderFu;
-            if (ix1 > ix0 && iy1 > iy0) {
-              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><path d="M${r2(x0)} ${r2(y0)} L${r2(x1)} ${r2(y0)} L${r2(x1)} ${r2(y1)} L${r2(x0)} ${r2(y1)} Z M${r2(ix0)} ${r2(iy0)} L${r2(ix0)} ${r2(iy1)} L${r2(ix1)} ${r2(iy1)} L${r2(ix1)} ${r2(iy0)} Z" fill-rule="evenodd"/></g>`);
-            } else {
-              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><rect x="${r2(x0)}" y="${r2(y0)}" width="${r2(tofuW)}" height="${r2(tofuH)}"/></g>`);
-            }
             if (cssX > rightEdge) rightEdge = cssX;
           }
           i += ch.length;
@@ -832,14 +820,22 @@ export function textToPathMarkup(
           // removes the reason the override run needed a different shaper at all.
           // The platform helper infers direction from content and cannot be told
           // otherwise; on the reversed string that inference now lands on exactly
-          // the direction we want, so the helper becomes usable — and it must be,
-          // because macOS's Arabic and Latin faces (GeezaPro, Helvetica) carry
-          // `morx` and no `GSUB` at all, and the vendored harfbuzzjs is built
-          // `-DHB_TINY`, which chains to `HB_NO_AAT` (`hb-config.hh:44-46`,
-          // `:95-96`, `:132-134`) and so cannot apply `morx`. On GeezaPro it
-          // returns the ISOLATED forms — 900/902/1292/1415/647 against real
-          // HarfBuzz's 900/700/1359/656/647 — because the only table that could
-          // join them was compiled out.
+          // the direction we want, so the helper stays usable without a shaper
+          // swap. The ground for that is the SAME `hb_ensure_native_direction`
+          // equivalence cited above — `shape(source, requestedDir)` ==
+          // `shape(reversed(source), nativeDir)` from HarfBuzz's point of
+          // view — not an AAT/`morx` capability gap in our own wasm. (An
+          // earlier version of this comment attributed the need to the
+          // *published* harfbuzzjs npm package being built `-DHB_TINY`, which
+          // strips AAT and does return GeezaPro's isolated forms —
+          // 900/902/1292/1415/647 against real HarfBuzz's 900/700/1359/656/647
+          // — because the table that joins them is compiled out. That
+          // description is stale for this project: `vendor/harfbuzzjs/` is
+          // rebuilt with Chromium's own HarfBuzz configuration and keeps AAT
+          // — see `vendor/harfbuzzjs/README.md` and
+          // `build/config-override.h` — so an AAT gap was never why these
+          // faces stay on the platform helper; `hb_ensure_native_direction`
+          // is.)
           //
           // Reversal is by code point, matching `reverse_clusters()` on a buffer
           // that has not been shaped yet, where clusters are still per-character.
@@ -1801,7 +1797,16 @@ function renderTextAsEmbedded(
   // SYNTHESIZED small-caps: lowercase chars paint as their uppercase
   // glyph at a smaller font-size (0.7× matches Chromium's
   // kSmallCapsFontSizeMultiplier in blink simple_font_data.cc).
-  const SMALL_CAP_SCALE = 0.7;
+  //
+  // That 0.7 isn't applied continuously: `SimpleFontData::CreateScaledFontData`
+  // (same file) rounds the scaled size to a whole pixel BEFORE building the
+  // synthesized font — `lroundf(font_description.ComputedSize() * scale_factor)`
+  // — so a 16px run gets an 11px small-caps glyph (16 × 0.7 = 11.2 → round →
+  // 11), not an unrounded 11.2px one. `emitFontSize` below is `fontSize ×
+  // runScale`, so expressing the scale as the per-size RATIO
+  // `roundedSize / fontSize` (rather than a flat 0.7) makes that product land
+  // on Blink's rounded pixel size exactly.
+  const SMALL_CAP_SCALE = Math.round(fontSize * 0.7) / fontSize;
   const featuresArr = features ?? [];
   const wantSmcp = featuresArr.includes("smcp");
   const wantC2sc = featuresArr.includes("c2sc");
