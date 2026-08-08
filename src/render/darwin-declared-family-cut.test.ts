@@ -79,6 +79,26 @@ describeMac("declared-family cut selection in the render path", () => {
     for (const [w, expected] of ladder) expect(psName("hiragino-jp", w), `weight ${w}`).toBe(expected);
   });
 
+  it("adopts the matcher's BASE answer over the ladder seed, not just its cut answers", () => {
+    // Every weight in the ladder test above is a multiple of 100, where the
+    // matcher and the sampled nearest-usWeightClass ladder happen to agree —
+    // so that test cannot tell WHICH mechanism answered. These weights can:
+    // Chrome (CDP, 2026-08-08) paints W4 at 510-590, because the tag's
+    // `BetterChoiceCT` rejects W5 on its unwanted AppKit bold trait
+    // (`font_matcher_mac.mm:186-196` at 147.0.7727.15 names this exact face),
+    // while the ladder answers W5 there. W4 is the `hiragino-jp` BASE entry,
+    // so this also pins the base-answer contract: a matcher answer that names
+    // the base face must REPLACE the ladder seed — conflating it with the
+    // null "could not ask" return is exactly what painted W5 here before.
+    expect(psName("hiragino-jp", 510)).toBe("HiraginoSans-W4");
+    expect(psName("hiragino-jp", 550)).toBe("HiraginoSans-W4");
+    expect(psName("hiragino-jp", 590)).toBe("HiraginoSans-W4");
+    // 650: W6 and W7 tie on weight distance; the further-from-500 tie-break
+    // picks W7 where the ties-to-lighter ladder picks W6 — the non-base twin
+    // of the same discrimination, already adopted via the sysfb: path.
+    expect(psName("hiragino-jp", 650)).toBe("HiraginoSans-W7");
+  });
+
   it("reaches Helvetica Neue's light cuts, which the -bold pair never could", () => {
     // Before the seam every weight below 600 answered plain "HelveticaNeue".
     expect(psName("helvetica-neue", 100)).toBe("HelveticaNeue-UltraLight");

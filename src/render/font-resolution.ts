@@ -4102,6 +4102,10 @@ function darwinCoreTextFamilyForKey(key: string): string | null {
  * Degrades to null — and therefore to the previous behavior — whenever the
  * helper is missing, the family has no AppKit members, or the matched face
  * cannot be opened. A host without the built binary must still get a face.
+ *
+ * Null therefore means "could not ask", never "the base face is right": when
+ * the matcher answers the base face itself, that answer is returned as the
+ * base KEY so it replaces whatever sibling/ladder seed the caller holds.
  */
 function darwinPrimaryCutKey(
   key: string, weight: number, slant: number, stretch: number = 100,
@@ -4121,7 +4125,21 @@ function darwinPrimaryCutKey(
     if (family != null) {
       const match = resolveFamilyStyleMatch(family, { weight, italic: italicRequested, stretch });
       const base = resolveFontSpec(key)?.postscriptName;
-      if (match != null && match.postscriptName !== base) {
+      if (match != null && match.postscriptName === base) {
+        // The matcher answered the very face the key already resolves to.
+        // That is an ANSWER, not an abstention: Blink runs no weight ladder
+        // behind `BestStyleMatchForFamilyNS`, so the sibling/ladder routing
+        // the caller pre-seeded must be replaced by the base face rather than
+        // left standing. Conflating this with the null "could not ask" return
+        // was a measured divergence: declared "Hiragino Sans" at CSS 510-590
+        // painted HiraginoSans-W5 where Chrome paints W4 — the tag's
+        // `BetterChoiceCT` rejects W5 on its unwanted AppKit bold trait
+        // (`font_matcher_mac.mm:186-196` at tag 147.0.7727.15 names exactly
+        // this face in its comment), the matcher answered the W4 base entry,
+        // and the null return let the nearest-`usWeightClass` ladder override
+        // it with W5.
+        result = { key, italic: match.italic };
+      } else if (match != null) {
         const installed = resolveInstalledFont(match.postscriptName);
         if (installed != null && installed.path !== "") {
           const cutKey = `sysfb:${match.postscriptName}`;
@@ -4352,12 +4370,19 @@ function linuxPrimaryCutKey(
     if (nominated != null) {
       const match: LinuxFamilyMatch | null = nominated.match;
       const baseSpec = resolveFontSpec(key);
-      // Adopt the matched face only when it is a DIFFERENT face from the one
-      // the key already resolves to — same contract as the macOS matcher.
-      if (match != null && match.path !== "" && !(
-        baseSpec != null && baseSpec.path === match.path
-        && (baseSpec.postscriptName == null || baseSpec.postscriptName === match.postscriptName)
-      )) {
+      const matchIsBaseFace = match != null && baseSpec != null
+        && baseSpec.path === match.path
+        && (baseSpec.postscriptName == null || baseSpec.postscriptName === match.postscriptName);
+      if (matchIsBaseFace) {
+        // The style score picked the very face the key already resolves to.
+        // An answer, not an abstention — same contract as the macOS matcher:
+        // Blink runs no sibling table behind `matchFamilyName`, so the
+        // caller's pre-seeded `-bold` sibling routing must be replaced by the
+        // base face rather than left standing. (Null stays reserved for
+        // "could not ask" — helper missing / flag off — where the sibling
+        // table is the documented degraded tier.)
+        result = { key, italic: match.italic };
+      } else if (match != null && match.path !== "") {
         // The PostScript name selects the TTC member downstream (fontkit's
         // `getFont`); a face that declares none can only be addressed as the
         // file's first face, so only single-face files are adoptable then.
@@ -5444,15 +5469,20 @@ export function isEmojiCodepoint(cp: number, nextCp: number): boolean {
  * `helvetica` + `light` → `helvetica-light`, and `-italic` on top of that when
  * a slant is requested.
  *
- * The bounds are measured, not derived from the CSS font-matching algorithm:
- * Chrome delegates weight selection to the platform matcher (CoreText on
- * macOS), which does not always agree with the spec's descending/ascending
- * walk. Helvetica's numbers come from asking Chromium directly over the whole
+ * DEGRADED TIER ONLY. On an armed host (helper present) the declared-family
+ * cut is decided by `darwinPrimaryCutKey` — the ported Blink matcher
+ * (`BestStyleMatchForFamilyNS` / `BetterChoiceCT`, tag 147.0.7727.15) — whose
+ * answer replaces this table's whether or not it names the base face. This
+ * ladder decides only where the matcher cannot run (no helper binary /
+ * `DOMOTION_DISABLE_HELPER`), and there it is a SAMPLED approximation, not a
+ * transcription: the bounds come from asking Chromium directly over the whole
  * 100…700 range in 10-point steps via the CDP `CSS.getPlatformFontsForNode`
- * command: 100-300 → Helvetica-Light, 310-590 → Helvetica, 600-700 →
- * Helvetica-Bold. That matters for the `sans-serif` generic, which Chrome on
- * macOS resolves to Helvetica — so any page setting `font-weight: 100`/`200`/
- * `300` on default sans-serif text was being painted a full cut too heavy.
+ * command on one Mac: 100-300 → Helvetica-Light, 310-590 → Helvetica,
+ * 600-700 → Helvetica-Bold (the armed matcher reproduces exactly this sweep,
+ * re-verified 2026-08-08). It matters for the `sans-serif` generic, which
+ * Chrome on macOS resolves to Helvetica — so any page setting `font-weight:
+ * 100`/`200`/`300` on default sans-serif text was being painted a full cut
+ * too heavy.
  *
  * Platform-agnostic by construction: the suffixed key is only adopted when
  * `resolveFontSpec` can resolve it on the host platform, so the Linux
@@ -5485,11 +5515,22 @@ export function subBoldWeightCutSuffix(key: string, weight: number): string | nu
 /**
  * The `hiragino-jp-*` cut for `weight`, or null outside the ladder.
  *
- * Chrome selects the HiraginoSans cut by EXACT `OS/2.usWeightClass` match; the
- * family ships W0(100) W1(200) W2(250) W3(300) W4(400) W5(500) W6(600) W7(700)
- * W8(800) W9(900). W2 is unreachable from CSS, so the ladder skips it. For a
- * non-standard weight we take the nearest declared cut, ties going lighter —
- * which is what CSS font matching does below 400.
+ * DEGRADED TIER ONLY, and an approximation — nearest `usWeightClass` with
+ * ties-to-lighter is NOT Chrome's rule. Chrome's declared-family selection is
+ * `BestStyleMatchForFamilyNS` / `BetterChoiceCT` over AppKit members (tag
+ * 147.0.7727.15), whose bold-trait mask makes the Hiragino ladder
+ * NON-monotonic in a way no nearest-weight rule can express: CSS 500 opens W5
+ * (the exact-weight escape, `font_matcher_mac.mm:186-196`), but 510-590 open
+ * W4 — W5 carries the AppKit bold trait and loses on traits before weight
+ * distance is compared — and 650 opens W7 over the equally-distant W6 (the
+ * further-from-500 tie-break). Measured against Chrome over CDP, 2026-08-08.
+ * On an armed host `darwinPrimaryCutKey` runs the ported matcher and its
+ * answer replaces this ladder's; this ladder decides only where the matcher
+ * cannot run, where it disagrees with Chrome at exactly those intermediate
+ * weights.
+ *
+ * The family ships W0(100) W1(200) W2(250) W3(300) W4(400) W5(500) W6(600)
+ * W7(700) W8(800) W9(900); W2 is unreachable from CSS, so the ladder skips it.
  *
  * Exported for unit tests: the mapping is pure, so it can be asserted on any
  * host even where the FILES cannot be resolved.
@@ -5556,10 +5597,16 @@ function resolveEffectiveCutKey(
   }
   // Helvetica/Arial/Courier/Menlo/Times/Georgia don't expose a variable wght
   // axis — pick the right sub-font (or sibling file) based on weight × slant.
-  // Boundary at 600 matches CSS font-weight: bold (700) and the typical
-  // "semibold or above is bold" rule Chrome uses when an exact weight isn't
-  // installed. Times/Georgia ship four sibling files (regular/bold/italic/
-  // bold-italic) for headings + emphasis in serif content (DM-269).
+  // DEGRADED-TIER APPROXIMATION, not Chrome's rule: the 600 boundary is
+  // `kBoldThreshold` (`font_selection_types.h:182`, rev 7d859f27), which Blink
+  // consults only for the SYNTHETIC-bold predicate (`:212`) and for the
+  // desired-bold TRAIT bit (`ComputeDesiredTraits`) — never as a cut selector.
+  // Blink's cut selection is the platform matcher, which `darwinPrimaryCutKey`
+  // / `linuxPrimaryCutKey` below run whenever the helper is armed; their
+  // answer (base face included) REPLACES this split, so it decides only on a
+  // host that cannot ask the matcher. Times/Georgia ship four sibling files
+  // (regular/bold/italic/bold-italic) for headings + emphasis in serif
+  // content (DM-269).
   if (key === "helvetica" || key === "helvetica-neue" || key === "arial" || key === "courier"
       || key === "courier-new" || key === "menlo"
       || key === "times" || key === "times-new-roman" || key === "georgia"
@@ -5603,12 +5650,20 @@ function resolveEffectiveCutKey(
     effectiveKey = "korean-bold";
   }
   // Lucida Grande — the macOS fallback for arrows, Hebrew, check marks and a
-  // few symbol blocks — has a bold cut, and Chrome crosses to it at 450 rather
-  // than the 600 the other families use (its two faces declare usWeightClass
-  // 500/600, so the platform matcher's switch-over lands lower). Only adopted
-  // when the host platform actually has the face: the Linux (Liberation Sans)
-  // and Windows (Arial) mappings for `lucida-grande` have no bold sibling key,
-  // so `resolveFontSpec` returns null there and the regular face stands.
+  // few symbol blocks. DEGRADED TIER ONLY: on an armed host the static chain
+  // this key belongs to never answers (the live resolver does, and its
+  // in-family re-selection is the same CoreText call Blink makes), and a
+  // DECLARED "Lucida Grande" resolves through `darwinPrimaryCutKey`, where
+  // Chrome's matcher crosses to Bold at 600 like every other declared family
+  // (measured over CDP 2026-08-08: declared 450/500 paint LucidaGrande
+  // regular). The 450 crossover encoded here is the FALLBACK-cascade
+  // behavior — as a fallback face under a weight-450+ run, Chrome's
+  // `GetAlternateFontPlatformData` re-selection answers LucidaGrande-Bold
+  // (same CDP sweep) — sampled, kept as the helper-less approximation. Only
+  // adopted when the host platform actually has the face: the Linux
+  // (Liberation Sans) and Windows (Arial) mappings for `lucida-grande` have
+  // no bold sibling key, so `resolveFontSpec` returns null there and the
+  // regular face stands.
   if (key === "lucida-grande" && weight >= 450 && resolveFontSpec("lucida-grande-bold") != null) {
     effectiveKey = "lucida-grande-bold";
   }
@@ -6886,6 +6941,15 @@ export function resolveDarwinAxisLocation( // exported for unit testing (not in 
       if (tag !== "opsz" && fileAxes[tag] != null) axes[tag] = faceAxes[tag];
     }
   }
+  // RECORDED DIVERGENCE, inert at every current input: `fontSize` here is the
+  // captured COMPUTED size, while Blink passes the SPECIFIED size — its
+  // `coordinate.value = SkFloatToScalar(specified_size)` with the comment "Do
+  // not use font size here, but specified size in order to account for zoom"
+  // (`font_platform_data_mac.mm:169-177`, rev 7d859f27). The two differ only
+  // under CSS zoom, which Domotion neither captures nor models (capture runs
+  // at zoom 1 and the tree carries no pre-zoom size), so no current input can
+  // distinguish them. If zoom ever becomes a capture input, the pre-zoom
+  // specified size must be plumbed to here.
   if (fileAxes.opsz != null) axes.opsz = fontSize;
   if (variationSettings != null) {
     for (const tag of Object.keys(variationSettings)) {
@@ -7370,20 +7434,126 @@ function splitFontFamilyNames(fontFamily: string): string[] {
 // but absent on a Linux CI runner, where Chrome cascades to the system CJK font
 // (WenQuanYi) rather than a hardcoded substitute. macOS/Windows: the native
 // helper's `resolveInstalledFont` matches by exact family (null ⇒ not installed).
-// Linux: no native helper (resolveInstalledFont is always null) — fontconfig
-// returns the SAME family for a real match but a SUBSTITUTE for a miss, so a
-// family whose `fc-match` result canon-differs from the request is "not present".
+// Linux: `resolveInstalledFont` is always null here, and fontconfig returns
+// the SAME family for a real match but a SUBSTITUTE for a miss — told apart by
+// Skia's own acceptance rule (`skiaFamilyMatchAcceptable` below), not by name
+// canonicalization.
 const _famAvailCache = new Map<string, boolean>();
-function canonFamilyName(s: string): string {
-  return s.toLowerCase().replace(/[-_ ]/g, "").replace(/(regular|mt|psmt|ps|roman|book)$/g, "");
+
+// ── Skia's family-identity acceptance (the Linux helper-less tier) ──
+//
+// Transcribed from the DEPS-pinned Skia the pinned Chrome builds with
+// (`62efacd3:src/ports/SkFontConfigInterface_direct.cpp`). `MatchFont`
+// (`:553-590`) accepts fontconfig's pick for a named request iff one of the
+// pick's family names (`FC_FAMILY` ids 0..254) equals — `strcasecmp`, i.e.
+// byte-wise with ASCII case folding — the post-config-substitution request
+// family or the requested family itself, or the REQUESTED and matched names
+// share a metric-equivalence class (`IsMetricCompatibleReplacement`,
+// `:330-336`, over the hardcoded `kFontEquivMap`, `:214-313`).
+//
+// The implementation this replaced canonicalized names by stripping `[-_ ]`
+// and a trailing `regular|mt|psmt|ps|roman|book` — no upstream analogue, and
+// wrong in both directions: it accepted names Skia rejects ("Arial MT"
+// answered by Arial) and rejected names Skia accepts ("Times New Roman"
+// answered by Liberation Serif on a Liberation-only host, a SERIF-class
+// metric replacement).
+
+/** `strcasecmp == 0`: byte comparison with ASCII-only case folding (C locale). */
+function asciiCaseEqual(a: string, b: string): boolean {
+  const fold = (s: string): string => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+  return fold(a) === fold(b);
 }
-function fcMatchFamilyName(name: string): string | null {
+
+/** `kFontEquivMap`, verbatim (`62efacd3:src/ports/SkFontConfigInterface_direct.cpp:214-313`).
+ *  ORDER IS LOAD-BEARING: `GetFontEquivClass` returns the first name match, so
+ *  a name listed under two classes ("Noto Serif CJK JP" under PMINCHO and
+ *  MINCHO) belongs to the FIRST — MS PMincho ↔ Noto Serif CJK JP are
+ *  compatible, MS Mincho ↔ Noto Serif CJK JP are not, exactly as upstream. */
+const SKIA_FONT_EQUIV_MAP: ReadonlyArray<readonly [clazz: string, name: string]> = [
+  ["SANS", "Arial"], ["SANS", "Arimo"], ["SANS", "Liberation Sans"],
+  ["SERIF", "Times New Roman"], ["SERIF", "Tinos"], ["SERIF", "Liberation Serif"],
+  ["MONO", "Courier New"], ["MONO", "Cousine"], ["MONO", "Liberation Mono"],
+  ["SYMBOL", "Symbol"], ["SYMBOL", "Symbol Neu"],
+  ["PGOTHIC", "MS PGothic"], ["PGOTHIC", "ＭＳ Ｐゴシック"],
+  ["PGOTHIC", "Noto Sans CJK JP"], ["PGOTHIC", "IPAPGothic"], ["PGOTHIC", "MotoyaG04Gothic"],
+  ["GOTHIC", "MS Gothic"], ["GOTHIC", "ＭＳ ゴシック"],
+  ["GOTHIC", "Noto Sans Mono CJK JP"], ["GOTHIC", "IPAGothic"], ["GOTHIC", "MotoyaG04GothicMono"],
+  ["PMINCHO", "MS PMincho"], ["PMINCHO", "ＭＳ Ｐ明朝"],
+  ["PMINCHO", "Noto Serif CJK JP"], ["PMINCHO", "IPAPMincho"], ["PMINCHO", "MotoyaG04Mincho"],
+  ["MINCHO", "MS Mincho"], ["MINCHO", "ＭＳ 明朝"],
+  ["MINCHO", "Noto Serif CJK JP"], ["MINCHO", "IPAMincho"], ["MINCHO", "MotoyaG04MinchoMono"],
+  ["SIMSUN", "Simsun"], ["SIMSUN", "宋体"],
+  ["SIMSUN", "Noto Serif CJK SC"], ["SIMSUN", "MSung GB18030"], ["SIMSUN", "Song ASC"],
+  ["NSIMSUN", "NSimsun"], ["NSIMSUN", "新宋体"],
+  ["NSIMSUN", "Noto Serif CJK SC"], ["NSIMSUN", "MSung GB18030"], ["NSIMSUN", "N Song ASC"],
+  ["SIMHEI", "Simhei"], ["SIMHEI", "黑体"],
+  ["SIMHEI", "Noto Sans CJK SC"], ["SIMHEI", "MYingHeiGB18030"], ["SIMHEI", "MYingHeiB5HK"],
+  ["PMINGLIU", "PMingLiU"], ["PMINGLIU", "新細明體"],
+  ["PMINGLIU", "Noto Serif CJK TC"], ["PMINGLIU", "MSung B5HK"],
+  ["MINGLIU", "MingLiU"], ["MINGLIU", "細明體"],
+  ["MINGLIU", "Noto Serif CJK TC"], ["MINGLIU", "MSung B5HK"],
+  ["PMINGLIUHK", "PMingLiU_HKSCS"], ["PMINGLIUHK", "新細明體_HKSCS"],
+  ["PMINGLIUHK", "Noto Serif CJK TC"], ["PMINGLIUHK", "MSung B5HK"],
+  ["MINGLIUHK", "MingLiU_HKSCS"], ["MINGLIUHK", "細明體_HKSCS"],
+  ["MINGLIUHK", "Noto Serif CJK TC"], ["MINGLIUHK", "MSung B5HK"],
+  ["CAMBRIA", "Cambria"], ["CAMBRIA", "Caladea"],
+  ["CALIBRI", "Calibri"], ["CALIBRI", "Carlito"],
+];
+
+/** `GetFontEquivClass`: the FIRST map entry whose name strcasecmp-matches, or
+ *  null (upstream's `OTHER`). */
+function skiaFontEquivClass(name: string): string | null {
+  for (const [clazz, n] of SKIA_FONT_EQUIV_MAP) if (asciiCaseEqual(n, name)) return clazz;
+  return null;
+}
+
+/** `IsMetricCompatibleReplacement` (`:330-336`): same non-OTHER class. */
+function skiaMetricCompatibleReplacement(a: string, b: string): boolean {
+  const ca = skiaFontEquivClass(a);
+  return ca != null && ca === skiaFontEquivClass(b);
+}
+
+/**
+ * `MatchFont`'s acceptable-substitute walk (`:567-587`), factored pure so the
+ * rule can be unit-tested without fontconfig. Exported for tests only (not in
+ * the package barrel).
+ */
+export function skiaFamilyMatchAcceptable(
+  requestedFamily: string, postConfigFamily: string, matchFamilies: readonly string[],
+): boolean {
+  for (const mf of matchFamilies) {
+    if (asciiCaseEqual(postConfigFamily, mf) || asciiCaseEqual(requestedFamily, mf)
+      || skiaMetricCompatibleReplacement(requestedFamily, mf)) return true;
+  }
+  return false;
+}
+
+/** All family names fontconfig's pick declares (`FC_FAMILY`, every id), the
+ *  set Skia walks in `MatchFont`. */
+function fcMatchFamilies(name: string): string[] | null {
   try {
     const out = execFileSync("fc-match", ["-f", "%{family}", name],
       { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }).trim();
-    return out === "" ? null : out.split(",")[0];
+    return out === "" ? null : out.split(",");
   } catch { return null; }
 }
+
+/** The request family AFTER config substitution — what Skia reads back as
+ *  `post_config_family` (`:655-659`) having run `FcConfigSubstitute` +
+ *  `FcDefaultSubstitute` (`:623-624`), which `fc-pattern -c` reproduces. This
+ *  clause is what accepts a user/distro alias (an `Arial` → `Liberation Sans`
+ *  preference rewrites the pattern, so the pick equals the post-config name
+ *  even where it equals neither the request nor an equivalence class). Falls
+ *  back to the requested name when `fc-pattern` is unavailable — clauses two
+ *  and three still decide. */
+function fcPostConfigFamily(name: string): string | null {
+  try {
+    const out = execFileSync("fc-pattern", ["-c", "-f", "%{family[0]}", name],
+      { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return out === "" ? null : out;
+  } catch { return null; }
+}
+
 function authorFamilyAvailable(name: string): boolean {
   const cached = _famAvailCache.get(name);
   if (cached != null) return cached;
@@ -7391,8 +7561,9 @@ function authorFamilyAvailable(name: string): boolean {
   if (resolveInstalledFont(name) != null) {
     avail = true; // native helper (macOS/Windows) found the exact family
   } else if (hostPlatform() === "linux") {
-    const fam = fcMatchFamilyName(name);
-    avail = fam != null && canonFamilyName(fam) === canonFamilyName(name);
+    const fams = fcMatchFamilies(name);
+    avail = fams != null
+      && skiaFamilyMatchAcceptable(name, fcPostConfigFamily(name) ?? name, fams);
   } else {
     avail = false;
   }
@@ -7838,8 +8009,9 @@ function matchFamilyNameToKey(name: string): string | null {
     // so an installed-but-uncalibrated author family (e.g. `font-family: "DejaVu
     // Sans"`) used to fall through here to the `times` default — whereas
     // Chrome-on-Linux resolves it via fontconfig (`FcFontMatch`). Mirror that:
-    // when fontconfig genuinely HAS the family (`authorFamilyAvailable` compares
-    // the `fc-match` result canon-to-canon, so a fontconfig SUBSTITUTE for a miss
+    // when fontconfig genuinely HAS the family (`authorFamilyAvailable` grades
+    // the `fc-match` result with Skia's own acceptance rule — strcasecmp plus
+    // the metric-equivalence classes — so a fontconfig SUBSTITUTE for a miss
     // still returns false → we fall through, matching Chrome), register its file
     // as a dynamic `sysfb:` key. Gated by the live-resolver flag (default-on;
     // honors DOMOTION_SYSTEM_FALLBACK=0) so it can be disabled alongside the
@@ -7924,24 +8096,44 @@ export function resolveFontKeyChain(fontFamily: string): string[] {
 }
 
 // DM-1103: macOS "optical cut" families. `SFNS.ttf` is one variable font with an
-// `opsz` axis (17–96, default 28); CoreText exposes its optical-size cuts as
-// named faces. When CSS explicitly names a cut — `"SF Pro Text"` (postScript
-// `SFProText-Regular`) — Chrome→CoreText paints from a FIXED opsz instance (the
-// Text design, opsz 17 = the axis floor) REGARDLESS of the used size, and does
-// not re-apply `font-optical-sizing: auto`'s size-derived opsz on top. fontkit
-// only sees the file's default master (opsz 28) and our pipeline sets
-// `opsz = font-size`, so an explicit `"SF Pro Text"` headline renders at the
-// Display optical size — diacritics (ring/dot above/below) sit ~2–3 px too low
-// (the Latin-Extended-Additional fixture, DM-1103). This is Chrome's own
-// macOS-system-font handling, not a generic rule (see Chromium-83 "more variable
-// font options for the macOS system-ui font"). We honor only the EXPLICITLY
-// named cut; the generic `"SF Pro"` / `system-ui` / `-apple-system` path keeps
-// `opsz = size`, whose <20→Text / ≥20→Display mapping already matches Chrome.
-// The Text opsz was measured against Chrome via CDP `getPlatformFontsForNode` +
-// a 4×-DPR glyph probe of the real fixture cell.
+// `opsz` axis (17–96, default 28); the downloadable SF Pro exposes the optical
+// cuts as their own families. When CSS explicitly names a cut — `"SF Pro
+// Text"` / `"SF Pro Display"` — Chrome paints that cut's FIXED design at every
+// size, and the pin is Blink's outcome BY CONSTRUCTION, not a special case:
+//
+//   - Blink applies `font-optical-sizing: auto`'s size-derived `opsz` only when
+//     the matched typeface reports current variation coordinates —
+//     `FontPlatformDataFromCTFont` returns the typeface untouched on
+//     `existing_axes <= 0` (`font_platform_data_mac.mm:155-160`, rev 7d859f27,
+//     identical at tag 147.0.7727.15) before the opsz clone loop is reached.
+//   - The face CoreText matches for the named cut is the STATIC per-cut font
+//     (CDP `getPlatformFontsForNode`: `SFProText-Regular` at 13/16/24/30/48px,
+//     `SFProDisplay-Regular` at 13/30px), and a typeface without CT variation
+//     axes reports none — Skia's `onGetVariationDesignPosition` returns -1
+//     (`62efacd3:src/ports/SkTypeface_mac_ct.cpp:741-757`, the DEPS-pinned
+//     revision) — so the early return takes and no opsz is ever applied.
+//
+// So pin-vs-clamp is settled by source AND by a discriminating measurement
+// above the axis floor, where the two rules disagree (they agree at ≤17, which
+// is all the original DM-1103 fixture could see). Probe 2026-08-08, advance of
+// a 35-char run vs fontkit instances of SFNS: Chrome "SF Pro Text" at
+// 24/30/48px = 445.250/556.563/890.484px, SFNS@opsz17 = 445.242/556.553/
+// 890.484 (match, <0.02px), SFNS@opsz=size = 407.53/498.94/798.31 (9-11% off).
+//
+// Our pipeline paints these cuts from the variable SFNS file, so each entry
+// records the SFNS opsz whose design is the named cut: Text = 17 (the axis
+// floor; also verified by the DM-1103 diacritic fixture) and Display = 28 (the
+// file default; Chrome "SF Pro Display" at 13px and 30px = 216.219/498.953,
+// SFNS@28 = 216.21/498.94 — while opsz=size at 13px would paint the Text
+// design, 241.17, ~11% wide). The generic `"SF Pro"` / `system-ui` /
+// `-apple-system` path keeps `opsz = size`: there Blink DOES reach the clone
+// loop (the system-ui CTFont carries variation coordinates), which is the
+// clamp mechanism documented at `resolveDarwinAxisLocation`.
 const OPTICAL_CUT_OPSZ: Record<string, number> = {
   "sf pro text": 17,
   ".sfnstext": 17,
+  "sf pro display": 28,
+  ".sfnsdisplay": 28,
 };
 
 /**

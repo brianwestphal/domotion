@@ -171,8 +171,14 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 >     `win32SuffixDeclaredForKey` records the pin so §3's `win32PrimaryCutKey`
 >     re-resolves the slope per run at the pinned weight/stretch.
 >   - **Linux fontconfig tail**: when fontconfig genuinely has the author's
->     family (`authorFamilyAvailable`, canon-compared so a substitute for a miss
->     still falls through), its file registers as a `sysfb:` key and
+>     family (`authorFamilyAvailable`, graded by Skia's own `MatchFont`
+>     acceptance — `strcasecmp` against the pick's family names and the
+>     post-config-substitution request, plus the `kFontEquivMap`
+>     metric-equivalence classes, transcribed from the DEPS-pinned
+>     `62efacd3:src/ports/SkFontConfigInterface_direct.cpp:553-590` — so a
+>     substitute for a miss still falls through while a metric-class
+>     replacement like Liberation Serif for "Times New Roman" accepts, exactly
+>     as Chrome does), its file registers as a `sysfb:` key and
 >     `declaredFamilyForKey` records the author's name so §3's
 >     `linuxPrimaryCutKey` can re-cut it at the run's style. Gated on the
 >     live-resolver flag (`DOMOTION_SYSTEM_FALLBACK=0` disables).
@@ -371,8 +377,8 @@ flowchart TD
   G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/courier-new/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant, stretch)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle:<br/>FindFamilyName + GetFirstMatchingFont, plus Blink's<br/>family-name suffix layer — win32FamilySuffixAdjustment —<br/>and win32SuffixDeclaredForKey's pinned axis for<br/>author-declared 'Segoe UI Light'-style keys)"]
-  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
-  G3d --> G3e["linux + helper + resolver flag: linuxPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (same key set + declaredFamilyForKey).<br/>Family = ACCEPTED spelling (declaredFamilyForKey) ?? LINUX_FONT_PATHS<br/>fcMatch base (the un-transcribed settings stand-in) →<br/>linuxFamilyMatchWithAlternate (alias retry per Blink) →<br/>helper 'familyMatch' = SkFontConfigInterfaceDirect::matchFamilyName<br/>transcribed (Skia rev fd139e79, the tag-147 DEPS pin): FcFontSort(trim=0),<br/>first SFNT-valid pattern, family/alias/metric-equiv acceptance.<br/>Both reject → linuxLastResortMatch ('' → Sans → Arial → '',<br/>GetLastResortFallbackFont transcribed).<br/>Reads the BASE key; sysfb:&lt;psName&gt; REPLACES G3/G3b. null → stand."]
+  G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its answer REPLACES G3/G3b<br/>rather than composing with them — sysfb:&lt;psName&gt; for a cut,<br/>the BASE key itself when the matcher answers the base face<br/>(an answer, not an abstention — Blink runs no ladder behind it).<br/>null = could not ask → G3/G3b stand (degraded tier)."]
+  G3d --> G3e["linux + helper + resolver flag: linuxPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (same key set + declaredFamilyForKey).<br/>Family = ACCEPTED spelling (declaredFamilyForKey) ?? LINUX_FONT_PATHS<br/>fcMatch base (the un-transcribed settings stand-in) →<br/>linuxFamilyMatchWithAlternate (alias retry per Blink) →<br/>helper 'familyMatch' = SkFontConfigInterfaceDirect::matchFamilyName<br/>transcribed (Skia rev fd139e79, the tag-147 DEPS pin): FcFontSort(trim=0),<br/>first SFNT-valid pattern, family/alias/metric-equiv acceptance.<br/>Both reject → linuxLastResortMatch ('' → Sans → Arial → '',<br/>GetLastResortFallbackFont transcribed).<br/>Reads the BASE key; the answer REPLACES G3/G3b (sysfb:&lt;psName&gt;<br/>for a cut, the BASE key when the score picks the base face).<br/>null = could not ask → G3/G3b stand (degraded tier)."]
   G3e --> G4["darwinSystemUiWdth(effectiveKey, stretch):<br/>sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey = effectiveKey-weight-size-slant-fvs[-wdth]<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
@@ -471,6 +477,19 @@ Three properties are load-bearing:
 - **It reads the BASE key, and REPLACES the two-slot routing** rather than
   composing with it. Feeding the `-bold` sibling in would ask the matcher to
   re-weight an already-re-weighted face.
+- **Null means "could not ask", never "the base face is right".** When the
+  matcher answers the very face the key already resolves to, that answer comes
+  back as the base KEY and replaces the sibling/ladder seed — Blink runs no
+  ladder behind `BestStyleMatchForFamilyNS`. Conflating the two was a measured
+  divergence: declared "Hiragino Sans" at CSS 510-590 painted W5 where Chrome
+  paints W4 — the tag's `BetterChoiceCT` rejects W5 on its unwanted AppKit
+  bold trait (`font_matcher_mac.mm:186-196` names exactly this face), the
+  matcher answered the W4 base entry, and the old null return let the
+  nearest-`usWeightClass` ladder override it. The resulting Chrome ladder is
+  non-monotonic (500 → W5 via the exact-weight escape, 510-590 → W4, 650 → W7
+  over the equally-distant W6 by the further-from-500 tie-break) — a shape no
+  nearest-weight rule can express, which is the concrete case for transcribing
+  the matcher instead of sampling it.
 - **`font-stretch` is part of the question, and it outranks weight.** Blink's
   `ComputeDesiredTraits` (`mac/font_matcher_mac.mm:185-202`) turns a width below
   `kNormalWidthValue` (100, `font_selection_types.h:233`) into
@@ -583,11 +602,20 @@ painted (`CSS.getPlatformFontsForNode` over 100…900 in 10-point steps):
    fallback for arrows, Hebrew and check marks) crosses over at 450.
 
 Two of those measurements are now superseded on macOS by the matcher, which is
-the point of moving to a transcribed mechanism: re-measured over CDP, Chrome
-crosses `Lucida Grande` to its bold face at **600**, not 450, and reaches
-`HelveticaNeue-UltraLight` / `-Thin` / `-Medium` where the two-slot pair had
-only `HelveticaNeue`. The rows above record what the *table* encodes and remain
-accurate for the platforms that still use it.
+the point of moving to a transcribed mechanism: re-measured over CDP, a
+DECLARED `Lucida Grande` crosses to its bold face at **600**, not 450 (the 450
+crossover is real but belongs to the FALLBACK cascade — as a fallback face
+under a weight-450+ run, `GetAlternateFontPlatformData`'s re-selection answers
+`LucidaGrande-Bold` — which the live resolver reproduces by making the same
+call), and the matcher reaches `HelveticaNeue-UltraLight` / `-Thin` /
+`-Medium` where the two-slot pair had only `HelveticaNeue`. The whole tier is
+therefore DEGRADED-MODE ONLY on an armed host: every rule above, including the
+`weight ≥ 600` split (600 is `kBoldThreshold`, Blink's synthetic-bold
+predicate — `font_selection_types.h:182,212` — never a cut selector) and the
+nearest-`usWeightClass` Hiragino ladder (wrong at 510-590 and 650, where
+Chrome's trait-mask ladder is non-monotonic), is a sampled seed the matcher's
+answer replaces, base face included. The rows above record what the *table*
+encodes and remain accurate for the hosts that still use it.
 
 Every suffixed key is adopted **only when `resolveFontSpec` resolves it on the
 host platform**, which is what keeps the table platform-agnostic: the Linux
@@ -1770,9 +1798,11 @@ Three consequences worth holding onto:
   `font-family: "Euphemia UCAS"; font-weight: 500` to the regular face but a
   *fallback* to the same family at weight 500 to `EuphemiaUCAS-Bold`; declared
   `"Songti SC"` at 500 is Regular where the fallback is Bold. The declared path
-  runs CSS font matching (which `SUB_BOLD_WEIGHT_CUTS` and `HIRAGINO_CUTS`
-  mirror); this path runs CoreText's nearest-weight descriptor match. Merging
-  the two would be wrong at several weights in both directions.
+  runs Blink's AppKit matcher (`BestStyleMatchForFamilyNS`, mirrored by
+  `darwinPrimaryCutKey`; `SUB_BOLD_WEIGHT_CUTS` and `HIRAGINO_CUTS` are its
+  degraded-tier stand-ins); this path runs CoreText's nearest-weight
+  descriptor match. Merging the two would be wrong at several weights in both
+  directions.
 
 Windows had the same shape of gap and now closes it, though by a different
 mechanism. There is no second in-family re-selection step on Windows — DirectWrite
@@ -1958,7 +1988,12 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    the CSS **specified** size, clamped into the axis range
    (`mac/font_platform_data_mac.mm:169-185` + `:74-79`, Chromium `7d859f27`;
    clamped again independently by Skia at
-   `src/ports/SkTypeface_mac_ct.cpp:1147`, Skia `ebf5052`). The macOS resolver
+   `src/ports/SkTypeface_mac_ct.cpp:1147`, Skia `ebf5052`). Recorded
+   divergence, inert at every current input: we pass the captured COMPUTED
+   size where Blink passes the specified (pre-zoom) one — the two differ only
+   under CSS zoom, which the capture neither runs nor models, so no current
+   input distinguishes them; if zoom becomes a capture input the pre-zoom size
+   must be plumbed through. The macOS resolver
    therefore sets **`opsz` plus any explicit `font-variation-settings` axis, and
    deliberately NOT `wght`** — on macOS the weight is already baked in by the
    CoreText trait/weight re-selection that runs first

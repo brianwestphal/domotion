@@ -87,6 +87,24 @@ describeMac("declared-family style matcher", () => {
     }
   });
 
+  it("rejects W5 on its unwanted AppKit bold trait at the intermediate weights", () => {
+    // The tag's `BetterChoiceCT` comment (`font_matcher_mac.mm:186-196`,
+    // 147.0.7727.15) names this exact face: CoreText flags HiraginoSans-W5
+    // (AppKit weight 6 → CSS 500) as bold, so below the 600 bold threshold it
+    // loses on the trait mask before weight distance is ever compared — EXCEPT
+    // at exactly CSS 500, where the exact-weight escape lets it win. And at
+    // 650, W6 and W7 tie on distance and the further-from-500 rule picks W7.
+    // Chrome over CDP (2026-08-08) paints exactly this non-monotonic ladder;
+    // no nearest-weight rule can express it, which is why the sampled
+    // `hiraginoWeightCut` ladder (W5 at 510-590, W6 at 650) is degraded-tier
+    // only.
+    expect(familyMatch("Hiragino Sans", 500).postscriptName).toBe("HiraginoSans-W5");
+    expect(familyMatch("Hiragino Sans", 510).postscriptName).toBe("HiraginoSans-W4");
+    expect(familyMatch("Hiragino Sans", 550).postscriptName).toBe("HiraginoSans-W4");
+    expect(familyMatch("Hiragino Sans", 590).postscriptName).toBe("HiraginoSans-W4");
+    expect(familyMatch("Hiragino Sans", 650).postscriptName).toBe("HiraginoSans-W7");
+  });
+
   it("prefers a non-italic face when none was asked for, and the italic when it was", () => {
     // `BetterChoiceCT`'s trait-precedence loop. Asserting both directions,
     // because "always picks the roman" would satisfy the first half alone.
