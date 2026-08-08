@@ -213,7 +213,9 @@ You have **standing permission to use Playwright freely** for any investigation,
 
 **A corollary about tickets.** A ticket describing a divergence is a *hypothesis*, not a finding, unless it cites source at a stated revision. Validate its premise against `external/` before implementing — cheaply, in minutes. Measured on this backlog: of 18 audit-derived items validated in one pass, **4 were already fixed or simply wrong, 4 prescribed the wrong remedy, and 4 more were correct but inert** on every current corpus. One item's line citations had drifted onto the *correct* Blink transcription, so following them literally would have deleted faithful upstream logic. Working such a queue ticket-by-ticket spends implementation time discovering the queue was wrong.
 
-**Two upstream checkouts live under `external/`, and between them they contain the answer to essentially every "why does Chrome do X" question this project asks:**
+**THREE upstream checkouts are already cloned under `external/` — Chromium, HarfBuzz and Skia. Between them they contain the answer to essentially every "why does Chrome do X" question this project asks, and there is no reason to fetch, guess, or infer anything they hold.** Confirm the revision before quoting (`git -C external/<repo> log -1 --format='%h %cd' --date=short`); as of writing: chromium `7d859f27` 2026-06-27, harfbuzz `4de187d` 2026-07-31, skia `ebf5052` 2026-07-31.
+
+Read **Skia at the revision Chromium's DEPS pins**, not at our working tree — they differ, and the difference has changed an answer: ours is `ebf5052` while `external/chromium/DEPS:330` pins `62efacd3`, and `src/ports/SkFontConfigInterface_direct.cpp` differs between them by 80 insertions / 57 deletions (`isAcceptableMatch` does not exist as a function at the pin at all). The pinned objects are fetched locally, so read them with `git -C external/skia show 62efacd3:<path>`.
 
 | checkout | contains | ask it about |
 | --- | --- | --- |
