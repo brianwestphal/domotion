@@ -246,10 +246,21 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("serif")).toBe("times");
   });
 
-  it("is case-insensitive and strips quotes", () => {
-    expect(resolveFontKey("MONOSPACE")).toBe("courier");
+  it("is case-insensitive for FAMILY names and strips quotes; generic keywords are canonical-lowercase only", () => {
+    // Family-name lookups are case-insensitive (CoreText/DirectWrite/
+    // fontconfig all fold case), so any spelling of a real family matches.
     expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
     expect(resolveFontKey("'SF Mono'")).toBe("sf-mono");
+    expect(resolveFontKey("MENLO")).toBe("menlo");
+    // But the generic-KEYWORD classification is case-SENSITIVE
+    // (`FontFamily::InferredTypeFor`, font_family.cc:63-74, rev 7d859f27 —
+    // AtomicString equality against the canonical lowercase names). The
+    // computed style only ever contains `MONOSPACE` for a literal family
+    // (`font-family: MONOSPACE` parses as the keyword and computes to
+    // lowercase `monospace`), so an upper-case spelling walks past to the
+    // standard-family terminal instead of taking the keyword's route.
+    expect(resolveFontKey("monospace")).toBe("courier");
+    expect(resolveFontKey("MONOSPACE")).toBe("times");
   });
 
   it("routes Chrome-unrecognized generics (math / emoji / fangsong) to Times", () => {

@@ -91,32 +91,47 @@ the values live in the browser process, outside the renderer checkout:
 
 - The generic-family → concrete-name preferences are now MOSTLY transcribed:
   the mechanism is `FontSelector::FamilyNameFromSettings`
-  (`font_selector.cc:73-91` at rev `7d859f27`), and the default VALUES ship in
-  `chrome/app/resources/locale_settings_linux.grd` (rev `7d859f27`): standard /
+  (`font_selector.cc:73-91` at rev `7d859f27`), and the VALUES in the capture
+  session are PLAYWRIGHT's — it applies its vendored Linux table via CDP
+  `Page.setFontFamilies` on every non-headful launch
+  (`playwright-core/lib/server/chromium/crPage.js:436-437` +
+  `defaultFontFamilies.js`, playwright-core 1.59.1): standard /
   serif → "Times New Roman", sans-serif → "Arial", fixed → "Monospace",
-  cursive → "Comic Sans MS", fantasy → "Impact", math → "Latin Modern Math".
-  `matchFamilyNameToKey` nominates the grd default through the SAME walk
+  cursive → "Comic Sans MS", fantasy → "Impact" — key-for-key equal to
+  Chrome's own defaults in `chrome/app/resources/locale_settings_linux.grd`
+  (rev `7d859f27`), the table's upstream provenance. `math` has no Playwright
+  key, so the `blink::web_pref::WebPreferences` constructor default "Latin
+  Modern Math" survives (`web_preferences.cc:41`, rev `7d859f27`).
+  `matchFamilyNameToKey` nominates the session default through the SAME walk
   (`LINUX_GENERIC_FAMILY_DEFAULTS`), so a settings value the matcher rejects
   ("Comic Sans MS" / "Impact" on noble, where fontconfig can only offer
   WenQuanYi Zen Hei) makes the family unavailable and the stack terminates at
   the standard family — which is why bare `cursive` / `fantasy` paint
-  Liberation Serif. What REMAINS un-transcribed: the grd's per-script
-  overrides (`IDS_*_FONT_FAMILY_JAPANESE` / `_KOREAN` / Han / Devanagari) —
-  the nomination is script-blind — and any non-default user pref.
+  Liberation Serif. Playwright's Linux table has NO `forScripts` per-script
+  entries (unlike mac/win), so on Linux the content script must never move a
+  generic's family; the only un-transcribed residual is a non-default user
+  pref (or a headed launch, which skips Playwright's override entirely).
 - The `-webkit-standard` stage a fully-rejected stack falls to
-  (`settings.Standard(script)`). The grd default is "Times New Roman"
-  (IDS_STANDARD_FONT_FAMILY), matching what was measured on noble
-  ("Times New Roman" → Liberation Serif); carried as the `times` terminal.
+  (`settings.Standard(script)`). Playwright's standard entry is "Times New
+  Roman" (as is the grd's IDS_STANDARD_FONT_FAMILY), matching what was
+  measured on noble ("Times New Roman" → Liberation Serif); carried as the
+  `times` terminal.
 - What `system-ui` becomes (`FontCache::SystemFontFamily()`, pushed from the
   browser side; `CreateTypeface` asserts `DCHECK_NE(family, kSystemUi)`).
   Its Linux route (the fontconfig default) and its weight ladder stay
   measured, not transcribed.
 
-One residual of the shared key model, worth naming: a QUOTED generic
-(`font-family: "sans-serif"`) is a plain family name to Blink
-(`FamilyNameFromSettings` bails when `!FamilyIsGeneric()`), but our stack
-splitter strips quotes before nomination, so it takes the generic's
-calibrated route instead of the walk's rejection path.
+The quoted-generic residual this section used to record is fixed: a QUOTED
+generic (`font-family: "sans-serif"`) is a plain family name to Blink
+(`FamilyNameFromSettings` bails when `!FamilyIsGeneric()`,
+`font_selector.cc:25-32`), and the stack splitter now carries the
+quoted-vs-keyword bit per entry (`splitFontFamilyNames` →
+`matchFamilyNameToKey(name, generic)`), so a quoted spelling is nominated
+into the walk verbatim — no settings substitution — and takes the walk's
+accept/reject outcome like any other literal name. The one spelling that
+does NOT change with quoting is `system-ui`: Blink's dispatch for it
+compares the family NAME (`font_cache.cc:161-166`), so both spellings
+resolve the system font.
 
 ## Method
 

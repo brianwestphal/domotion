@@ -1406,9 +1406,11 @@ const FONT_PATHS: Record<string, FontPath> = {
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
   // Songti SC Light (postscriptName STSongti-SC-Light) is what Chrome on
-  // macOS picks for CJK chars when the primary is a SERIF family
-  // (`font-family: serif` / `Times` / `ui-serif` / `fangsong` / `math` /
-  // bare UA default body). Empirical pixel probe at 16px against `font-
+  // macOS picks for CJK chars when the primary is a SERIF family —
+  // `font-family: serif` / `Times` resolve to the `times` key directly, and a
+  // bare `ui-serif` / `fangsong` / `math` / UA-default stack lands on the same
+  // key via the standard-family TERMINAL (those names are walked past, not
+  // routed). Empirical pixel probe at 16px against `font-
   // family: serif` rendering "你好世界" shows STSongti-SC-Light produces
   // a 100.000% pixel match — neither HiraginoSansGB-W3 (90.20%) nor
   // Songti SC Regular (90.23%) matches. DM-333. Same em-square advance
@@ -1806,8 +1808,11 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   // asks fontconfig for these. `FontSelector::FamilyNameFromSettings` maps the
   // generic to a browser-side settings value — `settings.Cursive(script)` /
   // `settings.Fantasy(script)` (`platform/fonts/font_selector.cc:80-83`, rev
-  // 7d859f27), defaults "Comic Sans MS" / "Impact"
-  // (`chrome/app/resources/locale_settings_linux.grd`, rev 7d859f27) — and
+  // 7d859f27). In the capture session those settings are PLAYWRIGHT's: it
+  // applies "Comic Sans MS" / "Impact" via CDP `Page.setFontFamilies`
+  // (`playwright-core/lib/server/chromium/defaultFontFamilies.js`, 1.59.1 —
+  // same values as `chrome/app/resources/locale_settings_linux.grd`, rev
+  // 7d859f27, the table's upstream provenance) — and
   // that value goes through the family matcher's acceptance filter
   // (`SkFontConfigInterfaceDirect::MatchFont`, Skia rev 62efacd3:553-590),
   // which REJECTS the WenQuanYi substitute fontconfig offers for it, so the
@@ -3026,9 +3031,9 @@ function resolveSystemFallbackKeyForCp(
         // case — retry is faithful), anything else means Blink would be asking
         // about a family we never resolved, so we fail through exactly as it
         // does rather than substitute a different family's regular cut.
-        const declaredHeadName = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
-        const headMatchesPrimary = declaredHeadName == null
-          || matchFamilyNameToKey(declaredHeadName) === primaryKey;
+        const declaredHead = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
+        const headMatchesPrimary = declaredHead == null
+          || matchFamilyNameToKey(declaredHead.name, declaredHead.generic) === primaryKey;
         if (headMatchesPrimary) {
           // The standard-style face of the SAME family. `getFontInstance` is
           // memoised, so this costs a map hit after the first bold codepoint.
@@ -4214,8 +4219,8 @@ export function blinkAlternateFamilyName(name: string): string | null {
 
 /**
  * The CSS generic keywords whose concrete family Blink reads from
- * browser-side `GenericFontFamilySettings` values, mapped to the DEFAULT
- * each setting carries on Linux.
+ * browser-side `GenericFontFamilySettings` values, mapped to the value each
+ * setting carries in the CAPTURE SESSION on Linux.
  *
  * The mechanism is `FontSelector::FamilyNameFromSettings`
  * (`font_selector.cc:73-91`, rev 7d859f27): serif → `settings.Serif(script)`,
@@ -4223,12 +4228,22 @@ export function blinkAlternateFamilyName(name: string): string | null {
  * `settings.Cursive(script)`, fantasy → `settings.Fantasy(script)`,
  * monospace → `settings.Fixed(script)`, math → `settings.Math(script)`, and
  * `-webkit-standard` / a `kWebkitBodyFamily` description →
- * `settings.Standard(script)`. The VALUES are browser-side prefs whose
- * defaults ship in `chrome/app/resources/locale_settings_linux.grd`
- * (rev 7d859f27): IDS_STANDARD/SERIF_FONT_FAMILY = "Times New Roman",
- * IDS_SANS_SERIF_FONT_FAMILY = "Arial", IDS_FIXED_FONT_FAMILY = "Monospace",
- * IDS_CURSIVE_FONT_FAMILY = "Comic Sans MS", IDS_FANTASY_FONT_FAMILY =
- * "Impact", IDS_MATH_FONT_FAMILY = "Latin Modern Math".
+ * `settings.Standard(script)`.
+ *
+ * The VALUES are populated by PLAYWRIGHT, not by Chrome's prefs layer: on
+ * every non-headful launch it calls CDP `Page.setFontFamilies` with its own
+ * vendored per-platform table (`playwright-core/lib/server/chromium/
+ * crPage.js:436-437,814-816` + `defaultFontFamilies.js`, playwright-core
+ * 1.59.1). Its Linux row: standard/serif "Times New Roman", sansSerif
+ * "Arial", fixed "Monospace", cursive "Comic Sans MS", fantasy "Impact" —
+ * key-for-key equal to Chrome's own Linux defaults in
+ * `chrome/app/resources/locale_settings_linux.grd` (rev 7d859f27), which is
+ * the table's upstream provenance. `math` has NO Playwright key, so the
+ * `blink::web_pref::WebPreferences` constructor default survives: "Latin
+ * Modern Math" (`third_party/blink/common/web_preferences/
+ * web_preferences.cc:41`, rev 7d859f27). Playwright's Linux row also has NO
+ * `forScripts` per-script entries (unlike mac/win), so on Linux the content
+ * script must never move a generic's family.
  *
  * The settings name then goes through the SAME family lookup as any declared
  * name — `SkFontConfigInterfaceDirect::matchFamilyName` with the acceptance
@@ -4239,12 +4254,11 @@ export function blinkAlternateFamilyName(name: string): string | null {
  * That rejection path is what makes bare `cursive` / `fantasy` paint
  * Liberation Serif (via standard = "Times New Roman") on the noble image.
  *
- * Un-transcribed residuals: the grd also carries per-script overrides
- * (`IDS_*_FONT_FAMILY_JAPANESE` / `_KOREAN` / Han / Devanagari) that
- * `settings.<Generic>(script)` consults — our pipeline nominates the
- * script-blind default. `system-ui` is NOT here: it resolves through
+ * `system-ui` is NOT here: it resolves through
  * `FontCache::SystemFontFamily()`, a different browser-side mechanism, and
- * stays on its measured static route.
+ * stays on its measured static route. When the session probe is armed
+ * (`DOMOTION_GENERIC_PROBE=1`), the probed answers supersede this table —
+ * they measure the same Playwright layer from inside the live session.
  */
 const LINUX_GENERIC_FAMILY_DEFAULTS: ReadonlyMap<string, string> = new Map([
   ["serif", "Times New Roman"],
@@ -4827,11 +4841,13 @@ export function darwinFallbackChain(
   // are stripped upstream anyway (`stripOrphanedDefaultIgnorables`).
   if (codepoint >= 0xFE00 && codepoint <= 0xFE0F) return [];
   // When the primary family is a serif (Apple Times / Times New Roman /
-  // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
-  // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
+  // Georgia — or a bare fangsong/math/ui-serif stack, which is walked past
+  // and terminates at the `times` standard-family terminal), CJK fallback
+  // should produce SERIF CJK glyphs (Songti SC Light) instead
   // of the default sans-serif Hiragino Sans GB. DM-333. The check is just
-  // the resolved key — `times` includes serif/fangsong/math/ui-serif/UA-
-  // default since they all collapse to that key in `resolveFontKey`.
+  // the resolved key — `times` covers serif/UA-default directly and the
+  // walked-past names via `resolveFontKey`'s terminal, not a per-name route
+  // (fangsong/math/ui-* return null in `matchFamilyNameToKey`).
   const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
   // Hebrew (U+0590..05FF) + presentation forms (U+FB1D..FB4F).
   // sf-hebrew before lucida-grande as a probe: SFHebrew layouts "שלום עולם"
@@ -7457,11 +7473,54 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
   return v;
 }
 
-/** Normalize a computed `font-family` string into its ordered list of lower-cased,
- *  unquoted family names (Chrome's `getComputedStyle().fontFamily` is the full
- *  unresolved comma-separated stack). */
-function splitFontFamilyNames(fontFamily: string): string[] {
-  return fontFamily.split(",").map((s) => s.trim().replace(/^["']|["']$/g, "").toLowerCase());
+/** The family-name spellings Blink classifies as `<generic-family>` keywords
+ *  when they appear UNQUOTED: `FontFamily::InferredTypeFor`
+ *  (`platform/fonts/font_family.cc:63-74`, rev 7d859f27) — cursive, fantasy,
+ *  monospace, sans-serif, serif, system-ui, math — by case-SENSITIVE
+ *  AtomicString equality against the canonical lowercase names. The computed
+ *  style preserves the distinction: `SerializeFontFamily`
+ *  (`core/css/css_markup.cc:224-230`) force-quotes a literal family name that
+ *  collides with a generic spelling (`FontFamilyNeedsQuoting`,
+ *  `core/css/properties/css_parsing_utils.cc:4359-4374`), while genuine
+ *  generic keywords serialize unquoted and lowercase. `-webkit-standard` /
+ *  `-webkit-body` are keyword-only tokens (routed via
+ *  `FontDescription::GenericFamily()`, not `InferredTypeFor`), included here
+ *  because an unquoted occurrence can only be the keyword. */
+const BLINK_GENERIC_FAMILY_SPELLINGS: ReadonlySet<string> = new Set([
+  "cursive", "fantasy", "monospace", "sans-serif", "serif", "system-ui",
+  "math", "-webkit-standard", "-webkit-body",
+]);
+
+/** One name of a computed `font-family` stack: the lower-cased unquoted name,
+ *  plus whether this occurrence is a CSS `<generic-family>` KEYWORD rather
+ *  than a literal family name. Quoted values are never generic — Blink's
+ *  `FontSelector::FamilyNameFromSettings` refuses to substitute settings for
+ *  them (`platform/fonts/font_selector.cc:25-32`, rev 7d859f27: "Quoted
+ *  <font-family> values corresponding to a <generic-family> keyword should
+ *  not be converted to a family name via user settings", gated on
+ *  `!generic_family.FamilyIsGeneric()`) — and neither is a case-variant
+ *  spelling like `Monospace`, which the computed style only contains for a
+ *  literal family (the keyword serializes canonically lowercase). */
+interface FontFamilyStackEntry {
+  name: string;
+  generic: boolean;
+}
+
+/** Normalize a computed `font-family` string into its ordered list of
+ *  lower-cased, unquoted family names (Chrome's `getComputedStyle().fontFamily`
+ *  is the full unresolved comma-separated stack), carrying the
+ *  generic-keyword-vs-literal-name bit per entry (see FontFamilyStackEntry). */
+function splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[] {
+  return fontFamily.split(",").map((s) => {
+    const trimmed = s.trim();
+    const unquoted = trimmed.replace(/^["']|["']$/g, "");
+    const wasQuoted = unquoted !== trimmed;
+    const name = unquoted.toLowerCase();
+    return {
+      name,
+      generic: !wasQuoted && unquoted === name && BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
+    };
+  });
 }
 
 /**
@@ -7651,14 +7710,31 @@ export function getSessionGenericFamilyOverrides(): ReadonlyMap<string, string> 
   return sessionGenericFamilyOverrides;
 }
 
-function matchFamilyNameToKey(name: string): string | null {
+/**
+ * `generic`: whether this occurrence of `name` is a CSS `<generic-family>`
+ * KEYWORD (unquoted, canonical lowercase — see `splitFontFamilyNames`) rather
+ * than a literal family name that shares the spelling. Blink keeps the two
+ * apart end-to-end: a quoted `"monospace"` never reaches
+ * `FamilyNameFromSettings`' settings substitution
+ * (`platform/fonts/font_selector.cc:25-32`, rev 7d859f27) and is looked up as
+ * an ordinary family — not installed on macOS/win32, so the walk continues to
+ * the next declared name (`font-family: "monospace", Menlo` paints Menlo, not
+ * Courier). Every generic-keyword route below is therefore gated on this bit.
+ * The default classifies a bare lower-case spelling as the keyword, matching
+ * the pre-existing single-name callers (probes, tests, head-name comparisons).
+ */
+function matchFamilyNameToKey(
+  name: string,
+  generic: boolean = BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
+): string | null {
   if (name === "" || name === "doesnotexist") return null;
   // Session-probed generic route (see setSessionGenericFamilyOverrides): when
   // the capture session has been asked what it paints for a generic keyword,
   // route the keyword to that family. The probed name is a concrete platform
   // family (never a generic keyword), so the recursion is single-step; if it
   // doesn't resolve to a key on this host, fall through to the static routes.
-  if (sessionGenericFamilyOverrides != null && SESSION_PROBED_GENERICS.has(name)) {
+  // Quoted spellings are literal family names, so they bypass this route.
+  if (generic && sessionGenericFamilyOverrides != null && SESSION_PROBED_GENERICS.has(name)) {
     const probed = sessionGenericFamilyOverrides.get(name);
     if (probed != null) {
       const probedName = probed.toLowerCase();
@@ -7704,8 +7780,9 @@ function matchFamilyNameToKey(name: string): string | null {
     // which is what falling through to the `times` terminal below yields.
     // The settings-mapped generic keywords go through the SAME walk, after
     // `FontSelector::FamilyNameFromSettings` (`font_selector.cc:73-91`, rev
-    // 7d859f27) swaps in the browser-side settings value — the grd default,
-    // see `LINUX_GENERIC_FAMILY_DEFAULTS`. A settings value the matcher
+    // 7d859f27) swaps in the browser-side settings value — Playwright's
+    // vendored table in the capture session (equal to the grd defaults on
+    // Linux), see `LINUX_GENERIC_FAMILY_DEFAULTS`. A settings value the matcher
     // REJECTS ("Comic Sans MS" / "Impact" on the noble image, where
     // fontconfig offers WenQuanYi Zen Hei and the acceptance filter refuses
     // it) makes the family unavailable, exactly like a rejected author name:
@@ -7719,9 +7796,18 @@ function matchFamilyNameToKey(name: string): string | null {
     // DOMOTION_SYSTEM_FALLBACK), degrading to the calibrated tables when
     // disarmed — including when the helper predates the `familyMatch` query
     // (the armed probe), since a walk that cannot ask the matcher must not
-    // declare rejections.
+    // declare rejections. Only the generic KEYWORD gets the settings
+    // substitution: a quoted `"cursive"` is a literal family name Blink
+    // nominates verbatim. `system-ui` stays off the walk in BOTH spellings —
+    // Blink's intercept is keyed on the family NAME, not the generic bit
+    // (`GetFontPlatformData` routes `creation_params.Family() ==
+    // font_family_names::kSystemUi` to `SystemFontPlatformData` before any
+    // fontconfig lookup, `platform/fonts/font_cache.cc:161-166`, rev
+    // 7d859f27), so a quoted `"system-ui"` resolves the platform UI font
+    // exactly like the keyword. Verified against the live oracle: Chrome
+    // paints .SFNS-Regular for `font-family: "system-ui", Georgia` on macOS.
     if (name !== "system-ui" && linuxNominationWalkArmed()) {
-      const nominated = LINUX_GENERIC_FAMILY_DEFAULTS.get(name) ?? name;
+      const nominated = generic ? (LINUX_GENERIC_FAMILY_DEFAULTS.get(name) ?? name) : name;
       const walked = linuxFamilyMatchWithAlternate(nominated, { weight: 400 });
       if (walked == null) return null; // Chrome walks past this family
       const { match, acceptedFamily } = walked;
@@ -7801,7 +7887,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // Mono). Chrome falls through to the standard-font default (Times). It
     // intentionally falls through here so the last-resort `times` mapping
     // at the bottom catches it.
-    if (name === "monospace" || name === "courier") return "courier";
+    if ((generic && name === "monospace") || name === "courier") return "courier";
     // `Courier New` is its own installed face (Supplemental on macOS, cour.ttf
     // on Windows, fontconfig's Liberation Mono metric substitute on Linux) and
     // Chrome resolves the name DIRECTLY when the lookup succeeds. The Courier
@@ -7826,7 +7912,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // different em-dash glyphs in bold weights. (`ui-serif` is NOT here: it is
     // an unrecognized name Chrome walks past — see the null-return list below.)
     if (name === "times new roman") return "times-new-roman";
-    if (name === "serif" || name === "times") return "times";
+    if ((generic && name === "serif") || name === "times") return "times";
     if (name === "georgia") return "georgia";
     // Source Serif Pro (Adobe) — non-base macOS face, often present under
     // `/Library/Fonts/`. Authors target it via `font-family: 'Source Serif Pro'`.
@@ -7849,7 +7935,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
     // Author-named "Snell Roundhand" / "Brush Script MT" still get their
     // explicit families.
-    if (name === "cursive" || name === "apple chancery") return "apple-chancery";
+    if ((generic && name === "cursive") || name === "apple chancery") return "apple-chancery";
     if (name === "snell roundhand" || name === "brush script mt") return "snell";
     // Chrome on macOS resolves the CSS `fantasy` generic to Papyrus
     // (empirical probe: 313.94px = Papyrus's exact advance on the sample).
@@ -7858,7 +7944,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // tables — on Windows `apple-chancery` is `comic.ttf` and `papyrus` is
     // `impact.ttf`, which are Chrome's Windows defaults. The macOS-flavoured
     // key names are a naming wart, not a routing one.
-    if (name === "fantasy" || name === "papyrus") return "papyrus";
+    if ((generic && name === "fantasy") || name === "papyrus") return "papyrus";
     // DM-1189 / DM-1199 / DM-1196 / DM-1183: `Helvetica Neue` is its OWN face,
     // NOT plain Helvetica. Verified with Chrome's `getPlatformFontsForNode`:
     // `font-family: 'Helvetica Neue'` paints from Helvetica Neue (HelveticaNeue.ttc),
@@ -7872,7 +7958,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // exactly is critical: SF Pro has different glyph shapes (notably the `1`, `R`,
     // `g`) and ~2% wider metrics than Helvetica at the same em size, so substituting
     // it produces visible drift on every page that uses the default sans-serif.
-    if (name === "sans-serif" || name === "helvetica") return "helvetica";
+    if ((generic && name === "sans-serif") || name === "helvetica") return "helvetica";
     if (name === "arial") return "arial";
     // Arial Unicode MS — the broad-coverage pan-Unicode face many of the
     // html-test unicode fixtures declare as their primary. Recognizing it
@@ -7912,6 +7998,29 @@ function matchFamilyNameToKey(name: string): string | null {
     // doesn't override it. Resolve `system-ui` via the fontconfig default so we
     // match Chrome; keep macOS/Windows on the `sf-pro` key. Gated by the
     // live-resolver flag (default-on; honors DOMOTION_SYSTEM_FALLBACK=0).
+    //
+    // Deliberately NO walk-past branch for an unresolvable system-ui. Blink
+    // does have one — `FontCache::SystemFontPlatformData` returns
+    // nullptr when the browser-side system font family is empty or literally
+    // "system-ui", and the stack walks on — but that return is inside
+    // `#if !BUILDFLAG(IS_MAC)` and further gated to
+    // IS_LINUX/IS_CHROMEOS/IS_FUCHSIA/IS_IOS (`platform/fonts/
+    // font_cache.cc:139-152`, rev 7d859f27; on win32 the same condition is a
+    // DCHECK, i.e. assumed unreachable, and macOS resolves system-ui in
+    // font_cache_mac.mm and never takes this path). So a walk-past on darwin
+    // or win32 would CONTRADICT Blink. On Linux the branch exists but the
+    // measured capture environment never fires it — the runner's paint for
+    // `system-ui, sans-serif` is WenQuanYi (the system-ui answer itself),
+    // not the next declared family, so its system font family is non-empty —
+    // and the VALUE that would decide it is browser-side and un-transcribed.
+    //
+    // NOT gated on the generic bit: unlike the settings-mapped generics,
+    // Blink's system-ui dispatch compares the family NAME — `font_cache.cc:
+    // 161-166` (`creation_params.Family() == font_family_names::kSystemUi`,
+    // !IS_MAC) and `font_cache_mac.mm:402-417` (the `MatchSystemUIFont`
+    // branch), rev 7d859f27 — so a quoted `"system-ui"` resolves the platform
+    // UI font exactly like the keyword. Measured: Chrome paints .SFNS-Regular
+    // for `font-family: "system-ui", Georgia` (425/425 oracle rows, macOS).
     if (name === "system-ui") {
       if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
         const matched = fcMatch("sans-serif");
@@ -7984,26 +8093,43 @@ function matchFamilyNameToKey(name: string): string | null {
       || name === "hiragino maru gothic pron") {
       return authorFamilyAvailable("Hiragino Sans") ? "hiragino-jp" : null;
     }
-    // Other generic-looking keywords Chrome does NOT recognize:
-    // `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`,
-    // `emoji`, `fangsong`. None of the `ui-*` names is in Blink's CSS keyword
-    // table (`css_value_keywords.json5:173-181`, rev 7d859f27) and
-    // `ConsumeGenericFamily` only spans serif..math
+    // Names Chrome WALKS PAST, for two different reasons:
+    //
+    // (a) `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `emoji`,
+    // `fangsong` are NOT keywords to Chrome at all: none is in Blink's
+    // `<generic-family>` block (`css_value_keywords.json5:173-181`, rev
+    // 7d859f27) and `ConsumeGenericFamily` only spans serif..math
     // (`css_parsing_utils.cc:6344-6346`), so Chrome treats each as an
     // uninstalled family name and walks past it to the next name in the
-    // stack. Only when nothing else matches does Chrome fall through to the
-    // standard-font default (Times). DM-269 probe confirmed bare
-    // `ui-monospace` paints with Times metrics (q=8.0, T=9.77), but
-    // `ui-monospace, Menlo, monospace` paints in Menlo — proving Chrome
-    // doesn't pin these keywords, it skips them. We must do the same:
-    // `continue` past them so the rest of the stack (Menlo, monospace, …)
-    // gets a chance to match. The last-resort `times` at the bottom of this
-    // function catches the no-match case. (DM-302: textarea code editor used
-    // `font: ui-monospace, Menlo, …` and we wrongly pinned to Times, painting
-    // code in a serif face. `ui-serif` had the same defect until it moved
-    // here: a probe of BARE `ui-serif` painting Times metrics cannot
-    // discriminate a pin from skip-then-terminal — only a stack with a later
-    // family can, and there Chrome paints the later family.)
+    // stack. DM-269 probe confirmed bare `ui-monospace` paints with Times
+    // metrics (q=8.0, T=9.77), but `ui-monospace, Menlo, monospace` paints in
+    // Menlo — proving Chrome doesn't pin these keywords, it skips them.
+    // (DM-302: textarea code editor used `font: ui-monospace, Menlo, …` and
+    // we wrongly pinned to Times, painting code in a serif face. `ui-serif`
+    // had the same defect until it moved here: a probe of BARE `ui-serif`
+    // painting Times metrics cannot discriminate a pin from
+    // skip-then-terminal — only a stack with a later family can, and there
+    // Chrome paints the later family.)
+    //
+    // (b) `math` IS a Blink generic (`settings.Math(script)`,
+    // `font_selector.cc:88-90`, rev 7d859f27) — but in the capture session
+    // its settings value is the `WebPreferences` constructor default "Latin
+    // Modern Math" (`web_preferences.cc:41`; Playwright's
+    // `Page.setFontFamilies` table carries no math key, so the constructor
+    // value survives). That family is not installed on any calibrated host
+    // (this class of Mac, the noble container, the CI runners), so Chrome's
+    // lookup fails and the stack walks on — measured in the harness's own
+    // launch path: bare `math` paints Times on macOS, Liberation Serif on
+    // Linux, both the standard-family terminal. Returning null reproduces
+    // exactly that. Do NOT route `math` to `stix-math`: STIX Two Math is
+    // what the HEADED full Chrome binary's prefs layer picks, not our render
+    // target, and routing it measured as a conformance regression. (A host
+    // that HAS Latin Modern Math installed would paint it; only the session
+    // probe, `DOMOTION_GENERIC_PROBE=1`, gets that case right.)
+    //
+    // Either way: `continue` past them so the rest of the stack (Menlo,
+    // monospace, …) gets a chance to match; the last-resort `times` at the
+    // bottom of this function catches the no-match case.
     if (name === "ui-monospace" || name === "ui-serif" || name === "ui-rounded"
       || name === "ui-sans-serif"
       || name === "math" || name === "emoji" || name === "fangsong"
@@ -8123,8 +8249,8 @@ export function resolveFontKey(fontFamily: string): string {
   // unresolved list (e.g. `"DoesNotExist", Georgia, "Times New Roman", serif`)
   // not the matched font. Pick the first name we recognize, mirroring how
   // Chrome falls through the stack until something loads.
-  for (const name of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(name);
+  for (const entry of splitFontFamilyNames(fontFamily)) {
+    const key = matchFamilyNameToKey(entry.name, entry.generic);
     if (key != null) return key;
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
@@ -8146,8 +8272,8 @@ export function resolveFontKey(fontFamily: string): string {
  */
 export function resolveFontKeyChain(fontFamily: string): string[] {
   const out: string[] = [];
-  for (const name of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(name);
+  for (const entry of splitFontFamilyNames(fontFamily)) {
+    const key = matchFamilyNameToKey(entry.name, entry.generic);
     if (key != null && !out.includes(key)) out.push(key);
   }
   return out;
@@ -8202,9 +8328,9 @@ const OPTICAL_CUT_OPSZ: Record<string, number> = {
  * it's any other installed face, the cut doesn't apply.
  */
 export function opticalCutOpszFor(fontFamily: string): number | null {
-  for (const name of splitFontFamilyNames(fontFamily)) {
-    if (matchFamilyNameToKey(name) == null) continue; // unrecognized — skip, like resolveFontKey
-    return name in OPTICAL_CUT_OPSZ ? OPTICAL_CUT_OPSZ[name] : null;
+  for (const entry of splitFontFamilyNames(fontFamily)) {
+    if (matchFamilyNameToKey(entry.name, entry.generic) == null) continue; // unrecognized — skip, like resolveFontKey
+    return entry.name in OPTICAL_CUT_OPSZ ? OPTICAL_CUT_OPSZ[entry.name] : null;
   }
   return null;
 }
@@ -9511,8 +9637,8 @@ function resolveFontForCodepointInner(
   if (hostPlatform() === "win32"
       && ((fontVariantEmoji === "text" && isEmojiCharCp(cp)) || !isEmojiPresentationCp(cp))
       && (slant !== 0 || weight >= 700)) {
-    const declaredHeadName = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
-    if (declaredHeadName == null || matchFamilyNameToKey(declaredHeadName) === primaryFontKey) {
+    const declaredHead = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
+    if (declaredHead == null || matchFamilyNameToKey(declaredHead.name, declaredHead.generic) === primaryFontKey) {
       // Style and weight reset to normal; the run's STRETCH is preserved —
       // `substitute_description` is a copy and only `SetStyle` / `SetWeight`
       // run on it (`skia/font_cache_skia.cc:122-124`).

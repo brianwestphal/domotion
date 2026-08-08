@@ -5,11 +5,17 @@
 // The mechanism under test: Blink resolves a settings-mapped generic keyword
 // by swapping in the browser-side settings value
 // (`FontSelector::FamilyNameFromSettings`, `font_selector.cc:73-91`, rev
-// 7d859f27), whose Linux defaults ship in
-// `chrome/app/resources/locale_settings_linux.grd` (rev 7d859f27) — cursive →
+// 7d859f27). In the capture session those settings come from PLAYWRIGHT, which
+// applies its vendored Linux table via CDP `Page.setFontFamilies` on every
+// non-headful launch (`playwright-core/lib/server/chromium/crPage.js:436-437`
+// + `defaultFontFamilies.js`, playwright-core 1.59.1) — cursive →
 // "Comic Sans MS", fantasy → "Impact", serif → "Times New Roman", sans-serif
-// → "Arial", monospace → "Monospace", math → "Latin Modern Math" — and then
-// running that name through the SAME fontconfig family lookup as any declared
+// → "Arial", monospace → "Monospace" — key-for-key equal to Chrome's own
+// `chrome/app/resources/locale_settings_linux.grd` defaults (rev 7d859f27),
+// the table's upstream provenance. `math` has no Playwright key, so the
+// `blink::web_pref::WebPreferences` constructor default "Latin Modern Math"
+// survives (`web_preferences.cc:41`, rev 7d859f27). The nominated name then
+// runs through the SAME fontconfig family lookup as any declared
 // name, INCLUDING the acceptance filter (`SkFontConfigInterfaceDirect::
 // MatchFont`, Skia rev 62efacd3:553-590, the revision `external/chromium`
 // DEPS:330 pins at rev 7d859f27): take the FIRST valid pattern of one

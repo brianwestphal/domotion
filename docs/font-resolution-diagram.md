@@ -123,6 +123,24 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 (used by the per-codepoint resolver to reach later-declared families).
 
+> **Quoted generic spellings are literal family names, not keywords.** The
+> splitter carries a per-entry `generic` bit: an entry is a generic KEYWORD
+> only when it was unquoted AND spelled in canonical lowercase
+> (`FontFamily::InferredTypeFor`'s case-sensitive set — cursive / fantasy /
+> monospace / sans-serif / serif / system-ui / math — `platform/fonts/
+> font_family.cc:63-74`, rev 7d859f27; the computed style delivers the
+> distinction because `SerializeFontFamily` force-quotes literal names that
+> collide with generic spellings, `core/css/css_markup.cc:224-230`). Every
+> generic route in `matchFamilyNameToKey` — the session-probe override, the
+> Linux settings substitution, and the calibrated static generic arms — is
+> gated on that bit, mirroring `FamilyNameFromSettings`' quoted-generic
+> refusal (`platform/fonts/font_selector.cc:25-32`): `font-family:
+> "monospace", Menlo` paints Menlo, never Courier. The one exception is
+> `system-ui`, whose dispatch Blink keys on the family NAME rather than the
+> generic bit (`font_cache.cc:161-166`, `font_cache_mac.mm:402-417`), so both
+> spellings resolve the platform UI font — measured live: Chrome paints
+> .SFNS-Regular for `"system-ui", Georgia`.
+
 > **This ladder is the macOS family stage — and on Linux, the transcribed
 > nomination WALK now runs ahead of it.** When the Linux helper is present,
 > speaks `familyMatch`, and `DOMOTION_SYSTEM_FALLBACK != 0`, every
@@ -137,17 +155,25 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > stack walks past the name, exactly as Blink does. The settings-mapped
 > generic keywords go through the SAME walk after
 > `FontSelector::FamilyNameFromSettings` (`font_selector.cc:73-91`, rev
-> 7d859f27) swaps in the browser-side settings value, whose Linux defaults
-> ship in `chrome/app/resources/locale_settings_linux.grd` (rev 7d859f27):
-> serif / -webkit-standard / -webkit-body → "Times New Roman", sans-serif →
+> 7d859f27) swaps in the browser-side settings value — in the capture session
+> that is PLAYWRIGHT's vendored Linux table, applied via CDP
+> `Page.setFontFamilies` on every non-headful launch
+> (`playwright-core/lib/server/chromium/defaultFontFamilies.js`, 1.59.1;
+> key-for-key equal to `chrome/app/resources/locale_settings_linux.grd`, rev
+> 7d859f27, its upstream provenance): serif / -webkit-standard /
+> -webkit-body → "Times New Roman", sans-serif →
 > "Arial", monospace → "Monospace", cursive → "Comic Sans MS", fantasy →
-> "Impact", math → "Latin Modern Math" (`LINUX_GENERIC_FAMILY_DEFAULTS`).
+> "Impact", plus math → "Latin Modern Math" from the `WebPreferences`
+> constructor (`web_preferences.cc:41` — Playwright's table has no math key)
+> (`LINUX_GENERIC_FAMILY_DEFAULTS`).
 > A rejected settings value ("Comic Sans MS" / "Impact" on the noble image)
 > means the family is unavailable and the stack terminates at the standard
-> family — the `times` terminal — never at "no font". Only `system-ui` stays
-> excluded (its family comes from `FontCache::SystemFontFamily()`, not a grd
-> setting) on its calibrated static route, which is also the degrade path for
-> everything when the walk is disarmed (doc 110).
+> family — the `times` terminal — never at "no font". Playwright's Linux table
+> has no `forScripts` entries, so the content script never moves a Linux
+> generic. Only `system-ui` stays
+> excluded (its family comes from `FontCache::SystemFontFamily()`, not a
+> settings-table entry) on its calibrated static route, which is also the
+> degrade path for everything when the walk is disarmed (doc 110).
 >
 > Otherwise, `matchFamilyNameToKey` unconditionally encodes Chrome-**on-macOS**'s family and
 > generic resolution (each entry is probe-calibrated against Chrome-macOS). The
@@ -162,7 +188,7 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 >   `serif`→`times`, `monospace`→`courier`, `cursive`→`apple-chancery`,
 >   `fantasy`→`papyrus` (the last two carrying the measured Liberation Serif
 >   outcome on the Linux table). With the walk armed, Linux resolves the
->   generics through the grd-default nomination above, so a host whose
+>   generics through the session-default nomination above, so a host whose
 >   fontconfig differs from the calibration image tracks Chrome by
 >   construction — the residual DejaVu-desktop divergence (**DM-1691**) is
 >   confined to the disarmed path.
@@ -222,8 +248,8 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 
 ```mermaid
 flowchart TD
-  S0["resolveFontKey(fontFamily)"] --> S1["splitFontFamilyNames:<br/>split ',' · trim · strip quotes · lowercase"]
-  S1 --> L["for each name in stack →<br/>matchFamilyNameToKey(name)"]
+  S0["resolveFontKey(fontFamily)"] --> S1["splitFontFamilyNames:<br/>split ',' · trim · strip quotes · lowercase<br/>+ per-entry generic bit (unquoted + canonical<br/>lowercase + InferredTypeFor set)"]
+  S1 --> L["for each entry in stack →<br/>matchFamilyNameToKey(name, generic)"]
   L --> M{"decision ladder (first hit wins)"}
 
   M -->|"webfontRegistry.has(name)"| R1["webfont:&lt;name&gt;"]

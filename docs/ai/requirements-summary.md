@@ -107,15 +107,19 @@ they describe (see `CLAUDE.md` "Documentation"):
   divergences (declared "Courier New"/"Courier" now paint Liberation Mono as
   Chrome does, not WenQuanYi; rejected "Menlo"/"Consolas"/"Helvetica Neue"
   land on the `-webkit-standard` stand-in). The settings-mapped generic
-  keywords now go through the SAME walk after swapping in the grd-default
-  settings value (`locale_settings_linux.grd`, rev 7d859f27: cursive →
+  keywords now go through the SAME walk after swapping in the capture
+  session's settings value — Playwright's vendored Linux table
+  (`defaultFontFamilies.js`, playwright-core 1.59.1; equal to the
+  `locale_settings_linux.grd` defaults at rev 7d859f27: cursive →
   "Comic Sans MS", fantasy → "Impact", serif → "Times New Roman", sans-serif
-  → "Arial", monospace → "Monospace", math → "Latin Modern Math"), so a
+  → "Arial", monospace → "Monospace"; math → "Latin Modern Math" from the
+  `WebPreferences` constructor since Playwright has no math key), so a
   settings value the matcher's acceptance filter rejects makes the family
   unavailable and the stack terminates at the standard family — which is why
   bare `cursive`/`fantasy` paint Liberation Serif on the noble image. Only
-  `system-ui` (a `FontCache::SystemFontFamily()` value, not a grd setting)
-  and the grd's per-script overrides remain un-transcribed (doc 110).
+  `system-ui` (a `FontCache::SystemFontFamily()` value, not a settings-table
+  entry) remains un-transcribed; Playwright's Linux table has no per-script
+  entries, so the content script never moves a Linux generic (doc 110).
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in
