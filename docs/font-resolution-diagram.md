@@ -762,20 +762,23 @@ flowchart TD
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
   FPUA -->|"yes — no system fallback at all"| F6
-  FPUA -->|"no"| FW{"_liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
+  FPUA -->|"no"| FSTD{"win32 pre-stage — FallbackOnStandardFontStyle<br/>(win/font_cache_skia_win.cc:270-277): italic run or<br/>weight ≥ 700 (kBoldWeightValue — NOT Linux's 600),<br/>non-emoji-presentation, head declared name matches primary,<br/>and the family's STANDARD-style cut covers cp?"}
+  FSTD -->|"yes (win32 only) — stay in the family"| FSTDH["cover(primaryKey, standard-style instance)<br/>synthetic bold/italic derives downstream from the<br/>requested style against that face"]
+  FSTD -->|"no / not win32"| FW{"_liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
   FW -->|"no (win32)"| F3
   FW -->|"yes"| F4{"_systemFallbackResolutionEnabled?"}
   F4 -->|"yes"| F4A["2a. kSystemFonts — ASK THE OS FIRST:<br/>resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
   F4A -->|"hit"| F4H["cover(sysfb:key)"]
   F4A -->|"OS declines"| F3
-  F4 -->|"no (no helper on host / flagged off)"| F3["2b. THE NET: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)"]
+  F4 -->|"no (no helper on host / flagged off)"| F3["2b. THE DEGRADED-MODE NET: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)<br/>staticChainArmed: win32 always · darwin/linux ONLY when<br/>the helper is absent or the resolver is flagged off"]
+  F3 -->|"not armed (darwin/linux with the live resolver in the loop)"| F5
   F3 -->|"first covering key (skip 'last-resort')"| F3C["macOS: fallbackFamilyCutKey(candidate, …)<br/>in-family cut re-selection at this weight/style"]
   F3C -->|"moved & still covers cp"| F3HC["cover(sysfb:cut)"]
   F3C -->|"unchanged / non-darwin"| F3H["cover(candidate)"]
   F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
-  F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(embedded: primary .notdef · paths: primary .notdef for<br/>private-use/noncharacter, else last chain .notdef)"]
-  FCH & F1H & F2H & F3H & F3HC & F4H & F5H --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>usesHarfbuzzShaping(cp)? (HARFBUZZ_SHAPED_RANGES)"}
+  F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(both modes: primary .notdef · paths keeps ONE deliberate<br/>exception — an uncovered EMOJI pins the chain tail so the<br/>raster-overlay advance stays aligned)"]
+  FCH & F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>usesHarfbuzzShaping(cp)? (HARFBUZZ_SHAPED_RANGES)"}
   FHB -->|"no (every other codepoint)"| FHB0["resolution unchanged"]
   FHB -->|"yes"| FHB1["shapingFaceFor(res.key, weight, size, slant, fvs) →<br/>makeHarfbuzzShapingInstance(base, path, faceIndex, size, axes,<br/>{ outlinesFromBase: true })<br/>HarfBuzz supplies ids / positions / clusters ·<br/>base engine still draws (base.getGlyph(id))<br/>+ carryFontInstanceMetadata(proxy, base)"]
 ```
@@ -1010,12 +1013,25 @@ Notes:
   The declared-family stages are deliberately NOT gated: macOS Helvetica has a
   real U+F8FF (the Apple logo), and an author's icon webfont covers its own PUA
   range, both of which Chrome paints from the family that carries them.
-- **Step 2b is still load-bearing.** The static chain is the net for what the OS
-  declines: a host with no glyph helper, a platform whose live resolver is
-  flagged off, or a codepoint the platform engine has no answer for — each of
-  which would otherwise drop straight to tofu. It is a fall-through, not a
-  competitor. `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order
-  for an A/B.
+- **Step 2b is a DEGRADED-MODE net on macOS/Linux — it never answers while the
+  live resolver is in the loop.** Blink has no such stage
+  (`font_fallback_iterator.cc:120-157`, rev `7d859f27`), and measured behind the
+  live-first order the chain answered 6 of 916,119 system-stage decisions on
+  macOS (0 of 779,964 on Linux) while being asked 492,624 times — and all six
+  answers were lone variation selectors routed to Noto Sans, divergences from
+  Chrome (the shaper hides default-ignorables regardless of coverage:
+  `hb_ot_hide_default_ignorables`, `hb-ot-shape.cc:824-846`, HarfBuzz rev
+  `4de187d`; the darwin chain now returns `[]` for U+FE00-FE0F). So
+  `staticChainArmed` gates the stage: on darwin/linux it runs only when the
+  helper binary is absent or the resolver is flagged off
+  (`DOMOTION_SYSTEM_FALLBACK=0`) — the hosts where dropping it would drop every
+  fallback answer, which is why it is gated rather than deleted. A codepoint
+  the OS *declines* on a live host now falls to the uncovered terminal,
+  Chrome's own answer. The chain FUNCTION (`fallbackFontChain`) stays ungated
+  for its non-resolver consumers: the uncovered-emoji terminal's advance pin,
+  the dotted-circle U+25CC advance candidates, and the batch glyph-warm.
+  `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
+  A/B.
 - **Windows keeps 2b before 2a, and that is not an oversight.** `kSystemFonts`
   bottoms out in `FontCache::PlatformFallbackFontForCharacter`, which is a
   different procedure on each platform — so "ask the OS first" is Blink's order
@@ -1179,7 +1195,8 @@ table. `serifPrimary` = primaryKey ∈ {`times`, `times-new-roman`, `georgia`};
 
 ```mermaid
 flowchart TD
-  D0["darwinFallbackChain(cp, primaryKey, lang, css?)"] --> DH["Hebrew → [lucida-grande, sf-hebrew]"]
+  D0["darwinFallbackChain(cp, primaryKey, lang, css?)"] --> DVS["Variation Selectors U+FE00-FE0F → []<br/>(the shaper hides default-ignorables regardless of coverage —<br/>hb_ot_hide_default_ignorables, hb-ot-shape.cc:824-846;<br/>the sampled u-noto-sans route was a divergence)"]
+  DVS --> DH["Hebrew → [lucida-grande, sf-hebrew]"]
   DH --> DA["Arabic → [sf-arabic] (Geeza Pro)"]
   DA --> DDev["Devanagari → [devanagari]"]
   DDev --> DT["Thai → [thai]"]
@@ -1254,7 +1271,18 @@ stage order that produces, matching Blink's:
    Blink's `GetDWriteFallbackFamily` fall-through.
 3. **the generated per-block net** (`UNICODE_FONT_RANGES_WIN32`), deferred behind
    (2) by `win32DeferOrStatic` so a frozen sample of DirectWrite's answers cannot
-   pre-empt DirectWrite itself.
+   pre-empt DirectWrite itself. The deferral probe asks the live resolver with
+   the run's FULL context — weight, slant, size, primary key, locale,
+   `font-variant-emoji` — the same question `liveFallback` asks for real moments
+   later; a bare-codepoint probe (weight 400, no primary, no locale) could
+   defer, or fail to defer, on a different verdict, since DirectWrite selects
+   the cut from the style, the base family travels with the query, and the
+   reduced locale decides unified Han.
+
+Blink also runs `FallbackOnStandardFontStyle` **before** stage 1
+(`win/font_cache_skia_win.cc:270-277`, threshold `kBoldWeightValue = 700` —
+not Linux's 600): that is the win32 pre-stage in `resolveFontForCodepointInner`
+(§6), ahead of this chain, not part of it.
 
 ```mermaid
 flowchart TD
@@ -1293,7 +1321,7 @@ flowchart TD
   WONE --> WPAN["+ pan-Unicode probe list:<br/>kCjkFonts when script_out is still Han, else kCommonFonts"]
   WPAN --> WKEY["presence probe: FindFamilyName, DEFAULT style<br/>( == Blink's IsFontPresent);<br/>not-installed families drop out"]
   WKEY --> WCUT["then SELECT the cut: GetFirstMatchingFont(weight, stretch, slant)<br/>at the RUN'S style → winfam:&lt;psName of that cut&gt;<br/>( == matchFamilyStyle(name, SkiaFontStyle()))"]
-  WCUT --> WNET["+ UNICODE_FONT_RANGES_WIN32 key, unless the live<br/>DirectWrite resolver already covers cp (win32DeferOrStatic)"]
+  WCUT --> WNET["+ UNICODE_FONT_RANGES_WIN32 key, unless the live<br/>DirectWrite resolver already covers cp (win32DeferOrStatic,<br/>probed with the run's full weight/slant/primary/locale)"]
 ```
 
 Two properties of the adapter that are load-bearing rather than incidental:
@@ -1537,10 +1565,22 @@ Three consequences worth holding onto:
      stacks from ~258 to 3 at every weight.
 
   `DOMOTION_FALLBACK_BASE=0` restores the hardcoded base for an A/B.
+
+  A primary with **no on-disk spec of its own** — a `webfont:` / `localalias:`
+  registry key — is exactly the case where Blink's `ct_font` is null
+  (FreeType-backed webfonts, some color fonts), and `GetSubstituteFont` then
+  substitutes from a **Times** base: `CTFontCreateWithName(CFSTR("Times"), …)`
+  handed to `CTFontCreateForString` (`mac/font_cache_mac.mm:137-147`, rev
+  `7d859f27`). `fallbackBaseFor`'s registry-key/no-spec arm therefore answers
+  `Times-Roman`, not Helvetica.
 - **The CSS description is part of the cache key**, not just the codepoint —
   `systemFallbackKeyCache` and the helper's own memo both carry weight, italic,
   size **and the base**. A codepoint-only key served whichever weight (or base)
-  asked first to every later caller.
+  asked first to every later caller. On linux/win32 the key also carries the
+  **primary key itself**: those arms consult it beyond what the base name
+  captures (the Linux standard-style retry re-instantiates it; the win32 arm
+  derives the DirectWrite base family from it), and `fallbackBaseFor` is not
+  injective in it — every registry key shares one cascade-base name.
 - **A cascade base must be opened from its FILE, never looked up by name alone,
   whenever it may be one of Apple's hidden `.`-prefixed faces.** CoreText refuses
   those names and answers with Times New Roman *without erroring*, so a name-only

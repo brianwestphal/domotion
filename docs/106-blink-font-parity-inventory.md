@@ -44,6 +44,11 @@ This is the single most important row in the inventory. Assuming one shape gener
 
 The Windows table is `win/font_fallback_win.cc` (609 lines): `GetFallbackFamily()` → color emoji → text-presentation emoji → `GetFontBasedOnUnicodeBlock` → **74 `USCRIPT_*` → font-list mappings** in `InitializeScriptFontMap` → non-BMP plane routing → last resort `"Lucida Sans Unicode"`.
 
+Two per-platform details of these procedures, both now transcribed:
+
+- **Windows runs `FallbackOnStandardFontStyle` before the hardcoded table** (`win/font_cache_skia_win.cc:270-277`): a bold (`>= kBoldWeightValue = 700`, `font_selection_types.h:193` — NOT Linux's `kBoldThreshold = 600` at `:182`) or italic run first retries its own family at standard style and weight, and stays in the family (with synthetic bold/italic) when the standard cut contains the character. Ours is the win32 pre-stage in `resolveFontForCodepointInner`, ahead of the chain, matching Blink's order.
+- **macOS substitutes a CTFont-less primary from a Times base** (`GetSubstituteFont`, `mac/font_cache_mac.mm:137-147`): FreeType-backed webfonts and some color fonts have no `ct_font`, and Blink asks `CTFontCreateForString` from `CTFontCreateWithName("Times")` for them. `fallbackBaseFor` mirrors this with a `Times-Roman` base for webfont / local-alias registry keys (the no-spec arm).
+
 ## 3. Our implementation, mapped
 
 | Blink stage | Ours | Matches by construction? |
@@ -55,7 +60,7 @@ The Windows table is `win/font_fallback_win.cc` (609 lines): `GetFallbackFamily(
 | `FallbackFontForCharacter`'s PUA / noncharacter guard | `isPrivateUseCodepoint(cp) \|\| isNonCharacterCodepoint(cp)` gating both fallback stages in `resolveFontForCodepoint` | **Yes** — transcribed from `font_cache.cc:242-244`, predicates from `character.cc:290-296` |
 | `kSystemFonts` | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`) | **Yes on macOS** — same API, and since DM-1852 the same argument (the run's own primary as cascade base) |
 | `GetLastResortFallbackFont` | `last-resort` key → bundled `LastResortHE-Regular.ttf` | **No** — Blink returns **Times** on macOS; ours paints Unicode LastResort's per-block frames |
-| `kFirstCandidateForNotdefGlyph` | embedded mode renders the primary's `.notdef`; paths mode does too for private-use / noncharacter codepoints, but still pins the last chain entry's otherwise | **Partial** — correct for the codepoints Blink reaches this stage with *directly*; the residual is the general uncovered case, where ours still uses the last candidate rather than the first |
+| `kFirstCandidateForNotdefGlyph` | both modes render the primary's `.notdef` for the uncovered terminal; the one exception is paths mode's uncovered-EMOJI terminal, which deliberately pins the last chain entry so the captured rasterGlyph PNG overlay keeps its advance alignment (`src/render/text-to-path.ts`, the `emojiToTerminal` branch) | **Yes**, with one documented deliberate exception — the emoji-overlay pin is an overlay-alignment mechanism, not a Blink-parity decision |
 
 ## 4. The core structural divergence
 
@@ -72,6 +77,8 @@ Each was fixed as an instance. The structural fix is to stop interposing: let `k
 ### Status: fixed (DM-1868)
 
 `resolveFontForCodepoint` now runs the two stages in Blink's order **on macOS and Linux** — the live system-fallback resolver answers, and `fallbackFontChain` is consulted only for what the OS declines. The chain is **not removed**, because it is genuinely load-bearing as a fall-through: a host without the glyph helper, a platform whose live resolver is flagged off, or a codepoint the platform engine has no answer for would otherwise drop straight to tofu. It is a net, not a competitor. `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old order for an A/B.
+
+**Tightened since to a degraded-mode-only net.** Measured after the reorder, the run-behind-the-OS chain answered **6 of 916,119** system-stage decisions on macOS and **0 of 779,964** on Linux — while being *asked* 492,624 times (~64% of the resolver's coverage probes) — and all six answers were lone variation selectors U+FE0x routed to Noto Sans, a *divergence* from Chrome (the shaper hides default-ignorables regardless of coverage — `hb_ot_hide_default_ignorables`, `hb-ot-shape.cc:824-846`, HarfBuzz rev 4de187d — so no fallback face is ever painted for them; that sampled route is dropped). So on macOS/Linux the chain stage is now gated on degraded mode outright: it answers only when the helper binary is absent or the resolver is flagged off (`DOMOTION_SYSTEM_FALLBACK=0`), i.e. exactly when the live resolver cannot run. A codepoint the OS *declines* on a live host now falls to the uncovered terminal — Chrome's own answer — instead of a chain guess. The win32 chain stays unconditional (and first) per the asymmetry below; its generated per-block tail remains separately deferred behind the live resolver via `win32DeferOrStatic`, which asks the deferral question with the run's full weight/slant/primary/locale so it cannot defer on a different verdict than the real ask reaches.
 
 **Windows is excluded, which is the §4 asymmetry honored rather than simplified away.** `kSystemFonts` bottoms out in `FontCache::PlatformFallbackFontForCharacter`, and that is a different procedure per platform: macOS goes straight to `CTFontCreateForString`, Linux straight to fontconfig (`linux/font_cache_linux.cc:89-97`, no table stage before it), but Windows consults `GetFallbackFamilyNameFromHardcodedChoices` **first** and only "fall[s] through to running the API-based fallback" on a miss (`win/font_cache_skia_win.cc:285-295`). Since `win32FallbackChain` now transcribes that hardcoded table, running the static chain ahead of the live resolver is exactly what matches Chrome on Windows — flipping it there would put `MapCharacters` in front of the table and invert what the transcription was written to reproduce. Note that no macOS fixture sweep could have caught this; only reading the per-platform source could.
 
@@ -104,7 +111,7 @@ Ordered by expected impact:
 2. ~~**Fix the macOS base-font argument**~~ **Done** — the cascade base is the run's own primary, matching `CTFontCreateForString(ct_font, …)`.
 3. **Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.
 4. **Port the Windows table** ahead of our `MapCharacters` call.
-5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the *first* candidate. Now done for the private-use / noncharacter codepoints (item 7 below), which is where Blink reaches the terminal *directly*; the general uncovered case still pins the chain's last entry in paths mode.
+5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the *first* candidate. Done — the uncovered terminal pins the primary's `.notdef` in both modes; the single remaining exception is paths mode's uncovered-emoji terminal, which pins the chain tail on purpose so the raster-overlay advance stays aligned (an overlay mechanism, not a parity gap).
 7. ~~**Skip system fallback for private-use and noncharacter codepoints**~~ **Done** — `font_cache.cc:242-244`. Cost nothing to transcribe; the ranges are absent from the corpus, so measure it with a purpose-built fixture rather than expecting the sweep to speak.
 6. **Model `kFallbackPriorityFonts`** as the one-shot stage it is.
 

@@ -2320,7 +2320,16 @@ function fallbackBaseFor(
   const spec = resolveFontSpec(cutKey) ?? resolveFontSpec(primaryKey);
   let base: { name: string; path?: string };
   if (spec?.postscriptName == null || spec.postscriptName === "") {
-    base = { name: "Helvetica" };
+    // A primary with no on-disk spec of its own — a webfont / local-alias
+    // registry key, i.e. exactly the faces for which Blink's `ct_font` is
+    // null (FreeType-backed webfonts, some color fonts). `GetSubstituteFont`
+    // then substitutes from a **Times** base, not Helvetica:
+    // `CTFontCreateWithName(CFSTR("Times"), size, nullptr)` handed to
+    // `CTFontCreateForString` (`mac/font_cache_mac.mm:137-147`, rev
+    // 7d859f27, quoting the "default value of standard font from user
+    // settings"). `Times-Roman` is the face the "Times" family name
+    // instantiates.
+    base = { name: "Times-Roman" };
   } else {
     base = { name: spec.postscriptName, path: spec.path };
     if (_fallbackBaseCutEnabled && !isRegistryKey
@@ -2715,7 +2724,16 @@ function resolveSystemFallbackKeyForCp(
   // memo. That is the same hazard the base and locale components already carry,
   // one axis over, and it is invisible in production precisely because nothing
   // in production varies it.
-  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}`;
+  // The linux and win32 arms consult `primaryKey` beyond what `base.name`
+  // captures — the Linux standard-style retry re-instantiates the key itself,
+  // and the win32 arm derives the DirectWrite base family from it — and
+  // `fallbackBaseFor` is not injective in the key (every registry key shares
+  // one cascade-base name), so those arms key the memo on the primary key too.
+  // darwin reads `primaryKey` only through `base.name` / `useSystemUiBase`,
+  // both already components, and stays unkeyed so its memo behavior (and the
+  // committed conformance baseline) is untouched.
+  const primaryKeyComponent = hostPlatform() === "darwin" ? "" : primaryKey ?? "";
+  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and
@@ -4413,9 +4431,25 @@ export function __setWin32FamilyKeyResolverForTest(
  * host with no helper binary, a resolver flagged off, or a codepoint DirectWrite
  * declines.
  */
-function win32DeferOrStatic(cp: number, fallback: string[]): string[] {
+function win32DeferOrStatic(
+  cp: number, fallback: string[],
+  /** The run's ACTUAL primary/locale/CSS description. This probe used to ask
+   *  the live resolver with the bare codepoint alone — weight 400, no primary,
+   *  no locale — a DIFFERENT question from the one it answers for
+   *  real moments later (`resolveFontForCodepointInner`'s `liveFallback`
+   *  passes weight/slant/primaryKey/lang in full), so the net could defer (or
+   *  fail to defer) on a different verdict than the real ask reaches. On
+   *  Windows the gap is not hypothetical: `MapCharacters` takes the run's
+   *  `SkiaFontStyle()` and DirectWrite selects the cut with it, the base
+   *  family travels with the query, and the reduced locale decides unified
+   *  Han. Same defect and same fix as `linuxDeferOrStatic`. */
+  primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+): string[] {
   if (hostPlatform() === "win32" && _systemFallbackResolutionEnabled
-      && resolveSystemFallbackKeyForCp(cp) != null) {
+      && resolveSystemFallbackKeyForCp(
+        cp, css?.weight, css?.slant, css?.fontSize, primaryKey, false, lang,
+        css?.stretch, css?.fontVariantEmoji,
+      ) != null) {
     return [];
   }
   return fallback;
@@ -4538,7 +4572,7 @@ export function win32FallbackChain(
   // C:\Windows\Fonts faces. Kept ONLY as the net behind the live DirectWrite
   // resolver — see `win32DeferOrStatic`.
   const generatedKey = lookupWin32UnicodeFontRange(codepoint);
-  if (generatedKey != null) keys.push(...win32DeferOrStatic(codepoint, [generatedKey]));
+  if (generatedKey != null) keys.push(...win32DeferOrStatic(codepoint, [generatedKey], primaryKey, lang, css));
   return keys;
 }
 
@@ -4658,6 +4692,18 @@ function decomposeMathAlphaRun(
 export function darwinFallbackChain(
   codepoint: number, primaryKey?: string, lang?: string, css?: CssFallbackDescription,
 ): string[] {
+  // A lone variation selector never leaves the run's primary in Chrome: the
+  // shaper replaces default-ignorables with a zero-advance invisible glyph (or
+  // deletes them outright) whatever the font's coverage says —
+  // `hb_ot_hide_default_ignorables`, hb-ot-shape.cc:824-846 (HarfBuzz rev
+  // 4de187d) — so no fallback face is ever painted for U+FE00-FE0F. The
+  // generated darwin table nonetheless sampled a `u-noto-sans` route for the
+  // block (the sweep recorded a face nomination, not a paint), and that route
+  // supplied the static chain's only six system-stage answers over the whole
+  // darwin conformance corpus — every one a divergence. No chain: the
+  // resolver's uncovered terminal keeps the primary, and orphaned selectors
+  // are stripped upstream anyway (`stripOrphanedDefaultIgnorables`).
+  if (codepoint >= 0xFE00 && codepoint <= 0xFE0F) return [];
   // When the primary family is a serif (Apple Times / Times New Roman /
   // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
   // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
@@ -8836,10 +8882,28 @@ function resolveFontForCodepointInner(
   // by 55 rows out of an expected 83,838, purely because `[pingfang-sc, cjk]`
   // covers Han and the walk stopped there.
   //
-  // So the OS goes first, and the static chain is the NET for what the OS
-  // declines — which is where it still earns its keep (no helper on the host, a
-  // platform whose live resolver is flagged off, or a codepoint the OS has no
-  // answer for, all of which would otherwise drop straight to tofu).
+  // So the OS goes first, and the static chain is a DEGRADED-MODE net on
+  // macOS and Linux — not a competitor and not a second-chance stage. Blink
+  // runs no such stage at all, so when the live resolver is in the loop the
+  // chain must not answer. Measured before the gate: over the darwin
+  // conformance corpus the chain was ASKED 492,624 times (~64% of the
+  // resolver's coverage probes) and ANSWERED 6 of 916,119 system-stage
+  // decisions — every answer a variation selector U+FE0x routed to
+  // `u-noto-sans`, a divergence from Chrome, not coverage (on Linux: 0
+  // answers in 779,964). The chain still earns its keep exactly where the
+  // live resolver cannot run — a host without the helper binary
+  // (`DOMOTION_DISABLE_HELPER`, or an npm install with no prebuilt helper) or
+  // a resolver flagged off (`DOMOTION_SYSTEM_FALLBACK=0`) — and outright
+  // deletion would drop every fallback answer on such a host, so the gate is
+  // the availability predicate itself rather than a removal.
+  //
+  // win32 is EXCLUDED from the gate on purpose: there the hardcoded table IS
+  // Blink's mechanism — `PlatformFallbackFontForCharacter` consults
+  // `GetFallbackFamilyNameFromHardcodedChoices` BEFORE DirectWrite and only
+  // falls through on a miss (`win/font_cache_skia_win.cc:286-296`, rev
+  // 7d859f27) — so the win32 chain runs unconditionally, and first
+  // (`_liveFallbackFirst` is false on win32). Its generated per-block tail is
+  // separately deferred behind the live resolver by `win32DeferOrStatic`.
   // `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
@@ -8871,7 +8935,16 @@ function resolveFontForCodepointInner(
     _stageStats.staticPrimaryTally.set(primaryFontKey, (_stageStats.staticPrimaryTally.get(primaryFontKey) ?? 0) + 1);
     if (_stageStats.staticCpSample.length < STATIC_CP_SAMPLE_CAP) _stageStats.staticCpSample.push(cp);
   };
+  // Degraded-mode gate (see the block comment above): on darwin/linux the
+  // static chain answers ONLY when the live resolver is out of the loop — no
+  // helper binary, or the resolver flagged off. On win32 the chain is Blink's
+  // own hardcoded stage and is never gated.
+  const staticChainArmed = hostPlatform() === "win32"
+    || !isGlyphHelperAvailable() || !_systemFallbackResolutionEnabled;
   const staticChain = (): FontResolution | null => {
+    if (!staticChainArmed) return null;
+    // Counted only when armed: an unarmed call does no probing, and the
+    // retirement measurement this feeds is about probe cost.
     _stageStats.staticAsked++;
     // DM-1985: the run's `font-variant-emoji` reaches the chain, because on
     // Windows it decides which arm of `GetFallbackFamily` the codepoint takes.
@@ -8934,6 +9007,59 @@ function resolveFontForCodepointInner(
   }
 
   _stageStats.systemStageReached++;
+  // Windows stage 1 of `PlatformFallbackFontForCharacter` — "First try the
+  // specified font with standard style & weight"
+  // (`win/font_cache_skia_win.cc:270-277`, rev 7d859f27):
+  //
+  //     if (!IsEmojiPresentationEmoji(fallback_priority) &&
+  //         (font_description.Style() == kItalicSlopeValue ||
+  //          font_description.Weight() >= kBoldWeightValue)) {
+  //       const SimpleFontData* font_data =
+  //           FallbackOnStandardFontStyle(font_description, character);
+  //       if (font_data)
+  //         return font_data;
+  //     }
+  //
+  // It runs BEFORE the hardcoded table — which is `staticChain` here, and
+  // win32 is the platform where the chain runs first — so this is its own
+  // stage rather than a branch inside the live resolver's win32 arm: placed
+  // there it would run after the table and invert Blink's order for exactly
+  // the case that makes it measurable (a family whose bold/italic cut lacks a
+  // glyph its regular cut has, on a codepoint the table routes).
+  //
+  // The threshold is `kBoldWeightValue = 700` (`font_selection_types.h:193`)
+  // — NOT the `kBoldThreshold = 600` (`:182`) the Linux copy of this stage
+  // uses (`linux/font_cache_linux.cc:80-87` spells `kBoldThreshold`); the two
+  // constants sit eleven lines apart and grabbing the Linux one is the easy
+  // mistake.
+  //
+  // `FallbackOnStandardFontStyle` itself (`skia/font_cache_skia.cc:119-137`)
+  // retries the LITERAL first declared family name at normal style and weight
+  // and accepts only a face that contains the character. The head-token check
+  // mirrors the Linux transcription in `resolveSystemFallbackKeyForCp`: when
+  // the stack's first declared name is not what produced `primaryFontKey`,
+  // Blink is asking about a family we never resolved, so fail through exactly
+  // as it does. Blink returns the standard-style face with synthetic
+  // bold/italic set from the ORIGINAL description
+  // (`SetSyntheticBold(weight >= kBoldThreshold …)`); the standard-style
+  // instance travels as `fontOverride`, and the renderer derives synthesis
+  // from the requested weight/slant against that face, keeping the predicate
+  // in one place.
+  if (hostPlatform() === "win32"
+      && ((fontVariantEmoji === "text" && isEmojiCharCp(cp)) || !isEmojiPresentationCp(cp))
+      && (slant !== 0 || weight >= 700)) {
+    const declaredHeadName = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
+    if (declaredHeadName == null || matchFamilyNameToKey(declaredHeadName) === primaryFontKey) {
+      // Style and weight reset to normal; the run's STRETCH is preserved —
+      // `substitute_description` is a copy and only `SetStyle` / `SetWeight`
+      // run on it (`skia/font_cache_skia.cc:122-124`).
+      const standard = getFontInstance(primaryFontKey, 400, fontSize, 0, undefined, stretch);
+      if (standard != null && glyphIdForCp(standard, cp) !== 0) {
+        return cover(primaryFontKey, standard);
+      }
+    }
+  }
+
   if (_liveFallbackFirst) {
     const live = liveFallback();
     if (live != null) return live;

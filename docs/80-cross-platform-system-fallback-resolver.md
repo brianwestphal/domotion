@@ -225,6 +225,17 @@ stages in Blink's order. See
 > chain-first for the reason described just above — there, the hardcoded table
 > genuinely is Chrome's first answer.
 >
+> **Tightened since to a degraded-mode-only net on macOS/Linux:** the static
+> chain no longer answers at all while this resolver is in the loop — it is
+> gated on the helper binary being absent or the resolver being flagged off
+> (`DOMOTION_SYSTEM_FALLBACK=0`). Measured behind the live-first order it
+> answered 6 of 916,119 system-stage decisions on macOS (0 of 779,964 on
+> Linux), all six of them lone variation selectors routed to Noto Sans —
+> divergences from Chrome, not coverage. A codepoint the OS declines on a live
+> host now reaches the uncovered terminal, which is Chrome's own answer.
+> Windows is unchanged: its chain is Blink's mechanism and stays
+> unconditional.
+>
 > This invalidates a phrase repeated in the validation records below: *"the
 > resolver only fires on otherwise-tofu codepoints, so covered text is
 > byte-identical."* That was true of the DM-1416 / DM-1424 flips as measured, and

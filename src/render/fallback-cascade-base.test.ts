@@ -55,6 +55,25 @@ describeMac("system-fallback cascade base", () => {
     expect(fallback(HAN_IN_BLACK, 900)).toBe("sysfb:STSongti-SC-Black");
   });
 
+  it("substitutes a CTFont-less primary from a Times base, not Helvetica — GetSubstituteFont, mac/font_cache_mac.mm:137-147 (rev 7d859f27)", () => {
+    // A webfont / local-alias registry key resolves no on-disk spec of its
+    // own — exactly the FreeType-backed case where Blink's `ct_font` is null.
+    // `GetSubstituteFont` then substitutes from a "Times" base
+    // (`CTFontCreateWithName(CFSTR("Times"), …)` handed to
+    // `CTFontCreateForString`), so the nomination must match a Times-primary
+    // ask, not a Helvetica one. No registration needed: an unresolvable
+    // registry key IS the no-spec arm.
+    const fromRegistryKey = __resolveSystemFallbackKeyForCpForTest(HAN_NOT_IN_BLACK, 400, 0, 16, "webfont:dm1854-ctfontless");
+    const fromTimes = __resolveSystemFallbackKeyForCpForTest(HAN_NOT_IN_BLACK, 400, 0, 16, "times");
+    const fromHelvetica = __resolveSystemFallbackKeyForCpForTest(HAN_NOT_IN_BLACK, 400, 0, 16, "helvetica");
+    // Precondition that makes the case discriminate: the two bases nominate
+    // DIFFERENT faces for this codepoint (measured: STSongti-SC-Regular from
+    // Times, PingFangSC-Regular from Helvetica). If a future macOS collapses
+    // them, pick a new codepoint rather than letting this pass vacuously.
+    expect(fromTimes).not.toBe(fromHelvetica);
+    expect(fromRegistryKey).toBe(fromTimes);
+  });
+
   it("keeps the two codepoints' answers independent across an interleaved walk", () => {
     // The base is memoized per (key, weight, slant, width) and the fallback
     // answer per (codepoint, …, base). Either memo missing a field would let one
