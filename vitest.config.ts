@@ -23,6 +23,16 @@ export default defineConfig({
       "**/node_modules/**",
       "**/dist/**",
       "**/tests/output/**",
+      // In-repo agent worktrees. `git worktree add` under `.claude/worktrees/`
+      // puts a FULL second checkout inside the repo root, so the `src/**` and
+      // `tests/**` globs above match every test file in every worktree as well
+      // as our own. Measured: 25 worktrees, 8,261 stray test files, and the
+      // run died ~10s in with a bare exit 144 and no summary — the same commit
+      // passing 3,369 tests when run from inside a worktree (which has no
+      // nested worktrees of its own) and dying from the main checkout is what
+      // isolated it. This mirrors `eslint.config.js`, which already lists the
+      // same path for the same reason: neither tool reads `.gitignore`.
+      "**/.claude/worktrees/**",
       // Browser-launching e2e tests run via `npm run test:e2e` (Chromium-bound,
       // slower, env-sensitive) — kept out of the fast unit gate.
       "**/*e2e.test.ts",
