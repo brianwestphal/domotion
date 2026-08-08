@@ -81,6 +81,7 @@ family installed instead resolves the generic primaries to Noto via the opt-in
 | `times-new-roman` | Times New Roman | Liberation Serif | `times.ttf` |
 | `georgia` | Georgia | Liberation Serif | `georgia.ttf` |
 | `courier` (= CSS `monospace`) | Courier | WenQuanYi Zen Hei Mono | `cour.ttf` (Courier New) |
+| `courier-new` (= explicit `"Courier New"`; direct match — the Courier alias is a lookup-failure retry only) | Courier New (Supplemental) | Liberation Mono (fontconfig metric class) | `cour.ttf` (Courier New) |
 | `menlo` / `monaco` / `sf-mono` | Menlo / Monaco / SF Mono | WenQuanYi Zen Hei Mono | `consola.ttf` (Consolas) |
 | `sf-pro` (= `system-ui`) | SF Pro | Liberation Sans | `segoeui.ttf` (Segoe UI) |
 | `cjk` / `pingfang-*` / `korean` | Hiragino Sans GB / PingFang / Apple SD Gothic | WenQuanYi Zen Hei | `msyh.ttc` (YaHei) / `msjh.ttc` (JhengHei) / `malgun.ttf` |

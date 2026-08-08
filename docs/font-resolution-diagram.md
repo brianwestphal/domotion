@@ -214,10 +214,11 @@ flowchart TD
   M -->|"linux, walk armed, non-generic name"| W{"transcribed nomination walk:<br/>matchFamilyName(name) →<br/>reject: retry blinkAlternateFamilyName(name)"}
   W -->|"accepted"| WA["sysfb:&lt;psName&gt; of matched face<br/>+ declaredFamilyForKey = ACCEPTED spelling"]
   W -->|"rejected"| WR["null → SKIP to next name<br/>(Blink walks past the family)"]
-  M -->|"monospace / courier / courier new / consolas"| R3["courier"]
+  M -->|"monospace / courier"| R3["courier"]
+  M -->|"courier new (face resolves on host)"| R3b["courier-new<br/>(absent: alias retry → courier on !win32,<br/>null on win32 — AlternateFamilyName is !IS_WIN)"]
   M -->|"menlo · monaco · sf mono"| R4["menlo / monaco / sf-mono"]
   M -->|"times new roman"| R5["times-new-roman"]
-  M -->|"serif · ui-serif · times"| R6["times"]
+  M -->|"serif · times"| R6["times"]
   M -->|"georgia"| R7["georgia"]
   M -->|"source serif pro"| R8["source-serif-pro (present-or-fall-through)"]
   M -->|"playfair display"| R9["playfair-display (present-or-fall-through)"]
@@ -229,10 +230,10 @@ flowchart TD
   M -->|"sans-serif · helvetica"| R15["helvetica"]
   M -->|"arial"| R16["arial"]
   M -->|"arial unicode ms"| R17["u-arial-unicode-ms"]
-  M -->|"system-ui · blinkmacsystemfont · sf pro"| R18["sf-pro"]
+  M -->|"system-ui · sf pro ·<br/>blinkmacsystemfont (darwin only —<br/>style_builder_converter.cc rewrite is IS_MAC;<br/>off-darwin: null → SKIP)"| R18["sf-pro"]
   M -->|"sf pro text · sf pro display"| R19["sf-pro (opsz-pinned, §7)"]
   M -->|"hiragino sans · hiragino kaku gothic …"| R20["hiragino-jp"]
-  M -->|"ui-monospace · ui-rounded · ui-sans-serif ·<br/>math · emoji · fangsong · -apple-system"| RN["null → SKIP to next name"]
+  M -->|"ui-monospace · ui-serif · ui-rounded · ui-sans-serif ·<br/>math · emoji · fangsong · -apple-system"| RN["null → SKIP to next name"]
   M -->|"new york medium (if OTF installed)"| R21["sysfb:NewYorkMedium-Regular"]
   M -->|"else: resolveInstalledFont(name) hits<br/>(real installed but uncalibrated font)"| R22["sysfb:&lt;postscriptName&gt;<br/>(registerDynamicSystemFont)"]
   M -->|"win32: suffix name ('Segoe UI Light')<br/>win32FamilySuffixAdjustment + resolveInstalledFont"| R23["winfam:&lt;psName&gt;<br/>+ win32SuffixDeclaredForKey pin"]
@@ -247,12 +248,14 @@ flowchart TD
 | CSS generic / keyword | Key | Actual macOS font |
 |---|---|---|
 | `sans-serif`, `Helvetica` | `helvetica` | Helvetica.ttc (NOT SF Pro) |
-| `serif`, `ui-serif`, `Times`, UA default | `times` | Times.ttc (Apple Times, NOT Times New Roman) |
-| `monospace`, `Courier`, `Courier New`, `Consolas` | `courier` | Courier.ttc (NOT SF Mono/Menlo) |
+| `serif`, `Times`, UA default | `times` | Times.ttc (Apple Times, NOT Times New Roman) |
+| `monospace`, `Courier` | `courier` | Courier.ttc (NOT SF Mono/Menlo) |
+| `Courier New` | `courier-new` | Supplemental/Courier New.ttf (direct match; Courier alias is a lookup-failure retry only — `font_platform_data_cache.cc:74-105`) |
+| `Consolas` | — | no pin: uninstalled → walk on; installed (MS Office Mac) → `sysfb:` via the installed-font probe |
 | `cursive` | `apple-chancery` | Apple Chancery (NOT Snell Roundhand) |
 | `fantasy` | `papyrus` | Papyrus |
-| `system-ui`, `BlinkMacSystemFont`, `SF Pro` | `sf-pro` | SFNS.ttf |
-| `ui-monospace`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system` | `null` | **skipped** (Chrome doesn't pin these; falls through the stack, ultimately to `times`) |
+| `system-ui`, `SF Pro`, `BlinkMacSystemFont` (darwin only — the `system-ui` rewrite is `#if BUILDFLAG(IS_MAC)`; off macOS the name is unmatchable and walks on) | `sf-pro` | SFNS.ttf |
+| `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system` | `null` | **skipped** (not in Blink's keyword table — `css_value_keywords.json5:173-181`; Chrome walks the stack, ultimately to `times`) |
 
 **Source of truth:** `matchFamilyNameToKey` / `resolveFontKey` /
 `resolveFontKeyChain` / `splitFontFamilyNames` in `src/render/font-resolution.ts`.
@@ -365,7 +368,7 @@ flowchart TD
   G1 -->|"localalias:&lt;family&gt;"| GL["pickLocalFontAliasVariant()<br/>→ recurse getFontInstance(baseKey,<br/>declared weight/italic)"]
   G1 -->|"plain / sysfb: / u- / un-"| G2["resolveEffectiveCutKey(key, weight, slant, stretch)<br/>effectiveKey = key — the G3…G3d ladder below.<br/>Also called by fallbackBaseFor (§8a) to name the<br/>cascade BASE, which is why it is its own function."]
 
-  G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
+  G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/courier-new/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant, stretch)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle:<br/>FindFamilyName + GetFirstMatchingFont, plus Blink's<br/>family-name suffix layer — win32FamilySuffixAdjustment —<br/>and win32SuffixDeclaredForKey's pinned axis for<br/>author-declared 'Segoe UI Light'-style keys)"]
   G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its sysfb:&lt;psName&gt; answer REPLACES G3/G3b<br/>rather than composing with them. null → G3/G3b stand."]
@@ -616,7 +619,7 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) +<br/>weight distance (Blink WeightDistance, vs the<br/>font-weight DESCRIPTOR caps; auto = [400,400])"]
+    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) +<br/>weight distance (Blink WeightDistance, vs the<br/>font-weight DESCRIPTOR caps; auto = [400,400]) +<br/>descriptor-less faces only: legacy OS/2-scalar<br/>tie-break × 1e-4 (resource-discovery inference)<br/>EXACT ties → LAST-declared wins<br/>(ForEachReverse, css_segmented_font_face.cc:125-136 +<br/>segmented_font_data.cc:33-40)"]
     W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold}<br/>→ webfontSyntheticBold() at the faux-bold seam<br/>(css_segmented_font_face.cc:116-119 +<br/>font_custom_platform_data.cc:129-154, 289-293)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
@@ -634,7 +637,15 @@ flowchart TD
   distinct `unicode-range`) is honored per-codepoint by
   `pickWebfontVariantForCodepoint` (DM-517 / DM-557); `pickWebfontVariant` biases
   toward the Latin partition when it can't route per-codepoint. Doc
-  [30](30-webfont-unicode-range.md).
+  [30](30-webfont-unicode-range.md). All pickers break exact score ties toward
+  the LAST-registered variant — Blink appends a segmented family's faces in
+  reverse declaration order and takes the first covering face
+  (`css_segmented_font_face.cc:125-136`, `segmented_font_data.cc:33-40`, rev
+  7d859f27), i.e. later `@font-face` declarations override earlier ones. The
+  Domotion-specific scalar-weight tie-break is confined to descriptor-less
+  (auto-caps) variants, where it routes the CSS-less resource-discovery path's
+  faces by their OS/2 weight; declared descriptors score by Blink's
+  WeightDistance alone.
 - **Local aliases** (`registerLocalFontAlias`) map an author `@font-face` family
   whose `src` is all `local()` to a known system key, tracking each declared
   `(weight, italic)` variant (DM-360 / DM-303 / DM-1597).
@@ -703,6 +714,7 @@ are deliberately left unnamed until that is explained.
 | `times-new-roman*` | Supplemental/Times New Roman*.ttf | explicit name only |
 | `georgia*` | Supplemental/Georgia*.ttf | |
 | `courier*` | Courier.ttc | `monospace` generic |
+| `courier-new*` | Supplemental/Courier New*.ttf | explicit name only (like `times-new-roman*`) |
 | `menlo*` / `monaco` | Menlo.ttc / Monaco.ttf | |
 | `cjk(-bold)` | Hiragino Sans GB.ttc (W3/W6) | sans CJK fallback |
 | `cjk-serif(-bold)` | Supplemental/Songti.ttc (STSongti-SC-Light/Bold) | serif-primary CJK |
@@ -743,6 +755,7 @@ Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same com
 | `helvetica`/`arial`/`sf-pro` | Liberation Sans | Arial / (sf-pro→Segoe UI) |
 | `times` | Liberation Serif | Times New Roman |
 | `courier`/`menlo`/`monaco`/`sf-mono` | WenQuanYi Zen Hei Mono | Courier New / Consolas |
+| `courier-new` | Liberation Mono (fontconfig metric class) | Courier New (cour.ttf) |
 | `cjk` | WenQuanYi Zen Hei | Microsoft YaHei |
 | `cjk-serif` | (Noto profile / generated) | SimSun |
 | `hiragino-jp` | IPAGothic (generated) | Yu Gothic |
@@ -1222,7 +1235,7 @@ is the partition Chrome-on-Windows uses. See §7c.
 Precedence matters: hand-tuned per-codepoint routes (carrying width/shape
 calibration) come BEFORE broad block ranges, which come before the generated
 table. `serifPrimary` = primaryKey ∈ {`times`, `times-new-roman`, `georgia`};
-`monoPrimary` = {`courier`, `menlo`, `monaco`, `sf-mono`}.
+`monoPrimary` = {`courier`, `courier-new`, `menlo`, `monaco`, `sf-mono`}.
 
 ```mermaid
 flowchart TD
@@ -1432,8 +1445,9 @@ as a pair where Blink nominates exactly one family and then probes pan-Unicode.
 only as "is the primary key `courier`", because the logical-key model does not
 carry the CSS generic separately (the same information loss `system-ui` has —
 see §7's `stackPrimaryIsSystemUi` note). It can only differ for Arabic or Hebrew
-text in a run that names `"Courier New"` explicitly, where Blink would see
-`kStandardFamily` and we see the monospace generic.
+text in a run that names bare `Courier` explicitly, where Blink would see
+`kStandardFamily` and we see the monospace generic. (A declared `"Courier New"`
+now takes its own `courier-new` key, which correctly reads as `kStandardFamily`.)
 
 **Source of truth:** `fallbackFontChain` / `darwinFallbackChain` /
 `linuxFallbackChain` / `linuxNotoFallbackChain` / `win32FallbackChain` /

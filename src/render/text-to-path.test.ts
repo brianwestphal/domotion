@@ -118,7 +118,11 @@ describe("resolveFontKey: generic-family resolution", () => {
     } else {
       expect(resolveFontKey("system-ui")).toBe("sf-pro");
     }
-    expect(resolveFontKey("BlinkMacSystemFont")).toBe("sf-pro");
+    // `BlinkMacSystemFont` rewrites to `system-ui` only on macOS
+    // (`style_builder_converter.cc:552-563` is `#if BUILDFLAG(IS_MAC)`, rev
+    // 7d859f27); elsewhere it is an ordinary unmatchable name, so the bare
+    // stack exhausts onto the standard-font terminal.
+    expect(resolveFontKey("BlinkMacSystemFont")).toBe(process.platform === "darwin" ? "sf-pro" : "times");
   });
 
   it("skips bare -apple-system so the next family in the stack matches (DM-291)", () => {
@@ -165,7 +169,10 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("Menlo")).toBe("menlo");
     expect(resolveFontKey("Monaco")).toBe("monaco");
     expect(resolveFontKey("Courier")).toBe("courier");
-    expect(resolveFontKey("Courier New")).toBe("courier");
+    // Courier New resolves to its OWN face when installed (macOS Supplemental /
+    // cour.ttf / Liberation Mono metric class) — the Courier alias is strictly
+    // a lookup-failure retry (`font_platform_data_cache.cc:74-105`, rev 7d859f27).
+    expect(resolveFontKey("Courier New")).toBe("courier-new");
     expect(resolveFontKey("SF Mono")).toBe("sf-mono");
   });
 

@@ -31,11 +31,11 @@ In `src/render/font-resolution.ts`:
    - Quoted family names (`"Helvetica Neue"`, `"Times New Roman"`) match against an explicit table.
    - Unquoted system-default keywords (`-apple-system`, `system-ui`, `BlinkMacSystemFont`) → SF Pro.
    - Generic keywords (matching Chrome on macOS, per `third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm`):
-     - `serif` / `ui-serif` → Apple Times (the `times` key).
+     - `serif` → Apple Times (the `times` key).
      - `sans-serif` → **Helvetica** (NOT SF Pro — Chrome's macOS sans-serif default is Helvetica; SF Pro is the `system-ui` / `-apple-system` mapping).
-     - `system-ui` / `-apple-system` / `BlinkMacSystemFont` → SF Pro.
+     - `system-ui` / `BlinkMacSystemFont` → SF Pro — the `BlinkMacSystemFont` half only on macOS: Blink's rewrite to `system-ui` is `#if BUILDFLAG(IS_MAC)` (`style_builder_converter.cc:552-563`, rev 7d859f27), so on Linux/Windows the name is unmatchable and the stack walks on. (`-apple-system` is skipped everywhere — DM-291 probe.)
      - `monospace` → **Courier** (NOT SF Mono or Menlo — Chrome's macOS monospace default per Blink's `kMonospaceFamily → kCourier`. SF Mono is ~3% wider and has a 2px taller rounded ascent at 13px, which misaligns `<code>` baselines vs surrounding text).
-     - **`ui-sans-serif` and `ui-monospace` are NOT recognized on macOS** (DM-269 empirical probe: Chrome paints them at the *standard* default width, not Helvetica/Courier), so `matchFamilyNameToKey` intentionally does NOT match them — they fall through to the last-resort `times` mapping, exactly as Chrome does. Only `ui-serif` is honored (and it maps to `times` anyway).
+     - **The `ui-*` keywords (`ui-serif`, `ui-sans-serif`, `ui-monospace`, `ui-rounded`) are NOT recognized by Chrome** — none is in Blink's CSS keyword table (`css_value_keywords.json5:173-181`, rev 7d859f27), so each is an ordinary unmatchable family name. `matchFamilyNameToKey` intentionally does NOT match them: the stack walks past them to the next declared family, falling through to the last-resort `times` mapping only when nothing else matches, exactly as Chrome does. (A bare-`ui-serif` probe painting Times metrics cannot distinguish a pin from skip-then-terminal; a stack like `ui-serif, Georgia` can, and Chrome paints Georgia.)
      - `cursive` → **Apple Chancery** (Chrome on macOS resolves bare `cursive` to Apple Chancery, NOT Snell Roundhand — verified by empirical advance-width probe; author-named "Snell Roundhand" still gets its own face).
      - `fantasy` → **Papyrus** (Chrome on macOS resolves bare `fantasy` to Papyrus — verified by empirical advance-width probe).
    - Anything else → next token, then SF Pro.

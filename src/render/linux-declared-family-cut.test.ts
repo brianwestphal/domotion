@@ -145,11 +145,14 @@ describeLinux("Linux declared-family NOMINATION walk (Blink's stack walk, transc
 
   it("disabling the resolver restores the calibrated static nomination", () => {
     // In-the-loop check for the WALK itself (not just the cut matcher): with
-    // the flag off, "Courier New" must fall back to the static `courier` key.
+    // the flag off, "Courier New" must fall back to the static `courier-new`
+    // key — the dedicated Liberation Mono metric-class route, the same face
+    // the armed walk nominates (Chrome resolves the name directly; the
+    // Courier alias is a lookup-failure retry only).
     const enabled = resolveFontKey('"Courier New"');
     const disabled = withSystemFallbackResolution(false, () => resolveFontKey('"Courier New"'));
     expect(enabled.startsWith("sysfb:")).toBe(true);
-    expect(disabled).toBe("courier");
+    expect(disabled).toBe("courier-new");
   });
 });
 

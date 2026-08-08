@@ -932,24 +932,31 @@ function webfontWeightDistance(
 }
 
 /**
- * Domotion-specific tie-break UNDER `webfontWeightDistance`: the legacy
- * per-variant scalar weight (for `@font-face`-sourced variants the collapsed
- * descriptor; for resource-path variants the font's own OS/2 weight), scaled
- * so it can only separate variants whose Blink weight distances TIE. The
- * resource-discovery path (fonts found only via network requests, no
- * parseable CSS) registers every face with auto capabilities — all of them
- * select as `[400, 400]`, so without this a bold run would take whichever
- * face registered first. Blink's distances live on the FontSelectionValue
- * quarter grid (minimum nonzero step 0.25); |Δweight| ≤ 999 × 1e-4 < 0.1
- * stays strictly below it.
+ * Domotion-specific tie-break UNDER `webfontWeightDistance`, CONFINED to
+ * variants with no `font-weight` descriptor (auto capabilities): the legacy
+ * per-variant scalar weight, scaled so it can only separate variants whose
+ * Blink weight distances TIE. This is a capture-inference necessity for the
+ * CSS-less resource-discovery path (fonts found only via network requests, no
+ * parseable CSS): it registers every face with auto capabilities — all of
+ * them select as `[400, 400]` — carrying the font's own OS/2 weight as the
+ * scalar, so without this a bold run would take whichever face declaration
+ * order prefers. It is NOT a Blink behavior, which is why it must not reach
+ * declared descriptors: a variant whose `@font-face` carries a real
+ * `font-weight` descriptor is scored by `webfontWeightDistance` alone, and
+ * exact ties among descriptor-less CSS faces fall to the reverse-declaration
+ * rule below (their scalar is uniformly 400, so the term is inert there).
+ * Blink's distances live on the FontSelectionValue quarter grid (minimum
+ * nonzero step 0.25); |Δweight| ≤ 999 × 1e-4 < 0.1 stays strictly below it.
  */
 const WEBFONT_WEIGHT_TIEBREAK_SCALE = 1e-4;
 
 /** The composed weight term for the variant pickers: Blink's WeightDistance
- *  over the descriptor capabilities, plus the sub-quarter legacy tie-break. */
+ *  over the descriptor capabilities, plus — only for descriptor-less
+ *  (auto-caps) variants — the sub-quarter legacy tie-break above. */
 function webfontWeightScore(v: WebfontVariant, request: number, bounds: { min: number; max: number }): number {
-  return webfontWeightDistance(variantWeightCaps(v), request, bounds)
-    + Math.abs(v.weight - request) * WEBFONT_WEIGHT_TIEBREAK_SCALE;
+  const dist = webfontWeightDistance(variantWeightCaps(v), request, bounds);
+  if (v.weightCaps != null) return dist;
+  return dist + Math.abs(v.weight - request) * WEBFONT_WEIGHT_TIEBREAK_SCALE;
 }
 
 // Score-composition scales. The hierarchy is: unicode-range coverage (a
@@ -998,7 +1005,15 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
     const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
     const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
       + webfontWeightScore(v, weight, weightBounds);
-    if (score < bestScore) { bestScore = score; best = v; }
+    // `<=`, not `<`: on an exact score tie the LAST-declared variant wins.
+    // Blink appends a segmented family's faces in REVERSE declaration order
+    // (`font_faces_->ForEachReverse`, `core/css/css_segmented_font_face.cc:125-136`,
+    // rev 7d859f27) and takes the FIRST appended face that covers the
+    // character (`SegmentedFontData::FontDataForCharacter`,
+    // `platform/fonts/segmented_font_data.cc:33-40`) — the CSS Fonts rule that
+    // later `@font-face` declarations override earlier ones. Forward
+    // iteration with `<=` is that same rule.
+    if (score <= bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
   return tagWebfontInstance(applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
@@ -1046,7 +1061,9 @@ export function __pickWebfontVariantMetaForTest(family: string, weight: number, 
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
     const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
       + webfontWeightScore(v, weight, weightBounds);
-    if (score < bestScore) { bestScore = score; best = v; }
+    // `<=`: last-declared wins on exact ties — Blink's reverse-declaration
+    // order (see the citation in pickWebfontVariantForCodepoint).
+    if (score <= bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
   return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch, weightCaps: best.weightCaps };
@@ -1066,7 +1083,9 @@ export function __pickWebfontVariantMetaForCodepointForTest(family: string, weig
     const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
     const score = stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
       + webfontWeightScore(v, weight, weightBounds);
-    if (score < bestScore) { bestScore = score; best = v; }
+    // `<=`: last-declared wins on exact ties — Blink's reverse-declaration
+    // order (see the citation in pickWebfontVariantForCodepoint).
+    if (score <= bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
   return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange, stretch: best.stretch, weightCaps: best.weightCaps };
@@ -1185,7 +1204,9 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
     const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
       + webfontWeightScore(v, weight, weightBounds);
-    if (score < bestScore) { bestScore = score; best = v; }
+    // `<=`: last-declared wins on exact ties — Blink's reverse-declaration
+    // order (see the citation in pickWebfontVariantForCodepoint).
+    if (score <= bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
   return tagWebfontInstance(applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
@@ -1216,7 +1237,9 @@ function pickWebfontVariantWithBuffer(family: string, weight: number, slant: num
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
     const score = rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch
       + webfontWeightScore(v, weight, weightBounds);
-    if (score < bestScore) { bestScore = score; best = v; }
+    // `<=`: last-declared wins on exact ties — Blink's reverse-declaration
+    // order (see the citation in pickWebfontVariantForCodepoint).
+    if (score <= bestScore) { bestScore = score; best = v; }
   }
   if (best == null || best.buffer == null) return null;
   return { variant: best, buffer: best.buffer };
@@ -1319,6 +1342,14 @@ const FONT_PATHS: Record<string, FontPath> = {
   "courier-bold":         { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Bold" },
   "courier-italic":       { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Oblique" },
   "courier-bold-italic":  { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-BoldOblique" },
+  // `Courier New` is its own installed face (macOS Supplemental), resolved
+  // directly by Chrome when CSS names it; the Courier alias is strictly a
+  // lookup-failure retry (`font_platform_data_cache.cc:74-105`, rev 7d859f27).
+  // Same four-sibling shape as the `times-new-roman*` keys above.
+  "courier-new":              { path: "/System/Library/Fonts/Supplemental/Courier New.ttf" },
+  "courier-new-bold":         { path: "/System/Library/Fonts/Supplemental/Courier New Bold.ttf" },
+  "courier-new-italic":       { path: "/System/Library/Fonts/Supplemental/Courier New Italic.ttf" },
+  "courier-new-bold-italic":  { path: "/System/Library/Fonts/Supplemental/Courier New Bold Italic.ttf" },
   // Author-named monospace families. Menlo and Monaco both ship as system
   // fonts with their own metrics — different from Courier and SF Mono — so
   // when an author explicitly requests them we should honor that rather than
@@ -1682,6 +1713,16 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   "courier-bold":         { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
   "courier-italic":       { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
   "courier-bold-italic":  { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  // A declared `Courier New` resolves through fontconfig's metric-equivalence
+  // class to Liberation Mono on the noble image (measured over CDP,
+  // tools/probe-1955-declared-walk.mjs) — the same shape as the
+  // `times-new-roman*` → Liberation Serif entries below. The live nomination
+  // walk answers this when armed; these entries keep the disarmed static
+  // route on the face Chrome actually paints.
+  "courier-new":              { fcMatch: "Liberation Mono", path: `${LIB}/LiberationMono-Regular.ttf` },
+  "courier-new-bold":         { fcMatch: "Liberation Mono:bold", path: `${LIB}/LiberationMono-Bold.ttf` },
+  "courier-new-italic":       { fcMatch: "Liberation Mono:italic", path: `${LIB}/LiberationMono-Italic.ttf` },
+  "courier-new-bold-italic":  { fcMatch: "Liberation Mono:bold:italic", path: `${LIB}/LiberationMono-BoldItalic.ttf` },
   "menlo":              { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
   "menlo-bold":         { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
   "menlo-italic":       { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
@@ -1825,7 +1866,7 @@ const LINUX_FONT_PATHS_NOTO: Record<string, LinuxFontPath> = (() => {
   }
   // monospace primaries → Noto Mono (single weight — no italic/bold faces, like
   // the bare profile's WenQuanYi Mono collapse).
-  for (const k of ["courier", "menlo", "monaco", "sf-mono"]) {
+  for (const k of ["courier", "courier-new", "menlo", "monaco", "sf-mono"]) {
     t[k] = mono; t[`${k}-bold`] = mono; t[`${k}-italic`] = mono; t[`${k}-bold-italic`] = mono;
   }
   // CJK logical keys (used when CSS names a CJK family directly, e.g. PingFang
@@ -1885,6 +1926,14 @@ const WIN32_FONT_PATHS: Record<string, FontPath> = {
   "courier-bold":         win("courbd.ttf"),
   "courier-italic":       win("couri.ttf"),
   "courier-bold-italic":  win("courbi.ttf"),
+  // Courier New IS cour.ttf — on Windows the plain-Courier key already points
+  // at it (Blink rewrites Courier → Courier New up front there:
+  // `AdjustFamilyNameToAvoidUnsupportedFonts`, `alternate_font_family.h:45-52`,
+  // rev 7d859f27), so the dedicated key shares the same files.
+  "courier-new":              win("cour.ttf"),
+  "courier-new-bold":         win("courbd.ttf"),
+  "courier-new-italic":       win("couri.ttf"),
+  "courier-new-bold-italic":  win("courbi.ttf"),
   "menlo":              win("consola.ttf"),
   "menlo-bold":         win("consolab.ttf"),
   "menlo-italic":       win("consolai.ttf"),
@@ -3700,7 +3749,7 @@ export function linuxFallbackChain(
   // Mono covers them at cell width); non-mono falls to Liberation Sans, then CJK
   // (probe: box-drawing mono → WQY Mono; box-drawing-sans → Liberation Sans).
   if (isBoxDrawingBlock(cp)) {
-    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+    const monoPrimary = primaryKey === "courier" || primaryKey === "courier-new" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     return monoPrimary ? [primaryKey!, "cjk"] : ["helvetica", "cjk"];
   }
@@ -3966,7 +4015,7 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch:
  * outside the checkout).
  */
 const DARWIN_DECLARED_FAMILY_KEYS: ReadonlySet<string> = new Set([
-  "courier", "menlo", "monaco", "sf-mono",
+  "courier", "courier-new", "menlo", "monaco", "sf-mono",
   "times", "times-new-roman", "georgia", "source-serif-pro", "playfair-display",
   "hiragino-mincho", "hiragino-jp", "u-arial-unicode-ms",
   "apple-chancery", "snell", "papyrus",
@@ -4834,7 +4883,7 @@ export function darwinFallbackChain(
   // glyphs and breaking corner joins) is exactly what we want to avoid
   // here too. Menlo stays as the final safety net.
   if (isBoxDrawingBlock(codepoint)) {
-    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+    const monoPrimary = primaryKey === "courier" || primaryKey === "courier-new" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     if (monoPrimary) return [primaryKey, "menlo", "hiragino-jp"];
     return ["hiragino-jp", "menlo"];
@@ -4847,7 +4896,7 @@ export function darwinFallbackChain(
   // and was dead code — the block return shadowed it, which is exactly why the
   // fixture's sans ✓ painted the thin Zapf check.
   if (codepoint === 0x2713) {
-    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+    const monoPrimary = primaryKey === "courier" || primaryKey === "courier-new" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     if (monoPrimary) return ["menlo", "zapf-dingbats", "symbols"];
     if (primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia" || primaryKey === "palatino") {
@@ -4893,7 +4942,7 @@ export function darwinFallbackChain(
     // primary pulls these from Times New Roman, a monospace primary from
     // Menlo; the sans path keeps Lucida Grande (sans primaries that carry
     // the glyph themselves — Helvetica has ● — never reach this chain).
-    if (primaryKey === "courier" || primaryKey === "menlo" || primaryKey === "monaco" || primaryKey === "sf-mono") {
+    if (primaryKey === "courier" || primaryKey === "courier-new" || primaryKey === "menlo" || primaryKey === "monaco" || primaryKey === "sf-mono") {
       return ["menlo", "lucida-grande", "symbols"];
     }
     if (primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia" || primaryKey === "palatino") {
@@ -5022,7 +5071,7 @@ export function darwinFallbackChain(
     // (Japanese) — visible diff on `02-text-symbols`'s `.serif` and
     // `.mono` rows where the primary should win. Branch by primary so the
     // chain matches Chrome's per-context pick.
-    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+    const monoPrimary = primaryKey === "courier" || primaryKey === "courier-new" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     if (monoPrimary) return [primaryKey!, "menlo", "hiragino-jp", "symbols"];
     if (serifPrimary) {
@@ -5055,7 +5104,7 @@ export function darwinFallbackChain(
     // Context split (CDP per-cp probe): serif primaries pull ← → from Times
     // New Roman and monospace primaries from Menlo; Lucida Grande remains the
     // sans pick and the fall-through for the arrows those faces lack.
-    if (primaryKey === "courier" || primaryKey === "menlo" || primaryKey === "monaco" || primaryKey === "sf-mono") {
+    if (primaryKey === "courier" || primaryKey === "courier-new" || primaryKey === "menlo" || primaryKey === "monaco" || primaryKey === "sf-mono") {
       return ["menlo", "lucida-grande", "symbols"];
     }
     if (primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia" || primaryKey === "palatino") {
@@ -5511,7 +5560,8 @@ function resolveEffectiveCutKey(
   // "semibold or above is bold" rule Chrome uses when an exact weight isn't
   // installed. Times/Georgia ship four sibling files (regular/bold/italic/
   // bold-italic) for headings + emphasis in serif content (DM-269).
-  if (key === "helvetica" || key === "helvetica-neue" || key === "arial" || key === "courier" || key === "menlo"
+  if (key === "helvetica" || key === "helvetica-neue" || key === "arial" || key === "courier"
+      || key === "courier-new" || key === "menlo"
       || key === "times" || key === "times-new-roman" || key === "georgia"
       || key === "source-serif-pro" || key === "playfair-display") {
     const isBold = weight >= 600;
@@ -7507,25 +7557,47 @@ function matchFamilyNameToKey(name: string): string | null {
     //
     // For author-named monospaces we map to whatever the author asked for if
     // we have it on disk; SF Mono is only used when explicitly requested.
-    // Consolas isn't installed on macOS — Chrome falls back to Times metrics
-    // there, but for fidelity-of-intent we route it to Courier.
+    //
+    // `Consolas` gets NO pin: Blink looks the name up like any other family —
+    // it has no `AlternateFamilyName` alias (`alternate_font_family.h:72-105`,
+    // rev 7d859f27) — so when it isn't installed Chrome walks PAST it to the
+    // next family in the stack (`Consolas, Menlo, monospace` paints Menlo, not
+    // Courier). When it IS installed (an MS Office Mac, or any Windows host),
+    // the `resolveInstalledFont` tail below matches it exactly like Chrome
+    // does. The old "fidelity-of-intent" pin to Courier painted a face Chrome
+    // never picks on either kind of host.
     //
     // `ui-monospace` is NOT recognized by Chrome on macOS (DM-269 probe:
     // painted T width = 9.77, q = 8.0 — same as Times, not Courier or SF
     // Mono). Chrome falls through to the standard-font default (Times). It
     // intentionally falls through here so the last-resort `times` mapping
     // at the bottom catches it.
-    if (name === "monospace" || name === "courier" || name === "courier new"
-      || name === "consolas") return "courier";
+    if (name === "monospace" || name === "courier") return "courier";
+    // `Courier New` is its own installed face (Supplemental on macOS, cour.ttf
+    // on Windows, fontconfig's Liberation Mono metric substitute on Linux) and
+    // Chrome resolves the name DIRECTLY when the lookup succeeds. The Courier
+    // alias fires only on lookup FAILURE — the retry lives in
+    // `FontPlatformDataCache::GetOrCreateFontPlatformData`
+    // (`font_platform_data_cache.cc:74-105`, rev 7d859f27), and the New→plain
+    // direction of `AlternateFamilyName` is `!IS_WIN`
+    // (`alternate_font_family.h:78-85`) — so the alias must not pre-empt a
+    // successful match. Mirror both halves: the dedicated key when the face
+    // resolves on this host, the platform-correct failure path otherwise.
+    if (name === "courier new") {
+      const spec = resolveFontSpec("courier-new");
+      if (spec?.path != null && spec.path !== "" && existsSync(spec.path)) return "courier-new";
+      return hostPlatform() === "win32" ? null : "courier";
+    }
     if (name === "menlo") return "menlo";
     if (name === "monaco") return "monaco";
     if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") return "sf-mono";
     // `Times New Roman` resolves to the Microsoft TNR face (separate file from
-    // Apple's Times.ttc); bare `Times` / `serif` / `ui-serif` / the UA default
-    // resolve to Apple Times (DM-330). The two have identical metrics but
-    // visibly different em-dash glyphs in bold weights.
+    // Apple's Times.ttc); bare `Times` / `serif` / the UA default resolve to
+    // Apple Times (DM-330). The two have identical metrics but visibly
+    // different em-dash glyphs in bold weights. (`ui-serif` is NOT here: it is
+    // an unrecognized name Chrome walks past — see the null-return list below.)
     if (name === "times new roman") return "times-new-roman";
-    if (name === "serif" || name === "ui-serif" || name === "times") return "times";
+    if (name === "serif" || name === "times") return "times";
     if (name === "georgia") return "georgia";
     // Source Serif Pro (Adobe) — non-base macOS face, often present under
     // `/Library/Fonts/`. Authors target it via `font-family: 'Source Serif Pro'`.
@@ -7623,7 +7695,18 @@ function matchFamilyNameToKey(name: string): string | null {
       }
       return "sf-pro";
     }
-    if (name === "blinkmacsystemfont" || name === "sf pro") return "sf-pro";
+    // `BlinkMacSystemFont` is rewritten to `system-ui` only on macOS — the
+    // rewrite in `StyleBuilderConverterBase::ConvertFontFamilyName` is
+    // `#if BUILDFLAG(IS_MAC)` (`core/css/resolver/style_builder_converter.cc:552-563`,
+    // rev 7d859f27). Off macOS it is an ordinary family name no host installs,
+    // so Chrome walks past it to the next family in the stack —
+    // `BlinkMacSystemFont, Georgia` paints Georgia on win32, not Segoe UI.
+    // (The canonical `-apple-system, BlinkMacSystemFont, "Segoe UI", …` stack
+    // hid this: it converges on the same answer either way.)
+    if (name === "blinkmacsystemfont") {
+      return hostPlatform() === "darwin" ? "sf-pro" : null;
+    }
+    if (name === "sf pro") return "sf-pro";
     // DM-1127 REVERSED (DM-1659): "SF Pro Text" / "SF Pro Display" resolve to the
     // SYSTEM font `SFNS.ttf` (the `sf-pro` key, opsz-pinned to the Text cut via
     // `OPTICAL_CUT_OPSZ`/DM-1103) — NOT the standalone `/Library/Fonts/SF-Pro-*.otf`.
@@ -7672,20 +7755,28 @@ function matchFamilyNameToKey(name: string): string | null {
       || name === "hiragino maru gothic pron") {
       return authorFamilyAvailable("Hiragino Sans") ? "hiragino-jp" : null;
     }
-    // Other generic keywords Chrome on macOS does NOT recognize as system
-    // fonts: `ui-monospace`, `ui-rounded`, `fantasy`, `math`, `emoji`,
-    // `fangsong`. Chrome treats them as missing and walks past them to the
-    // next name in the stack. Only when nothing else matches does Chrome
-    // fall through to the standard-font default (Times). DM-269 probe
-    // confirmed bare `ui-monospace` paints with Times metrics (q=8.0,
-    // T=9.77), but `ui-monospace, Menlo, monospace` paints in Menlo —
-    // proving Chrome doesn't pin these keywords, it skips them. We must do
-    // the same: `continue` past them so the rest of the stack (Menlo,
-    // Consolas, monospace, …) gets a chance to match. The last-resort
-    // `times` at the bottom of this function catches the no-match case.
-    // (DM-302: textarea code editor used `font: ui-monospace, Menlo, …`
-    // and we wrongly pinned to Times, painting code in a serif face.)
-    if (name === "ui-monospace" || name === "ui-rounded" || name === "ui-sans-serif"
+    // Other generic-looking keywords Chrome does NOT recognize:
+    // `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`,
+    // `emoji`, `fangsong`. None of the `ui-*` names is in Blink's CSS keyword
+    // table (`css_value_keywords.json5:173-181`, rev 7d859f27) and
+    // `ConsumeGenericFamily` only spans serif..math
+    // (`css_parsing_utils.cc:6344-6346`), so Chrome treats each as an
+    // uninstalled family name and walks past it to the next name in the
+    // stack. Only when nothing else matches does Chrome fall through to the
+    // standard-font default (Times). DM-269 probe confirmed bare
+    // `ui-monospace` paints with Times metrics (q=8.0, T=9.77), but
+    // `ui-monospace, Menlo, monospace` paints in Menlo — proving Chrome
+    // doesn't pin these keywords, it skips them. We must do the same:
+    // `continue` past them so the rest of the stack (Menlo, monospace, …)
+    // gets a chance to match. The last-resort `times` at the bottom of this
+    // function catches the no-match case. (DM-302: textarea code editor used
+    // `font: ui-monospace, Menlo, …` and we wrongly pinned to Times, painting
+    // code in a serif face. `ui-serif` had the same defect until it moved
+    // here: a probe of BARE `ui-serif` painting Times metrics cannot
+    // discriminate a pin from skip-then-terminal — only a stack with a later
+    // family can, and there Chrome paints the later family.)
+    if (name === "ui-monospace" || name === "ui-serif" || name === "ui-rounded"
+      || name === "ui-sans-serif"
       || name === "math" || name === "emoji" || name === "fangsong"
       || name === "-apple-system") return null;
     // DM-1108: macOS New York optical-size cut "New York Medium" name

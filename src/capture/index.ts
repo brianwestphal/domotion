@@ -752,7 +752,10 @@ function systemFontKeyForLocalName(localName: string): string | null {
   if (base === "georgia") return "georgia";
   if (base === "menlo") return "menlo";
   if (base === "monaco") return "monaco";
-  if (base === "courier" || base === "courier new") return "courier";
+  if (base === "courier") return "courier";
+  // Courier New is its own face (its own key on all three platform tables);
+  // conflating it with Courier pre-empted the direct match Chrome makes.
+  if (base === "courier new") return "courier-new";
   if (base === "times new roman") return "times-new-roman";
   if (base === "times") return "times";
   if (base === "helvetica" || base === "helvetica neue") return "helvetica";
