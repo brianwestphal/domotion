@@ -1887,8 +1887,9 @@ const _linuxFamilyMatchCache = new Map<string, LinuxFamilyMatch | null>();
  * font_description.SkiaFontStyle())` (`fonts/skia/font_cache_skia.cc`, tag
  * 147.0.7727.15), the Linux font manager is fontconfig-backed
  * (`SkFontMgr_New_FCI`, `skia/ext/font_utils.cc:86-89`), and the whole decision
- * lives in `SkFontConfigInterfaceDirect::matchFamilyName` (Skia rev fd139e79 —
- * the revision tag 147's DEPS pins — `src/ports/SkFontConfigInterface_direct.cpp:592-713`).
+ * lives in `SkFontConfigInterfaceDirect::matchFamilyName` (Skia rev 62efacd3 —
+ * the revision the local Chromium checkout's DEPS:330 pins at rev 7d859f27 —
+ * `src/ports/SkFontConfigInterface_direct.cpp:592-713`).
  * The Linux glyph helper carries the transcription (`familyMatch` query,
  * `tools/linux-glyph-extractor/src/main.cpp`); this is the Node side of the call.
  *
@@ -1906,7 +1907,7 @@ export function resolveLinuxFamilyMatch(
   // `FontCache::GetLastResortFallbackFont` is `legacyMakeTypeface(nullptr,
   // style)` (`fonts/skia/font_cache_skia.cc`, tag 147.0.7727.15), which the
   // FCI font manager forwards to `matchFamilyName(nullptr, …)`
-  // (`SkFontMgr_FontConfigInterface.cpp:253-256`, Skia rev fd139e79) — a
+  // (`SkFontMgr_FontConfigInterface.cpp:253-256`, Skia rev 62efacd3) — a
   // pattern with no FC_FAMILY term, which fontconfig matches against
   // everything and `IsFallbackFontAllowed("")` then accepts. The helper's
   // `familyMatch` query mirrors that when `family` is "".

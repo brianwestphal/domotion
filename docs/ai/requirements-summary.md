@@ -106,9 +106,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   `legacyMakeTypeface(nullptr)`) when everything rejects. Fixes measured
   divergences (declared "Courier New"/"Courier" now paint Liberation Mono as
   Chrome does, not WenQuanYi; rejected "Menlo"/"Consolas"/"Helvetica Neue"
-  land on the `-webkit-standard` stand-in). Generic keywords stay on the
-  measured static routes — their concrete families are browser-side settings
-  values, stated as un-transcribed in doc 110.
+  land on the `-webkit-standard` stand-in). The settings-mapped generic
+  keywords now go through the SAME walk after swapping in the grd-default
+  settings value (`locale_settings_linux.grd`, rev 7d859f27: cursive →
+  "Comic Sans MS", fantasy → "Impact", serif → "Times New Roman", sans-serif
+  → "Arial", monospace → "Monospace", math → "Latin Modern Math"), so a
+  settings value the matcher's acceptance filter rejects makes the family
+  unavailable and the stack terminates at the standard family — which is why
+  bare `cursive`/`fantasy` paint Liberation Serif on the noble image. Only
+  `system-ui` (a `FontCache::SystemFontFamily()` value, not a grd setting)
+  and the grd's per-script overrides remain un-transcribed (doc 110).
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in

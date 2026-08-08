@@ -1806,8 +1806,19 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   // asks fontconfig for these. `FontSelector::FamilyNameFromSettings` maps the
   // generic to a browser-side settings value — `settings.Cursive(script)` /
   // `settings.Fantasy(script)` (`platform/fonts/font_selector.cc:80-83`, rev
-  // 7d859f27) — and when the configured family is not installed that value
-  // falls through to the same face `serif` resolves to.
+  // 7d859f27), defaults "Comic Sans MS" / "Impact"
+  // (`chrome/app/resources/locale_settings_linux.grd`, rev 7d859f27) — and
+  // that value goes through the family matcher's acceptance filter
+  // (`SkFontConfigInterfaceDirect::MatchFont`, Skia rev 62efacd3:553-590),
+  // which REJECTS the WenQuanYi substitute fontconfig offers for it, so the
+  // family is unavailable and the run terminates at the standard family
+  // ("Times New Roman" → Liberation Serif on this image).
+  //
+  // When the live resolver is ARMED, `matchFamilyNameToKey` runs exactly that
+  // mechanism (`LINUX_GENERIC_FAMILY_DEFAULTS` + the nomination walk) and
+  // these keys are never produced for the generics. The entries below are the
+  // DISARMED net (no helper / DOMOTION_SYSTEM_FALLBACK=0), carrying the
+  // measured outcome directly.
   //
   // Measured in the pinned noble image (Chromium 147.0.7727.0, CDP
   // `CSS.getPlatformFontsForNode`): Chrome answers **Liberation Serif** for
@@ -1818,7 +1829,7 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   //
   // `snell` keeps the fontconfig alias: it is an author-NAMED family, not a
   // settings-mapped generic, so Blink resolves it through the normal family
-  // matcher and a substitute is the right behaviour.
+  // matcher and a substitute is the right behavior.
   "snell":           { fcMatch: "cursive" },
   "apple-chancery":  { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
   "papyrus":         { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
@@ -4203,19 +4214,47 @@ export function blinkAlternateFamilyName(name: string): string | null {
 
 /**
  * The CSS generic keywords whose concrete family Blink reads from
- * browser-side `GenericFontFamilySettings` values
- * (`FontSelector::FamilyNameFromSettings`, `font_selector.cc:20-113`, tag
- * 147.0.7727.15: serif/sans-serif/cursive/fantasy/monospace/math →
- * `settings.<Generic>(script)`; standard/-webkit-standard/-webkit-body →
- * `settings.Standard(script)`), plus `system-ui`, which resolves through
- * `FontCache::SystemFontFamily()` — also pushed from the browser process.
- * The renderer checkout carries the MECHANISM but not the VALUES, so these
- * names are excluded from the transcribed declared-family walk and stay on
- * the measured static routes (marked un-transcribed in doc 110).
+ * browser-side `GenericFontFamilySettings` values, mapped to the DEFAULT
+ * each setting carries on Linux.
+ *
+ * The mechanism is `FontSelector::FamilyNameFromSettings`
+ * (`font_selector.cc:73-91`, rev 7d859f27): serif → `settings.Serif(script)`,
+ * sans-serif → `settings.SansSerif(script)`, cursive →
+ * `settings.Cursive(script)`, fantasy → `settings.Fantasy(script)`,
+ * monospace → `settings.Fixed(script)`, math → `settings.Math(script)`, and
+ * `-webkit-standard` / a `kWebkitBodyFamily` description →
+ * `settings.Standard(script)`. The VALUES are browser-side prefs whose
+ * defaults ship in `chrome/app/resources/locale_settings_linux.grd`
+ * (rev 7d859f27): IDS_STANDARD/SERIF_FONT_FAMILY = "Times New Roman",
+ * IDS_SANS_SERIF_FONT_FAMILY = "Arial", IDS_FIXED_FONT_FAMILY = "Monospace",
+ * IDS_CURSIVE_FONT_FAMILY = "Comic Sans MS", IDS_FANTASY_FONT_FAMILY =
+ * "Impact", IDS_MATH_FONT_FAMILY = "Latin Modern Math".
+ *
+ * The settings name then goes through the SAME family lookup as any declared
+ * name — `SkFontConfigInterfaceDirect::matchFamilyName` with the acceptance
+ * filter (Skia rev 62efacd3, the revision Chromium tag 147.0.7727.15's DEPS
+ * pins) — so a name fontconfig can only satisfy with a foreign substitute
+ * ("Comic Sans MS" → WenQuanYi Zen Hei) is REJECTED, the family is
+ * unavailable, and the stack walks on to its terminal, the standard family.
+ * That rejection path is what makes bare `cursive` / `fantasy` paint
+ * Liberation Serif (via standard = "Times New Roman") on the noble image.
+ *
+ * Un-transcribed residuals: the grd also carries per-script overrides
+ * (`IDS_*_FONT_FAMILY_JAPANESE` / `_KOREAN` / Han / Devanagari) that
+ * `settings.<Generic>(script)` consults — our pipeline nominates the
+ * script-blind default. `system-ui` is NOT here: it resolves through
+ * `FontCache::SystemFontFamily()`, a different browser-side mechanism, and
+ * stays on its measured static route.
  */
-const LINUX_SETTINGS_MAPPED_GENERICS: ReadonlySet<string> = new Set([
-  "serif", "sans-serif", "cursive", "fantasy", "monospace", "math",
-  "system-ui", "-webkit-standard", "-webkit-body",
+const LINUX_GENERIC_FAMILY_DEFAULTS: ReadonlyMap<string, string> = new Map([
+  ["serif", "Times New Roman"],
+  ["sans-serif", "Arial"],
+  ["monospace", "Monospace"],
+  ["cursive", "Comic Sans MS"],
+  ["fantasy", "Impact"],
+  ["math", "Latin Modern Math"],
+  ["-webkit-standard", "Times New Roman"],
+  ["-webkit-body", "Times New Roman"],
 ]);
 
 /**
@@ -4264,7 +4303,8 @@ function linuxNominationWalkArmed(): boolean {
  * description is the EMPTY name (`alternate_font_family.h:107-127`) — then
  * "Sans", then "Arial", then `legacyMakeTypeface(nullptr, style)`, which the
  * FCI manager forwards to the same matcher with a null family
- * (`SkFontMgr_FontConfigInterface.cpp:253-256`, Skia rev fd139e79). An empty
+ * (`SkFontMgr_FontConfigInterface.cpp:253-256`, Skia rev 62efacd3 — the
+ * revision `external/chromium` DEPS:330 pins at rev 7d859f27). An empty
  * family builds a pattern with no FC_FAMILY term, which fontconfig matches
  * against everything and `IsFallbackFontAllowed` accepts — so on any host
  * with one valid font the FIRST rung terminates, and the later rungs are
@@ -4328,9 +4368,10 @@ function linuxFcFamilyForKey(key: string): string | null {
  * `skia::DefaultFontMgr()->matchFamilyStyle(name, SkiaFontStyle())`
  * (`fonts/skia/font_cache_skia.cc`, Chromium tag 147.0.7727.15) → the
  * fontconfig-backed manager (`SkFontMgr_New_FCI`, `skia/ext/font_utils.cc:86-89`)
- * → `SkFontConfigInterfaceDirect::matchFamilyName` (Skia rev fd139e79, the
- * revision the tag's DEPS pins). The transcription lives in the Linux glyph
- * helper's `familyMatch` query; `resolveLinuxFamilyMatch` is the Node call.
+ * → `SkFontConfigInterfaceDirect::matchFamilyName` (Skia rev 62efacd3, the
+ * revision the local Chromium checkout's DEPS:330 pins at rev 7d859f27). The
+ * transcription lives in the Linux glyph helper's `familyMatch` query;
+ * `resolveLinuxFamilyMatch` is the Node call.
  *
  * Fontconfig scores the whole style — weight, width, slant — against every
  * face of the nominated family in one sort, so a single call answers what the
@@ -7645,7 +7686,7 @@ function matchFamilyNameToKey(name: string): string | null {
     // (`font_fallback_list.cc:149-193`, tag 147.0.7727.15 — the walk is
     // byte-identical at local checkout rev 7d859f27), each call reaching
     // `SkFontConfigInterfaceDirect::matchFamilyName` (the Linux helper's
-    // `familyMatch` transcription, Skia rev fd139e79); on rejection the cache
+    // `familyMatch` transcription, Skia rev 62efacd3); on rejection the cache
     // retries the aliased name (Courier ↔ Courier New, Times ↔ Times New
     // Roman, Arial ↔ Helvetica — `font_platform_data_cache.cc:74-105` +
     // `alternate_font_family.h:74-105`, tag), and when that rejects too Blink
@@ -7661,17 +7702,27 @@ function matchFamilyNameToKey(name: string): string | null {
     // while rejected names ("Menlo", "Consolas", "Helvetica Neue") walk on —
     // a bare stack of them lands on `-webkit-standard` → Liberation Serif,
     // which is what falling through to the `times` terminal below yields.
-    // The generic keywords are EXCLUDED: their concrete families are
-    // browser-side `GenericFontFamilySettings` values that are not in the
-    // renderer checkout (`FontSelector::FamilyNameFromSettings`,
-    // `font_selector.cc:20-113`, tag), so they stay on the measured static
-    // routes below, marked un-transcribed in doc 110. Gated like the rest of
-    // the live Linux resolver (helper + DOMOTION_SYSTEM_FALLBACK), degrading
-    // to the calibrated tables when disarmed — including when the helper
-    // predates the `familyMatch` query (the armed probe), since a walk that
-    // cannot ask the matcher must not declare rejections.
-    if (!LINUX_SETTINGS_MAPPED_GENERICS.has(name) && linuxNominationWalkArmed()) {
-      const walked = linuxFamilyMatchWithAlternate(name, { weight: 400 });
+    // The settings-mapped generic keywords go through the SAME walk, after
+    // `FontSelector::FamilyNameFromSettings` (`font_selector.cc:73-91`, rev
+    // 7d859f27) swaps in the browser-side settings value — the grd default,
+    // see `LINUX_GENERIC_FAMILY_DEFAULTS`. A settings value the matcher
+    // REJECTS ("Comic Sans MS" / "Impact" on the noble image, where
+    // fontconfig offers WenQuanYi Zen Hei and the acceptance filter refuses
+    // it) makes the family unavailable, exactly like a rejected author name:
+    // return null, the caller continues the declared stack, and an exhausted
+    // stack terminates at `resolveFontKey`'s standard-family terminal
+    // (`times` → "Times New Roman" → Liberation Serif on the image) — never
+    // at "no font at all". `system-ui` stays excluded: its concrete family
+    // comes from `FontCache::SystemFontFamily()`, not a grd setting, so it
+    // remains on the measured static route (un-transcribed in doc 110).
+    // Gated like the rest of the live Linux resolver (helper +
+    // DOMOTION_SYSTEM_FALLBACK), degrading to the calibrated tables when
+    // disarmed — including when the helper predates the `familyMatch` query
+    // (the armed probe), since a walk that cannot ask the matcher must not
+    // declare rejections.
+    if (name !== "system-ui" && linuxNominationWalkArmed()) {
+      const nominated = LINUX_GENERIC_FAMILY_DEFAULTS.get(name) ?? name;
+      const walked = linuxFamilyMatchWithAlternate(nominated, { weight: 400 });
       if (walked == null) return null; // Chrome walks past this family
       const { match, acceptedFamily } = walked;
       // The PostScript name selects the TTC member downstream; a face that

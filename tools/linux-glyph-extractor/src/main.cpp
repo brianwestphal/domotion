@@ -611,10 +611,10 @@ static std::string runFcFallbackQuery(const JsonValue& query) {
 //   → on Linux that font manager is `SkFontMgr_New_FCI(SkFontConfigInterface::
 //     RefGlobal(), …)` (`skia/ext/font_utils.cc:86-89`, tag 147.0.7727.15)
 //   → `SkFontMgr_FCI::onMatchFamilyStyle` → `fFCI->matchFamilyName(...)`
-//     (Skia `src/ports/SkFontMgr_FontConfigInterface.cpp`, rev fd139e79 —
-//      the revision tag 147's DEPS pins)
+//     (Skia `src/ports/SkFontMgr_FontConfigInterface.cpp`, rev 62efacd3 —
+//      the revision `external/chromium` DEPS:330 pins at rev 7d859f27)
 //   → `SkFontConfigInterfaceDirect::matchFamilyName`
-//     (Skia `src/ports/SkFontConfigInterface_direct.cpp:592-713`, rev fd139e79).
+//     (Skia `src/ports/SkFontConfigInterface_direct.cpp:592-713`, rev 62efacd3).
 //
 // The pinned revision matters: the CURRENT Skia tree rewrote `MatchFont` to
 // keep scanning the sorted set until it finds an *acceptable* pattern and added
@@ -640,7 +640,7 @@ static std::string runFcFallbackQuery(const JsonValue& query) {
 //          postscriptName, weight, width, italic }
 //        | { type:"familyMatch", found:false }
 
-// Skia `map_ranges` (SkFontConfigInterface_direct.cpp:359-390, rev fd139e79):
+// Skia `map_ranges` (SkFontConfigInterface_direct.cpp:359-390, rev 62efacd3):
 // piecewise-linear interpolation between anchor pairs, clamped at both ends.
 struct FcMapRange { double old_val; double new_val; };
 static double fcMapRanges(double val, const FcMapRange ranges[], int count) {
@@ -664,7 +664,7 @@ static double fcMapRanges(double val, const FcMapRange ranges[], int count) {
 #endif
 
 // Skia `fcpattern_from_skfontstyle` weight anchors (SkFontStyle CSS-space →
-// fontconfig space), rev fd139e79:446-483. SkFontStyle named weights are the
+// fontconfig space), rev 62efacd3:449-462. SkFontStyle named weights are the
 // CSS values (Thin 100 … ExtraBlack 1000).
 static const FcMapRange kSkToFcWeight[] = {
   { 100, FC_WEIGHT_THIN },     { 200, FC_WEIGHT_EXTRALIGHT },
@@ -682,7 +682,7 @@ static const FcMapRange kFcToSkWeight[] = {
   { FC_WEIGHT_BOLD, 700 },     { FC_WEIGHT_EXTRABOLD, 800 },
   { FC_WEIGHT_BLACK, 900 },    { FC_WEIGHT_EXTRABLACK, 1000 },
 };
-// Width anchors (SkFontStyle width class 1..9 ↔ fontconfig), rev fd139e79.
+// Width anchors (SkFontStyle width class 1..9 ↔ fontconfig), rev 62efacd3:465-475.
 static const FcMapRange kSkToFcWidth[] = {
   { 1, FC_WIDTH_ULTRACONDENSED }, { 2, FC_WIDTH_EXTRACONDENSED },
   { 3, FC_WIDTH_CONDENSED },      { 4, FC_WIDTH_SEMICONDENSED },
@@ -717,8 +717,8 @@ static int skWidthClassFromCssStretchPercent(double stretch) {
 }
 
 // Skia's metric-compatibility equivalence classes (`GetFontEquivClass` /
-// `IsMetricCompatibleReplacement`, SkFontConfigInterface_direct.cpp, rev
-// fd139e79). A match whose family is a metric-compatible replacement of the
+// `IsMetricCompatibleReplacement`, SkFontConfigInterface_direct.cpp:190-336,
+// rev 62efacd3). A match whose family is a metric-compatible replacement of the
 // requested one is acceptable — this is how "Arial" accepts Liberation Sans.
 // Class ids are arbitrary; equality (and != 0) is what matters.
 struct FcFontEquiv { int clazz; const char* name; };
@@ -780,7 +780,7 @@ static bool isMetricCompatibleReplacement(const char* a, const char* b) {
   return ca != 0 && ca == fontEquivClass(b);
 }
 
-// `IsFallbackFontAllowed` (rev fd139e79:342-348): the request either names no
+// `IsFallbackFontAllowed` (rev 62efacd3:342-348): the request either names no
 // family or one of the basic generics, and then ANY font is a good answer.
 static bool isFallbackFontAllowed(const std::string& family) {
   return family.empty() || strcasecmp(family.c_str(), "sans") == 0
@@ -799,7 +799,7 @@ static int fcGetInt(FcPattern* p, const char* object, int missing) {
   return v;
 }
 
-// `isValidPattern` (rev fd139e79:519-550) with the SFNT-only format check
+// `isValidPattern` (rev 62efacd3:519-550) with the SFNT-only format check
 // ACTIVE, because Chrome defines SK_FONT_CONFIG_INTERFACE_ONLY_ALLOW_SFNT_FONTS
 // (`skia/config/SkUserConfig.h:151-152`, tag 147.0.7727.15). Sysroot handling is
 // omitted: Chrome never sets FcConfigSetSysRoot in this process model, so
@@ -835,7 +835,7 @@ static std::string runFamilyMatchQuery(FT_Library lib, const JsonValue& query) {
     FcPatternAddString(pattern, FC_FAMILY,
                        reinterpret_cast<const FcChar8*>(family.c_str()));
   }
-  // `fcpattern_from_skfontstyle` (rev fd139e79:446-501): weight and width via
+  // `fcpattern_from_skfontstyle` (rev 62efacd3:446-489): weight and width via
   // the anchor tables, slant direct. SkScalarRoundToInt rounds half away from
   // zero on positive values, which llround matches.
   FcPatternAddInteger(pattern, FC_WEIGHT, static_cast<int>(std::llround(
@@ -857,7 +857,7 @@ static std::string runFamilyMatchQuery(FT_Library lib, const JsonValue& query) {
   const std::string postConfigFamily = postConfigFamilyC != nullptr ? postConfigFamilyC : "";
 
   FcResult result;
-  // trim = 0, exactly as the shipping matchFamilyName (rev fd139e79:662). The
+  // trim = 0, exactly as the shipping matchFamilyName (rev 62efacd3:662). The
   // newer Skia tree's direct FcFontMatch stage does not exist in the pinned
   // build and is deliberately not reproduced.
   //
@@ -908,7 +908,7 @@ static std::string runFamilyMatchQuery(FT_Library lib, const JsonValue& query) {
   }
 
   // The matched face's style read back the way Skia reports `outStyle`
-  // (`skfontstyle_from_fcpattern`, rev fd139e79:401-444) — Blink consults the
+  // (`skfontstyle_from_fcpattern`, rev 62efacd3:401-444) — Blink consults the
   // resulting typeface's weight/slant for its synthetic-bold / synthetic-italic
   // decisions, so the Node side needs the same numbers.
   const int outWeight = static_cast<int>(std::llround(fcMapRanges(

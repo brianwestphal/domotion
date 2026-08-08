@@ -21,7 +21,8 @@ Playwright ships) decides it as:
    `SkFontMgr_New_FCI(SkFontConfigInterface::RefGlobal(), …)`
    (`skia/ext/font_utils.cc:86-89` at the tag).
 3. The whole decision is `SkFontConfigInterfaceDirect::matchFamilyName`
-   (Skia rev `fd139e79` — the revision the tag's DEPS pins —
+   (Skia rev `62efacd3` — the revision the local Chromium checkout's DEPS:330
+   pins at rev `7d859f27` —
    `src/ports/SkFontConfigInterface_direct.cpp:592-713`):
    build an `FcPattern` from the family plus the style (weight/width mapped
    through Skia's anchor tables, which put extra rungs at 350 → DemiLight and
@@ -34,10 +35,12 @@ Playwright ships) decides it as:
    (Arial/Arimo/Liberation Sans, Times New Roman/Tinos/Liberation Serif, …).
    Rejection is how Blink walks to the next CSS family.
 
-**The pinned revision matters.** The current Skia tree rewrote `MatchFont` to
-keep scanning until an acceptable pattern and added a direct `FcFontMatch`
-stage; the shipping build has neither. The transcription follows the tag, not
-the checkout.
+**The pinned revision matters.** The current Skia tree (`ebf5052`) rewrote
+`MatchFont` to keep scanning until an acceptable pattern (extracting it as
+`isAcceptableMatch`, a function the pinned revision does not have) and added
+a direct `FcFontMatch` stage; the shipping build has neither — it takes the
+FIRST valid pattern and judges only that one (`62efacd3:553-590`). The
+transcription follows the DEPS pin, not the checkout.
 
 The transcription lives in the Linux glyph helper (`familyMatch` query,
 `tools/linux-glyph-extractor/src/main.cpp`); the render path reaches it
@@ -77,7 +80,7 @@ at the tag) tries `GetFallbackFontFamily(description)` — the EMPTY name for a
 standard description — then "Sans", then "Arial", then
 `legacyMakeTypeface(nullptr, style)`, which the FCI manager forwards to
 `matchFamilyName(nullptr, …)` (`SkFontMgr_FontConfigInterface.cpp:253-256`,
-Skia rev `fd139e79`). An empty-family pattern matches everything and
+Skia rev `62efacd3`). An empty-family pattern matches everything and
 `IsFallbackFontAllowed` accepts it, so the first rung terminates on any host
 with one valid SFNT font — the later rungs are defense-in-depth in Blink and
 in our `linuxLastResortMatch` alike. It runs where Blink runs it: when a
@@ -86,19 +89,24 @@ declared family and its calibrated stand-in both match nothing.
 **Deliberately NOT transcribed** — stated rather than approximated, because
 the values live in the browser process, outside the renderer checkout:
 
-- The generic-family → concrete-name preferences. The MECHANISM is readable
-  (`FontSelector::FamilyNameFromSettings` reads
-  `GenericFontFamilySettings.Standard/Serif/SansSerif/Cursive/Fantasy/Fixed/
-  Math(script)`, `font_selector.cc:20-113` at the tag) but the VALUES are
-  pushed from the embedder. `serif` / `sans-serif` / `monospace` / `cursive` /
-  `fantasy` / `math` therefore stay on the measured static routes
-  (`LINUX_SETTINGS_MAPPED_GENERICS` excludes them from the walk). Measured on
-  noble: monospace → WenQuanYi Zen Hei Mono, sans-serif → Liberation Sans,
-  serif → Liberation Serif.
+- The generic-family → concrete-name preferences are now MOSTLY transcribed:
+  the mechanism is `FontSelector::FamilyNameFromSettings`
+  (`font_selector.cc:73-91` at rev `7d859f27`), and the default VALUES ship in
+  `chrome/app/resources/locale_settings_linux.grd` (rev `7d859f27`): standard /
+  serif → "Times New Roman", sans-serif → "Arial", fixed → "Monospace",
+  cursive → "Comic Sans MS", fantasy → "Impact", math → "Latin Modern Math".
+  `matchFamilyNameToKey` nominates the grd default through the SAME walk
+  (`LINUX_GENERIC_FAMILY_DEFAULTS`), so a settings value the matcher rejects
+  ("Comic Sans MS" / "Impact" on noble, where fontconfig can only offer
+  WenQuanYi Zen Hei) makes the family unavailable and the stack terminates at
+  the standard family — which is why bare `cursive` / `fantasy` paint
+  Liberation Serif. What REMAINS un-transcribed: the grd's per-script
+  overrides (`IDS_*_FONT_FAMILY_JAPANESE` / `_KOREAN` / Han / Devanagari) —
+  the nomination is script-blind — and any non-default user pref.
 - The `-webkit-standard` stage a fully-rejected stack falls to
-  (`settings.Standard(script)`). Measured on noble as "Times New Roman" →
-  Liberation Serif; carried as the calibrated `times` terminal, not a
-  transcription.
+  (`settings.Standard(script)`). The grd default is "Times New Roman"
+  (IDS_STANDARD_FONT_FAMILY), matching what was measured on noble
+  ("Times New Roman" → Liberation Serif); carried as the `times` terminal.
 - What `system-ui` becomes (`FontCache::SystemFontFamily()`, pushed from the
   browser side; `CreateTypeface` asserts `DCHECK_NE(family, kSystemUi)`).
   Its Linux route (the fontconfig default) and its weight ladder stay
