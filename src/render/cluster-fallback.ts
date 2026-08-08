@@ -61,10 +61,10 @@ import {
   pickWebfontVariantForCodepoint, unicodeRangeCovers,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
   forcesEmojiPresentation, isEmojiCharCp, isEmojiCodepoint, isColorEmojiFontKey,
-  glyphIdForCp, fallbackFontChain,
+  glyphIdForCp, fallbackFontChain, harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
 } from "./font-resolution.js";
-import { harfbuzzShapeRun, harfbuzzGlyphQuery } from "./harfbuzz-shaper.js";
+import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
 import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 
@@ -612,6 +612,27 @@ function splitShapedInner(
   const levels = bidiLevelsFor(text);
   const segments = segmentForShaping(text, levels);
 
+  // Mirror-domain adjustment for the shaping-side questions (RTL only, and
+  // only when the text carries a mirrorable character at all — the two
+  // derived strings are `text` itself otherwise, so the common case allocates
+  // nothing). The text reaching this splitter is the renderer's PAINT-domain
+  // text: `applyBidi` already substituted the Bidi_Mirroring_Glyph counterpart
+  // at odd embedding levels. Blink's shaping and hint questions are asked of
+  // the LOGICAL text — HarfBuzz mirrors RTL buffers itself, coverage-gated
+  // (`hb_ot_rotate_chars`, `hb-ot-shape.cc:657-668`, rev 4de187d), so the
+  // `.notdef` verdict for a bracket in an RTL buffer tests the MIRRORED
+  // glyph's coverage. Hence:
+  //   - an RTL segment's shape verdicts use `rtlVerdictText` (every mirrorable
+  //     character mapped through the BMG involution — restoring the logical
+  //     char at odd levels, which hb then re-mirrors under its has_glyph gate);
+  //   - hint characters are collected from `logicalText` (odd-level characters
+  //     mapped back), matching `CollectFallbackHintChars`, which reads Blink's
+  //     un-premirrored source text.
+  // Assignments and the returned runs keep slicing `text` — the paint-domain
+  // emitters (and the hb proxies' own mirror-domain adapter) consume that.
+  const rtlVerdictText = levels == null ? text : mirrorPairedCharacters(text);
+  const logicalText = levels == null || rtlVerdictText === text ? text : mirrorPairedCharacters(text, levels);
+
   const assignments: Assignment[] = [...pinned];
 
   for (const seg of segments) {
@@ -748,9 +769,9 @@ function splitShapedInner(
             // Blink's per-VS fallback priority (`kEmojiEmoji` / `kText`)
             // reaching `FallbackPriorityFont`. Suppressed entirely on the
             // post-reset ignore-VS pass.
-            const hintPos = findCodepoint(text, queue, hint);
-            const nextCp = hintPos >= 0 && hintPos + String.fromCodePoint(hint).length < text.length
-              ? text.codePointAt(hintPos + String.fromCodePoint(hint).length)! : 0;
+            const hintPos = findCodepoint(logicalText, queue, hint);
+            const nextCp = hintPos >= 0 && hintPos + String.fromCodePoint(hint).length < logicalText.length
+              ? logicalText.codePointAt(hintPos + String.fromCodePoint(hint).length)! : 0;
             const effFve: FontVariantEmojiOverride | undefined = ignoreVS ? undefined
               : nextCp === 0xFE0F ? (isEmojiCharCp(hint) ? "emoji" : undefined)
               : nextCp === 0xFE0E ? (isEmojiCharCp(hint) ? "text" : undefined)
@@ -810,7 +831,7 @@ function splitShapedInner(
     let guard = familyCycle.length + text.length * 2 + 64;
     while (queue.length > 0) {
       if (--guard < 0) throw new DeclineError();
-      const hints = collectHintChars(text, queue, needsFullHints);
+      const hints = collectHintChars(logicalText, queue, needsFullHints);
       if (hints.length === 0) break;
       const picked = nextFont(hints);
       if (picked == null) break;
@@ -822,7 +843,11 @@ function splitShapedInner(
           let cursor = r.start;
           let i = r.start;
           while (i < r.end) {
-            const cp = text.codePointAt(i)!;
+            // `logicalText`, because that is where the hint came from — the
+            // two differ only at mirrorable brackets, which the resolver never
+            // answers with a decomposition, so this is consistency, not a
+            // behavior change.
+            const cp = logicalText.codePointAt(i)!;
             const len = cp > 0xffff ? 2 : 1;
             if (cp === hint) {
               if (i > cursor) nextQueue.push({ start: cursor, end: i });
@@ -847,7 +872,13 @@ function splitShapedInner(
       const rangeVs = ignoreVS ? [] : segVsSequences;
       const nextQueue: QueueRange[] = [];
       for (const range of queue) {
-        const verdicts = shapeVerdicts(current.face, text, range, seg.rtl, scriptTag, lang, fontSize, opts?.features);
+        // RTL segments shape the mirror-domain-mapped text — see the
+        // `rtlVerdictText` note above. Cluster indices are unaffected (the BMG
+        // map is 1:1 in code units). Features are passed because Blink shapes
+        // fallback passes WITH the run's features (`ShapeRange(buffer,
+        // font_features, …)`), and a `-liga`/letter-spacing veto can flip a
+        // cluster's coverage verdict.
+        const verdicts = shapeVerdicts(current.face, seg.rtl ? rtlVerdictText : text, range, seg.rtl, scriptTag, lang, fontSize, opts?.features);
         if (verdicts == null) {
           // Unshapeable with this font — the whole range stays queued (or
           // terminally commits to the first candidate below when isLast).
@@ -941,6 +972,20 @@ function splitShapedInner(
     } else {
       runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, ...(aDecomposed ? { decomposed: true } : {}) });
     }
+  }
+  // Run-level HarfBuzz script reroute — the shaped splitter's counterpart of
+  // the per-codepoint `harfbuzzShapedScriptOverride` inside
+  // `resolveFontForCodepoint`. The system stage above already returns hb
+  // proxies through the resolver, but the primary and declared-family stages
+  // never call it, so a `HARFBUZZ_SHAPED_RANGES` script covered by the primary
+  // or a declared family kept the base engine's shaping while the legacy walk
+  // rerouted it. Applied AFTER merging so the wrap sees whole runs; the proxy
+  // is memoized per (base instance, args), so identical bases keep a stable
+  // identity — the renderer's run-grouping invariant. A run with no routed
+  // codepoint, or whose font already shapes via hb (system-stage proxies,
+  // pinned dotted-circle runs), comes back unchanged.
+  for (const run of runs) {
+    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant, run.isPrimary ? variationSettings : undefined, run.text);
   }
   return runs;
 }

@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>HARFBUZZ_SHAPED_RANGES scripts on a COVERING primary (run-level reroute)</title>
+<!--
+  Shaping-oracle fixture (tools/shaping-conformance.ts extracts its runs).
+
+  Every routed-script run in the broad corpus reaches its script through the
+  resolver's system stage (a Helvetica/Times primary does not cover Arabic or
+  Thai), which was HarfBuzz-routed all along - so the corpus could not see the
+  runs the routing MISSED: those whose declared family itself covers the
+  script. The shaped splitter's primary/family stages never call the resolver,
+  so before the run-level reroute (harfbuzzShapedRunOverride) these runs kept
+  the base engine's shaping.
+
+  These rows pin that gap with faces that cover their script directly:
+
+  - Arial Unicode MS Thai, PO PLA + SARA UEE + MAI THO + NO NU: HarfBuzz
+    substitutes the Windows-PUA shift-left forms U+F704/U+F714 over an
+    ascender base (hb-ot-shaper-thai.cc, rev 4de187d); the base engine emits
+    the plain cmap glyphs 220 font units to the right (~1.7px at 16px), which
+    reads as a position tier drop.
+  - Kohinoor Bangla, U+0985 + U+09BE (a sequence Bengali orthography
+    disallows): HarfBuzz's vowel-constraint preprocessing inserts U+25CC
+    between them (hb-ot-shaper-vowel-constraints.cc, rev 4de187d); fontkit's
+    IndicShaper shapes 2 glyphs straight through, a glyph-COUNT mismatch.
+  - Arial Unicode MS Arabic/Hebrew words: joining/points agree between the
+    engines on this face today; the rows pin that the reroute keeps them
+    agreeing rather than regressing.
+-->
+<style>
+  body { font-size: 24px; margin: 16px; }
+  .au { font-family: "Arial Unicode MS"; }
+  .bn { font-family: "Kohinoor Bangla"; }
+</style>
+<div class="au">ปื้น</div>
+<div class="bn">অা</div>
+<div class="au">مرحبا</div>
+<div class="au">שלום</div>

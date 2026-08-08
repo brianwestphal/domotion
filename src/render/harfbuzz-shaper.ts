@@ -24,6 +24,8 @@
 // `morx` table and no `GSUB` at all. `vendor/harfbuzzjs/` is v1.4.0 with the
 // wasm rebuilt using the configuration Chromium ships; see its README.
 import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
+import bidiFactory from "bidi-js";
+import { getScript } from "unicode-properties";
 import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 
 type PathCommand = { command: string; args: number[] };
@@ -228,6 +230,20 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
  *  instance that goes away takes its proxies with it. See the identity note in
  *  `makeHarfbuzzShapingInstance`. */
 const hbProxyCache = new WeakMap<object, Map<string, ShapingFontView>>();
+
+/** proxy → the base instance it wraps. Lets a second wrapper (e.g. the
+ *  feature-list reroute over a run the script reroute already wrapped) build
+ *  its proxy over the TRUE base instead of stacking proxies — a
+ *  proxy-over-proxy has no `getGlyph`, so `outlinesFromBase` would silently
+ *  fall back to HarfBuzz's own `glyphToPath` and swap the outline engine. */
+const hbProxyBase = new WeakMap<object, object>();
+
+/** The instance a HarfBuzz shaping proxy wraps, or `view` itself when it is
+ *  not one (including instances rerouted in place by `installHarfbuzzShaping`,
+ *  which keep their own identity and their own `getGlyph`). */
+export function hbShapingBaseOf<T extends object>(view: T): T {
+  return (hbProxyBase.get(view) as T | undefined) ?? view;
+}
 
 export function _clearHbFontCache(): void { hbFontCache.clear(); }
 
@@ -571,6 +587,109 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
 /** Test seam: drop the memoised `trak`/`STAT` verdicts. */
 export function _clearTrakStatCache(): void { trakStatCache.clear(); }
 
+// ── Mirror-domain adapter for renderer-facing HarfBuzz shaping ───────────────
+//
+// The text the renderer hands to `FontInstance.layout` is PAINT-domain: `applyBidi`
+// (text.ts) has already substituted the Bidi_Mirroring_Glyph counterpart for every
+// paired bracket at an odd embedding level, because fontkit and the platform
+// glyph helpers draw exactly the characters they are given. HarfBuzz does not
+// work that way — Blink hands it the LOGICAL text and it mirrors RTL buffers
+// itself, coverage-gated (`hb_ot_rotate_chars`, `hb-ot-shape.cc:657-668`, rev
+// 4de187d: `mirroring(cp)` replaces the codepoint only when
+// `font->has_glyph(mirrored)`, else the `rtlm` feature is flagged). Feeding an
+// hb-backed layout the pre-mirrored text therefore mirrored RTL brackets TWICE
+// — a logical `(` painted as `(` where Chrome paints `)`.
+//
+// The adapter: when the buffer will be shaped RTL, map every character through
+// the Bidi_Mirroring_Glyph involution first. That one uniform pass is correct
+// for every embedding-level mix, with no level data needed:
+//   - an odd-level char arrives pre-mirrored (`BMG(orig)`); the map restores
+//     `orig`, and hb's own mirror re-applies `BMG(orig)` — Chrome's paint,
+//     including the has_glyph gate `applyBidi` cannot apply;
+//   - an even-level mirrorable char arrives unmirrored (`orig`); the map turns
+//     it into `BMG(orig)`, and hb's mirror restores `orig` — Chrome paints it
+//     unmirrored, and an even-level char only lands in an RTL-shaped buffer
+//     where our one-buffer-per-run shaping is already coarser than Blink's
+//     per-bidi-run buffers, so the round trip is exactly the neutral outcome.
+// An LTR buffer is left untouched: hb mirrors nothing there, so `applyBidi`'s
+// substitutions stand, same as on the non-hb engines.
+const _bidi = bidiFactory();
+
+/**
+ * Scripts whose `hb_script_get_horizontal_direction` is RTL, by UCD script
+ * name (what `unicode-properties.getScript` reports). Transcribed from the
+ * switch in `external/harfbuzz/src/hb-common.cc:522-609` (rev 4de187d); the
+ * four dual-direction scripts there (Old_Hungarian, Old_Italic, Runic,
+ * Tifinagh) return HB_DIRECTION_INVALID, which the guess resolves to LTR, so
+ * they are deliberately absent.
+ */
+const HB_RTL_HORIZONTAL_SCRIPTS = new Set([
+  "Arabic", "Hebrew", "Syriac", "Thaana", "Cypriot", "Kharoshthi",
+  "Phoenician", "Nko", "Lydian", "Avestan", "Imperial_Aramaic",
+  "Inscriptional_Pahlavi", "Inscriptional_Parthian", "Old_South_Arabian",
+  "Old_Turkic", "Samaritan", "Mandaic", "Meroitic_Cursive",
+  "Meroitic_Hieroglyphs", "Manichaean", "Mende_Kikakui", "Nabataean",
+  "Old_North_Arabian", "Palmyrene", "Psalter_Pahlavi", "Hatran", "Adlam",
+  "Hanifi_Rohingya", "Old_Sogdian", "Sogdian", "Elymaic", "Chorasmian",
+  "Yezidi", "Old_Uyghur", "Garay", "Sidetic",
+]);
+
+/**
+ * The horizontal direction HarfBuzz's own guess would give this buffer —
+ * `hb_buffer_guess_segment_properties` (`hb-buffer.cc:1761-1792`, rev 4de187d):
+ * the script of the first character that is not Common/Inherited/Unknown,
+ * resolved through `hb_script_get_horizontal_direction`, LTR when that is
+ * INVALID (or when no character carries a real script).
+ *
+ * Transcribed rather than probed so the mirror-domain map above can be applied
+ * to exactly the buffers hb will mirror; the derived direction is then passed
+ * to the buffer EXPLICITLY, so the map and the direction hb uses cannot drift
+ * apart even if this transcription ever lags a HarfBuzz upgrade.
+ */
+function hbGuessedHorizontalDirection(text: string): "ltr" | "rtl" {
+  for (const ch of text) {
+    const script = getScript(ch.codePointAt(0)!);
+    if (script === "Common" || script === "Inherited" || script === "Unknown") continue;
+    return HB_RTL_HORIZONTAL_SCRIPTS.has(script) ? "rtl" : "ltr";
+  }
+  return "ltr";
+}
+
+/**
+ * Map every character through its Bidi_Mirroring_Glyph counterpart (an
+ * involution — the pairs are symmetric by construction of the UCD data, the
+ * same data `applyBidi` substitutes from via the same bidi-js table).
+ * With `levels`, only characters at an ODD embedding level are mapped — the
+ * exact set `applyBidi` pre-mirrored — which recovers the LOGICAL text from
+ * the renderer's paint-domain text.
+ */
+export function mirrorPairedCharacters(text: string, levels?: ArrayLike<number>): string {
+  let out = "";
+  let any = false;
+  let i = 0;
+  for (const ch of text) {
+    if (levels == null || ((levels[i] ?? 0) & 1) === 1) {
+      const m: string | null = _bidi.getMirroredCharacter(ch);
+      if (m != null) { out += m; any = true; i += ch.length; continue; }
+    }
+    out += ch;
+    i += ch.length;
+  }
+  return any ? out : text;
+}
+
+/**
+ * The (text, direction) an hb-backed renderer `layout` must actually shape:
+ * the caller's direction (or hb's own guess, transcribed above, when the
+ * caller has none — passed on explicitly so the mirror decision and the
+ * buffer direction agree by construction), with the paint-domain text mapped
+ * back through the BMG involution whenever that direction is RTL.
+ */
+function rendererHbShapeArgs(text: string, direction: "ltr" | "rtl" | undefined): { text: string; direction: "ltr" | "rtl" } {
+  const dir = direction ?? hbGuessedHorizontalDirection(text);
+  return { text: dir === "rtl" ? mirrorPairedCharacters(text) : text, direction: dir };
+}
+
 /**
  * A shaper for the glyph helper's `shapeFallback` seam, backed by HarfBuzz.
  *
@@ -598,7 +717,10 @@ export function makeHarfbuzzShapeFallback(
 } | null) | undefined {
   if (getHbEntry(fontPath, faceIndex) == null) return undefined;
   return (text: string, direction?: "ltr" | "rtl") => {
-    const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
+    // Renderer-facing: the text is paint-domain (pre-mirrored by `applyBidi`),
+    // so an RTL buffer takes the mirror-domain map — see `rendererHbShapeArgs`.
+    const eff = rendererHbShapeArgs(text, direction);
+    const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes);
     if (res == null) return null;
     return { ids: res.glyphs.map((g) => g.id), positions: res.positions, clusters: res.clusters };
   };
@@ -625,6 +747,11 @@ interface ShapingFontView {
   getGlyph?(id: number): ShapedGlyph;
   warmGlyphs?(codePoints: number[]): void;
   warmShapes?(texts: string[]): void;
+  /** Set on every view whose `layout` shapes through HarfBuzz (the proxy from
+   *  `makeHarfbuzzShapingInstance`, an instance passed through
+   *  `installHarfbuzzShaping`). Read by the run-level script reroute so a font
+   *  already shaping via hb is never wrapped a second time, and by tests. */
+  shapesWithHarfbuzz?: true;
 }
 
 /**
@@ -662,8 +789,13 @@ export function installHarfbuzzShaping(
   // objects, and it is also what we are about to replace.
   const nativeLayout = base.layout.bind(base);
   const getGlyph = base.getGlyph?.bind(base);
+  base.shapesWithHarfbuzz = true;
   base.layout = (text, _features, _script, _language, direction) => {
-    const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes);
+    // Renderer-facing: paint-domain text — an RTL buffer takes the
+    // mirror-domain map (see `rendererHbShapeArgs`); the native-layout decline
+    // path keeps the ORIGINAL text, since that engine draws what it is given.
+    const eff = rendererHbShapeArgs(text, direction);
+    const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes);
     if (res == null) return nativeLayout(text);
     if (getGlyph == null) return res;
     return {
@@ -764,11 +896,18 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   const memo = perBase.get(memoKey);
   if (memo != null) return memo as T;
   const proxy: ShapingFontView = {
+    shapesWithHarfbuzz: true,
     layout(text: string, _features?: string[], _script?: string, _language?: string, direction?: "ltr" | "rtl") {
       // The BOUND features, never the argument — see the `features` option
       // comment: the argument arrives pre-projected for fontkit, with the
       // disables this proxy exists to honor already stripped.
-      const res = harfbuzzShapeRun(fontPath, faceIndex, text, direction, fontSizePx, axes, opts?.features);
+      //
+      // Renderer-facing: the text is paint-domain (pre-mirrored by
+      // `applyBidi`), so an RTL buffer takes the mirror-domain map first — see
+      // `rendererHbShapeArgs`. The decline path hands the base engine the
+      // ORIGINAL text, since that engine draws what it is given.
+      const eff = rendererHbShapeArgs(text, direction);
+      const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, opts?.features);
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       if (opts?.outlinesFromBase !== true || base.getGlyph == null) return res;
       const getGlyph = base.getGlyph.bind(base);
@@ -795,5 +934,6 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
     warmShapes: base.warmShapes?.bind(base),
   };
   perBase.set(memoKey, proxy);
+  hbProxyBase.set(proxy as object, base as object);
   return proxy as T;
 }

@@ -283,11 +283,20 @@ export function usesDedicatedShaper(cp: number): boolean {
 
 // The subset of the dedicated-shaper blocks whose SHAPING is routed to HarfBuzz
 // — the engine Chrome runs — instead of the platform shaper. The outlines are
-// NOT routed with it: `resolveFontForCodepoint` builds the override with
+// NOT routed with it: both application sites build the override with
 // `outlinesFromBase: true`, so HarfBuzz supplies ids / positions / clusters and
 // the platform engine still draws. Keeping those two apart is the whole reason
 // this can be done at all; see the note on `harfbuzzShapedScriptOverride` in
 // `font-resolution.ts` for the measurement that established it.
+//
+// The routing applies at TWO sites, and both are needed: per codepoint inside
+// `resolveFontForCodepoint` (`harfbuzzShapedScriptOverride` — reaches every
+// decision the legacy walk and the shaped splitter's system stage make), and
+// per assembled run in the shaped splitter (`harfbuzzShapedRunOverride`,
+// applied by `splitShapedInner` in `cluster-fallback.ts`) — because the
+// splitter's primary and declared-family stages never call the resolver, so
+// without the run-level site every entry here was inert whenever the primary
+// or a declared family covered the script.
 //
 // Grown one script at a time, each with its own full macOS unicode sweep,
 // because the blast radius of a script is every face that covers it. The order

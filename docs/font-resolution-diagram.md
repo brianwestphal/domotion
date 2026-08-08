@@ -62,8 +62,8 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
-    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>+ raster-emoji terminal pinned prepass (chain-tail .notdef;<br/>trailing VS keeps the legacy resolver decision)<br/>+ per-run decomposed flags (no merge across a flag boundary).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>→ harfbuzzShapedRunOverride() per assembled run (HARFBUZZ_SHAPED_RANGES,<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>+ raster-emoji terminal pinned prepass (chain-tail .notdef;<br/>trailing VS keeps the legacy resolver decision)<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
@@ -868,6 +868,50 @@ Notes:
   clusters (it is the engine Chrome runs), and each glyph's outline still comes
   from `base.getGlyph(id)`, which is well-defined because it is the same file
   and therefore the same gid space.
+
+- **The reroute also applies at RUN level, because the resolver alone cannot
+  reach every run** (`harfbuzzShapedRunOverride`, `font-resolution.ts`). Under
+  the default shaped splitter only the kSystemFonts stage calls
+  `resolveFontForCodepoint`; the primary and declared-family candidates are
+  materialized directly (`splitShapedInner`, `cluster-fallback.ts`), so the
+  per-codepoint post-step never saw them and every `HARFBUZZ_SHAPED_RANGES`
+  routing was inert exactly when the primary or a declared family (or a
+  webfont) covered the script — e.g. Arabic on Arial's own coverage, or a
+  Bangla webfont missing HarfBuzz's vowel-constraint dotted circle. After run
+  assembly the splitter now wraps every run that contains a routed codepoint
+  in the same `outlinesFromBase` proxy (`carryFontInstanceMetadata` included),
+  resolving the face the way `fontFeatureValueShapingOverride` does: the
+  instance's own source file first, the key's base spec next, the retained
+  `@font-face` bytes last. A run whose font already shapes through HarfBuzz
+  (system-stage proxies, pinned dotted-circle runs, the feature-list proxy) is
+  detected via `FontInstance.shapesWithHarfbuzz` and never wrapped twice — a
+  proxy-over-proxy has no `getGlyph` and would silently move the outlines to
+  HarfBuzz's own `glyphToPath`. Pinned by
+  `src/render/harfbuzz-run-routing.test.ts`.
+
+- **hb-backed `layout()` is a MIRROR-DOMAIN boundary** (the adapter in
+  `harfbuzz-shaper.ts`). The text the renderer hands to `FontInstance.layout`
+  is paint-domain: `applyBidi` (`text.ts`) already substituted the
+  Bidi_Mirroring_Glyph counterpart for paired brackets at odd bidi levels,
+  because fontkit and the platform helpers draw exactly the characters they
+  are given. HarfBuzz instead mirrors RTL buffers itself, coverage-gated
+  (`hb_ot_rotate_chars`, `hb-ot-shape.cc:657-668`, rev `4de187d`) — Blink
+  never pre-mirrors — so feeding an hb proxy pre-mirrored text mirrored RTL
+  brackets twice and painted the logical `(` as `(` where Chrome paints `)`.
+  Every renderer-facing hb entry point (`makeHarfbuzzShapingInstance`'s proxy,
+  `installHarfbuzzShaping`, `makeHarfbuzzShapeFallback`) therefore maps each
+  character of an RTL buffer through the BMG involution before shaping
+  (`mirrorPairedCharacters`); hb's own gated mirror then reproduces Chrome's
+  choice for every embedding-level mix. The buffer direction, when the caller
+  passes none, is derived by transcription of
+  `hb_buffer_guess_segment_properties` + `hb_script_get_horizontal_direction`
+  (`hb-buffer.cc:1761-1792`, `hb-common.cc:522-609`, rev `4de187d`) and passed
+  explicitly so the map and the direction cannot drift apart. The shaped
+  splitter applies the same domain rule to its Blink-parity questions: an RTL
+  segment's `.notdef` verdicts shape the BMG-mapped text (Chrome's requeue
+  tests the MIRRORED glyph's coverage), and hint characters are collected from
+  the logical text (odd-level characters mapped back), matching
+  `CollectFallbackHintChars`, which reads Blink's un-premirrored source.
 
 - **A RUN-level sibling of the post-step exists for OpenType feature state
   fontkit cannot express** (`fontFeatureValueShapingOverride`,

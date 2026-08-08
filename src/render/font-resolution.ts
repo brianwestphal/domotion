@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
-import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
+import { faceHasTrakAndStat, hbShapingBaseOf, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 // Speculative-composition rollback (see `snapshotGeneration` below): re-exported
@@ -220,6 +220,13 @@ export interface FontInstance {
    *  Undefined off the darwin helper path and when the face stays at its
    *  file-default location (no clone — Blink's `axes_reconfigured` guard). */
   instantiatedPostscriptName?: string;
+  /** Set on every instance whose `layout` shapes through HarfBuzz — the proxy
+   *  `makeHarfbuzzShapingInstance` returns, or an instance whose layout
+   *  `installHarfbuzzShaping` replaced in place. `harfbuzzShapedRunOverride`
+   *  reads it so a run already shaping via hb is never wrapped twice (a
+   *  proxy-over-proxy has no `getGlyph`, which would silently swap the outline
+   *  engine to HarfBuzz's own `glyphToPath`). */
+  shapesWithHarfbuzz?: true;
 }
 
 /** Glyph id for a codepoint, tolerating a null return from `glyphForCodePoint`.
@@ -8735,6 +8742,11 @@ function harfbuzzShapedScriptOverride(
   const fvs = res.key === primaryFontKey ? variationSettings : undefined;
   const base = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant, fvs));
   if (base == null) return res;
+  // Already HarfBuzz-shaped (a decomposition/webfont override that is itself a
+  // proxy): wrapping again would stack proxies, and the inner one has no
+  // `getGlyph`, so the outlines would silently move to HarfBuzz's own
+  // `glyphToPath`.
+  if (base.shapesWithHarfbuzz === true) return res;
   const hbFace = shapingFaceFor(res.key, weight, fontSize, slant, fvs);
   if (hbFace == null) return res;
   const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true });
@@ -8772,6 +8784,59 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   proxy.instantiatedPostscriptName = base.instantiatedPostscriptName;
   const src = fontSourceMap.get(base as unknown as object);
   if (src != null) fontSourceMap.set(proxy as unknown as object, src);
+}
+
+/**
+ * Run-level form of `harfbuzzShapedScriptOverride`, for the shaped-cluster
+ * splitter's family-stage runs.
+ *
+ * That override lives inside `resolveFontForCodepoint`, so it reaches every
+ * font decision the legacy per-codepoint walk makes — but under the default
+ * shaped splitter the PRIMARY and declared-family assignments never call the
+ * resolver (`splitShapedInner` builds those candidates from `getFontInstance`
+ * / the caller's primary directly; only the system stage resolves). Every
+ * `HARFBUZZ_SHAPED_RANGES` routing was therefore inert exactly when the
+ * primary or a declared family covered the script: an Arabic webfont, Arial's
+ * own Arabic, a Bangla webfont all kept fontkit's shaping — meaning, e.g., no
+ * HarfBuzz vowel-constraint dotted circle for a broken Bengali cluster
+ * (`_hb_preprocess_text_vowel_constraints`,
+ * `hb-ot-shaper-vowel-constraints.cc:58-446`, rev 4de187d), which is the very
+ * divergence Bengali was routed for.
+ *
+ * Same construction as the per-codepoint form: HarfBuzz supplies ids,
+ * positions and clusters; the base instance keeps the outlines
+ * (`outlinesFromBase`) and its metadata (`carryFontInstanceMetadata`). The
+ * face is resolved the way `fontFeatureValueShapingOverride` resolves it —
+ * the instance's own source file first, so shaper and outlines agree by
+ * construction; the key's base spec next; the retained `@font-face` bytes
+ * last, so webfont runs route too. Declines (returns `base` unchanged) when
+ * no face is openable, when no codepoint in the run is routed, or when the
+ * instance already shapes through HarfBuzz.
+ */
+export function harfbuzzShapedRunOverride(
+  base: FontInstance,
+  fontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  runText: string,
+): FontInstance {
+  if (base.shapesWithHarfbuzz === true) return base;
+  let routed = false;
+  for (const ch of runText) {
+    if (usesHarfbuzzShaping(ch.codePointAt(0)!)) { routed = true; break; }
+  }
+  if (!routed) return base;
+  const src = getFontSourceInfo(base);
+  const hbFace = src != null && src.nameMatched && src.faceIndex != null
+    ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
+    : shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings) ?? webfontShapingFace(base);
+  if (hbFace == null || hbFace.faceIndex == null) return base;
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true });
+  if (hbInst === base) return base; // HarfBuzz declined the file
+  carryFontInstanceMetadata(hbInst, base);
+  return hbInst;
 }
 
 /**
@@ -8841,6 +8906,13 @@ export function fontFeatureValueShapingOverride(
    *  receives the unprojected list. */
   features: string[],
 ): FontInstance {
+  // A run the script reroute (or the system stage) already wrapped hands in
+  // the hb PROXY. Build the feature-bound proxy over the TRUE base instead of
+  // stacking — the proxy exposes no `getGlyph`, so a stacked wrap would
+  // silently move the outlines to HarfBuzz's own `glyphToPath`. Everything
+  // the script wrap provided is subsumed: the feature proxy shapes the whole
+  // run through HarfBuzz too.
+  base = hbShapingBaseOf(base);
   // The shaper must open the SAME face the outlines come from. Prefer the
   // resolved instance's own source file over re-deriving one from the font key:
   // a key like `sf-pro` or `georgia` names a FAMILY, and the run's slant/weight

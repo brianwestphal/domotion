@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-05T07:42:16.101Z",
+  "generatedAt": "2026-08-08T22:49:32.377Z",
   "sources": [
     "external/html-test",
     "tests/fixtures/shaping"
@@ -36907,6 +36907,21 @@
       "example": "external/html-test/34-mathml-layout.html"
     },
     {
+      "text": "שלום",
+      "fontFamily": "\"Arial Unicode MS\"",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontVariationSettings": "normal",
+      "fontStretch": "100%",
+      "fontFeatureSettings": "normal",
+      "letterSpacing": "normal",
+      "textRendering": "auto",
+      "fontVariantLigatures": "normal",
+      "fixtures": 1,
+      "example": "tests/fixtures/shaping/harfbuzz-run-routing.html"
+    },
+    {
       "text": "سمير_ali",
       "fontFamily": "sans-serif",
       "fontSize": 16,
@@ -36920,6 +36935,51 @@
       "fontVariantLigatures": "normal",
       "fixtures": 1,
       "example": "external/html-test/02-text-bidi.html"
+    },
+    {
+      "text": "مرحبا",
+      "fontFamily": "\"Arial Unicode MS\"",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontVariationSettings": "normal",
+      "fontStretch": "100%",
+      "fontFeatureSettings": "normal",
+      "letterSpacing": "normal",
+      "textRendering": "auto",
+      "fontVariantLigatures": "normal",
+      "fixtures": 1,
+      "example": "tests/fixtures/shaping/harfbuzz-run-routing.html"
+    },
+    {
+      "text": "অা",
+      "fontFamily": "\"Kohinoor Bangla\"",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontVariationSettings": "normal",
+      "fontStretch": "100%",
+      "fontFeatureSettings": "normal",
+      "letterSpacing": "normal",
+      "textRendering": "auto",
+      "fontVariantLigatures": "normal",
+      "fixtures": 1,
+      "example": "tests/fixtures/shaping/harfbuzz-run-routing.html"
+    },
+    {
+      "text": "ปื้น",
+      "fontFamily": "\"Arial Unicode MS\"",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "fontStyle": "normal",
+      "fontVariationSettings": "normal",
+      "fontStretch": "100%",
+      "fontFeatureSettings": "normal",
+      "letterSpacing": "normal",
+      "textRendering": "auto",
+      "fontVariantLigatures": "normal",
+      "fixtures": 1,
+      "example": "tests/fixtures/shaping/harfbuzz-run-routing.html"
     },
     {
       "text": "ぁぃぅぇぉっゃゅょ",
