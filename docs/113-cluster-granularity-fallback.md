@@ -1,13 +1,53 @@
 # 113 — Font fallback at shaped-cluster granularity
 
-Status: **SHIPPED, default-on** for the embedded-font run splitter.
-`src/render/cluster-fallback.ts` replaces `splitTextIntoFontRuns`' per-codepoint
-cmap walk; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy walk for an A/B,
-and a decline (a face HarfBuzz cannot open) falls back to it automatically. The
-shipped implementation scores **10/10** on the Chrome probe corpus of §2 (the
-design-time prototype scored 9/10; script itemization closed its one miss). The
-glyph-path emitter (`textToPathMarkup`'s in-function walk) still decides per
-codepoint — porting it is a tracked follow-up.
+Status: **SHIPPED, default-on** for BOTH run splitters — the embedded-font
+pipeline and the glyph-path emitter. `src/render/cluster-fallback.ts` replaces
+`splitTextIntoFontRuns`' per-codepoint cmap walk (embedded), and
+`splitTextIntoGlyphPathRuns` (`src/render/text-to-path.ts`) invokes the same
+splitter in its **"paths" mode** for `textToPathMarkup` — so the two render
+modes assign the same fonts to the same partially-covered clusters.
+`DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk in both
+for an A/B, and a decline (a face HarfBuzz cannot open) falls back to it
+automatically. Both entry points score **10/10** on the Chrome probe corpus of
+§2 (the design-time prototype scored 9/10; script itemization closed its one
+miss; the legacy per-codepoint walk scores 6/10). Unit corpora:
+`src/render/cluster-fallback.test.ts` (embedded) and
+`src/render/glyph-path-run-split.test.ts` (paths — its cases fail against the
+legacy walk, the discrimination requirement).
+
+The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the two concerns
+the glyph-path emitter has and the embedded pipeline does not:
+
+- **The raster-emoji terminal.** Emoji are painted by a captured raster
+  `<image>` overlay with path emission suppressed, so an uncovered emoji must
+  keep the calibrated per-codepoint pin — the static chain's LAST entry's
+  stable `.notdef` advance (or the primary when the chain is empty, grouping
+  the suppressed tofu with the surrounding run) — instead of the resolver's
+  color-font answer, which would split it out of the surrounding run and drift
+  the overlay alignment. A variation selector immediately following a pinned
+  base keeps the legacy resolver decision (measured: the live CoreText
+  resolver answers `sysfb:.AppleColorEmojiUI` for a lone U+FE0F) — with its
+  base carved out of the requeue queue, the cluster-level `kUnmatchedVSGlyphId`
+  machinery cannot see the sequence, and a stranded one-selector range would
+  otherwise commit to whichever candidate shapes it first. These spans are
+  pinned before the requeue loop like the dotted-circle runs; the split is
+  byte-identical to the legacy walk on the emoji corpus (asserted in the unit
+  tests). Not a Blink behavior — parity for these glyphs is carried by the
+  overlay, not the run split.
+- **Per-run `decomposed` flags.** `FontRun.decomposed` marks runs whose `text`
+  is not the source slice (Math-Alphanumeric base substitutions, dotted-circle
+  hb clusters); the emitter picks its per-char vs run-text branch per run from
+  the flag, so paths-mode runs never merge across a flag boundary (embedded
+  keeps its shipped merge — it always renders `run.text`).
+
+One ground-truth observation from the port, beyond the §2 corpus: Helvetica
+`◌` + U+0E48 (an EXPLICIT dotted circle before a Thai mark) paints
+**Helvetica ×2** in Chrome — Thonburi (the hint answer for the mark) has no
+U+25CC glyph, so the whole cluster's verdict is `.notdef`, Times / Lucida
+Grande cover neither char, and `kFirstCandidateForNotdefGlyph` re-returns
+Helvetica. The legacy walk split it per codepoint (◌ → Hiragino, mark →
+Thonburi) — two glyphs Chrome never paints. The shaped splitter reproduces
+Chrome's answer by construction.
 
 All Chromium references are to `external/chromium` at rev **7d859f27
 (2026-06-27)**; HarfBuzz references to `external/harfbuzz` at rev **4de187d

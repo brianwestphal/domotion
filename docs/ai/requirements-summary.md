@@ -43,17 +43,20 @@ they describe (see `CLAUDE.md` "Documentation"):
 ## Recent additions worth knowing about
 
 - **Doc 113 (`docs/113-cluster-granularity-fallback.md`)** — **Shipped,
-  default-on for the embedded-font run splitter.** Blink runs font fallback at
-  SHAPED-CLUSTER granularity (shape with the current font, requeue only the
-  `.notdef` clusters — `ExtractShapeResults`); `src/render/cluster-fallback.ts`
-  ports that mechanism (script itemization first, full-text buffer context,
-  explicit script/direction/language, last-resort stage, U+3000 rule,
-  unmatched-variation-sequence recycling, webfont primaries + unicode-range
-  partitions, shape-verdict cache) and replaces `splitTextIntoFontRuns`'
-  per-codepoint cmap walk (`DOMOTION_CLUSTER_FALLBACK=0` restores it). Scores
-  10/10 on the Chrome CDP probe corpus where the legacy walk scores 6/10; the
-  paths-mode walk (`textToPathMarkup`) still decides per codepoint (tracked
-  follow-up). Also carries the static-chain retirement measurement: over the
+  default-on for BOTH run splitters (embedded-font and glyph-path).** Blink
+  runs font fallback at SHAPED-CLUSTER granularity (shape with the current
+  font, requeue only the `.notdef` clusters — `ExtractShapeResults`);
+  `src/render/cluster-fallback.ts` ports that mechanism (script itemization
+  first, full-text buffer context, explicit script/direction/language,
+  last-resort stage, U+3000 rule, unmatched-variation-sequence recycling,
+  webfont primaries + unicode-range partitions, shape-verdict cache) and
+  replaces `splitTextIntoFontRuns`' per-codepoint cmap walk; the glyph-path
+  emitter (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`) invokes the same
+  splitter in its "paths" mode, which preserves the raster-emoji terminal pin
+  and per-run `decomposed` flags (`DOMOTION_CLUSTER_FALLBACK=0` restores the
+  legacy walk in both). Both entry points score 10/10 on the Chrome CDP probe
+  corpus where the legacy walk scores 6/10. Also carries the static-chain
+  retirement measurement: over the
   conformance universe × top-6 stacks, `staticChain()` answered 6 of 916k
   system-stage decisions on macOS and 0 of 780k on Linux. The existing
   unicode-grid sweeps are one-codepoint-per-cell and structurally cannot grade

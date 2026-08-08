@@ -47,9 +47,11 @@ shortest possible map:
   Mermaid reference; keep it current with any font-routing change.**
   `cluster-fallback.ts` is Blink's shaped-cluster fallback — shape with the
   current font, requeue only the `.notdef` clusters — and is the DEFAULT run
-  splitter for the embedded-font pipeline (`splitTextIntoFontRuns` delegates to
-  it; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk) —
-  see `docs/113-cluster-granularity-fallback.md`.
+  splitter for BOTH render modes (`splitTextIntoFontRuns` for the embedded-font
+  pipeline; `splitTextIntoGlyphPathRuns` invokes it in "paths" mode for the
+  glyph-path emitter, preserving the raster-emoji terminal pin + per-run
+  `decomposed` flags; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
+  per-codepoint walk in both) — see `docs/113-cluster-granularity-fallback.md`.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   `hb_buffer_set_script` takes (derived from hb-script-list.h).
   `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows

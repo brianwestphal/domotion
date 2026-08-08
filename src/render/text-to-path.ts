@@ -151,6 +151,218 @@ export function synthSmallCapsCharScale(
 // HarfBuzz can't open the font file. Shared by `textToPathMarkup` (glyph-path) and
 // `splitTextIntoFontRuns` (embedded-font) so both emit the cluster identically.
 
+/**
+ * The glyph-path emitter's font-run split (the "paths" render mode —
+ * `textToPathMarkup` and the visual-regression suites that pin it).
+ *
+ * Default: Blink's shape-then-requeue mechanism at shaped-cluster granularity
+ * (`splitTextIntoFontRunsShaped`, docs/113 — `ExtractShapeResults`,
+ * `platform/fonts/shaping/harfbuzz_shaper.cc:627-787`, rev 7d859f27), invoked
+ * in its "paths" mode so the emitter's two extra concerns survive the port:
+ * the raster-emoji terminal (an uncovered emoji pins the static chain's last
+ * entry so the PNG overlay's advance alignment holds) and per-run `decomposed`
+ * flags (which pick the emitter's run-text branch). This makes the glyph-path
+ * and embedded pipelines assign the SAME fonts to the same partially-covered
+ * clusters — previously this walk decided per codepoint from cmap coverage
+ * before any shaping, so the two modes could disagree about one cluster.
+ *
+ * A decline (a face HarfBuzz cannot open, or a violated contract) falls back
+ * to the legacy per-codepoint walk below; `DOMOTION_CLUSTER_FALLBACK=0`
+ * restores that walk wholesale for an A/B.
+ */
+export function splitTextIntoGlyphPathRuns(
+  text: string,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+  fontKeyChain: string[],
+  systemUiPrimary: boolean,
+  stretch: number,
+  fontVariantEmoji: FontVariantEmojiOverride | undefined,
+  fontFamily: string,
+): FontRun[] {
+  if (clusterFallbackEnabled()) {
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths" });
+    if (shaped != null) return shaped;
+  }
+  const runs: FontRun[] = [];
+  let curKey = primaryFontKey;
+  let curFontOverride: FontInstance | null = null; // DM-557: per-codepoint webfont variant
+  let curDecomposed = false;
+  let curText = "";
+  let curStart = 0;
+  let i = 0;
+  // DM-1215: an active dotted-circle cluster being routed through real HarfBuzz
+  // (the mark's own font). Set when an ORPHANED combining mark (or an explicit
+  // U+25CC before a mark) is seen; trailing combining marks join the same run;
+  // any spacing base / whitespace clears it. `clusterHasBase` tracks whether the
+  // current cluster already has a spacing base, so a mark with no base is treated
+  // as orphaned — exactly the case Chrome's HarfBuzz paints with an inserted ◌.
+  let hbDottedCircleRun: { key: string; font: FontInstance } | null = null;
+  let clusterHasBase = false;
+  while (i < text.length) {
+    const cp = text.codePointAt(i)!;
+    const ch = String.fromCodePoint(cp);
+    const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
+    let emitCh: string;
+    let useKey: string;
+    let useFontOverride: FontInstance | null;
+    let useDecomposed: boolean;
+    // DM-1215: route a dotted-circle cluster through real HarfBuzz in the mark's
+    // own font so the mark lands on the ◌ exactly as Chrome paints it (see
+    // `resolveDottedCircleHbRun`). An ORPHANED mark (no spacing base) opens the
+    // cluster — HarfBuzz inserts AND positions the ◌ the way Chrome's HarfBuzz
+    // does, where fontkit either omits it (Adlam / Miao) or mis-places it. An
+    // explicit U+25CC before a mark (already inserted upstream) opens it too.
+    // Trailing combining marks join the same HarfBuzz-shaped run; any spacing
+    // base / whitespace ends it.
+    const chIsMark = /\p{M}/u.test(ch);
+    let clusterRun: { key: string; font: FontInstance } | null = null;
+    if (hbDottedCircleRun != null) {
+      if (chIsMark) clusterRun = hbDottedCircleRun;
+      else hbDottedCircleRun = null; // a base/space closes the cluster
+    }
+    if (clusterRun == null) {
+      const markForCluster = (cp === 0x25CC && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp)))
+        ? nextCp                                  // explicit ◌ + mark (mark drives the shaping font)
+        : (chIsMark && !clusterHasBase) ? cp      // orphaned bare mark (HarfBuzz inserts the ◌)
+        : 0;
+      if (markForCluster !== 0) {
+        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+        if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
+      }
+    }
+    // Track spacing-base presence for the NEXT codepoint's orphan test: a base
+    // (incl. the ◌ itself) sets it, whitespace resets it, marks leave it.
+    if (/\s/.test(ch) && ch.length === 1) clusterHasBase = false;
+    else if (!chIsMark) clusterHasBase = true;
+    // The char appended to the current run's text. Normally the source char;
+    // for a Math-Alpha decomposition it's the substituted base letter/digit.
+    // DM-1068: the per-codepoint decision is the shared resolver (primary →
+    // webfont variant → chain → system fallback → math-alpha → NFD). This path
+    // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
+    // (the substituted base char) rather than the per-char source index.
+    // The property must not override an explicit VS15/VS16 in the text
+    // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
+    const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
+    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
+    // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
+    // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
+    // placing one on a system color font here would split it out of the
+    // surrounding text run and break the overlay's advance pinning (the
+    // embedded path, which has no overlay, does let the resolver place them).
+    // Under `font-variant-emoji: text` the terminal must NOT capture the
+    // codepoint: Chrome's forced-VS15 cascade finds a monochrome face where
+    // one exists (measured: U+26A1 → Apple Symbols, U+2B50 → STIX Two Math),
+    // so the resolver — with the same suppression threaded — decides.
+    const emojiToTerminal = glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text";
+    if (clusterRun != null) {
+      emitCh = ch;
+      useKey = clusterRun.key;
+      useFontOverride = clusterRun.font;
+      useDecomposed = true;
+    } else if (res!.covered && !emojiToTerminal) {
+      emitCh = res!.emitCh;
+      useKey = res!.key;
+      useFontOverride = res!.fontOverride;
+      useDecomposed = res!.decomposed;
+    } else {
+      // Glyph-path terminal: nothing covers `cp` (an exotic emoji even Apple
+      // Symbols lacks), or `cp` is an emoji kept off the resolver per above.
+      // Pin to the LAST chain entry's stable `.notdef` advance so a captured
+      // rasterGlyph PNG overlay stays aligned — switching to primary's
+      // `.notdef` would shift glyph positions and drift the rest of the line.
+      // (For the empty emoji chain the last entry is the primary font, grouping
+      // the suppressed-tofu emoji with the surrounding run.) This is the one
+      // place the glyph-path terminal differs from the embedded path's
+      // primary-`.notdef`; the system-fallback + NFD steps the resolver added
+      // are the DM-1068 fidelity fix the glyph-path lacked.
+      // ...EXCEPT for private-use / noncharacter codepoints, where Blink's
+      // terminal is the first candidate's `.notdef` and nothing else: it runs
+      // no system fallback for them at all (`platform/fonts/font_cache.cc:242-244`,
+      // rev 7d859f27), so the iterator falls through kSystemFonts to
+      // `kFirstCandidateForNotdefGlyph` (`font_fallback_iterator.cc:159-164`).
+      // Pinning those to the chain tail painted LastResort's glyph — a rounded
+      // box with a `?`, 35.20px wide at 32px against Helvetica's 20.28px
+      // `.notdef` — so the ink ran over the following character while the
+      // ADVANCE (from the capture) stayed Chrome's. The rasterGlyph rationale
+      // above doesn't reach here: an overlay is only pinned for emoji, and a
+      // PUA or noncharacter codepoint is neither.
+      //
+      // GENERALISED: the terminal is the primary for EVERY uncovered
+      // codepoint, not only the private-use ones. Blink's iterator ends at
+      // `kFirstCandidateForNotdefGlyph` and re-returns the first candidate so
+      // that font's `.notdef` paints; the stage before it asks
+      // `GetLastResortFallbackFont`, which on macOS is **Times** (Lucida
+      // Grande as a backstop, `mac/font_cache_mac.mm:376-392`) and is NEVER
+      // the Unicode LastResort font — the TODO at
+      // `font_fallback_iterator.cc:147-149` explicitly wishes it were.
+      //
+      // Measured against Chrome rather than inferred, on five codepoints
+      // nothing on the host covers (Egyptian Hieroglyphs Ext-A U+13460, CJK
+      // Ext-G U+30000, Sutton SignWriting U+1D800, Tangut Components U+18800,
+      // Vithkuqi U+10570): `CSS.getPlatformFontsForNode` names **Helvetica**
+      // for all five and the advance is 20.2813px at 32px — exactly
+      // Helvetica's `.notdef` (1298/2048 em). LastResort's glyph would be
+      // 35.2031px.
+      //
+      // The emoji case above still reaches this branch and still wants the
+      // chain tail: `emojiToTerminal` routes an uncovered emoji here on
+      // purpose so the captured rasterGlyph PNG overlay keeps its advance
+      // pinning, which is the rationale the original comment gives. That is
+      // the one caller for which the pin was ever the point.
+      emitCh = ch;
+      if (emojiToTerminal) {
+        const chain = fallbackFontChain(cp, primaryFontKey, lang);
+        useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
+      } else {
+        useKey = primaryFontKey;
+      }
+      useFontOverride = null;
+      useDecomposed = false;
+    }
+    // DM-557: a per-codepoint webfont variant is a different FontInstance
+    // even when its `useKey` matches `curKey` (both are the primary
+    // family's webfont:<key>). Discriminate runs by the (key, override)
+    // pair so a Latin-partition run and a Cyrillic-partition run within
+    // the same Geist family stay separate even though they share the key.
+    const runChanged = useKey !== curKey || useFontOverride !== curFontOverride
+      || useDecomposed !== curDecomposed;
+    if (runChanged && curText.length > 0) {
+      // Variation settings apply to the primary requested font, not to
+      // system fallbacks reached for missing glyphs (CJK / emoji / symbols
+      // weren't declared by the page's @font-face).
+      const fvs = curKey === primaryFontKey ? variationSettings : undefined;
+      // DM-1103: for the primary key use the already-resolved `primaryFont`
+      // directly — re-resolving via the key would drop the optical-cut `opsz`
+      // that `resolveFont` injected from the family name (it's keyed on the
+      // family, not the collapsed font key), re-emitting at the wrong cut.
+      const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
+      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey && curFontOverride == null, decomposed: curDecomposed });
+      curText = "";
+      curStart = i;
+    }
+    curKey = useKey;
+    curFontOverride = useFontOverride;
+    curDecomposed = useDecomposed;
+    curText += emitCh;
+    i += ch.length;
+  }
+  if (curText.length > 0) {
+    const fvs = curKey === primaryFontKey ? variationSettings : undefined;
+    // DM-1103: prefer the resolved `primaryFont` for the primary key so the
+    // optical-cut opsz (injected by resolveFont from the family name) survives.
+    const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
+    const finalKey = curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey);
+    runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey && curFontOverride == null, decomposed: curDecomposed });
+  }
+  return runs;
+}
+
 export function textToPathMarkup(
   text: string,
   fontSize: number,
@@ -234,185 +446,15 @@ export function textToPathMarkup(
   // does NOT do BiDi reordering — that's tracked separately. startIdx/endIdx
   // are UTF-16 code-unit positions into `text` so the multi-font path can
   // slice xOffsets per run (SK-1255).
-  // `decomposed` marks runs whose `text` holds Math-Alphanumeric base letters
-  // substituted for codepoints no font in the chain could render (see
-  // mathAlphaToBase). Those runs render through the run-text / min-x anchored
-  // branch — the substituted base char differs from the original astral
-  // codepoint at `text[startIdx]`, so the per-char path (which reads `text` by
-  // index) can't be used for them.
-  interface Run { fontKey: string; font: FontInstance; text: string; startIdx: number; endIdx: number; decomposed?: boolean }
-  const runs: Run[] = [];
-  {
-    let curKey = primaryFontKey;
-    let curFontOverride: FontInstance | null = null; // DM-557: per-codepoint webfont variant
-    let curDecomposed = false;
-    let curText = "";
-    let curStart = 0;
-    let i = 0;
-    // DM-1215: an active dotted-circle cluster being routed through real HarfBuzz
-    // (the mark's own font). Set when an ORPHANED combining mark (or an explicit
-    // U+25CC before a mark) is seen; trailing combining marks join the same run;
-    // any spacing base / whitespace clears it. `clusterHasBase` tracks whether the
-    // current cluster already has a spacing base, so a mark with no base is treated
-    // as orphaned — exactly the case Chrome's HarfBuzz paints with an inserted ◌.
-    let hbDottedCircleRun: { key: string; font: FontInstance } | null = null;
-    let clusterHasBase = false;
-    while (i < text.length) {
-      const cp = text.codePointAt(i)!;
-      const ch = String.fromCodePoint(cp);
-      const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
-      let emitCh: string;
-      let useKey: string;
-      let useFontOverride: FontInstance | null;
-      let useDecomposed: boolean;
-      // DM-1215: route a dotted-circle cluster through real HarfBuzz in the mark's
-      // own font so the mark lands on the ◌ exactly as Chrome paints it (see
-      // `resolveDottedCircleHbRun`). An ORPHANED mark (no spacing base) opens the
-      // cluster — HarfBuzz inserts AND positions the ◌ the way Chrome's HarfBuzz
-      // does, where fontkit either omits it (Adlam / Miao) or mis-places it. An
-      // explicit U+25CC before a mark (already inserted upstream) opens it too.
-      // Trailing combining marks join the same HarfBuzz-shaped run; any spacing
-      // base / whitespace ends it.
-      const chIsMark = /\p{M}/u.test(ch);
-      let clusterRun: { key: string; font: FontInstance } | null = null;
-      if (hbDottedCircleRun != null) {
-        if (chIsMark) clusterRun = hbDottedCircleRun;
-        else hbDottedCircleRun = null; // a base/space closes the cluster
-      }
-      if (clusterRun == null) {
-        const markForCluster = (cp === 0x25CC && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp)))
-          ? nextCp                                  // explicit ◌ + mark (mark drives the shaping font)
-          : (chIsMark && !clusterHasBase) ? cp      // orphaned bare mark (HarfBuzz inserts the ◌)
-          : 0;
-        if (markForCluster !== 0) {
-          const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
-          if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
-        }
-      }
-      // Track spacing-base presence for the NEXT codepoint's orphan test: a base
-      // (incl. the ◌ itself) sets it, whitespace resets it, marks leave it.
-      if (/\s/.test(ch) && ch.length === 1) clusterHasBase = false;
-      else if (!chIsMark) clusterHasBase = true;
-      // The char appended to the current run's text. Normally the source char;
-      // for a Math-Alpha decomposition it's the substituted base letter/digit.
-      // DM-1068: the per-codepoint decision is the shared resolver (primary →
-      // webfont variant → chain → system fallback → math-alpha → NFD). This path
-      // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
-      // (the substituted base char) rather than the per-char source index.
-      // The property must not override an explicit VS15/VS16 in the text
-      // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
-      const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, effFve, fontFamily);
-      // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
-      // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
-      // placing one on a system color font here would split it out of the
-      // surrounding text run and break the overlay's advance pinning (the
-      // embedded path, which has no overlay, does let the resolver place them).
-      // Under `font-variant-emoji: text` the terminal must NOT capture the
-      // codepoint: Chrome's forced-VS15 cascade finds a monochrome face where
-      // one exists (measured: U+26A1 → Apple Symbols, U+2B50 → STIX Two Math),
-      // so the resolver — with the same suppression threaded — decides.
-      const emojiToTerminal = glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text";
-      if (clusterRun != null) {
-        emitCh = ch;
-        useKey = clusterRun.key;
-        useFontOverride = clusterRun.font;
-        useDecomposed = true;
-      } else if (res!.covered && !emojiToTerminal) {
-        emitCh = res!.emitCh;
-        useKey = res!.key;
-        useFontOverride = res!.fontOverride;
-        useDecomposed = res!.decomposed;
-      } else {
-        // Glyph-path terminal: nothing covers `cp` (an exotic emoji even Apple
-        // Symbols lacks), or `cp` is an emoji kept off the resolver per above.
-        // Pin to the LAST chain entry's stable `.notdef` advance so a captured
-        // rasterGlyph PNG overlay stays aligned — switching to primary's
-        // `.notdef` would shift glyph positions and drift the rest of the line.
-        // (For the empty emoji chain the last entry is the primary font, grouping
-        // the suppressed-tofu emoji with the surrounding run.) This is the one
-        // place the glyph-path terminal differs from the embedded path's
-        // primary-`.notdef`; the system-fallback + NFD steps the resolver added
-        // are the DM-1068 fidelity fix the glyph-path lacked.
-        // ...EXCEPT for private-use / noncharacter codepoints, where Blink's
-        // terminal is the first candidate's `.notdef` and nothing else: it runs
-        // no system fallback for them at all (`platform/fonts/font_cache.cc:242-244`,
-        // rev 7d859f27), so the iterator falls through kSystemFonts to
-        // `kFirstCandidateForNotdefGlyph` (`font_fallback_iterator.cc:159-164`).
-        // Pinning those to the chain tail painted LastResort's glyph — a rounded
-        // box with a `?`, 35.20px wide at 32px against Helvetica's 20.28px
-        // `.notdef` — so the ink ran over the following character while the
-        // ADVANCE (from the capture) stayed Chrome's. The rasterGlyph rationale
-        // above doesn't reach here: an overlay is only pinned for emoji, and a
-        // PUA or noncharacter codepoint is neither.
-        //
-        // GENERALISED: the terminal is the primary for EVERY uncovered
-        // codepoint, not only the private-use ones. Blink's iterator ends at
-        // `kFirstCandidateForNotdefGlyph` and re-returns the first candidate so
-        // that font's `.notdef` paints; the stage before it asks
-        // `GetLastResortFallbackFont`, which on macOS is **Times** (Lucida
-        // Grande as a backstop, `mac/font_cache_mac.mm:376-392`) and is NEVER
-        // the Unicode LastResort font — the TODO at
-        // `font_fallback_iterator.cc:147-149` explicitly wishes it were.
-        //
-        // Measured against Chrome rather than inferred, on five codepoints
-        // nothing on the host covers (Egyptian Hieroglyphs Ext-A U+13460, CJK
-        // Ext-G U+30000, Sutton SignWriting U+1D800, Tangut Components U+18800,
-        // Vithkuqi U+10570): `CSS.getPlatformFontsForNode` names **Helvetica**
-        // for all five and the advance is 20.2813px at 32px — exactly
-        // Helvetica's `.notdef` (1298/2048 em). LastResort's glyph would be
-        // 35.2031px.
-        //
-        // The emoji case above still reaches this branch and still wants the
-        // chain tail: `emojiToTerminal` routes an uncovered emoji here on
-        // purpose so the captured rasterGlyph PNG overlay keeps its advance
-        // pinning, which is the rationale the original comment gives. That is
-        // the one caller for which the pin was ever the point.
-        emitCh = ch;
-        if (emojiToTerminal) {
-          const chain = fallbackFontChain(cp, primaryFontKey, lang);
-          useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
-        } else {
-          useKey = primaryFontKey;
-        }
-        useFontOverride = null;
-        useDecomposed = false;
-      }
-      // DM-557: a per-codepoint webfont variant is a different FontInstance
-      // even when its `useKey` matches `curKey` (both are the primary
-      // family's webfont:<key>). Discriminate runs by the (key, override)
-      // pair so a Latin-partition run and a Cyrillic-partition run within
-      // the same Geist family stay separate even though they share the key.
-      const runChanged = useKey !== curKey || useFontOverride !== curFontOverride
-        || useDecomposed !== curDecomposed;
-      if (runChanged && curText.length > 0) {
-        // Variation settings apply to the primary requested font, not to
-        // system fallbacks reached for missing glyphs (CJK / emoji / symbols
-        // weren't declared by the page's @font-face).
-        const fvs = curKey === primaryFontKey ? variationSettings : undefined;
-        // DM-1103: for the primary key use the already-resolved `primaryFont`
-        // directly — re-resolving via the key would drop the optical-cut `opsz`
-        // that `resolveFont` injected from the family name (it's keyed on the
-        // family, not the collapsed font key), re-emitting at the wrong cut.
-        const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-        if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, decomposed: curDecomposed });
-        curText = "";
-        curStart = i;
-      }
-      curKey = useKey;
-      curFontOverride = useFontOverride;
-      curDecomposed = useDecomposed;
-      curText += emitCh;
-      i += ch.length;
-    }
-    if (curText.length > 0) {
-      const fvs = curKey === primaryFontKey ? variationSettings : undefined;
-      // DM-1103: prefer the resolved `primaryFont` for the primary key so the
-      // optical-cut opsz (injected by resolveFont from the family name) survives.
-      const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
-      runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length, decomposed: curDecomposed });
-    }
-  }
+  // Default: shaped-cluster granularity via the shared shape-then-requeue
+  // splitter (docs/113) in its "paths" mode — the same cluster decisions the
+  // embedded pipeline makes — with the legacy per-codepoint walk as the
+  // decline / flag-off fallback. See `splitTextIntoGlyphPathRuns`.
+  // `decomposed` marks runs whose `text` is not the source slice (substituted
+  // Math-Alphanumeric base letters, dotted-circle clusters); those render
+  // through the run-text / min-x anchored branch — the per-char path (which
+  // reads `text` by index) can't be used for them.
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz

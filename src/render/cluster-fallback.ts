@@ -1,5 +1,9 @@
 // Font fallback at SHAPED-CLUSTER granularity — the default run splitter for
-// the embedded-font pipeline (see docs/113-cluster-granularity-fallback.md).
+// BOTH render modes: the embedded-font pipeline (`splitTextIntoFontRuns`) and,
+// via `ShapedSplitOptions.mode: "paths"`, the glyph-path emitter
+// (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`). Paths mode adds the
+// emitter's raster-emoji terminal pin and per-run `decomposed` flags — see the
+// option's doc below and docs/113-cluster-granularity-fallback.md.
 //
 // Blink does not decide fallback per codepoint. It shapes the whole segment
 // with the current font and re-queues only the clusters whose glyphs came back
@@ -56,7 +60,8 @@ import {
   getFontInstance, getFontSourceInfo, shapingFaceFor, webfontShapingFace,
   pickWebfontVariantForCodepoint, unicodeRangeCovers,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
-  forcesEmojiPresentation, isEmojiCharCp, isColorEmojiFontKey,
+  forcesEmojiPresentation, isEmojiCharCp, isEmojiCodepoint, isColorEmojiFontKey,
+  glyphIdForCp, fallbackFontChain,
   FontVariantEmojiOverride,
 } from "./font-resolution.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery } from "./harfbuzz-shaper.js";
@@ -93,6 +98,23 @@ interface Assignment {
   isPrimary: boolean;
   /** Substituted run text (decomposed resolver answers); default = source slice. */
   emitText?: string;
+  /** Mirrors `FontRun.decomposed` — a substituted-text commit or a pinned
+   *  dotted-circle cluster. The glyph-path emitter renders such runs via its
+   *  run-text branch; in "paths" mode runs never merge across a flag change. */
+  decomposed?: boolean;
+}
+
+/** Which emitter the split feeds. The default ("embedded") is the contract the
+ *  embedded-font pipeline shipped with. "paths" is the glyph-path emitter
+ *  (`textToPathMarkup`), which adds two concerns of its own:
+ *  - the raster-emoji terminal pin (`pinnedEmojiTerminalSpans` below) — emoji
+ *    are painted by a captured raster overlay there, so an uncovered emoji must
+ *    keep the calibrated per-codepoint terminal instead of the resolver's
+ *    system answer;
+ *  - per-run `decomposed` flags, and no merging across a flag boundary — the
+ *    emitter picks its per-char vs run-text branch per run from the flag. */
+export interface ShapedSplitOptions {
+  mode?: "embedded" | "paths";
 }
 
 /** Common/Inherited have no "likely script" — `Character::HasLikelyScript` is
@@ -369,10 +391,100 @@ function pinnedDottedCircleSpans(
       if (last != null && last.end === i && last.key === clusterRun.key && last.font === clusterRun.font) {
         last.end = i + ch.length;
       } else {
-        spans.push({ start: i, end: i + ch.length, key: clusterRun.key, font: clusterRun.font, isPrimary: false });
+        // `decomposed`: the glyph-path emitter must render this span via its
+        // run-text branch (the whole ◌+mark cluster shapes as a unit).
+        spans.push({ start: i, end: i + ch.length, key: clusterRun.key, font: clusterRun.font, isPrimary: false, decomposed: true });
       }
     }
     i += ch.length;
+  }
+  return spans;
+}
+
+// ── Glyph-path raster-emoji terminal (pinned prepass, "paths" mode only) ────
+//
+// The glyph-path emitter paints emoji through a captured raster `<image>`
+// overlay and suppresses their path emission, so the underlying run exists only
+// to hold the ADVANCE the overlay was aligned against. Its calibrated contract
+// (transplanted from `textToPathMarkup`'s per-codepoint walk): an emoji the
+// primary's cmap lacks is pinned to the LAST entry of the static fallback chain
+// — that entry's stable `.notdef` advance keeps the overlay aligned — or to the
+// primary itself when the chain is empty, grouping the suppressed tofu with the
+// surrounding run. The resolver's system stage must never place it on a color
+// font: that would split it out of the surrounding run and drift the rest of
+// the line. (The embedded pipeline has no overlay and deliberately lets the
+// resolver place emoji on the color font — hence the mode split.)
+//
+// A variation selector immediately following a pinned base is pinned with the
+// legacy per-codepoint decision (the shared resolver's answer when covered,
+// else the primary terminal): with its base carved out of the requeue queue,
+// the cluster-level `kUnmatchedVSGlyphId` machinery can no longer see the
+// sequence, and a stranded one-selector range would otherwise commit to
+// whichever candidate shapes it first (measured: the live CoreText resolver
+// answers `sysfb:.AppleColorEmojiUI` for a lone U+FE0F, which is what the
+// legacy walk emits — the requeue loop's last-resort stage would emit Times).
+//
+// Not a Blink behavior — Blink has no raster overlay. This is a Domotion
+// calibration the glyph-path emitter is built around; parity for these
+// codepoints is carried by the overlay itself, not by the run split.
+function pinnedEmojiTerminalSpans(
+  text: string,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+  fontKeyChain: string[],
+  systemUiPrimary: boolean,
+  stretch: number,
+  fontVariantEmoji: FontVariantEmojiOverride | undefined,
+  fontFamily: string | undefined,
+): Assignment[] {
+  const spans: Assignment[] = [];
+  let prevPinnedEmoji = false;
+  let i = 0;
+  while (i < text.length) {
+    const cp = text.codePointAt(i)!;
+    const len = cp > 0xffff ? 2 : 1;
+    const nextCp = i + len < text.length ? text.codePointAt(i + len)! : 0;
+    // An explicit VS15/VS16 after the codepoint wins over the property
+    // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27) —
+    // the same guard the legacy walk applies before its terminal test.
+    const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
+    if (glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text") {
+      const chain = fallbackFontChain(cp, primaryFontKey, lang);
+      const key = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
+      const font = key === primaryFontKey ? primaryFont : getFontInstance(key, weight, fontSize, slant);
+      if (font == null) throw new DeclineError();
+      spans.push({ start: i, end: i + len, key, font, isPrimary: key === primaryFontKey && font === primaryFont });
+      prevPinnedEmoji = true;
+    } else if (prevPinnedEmoji && isVariationSelectorCp(cp)) {
+      const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
+      let key = primaryFontKey;
+      let font: FontInstance | null = primaryFont;
+      let decomposed = false;
+      let emitText: string | undefined;
+      if (res.covered) {
+        key = res.key;
+        font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
+        decomposed = res.decomposed;
+        if (res.emitCh !== text.slice(i, i + len)) emitText = res.emitCh;
+      }
+      if (font == null) throw new DeclineError();
+      spans.push({
+        start: i, end: i + len, key, font,
+        isPrimary: key === primaryFontKey && font === primaryFont,
+        ...(emitText != null ? { emitText } : {}),
+        ...(decomposed ? { decomposed: true } : {}),
+      });
+      // Leave `prevPinnedEmoji` set: a multi-selector tail (rare but legal)
+      // takes the same legacy decision per selector.
+    } else {
+      prevPinnedEmoji = false;
+    }
+    i += len;
   }
   return spans;
 }
@@ -432,11 +544,13 @@ export function splitTextIntoFontRunsShaped(
   /** The run's RAW CSS `font-family` stack — threaded to the resolver's
    *  `declaredFamily` param (the Linux standard-style retry). */
   fontFamily?: string,
+  /** Emitter-contract options — see `ShapedSplitOptions`. Default: embedded. */
+  opts?: ShapedSplitOptions,
 ): FontRun[] | null {
   if (text.length === 0) return null;
   _invoked++;
   try {
-    const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily);
+    const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, opts);
     if (runs != null) _accepted++;
     return runs;
   } catch {
@@ -459,12 +573,23 @@ function splitShapedInner(
   stretch: number,
   fontVariantEmoji: FontVariantEmojiOverride | undefined,
   fontFamily: string | undefined,
+  opts: ShapedSplitOptions | undefined,
 ): FontRun[] | null {
+  const pathsMode = opts?.mode === "paths";
   const primaryFace = hbFaceFor(primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings);
   if (primaryFace == null || primaryFace.faceIndex == null) return null;
 
   // DM-1215 dotted-circle cluster runs, pinned before the requeue loop.
   const pinned = pinnedDottedCircleSpans(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+  if (pathsMode) {
+    // The glyph-path emitter's raster-emoji terminal, pinned the same way. No
+    // overlap with the dotted-circle spans is possible: those cover marks and
+    // an explicit ◌, and an emoji base is neither (a variation selector IS
+    // category Mn, but it only pins here when the preceding emoji base — a
+    // non-mark — just closed any dotted-circle cluster).
+    pinned.push(...pinnedEmojiTerminalSpans(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily));
+    pinned.sort((a, b) => a.start - b.start);
+  }
 
   // Script itemization FIRST — Blink's RunSegmenter runs before any shaping,
   // so a Thai-script mark (U+0E48, Script=Thai, not Inherited) never joins a
@@ -687,7 +812,7 @@ function splitShapedInner(
             const len = cp > 0xffff ? 2 : 1;
             if (cp === hint) {
               if (i > cursor) nextQueue.push({ start: cursor, end: i });
-              assignments.push({ start: i, end: i + chLen, key, font, isPrimary: false, emitText: emitCh });
+              assignments.push({ start: i, end: i + chLen, key, font, isPrimary: false, emitText: emitCh, decomposed: true });
               cursor = i + chLen;
             }
             i += len;
@@ -789,11 +914,18 @@ function splitShapedInner(
   for (const a of assignments) {
     const aText = a.emitText ?? text.slice(a.start, a.end);
     const last = runs[runs.length - 1];
-    if (last != null && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start) {
+    const aDecomposed = a.decomposed === true;
+    // In "paths" mode a run never merges across a `decomposed` boundary — the
+    // glyph-path emitter picks its per-char vs run-text branch PER RUN, so a
+    // merged mixed run would index the source text with substituted characters.
+    // Embedded keeps its shipped merge (it always renders `run.text`).
+    if (last != null && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start
+        && (!pathsMode || (last.decomposed === true) === aDecomposed)) {
       last.endIdx = a.end;
       last.text += aText;
+      if (aDecomposed) last.decomposed = true;
     } else {
-      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary });
+      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, ...(aDecomposed ? { decomposed: true } : {}) });
     }
   }
   return runs;

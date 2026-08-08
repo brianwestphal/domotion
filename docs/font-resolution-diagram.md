@@ -63,11 +63,11 @@ flowchart TD
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
     B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
-    B1 -->|"paths"| B3["textToPathMarkup()<br/>(own per-codepoint walk — cluster port is a tracked follow-up)<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>+ raster-emoji terminal pinned prepass (chain-tail .notdef;<br/>trailing VS keeps the legacy resolver decision)<br/>+ per-run decomposed flags (no merge across a flag boundary).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
-    C0 --> C1["Per FAILING CLUSTER (embedded default) or per codepoint (paths / legacy):<br/>resolveFontForCodepoint(cp, primary,<br/>primaryKey, weight, size, slant, fvs, lang, chain)"]
+    C0 --> C1["Per FAILING CLUSTER (both modes, default) or per codepoint (legacy walk):<br/>resolveFontForCodepoint(cp, primary,<br/>primaryKey, weight, size, slant, fvs, lang, chain)"]
     C1 --> C2["font.layout() shaping →<br/>glyph outline commands<br/>(commandsFor: fontkit, else per-glyph helper)"]
   end
 
@@ -82,8 +82,11 @@ flowchart TD
 
 **Source of truth:** `discoverAndRegisterWebfonts` + `resetGeneration` in
 `src/capture/index.ts`; `renderTextAsPath` / `textToPathMarkup` /
-`splitTextIntoFontRuns` in `src/render/text-to-path.ts`; the mode switch
-(`currentRenderTextMode` / `withRenderTextMode`) in `src/render/font-resolution.ts`.
+`splitTextIntoFontRuns` / `splitTextIntoGlyphPathRuns` in
+`src/render/text-to-path.ts`; the shared shaped splitter
+(`splitTextIntoFontRunsShaped`) in `src/render/cluster-fallback.ts`; the mode
+switch (`currentRenderTextMode` / `withRenderTextMode`) in
+`src/render/font-resolution.ts`.
 
 ### Render-text mode (paths vs embedded-font)
 
@@ -92,14 +95,20 @@ flowchart TD
 | `embedded-font` | **yes** (DM-839) | `<text>` against a `@font-face` subset **glyf** TTF (svg2ttf; NOT CFF — DM-1666), addressed by private-use codepoints (consumer browser does zero shaping) | consumer browser rasterizes (its own hinting/AA) — smaller/faster, not byte-identical across browsers | `embeddedFonts` map + `embedded-font-builder` (`clearEmbeddedFonts`) |
 | `paths` | no | `<use href="#gN">` into per-glyph `<path>` defs | per-pixel-faithful to Chromium; used for visual-regression diffing | `glyphDefs` registry (`clearGlyphDefs`) |
 
-Both consult the SAME resolver (`resolveFontForCodepoint`), but at different
-granularity: the embedded splitter asks it per FAILING SHAPED CLUSTER (the
-Blink shape-then-requeue mechanism, `src/render/cluster-fallback.ts`, docs/113
-— default-on, `DOMOTION_CLUSTER_FALLBACK=0` restores per-codepoint), while the
-paths-mode walk still asks per codepoint. They also differ in the **uncovered
-terminal** (paths pins the last chain entry's stable `.notdef` advance so emoji
-raster overlays stay aligned; embedded commits the FIRST candidate's `.notdef`
-— `kFirstCandidateForNotdefGlyph`). `resetGeneration()` clears both generation-scoped
+Both consult the SAME resolver (`resolveFontForCodepoint`) at the SAME
+granularity: per FAILING SHAPED CLUSTER (the Blink shape-then-requeue
+mechanism, `src/render/cluster-fallback.ts`, docs/113 — default-on,
+`DOMOTION_CLUSTER_FALLBACK=0` restores the per-codepoint legacy walk in both
+modes). The paths entry (`splitTextIntoGlyphPathRuns`,
+`src/render/text-to-path.ts`) invokes the shared splitter with
+`mode: "paths"`, which adds the emitter's two contracts: the **raster-emoji
+terminal** (an uncovered emoji pins the last chain entry's stable `.notdef`
+advance so the raster overlay stays aligned — the resolver's color-font answer
+is never taken there; a trailing variation selector keeps the legacy resolver
+decision) and per-run **`decomposed` flags** (no merge across a flag boundary,
+so the emitter's per-char vs run-text branch choice survives). The
+**uncovered terminal for non-emoji** is the FIRST candidate's `.notdef` in
+both (`kFirstCandidateForNotdefGlyph`). `resetGeneration()` clears both generation-scoped
 caches together (DM-1338 / DM-1435). The webfont + local-alias registries are
 **session-scoped** (survive across generations; cleared by `clearWebfonts`).
 

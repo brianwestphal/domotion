@@ -9165,7 +9165,21 @@ export function syntheticMarkCenteringOffsetPx(primaryFont: FontInstance, ch: st
 }
 
 
-export interface FontRun { fontKey: string; font: FontInstance; text: string; startIdx: number; endIdx: number; isPrimary: boolean }
+export interface FontRun {
+  fontKey: string;
+  font: FontInstance;
+  text: string;
+  startIdx: number;
+  endIdx: number;
+  isPrimary: boolean;
+  /** The run's `text` is not the source slice `[startIdx, endIdx)` — a
+   *  decomposed resolver substitution (Math-Alphanumeric base letter, cross-font
+   *  NFD) or a dotted-circle cluster shaped through real HarfBuzz. The
+   *  glyph-path emitter routes such a run through its run-text (min-x anchored)
+   *  branch instead of indexing the source text per character; the embedded
+   *  pipeline always renders `run.text` and ignores the flag. */
+  decomposed?: boolean;
+}
 /**
  * Text-decoration geometry, transcribed from Blink (Chromium rev 7d859f27).
  * All values are UNSNAPPED CSS px — the paint-time y-snap
