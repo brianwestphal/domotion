@@ -103,6 +103,11 @@ describe("project conventions", () => {
       "glyphDefCount", "getGlyphDefsSince", "truncateGlyphDefs",
       "getEmbeddedFontFaceCss", "withRenderTextMode", "RenderTextMode",
       "registerWebfont", "registerLocalFontAlias",
+      // session generic-family overrides: the capture-side probe
+      // (src/capture/generic-font-probe.ts, DOMOTION_GENERIC_PROBE=1) installs
+      // the session's painted generic families for the resolver to consult —
+      // same capture→render registration pattern as registerWebfont.
+      "setSessionGenericFamilyOverrides",
       // the three real queries
       "resolveFontKey", "getFontInstance", "renderTextAsPath",
     ]);

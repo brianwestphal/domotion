@@ -16,6 +16,7 @@ import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../ren
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
+import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
@@ -1039,6 +1040,14 @@ export async function captureElementTreeWithWarnings(
   // external refs exist; a fetch failure leaves the ref intact so the walk
   // warns as before.
   await inlineExternalSvgRefs(page);
+
+  // Flag-gated (DOMOTION_GENERIC_PROBE=1, default off): probe THIS capture
+  // session's painted generic families once per browser context and install
+  // them as the renderer's generic-keyword routes — the concrete family
+  // behind `serif` / `monospace` / ... is a property of the launched session
+  // (Playwright applies its own table via CDP `Page.setFontFamilies`), so the
+  // session is the only authority. See `src/capture/generic-font-probe.ts`.
+  await ensureSessionGenericFamilyOverrides(page);
 
   const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}, cof: ${JSON.stringify(opts?.crossOriginFrames ?? "")}})`);
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };

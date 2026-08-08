@@ -7350,8 +7350,55 @@ function authorFamilyAvailable(name: string): boolean {
   return avail;
 }
 
+// ── Session generic-family overrides (flag-gated prototype, default OFF) ──
+// The concrete family behind a CSS generic keyword is a property of the
+// LAUNCHED browser session, not of Chromium's source: Playwright applies its
+// own vendored per-platform table via CDP `Page.setFontFamilies` to every
+// non-headful launch (`playwright-core/lib/server/chromium/crPage.js`,
+// `_setDefaultFontFamilies`), overriding blink's `WebPreferences` constructor
+// defaults (`third_party/blink/common/web_preferences/web_preferences.cc:25-41`,
+// rev 7d859f27); headed launches skip that and get the full binary's chrome
+// prefs layer (`locale_settings_<platform>.grd`) instead. When the capture
+// side has probed the session (`DOMOTION_GENERIC_PROBE=1`,
+// `src/capture/generic-font-probe.ts`), the probed painted families are
+// installed here and the generic keywords route to them; when null (the
+// default), the calibrated static generic routes below are unchanged.
+const SESSION_PROBED_GENERICS = new Set([
+  "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
+]);
+let sessionGenericFamilyOverrides: ReadonlyMap<string, string> | null = null;
+
+/** Install (or clear, with null) the session's probed generic→family map.
+ *  Keys are the lower-case generic keywords; values are the platform family
+ *  names the capture session painted for them (e.g. "monospace" → "Courier"). */
+export function setSessionGenericFamilyOverrides(
+  map: ReadonlyMap<string, string> | null,
+): void {
+  sessionGenericFamilyOverrides = map;
+}
+
+/** Test/introspection accessor for the installed session overrides. */
+export function getSessionGenericFamilyOverrides(): ReadonlyMap<string, string> | null {
+  return sessionGenericFamilyOverrides;
+}
+
 function matchFamilyNameToKey(name: string): string | null {
   if (name === "" || name === "doesnotexist") return null;
+  // Session-probed generic route (see setSessionGenericFamilyOverrides): when
+  // the capture session has been asked what it paints for a generic keyword,
+  // route the keyword to that family. The probed name is a concrete platform
+  // family (never a generic keyword), so the recursion is single-step; if it
+  // doesn't resolve to a key on this host, fall through to the static routes.
+  if (sessionGenericFamilyOverrides != null && SESSION_PROBED_GENERICS.has(name)) {
+    const probed = sessionGenericFamilyOverrides.get(name);
+    if (probed != null) {
+      const probedName = probed.toLowerCase();
+      if (probedName !== name) {
+        const key = matchFamilyNameToKey(probedName);
+        if (key != null) return key;
+      }
+    }
+  }
     // Registered webfonts win — the page declared this family AND we hold
     // its bytes. `getFontInstance` dispatches the webfont: prefix to the
     // runtime registry instead of the on-disk FONT_PATHS table.
@@ -7419,34 +7466,44 @@ function matchFamilyNameToKey(name: string): string | null {
         return key;
       }
     }
-    // Chrome on THIS host resolves the CSS `monospace` generic to Courier, and
-    // that is a MEASUREMENT rather than a transcription — read the next
-    // paragraph before "correcting" it to Menlo.
-    //
-    // The citation this comment used to carry ("font_cache_mac.mm —
-    // kMonospaceFamily → kCourier") is not real: `kCourier` is not a symbol
-    // anywhere in the Chromium tree, and `kMonospaceFamily`
-    // (`core/css/resolver/font_builder.cc:90`) resolves to the literal family
-    // name `monospace`, not to a face. The actual chain is
+    // The capture harness's `monospace` resolves to Courier because PLAYWRIGHT
+    // says so, not Chromium. Identified end-to-end (previously "unidentified"):
+    // Playwright applies its own vendored per-platform generic-family table to
+    // every non-headful page via CDP `Page.setFontFamilies`
+    // (`playwright-core/lib/server/chromium/crPage.js`,
+    // `_setDefaultFontFamilies`, gated on `!options.headful`;
+    // `defaultFontFamilies.js` — mac: standard/serif "Times", fixed "Courier",
+    // sans-serif "Helvetica", cursive "Apple Chancery", fantasy "Papyrus", no
+    // math key, plus per-script jpan/hang/hans/hant entries). That call
+    // overrides the browser's own layer, which is otherwise:
     //
     //     kMonospaceFamily
     //       -> font_family_names::kMonospace          (font_builder.cc:90-91)
     //       -> FontSelector::FamilyNameFromSettings   -> settings.Fixed(script)
-    //       -> IDS_FIXED_FONT_FAMILY                  (prefs_tab_helper.cc:149)
+    //       -> headless shell: WebPreferences constructor defaults ONLY
+    //          (web_preferences.cc:25-41, rev 7d859f27 — fixed "Menlo" on mac;
+    //          headless/lib has zero font-preference code)
+    //       -> full binary + chrome prefs layer: IDS_FIXED_FONT_FAMILY
+    //          (prefs_tab_helper.cc:149, locale_settings_mac.grd — "Menlo")
     //
-    // — a per-platform localized resource. `locale_settings_mac.grd` says
-    // **Menlo**. So the table says one thing and this host's Chrome paints
-    // another, and the discrepancy is NOT ours to resolve by picking the
-    // table: mapping the generic to Menlo was tried and measured
-    // (5,031,450-comparison conformance slice) at **+35,583 mismatches**,
-    // 3.354% -> 4.062%. Reverted.
+    // Measured in the harness's own launch path (headless shell, Chromium
+    // 147.0.7727.15): monospace paints Courier — Playwright's table, matching
+    // NEITHER Chromium layer (both say Menlo on mac). Mapping this to Menlo
+    // was tried and measured (5,031,450-comparison conformance slice) at
+    // **+35,583 mismatches**, 3.354% -> 4.062%, and reverted — the oracle's
+    // Chrome runs under Playwright's table too.
     //
-    // Chrome's generics differ BY MACHINE at one browser version (147.0.7727.15):
-    // this Mac answers Courier / Helvetica / Times, while the CI runner answers
-    // Menlo / Arial / Times New Roman — all three shifting together. Whatever
-    // sits between the pref default and the painted face is unidentified, so
-    // either value fits one machine and breaks the other. Do not change this
-    // without a probe run ON the runner.
+    // The earlier "Chrome's generics differ BY MACHINE" observation (this Mac
+    // Courier / Helvetica / Times, CI runner sometimes Menlo / Arial / Times
+    // New Roman, all three shifting together) is the same mechanism: the CI
+    // states are exactly (a) Playwright's table applied vs (b) the
+    // WebPreferences constructor defaults showing through when the CDP
+    // `Page.setFontFamilies` -> renderer pref update loses the race against
+    // first layout on a loaded runner (see tools/probe-sans-serif-flip.mjs —
+    // its two recorded flip states are byte-exact these two tables). Static
+    // routes here therefore encode the applied-table state; the flag-gated
+    // session probe (DOMOTION_GENERIC_PROBE=1, src/capture/generic-font-probe.ts)
+    // asks the live session instead.
     //
     // For author-named monospaces we map to whatever the author asked for if
     // we have it on disk; SF Mono is only used when explicitly requested.

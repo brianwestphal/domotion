@@ -180,6 +180,28 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > `docs/03-font-family-chain.md` frames the same mappings as "matching Chrome on
 > macOS"; doc [40](40-cross-platform-font-paths.md) L62 notes the keys are
 > "macOS-centric".
+>
+> **Session generic-family overrides (flag-gated, default OFF).** The concrete
+> family behind a generic keyword is a property of the LAUNCHED capture
+> session, not of Chromium's source: Playwright applies its own vendored
+> per-platform table to every non-headful page via CDP `Page.setFontFamilies`
+> (`playwright-core/lib/server/chromium/crPage.js` `_setDefaultFontFamilies`,
+> gated on `!options.headful`; `defaultFontFamilies.js` — mac fixed is
+> "Courier", with per-script jpan/hang/hans/hant entries on mac/win),
+> overriding blink's `WebPreferences` constructor defaults
+> (`third_party/blink/common/web_preferences/web_preferences.cc:25-41`, rev
+> 7d859f27 — the only layer a headless-shell launch otherwise has; the chrome
+> prefs layer's `locale_settings_<platform>.grd` applies only headed/full).
+> The calibrated static generic routes above encode the Playwright-table state
+> (which is why `monospace`→`courier` on macOS, not the `.grd`'s Menlo). With
+> `DOMOTION_GENERIC_PROBE=1`, the capture funnel
+> (`captureElementTreeWithWarnings` → `src/capture/generic-font-probe.ts`)
+> instead probes the live session once per browser context — one hidden page,
+> `CSS.getPlatformFontsForNode` per generic — and installs the painted
+> families via `setSessionGenericFamilyOverrides`; `matchFamilyNameToKey`
+> then routes `serif` / `sans-serif` / `monospace` / `cursive` / `fantasy` /
+> `math` to the probed family ahead of the static routes, falling back to them
+> when the probe is silent or the probed family doesn't resolve on this host.
 
 ```mermaid
 flowchart TD
