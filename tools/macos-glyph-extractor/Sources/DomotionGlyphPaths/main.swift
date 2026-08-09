@@ -292,7 +292,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     // /System stub but the caller asked for a regular-weight face that only
     // exists in /Library.
     if !pickedNameMatch, let name = postscriptName {
-        let byName = CTFontCreateWithName(name as CFString, CGFloat(size), nil)
+        let byName = CTFontCreateWithNameAndOptions(name as CFString, CGFloat(size), nil, .preventAutoActivation)
         // Verify the by-name lookup found a face whose postscript name actually
         // matches what we asked for — CTFontCreateWithName falls back to the
         // system default if no match, and we don't want to silently swap a
@@ -340,7 +340,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
         // No file was supplied (or it yielded no descriptors) — a name-only
         // request, where CoreText's substitution is all there is. Recorded as
         // unverified so the caller knows the face is not guaranteed.
-        baseFont = CTFontCreateWithName(name as CFString, CGFloat(size), nil)
+        baseFont = CTFontCreateWithNameAndOptions(name as CFString, CGFloat(size), nil, .preventAutoActivation)
         resolution = .byNameUnverified
     }
     guard var font = baseFont else {
@@ -775,22 +775,26 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
 // probe still reaches CoreText's matching path and still blocks on the panel.
 // Fetched once per client process and cached there, the enumeration is paid a
 // single time and no uninstalled name ever reaches `CTFontCreateWithName`.
-func runFamiliesQuery() -> [String: Any] {
-    var names: [String] = []
-    if let fams = CTFontManagerCopyAvailableFontFamilyNames() as? [String] {
-        names.append(contentsOf: fams)
-    }
-    if let ps = CTFontManagerCopyAvailablePostScriptNames() as? [String] {
-        names.append(contentsOf: ps)
-    }
-    return ["type": "families", "names": names]
-}
-
 func runFamilyQuery(_ query: [String: Any]) -> [String: Any] {
     guard let name = query["name"] as? String, !name.isEmpty else {
         return ["type": "family", "found": false]
     }
-    let font = CTFontCreateWithName(name as CFString, 16.0, nil)
+    // `.preventAutoActivation` stops CoreText raising the system "download
+    // font X" panel (and the background download) when the name is a macOS
+    // on-demand asset — Osaka, Osaka-Mono, the extra weights of some CJK
+    // families. Without it, `CTFontCreateWithName` on such a name blocks on the
+    // modal, which nobody dismisses on an unattended run: ~130s per lookup and
+    // the cause of a class of run stalls. With it, CoreText returns the
+    // substitute face instead, and the family / PostScript-name match below
+    // then reports the request unavailable — exactly what Blink does with a
+    // face it cannot create, so the caller walks on to the next family.
+    //
+    // This is the documented mechanism for the job. Enumeration guards were all
+    // wrong: family-name and on-disk-file lists MISS hidden/reserved system
+    // faces (Hiragino Kaku Gothic ProN, PingFang TC live in reserved .ttc files
+    // and are not enumerated), and the `kCTFontDownloadableAttribute` list
+    // flags installed families that merely HAVE downloadable extra weights.
+    let font = CTFontCreateWithNameAndOptions(name as CFString, 16.0, nil, .preventAutoActivation)
     let psName = (CTFontCopyPostScriptName(font) as String?) ?? ""
     let familyName = (CTFontCopyFamilyName(font) as String?) ?? ""
     let displayName = (CTFontCopyName(font, kCTFontFullNameKey) as String?) ?? ""
@@ -1350,7 +1354,6 @@ func handleEnvelope(_ envelope: [String: Any], fontCache: inout [String: FontEnt
         case "fallback": results.append(runFallbackQuery(query, fonts: fonts))
         case "notdef": results.append(runNotdefQuery(query, fonts: fonts))
         case "shape": results.append(runShapeQuery(query, fonts: fonts))
-        case "families": results.append(runFamiliesQuery())
         case "family": results.append(runFamilyQuery(query))
         case "familyMatch": results.append(runFamilyMatchQuery(query))
         default: results.append(["type": type, "error": "unknown query type"])

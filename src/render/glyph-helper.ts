@@ -1662,59 +1662,6 @@ const _installedFontCache = new Map<string, InstalledFont | null>();
  * would our resolver pick without this font", NOT a simulation of the runner
  * (whose Chrome also lacks them). Read the two sides accordingly.
  */
-/**
- * Every family / PostScript name CoreText can resolve WITHOUT downloading,
- * fetched once per process.
- *
- * `CTFontCreateWithName` on a family macOS ships only as a downloadable asset
- * does not fail — it raises the system "needs to download font X" panel and
- * blocks until answered. Unattended there is nobody to answer: one such lookup
- * was measured blocking ~16 minutes, and it is the cause of several
- * otherwise-unexplained stalls (a 30s unit timeout, a 425s static-chain walk,
- * an agent that reported "no progress for 600s").
- *
- * It is also a parity defect: an uninstalled face is unavailable to Blink,
- * which walks on. Accepting a download would make us paint a face Chrome does
- * not have and would change the host's font inventory as a side effect of
- * measuring — which silently invalidates comparison against a CI runner with a
- * different set.
- *
- * ONE bulk fetch, cached, rather than a per-name check. Both per-name variants
- * were tried and reverted: enumerating inside the Swift `family` handler
- * re-scans thousands of faces on every one-shot spawn (a static-chain walk went
- * to 425s), and a `CTFontDescriptorCopyAttribute` URL probe still reaches
- * CoreText's matching path and still blocks on the panel. Null means "could not
- * ask" and admits everything, so a helper-less host is unaffected.
- */
-let _installedNames: Set<string> | null | undefined;
-
-function installedNameSet(): Set<string> | null {
-  if (_installedNames !== undefined) return _installedNames;
-  _installedNames = null;
-  if (hostPlatform() === "darwin" && isGlyphHelperAvailable()) {
-    try {
-      const resp = callHelper({ fonts: [], queries: [{ type: "families" } as never] });
-      const r = resp?.results?.[0] as { names?: string[] } | undefined;
-      if (Array.isArray(r?.names) && r.names.length > 0) {
-        const set = new Set<string>();
-        for (const n of r.names) {
-          const l = n.toLowerCase();
-          set.add(l);
-          set.add(l.replace(/ /g, ""));
-        }
-        _installedNames = set;
-      }
-    } catch { /* leave null — admit everything rather than lose coverage */ }
-  }
-  return _installedNames;
-}
-
-function isInstalledName(nameKey: string): boolean {
-  const set = installedNameSet();
-  if (set == null) return true; // could not ask
-  return set.has(nameKey) || set.has(nameKey.replace(/ /g, ""));
-}
-
 function hiddenFamilies(): Set<string> {
   const raw = process.env.DOMOTION_HIDE_FAMILIES;
   if (raw == null || raw.trim() === "") return new Set();
@@ -1794,11 +1741,6 @@ export function resolveInstalledFont(
 ): InstalledFont | null {
   const nameKey = name.toLowerCase();
   if (hiddenFamilies().has(nameKey)) return null;
-  // A name macOS ships only as a DOWNLOADABLE asset must never reach
-  // `CTFontCreateWithName` — see `installedNameSet`. Blink treats an
-  // uninstalled face as unavailable and walks on, which is what returning null
-  // here does.
-  if (!isInstalledName(nameKey)) return null;
   // The style joins the cache key for the same reason the cascade base does in
   // `systemFallbackKeyCache`: the answer is a function of the style you ask
   // with, so a style-blind key would serve whichever style asked FIRST to every
