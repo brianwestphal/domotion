@@ -3211,6 +3211,14 @@ export function renderRadicalGlyph(
 export interface SkipInkOptions {
   decorationCenterYRel?: number;
   decorationThickness?: number;
+  /** Horizontal dilation of each intercept, in px per side. Blink dilates by
+   *  `min(LINE thickness, 13)` — `geometry.Thickness()`, never the intercept
+   *  band's height (`core/paint/text_painter.cc:607-608`, rev 7d859f27) — so
+   *  callers whose band is taller than the line (wavy: the stroke bounding
+   *  rect of the wave; double: both bars plus the gap between them) must pass
+   *  the line thickness here. Defaults to `min(decorationThickness, 13)`,
+   *  which is exact when the band IS the line rect (solid). */
+  interceptPad?: number;
   /** Chromium-measured run width — when set, intercepts are scaled to match
    *  so gaps line up with the painted glyph positions even when fontkit's
    *  layout disagrees with HarfBuzz at sub-px scale. */
@@ -3231,7 +3239,7 @@ export function computeSkipInkGaps(
   skipInk: SkipInkOptions = {},
 ): Array<[number, number]> {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings, features } = fontOptions;
-  const { decorationCenterYRel = 0, decorationThickness = 1, targetWidth, charXOffsets } = skipInk;
+  const { decorationCenterYRel = 0, decorationThickness = 1, interceptPad, targetWidth, charXOffsets } = skipInk;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
@@ -3256,7 +3264,7 @@ export function computeSkipInkGaps(
   // `kIntersectionExtension` that does not exist anywhere in Chromium. The
   // fitted value is HALF the real one below the cap, so every gap was painted
   // narrower than Chrome paints it.
-  const pad = Math.min(decorationThickness, 13);
+  const pad = interceptPad ?? Math.min(decorationThickness, 13);
   const rawGaps: Array<[number, number]> = [];
   const anchoredGaps: Array<[number, number]> = [];
   let xCursor = 0;

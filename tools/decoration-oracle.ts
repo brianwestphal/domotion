@@ -87,13 +87,32 @@
  *               (`text_painter.cc:589-590`), each intercept dilated
  *               horizontally by min(t, 13) (`:607-608`).
  *
+ * Patterned styles (dashed / dotted / wavy) are graded too, differently:
+ *   - The C leg measures the painted-ink EXTENT (50%-coverage row/column
+ *     threshold) instead of the coverage-weighted bar profile — a dot's row
+ *     mass is a chord length and a wave's is its slope density, so the
+ *     profile method does not apply. Tolerance is correspondingly coarser
+ *     (TOL_TRANSCRIPTION_EXTENT).
+ *   - The R leg predicts the stroke band (dashed/dotted: snapped midline ±
+ *     unrounded t/2) or the wavy ink extent (centerline ± (cpDist/(2√3) +
+ *     t/2) — the analytic form of Skia's stroke bounding rect of the cubic
+ *     centerline, which `ComputeWavyPatternRect` floor/ceils into the
+ *     pattern band).
+ *   - The segment compare runs for EVERY patterned case, not just skip-ink
+ *     text: each painted dash / dot is a segment on both sides, so dash
+ *     layout — and, across skip-ink gaps, dash-phase continuity (Blink
+ *     computes the pattern once over the whole run and clips; a per-segment
+ *     re-fit shifts every dash edge after the first gap) — is graded
+ *     directly against Chrome's paint. The S side expands the emitted
+ *     `stroke-dasharray` analytically and intersects it with the emitted
+ *     `<clipPath>` rects; the wavy S side reports the clip rects' intervals.
+ *
  * Blind spots — what this oracle CANNOT see (kept honest on purpose):
- *   - dotted / dashed / wavy / spelling / grammar lines: only solid and
- *     double are measured. Dash phase, dot geometry, and the wavy tile are
- *     not graded at all.
- *   - x-extent of the decoration (run start/end) is not compared to a rule —
- *     only gap intervals and the y geometry are graded. A run painted 2px
- *     short at both ends would pass.
+ *   - spelling / grammar error lines are not graded.
+ *   - the wavy PATTERN-RECT band (the floor/ceil'd stroke bounds that gate
+ *     the skip-ink intercepts and crop the tile) is only observable through
+ *     skip-ink gap edges, which depend on it weakly; its floor/ceil snap is
+ *     pinned by unit tests on `emitDecorationLine` instead.
  *   - `from-font` cases feed the R leg from fontkit's post-table values,
  *     not from CoreText's answer — a face where the two disagree mis-grades
  *     the transcription leg for that case (reported per-case, so it is
@@ -128,6 +147,13 @@ import { resolveFont, setRenderTextMode } from "../src/render/font-resolution.js
 /** C vs R: bar top / height, CSS px. Measurement noise at dsf 4 is ~0.06px
  *  and painted bars are y-snapped to integers, so 0.2 is generous. */
 const TOL_TRANSCRIPTION = 0.2;
+/** C vs R for the EXTENT-measured styles (dashed / dotted / wavy): the
+ *  painted-ink extent is recovered by a 50%-coverage threshold on device
+ *  rows, which quantizes each edge to 1/dsf CSS px (±0.25 worst case per
+ *  edge, so ±0.5 on a height combining both). Coarser than the solid bars'
+ *  coverage-weighted centroid, still far below the ~1px scale of any real
+ *  rule error (a wrong snap, a rounded-vs-unrounded stroke width). */
+const TOL_TRANSCRIPTION_EXTENT = 0.55;
 /** R vs S: emitted coordinates are exact reals (rounded to 2 decimals in
  *  markup), so 0.3 covers serialization rounding only. */
 const TOL_SVG_GEOMETRY = 0.3;
@@ -153,7 +179,7 @@ interface CaseSpec {
   fontSize: number;
   /** `text-decoration-line` value. */
   lines: string;
-  style: "solid" | "double";
+  style: "solid" | "double" | "dashed" | "dotted" | "wavy";
   thickness?: string;
   underlineOffset?: string;
   underlinePosition?: string;
@@ -236,6 +262,33 @@ function buildCases(): CaseSpec[] {
   push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style: "solid", thickness: "5px", skipInk: true, text: "jumping gaps" });
   push({ family: "Helvetica", fontSize: 48, lines: "underline", style: "solid", thickness: "8px", skipInk: true, text: "gyp jig" });
   push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", expectNoGaps: true, text: "jumping gaps" });
+  // 13. dashed / dotted geometry (no skip-ink): the snapped midline, the
+  // unrounded stroke width, and the dash/dot layout — dash positions are
+  // graded by the segment compare (every painted dash IS a segment on both
+  // the C and S sides).
+  for (const style of ["dashed", "dotted"] as const) {
+    for (const fontSize of [16, 24, 32.5]) {
+      push({ family: "Helvetica", fontSize, lines: "underline", style });
+    }
+  }
+  push({ family: "Times", fontSize: 24, lines: "underline", style: "dashed" });
+  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "dashed", thickness: "5px" });
+  // Thick dotted (rounded thickness > 3): round dots with endpoint insets.
+  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "dotted", thickness: "5px" });
+  // 14. wavy geometry: painted ink extent = centerline ± (cpDist/(2√3) + t/2).
+  for (const fontSize of [16, 24, 32.5, 48]) {
+    push({ family: "Helvetica", fontSize, lines: "underline", style: "wavy" });
+  }
+  push({ family: "Times", fontSize: 24, lines: "underline", style: "wavy" });
+  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "wavy", thickness: "4px" });
+  // 15. patterned skip-ink: dash-phase continuity across gaps (the dash edges
+  // AFTER a gap discriminate a per-segment re-fit from Blink's one-pattern-
+  // plus-clip mechanism) and the wavy pattern-rect band's gap edges.
+  for (const style of ["dashed", "dotted", "wavy"] as const) {
+    push({ family: "Helvetica", fontSize: 24, lines: "underline", style, skipInk: true, text: "jumping gaps" });
+    push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style, skipInk: true, text: "jumping gaps" });
+  }
+  push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style: "dashed", thickness: "5px", skipInk: true, text: "jumping gaps" });
   return cases;
 }
 
@@ -421,6 +474,30 @@ function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
   const dblOffFor = (line: string) =>
     line === "underline" ? t + 1 : line === "overline" ? -(t + 1) : Math.floor(t + 1);
   const emit = (topRel: number, line: string) => {
+    if (c.style === "dashed" || c.style === "dotted") {
+      // GetSnappedPointsForTextLine: midY = floor(top + max(t/2, 0.5)), plus
+      // the odd-rounded-thickness half-pixel shift of DrawLineAsStroke; the
+      // painted stroke keeps the UNROUNDED width
+      // (`decoration_line_painter.cc:47-53,55-76`).
+      const yMid = Math.floor(topRel + Math.max(t / 2, 0.5)) + (Math.round(t) % 2 !== 0 ? 0.5 : 0);
+      bars.push({ top: meas.rect.y + yMid - t / 2, height: t });
+      return;
+    }
+    if (c.style === "wavy") {
+      // Painted ink extent of the wavy ribbon: centerline at
+      // top + wavy_offset + 0.5 (`WavyCenterlinePath` default start y=0.5,
+      // tile placement in `PaintWavyTextDecoration`), reaching
+      // ±(cpDist/(2√3) + t/2) — the cubic with control points ±cpDist has
+      // visual amplitude cpDist/(2√3) (extremum of 3s(1−s)(1−2s)), and the
+      // stroke extends it by t/2. The wave definition's thickness is clamped
+      // ≥ 1 (`MakeWave`); the stroke width is not.
+      const tw = Math.max(1, t);
+      const cpDist = 0.5 + Math.round(3 * tw + 0.5);
+      const amp = cpDist / (2 * Math.sqrt(3));
+      const wavyOffset = line === "underline" ? t + 1 : line === "overline" ? -(t + 1) : 0;
+      bars.push({ top: meas.rect.y + topRel + wavyOffset + 0.5 - (amp + t / 2), height: 2 * amp + t });
+      return;
+    }
     bars.push(snap(topRel));
     if (c.style === "double") bars.push(snap(topRel + dblOffFor(line)));
   };
@@ -458,8 +535,9 @@ interface MeasuredBar extends Bar { x0: number; x1: number; segments: Array<[num
  *  intervals from column profiles over the bar's core rows. */
 async function analyzeClip(
   analysisPage: Page, pngBase64: string, clip: { x: number; y: number }, dsf: number,
+  mode: "profile" | "extent" = "profile",
 ): Promise<MeasuredBar[]> {
-  return await analysisPage.evaluate(async ({ b64, clip, dsf }) => {
+  return await analysisPage.evaluate(async ({ b64, clip, dsf, mode }) => {
     // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
     // stack traces; that helper isn't in page.evaluate's serialized scope, so
     // polyfill it before the named consts below construct.
@@ -483,6 +561,66 @@ async function analyzeClip(
       const i = (y * W + x) * 4;
       return Math.max(0, (data[i] - Math.max(data[i + 1], data[i + 2])) / 255);
     };
+    if (mode === "extent") {
+      // Patterned styles (dashed / dotted / wavy): the coverage-weighted row
+      // profile is meaningless (a round dot's row mass is a chord length, a
+      // wave's is its slope density), so measure the PAINTED-INK EXTENT
+      // instead — the rows and columns where red coverage crosses 50% — and
+      // recover segments from any-red column runs separated by white.
+      const redRow = new Array<boolean>(H).fill(false);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) if (redAt(x, y) > 0.5) { redRow[y] = true; break; }
+      }
+      let minY = -1, maxY = -1;
+      for (let y = 0; y < H; y++) if (redRow[y]) { if (minY < 0) minY = y; maxY = y; }
+      if (minY < 0) return [];
+      // Column classification runs over the CORE rows (one device row trimmed
+      // from each extent edge): when the rounded-thickness clip band sits
+      // fractionally inside an odd-shifted unrounded stroke (e.g. t=3.25 →
+      // band 3 at the snapped midline, stroke bottom 0.125px below the
+      // outset clip rect), Chrome leaks a sub-device-pixel SLIVER of every
+      // dash through the skip-ink gap — a half-coverage hairline at dsf 4
+      // that flips the 50% threshold nondeterministically. Domotion's clip
+      // rects cover the full stroke on purpose (the sliver is below AA
+      // resolution at 1×), so the measurement ignores the edge rows on the
+      // Chrome side rather than comparing noise.
+      const coreY0 = maxY - minY >= 3 ? minY + 1 : minY;
+      const coreY1 = maxY - minY >= 3 ? maxY - 1 : maxY;
+      const colRed = new Array<boolean>(W).fill(false);
+      const colWhite = new Array<number>(W).fill(0);
+      for (let x = 0; x < W; x++) {
+        let whites = 0;
+        for (let y = coreY0; y <= coreY1; y++) {
+          if (redAt(x, y) > 0.5) colRed[x] = true;
+          const i = (y * W + x) * 4;
+          const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+          if (luma > 180 && data[i] - Math.max(data[i + 1], data[i + 2]) < 40) whites++;
+        }
+        colWhite[x] = whites / (coreY1 - coreY0 + 1);
+      }
+      const segments: Array<[number, number]> = [];
+      let firstRed = -1, lastRed = -1;
+      let x0 = -1, x1 = -1;
+      for (let x = 0; x <= W; x++) {
+        const isWhite = x === W || (!colRed[x] && colWhite[x] > 0.6);
+        if (isWhite) {
+          if (firstRed >= 0) segments.push([firstRed, lastRed + 1]);
+          firstRed = -1; lastRed = -1;
+        } else if (colRed[x]) {
+          if (firstRed < 0) firstRed = x;
+          lastRed = x;
+          if (x0 < 0) x0 = x;
+          x1 = x;
+        }
+      }
+      const toCss = (v: number) => v / dsf;
+      return [{
+        top: clip.y + toCss(minY),
+        height: toCss(maxY + 1 - minY),
+        x0: clip.x + toCss(x0), x1: clip.x + toCss(x1 + 1),
+        segments: segments.map(([a, b]) => [clip.x + toCss(a), clip.x + toCss(b)] as [number, number]),
+      }];
+    }
     // Row profile.
     const rowMass = new Array<number>(H).fill(0);
     for (let y = 0; y < H; y++) { let s = 0; for (let x = 0; x < W; x++) s += redAt(x, y); rowMass[y] = s; }
@@ -594,25 +732,61 @@ async function analyzeClip(
     }
     bars.sort((a, b) => a.top - b.top);
     return bars;
-  }, { b64: pngBase64, clip, dsf });
+  }, { b64: pngBase64, clip, dsf, mode });
 }
 
 // ── Domotion SVG parse (leg S) ──────────────────────────────────────────
 interface SvgBar extends Bar { x0: number; x1: number; segments: Array<{ x0: number; x1: number }>; }
 
-/** Parse red decoration `<line>`s (y1 === y2) out of the emitted markup,
- *  accumulating ancestor translate() transforms. Analytic by design. */
-function parseSvgDecorations(svg: string): Array<{ y: number; w: number; x0: number; x1: number }> {
-  const out: Array<{ y: number; w: number; x0: number; x1: number }> = [];
-  const tagRe = /<(g|line)\b([^>]*?)\/?>|<\/g>/g;
-  const stack: Array<{ tx: number; ty: number }> = [{ tx: 0, ty: 0 }];
+interface ParsedDecoLine {
+  /** Kind: a horizontal `<line>` (solid / dashed / dotted) or a wavy `<path>`. */
+  kind: "line" | "wavy";
+  /** Centerline y (line y1 / wavy path start y), transforms applied. */
+  y: number;
+  /** stroke-width. */
+  w: number;
+  x0: number;
+  x1: number;
+  /** Parsed stroke-dasharray intervals (patterned lines only). */
+  dash?: number[];
+  /** stroke-linecap="round" (thick dotted round dots). */
+  roundCaps?: boolean;
+  /** clip-path id referenced by the element or an ancestor `<g>`. */
+  clipId?: string;
+  /** Wavy: the cubic's control-point distance, recovered from the first
+   *  `C` control point (validates the emitted wave geometry, not a re-run
+   *  of the renderer's own formula). */
+  cpDist?: number;
+}
+
+interface ParsedSvgDecorations {
+  lines: ParsedDecoLine[];
+  /** clipPath id → clip rects (transforms applied). */
+  clips: Map<string, Array<{ x0: number; x1: number; y0: number; y1: number }>>;
+}
+
+/** Parse red decoration `<line>`s / wavy `<path>`s and their `<clipPath>`s
+ *  out of the emitted markup, accumulating ancestor translate() transforms
+ *  and group-level clip-path references. Analytic by design. */
+function parseSvgDecorations(svg: string): ParsedSvgDecorations {
+  const lines: ParsedDecoLine[] = [];
+  const clips = new Map<string, Array<{ x0: number; x1: number; y0: number; y1: number }>>();
+  const tagRe = /<(g|line|clipPath|rect|path)\b([^>]*?)\/?>|<\/(?:g|clipPath)>/g;
+  const stack: Array<{ tx: number; ty: number; clipId?: string }> = [{ tx: 0, ty: 0 }];
+  let openClipId: string | null = null;
   const attr = (attrs: string, name: string): string | null => {
     const m = new RegExp(`${name}="([^"]*)"`).exec(attrs);
     return m != null ? m[1] : null;
   };
+  const clipIdOf = (attrs: string): string | undefined => {
+    const cp = attr(attrs, "clip-path");
+    const m = cp != null ? /url\(#([^)]+)\)/.exec(cp) : null;
+    return m != null ? m[1] : undefined;
+  };
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(svg)) != null) {
     if (m[0] === "</g>") { if (stack.length > 1) stack.pop(); continue; }
+    if (m[0] === "</clipPath>") { openClipId = null; continue; }
     const [, tag, attrs] = m;
     const cur = stack[stack.length - 1];
     if (tag === "g") {
@@ -623,39 +797,146 @@ function parseSvgDecorations(svg: string): Array<{ y: number; w: number; x0: num
         if (tr != null) { tx += parseFloat(tr[1]); ty += parseFloat(tr[2] ?? "0"); }
       }
       // Self-closing <g/> never happens in our output; assume it opens scope.
-      stack.push({ tx, ty });
+      stack.push({ tx, ty, clipId: clipIdOf(attrs) ?? cur.clipId });
       continue;
     }
-    // <line>
+    if (tag === "clipPath") {
+      const id = attr(attrs, "id");
+      if (id != null) { openClipId = id; clips.set(id, clips.get(id) ?? []); }
+      continue;
+    }
+    if (tag === "rect") {
+      if (openClipId == null) continue;
+      const x = parseFloat(attr(attrs, "x") ?? "NaN");
+      const y = parseFloat(attr(attrs, "y") ?? "NaN");
+      const w = parseFloat(attr(attrs, "width") ?? "NaN");
+      const h = parseFloat(attr(attrs, "height") ?? "NaN");
+      if ([x, y, w, h].every(Number.isFinite)) {
+        clips.get(openClipId)!.push({ x0: cur.tx + x, x1: cur.tx + x + w, y0: cur.ty + y, y1: cur.ty + y + h });
+      }
+      continue;
+    }
     const stroke = (attr(attrs, "stroke") ?? "").replace(/\s+/g, "").toLowerCase();
     const isRed = stroke === "#ff0000" || stroke === "#f00" || stroke === "rgb(255,0,0)" || stroke === "red";
     if (!isRed) continue;
+    const w = parseFloat(attr(attrs, "stroke-width") ?? "1");
+    const clipId = clipIdOf(attrs) ?? cur.clipId;
+    if (tag === "path") {
+      // Wavy: `M x0 y C cx1 cy1 cx2 cy2 x y …` — centerline at the start y,
+      // control-point distance from the first control point.
+      const d = attr(attrs, "d") ?? "";
+      const dm = /M (-?[\d.]+) (-?[\d.]+) C (-?[\d.]+) (-?[\d.]+)/.exec(d);
+      if (dm == null) continue;
+      const xs = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((p) => parseFloat(p[1]));
+      lines.push({
+        kind: "wavy", y: cur.ty + parseFloat(dm[2]), w,
+        x0: cur.tx + Math.min(...xs), x1: cur.tx + Math.max(...xs),
+        cpDist: parseFloat(dm[4]) - parseFloat(dm[2]),
+        clipId,
+      });
+      continue;
+    }
+    // <line>
     const y1 = parseFloat(attr(attrs, "y1") ?? "NaN");
     const y2 = parseFloat(attr(attrs, "y2") ?? "NaN");
     if (!Number.isFinite(y1) || Math.abs(y1 - y2) > 1e-6) continue;
     const x1 = parseFloat(attr(attrs, "x1") ?? "NaN");
     const x2 = parseFloat(attr(attrs, "x2") ?? "NaN");
-    const w = parseFloat(attr(attrs, "stroke-width") ?? "1");
-    out.push({ y: cur.ty + y1, w, x0: cur.tx + Math.min(x1, x2), x1: cur.tx + Math.max(x1, x2) });
+    const dashStr = attr(attrs, "stroke-dasharray");
+    lines.push({
+      kind: "line", y: cur.ty + y1, w,
+      x0: cur.tx + Math.min(x1, x2), x1: cur.tx + Math.max(x1, x2),
+      dash: dashStr != null ? dashStr.trim().split(/[\s,]+/).map(Number) : undefined,
+      roundCaps: attr(attrs, "stroke-linecap") === "round" ? true : undefined,
+      clipId,
+    });
   }
+  return { lines, clips };
+}
+
+/** Expand a dashed/dotted line's painted segments analytically: walk the
+ *  dasharray from the line's start (SVG dash phase 0), painting each dash —
+ *  or, for zero-length round-cap dashes, a dot of diameter stroke-width
+ *  centered on the pattern point — then keep the parts inside the clip
+ *  rects' x-intervals. */
+function expandDashSegments(l: ParsedDecoLine, clipXs: Array<{ x0: number; x1: number }> | null): Array<{ x0: number; x1: number }> {
+  let painted: Array<{ x0: number; x1: number }>;
+  if (l.dash == null || l.dash.length < 2 || l.dash.every((v) => !Number.isFinite(v))) {
+    painted = [{ x0: l.x0, x1: l.x1 }];
+  } else {
+    painted = [];
+    const period = l.dash.reduce((a, b) => a + b, 0);
+    if (period <= 0) return [{ x0: l.x0, x1: l.x1 }];
+    for (let x = l.x0; x <= l.x1 + 1e-6; x += period) {
+      let cursor = x;
+      for (let i = 0; i < l.dash.length; i += 2) {
+        const dashLen = l.dash[i];
+        if (dashLen === 0 && l.roundCaps) {
+          // Zero-length dash with round caps = a dot of diameter w.
+          painted.push({ x0: cursor - l.w / 2, x1: cursor + l.w / 2 });
+        } else if (dashLen > 0) {
+          painted.push({ x0: cursor, x1: Math.min(cursor + dashLen, l.x1) });
+        }
+        cursor += dashLen + (l.dash[i + 1] ?? 0);
+      }
+    }
+    painted = painted.filter((s) => s.x0 < l.x1 && s.x1 - s.x0 > 0);
+  }
+  if (clipXs == null || clipXs.length === 0) return painted;
+  const out: Array<{ x0: number; x1: number }> = [];
+  for (const seg of painted) {
+    for (const c of clipXs) {
+      const a = Math.max(seg.x0, c.x0), b = Math.min(seg.x1, c.x1);
+      if (b > a) out.push({ x0: a, x1: b });
+    }
+  }
+  out.sort((a, b) => a.x0 - b.x0);
   return out;
 }
 
-/** Group parsed line segments into bars (same y + stroke-width => one bar
- *  with segments; gaps are the spans between consecutive segments). */
+/** Group parsed elements into bars with painted segments. Plain lines group
+ *  by (y, stroke-width) — skip-ink sub-segment `<line>`s become one bar —
+ *  while a dashed/dotted line expands its dash pattern (∩ clip) and a wavy
+ *  path reports its painted-ink extent (centerline ± (cpDist/(2√3) + w/2))
+ *  with the clip rects' x-intervals as segments. */
 function svgBarsInWindow(
-  all: Array<{ y: number; w: number; x0: number; x1: number }>,
+  parsed: ParsedSvgDecorations,
   win: { top: number; bottom: number },
 ): SvgBar[] {
-  const inWin = all.filter((l) => l.y >= win.top && l.y <= win.bottom);
-  const byY = new Map<string, Array<{ x0: number; x1: number; y: number; w: number }>>();
-  for (const l of inWin) {
-    const key = `${l.y.toFixed(3)}|${l.w.toFixed(3)}`;
-    const arr = byY.get(key) ?? [];
-    arr.push(l); byY.set(key, arr);
-  }
+  const inWin = parsed.lines.filter((l) => l.y >= win.top && l.y <= win.bottom);
+  const clipXsOf = (l: ParsedDecoLine) => {
+    const rects = l.clipId != null ? parsed.clips.get(l.clipId) : undefined;
+    return rects != null ? rects.map((c) => ({ x0: c.x0, x1: c.x1 })) : null;
+  };
   const bars: SvgBar[] = [];
-  for (const segs of byY.values()) {
+  const plain = new Map<string, ParsedDecoLine[]>();
+  for (const l of inWin) {
+    if (l.kind === "wavy") {
+      const amp = (l.cpDist ?? 0) / (2 * Math.sqrt(3));
+      const clipXs = clipXsOf(l);
+      bars.push({
+        top: l.y - (amp + l.w / 2), height: 2 * amp + l.w,
+        x0: clipXs != null && clipXs.length > 0 ? Math.min(...clipXs.map((c) => c.x0)) : l.x0,
+        x1: clipXs != null && clipXs.length > 0 ? Math.max(...clipXs.map((c) => c.x1)) : l.x1,
+        segments: clipXs ?? [{ x0: l.x0, x1: l.x1 }],
+      });
+      continue;
+    }
+    if (l.dash != null) {
+      const segs = expandDashSegments(l, clipXsOf(l));
+      bars.push({
+        top: l.y - l.w / 2, height: l.w,
+        x0: segs.length > 0 ? segs[0].x0 : l.x0,
+        x1: segs.length > 0 ? segs[segs.length - 1].x1 : l.x1,
+        segments: segs,
+      });
+      continue;
+    }
+    const key = `${l.y.toFixed(3)}|${l.w.toFixed(3)}`;
+    const arr = plain.get(key) ?? [];
+    arr.push(l); plain.set(key, arr);
+  }
+  for (const segs of plain.values()) {
     segs.sort((a, b) => a.x0 - b.x0);
     const { y, w } = segs[0];
     bars.push({
@@ -688,25 +969,45 @@ function compareBars(a: Bar[], b: Bar[], tol: number, aName: string, bName: stri
   return { ok, detail };
 }
 
-/** Compare the two sides' PAINTED SEGMENT lists (positive space) per edge. */
+/** A one-sided segment narrower than this is forgiven rather than failed:
+ *  a clip edge landing inside a dash produces a fragment whose width tracks
+ *  the edge position, so a sub-tolerance edge drift (< TOL_GAP_EDGE) can
+ *  push a fragment across the MIN_SEGMENT_WIDTH filter on one side only.
+ *  Anything wider is a real segment one side is missing — a swallowed gap,
+ *  a dropped dash — and fails. */
+const SLIVER_FORGIVENESS = MIN_SEGMENT_WIDTH + TOL_GAP_EDGE;
+
+/** Compare the two sides' PAINTED SEGMENT lists (positive space) per edge,
+ *  matching segments by OVERLAP rather than index so a forgivable one-sided
+ *  sliver doesn't misalign every later pair. */
 function compareSegments(cSegs: Array<[number, number]>, sSegs: Array<[number, number]>): LegResult {
   const wide = (g: [number, number]) => g[1] - g[0] >= MIN_SEGMENT_WIDTH;
   const cw = cSegs.filter(wide), sw = sSegs.filter(wide);
   const detail: string[] = [];
   let ok = true;
-  if (cw.length !== sw.length) {
-    ok = false;
-    detail.push(`segment count: chrome=${cw.length} svg=${sw.length}`);
-    detail.push(`  chrome: ${cw.map((g) => `[${g[0].toFixed(1)},${g[1].toFixed(1)}]`).join(" ")}`);
-    detail.push(`  svg:    ${sw.map((g) => `[${g[0].toFixed(1)},${g[1].toFixed(1)}]`).join(" ")}`);
-    return { ok, detail };
-  }
-  for (let i = 0; i < cw.length; i++) {
-    const dL = sw[i][0] - cw[i][0];
-    const dR = sw[i][1] - cw[i][1];
-    const line = `seg${i}: chrome=[${cw[i][0].toFixed(2)}, ${cw[i][1].toFixed(2)}] svg=[${sw[i][0].toFixed(2)}, ${sw[i][1].toFixed(2)}] dL=${dL.toFixed(2)} dR=${dR.toFixed(2)}`;
-    if (Math.abs(dL) > TOL_GAP_EDGE || Math.abs(dR) > TOL_GAP_EDGE) { ok = false; detail.push(`FAIL ${line}`); }
-    else detail.push(`ok   ${line}`);
+  let i = 0, j = 0, pair = 0;
+  while (i < cw.length || j < sw.length) {
+    const c = i < cw.length ? cw[i] : null;
+    const s = j < sw.length ? sw[j] : null;
+    if (c != null && s != null && Math.min(c[1], s[1]) - Math.max(c[0], s[0]) > 0) {
+      const dL = s[0] - c[0];
+      const dR = s[1] - c[1];
+      const line = `seg${pair++}: chrome=[${c[0].toFixed(2)}, ${c[1].toFixed(2)}] svg=[${s[0].toFixed(2)}, ${s[1].toFixed(2)}] dL=${dL.toFixed(2)} dR=${dR.toFixed(2)}`;
+      if (Math.abs(dL) > TOL_GAP_EDGE || Math.abs(dR) > TOL_GAP_EDGE) { ok = false; detail.push(`FAIL ${line}`); }
+      else detail.push(`ok   ${line}`);
+      i++; j++;
+      continue;
+    }
+    // Non-overlapping: consume whichever side comes first as a one-sided
+    // segment; forgive it only at sliver width.
+    const cFirst = s == null || (c != null && c[1] <= s[0]);
+    const seg = cFirst ? c! : s!;
+    const side = cFirst ? "chrome-only" : "svg-only";
+    const width = seg[1] - seg[0];
+    const line = `${side} segment [${seg[0].toFixed(2)}, ${seg[1].toFixed(2)}] (${width.toFixed(2)}px)`;
+    if (width <= SLIVER_FORGIVENESS) detail.push(`ok   ${line} — forgiven as a filter-boundary sliver`);
+    else { ok = false; detail.push(`FAIL ${line}`); }
+    if (cFirst) i++; else j++;
   }
   return { ok, detail };
 }
@@ -791,7 +1092,11 @@ async function main(): Promise<number> {
         };
         const png = await pageHi.screenshot({ clip });
         if (keepDir != null) writeFileSync(join(keepDir, `${c.id}.png`), png);
-        const chromeBars = await analyzeClip(analysisPage, png.toString("base64"), clip, DSF);
+        // Patterned styles measure the painted-ink EXTENT (a dot's or wave's
+        // coverage profile is not a bar); solid/double keep the
+        // coverage-weighted profile and its tighter tolerance.
+        const isExtent = c.style === "dashed" || c.style === "dotted" || c.style === "wavy";
+        const chromeBars = await analyzeClip(analysisPage, png.toString("base64"), clip, DSF, isExtent ? "extent" : "profile");
         const pred = predictCase(c, meas);
         const winTop = clip.y, winBottom = clip.y + clip.height;
         const sBars = svgBarsInWindow(svgLines, { top: winTop, bottom: winBottom });
@@ -799,10 +1104,14 @@ async function main(): Promise<number> {
         const notes = [...pred.notes];
         if (meas.fragments !== 1) notes.push(`span has ${meas.fragments} fragments (expected 1)`);
 
-        const transcription = compareBars(pred.bars, chromeBars, TOL_TRANSCRIPTION, "rule", "chrome");
+        const transcription = compareBars(pred.bars, chromeBars, isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION, "rule", "chrome");
         const svgGeometry = compareBars(pred.bars, sBars, TOL_SVG_GEOMETRY, "rule", "svg");
         let skipInk: LegResult | null = null;
-        if (c.skipInk || c.expectNoGaps) {
+        // Patterned styles grade painted segments even without skip-ink text:
+        // every dash / dot IS a painted segment, so this leg is what grades
+        // dash layout and — via the dash edges after a gap — phase
+        // continuity across skip-ink gaps.
+        if (c.skipInk || c.expectNoGaps || isExtent) {
           const cSegs = chromeBars.length > 0 ? chromeBars[0].segments : [];
           const sSegs: Array<[number, number]> = sBars.length > 0
             ? sBars[0].segments.map((s) => [s.x0, s.x1] as [number, number])
@@ -871,8 +1180,8 @@ async function main(): Promise<number> {
 }
 
 // Pure pieces exported for unit tests; `main` only runs when invoked as a CLI.
-export { buildCases, predictCase, parseSvgDecorations, svgBarsInWindow, compareSegments, compareBars, LU, roundHalfAway, lengthPx, normalizedTypoDescent };
-export type { CaseSpec, PageMeasure, Bar, Prediction, SvgBar, LegResult };
+export { buildCases, predictCase, parseSvgDecorations, svgBarsInWindow, expandDashSegments, compareSegments, compareBars, LU, roundHalfAway, lengthPx, normalizedTypoDescent };
+export type { CaseSpec, PageMeasure, Bar, Prediction, SvgBar, LegResult, ParsedDecoLine, ParsedSvgDecorations };
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exitCode = await main();

@@ -83,10 +83,31 @@ All horizontal-tb, alphabetic baseline, zoom 1. `ascF` = `FloatAscent`
 - **paint snap** (HTML solid/double): `topSnapped = floor(top + 0.5)`,
   `heightSnapped = max(floor(t), 1)` (`decoration_line_painter.cc`
   `SnapYAxis` / `RoundDownThickness` / `DrawLineAsRect`).
-- **skip-ink**: intercept band = bar inset 0.5px top and bottom
-  (`core/paint/text_painter.cc:589-590`); each glyph intercept dilated
-  horizontally by `min(t, 13)` (`:607-608`, `kDecorationClipMaxDilation` at
-  `:46`).
+- **skip-ink**: intercept band = `DecorationLinePainter::Bounds` per style,
+  inset 0.5px top and bottom (`core/paint/text_painter.cc:589-590`); each
+  glyph intercept dilated horizontally by `min(LINE thickness, 13)`
+  (`:607-608`, `kDecorationClipMaxDilation` at `:46`) — the line's own
+  thickness even when the band is taller (double, wavy).
+- **dashed / dotted** (`decoration_line_painter.cc:47-53,55-76,409-417`):
+  midline `floor(top + max(t/2, 0.5))`, shifted down 0.5 when `roundf(t)` is
+  odd; stroke width stays the unrounded `t`; endpoints TRUNCATE to integers
+  (`GetSnappedPointsForTextLine` returns int-coordinate `gfx::Point`s) and
+  the dash pattern is fitted over that integer span once, before the
+  thick-dotted endpoint inset. The skip-ink band is the snapped midline ±
+  `roundf(t)/2`.
+- **wavy** (`decoration_line_painter.cc:181-212,288-345,477-533`): the HTML
+  wave is a repeating one-wavelength tile of the cubic centerline (control
+  points at ±`cpDist`, both at mid-wavelength x), stroked at `t`, centerline
+  at `top + wavy_offset + 0.5`. The pattern rect — the band that crops the
+  tile and feeds the skip-ink intercepts — is the floor/ceil of the STROKE
+  BOUNDING RECT of that centerline: `Path::StrokeBoundingRect` is the tight
+  bounds of the Skia-stroked outline (`getFillPath(...).computeTightBounds()`
+  — `platform/geometry/path.cc:161-166`, fetched at rev `7d859f27`), which
+  is analytically `0.5 ± (cpDist/(2√3) + t/2)` (the cubic's visual amplitude
+  is `cpDist/(2√3)`, the extremum of `3s(1−s)(1−2s)`), NOT the conservative
+  control-point bounds (`±cpDist`). The C leg confirms the tight reading:
+  the measured painted extent matches `2·(cpDist/(2√3)) + t` on every wavy
+  case.
 
 ## Painted segments, not gap intervals
 

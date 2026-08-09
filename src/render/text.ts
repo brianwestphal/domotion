@@ -462,6 +462,10 @@ interface TextDecorationOptions {
   metricsFontSize?: number;
   metricsFontWeight?: string | number;
   metricsFontStyle?: string;
+  /** Unique id base for the `<clipPath>`s the patterned decoration styles
+   *  emit — unique per `renderTextDecoration` call (the per-line-kind suffix
+   *  is appended inside `emitDecorationLine`). */
+  idBase?: string;
 }
 
 export interface DecorationLineCtx {
@@ -472,8 +476,18 @@ export interface DecorationLineCtx {
   /** The decoration run's x origin — the phase anchor for wavy (DM-1698). */
   segX: number;
   decorationColor: string;
-  computeGapsAt: (yRel: number, thick: number) => Array<[number, number]>;
+  /** Skip-ink gap intervals for an intercept band centered `yRel` below the
+   *  run baseline, `thick` px tall, each intercept dilated `pad` px per side
+   *  (Blink's `min(LINE thickness, 13)` — the band height and the dilation
+   *  are DIFFERENT inputs whenever the band is taller than the line). */
+  computeGapsAt: (yRel: number, thick: number, pad: number) => Array<[number, number]>;
   subSegments: (gaps: Array<[number, number]>) => Array<{ x0: number; x1: number }>;
+  /** Unique id base for the `<clipPath>` a patterned (dashed / dotted / wavy)
+   *  full-span decoration emits when skip-ink gaps (or the wavy pattern-rect
+   *  crop) remove ink from it. Callers must make it unique per
+   *  `emitDecorationLine` invocation up to the line kind, which is suffixed
+   *  here. Absent (unit tests) falls back to a non-unique `"deco"`. */
+  clipIdBase?: string;
 }
 
 /**
@@ -504,16 +518,33 @@ export interface DecorationLineCtx {
  * https://github.com/w3c/csswg-drafts/issues/711
  * (`core/paint/text_decoration_painter.cc:214-247`).
  * Gaps come via the `ctx` closures, which stay bound to the run's geometry;
- * the intercept band is derived from the UNSNAPPED rect, matching
- * `DecorationLinePainter::Bounds` (`text_painter.cc:589-590` insets it 0.5px
- * inside `computeSkipInkGaps`). Exported for unit testing (not in the
- * package barrel).
+ * the intercept band is `DecorationLinePainter::Bounds` per style — the
+ * UNSNAPPED rect for solid, that rect extended over both bars for double,
+ * the snapped rounded-thickness midline band for dashed/dotted, and the
+ * floor/ceil'd stroke bounding rect of the wave for wavy
+ * (`decoration_line_painter.cc:409-436`) — with the 0.5px inset applied
+ * inside `computeSkipInkGaps` (`text_painter.cc:589-590`).
+ *
+ * Emission mirrors Blink's CLIP mechanism (`TextPainter::ClipDecorationLine`
+ * clips OUT one dilated rect per glyph intercept, then `PaintDecorationLine`
+ * strokes the FULL span through the clip): solid/double split into
+ * sub-segment `<line>`s — exactly equivalent for an unpatterned horizontal
+ * line — while dashed/dotted/wavy emit ONE full-span element plus a
+ * `<clipPath>` of the surviving sub-segment rects, so the dash pattern and
+ * wave phase are computed once across the whole run and gaps merely remove
+ * ink from them. Exported for unit testing (not in the package barrel).
  */
 export function emitDecorationLine(
   yTop: number, t: number, line: "underline" | "overline" | "line-through",
   skipsInk: boolean, ctx: DecorationLineCtx,
 ): string {
-  const { style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments } = ctx;
+  const { style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments, clipIdBase } = ctx;
+  const clipId = `${clipIdBase ?? "deco"}-${line === "underline" ? "u" : line === "overline" ? "o" : "t"}`;
+  // Horizontal dilation of each skip-ink intercept: `min(LINE thickness, 13)`
+  // (`kDecorationClipMaxDilation`, `text_painter.cc:46,607-608`). Blink reads
+  // `geometry.Thickness()` — the line's own thickness — for EVERY style, so
+  // the tall wavy / double intercept bands do not inflate the dilation.
+  const pad = Math.min(t, 13);
   // Second-bar / wavy offset from the first bar's top —
   // `text_decoration_info.cc:259-284`: +(t+1) below for underline, −(t+1)
   // above for overline, floor(t+1) for line-through (floored so the double
@@ -536,77 +567,67 @@ export function emitDecorationLine(
     // `±cp_distance` directly; that paints visual amplitude `cp_distance/2`
     // — about 70% taller than Chrome — making 18 px wavy underlines look
     // exaggerated. Cubic reproduces Chrome's geometry. (DM-446.)
-    const wavelength = 1 + 2 * Math.round(2 * t + 0.5);
-    const cpDist = 0.5 + Math.round(3 * t + 0.5);
-    const waveAmplitude = 0.278 * cpDist;
+    // `MakeWave` clamps the thickness feeding the wave DEFINITION to ≥ 1
+    // (`decoration_line_painter.cc:181-193`); the stroke width and the
+    // stroke-bounds thickness stay the unclamped resolved value.
+    const tWave = Math.max(1, t);
+    const wavelength = 1 + 2 * Math.round(2 * tWave + 0.5);
+    const cpDist = 0.5 + Math.round(3 * tWave + 0.5);
     // Placement, transcribed: the wavy ribbon's CENTERLINE sits at the line
-    // rect's top + wavy_offset + 0.5 (`WavyGeometry::PathOrigin` translates
-    // the y=0 centerline by `line.origin().y + wavy_offset`, and
-    // `PaintRibbon` strokes it at `path_origin.y + 0.5` —
-    // `decoration_line_painter.cc:298-304,334-337`). The wavy offset is the
-    // same ±(t+1) / 0 family as the double offset
-    // (`text_decoration_info.cc:259-284`). This replaces the previous
-    // empirical `y + amplitude + 2 − t` placement, whose bare `+2` was
-    // fitted to probed paint rather than transcribed.
+    // rect's top + wavy_offset + 0.5. For HTML text the wave is painted as a
+    // repeating tile (`PaintWavyTextDecoration`, non-SVG branch): the tile
+    // record draws `WavyPath` — whose centerline `WavyCenterlinePath` starts
+    // at y=0.5 by default — translated by `-bounds_.y()`, and the tile is
+    // placed at `PaintRect(geometry)`, whose origin is
+    // `line.origin + bounds_.OffsetFromOrigin + (0, wavy_offset)`
+    // (`decoration_line_painter.cc:288-296,330-345,477-533`). The bounds
+    // translation cancels, so the centerline lands at
+    // `line.y + wavy_offset + 0.5`. The wavy offset is the same ±(t+1) / 0
+    // family as the double offset (`text_decoration_info.cc:259-284`).
     const wavyOffset = line === "line-through" ? 0 : doubleOffset;
     const yWave = yTop + wavyOffset + 0.5;
-    // DM-814: skip-ink for wavy. Compute gaps using the wave's full
-    // vertical extent (2*amplitude + stroke thickness) so a descender that
-    // pokes into the wave's PEAK or TROUGH zones breaks the wave, not just
-    // descenders that cross the centerline. Then emit one wave path per
-    // non-gap sub-segment. Each sub-segment's wave starts at phase 0 at
-    // its own x0 — adjacent segments aren't strictly phase-coherent with a
-    // hypothetical continuous wave, but the descender gap is usually wider
-    // than the discontinuity which makes the visual indistinguishable from
-    // Chrome's per-glyph break style.
-    const bandThickness = 2 * waveAmplitude + t;
-    const wavyGaps = skipsInk ? computeGapsAt(yWave - runBaselineY, bandThickness) : [];
+    // The wavy pattern rect (`ComputeWavyPatternRect`,
+    // `decoration_line_painter.cc:200-212`): Blink takes the STROKE BOUNDING
+    // RECT of the cubic centerline at stroke width t —
+    // `Path::StrokeBoundingRect` is the tight bounds of the Skia-stroked
+    // outline (`getFillPath(...).computeTightBounds()`,
+    // `platform/geometry/path.cc:161-166`, fetched at rev 7d859f27), NOT the
+    // control-point bounds — then floors the top and ceils the bottom.
+    // Analytically: the cubic with y controls (0, +cpDist, −cpDist, 0)
+    // reaches ±cpDist/(2√3) (extremum of 3s(1−s)(1−2s) at s=(3−√3)/6), and
+    // the stroke offsets that by t/2; the centerline sits at path-local
+    // y=0.5. This replaces the empirical `0.278 × cpDist` visual-amplitude
+    // band (0.278 was a probe-fitted approximation of 1/(2√3) ≈ 0.28868, and
+    // the old band ignored the floor/ceil snap entirely).
+    const amp = cpDist / (2 * Math.sqrt(3));
+    const bandTopRel = Math.floor(0.5 - (amp + t / 2));
+    const bandBottomRel = Math.ceil(0.5 + amp + t / 2);
+    const bandTop = yTop + wavyOffset + bandTopRel;
+    const bandH = bandBottomRel - bandTopRel;
+    // Skip-ink gaps against the pattern-rect band; the intercept dilation
+    // stays the LINE thickness (`min(t, 13)`), not the band height.
+    const wavyGaps = skipsInk ? computeGapsAt(bandTop + bandH / 2 - runBaselineY, bandH, pad) : [];
     const subs = subSegments(wavyGaps);
-    // DM-1698: PHASE-COHERENT waves across skip-ink gaps. Chrome paints ONE
-    // continuous wave for the whole run and clips out the descender gaps
-    // (`decoration_line_painter.cc` strokes the full WavyPath under a clip),
-    // so the wave phase on either side of a gap lines up. The previous emit
-    // restarted every sub-segment at phase 0, which decohered against
-    // Chrome on runs with many descenders (8 gaps in the wavy-underline
-    // fixture's 36px row drifted the peaks line-wide). Generate each
-    // sub-segment's path from the CONTINUOUS wave anchored at the run's
-    // origin instead: walk the run's wavelength grid and emit the sub-cubic
-    // between the clamped parameters — a de Casteljau extraction on both
-    // ends (generalizing the tail-only clip this block previously did).
-    const sub1d = (p0: number, p1: number, p2: number, p3: number, t0: number, t1: number): [number, number, number, number] => {
-      // right split at t0, then left split of the remainder at (t1-t0)/(1-t0)
-      const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-      // split at t0 — keep RIGHT: [D(t0), bcd0, cd0, p3]
-      const ab = lerp(p0, p1, t0), bc = lerp(p1, p2, t0), cd = lerp(p2, p3, t0);
-      const abc = lerp(ab, bc, t0), bcd = lerp(bc, cd, t0);
-      const d0 = lerp(abc, bcd, t0);
-      const r0 = d0, r1 = bcd, r2 = cd, r3 = p3;
-      const u = t0 >= 1 ? 0 : (t1 - t0) / (1 - t0);
-      // split right part at u — keep LEFT: [r0, ab2, abc2, D(u)]
-      const ab2 = lerp(r0, r1, u), bc2 = lerp(r1, r2, u), cd2 = lerp(r2, r3, u);
-      const abc2 = lerp(ab2, bc2, u), bcd2 = lerp(bc2, cd2, u);
-      const d1 = lerp(abc2, bcd2, u);
-      return [r0, ab2, abc2, d1];
-    };
-    const parts: string[] = [];
-    for (const { x0: sx0, x1: sx1 } of subs) {
-      if (sx1 - sx0 < 0.5) continue;
-      const k0 = Math.floor((sx0 - segX) / wavelength);
-      const k1 = Math.ceil((sx1 - segX) / wavelength);
-      let d = "";
-      for (let k = k0; k < k1; k++) {
-        const gx = segX + k * wavelength;
-        const t0 = Math.min(1, Math.max(0, (sx0 - gx) / wavelength));
-        const t1 = Math.min(1, Math.max(0, (sx1 - gx) / wavelength));
-        if (t1 - t0 < 0.001) continue;
-        const [qx0, qx1, qx2, qx3] = sub1d(0, wavelength / 2, wavelength / 2, wavelength, t0, t1);
-        const [qy0, qy1, qy2, qy3] = sub1d(0, cpDist, -cpDist, 0, t0, t1);
-        if (d === "") d = `M ${r(gx + qx0)} ${r(yWave + qy0)}`;
-        d += ` C ${r(gx + qx1)} ${r(yWave + qy1)} ${r(gx + qx2)} ${r(yWave + qy2)} ${r(gx + qx3)} ${r(yWave + qy3)}`;
-      }
-      if (d !== "") parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(t)}"/>`);
+    if (subs.length === 0) return "";
+    // ONE continuous wave, phase 0 at segX (the tile shader anchors at
+    // `PaintRect.x = line.x` with the tile's own `-wavelength` phase folding
+    // to zero mod λ), clipped to the surviving sub-segment rects at the
+    // pattern rect's vertical extent. This is Chrome's mechanism verbatim:
+    // the tile crop bounds the wave to the pattern rect, and
+    // `TextPainter::ClipDecorationLine` clips OUT each dilated intercept
+    // (`text_painter.cc:574-628`) — so the wave keeps one phase across gaps
+    // and gap edges cut vertically instead of following the stroke's tangent
+    // (which the previous per-sub-segment de Casteljau extraction did).
+    const kEnd = Math.ceil((Math.max(...subs.map((s) => s.x1)) - segX) / wavelength);
+    let d = `M ${r(segX)} ${r(yWave)}`;
+    for (let k = 0; k < kEnd; k++) {
+      const gx = segX + k * wavelength;
+      d += ` C ${r(gx + wavelength / 2)} ${r(yWave + cpDist)} ${r(gx + wavelength / 2)} ${r(yWave - cpDist)} ${r(gx + wavelength)} ${r(yWave)}`;
     }
-    return parts.join("");
+    const rects = subs.map(({ x0, x1 }) =>
+      `<rect x="${r(x0)}" y="${r(bandTop)}" width="${r(x1 - x0)}" height="${r(bandH)}"/>`).join("");
+    return `<clipPath id="${clipId}">${rects}</clipPath>`
+      + `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(t)}" clip-path="url(#${clipId})"/>`;
   }
   if (style === "double") {
     // Double: two parallel bars. The second bar sits `doubleOffset` from the
@@ -624,7 +645,7 @@ export function emitDecorationLine(
     const bandTop = Math.min(yTop, yTop + doubleOffset);
     const bandThickness = t + Math.abs(doubleOffset);
     const dblGaps = skipsInk
-      ? computeGapsAt(bandTop + bandThickness / 2 - runBaselineY, bandThickness)
+      ? computeGapsAt(bandTop + bandThickness / 2 - runBaselineY, bandThickness, pad)
       : [];
     const subs = subSegments(dblGaps);
     const yA = top1 + hSnap / 2;
@@ -634,30 +655,6 @@ export function emitDecorationLine(
       + `<line x1="${r(x0)}" y1="${r(yB)}" x2="${r(x1)}" y2="${r(yB)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
     ).join("");
   }
-  // Solid (or dashed / dotted): single line span with optional dasharray.
-  //
-  // Blink does not gate skip-ink on the line style — dashed and dotted DO skip
-  // ink upstream. We nonetheless exclude them here, because the mechanism
-  // differs in a way that matters only for a patterned line: Blink CLIPS a
-  // single painted line, so the dash pattern is computed once across the whole
-  // run and the clip merely removes ink from it. We SPLIT the run into
-  // sub-segments and emit one `<line>` each, and `decorationDashPattern`
-  // re-fits the gap per segment so a whole number of dashes spans it — which
-  // restarts the phase and changes the rhythm at every gap.
-  //
-  // Measured: enabling it turned one `stroke-dasharray="6 4.2"` line into three
-  // reading `6 3.6`, `6 2.8`, `6 3.9`, and moved the skip-ink fixture from
-  // 0.1412% to 0.1637% against Chrome. Correct-in-principle, worse in practice.
-  //
-  // Doing this faithfully means computing the pattern over the full span and
-  // clipping — emitting one line plus a clip path rather than N lines — which
-  // is a change to how decorations are emitted, not to when skip-ink applies.
-  // Until then a dashed line keeps its correct pattern and skips no ink.
-  const wantSkip = skipsInk && !(style === "dashed" || style === "dotted");
-  // Intercept band = the UNSNAPPED rect (`DecorationLinePainter::Bounds` for
-  // kSolidStroke returns `geometry.line` before any snap).
-  const solidGaps = wantSkip ? computeGapsAt(yTop + t / 2 - runBaselineY, t) : [];
-  const subs = subSegments(solidGaps);
   if (style === "dashed" || style === "dotted") {
     // Dashed / dotted use Chromium's real dash geometry (see
     // decorationDashPattern) instead of the old fixed `2t 2t` / `t t`
@@ -667,15 +664,67 @@ export function emitDecorationLine(
     // max(t/2, 0.5)) — plus the odd-integer-thickness half-pixel shift of
     // `DrawLineAsStroke` (`decoration_line_painter.cc:47-53,71-76`); the
     // stroke width stays the UNSNAPPED t (only the dash intervals round).
-    const yMid = Math.floor(yTop + Math.max(t / 2, 0.5)) + (Math.round(t) % 2 !== 0 ? 0.5 : 0);
-    return subs.map(({ x0, x1 }) => {
-      const pat = decorationDashPattern(style, t, x1 - x0);
-      const px0 = x0 + pat.inset;
-      const px1 = x1 - pat.inset;
-      return `<line x1="${r(px0)}" y1="${r(yMid)}" x2="${r(px1)}" y2="${r(yMid)}" stroke="${decorationColor}" stroke-width="${r(t)}"${pat.attrs}/>`;
-    }).join("");
+    const ti = Math.round(t);
+    const yMidSnap = Math.floor(yTop + Math.max(t / 2, 0.5));
+    const yMid = yMidSnap + (ti % 2 !== 0 ? 0.5 : 0);
+    // The endpoints TRUNCATE to integers: `GetSnappedPointsForTextLine`
+    // returns `gfx::Point` — an int-coordinate point, so the float rect's
+    // `x()` / `right()` convert by C++ float→int truncation — and
+    // `DrawLineAsStroke` computes the dash-fit `path_length` over that
+    // integer span BEFORE the thick-dotted endpoint inset
+    // (`decoration_line_painter.cc:47-53,55-76`, `ui/gfx/geometry/point.h:30`).
+    const [span] = subSegments([]);
+    if (span == null) return "";
+    const ix0 = Math.trunc(span.x0);
+    const ix1 = Math.trunc(span.x1);
+    // Blink does not gate skip-ink on the line style — `ClipDecorationLine`
+    // reads only `TextDecorationSkipInk()`, never the style — so dashed and
+    // dotted skip ink exactly as solid does. The intercept band is
+    // `DecorationLinePainter::Bounds` for kDashed/kDottedStroke: the SNAPPED
+    // midline band of height roundf(t) (`decoration_line_painter.cc:409-417`
+    // — `start.y() − thickness/2` with the rounded thickness), while the
+    // dilation stays the unrounded `min(t, 13)`.
+    //
+    // The dash pattern is computed ONCE over the full integer span and the
+    // gaps merely remove ink from it via the clip — so the phase is
+    // continuous across every gap. (This used to split the run into one
+    // `<line>` per surviving sub-segment, and `decorationDashPattern`
+    // re-fitted the gap per segment: a single `stroke-dasharray="6 4.2"`
+    // line became three reading `6 3.6`, `6 2.8`, `6 3.9`, restarting the
+    // phase at each gap — which is why dashed/dotted were excluded from
+    // skip-ink until the emit switched to one line plus a clip path.)
+    const gaps = skipsInk ? computeGapsAt(yMidSnap - runBaselineY, ti, pad) : [];
+    const subs = subSegments(gaps);
+    if (subs.length === 0) return "";
+    const pat = decorationDashPattern(style, t, ix1 - ix0);
+    const lineMarkup = `<line x1="${r(ix0 + pat.inset)}" y1="${r(yMid)}" x2="${r(ix1 - pat.inset)}" y2="${r(yMid)}" stroke="${decorationColor}" stroke-width="${r(t)}"${pat.attrs}/>`;
+    if (gaps.length === 0 || (subs.length === 1 && subs[0].x0 === span.x0 && subs[0].x1 === span.x1)) {
+      return lineMarkup;
+    }
+    // Clip rects = the complement of the gap intervals, spanning the painted
+    // stroke vertically with Blink's ±1px vertical clip-rect outset
+    // (`clip_rect.Outset(OutsetsF::VH(1.0, dilation))`,
+    // `text_painter.cc:607-618`). The vertical extent is free as long as it
+    // covers the stroke — Blink's clip-out rects always cover the painted
+    // ink vertically (up to a sub-0.5px sliver when an odd rounded thickness
+    // shifts a thin stroke half a pixel past the band edge, which is below
+    // AA resolution) — so keeping ONLY inside these rects equals Blink's
+    // clip-OUT of the gap rects.
+    const clipRects = subs.map(({ x0, x1 }) =>
+      `<rect x="${r(x0)}" y="${r(yMid - t / 2 - 1)}" width="${r(x1 - x0)}" height="${r(t + 2)}"/>`).join("");
+    return `<clipPath id="${clipId}">${clipRects}</clipPath>`
+      + `<g clip-path="url(#${clipId})">${lineMarkup}</g>`;
   }
-  // Solid: SnapYAxis — rect top floor(y + 0.5), height max(floor(t), 1) —
+  // Solid: the split-into-sub-segments emit below is EXACTLY Blink's
+  // clip-mechanism result for a solid line — the clip-out rects cut a
+  // horizontal rect at vertical edges, which is what ending one `<line>` and
+  // starting the next reproduces (butt caps are vertical) — so no clip path
+  // is needed. Intercept band = the UNSNAPPED rect
+  // (`DecorationLinePainter::Bounds` for kSolidStroke returns
+  // `geometry.line` before any snap).
+  const solidGaps = skipsInk ? computeGapsAt(yTop + t / 2 - runBaselineY, t, pad) : [];
+  const subs = subSegments(solidGaps);
+  // SnapYAxis — rect top floor(y + 0.5), height max(floor(t), 1) —
   // emitted as a centered stroke so the painted rect is exactly the snapped
   // one (`decoration_line_painter.cc:40-45,104-124`).
   const yTopSnapped = Math.floor(yTop + 0.5);
@@ -788,10 +837,10 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // Compute X-range gaps where the underline rect crosses glyph ink. Returned
   // gaps are run-relative (0 = segX); subSegments() splits the underline span
   // around them.
-  function computeGapsAt(yRel: number, thick: number): Array<[number, number]> {
+  function computeGapsAt(yRel: number, thick: number, pad: number): Array<[number, number]> {
     if (!skipInkActive || runText == null) return [];
     return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, fontStretch, features },
-      { decorationCenterYRel: yRel, decorationThickness: thick, targetWidth: segWidth, charXOffsets: runXOffsets });
+      { decorationCenterYRel: yRel, decorationThickness: thick, interceptPad: pad, targetWidth: segWidth, charXOffsets: runXOffsets });
   }
   // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
   // (run-relative; gap[0]+segX is absolute screen X).
@@ -817,6 +866,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // the per-style paint snap (see its doc).
   const decorationLineCtx: DecorationLineCtx = {
     style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments,
+    clipIdBase: opts.idBase,
   };
   if (has("underline")) {
     lines.push(emitDecorationLine(fragTop + m.underlineTop, m.thickness, "underline", true, decorationLineCtx));
@@ -849,6 +899,10 @@ interface AppliedDecorationRunCtx {
   runText?: string;
   features?: string[];
   runXOffsets?: number[];
+  /** Unique id base for this run's decoration `<clipPath>`s — unique per
+   *  run/fragment (per-decoration and per-line-kind suffixes are appended
+   *  downstream). */
+  idBase?: string;
 }
 
 /**
@@ -900,6 +954,7 @@ function renderAppliedTextDecorations(
   // TRUE (unrounded) baseline of the run's glyphs — the skip-ink anchor and
   // the propagated-baseline comparison point.
   const runBaselineY = run.fragTop + runAscent;
+  let decoIdx = 0;
   for (const pd of el.propagatedDecorations ?? []) {
     // Blink anchors a propagated decoration at the DECORATING box's line
     // (`offset_from_decorating_box`, `text_decoration_info.cc:325-335`).
@@ -926,6 +981,7 @@ function renderAppliedTextDecorations(
       runXOffsets: run.runXOffsets,
       metricsFontFamily: pd.fontFamily, metricsFontSize: pd.fontSize,
       metricsFontWeight: pd.fontWeight, metricsFontStyle: pd.fontStyle,
+      idBase: run.idBase != null ? `${run.idBase}-${decoIdx++}` : undefined,
     }));
   }
   const ownLine = el.styles.textDecorationLine;
@@ -942,6 +998,7 @@ function renderAppliedTextDecorations(
       underlinePosition: el.styles.textUnderlinePosition,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
       runXOffsets: run.runXOffsets,
+      idBase: run.idBase != null ? `${run.idBase}-${decoIdx++}` : undefined,
     }));
   }
   return parts.join("");
@@ -1597,6 +1654,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       segWidth: el.textWidth ?? 0,
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
       runText: pathText, features, runXOffsets: xOffsetsRel ?? undefined,
+      idBase: `${clipId}-dec`,
     });
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
@@ -1737,6 +1795,10 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const _segFullLevels = _segBidiNeeded ? _bidi.getEmbeddingLevels(el.text, dir).levels : null;
   let _segBidiOffset = 0;
   const elVariationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
+  // Per-fragment counter feeding each segment's decoration clip-path id base
+  // (patterned decoration styles mint `<clipPath>`s; ids must stay unique
+  // across the element's fragments).
+  let _decoSegIdx = 0;
   for (const seg of segments) {
     // Color-bitmap glyph fallback (SK-1058): CAPTURE_SCRIPT marked this
     // segment with a Playwright screenshot of Chrome's actual raster (e.g.
@@ -1878,6 +1940,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       segWidth: seg.width,
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
       runText: reordered.text, features: segFeatures, runXOffsets: segXOffsets ?? undefined,
+      idBase: `${clipId}-dec${_decoSegIdx++}`,
     });
     if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
