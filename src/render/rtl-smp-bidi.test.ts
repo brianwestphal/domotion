@@ -1,5 +1,6 @@
 /**
- * SMP right-to-left scripts must reach the Unicode Bidi Algorithm.
+ * SMP right-to-left scripts must reach the Unicode Bidi Algorithm — AND
+ * resolve to an odd (RTL) embedding level once they get there.
  *
  * `bidiLevelsFor` guards `bidi-js`'s `getEmbeddingLevels` behind a cheap regex
  * so the overwhelmingly common all-LTR run costs nothing. That guard covered
@@ -20,6 +21,19 @@
  *
  * The BMP cases are asserted alongside because the widening added the `u` flag
  * to a regex that did not have it, which changes character-class semantics.
+ *
+ * Reaching the algorithm used to not be enough: `bidi-js` 1.0.3's
+ * `getEmbeddingLevels` iterates the string per UTF-16 code unit
+ * (`node_modules/bidi-js/src/embeddingLevels.js:58-61`), so an SMP
+ * character's surrogate pair was looked up as two lone units, each of which
+ * falls back to strong-`L` (`node_modules/bidi-js/src/charTypes.js:47-49`).
+ * That is a library bug, not a missing-data one — `_bidi.getBidiCharType`
+ * itself reports U+1E900 (Adlam) as `R` and U+10F30 (Sogdian) as `AL`
+ * correctly. `bidiLevelsFor` now works around it by substituting two BMP
+ * stand-ins of the same Bidi_Class for each SMP surrogate pair before
+ * calling `getEmbeddingLevels` (see `withBmpStandIns` in
+ * `script-segmentation.ts`), so this suite asserts the CORRECTED (odd/RTL)
+ * levels rather than the library's raw wrong answer.
  */
 import { describe, expect, it } from "vitest";
 import { bidiLevelsFor } from "./script-segmentation.js";
@@ -59,31 +73,53 @@ describe("bidiLevelsFor — SMP RTL scripts reach the bidi algorithm", () => {
   });
 
   /**
-   * KNOWN GAP, pinned deliberately rather than asserted as correct.
+   * FIXED — previously pinned as a KNOWN GAP.
    *
-   * Reaching the UBA is necessary but NOT sufficient: bidi-js 1.0.3 does not
-   * classify SMP RTL characters as strong R, so it returns an all-LTR answer.
-   * Measured directly against the library, bypassing our wrapper:
+   * `bidi-js` 1.0.3's `getEmbeddingLevels` does not classify SMP RTL
+   * characters as strong R/AL by itself, because it looks up char types per
+   * UTF-16 code unit rather than per code point (see the module doc comment
+   * and `withBmpStandIns` in `script-segmentation.ts`). Measured directly
+   * against the raw library, bypassing our wrapper, this is still true:
    *
-   *     getEmbeddingLevels("AאB",       "ltr") -> 0,1,0     (BMP Hebrew, correct)
-   *     getEmbeddingLevels("A\u{1E900}B", "ltr") -> 0,0,0,0   (Adlam, wrong)
+   *     getEmbeddingLevels("AאB",         "ltr") -> 0,1,0     (BMP Hebrew, correct)
+   *     getEmbeddingLevels("A\u{1E900}B", "ltr") -> 0,0,0,0   (Adlam, wrong — raw library)
    *
-   * So the guard widening above is a prerequisite, not the fix — and it is a
-   * no-op today, since all-zero levels segment identically to `undefined`
-   * (verified across several SMP RTL strings). It is still worth having: with
-   * the guard closed, a corrected bidi-js would change nothing, and the defect
-   * would look like a library bug rather than ours.
+   * But `bidiLevelsFor` no longer hands text to `getEmbeddingLevels`
+   * unmodified — it substitutes same-Bidi_Class BMP stand-ins for each SMP
+   * codepoint first, and the corrected embedding level comes back through
+   * our wrapper. Two independent SMP RTL scripts (Adlam R, Kharoshthi R) are
+   * asserted here so this isn't a one-codepoint coincidence, plus the BMP
+   * case to show both paths now agree instead of only the BMP one working.
    *
-   * This test asserts the CURRENT behaviour so the day it starts failing is the
-   * day SMP RTL begins working — at which point flip it to expect odd levels
-   * and check what the segmenter does with them.
+   * Adlam is cursive-joining, so this is more than an ordering bug: shaping
+   * an Adlam run left-to-right (the pre-fix behavior) also selects the wrong
+   * contextual letterforms, not just the wrong glyph order — see
+   * `docs/font-resolution-diagram.md` and the shaping-invariants section of
+   * the project instructions for why direction feeds letterform selection.
    */
-  it("does NOT yet resolve an SMP RTL character to an RTL level (bidi-js gap)", () => {
-    const levels = bidiLevelsFor(`A\u{1E900}B`);
-    expect(levels).toBeDefined();
-    expect(levels![0] % 2).toBe(0); // Latin 'A' — LTR, correct
-    expect(levels![1] % 2).toBe(0); // Adlam — SHOULD be 1; bidi-js says 0
-    // The BMP equivalent, to show the difference is the library's and not ours.
+  it("resolves SMP RTL characters to an RTL (odd) embedding level", () => {
+    // Every SMP codepoint is a surrogate PAIR, i.e. two UTF-16 code units —
+    // `bidiLevelsFor` returns one level per code unit, so index 1 is the
+    // Adlam character's high surrogate, index 2 its low surrogate, and 'B'
+    // has moved to index 3 (unlike the single-code-unit BMP case below).
+    const adlam = bidiLevelsFor(`A\u{1E900}B`);
+    expect(adlam).toBeDefined();
+    expect(Array.from(adlam!)).toEqual([0, 1, 1, 0]);
+    expect(adlam![0] % 2).toBe(0); // Latin 'A' — LTR
+    expect(adlam![1] % 2).toBe(1); // Adlam, high surrogate — now correctly RTL
+    expect(adlam![2] % 2).toBe(1); // Adlam, low surrogate — now correctly RTL
+    expect(adlam![3] % 2).toBe(0); // Latin 'B' — LTR
+
+    const kharoshthi = bidiLevelsFor(`A\u{10A00}B`);
+    expect(kharoshthi).toBeDefined();
+    expect(Array.from(kharoshthi!)).toEqual([0, 1, 1, 0]);
+    expect(kharoshthi![0] % 2).toBe(0);
+    expect(kharoshthi![1] % 2).toBe(1); // Kharoshthi, high surrogate — RTL
+    expect(kharoshthi![2] % 2).toBe(1); // Kharoshthi, low surrogate — RTL
+    expect(kharoshthi![3] % 2).toBe(0);
+
+    // The BMP case, to show both paths now agree — Hebrew is a single code
+    // unit, so its level lands at index 1 directly.
     expect(bidiLevelsFor("AאB")![1] % 2).toBe(1);
   });
 });

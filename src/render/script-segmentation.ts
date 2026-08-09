@@ -133,6 +133,98 @@ const _bidi = bidiFactory();
 const _RTL_RE = /[֐-ࣿיִ-﷿ﹰ-﻿‏‫‮⁧\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u;
 
 /**
+ * `bidi-js`'s `getEmbeddingLevels` gives the wrong answer for every SMP
+ * script — Adlam, Kharoshthi, Sogdian, and the rest — even though its OWN
+ * character-type data classifies them correctly (`_bidi.getBidiCharType`
+ * reports U+1E900 Adlam as `R`, U+10F30 Sogdian as `AL`, etc.). The data is
+ * not the problem. `getEmbeddingLevels` builds its char-type array by
+ * indexing the string **per UTF-16 code unit**
+ * (`node_modules/bidi-js/src/embeddingLevels.js:58-61`,
+ * `charTypes[i] = getBidiCharType(string[i])`), so an SMP character arrives
+ * as two lone surrogate halves. `getBidiCharType`'s lookup keys on
+ * `char.codePointAt(0)` and falls back to strong-`L` for anything unmapped
+ * (`node_modules/bidi-js/src/charTypes.js:47-49`,
+ * `map.get(char.codePointAt(0)) || TYPES.L`) — and a lone surrogate's
+ * code-point value is never in the map, so both halves resolve to `L`. Two
+ * strong-L stand-ins is why an all-Adlam run comes back with every level
+ * even (LTR).
+ *
+ * The library published nothing past 1.0.3 (checked npm; last registry
+ * activity 2023), so there is no version bump that fixes this, and
+ * supplementing the character-type tables would be inert by construction —
+ * they are already complete; `getEmbeddingLevels` never looks a full code
+ * point up in them for a character outside the BMP.
+ *
+ * So the fix stays entirely on our side of the call: before handing text to
+ * `getEmbeddingLevels`, replace each SMP codepoint's surrogate pair with TWO
+ * BMP stand-ins carrying the SAME Bidi_Class — queried from bidi-js's own
+ * `getBidiCharType`, so the library's data stays the single source of truth
+ * for what class a codepoint is; only the per-code-unit iteration is worked
+ * around. Doubling a stand-in one-for-one keeps the substituted string's
+ * `.length` identical to the original text's, so the returned `levels`
+ * array still indexes by the ORIGINAL text's code units — nothing
+ * downstream needs to know the substitution happened. Verified the
+ * mechanism works on a real (BMP) strong-R pair standing in for two
+ * same-class code units: `getEmbeddingLevels("A<Hebrew Alef><Hebrew Alef>B")`
+ * resolves both middle characters to the same odd level a single
+ * doubled-width character would.
+ *
+ * Every Bidi_Class value bidi-js defines is realized by some BMP codepoint
+ * — the format/control types (LRE, RLO, PDI, …) are BMP-native by
+ * definition, and every other type (L, R, AL, EN, AN, NSM, ON, …) has
+ * ordinary BMP members — so `bmpStandInForType` cannot fail to find one for
+ * a type this library actually produces; brackets and isolate controls are
+ * untouched by this substitution because Unicode defines them all in the
+ * BMP, so N0 bracket-pairing and isolate-run matching see the real
+ * characters exactly as before.
+ */
+let _typeToBmpStandIn: Map<number, number> | undefined;
+function bmpStandInForType(type: number): number {
+  if (_typeToBmpStandIn === undefined) {
+    const map = new Map<number, number>();
+    for (let cp = 0; cp <= 0xffff; cp++) {
+      // Lone surrogate code units carry no character of their own — they
+      // are exactly the case this substitution exists to route around, so
+      // they can't be used as a stand-in source.
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const t = _bidi.getBidiCharType(String.fromCharCode(cp));
+      if (!map.has(t)) map.set(t, cp);
+    }
+    _typeToBmpStandIn = map;
+  }
+  // Falls back to 'A' (L) rather than throw if some future bidi-js version
+  // ever defined a type with no BMP member — see the doc comment above for
+  // why that can't happen for the current data.
+  return _typeToBmpStandIn.get(type) ?? 0x0041;
+}
+
+/**
+ * `text` with every SMP codepoint's surrogate pair replaced by two BMP
+ * stand-ins of the same Bidi_Class, for feeding to `getEmbeddingLevels`. See
+ * `bmpStandInForType`'s doc comment for why this is necessary and sound.
+ * A malformed lone surrogate (unpaired) is left untouched — this targets
+ * valid SMP codepoints, not encoding errors.
+ */
+function withBmpStandIns(text: string): string {
+  let out: string | undefined;
+  for (let i = 0; i < text.length; i++) {
+    const high = text.charCodeAt(i);
+    const low = i + 1 < text.length ? text.charCodeAt(i + 1) : 0;
+    if (high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff) {
+      const cp = text.codePointAt(i)!;
+      const type = _bidi.getBidiCharType(String.fromCodePoint(cp));
+      const standIn = String.fromCharCode(bmpStandInForType(type));
+      if (out === undefined) out = text.slice(0, i);
+      out += standIn + standIn;
+      i++; // consumed the low surrogate too
+      continue;
+    }
+    if (out !== undefined) out += text[i];
+  }
+  return out ?? text;
+}
+
+/**
  * Per-code-unit bidi embedding levels for `text`, or `undefined` when the text
  * cannot contain a direction boundary.
  *
@@ -190,7 +282,10 @@ export function bidiLevelsFor(
     // U+202E RIGHT-TO-LEFT OVERRIDE / U+202D LEFT-TO-RIGHT OVERRIDE.
     const enter = bidiOverride!.direction === "rtl" ? "\u202E" : "\u202D";
     try {
-      const levels = _bidi.getEmbeddingLevels(enter + text + "\u202C", "ltr").levels;
+      // withBmpStandIns is 1-for-1 on code units, so the composed string's
+      // length \u2014 and therefore the slice offsets below \u2014 are unaffected by
+      // the substitution.
+      const levels = _bidi.getEmbeddingLevels(withBmpStandIns(enter + text + "\u202C"), "ltr").levels;
       // Drop the level of the injected opener; the trailing PDF's level is past
       // the end of the slice already. What remains is one level per SOURCE
       // character, so every caller's indexing into `text` still lines up.
@@ -201,7 +296,9 @@ export function bidiLevelsFor(
   }
   if (!_RTL_RE.test(text)) return undefined;
   try {
-    return _bidi.getEmbeddingLevels(text, "ltr").levels;
+    // withBmpStandIns is 1-for-1 on code units, so the returned `levels`
+    // array still indexes by `text`'s own code units.
+    return _bidi.getEmbeddingLevels(withBmpStandIns(text), "ltr").levels;
   } catch {
     // Never fail a render over bidi analysis — without levels the segmenter
     // still splits by script, which is the larger half of the fix.
