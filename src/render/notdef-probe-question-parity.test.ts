@@ -150,8 +150,10 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     expect(call).toContain(
       "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)",
     );
-    // And the chain is derived the same way the run splitters derive it.
-    expect(TEXT_TO_PATH_SRC).toContain("const fontKeyChain = resolveFontKeyChain(fontFamily);");
+    // And the chain is derived the same way the run splitters derive it —
+    // lang included, since the settings-mapped generics and the standard
+    // terminal are script-keyed (Playwright's per-script tables on mac/win).
+    expect(TEXT_TO_PATH_SRC).toContain("const fontKeyChain = resolveFontKeyChain(fontFamily, lang);");
   });
 
   it("hands the system-fallback resolver the same arguments from every remaining run-context asker", () => {

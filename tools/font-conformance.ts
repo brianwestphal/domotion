@@ -637,13 +637,17 @@ export function parseVariationSettings(value: string | undefined): Record<string
   return Object.keys(out).length > 0 ? out : null;
 }
 
-export function prepareStack(spec: StackSpec): ResolvedStack | null {
-  const chain = resolveFontKeyChain(spec.fontFamily);
-  const primaryKey = resolveFontKey(spec.fontFamily);
+export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | null {
+  // `lang` mirrors the probe page's `<html lang>`: the renderer resolves the
+  // settings-mapped generics per content script (Playwright's forScripts
+  // tables on mac/win), so the oracle must ask our side the same question the
+  // probe page asks Chrome.
+  const chain = resolveFontKeyChain(spec.fontFamily, lang);
+  const primaryKey = resolveFontKey(spec.fontFamily, lang);
   const slant = slantForStyle(spec.fontStyle);
   // Mirror `resolveFont`'s opsz pin for an explicitly-named macOS optical cut,
   // so the instance we probe is the one the renderer would actually use.
-  const cutOpsz = opticalCutOpszFor(spec.fontFamily);
+  const cutOpsz = opticalCutOpszFor(spec.fontFamily, lang);
   // The author's own axis settings win over the opsz pin for any axis they name,
   // matching the renderer: `font-variation-settings` is the last word in CSS.
   const authorAxes = parseVariationSettings(spec.fontVariationSettings);
@@ -1324,7 +1328,7 @@ async function main(): Promise<number> {
     const t0 = Date.now();
 
     for (const spec of stacks) {
-      let rs = prepareStack(spec);
+      let rs = prepareStack(spec, opts.lang);
       if (rs == null) {
         skippedStacks++;
         process.stdout.write(`  SKIP (no resolvable primary): ${spec.fontFamily}\n`);
@@ -1354,7 +1358,7 @@ async function main(): Promise<number> {
         // so this costs re-reads, never a different answer.
         if (opts.resetEvery > 0 && batchNo > 0 && batchNo % opts.resetEvery === 0) {
           clearFontResolutionCaches();
-          const again = prepareStack(spec);
+          const again = prepareStack(spec, opts.lang);
           if (again == null) throw new Error(`stack stopped resolving after cache reset: ${spec.fontFamily}`);
           rs = again;
         }

@@ -425,11 +425,11 @@ export function textToPathMarkup(
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
 
-  const primaryFontKey = resolveFontKey(fontFamily);
-  const fontKeyChain = resolveFontKeyChain(fontFamily);
+  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
 
   // DM-1984: the synthetic-bold frame for ONE run's glyph group. `groupScale`
   // is that group's own `scale(s,-s)` factor, so the emitted width lands at
@@ -1246,14 +1246,14 @@ export function insertSyntheticDottedCircles(
   // authoritative (it vetoes the static block heuristic), so it maps to an empty
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
-  const primaryFontKey = resolveFontKey(fontFamily);
+  const primaryFontKey = resolveFontKey(fontFamily, lang);
   // The full declared stack, derived the same way the run splitters derive it —
   // the coverage probe below delegates to `resolveFontForCodepoint`, which walks
   // it (Blink's kFontFamily stage), so a mark covered only by a later-declared
   // family is "covered" here exactly when the emitter will paint it.
-  const fontKeyChain = resolveFontKeyChain(fontFamily);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
   const stretch = stretchPercent(fontStretch);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return { text, xOffsets };
 
   // Resolve the dotted circle's own advance (CSS px) so the displaced mark can
@@ -1727,15 +1727,15 @@ function renderTextAsEmbedded(
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
-  const primaryFontKey = resolveFontKey(fontFamily);
-  const fontKeyChain = resolveFontKeyChain(fontFamily);
+  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
   // DM-1103: the optical-cut opsz `resolveFont` pinned for the primary face,
   // folded into the per-instance embed key below so a cut-pinned run (e.g.
   // "SF Pro Text" → opsz 17) doesn't dedup-collide with a generic SF Pro run
   // that shares the collapsed `sf-pro` key at the same weight/slant.
-  const primaryCutOpsz = opticalCutOpszFor(fontFamily);
+  const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
   const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily);
   if (runs.length === 0) return null;
@@ -2601,7 +2601,7 @@ export function renderTextAsPath(
     wantsTextStroke ? undefined : { fill });
   if (result == null || result.markup === "") return null;
 
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (font == null) return null;
 
   const scale = fontSize / font.unitsPerEm;
@@ -2842,7 +2842,7 @@ export function getDecorationMetrics(
   const { thicknessOverride, underlineOffsetCss, underlinePositionCss } = decoration;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
   const upem = font?.unitsPerEm ?? 1000;
   const ascF = decoration.fontAscent ?? fontSize * 0.8;
   // `FontMetrics::Ascent()` = lroundf(FloatAscent) (`platform/fonts/font_metrics.h:109`).
@@ -2951,7 +2951,7 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
   if (font == null) return fontSize * 0.25;
   try {
     const g = font.layout(" ").glyphs[0] as { advanceWidth: number } | undefined;
@@ -2971,7 +2971,7 @@ export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions):
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
   if (font == null) return 0;
   let layout;
   try { layout = font.layout(trimmed); } catch { return 0; }
@@ -3020,10 +3020,10 @@ export function measureInkMetrics(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
-  const primaryFontKey = resolveFontKey(fontFamily);
-  const fontKeyChain = resolveFontKeyChain(fontFamily);
+  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
   const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
@@ -3084,11 +3084,11 @@ export function renderStretchyFenceGlyph(
   // Resolve a font that actually has the fence glyph via the shared per-codepoint
   // resolver (DM-1068). Uncovered → keep the primary (its `.notdef`); the caller
   // falls back to the synthesized path when the layout has no outline.
-  const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch);
+  const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
-  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
-    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
+  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, fontOptions.lang,
+    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 
@@ -3155,11 +3155,11 @@ export function renderRadicalGlyph(
   // Resolve a font that has the √ glyph via the shared per-codepoint resolver
   // (DM-1068). Uncovered → keep the primary; the caller falls back to the
   // synthesized path when the layout has no outline.
-  const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch);
+  const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
-  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
-    resolveFontKeyChain(fontFamily), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
+  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, fontOptions.lang,
+    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 
@@ -3242,7 +3242,7 @@ export function computeSkipInkGaps(
   const { decorationCenterYRel = 0, decorationThickness = 1, interceptPad, targetWidth, charXOffsets } = skipInk;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch));
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
   if (font == null) return [];
   let layout;
   try { layout = font.layout(text, fontkitFeatureList(features)); } catch { return []; }

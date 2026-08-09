@@ -120,6 +120,22 @@ they describe (see `CLAUDE.md` "Documentation"):
   `system-ui` (a `FontCache::SystemFontFamily()` value, not a settings-table
   entry) remains un-transcribed; Playwright's Linux table has no per-script
   entries, so the content script never moves a Linux generic (doc 110).
+- **Script-keyed generic families on mac/win (font-resolution-diagram §2)** —
+  **Shipped.** The settings-mapped generics resolve per content script,
+  mirroring `FamilyNameFromSettings`'s `settings.<Generic>(script)` consult
+  with the values the capture session actually holds — Playwright's
+  `forScripts` tables (mac: jpan/hang/hans/hant; win: +cyrl/arab/grek;
+  linux: none, so `lang` never moves a Linux generic). `resolveFontKey` /
+  `resolveFontKeyChain` / `resolveFont` take the element's `lang`; the
+  lang→script mapping is `LocaleToScriptCodeForFontSelection` transcribed in
+  full (`src/render/generic-script-families.ts`, drift-guarded against the
+  installed playwright-core). The standard family is script-keyed in the same
+  change, both as the exhausted-stack terminal and as the chain's final
+  pre-system-fallback entry. Quoted generic spellings stay literal family
+  names (`splitFontFamilyNames` carries a per-entry generic bit;
+  `system-ui`'s dispatch is name-keyed per `font_cache.cc:161-166` and
+  ignores the bit). Oracle-measured on macOS: lang=ja 645/645 agree-exact
+  (was 632 mismatches), ko / zh-Hans / zh-Hant zero.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in

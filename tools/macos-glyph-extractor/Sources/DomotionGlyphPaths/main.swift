@@ -746,6 +746,13 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
     return result
 }
 
+// The INSTALLED PostScript-name inventory (lower-cased), built once per
+// process from the font manager's registered-font list. Together with the
+// AppKit family-membership probe below it is the guard that keeps
+// `runFamilyQuery` off Apple's DOWNLOADABLE font registry: on recent macOS,
+// `CTFontCreateWithName` for an available-for-download name that is not
+// installed (e.g. "Osaka-Mono") blocks forever inside
+
 // DM-1018: resolve a CSS font-family name to a real installed font, the way
 // Blink's FontFallbackList picks `first_candidate_` — the first family in the
 // stack that actually loads. CTFontCreateWithName substitutes a default when
@@ -1369,6 +1376,18 @@ func writeResponse(_ response: [String: Any]) {
     FileHandle.standardOutput.write(data)
     FileHandle.standardOutput.write(Data("\n".utf8))
 }
+
+// Disable CoreText font auto-activation for this process BEFORE any font
+// query runs. Without it, `CTFontCreateWithName` on an Apple-DOWNLOADABLE
+// family that is not installed (e.g. "Osaka-Mono" on recent macOS) blocks
+// forever inside the com.apple.FontRegistryUI dispatch queue waiting on a
+// download/activation flow a headless process can never complete — sampled
+// live: `runFamilyQuery` → `CTFontCreateWithName` wedged with zero CPU.
+// Chrome's renderer never hits this because it runs sandboxed with
+// auto-activation off, which is also why its own lookup for the same name
+// fails FAST and walks on (measured: a bare lang=ja `monospace` run paints
+// the standard family, so Chrome's "Osaka-Mono" lookup returned nothing).
+CTFontManagerSetAutoActivationSetting(nil, .disabled)
 
 // Parse args.
 var inputPath: String? = nil

@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
+import { perScriptGenericFamily, firstAvailableOrFirst } from "./generic-script-families.js";
 import { faceHasTrakAndStat, hbShapingBaseOf, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -3033,7 +3034,7 @@ function resolveSystemFallbackKeyForCp(
         // does rather than substitute a different family's regular cut.
         const declaredHead = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
         const headMatchesPrimary = declaredHead == null
-          || matchFamilyNameToKey(declaredHead.name, declaredHead.generic) === primaryKey;
+          || matchFamilyNameToKey(declaredHead.name, declaredHead.generic, lang) === primaryKey;
         if (headMatchesPrimary) {
           // The standard-style face of the SAME family. `getFontInstance` is
           // memoised, so this costs a map hit after the first bold codepoint.
@@ -7726,8 +7727,52 @@ export function getSessionGenericFamilyOverrides(): ReadonlyMap<string, string> 
 function matchFamilyNameToKey(
   name: string,
   generic: boolean = BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
+  lang?: string,
 ): string | null {
   if (name === "" || name === "doesnotexist") return null;
+  // ── Per-script generic-family settings (Playwright forScripts, mac/win) ──
+  // Blink keys every settings-mapped generic on the run's content script:
+  // `FamilyNameFromSettings` consults `settings.<Generic>(script)` with
+  // `font_description.GetScript()` (`font_selector.cc:72-91`, rev 7d859f27),
+  // and the capture session's per-script maps are Playwright's `forScripts`
+  // entries (mac: jpan/hang/hans/hant; win: +cyrl/arab/grek; linux: none) —
+  // see `src/render/generic-script-families.ts` for the full transcription
+  // chain (locale → UScriptCode → settings entry → FirstAvailableOrFirst).
+  // A per-script entry EXISTS: nominate its family — resolve it as a literal
+  // name, and when it does not resolve on this host return null so the stack
+  // walks on, exactly as a failed typeface creation does in Blink. No entry:
+  // fall through to the Common-script routes below
+  // (`generic_font_family_settings.cc:105-107`). Ordered ahead of the
+  // session probe, which measures the Common script only.
+  if (generic && lang != null) {
+    const scriptValue = perScriptGenericFamily(hostPlatform(), lang, name);
+    if (scriptValue != null) {
+      const first = firstAvailableOrFirst(scriptValue, (fam) => authorFamilyAvailable(fam));
+      if (first !== "") {
+        // Blink looks the settings value up as a PLAIN family name, so probe
+        // the exact installed family first — the curated arms must not
+        // re-route it to a calibrated sibling. Measured: Chrome paints
+        // HiraKakuProN-W3 for lang=ja sans-serif (the literal "Hiragino Kaku
+        // Gothic ProN" family), where the curated "hiragino-jp" key carries
+        // the Hiragino SANS faces — 215/215 oracle rows moved on that one
+        // difference. The registration mirrors the uncurated tail below.
+        const installed = resolveInstalledFont(first);
+        if (installed != null) {
+          const key = `sysfb:${installed.postscriptName}`;
+          registerDynamicSystemFont(key, installed.path, installed.postscriptName, "native", installed.resolvedAxes, installed.ctAxes);
+          if (hostPlatform() === "darwin" && installed.familyName !== "" && !installed.familyName.startsWith(".")) {
+            declaredFamilyForKey.set(key, installed.familyName);
+          }
+          return key;
+        }
+        // Degraded tier (no native helper): fall back to the curated arms so
+        // the nominated family still lands on the closest calibrated face.
+        const firstLower = first.toLowerCase();
+        if (firstLower !== name) return matchFamilyNameToKey(firstLower, false);
+      }
+      return null;
+    }
+  }
   // Session-probed generic route (see setSessionGenericFamilyOverrides): when
   // the capture session has been asked what it paints for a generic keyword,
   // route the keyword to that family. The probed name is a concrete platform
@@ -8244,18 +8289,30 @@ function matchFamilyNameToKey(
   return null;
 }
 
-export function resolveFontKey(fontFamily: string): string {
+export function resolveFontKey(fontFamily: string, lang?: string): string {
   // Walk the comma-separated stack — Chrome's getComputedStyle returns the
   // unresolved list (e.g. `"DoesNotExist", Georgia, "Times New Roman", serif`)
   // not the matched font. Pick the first name we recognize, mirroring how
-  // Chrome falls through the stack until something loads.
+  // Chrome falls through the stack until something loads. `lang` is the
+  // element's content locale; it moves the settings-mapped generics on
+  // mac/win via Playwright's per-script tables (see matchFamilyNameToKey).
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic);
+    const key = matchFamilyNameToKey(entry.name, entry.generic, lang);
     if (key != null) return key;
   }
-  // Last-resort fallback when no family in the stack matched. Chrome's
-  // ultimate fallback on macOS for an unrecognized name is the user's
-  // configured "Standard Font" preference, which defaults to Times.
+  // Last-resort fallback when no family in the stack matched: Blink falls to
+  // the standard font — `FamilyNameFromSettings` with kStandardFamily →
+  // `settings.Standard(script)` (`font_selector.cc:55-61,74-76`, rev
+  // 7d859f27) — and the standard entry is SCRIPT-KEYED like every other
+  // setting. Measured: a bare `monospace` stack under lang=ja exhausts
+  // (Osaka-Mono is not installed) and Chrome paints HiraKakuProN-W3 — the
+  // jpan STANDARD entry — for every codepoint, not Times. Consult the
+  // per-script standard entry first; no entry (Common script, Linux, no
+  // lang) keeps the calibrated Times default.
+  if (lang != null) {
+    const std = matchFamilyNameToKey("-webkit-standard", true, lang);
+    if (std != null) return std;
+  }
   return "times";
 }
 
@@ -8270,11 +8327,27 @@ export function resolveFontKey(fontFamily: string): string {
  * misses — see the probe in `tools/probe-2f800-facewalk.mjs`). Never includes
  * the `times` last-resort — callers append their own terminal.
  */
-export function resolveFontKeyChain(fontFamily: string): string[] {
+export function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {
   const out: string[] = [];
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic);
+    const key = matchFamilyNameToKey(entry.name, entry.generic, lang);
     if (key != null && !out.includes(key)) out.push(key);
+  }
+  // Blink's family list ends with the STANDARD family: a codepoint no
+  // declared family covers is asked of `GetFallbackFontFamily` →
+  // `settings.Standard(script)` BEFORE the per-codepoint system fallback
+  // (`font_fallback_iterator.cc:167-179` walks `FontFallbackList::FontDataAt`
+  // until it is exhausted, and that list's final entry is the standard
+  // family). Callers append their own `times` terminal, which IS that stage
+  // for the Common script — but when the content locale keys a per-script
+  // standard entry, the script-keyed face takes the position instead.
+  // Measured: lang=zh-Hant `monospace` paints Han from PingFang TC (the hant
+  // standard, first-available of ",PingFang TC,Heiti TC") while Latin stays
+  // Courier — 253 of 253 oracle rows in the 4E00-4EFF slice moved on exactly
+  // this stage.
+  if (lang != null) {
+    const std = matchFamilyNameToKey("-webkit-standard", true, lang);
+    if (std != null && !out.includes(std)) out.push(std);
   }
   return out;
 }
@@ -8327,9 +8400,9 @@ const OPTICAL_CUT_OPSZ: Record<string, number> = {
  * an installed key decides — if that name is a named cut, return its opsz; if
  * it's any other installed face, the cut doesn't apply.
  */
-export function opticalCutOpszFor(fontFamily: string): number | null {
+export function opticalCutOpszFor(fontFamily: string, lang?: string): number | null {
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    if (matchFamilyNameToKey(entry.name, entry.generic) == null) continue; // unrecognized — skip, like resolveFontKey
+    if (matchFamilyNameToKey(entry.name, entry.generic, lang) == null) continue; // unrecognized — skip, like resolveFontKey
     return entry.name in OPTICAL_CUT_OPSZ ? OPTICAL_CUT_OPSZ[entry.name] : null;
   }
   return null;
@@ -8357,16 +8430,19 @@ export function resolveFont(
   variationSettings?: Record<string, number>,
   /** CSS `font-stretch` as a percentage, 100 = `normal`. */
   stretch: number = 100,
+  /** BCP-47 content locale — moves the settings-mapped generics on mac/win
+   *  via Playwright's per-script tables (see `resolveFontKey`). */
+  lang?: string,
 ): FontInstance | null {
   // DM-1103: pin `opsz` for an explicitly-named optical cut (e.g. "SF Pro
   // Text" → 17) by injecting it as a variation setting — which wins over the
   // `opsz = fontSize` default in `applyVariationAxes`. An author-set
   // `font-variation-settings: "opsz" …` still wins (we don't clobber it).
-  const cutOpsz = opticalCutOpszFor(fontFamily);
+  const cutOpsz = opticalCutOpszFor(fontFamily, lang);
   if (cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)) {
     variationSettings = { ...(variationSettings ?? {}), opsz: cutOpsz };
   }
-  return getFontInstance(resolveFontKey(fontFamily), fontWeight, fontSize, slant, variationSettings, stretch);
+  return getFontInstance(resolveFontKey(fontFamily, lang), fontWeight, fontSize, slant, variationSettings, stretch);
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──
@@ -9638,7 +9714,7 @@ function resolveFontForCodepointInner(
       && ((fontVariantEmoji === "text" && isEmojiCharCp(cp)) || !isEmojiPresentationCp(cp))
       && (slant !== 0 || weight >= 700)) {
     const declaredHead = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
-    if (declaredHead == null || matchFamilyNameToKey(declaredHead.name, declaredHead.generic) === primaryFontKey) {
+    if (declaredHead == null || matchFamilyNameToKey(declaredHead.name, declaredHead.generic, lang) === primaryFontKey) {
       // Style and weight reset to normal; the run's STRETCH is preserved —
       // `substitute_description` is a copy and only `SetStyle` / `SetWeight`
       // run on it (`skia/font_cache_skia.cc:122-124`).

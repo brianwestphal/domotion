@@ -123,6 +123,34 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 (used by the per-codepoint resolver to reach later-declared families).
 
+> **The settings-mapped generics are SCRIPT-KEYED on mac/win.** Blink consults
+> `settings.<Generic>(script)` with `font_description.GetScript()`
+> (`FamilyNameFromSettings`, `platform/fonts/font_selector.cc:72-91`, rev
+> 7d859f27), the script being `LocaleToScriptCodeForFontSelection(lang)`
+> (`platform/text/locale_to_script_mapping.cc:164-470`, transcribed in full in
+> `src/render/generic-script-families.ts`). The capture session's per-script
+> values are Playwright's `forScripts` tables (`defaultFontFamilies.js`,
+> playwright-core 1.59.1; drift-guarded against the installed package by
+> `generic-script-families.test.ts`): mac carries jpan/hang/hans/hant, win
+> adds cyrl/arab/grek, linux has none — so `lang` never moves a Linux
+> generic. `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` /
+> `resolveFont` take an optional `lang`; a generic keyword with a per-script
+> entry nominates that entry's family (comma-lists via
+> `FirstAvailableOrFirst`, `generic_font_family_settings.cc:88-104`), probes
+> it as the EXACT installed family first (Blink's plain family lookup — a
+> curated sibling key must not intercept: measured, lang=ja `sans-serif`
+> paints HiraKakuProN-W3, the literal ProN family), and returns null when the
+> family doesn't resolve, so the stack walks on. A missing entry falls to the
+> Common-script routes (`generic_font_family_settings.cc:105-107`). Two more
+> script-keyed positions: the resolveFontKey TERMINAL (an exhausted stack
+> falls to `settings.Standard(script)` — measured, bare lang=ja `monospace`
+> paints HiraKakuProN-W3 for every codepoint), and the CHAIN's final entry
+> (a codepoint no declared family covers is asked of the standard family
+> before per-codepoint system fallback, `font_fallback_iterator.cc:167-179` —
+> measured, lang=zh-Hant `monospace` paints Han from PingFang TC while Latin
+> stays Courier). Measured end-to-end on the oracle: lang=ja 645/645
+> agree-exact (was 632 mismatches), ko / zh-Hans / zh-Hant all zero.
+>
 > **Quoted generic spellings are literal family names, not keywords.** The
 > splitter carries a per-entry `generic` bit: an entry is a generic KEYWORD
 > only when it was unquoted AND spelled in canonical lowercase
@@ -198,6 +226,14 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 >   the `family` query is an exact `FindFamilyName` lookup against the system
 >   collection, carrying the matched face's resolved axis values for variable
 >   instances, e.g. "Segoe UI Variable Text" → `SEGUIVAR.TTF` at `opsz` 10.5.)
+>   On macOS the helper's `family` query is guarded by an installed-inventory
+>   check (AppKit `availableMembersOfFontFamily` — which resolves legacy
+>   aliases like "Hiragino Kaku Gothic ProN" — plus the registered PostScript
+>   names) BEFORE any `CTFontCreateWithName`: on recent macOS that call
+>   blocks forever inside the downloadable-font registry for an
+>   available-but-not-installed name like "Osaka-Mono", a path Chrome's
+>   sandboxed renderer can never take (its font-registry service is
+>   unreachable, so the same lookup fails fast and the stack walks on).
 >   Two per-platform tails follow it:
 >   - **Windows suffix names**: a family like "Segoe UI Light" is not a
 >     DirectWrite family, so the probe misses; Blink resolves it by stripping a
