@@ -753,6 +753,39 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
 // name actually matches the request (case-insensitive) before reporting it
 // found; otherwise the caller keeps walking the stack. Returns the resolved
 // PostScript name + on-disk file URL so the renderer can open it.
+// Every family/PostScript name CoreText can resolve from what is ALREADY
+// installed, so the caller can refuse a name that would need downloading.
+//
+// `CTFontCreateWithName` on a family macOS ships only as a downloadable asset
+// does not fail — it raises the system "needs to download font X" panel and
+// BLOCKS until somebody answers. Unattended, nobody answers: a single such
+// lookup was measured blocking ~16 minutes before giving up, and it is the
+// cause of several otherwise-unexplained run stalls.
+//
+// It is a parity bug too. An uninstalled face is unavailable to Blink, which
+// walks on to the next family; accepting a download would make us paint a face
+// Chrome does not have AND change the machine's font inventory as a side
+// effect of measuring, invalidating comparisons against a differently-equipped
+// CI runner.
+//
+// This is deliberately ONE bulk query rather than a per-name check. Two
+// per-name approaches were tried and both regressed badly: enumerating inside
+// `runFamilyQuery` re-scans thousands of faces on every one-shot spawn (a
+// static-chain walk went to 425s), and a `CTFontDescriptorCopyAttribute` URL
+// probe still reaches CoreText's matching path and still blocks on the panel.
+// Fetched once per client process and cached there, the enumeration is paid a
+// single time and no uninstalled name ever reaches `CTFontCreateWithName`.
+func runFamiliesQuery() -> [String: Any] {
+    var names: [String] = []
+    if let fams = CTFontManagerCopyAvailableFontFamilyNames() as? [String] {
+        names.append(contentsOf: fams)
+    }
+    if let ps = CTFontManagerCopyAvailablePostScriptNames() as? [String] {
+        names.append(contentsOf: ps)
+    }
+    return ["type": "families", "names": names]
+}
+
 func runFamilyQuery(_ query: [String: Any]) -> [String: Any] {
     guard let name = query["name"] as? String, !name.isEmpty else {
         return ["type": "family", "found": false]
@@ -1317,6 +1350,7 @@ func handleEnvelope(_ envelope: [String: Any], fontCache: inout [String: FontEnt
         case "fallback": results.append(runFallbackQuery(query, fonts: fonts))
         case "notdef": results.append(runNotdefQuery(query, fonts: fonts))
         case "shape": results.append(runShapeQuery(query, fonts: fonts))
+        case "families": results.append(runFamiliesQuery())
         case "family": results.append(runFamilyQuery(query))
         case "familyMatch": results.append(runFamilyMatchQuery(query))
         default: results.append(["type": type, "error": "unknown query type"])
