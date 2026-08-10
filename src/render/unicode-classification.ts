@@ -462,6 +462,16 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // difference — correctly, and it is not zero evidence.
   [0x0C00, 0x0C7F],
 
+  // Gurmukhi, Gujarati, Oriya, and Kannada. DM-2058 measured the production
+  // Linux faces (FreeSans / FreeSerif): fontkit emits the invalid base+vowel
+  // pair as two glyphs, while HarfBuzz applies the generated vowel-constraint
+  // table and inserts U+25CC as a third glyph, matching Chrome. See
+  // `external/harfbuzz/src/hb-ot-shaper-vowel-constraints.cc` (rev 4de187d),
+  // the HB_SCRIPT_GURMUKHI / GUJARATI / ORIYA / KANNADA cases. Native-extractor
+  // faces retain their platform shaper; this override only changes fontkit
+  // shaping, so the already-correct macOS CoreText route remains untouched.
+  [0x0A00, 0x0A7F], [0x0A80, 0x0AFF], [0x0B00, 0x0B7F], [0x0C80, 0x0CFF],
+
   // Hangul: syllables, both Jamo blocks, and the compatibility block. Measured:
   // 2 engine disagreements, both `glyph-count`, both on the terminal LastResort
   // face — `한글` comes back as 2 glyphs from HarfBuzz and 6 from CoreText, i.e.

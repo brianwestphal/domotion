@@ -48,7 +48,20 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x0C00)).toBe(true);
     expect(usesHarfbuzzShaping(0x0C7F)).toBe(true);
     expect(usesHarfbuzzShaping(0x0BFF)).toBe(false); // Tamil block below
-    expect(usesHarfbuzzShaping(0x0C80)).toBe(false); // Kannada block above
+    expect(usesHarfbuzzShaping(0x0C80)).toBe(true);  // Kannada — rerouted separately below
+  });
+
+  it("covers the four Linux vowel-constraint reroutes and excludes Tamil", () => {
+    for (const cp of [
+      0x0A05, 0x0A3E, // Gurmukhi invalid base + dependent vowel
+      0x0A85, 0x0ABE, // Gujarati
+      0x0B05, 0x0B3E, // Oriya
+      0x0C89, 0x0CBE, // Kannada
+    ]) expect(usesHarfbuzzShaping(cp)).toBe(true);
+
+    expect(usesHarfbuzzShaping(0x09FF)).toBe(true);  // Bengali's existing route
+    expect(usesHarfbuzzShaping(0x0B80)).toBe(false); // Tamil needs the vendored-HB fix (DM-2057)
+    expect(usesHarfbuzzShaping(0x0D00)).toBe(false); // Malayalam, same limitation
   });
 
   it("covers all four Hangul blocks", () => {
@@ -105,7 +118,6 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     for (const cp of [
       0x0B95, // Tamil ka — cluster-only
       0x0F40, // Tibetan ka — never measured as glyph-differing
-      0x0A05, // Gurmukhi — vowel-constraint script, not (yet) rerouted
     ]) {
       expect(usesHarfbuzzShaping(cp)).toBe(false);
     }
@@ -130,7 +142,7 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     expect(usesHarfbuzzShaping(0x09BE)).toBe(true);   // BENGALI VOWEL SIGN AA
     expect(usesHarfbuzzShaping(0x0980)).toBe(true);   // block start
     expect(usesHarfbuzzShaping(0x09FF)).toBe(true);   // block end
-    expect(usesHarfbuzzShaping(0x0A00)).toBe(false);  // Gurmukhi — not (yet) rerouted
+    expect(usesHarfbuzzShaping(0x0A00)).toBe(true);   // Gurmukhi — rerouted separately
   });
 
   it("covers Khmer and Khmer Symbols", () => {
