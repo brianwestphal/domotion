@@ -918,6 +918,22 @@ describe("Tamil/Malayalam/Sinhala vowel constraints missing from vendored HarfBu
   });
 });
 
+describe("Tamil ZWJ-prefixed broken matra cluster", () => {
+  const fam = '"Tamil Sangam MN","Arial Unicode MS",sans-serif';
+
+  it.skipIf(!MACOS_FONTS_DC)("inserts the circle before ZWJ and preserves UTF-16 x anchors", () => {
+    const result = insertSyntheticDottedCircles("\u200D\u0BC6", [17, 29], fam, 400, 48, 0, undefined, undefined, [1]);
+    expect(result.text).toBe("◌\u200D\u0BC6");
+    expect(result.xOffsets).toEqual([17, 17, 29]);
+  });
+
+  it.skipIf(!MACOS_FONTS_DC)("does not alter a based Tamil mark or ordinary ZWJ use", () => {
+    for (const source of ["\u0B95\u200D\u0BC6", "A\u200DB", "\u200D\u0BCD"]) {
+      expect(insertSyntheticDottedCircles(source, undefined, fam, 400, 48, 0, undefined, undefined, []).text).toBe(source);
+    }
+  });
+});
+
 // DM-1158: orphaned, uncovered variation selectors / tags must be HIDDEN (Chrome
 // paints nothing), not routed to the CoreText last-resort tofu. The pure range
 // predicate is cross-platform; the strip itself is macOS-gated (needs the real

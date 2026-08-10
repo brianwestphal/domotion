@@ -1346,6 +1346,21 @@ export function insertSyntheticDottedCircles(
     const isMark = /\p{M}/u.test(ch);
     const isWs = chLen === 1 && /\s/.test(ch);
     const nextCp = i + chLen < text.length ? text.codePointAt(i + chLen)! : -1;
+    if (!clusterHasBase && cp === 0x200D && nextCp === 0x0BC6
+        && (coveredCircleSet == null || coveredCircleSet.has(i + chLen))) {
+      // Indic Ragel `z* M` broken cluster, confirmed against Chromium with
+      // Tamil Sangam MN. HarfBuzz inserts the circle BEFORE the leading ZWJ;
+      // our scalar orphan tracker previously treated that Cf as a base and
+      // suppressed the following mark. Scoped to the measured pair: analogous
+      // Malayalam/Sinhala/Lao probes did not match an explicit-circle control.
+      const joinerX = haveX ? (xOffsets![i] ?? 0) : 0;
+      outText += "◌" + ch;
+      if (haveX) outX.push(joinerX, joinerX);
+      clusterHasBase = true;
+      changed = true;
+      i += chLen;
+      continue;
+    }
     if (needsSyntheticVowelConstraintCircle(cp, nextCp)) {
       // Current Chromium's HarfBuzz inserts U+25CC BETWEEN these invalid
       // base+dependent-vowel pairs before shaping. Our vendored harfbuzzjs

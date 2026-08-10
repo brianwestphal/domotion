@@ -169,6 +169,14 @@ export const capitalizeCss = (s) => {
   return out;
 };
 
+// HarfBuzz's Indic Ragel machine (`hb-ot-shaper-indic-machine.rl`, rev
+// 4de187d) accepts `z* M` as a matra group inside a broken cluster. The one
+// live gap established against Chromium is Tamil ZWJ + VOWEL SIGN E: the ZWJ
+// must not become a scalar "base" and suppress probing of the following mark.
+// Keep this deliberately sequence-specific until another script is measured.
+export const isTamilJoinerBrokenPrefix = (cp, nextCp, clusterHasBase) =>
+  !clusterHasBase && cp === 0x200D && nextCp === 0x0BC6;
+
 export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
@@ -928,6 +936,8 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           const cp = cRec.ch.codePointAt(0);
           const isMark = /\p{M}/u.test(cRec.ch);
           const isWs = /^\s+$/.test(cRec.ch);
+          const clusterNextCp = ci + 1 < line.chars.length ? line.chars[ci + 1].ch.codePointAt(0) : -1;
+          const tamilJoinerBrokenPrefix = isTamilJoinerBrokenPrefix(cp, clusterNextCp, clusterHasBase);
           // DM-1157 / DM-1215: also probe SMP category-Lo cluster-initial letters
           // (e.g. Soyombo U+11A84) and category-Lm modifier letters (e.g. Kirat
           // Rai U+16D6B/6C), which the USE shaper circles when orphaned. Scoped to
@@ -951,6 +961,10 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
             // (no orphan-state change).
           } else if (isWs) {
             clusterHasBase = false;
+          } else if (tamilJoinerBrokenPrefix) {
+            // Keep the cluster base-less so U+0BC6 is probed on the next
+            // iteration. Treating every Cf this way would break ordinary ZWJ
+            // sequences; this is the measured Indic-machine production only.
           } else {
             clusterHasBase = true; // a normal base char (incl. uncircled letters)
           }
