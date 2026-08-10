@@ -151,6 +151,22 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > stays Courier). Measured end-to-end on the oracle: lang=ja 645/645
 > agree-exact (was 632 mismatches), ko / zh-Hans / zh-Hant all zero.
 >
+> **An UNDECLARED family reaches these script-keyed routes via a capture-side
+> rewrite.** An element with no author `font-family` anywhere in its cascade is
+> a Blink `kStandardFamily` description → `settings.Standard(script)`
+> (`font_selector.cc:71-75`, rev 7d859f27), so its Latin AND CJK both paint the
+> script-keyed standard face — but `getComputedStyle().fontFamily` serializes
+> that case to the concrete standard NAME ("Times"), indistinguishable from a
+> declared `font-family: Times`. The capture script detects the UA-default case
+> (`src/capture/script/font-family-default.ts`) and rewrites the family to the
+> `-webkit-standard` keyword, which the resolver already routes script-keyed
+> above. Detection: the computed first family must be CONCRETE (a UA rule only
+> ever sets a generic, e.g. `pre`→`monospace`, already handled), with NO author
+> declaration on self-or-ancestor — inline style (incl. the `font` shorthand), a
+> matching author rule, or a `<font face>` attribute — and form controls
+> (`input`/`textarea`/`select`/`button`, UA `font: -webkit-small-control`, a
+> concrete SYSTEM font not kStandardFamily) plus their descendants excluded.
+>
 > **Quoted generic spellings are literal family names, not keywords.** The
 > splitter carries a per-entry `generic` bit: an entry is a generic KEYWORD
 > only when it was unquoted AND spelled in canonical lowercase
