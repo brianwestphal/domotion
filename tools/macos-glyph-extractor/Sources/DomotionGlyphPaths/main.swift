@@ -1342,10 +1342,14 @@ func handleEnvelope(_ envelope: [String: Any], fontCache: inout [String: FontEnt
     for spec in fontSpecs {
         guard let ref = spec["ref"] as? String else { continue }
         let key = fontCacheKey(spec)
-        if let cached = fontCache[key] {
+        // Blink passes the current run's PrimarySimpleFontDataWithSpace to
+        // CTFontCreateForString (font_cache_mac.mm:128-150, rev 7d859f27).
+        // CoreText's cascade state must therefore not cross request envelopes.
+        let requestScoped = (spec["requestScoped"] as? NSNumber)?.boolValue == true
+        if !requestScoped, let cached = fontCache[key] {
             fonts[ref] = cached
         } else if let entry = try? openFont(spec: spec) {
-            fontCache[key] = entry
+            if !requestScoped { fontCache[key] = entry }
             fonts[ref] = entry
         }
         // On open failure the ref is simply absent; queries referencing it

@@ -1702,6 +1702,13 @@ than incidental.
 | Linux | persistent `--serve` over spawned stdio | ~0.4 ms |
 | Windows | persistent `--serve-pipe` over a **named pipe** (DM-1889) | ~0.5 ms (was ~42 ms, one process per call) |
 
+The macOS channel retains its process-lifetime cache for glyph, metadata, and
+shaping requests, but fallback envelopes mark the cascade base `requestScoped`.
+The helper opens a fresh `CTFontRef` for each run before
+`CTFontCreateForString`, matching Blink's current-run
+`PrimarySimpleFontDataWithSpace` input and preventing handle-local CoreText
+cascade state from leaking into a later request.
+
 The channel is synchronous — `writeSync`/`readSync` against a real file
 descriptor — because the whole resolution path is synchronous. On Windows, Node
 reports a spawned child's stdio pipes as fd `-1`, so that channel could not be

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmykvt702erwj4y",
+          "message": {
+            "text": "The cache bypass is intentionally request-scoped instead of adding another CSS field to fontCacheKey: the missing identity is the run/request itself. Blink supplies the current run’s PrimarySimpleFontDataWithSpace to CTFontCreateForString (fontcachemac.mm:128-150, Chromium 7d859f27), while glyph/meta/shape queries still benefit from the persistent cache.",
+            "markdown": "The cache bypass is intentionally request-scoped instead of adding another CSS field to `fontCacheKey`: the missing identity is the run/request itself. Blink supplies the current run’s `PrimarySimpleFontDataWithSpace` to `CTFontCreateForString` (`font_cache_mac.mm:128-150`, Chromium `7d859f27`), while glyph/meta/shape queries still benefit from the persistent cache."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                },
+                "region": {
+                  "startLine": 1342,
+                  "endLine": 1357,
+                  "snippet": {
+                    "text": "    for spec in fontSpecs {\n        guard let ref = spec[\"ref\"] as? String else { continue }\n        let key = fontCacheKey(spec)\n        // Blink passes the current run's PrimarySimpleFontDataWithSpace to\n        // CTFontCreateForString (font_cache_mac.mm:128-150, rev 7d859f27).\n        // CoreText's cascade state must therefore not cross request envelopes.\n        let requestScoped = (spec[\"requestScoped\"] as? NSNumber)?.boolValue == true\n        if !requestScoped, let cached = fontCache[key] {\n            fonts[ref] = cached\n        } else if let entry = try? openFont(spec: spec) {\n            if !requestScoped { fontCache[key] = entry }\n            fonts[ref] = entry\n        }\n        // On open failure the ref is simply absent; queries referencing it\n        // report \"fontRef missing or unknown\" rather than aborting the batch.\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2055"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2512be49b75cdd06563641046ff891fc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "0c0a529726c1bc9fba8a48e66372c142fd31ff3b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

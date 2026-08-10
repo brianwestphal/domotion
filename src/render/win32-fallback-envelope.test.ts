@@ -37,12 +37,15 @@ describe("system-fallback envelope: Windows declares no base font (DM-1889)", ()
     // of them whichever way it goes.
     const env = buildFallbackEnvelope("HelveticaNeue", [0x4e00], REQ, "darwin");
     expect(env.fonts).toHaveLength(1);
-    expect(env.fonts[0]).toMatchObject({ ref: "base", postscriptName: "HelveticaNeue", size: 16 });
+    expect(env.fonts[0]).toMatchObject({
+      ref: "base", postscriptName: "HelveticaNeue", size: 16, requestScoped: true,
+    });
   });
 
   it("declares a base font on linux too", () => {
     const env = buildFallbackEnvelope("DejaVuSans", [0x4e00], REQ, "linux");
     expect(env.fonts).toHaveLength(1);
+    expect(env.fonts[0]?.requestScoped).toBeUndefined();
   });
 
   it("keeps ONE query shape across all three platforms", () => {

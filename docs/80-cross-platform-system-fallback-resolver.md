@@ -462,6 +462,13 @@ DM-1419 baseline work), so nothing else needs re-seeding for the flip.
 
 ## The macOS answer is order-dependent for ideographs — the document cache
 
+The persistent helper's font cache excludes fallback cascade bases. Node marks
+those macOS font specs `requestScoped`, so each envelope opens the current run's
+base afresh while glyph, metadata, and shaping fonts remain cached. This mirrors
+Blink's per-run `PrimarySimpleFontDataWithSpace` input to
+`CTFontCreateForString` (`mac/font_cache_mac.mm:128-150`, Chromium `7d859f27`)
+and prevents CoreText state on a reused base handle from crossing runs.
+
 Chrome-on-macOS does not resolve ideograph fallback per codepoint. For any
 codepoint with the Unicode property `[:Ideographic=Yes:]`, Blink caches the
 result of the system-fallback ask (CoreText cascade + in-family re-selection)

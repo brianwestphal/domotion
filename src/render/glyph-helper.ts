@@ -226,7 +226,7 @@ export function measureOutlineOffsetY(
 
 // Spawn the helper once, request meta + a batch of glyphs in one envelope.
 interface HelperRequest {
-  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; size: number; variations?: Record<string, number> }>;
+  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; size: number; variations?: Record<string, number>; requestScoped?: boolean }>;
   queries: Array<
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
@@ -1490,6 +1490,10 @@ export function buildFallbackEnvelope(
     fonts: platform === "win32" ? [] : [{
       ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
       ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
+      // CoreText's cascade base belongs to the current run. The persistent
+      // helper may cache ordinary opened faces, but sharing this CTFontRef
+      // between envelopes lets its cascade state leak into later Han queries.
+      ...(platform === "darwin" ? { requestScoped: true } : {}),
       // DM-1859: the platform UI font, built the way `MatchSystemUIFont` builds
       // it. The helper derives the symbolic traits from these CSS values itself
       // (Blink's `kBoldThreshold` is 600 and lives on that side), so pass the
