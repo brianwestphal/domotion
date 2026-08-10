@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnroaiixgpucpfi",
+          "message": {
+            "text": "The automatic split is sized from the failed authoritative run, where Windows reached only stack 50 of 59 at the six-hour ceiling; 10 shards cap it at 36 stacks, while 8 caps macOS at 44 and Linux keeps its proven six-way split. A numeric override remains available for deliberate experiments, and each aggregate cell carries its own expected count so missing shards cannot be mistaken for improvement.",
+            "markdown": "The automatic split is sized from the failed authoritative run, where Windows reached only stack 50 of 59 at the six-hour ceiling; 10 shards cap it at 36 stacks, while 8 caps macOS at 44 and Linux keeps its proven six-way split. A numeric override remains available for deliberate experiments, and each aggregate cell carries its own expected count so missing shards cannot be mistaken for improvement."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/font-conformance-synthetic.yml"
+                },
+                "region": {
+                  "startLine": 92,
+                  "endLine": 120,
+                  "snippet": {
+                    "text": "          requested=\"${{ inputs.shards }}\"\n          if [ \"$requested\" = auto ]; then\n            macos_n=8\n            linux_n=6\n            windows_n=10\n          elif [[ \"$requested\" =~ ^[1-9][0-9]*$ ]]; then\n            macos_n=\"$requested\"\n            linux_n=\"$requested\"\n            windows_n=\"$requested\"\n          else\n            echo \"::error::shards must be 'auto' or a positive integer (got '$requested')\"\n            exit 2\n          fi\n          matrix() {\n            local n=\"$1\"\n            local list\n            list=$(seq 1 \"$n\" | paste -sd, -)\n            printf '{\"shard\":[%s],\"total\":[%s]}' \"$list\" \"$n\"\n          }\n          echo \"macos_matrix=$(matrix \"$macos_n\")\" >> \"$GITHUB_OUTPUT\"\n          echo \"linux_matrix=$(matrix \"$linux_n\")\" >> \"$GITHUB_OUTPUT\"\n          echo \"windows_matrix=$(matrix \"$windows_n\")\" >> \"$GITHUB_OUTPUT\"\n          sel=\"${{ inputs.os }}\"\n          on() { [ \"$sel\" = \"$1\" ] || [ \"$sel\" = \"all\" ] && echo true || echo false; }\n          echo \"macos_on=$(on macos)\" >> \"$GITHUB_OUTPUT\"\n          echo \"linux_on=$(on linux)\" >> \"$GITHUB_OUTPUT\"\n          echo \"windows_on=$(on windows)\" >> \"$GITHUB_OUTPUT\"\n          if [ \"$sel\" = \"all\" ]; then\n            echo \"os_matrix=[{\\\"os\\\":\\\"macos\\\",\\\"expected\\\":$macos_n},{\\\"os\\\":\\\"linux\\\",\\\"expected\\\":$linux_n},{\\\"os\\\":\\\"windows\\\",\\\"expected\\\":$windows_n}]\" >> \"$GITHUB_OUTPUT\""
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2069"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "20884dbaf02d5a715ec3bd292bdb2aa4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c62e9b4341884ef82d3a2d2a28958783d9051938",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

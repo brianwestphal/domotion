@@ -90,6 +90,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnroao63ilsp6ou",
+          "message": {
+            "text": "The progress prefix exposes both the current stack ordinal and the shard's assigned total. A canceled CI job now identifies its completed stack prefix directly, rather than leaving reviewers to count repeated stack headers around thousands of per-batch codepoint lines.",
+            "markdown": "The progress prefix exposes both the current stack ordinal and the shard's assigned total. A canceled CI job now identifies its completed stack prefix directly, rather than leaving reviewers to count repeated stack headers around thousands of per-batch codepoint lines."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 1337,
+                  "endLine": 1346,
+                  "snippet": {
+                    "text": "    for (const [stackIndex, spec] of stacks.entries()) {\n      let rs = prepareStack(spec, opts.lang);\n      if (rs == null) {\n        skippedStacks++;\n        process.stdout.write(`  SKIP (no resolvable primary): ${spec.fontFamily}\\n`);\n        continue;\n      }\n      process.stdout.write(\n        `  stack ${stackIndex + 1}/${stacks.length}: ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`\n        + ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(\", \")}]\\n`,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2069"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f8d4684d0677179d01609784c22f058a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c62e9b4341884ef82d3a2d2a28958783d9051938",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

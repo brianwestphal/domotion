@@ -44,8 +44,8 @@ on:
         options: [macos, linux, windows, all]
         default: macos
       shards:
-        description: 'Number of stack shards to fan out across'
-        default: '6'
+        description: 'Stack shards per platform. auto = macOS 8, Linux 6, Windows 10; a number overrides all platforms.'
+        default: 'auto'
       max_stacks:
         description: 'Cap on synthetic stacks (ordered by distance from the CSS initial/default state). 13 = one per generic; 351 = +every single-axis departure; empty = all 50,544.'
         default: '351'
@@ -79,28 +79,52 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.m.outputs.matrix }}
-      expected: ${{ steps.m.outputs.expected }}
-      os_list: ${{ steps.m.outputs.os_list }}
+      macos_matrix: ${{ steps.m.outputs.macos_matrix }}
+      linux_matrix: ${{ steps.m.outputs.linux_matrix }}
+      windows_matrix: ${{ steps.m.outputs.windows_matrix }}
+      os_matrix: ${{ steps.m.outputs.os_matrix }}
       macos_on: ${{ steps.m.outputs.macos_on }}
       linux_on: ${{ steps.m.outputs.linux_on }}
       windows_on: ${{ steps.m.outputs.windows_on }}
     steps:
       - id: m
         run: |
-          n="${{ inputs.shards }}"
-          list=$(seq 1 "$n" | paste -sd, -)
-          echo "matrix={\"shard\":[$list],\"total\":[$n]}" >> "$GITHUB_OUTPUT"
-          echo "expected=$n" >> "$GITHUB_OUTPUT"
+          requested="${{ inputs.shards }}"
+          if [ "$requested" = auto ]; then
+            macos_n=8
+            linux_n=6
+            windows_n=10
+          elif [[ "$requested" =~ ^[1-9][0-9]*$ ]]; then
+            macos_n="$requested"
+            linux_n="$requested"
+            windows_n="$requested"
+          else
+            echo "::error::shards must be 'auto' or a positive integer (got '$requested')"
+            exit 2
+          fi
+          matrix() {
+            local n="$1"
+            local list
+            list=$(seq 1 "$n" | paste -sd, -)
+            printf '{"shard":[%s],"total":[%s]}' "$list" "$n"
+          }
+          echo "macos_matrix=$(matrix "$macos_n")" >> "$GITHUB_OUTPUT"
+          echo "linux_matrix=$(matrix "$linux_n")" >> "$GITHUB_OUTPUT"
+          echo "windows_matrix=$(matrix "$windows_n")" >> "$GITHUB_OUTPUT"
           sel="${{ inputs.os }}"
           on() { [ "$sel" = "$1" ] || [ "$sel" = "all" ] && echo true || echo false; }
           echo "macos_on=$(on macos)" >> "$GITHUB_OUTPUT"
           echo "linux_on=$(on linux)" >> "$GITHUB_OUTPUT"
           echo "windows_on=$(on windows)" >> "$GITHUB_OUTPUT"
           if [ "$sel" = "all" ]; then
-            echo 'os_list=["macos","linux","windows"]' >> "$GITHUB_OUTPUT"
+            echo "os_matrix=[{\"os\":\"macos\",\"expected\":$macos_n},{\"os\":\"linux\",\"expected\":$linux_n},{\"os\":\"windows\",\"expected\":$windows_n}]" >> "$GITHUB_OUTPUT"
           else
-            echo "os_list=[\"$sel\"]" >> "$GITHUB_OUTPUT"
+            case "$sel" in
+              macos) expected="$macos_n" ;;
+              linux) expected="$linux_n" ;;
+              windows) expected="$windows_n" ;;
+            esac
+            echo "os_matrix=[{\"os\":\"$sel\",\"expected\":$expected}]" >> "$GITHUB_OUTPUT"
           fi
 
   sweep-macos:
@@ -109,7 +133,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.setup.outputs.macos_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -157,7 +181,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.setup.outputs.linux_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
@@ -193,7 +217,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.setup.outputs.windows_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -230,7 +254,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.setup.outputs.os_list) }}
+        include: ${{ fromJSON(needs.setup.outputs.os_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -244,7 +268,7 @@ jobs:
           node scripts/merge-font-conformance-shards.mjs \
             --shards shards \
             --os ${{ matrix.os }} \
-            --expected ${{ needs.setup.outputs.expected }} \
+            --expected ${{ matrix.expected }} \
             --out merged.json
       # Its OWN baseline. The synthetic slice and the harvested slice measure
       # different questions, and the comparator would refuse to compare them

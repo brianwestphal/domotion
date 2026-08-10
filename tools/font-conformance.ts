@@ -1334,7 +1334,7 @@ async function main(): Promise<number> {
     let peakMemoEntries = 0;
     const t0 = Date.now();
 
-    for (const spec of stacks) {
+    for (const [stackIndex, spec] of stacks.entries()) {
       let rs = prepareStack(spec, opts.lang);
       if (rs == null) {
         skippedStacks++;
@@ -1342,7 +1342,7 @@ async function main(): Promise<number> {
         continue;
       }
       process.stdout.write(
-        `  stack ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`
+        `  stack ${stackIndex + 1}/${stacks.length}: ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`
         + ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(", ")}]\n`,
       );
       // Ask Chrome for this stack's primary before sweeping it, and record it.

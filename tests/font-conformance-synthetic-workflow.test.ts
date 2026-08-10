@@ -126,7 +126,22 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
   it("tells the aggregate how many shards to expect", () => {
     // A run whose shards died would otherwise merge the survivors into a smaller
     // mismatch total, which reads as an improvement.
-    expect(jobs["aggregate"]).toMatch(/--expected \$\{\{ needs\.setup\.outputs\.expected \}\}/);
+    expect(jobs["aggregate"]).toMatch(/--expected \$\{\{ matrix\.expected \}\}/);
+  });
+
+  it("uses bounded platform-specific fan-out by default", () => {
+    // Six shards put 59 stacks on each runner. The authoritative rule-v2 run
+    // reached only 49 on Windows before GitHub's six-hour job ceiling killed it,
+    // and the last queued macOS shard hit the same ceiling. Keep both comfortably
+    // below that bound while avoiding unnecessary Linux runner fan-out.
+    expect(yaml).toMatch(/shards:[\s\S]{0,300}?default: 'auto'/);
+    expect(jobs["setup"]).toMatch(/macos_n=8/);
+    expect(jobs["setup"]).toMatch(/linux_n=6/);
+    expect(jobs["setup"]).toMatch(/windows_n=10/);
+    expect(jobs["sweep-macos"]).toContain("needs.setup.outputs.macos_matrix");
+    expect(jobs["sweep-linux"]).toContain("needs.setup.outputs.linux_matrix");
+    expect(jobs["sweep-windows"]).toContain("needs.setup.outputs.windows_matrix");
+    expect(jobs["setup"]).toContain("shards must be 'auto' or a positive integer");
   });
 
   it("defaults the codepoint stride to 1, so the default slice is the full universe", () => {
