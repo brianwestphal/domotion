@@ -9188,6 +9188,30 @@ function sfProCoverageOtfKey(): string | null {
  * can open (a webfont buffer, an unresolvable key) — the run then keeps whatever
  * shaping it had.
  */
+const LINUX_UNIFONT_DEFAULT_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x0F00, 0x0FFF], [0x07C0, 0x07FF], [0x0840, 0x085F], [0xA840, 0xA87F],
+  [0x1B00, 0x1B7F], [0xA980, 0xA9DF], [0x11080, 0x110CF], [0x11000, 0x1107F],
+  [0x1E900, 0x1E95F], [0x10A00, 0x10A5F],
+];
+
+/**
+ * Face-aware addition to the script-wide HarfBuzz routing. Noble Linux's
+ * Unifont / Unifont Upper GSUB selects DFLT for these ten scripts, so HarfBuzz
+ * rev 4de187d `hb_ot_shaper_categorize` dispatches its DEFAULT shaper rather
+ * than USE. Routing the measured resolved face through real HarfBuzz expresses
+ * that decision; a pure codepoint table cannot. Other faces (for example
+ * FreeSerif selecting `sinh`) retain their script-specific plan.
+ */
+export function resolvedFaceNeedsHarfbuzzShaping(
+  cp: number,
+  fontKey: string,
+  platform: NodeJS.Platform = hostPlatform(),
+): boolean {
+  if (usesHarfbuzzShaping(cp)) return true;
+  if (platform !== "linux" || (fontKey !== "u-unifont" && fontKey !== "u-unifont-upper")) return false;
+  return LINUX_UNIFONT_DEFAULT_SHAPER_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);
+}
+
 function harfbuzzShapedScriptOverride(
   cp: number,
   res: FontResolution,
@@ -9198,7 +9222,7 @@ function harfbuzzShapedScriptOverride(
   slant: number,
   variationSettings: Record<string, number> | undefined,
 ): FontResolution {
-  if (!res.covered || !usesHarfbuzzShaping(cp)) return res;
+  if (!res.covered || !resolvedFaceNeedsHarfbuzzShaping(cp, res.key)) return res;
   const fvs = res.key === primaryFontKey ? variationSettings : undefined;
   const base = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant, fvs));
   if (base == null) return res;
@@ -9287,7 +9311,7 @@ export function harfbuzzShapedRunOverride(
   if (base.shapesWithHarfbuzz === true) return base;
   let routed = false;
   for (const ch of runText) {
-    if (usesHarfbuzzShaping(ch.codePointAt(0)!)) { routed = true; break; }
+    if (resolvedFaceNeedsHarfbuzzShaping(ch.codePointAt(0)!, fontKey)) { routed = true; break; }
   }
   if (!routed) return base;
   const src = getFontSourceInfo(base);

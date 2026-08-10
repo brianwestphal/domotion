@@ -951,7 +951,7 @@ flowchart TD
   F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
   F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(both modes: primary .notdef · paths keeps ONE deliberate<br/>exception — an uncovered EMOJI pins the chain tail so the<br/>raster-overlay advance stays aligned)"]
-  FCH & F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>usesHarfbuzzShaping(cp)? (HARFBUZZ_SHAPED_RANGES)"}
+  FCH & F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>resolvedFaceNeedsHarfbuzzShaping(cp, res.key)?<br/>(script-wide ranges + measured Linux Unifont face/script pairs)"}
   FHB -->|"no (every other codepoint)"| FHB0["resolution unchanged"]
   FHB -->|"yes"| FHB1["shapingFaceFor(res.key, weight, size, slant, fvs) →<br/>makeHarfbuzzShapingInstance(base, path, faceIndex, size, axes,<br/>{ outlinesFromBase: true })<br/>HarfBuzz supplies ids / positions / clusters ·<br/>base engine still draws (base.getGlyph(id))<br/>+ carryFontInstanceMetadata(proxy, base)"]
 ```
@@ -968,7 +968,13 @@ Notes:
   `outlinesFromBase` mode. HarfBuzz then supplies glyph ids, positions and
   clusters (it is the engine Chrome runs), and each glyph's outline still comes
   from `base.getGlyph(id)`, which is well-defined because it is the same file
-  and therefore the same gid space.
+  and therefore the same gid space. The decision also carries a narrow
+  resolved-face exception on noble Linux: Unifont / Unifont Upper select GSUB
+  `DFLT` for measured Tibetan, NKo, Mandaic, Phags-pa, Balinese, Javanese,
+  Kaithi, Brahmi, Adlam and Kharoshthi runs, so real HarfBuzz chooses DEFAULT
+  for those faces even though the scripts normally dispatch to USE. Other
+  resolved faces keep their script-selected plan (for example FreeSerif
+  `sinh` remains USE).
 
 - **The reroute also applies at RUN level, because the resolver alone cannot
   reach every run** (`harfbuzzShapedRunOverride`, `font-resolution.ts`). Under
