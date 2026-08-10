@@ -99,7 +99,10 @@ Both consult the SAME resolver (`resolveFontForCodepoint`) at the SAME
 granularity: per FAILING SHAPED CLUSTER (the Blink shape-then-requeue
 mechanism, `src/render/cluster-fallback.ts`, docs/113 — default-on,
 `DOMOTION_CLUSTER_FALLBACK=0` restores the per-codepoint legacy walk in both
-modes). The paths entry (`splitTextIntoGlyphPathRuns`,
+modes). Both live run splitters pass the run's complete OpenType feature list
+into that verdict-shaping call, so disables and explicit feature values can
+change `.notdef` coverage before a fallback face is assigned, just as they do
+in Blink's `ShapeRange(buffer, font_features, ...)`. The paths entry (`splitTextIntoGlyphPathRuns`,
 `src/render/text-to-path.ts`) invokes the shared splitter with
 `mode: "paths"`, which adds the emitter's two contracts: the **raster-emoji
 terminal** (an uncovered emoji pins the last chain entry's stable `.notdef`

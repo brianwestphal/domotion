@@ -219,9 +219,11 @@ export function splitTextIntoGlyphPathRuns(
   stretch: number,
   fontVariantEmoji: FontVariantEmojiOverride | undefined,
   fontFamily: string,
+  /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
+  features?: string[],
 ): FontRun[] {
   if (clusterFallbackEnabled()) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths" });
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths", features });
     if (shaped != null) return shaped;
   }
   const runs: FontRun[] = [];
@@ -489,7 +491,7 @@ export function textToPathMarkup(
   // Math-Alphanumeric base letters, dotted-circle clusters); those render
   // through the run-text / min-x anchored branch — the per-char path (which
   // reads `text` by index) can't be used for them.
-  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily);
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
@@ -1510,6 +1512,8 @@ function splitTextIntoFontRuns(
    *  Linux live resolver's standard-style retry — see
    *  `resolveSystemFallbackKeyForCp`'s `declaredFamily` param. */
   fontFamily?: string,
+  /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
+  features?: string[],
 ): FontRun[] {
   // Default: fallback at shaped-cluster granularity — Blink's shape-then-
   // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
@@ -1517,7 +1521,7 @@ function splitTextIntoFontRuns(
   // falls through to the legacy walk, and `DOMOTION_CLUSTER_FALLBACK=0`
   // restores it wholesale for an A/B. See docs/113-cluster-granularity-fallback.md.
   if (clusterFallbackEnabled()) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily);
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { features });
     if (shaped != null) return shaped;
   }
   const runs: FontRun[] = [];
@@ -1773,7 +1777,7 @@ function renderTextAsEmbedded(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features);
   if (runs.length === 0) return null;
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -3060,7 +3064,7 @@ export function measureInkMetrics(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily, features);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
@@ -3356,4 +3360,3 @@ export function computeSkipInkGaps(
   }
   return mergeGaps(rawGaps);
 }
-

@@ -93,4 +93,43 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     );
     expect(spy.mock.calls.length).toBeGreaterThan(callsAfterFirst);
   });
+
+  it("the live glyph-path splitter lets a feature-dependent verdict change font assignment", async () => {
+    const { _clearClusterVerdictCache } = await import("./cluster-fallback.js");
+    const { resolveFont, resolveFontKey, resolveFontKeyChain, stackPrimaryIsSystemUi } = await import("./font-resolution.js");
+    const { splitTextIntoGlyphPathRuns } = await import("./text-to-path.js");
+    const { harfbuzzShapeRun } = await import("./harfbuzz-shaper.js");
+    const spy = harfbuzzShapeRun as unknown as ReturnType<typeof vi.fn>;
+    const passthrough = spy.getMockImplementation()!;
+    const family = "Helvetica";
+    const key = resolveFontKey(family);
+    const font = resolveFont(family, 400, 32, 0)!;
+    const chain = resolveFontKeyChain(family);
+    let primaryPath: string | undefined;
+
+    // Make the primary face's verdict discriminate on the live feature list:
+    // default shaping keeps its real non-zero glyph, while -liga reports
+    // .notdef and therefore requeues the cluster to a fallback face. This pins
+    // caller plumbing and assignment, rather than merely observing an argument.
+    spy.mockImplementation((...args: unknown[]) => {
+      primaryPath ??= args[0] as string;
+      const result = passthrough(...args);
+      const features = args[6] as string[] | undefined;
+      if (args[0] !== primaryPath || !features?.includes("-liga") || result == null) return result;
+      return { ...result, glyphs: result.glyphs.map((glyph: { id: number }) => ({ ...glyph, id: 0 })) };
+    });
+
+    const split = (features?: string[]) => splitTextIntoGlyphPathRuns(
+      "f", font, key, 400, 32, 0, undefined, undefined, chain,
+      stackPrimaryIsSystemUi(family), 100, undefined, family, features,
+    );
+    _clearClusterVerdictCache();
+    const defaultRuns = split();
+    primaryPath = undefined;
+    _clearClusterVerdictCache();
+    const vetoedRuns = split(["-liga"]);
+
+    expect(defaultRuns.map((run) => run.fontKey)).toEqual([key]);
+    expect(vetoedRuns.map((run) => run.fontKey)).not.toEqual([key]);
+  });
 });
