@@ -73,11 +73,11 @@ export interface WebfontSynthesisFace {
    *  distinction only changes whether the variable-`slnt`-axis exemption
    *  below is allowed to fire — see `webfontSyntheticItalic`, the mirror of
    *  `webfontSyntheticBold`. */
-  declaredStyleCaps: readonly [number, number] | null;
+  declaredStyleCaps?: readonly [number, number] | null;
   /** The buffer's own `slnt` fvar axis MINIMUM, in the axis's own OpenType
    *  sign convention (negative = right-leaning — opposite of CSS), or null
    *  when the buffer exposes no `slnt` axis (a static face). */
-  slntAxisMin: number | null;
+  slntAxisMin?: number | null;
   /** Whether the BASE buffer declares itself italic — Skia's
    *  `SkTypeface::isItalic()`, i.e. `fontStyle().slant() != kUpright_Slant`
    *  (`external/skia` `src/core/SkTypeface.cpp:495-497`, rev ebf5052 — read
@@ -89,7 +89,7 @@ export interface WebfontSynthesisFace {
    *  between the two revisions, so the drift risk here is negligible).
    *  Domotion's proxy for the underlying fact — OS/2 `fsSelection` bit 0
    *  (ITALIC), the same table `baseIsBold` reads bit 5 from. */
-  baseIsItalic: boolean;
+  baseIsItalic?: boolean;
 }
 
 export interface FontInstance {
