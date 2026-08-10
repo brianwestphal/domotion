@@ -888,6 +888,36 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
   });
 });
 
+describe("Tamil/Malayalam/Sinhala vowel constraints missing from vendored HarfBuzz", () => {
+  const pairs = [
+    [0x0B85, 0x0BC2],
+    [0x0D07, 0x0D57], [0x0D09, 0x0D57], [0x0D0E, 0x0D46],
+    [0x0D12, 0x0D3E], [0x0D12, 0x0D57],
+    [0x0D85, 0x0DCF], [0x0D85, 0x0DD0], [0x0D85, 0x0DD1],
+    [0x0D8B, 0x0DDF], [0x0D8F, 0x0DDF], [0x0D94, 0x0DDF],
+    [0x0D8D, 0x0DD8],
+    [0x0D91, 0x0DCA], [0x0D91, 0x0DD9], [0x0D91, 0x0DDA],
+    [0x0D91, 0x0DDC], [0x0D91, 0x0DDD], [0x0D91, 0x0DDE],
+  ] as const;
+  const fam = '"Arial Unicode MS","Apple Symbols",sans-serif';
+
+  it.skipIf(!MACOS_FONTS_DC)("inserts exactly one mid-sequence circle for every current HarfBuzz table row", () => {
+    for (const [base, vowel] of pairs) {
+      const source = String.fromCodePoint(base, vowel);
+      const result = insertSyntheticDottedCircles(source, [10, 20], fam, 400, 32, 0, undefined, undefined);
+      expect(result.text).toBe(String.fromCodePoint(base, 0x25CC, vowel));
+      expect(result.xOffsets).toEqual([10, 20, 20]);
+    }
+  });
+
+  it.skipIf(!MACOS_FONTS_DC)("leaves near-neighbor and unrelated base+mark pairs untouched", () => {
+    for (const [base, vowel] of [[0x0B85, 0x0BC1], [0x0D07, 0x0D56], [0x0D85, 0x0DCE], [0x0041, 0x0301]]) {
+      const source = String.fromCodePoint(base, vowel);
+      expect(insertSyntheticDottedCircles(source, undefined, fam, 400, 32, 0, undefined, undefined).text).toBe(source);
+    }
+  });
+});
+
 // DM-1158: orphaned, uncovered variation selectors / tags must be HIDDEN (Chrome
 // paints nothing), not routed to the CoreText last-resort tofu. The pure range
 // predicate is cross-platform; the strip itself is macOS-gated (needs the real

@@ -1345,6 +1345,22 @@ export function insertSyntheticDottedCircles(
     const ch = text.slice(i, i + chLen);
     const isMark = /\p{M}/u.test(ch);
     const isWs = chLen === 1 && /\s/.test(ch);
+    const nextCp = i + chLen < text.length ? text.codePointAt(i + chLen)! : -1;
+    if (needsSyntheticVowelConstraintCircle(cp, nextCp)) {
+      // Current Chromium's HarfBuzz inserts U+25CC BETWEEN these invalid
+      // base+dependent-vowel pairs before shaping. Our vendored harfbuzzjs
+      // v1.4.0 predates these generated-table cases and CoreText does not
+      // supply them either. Preserve the source anchors; the inserted circle
+      // borrows the following vowel sign's captured anchor.
+      outText += ch;
+      if (haveX) for (let k = 0; k < chLen; k++) outX.push(xOffsets![i + k] ?? xOffsets![i] ?? 0);
+      outText += "◌";
+      if (haveX) outX.push(xOffsets![i + chLen] ?? xOffsets![i] ?? 0);
+      clusterHasBase = true;
+      changed = true;
+      i += chLen;
+      continue;
+    }
     // DM-1126 / DM-1157 etc.: the capture layer probed Chrome's real shaper and
     // recorded which orphaned codepoints it circles (`coveredCircleSet`). When
     // that data is present it is the AUTHORITY — it both adds circles the static
@@ -1481,6 +1497,27 @@ export function insertSyntheticDottedCircles(
   }
   if (!changed) return { text, xOffsets };
   return { text: outText, xOffsets: haveX ? outX : undefined };
+}
+
+/**
+ * Tamil, Malayalam and Sinhala rows added to HarfBuzz's generated vowel-
+ * constraint preprocessor after vendored harfbuzzjs v1.4.0. Transcribed from
+ * `external/harfbuzz/src/hb-ot-shaper-vowel-constraints.cc` (rev 4de187d),
+ * cases HB_SCRIPT_TAMIL / MALAYALAM / SINHALA.
+ */
+export function needsSyntheticVowelConstraintCircle(base: number, next: number): boolean {
+  if (base === 0x0B85) return next === 0x0BC2;
+  if (base === 0x0D07 || base === 0x0D09) return next === 0x0D57;
+  if (base === 0x0D0E) return next === 0x0D46;
+  if (base === 0x0D12) return next === 0x0D3E || next === 0x0D57;
+  if (base === 0x0D85) return next === 0x0DCF || next === 0x0DD0 || next === 0x0DD1;
+  if (base === 0x0D8B || base === 0x0D8F || base === 0x0D94) return next === 0x0DDF;
+  if (base === 0x0D8D) return next === 0x0DD8;
+  if (base === 0x0D91) {
+    return next === 0x0DCA || next === 0x0DD9 || next === 0x0DDA
+      || next === 0x0DDC || next === 0x0DDD || next === 0x0DDE;
+  }
+  return false;
 }
 
 // DM-655: split text into per-codepoint font runs the same way
