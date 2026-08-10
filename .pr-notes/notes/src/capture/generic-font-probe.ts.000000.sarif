@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmzk2a7vbmupvse",
+          "message": {
+            "text": "The live probe requires two consecutive identical paints because Playwright’s asynchronous Page.setFontFamilies update can lose the first-layout race to Blink’s constructor defaults. A third bounded reading allows a transient first answer to settle; continued disagreement returns null so the calibrated static routes remain authoritative instead of caching a coin flip.",
+            "markdown": "The live probe requires two consecutive identical paints because Playwright’s asynchronous `Page.setFontFamilies` update can lose the first-layout race to Blink’s constructor defaults. A third bounded reading allows a transient first answer to settle; continued disagreement returns null so the calibrated static routes remain authoritative instead of caching a coin flip."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 149,
+                  "endLine": 156,
+                  "snippet": {
+                    "text": "    // Playwright's Page.setFontFamilies update can race the first layout on a\n    // loaded runner. Require two consecutive identical paints; a third pass\n    // lets the settled Playwright values win over a constructor-default first.\n    const first = await read();\n    const second = await read();\n    if (probeResultsEqual(first, second)) return second;\n    const third = await read();\n    return probeResultsEqual(second, third) ? third : null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7948
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2053"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "09332cd55fc5f5e3b86f516512020cf0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "29cf78013669c9c24892ac3e393d9e0f568ce4a5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

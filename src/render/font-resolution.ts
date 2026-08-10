@@ -24,7 +24,11 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
-import { perScriptGenericFamily, firstAvailableOrFirst } from "./generic-script-families.js";
+import {
+  firstAvailableOrFirst,
+  localeToScriptCodeForFontSelection,
+  perScriptGenericFamily,
+} from "./generic-script-families.js";
 import { faceHasTrakAndStat, hbShapingBaseOf, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
@@ -174,11 +178,11 @@ export interface FontInstance {
    * outline-derived heuristic (`hasSlantAxis` / `isRoutedItalicCut` /
    * `resolvedItalicAngle`).
    *
-   * Wired only for macOS today. Linux and Windows would need
-   * `typeface->isItalic()` from their native glyph extractors
-   * (`tools/{linux,win32}-glyph-extractor`), which do not currently report
-   * it — so `faceNeedsSyntheticOblique` never reads this field on those two
-   * platforms, and the outline-derived heuristic is their whole signal.
+   * Linux's helper also reports its native FreeType italic style bit. The
+   * Windows reports `IDWriteFontFace3::GetStyle()`, the exact source Chromium's
+   * pinned `DWriteFontTypeface::GetStyle` reads. The field stays optional for
+   * older helper/DirectWrite versions; those paths keep the outline heuristic
+   * in `faceNeedsSyntheticOblique`.
    */
   faceIsItalicTrait?: boolean;
   /**
@@ -7885,19 +7889,24 @@ function authorFamilyAvailable(name: string): boolean {
 const SESSION_PROBED_GENERICS = new Set([
   "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
 ]);
-let sessionGenericFamilyOverrides: ReadonlyMap<string, string> | null = null;
+export interface SessionGenericFamilyOverrides {
+  common: ReadonlyMap<string, string>;
+  /** UScriptCode name → generic keyword → painted family. */
+  byScript: ReadonlyMap<string, ReadonlyMap<string, string>>;
+}
+let sessionGenericFamilyOverrides: SessionGenericFamilyOverrides | null = null;
 
-/** Install (or clear, with null) the session's probed generic→family map.
- *  Keys are the lower-case generic keywords; values are the platform family
- *  names the capture session painted for them (e.g. "monospace" → "Courier"). */
+/** Install (or clear, with null) the session's Common and per-script painted
+ *  generic families. Generic keys are lower-case; script keys are Blink's
+ *  UScriptCode names from `LocaleToScriptCodeForFontSelection`. */
 export function setSessionGenericFamilyOverrides(
-  map: ReadonlyMap<string, string> | null,
+  overrides: SessionGenericFamilyOverrides | null,
 ): void {
-  sessionGenericFamilyOverrides = map;
+  sessionGenericFamilyOverrides = overrides;
 }
 
 /** Test/introspection accessor for the installed session overrides. */
-export function getSessionGenericFamilyOverrides(): ReadonlyMap<string, string> | null {
+export function getSessionGenericFamilyOverrides(): SessionGenericFamilyOverrides | null {
   return sessionGenericFamilyOverrides;
 }
 
@@ -7933,8 +7942,16 @@ function matchFamilyNameToKey(
   // walks on, exactly as a failed typeface creation does in Blink. No entry:
   // fall through to the Common-script routes below
   // (`generic_font_family_settings.cc:105-107`). Ordered ahead of the
-  // session probe, which measures the Common script only.
+  // session probe's Common answer. A probed answer for this exact script wins
+  // over the static transcription because it includes live host availability
+  // and substitution.
   if (generic && lang != null) {
+    const script = localeToScriptCodeForFontSelection(lang);
+    const probed = sessionGenericFamilyOverrides?.byScript.get(script)?.get(name);
+    if (probed != null) {
+      const key = matchFamilyNameToKey(probed.toLowerCase(), false);
+      if (key != null) return key;
+    }
     const scriptValue = perScriptGenericFamily(hostPlatform(), lang, name);
     if (scriptValue != null) {
       const first = firstAvailableOrFirst(scriptValue, (fam) => authorFamilyAvailable(fam));
@@ -7970,7 +7987,7 @@ function matchFamilyNameToKey(
   // doesn't resolve to a key on this host, fall through to the static routes.
   // Quoted spellings are literal family names, so they bypass this route.
   if (generic && sessionGenericFamilyOverrides != null && SESSION_PROBED_GENERICS.has(name)) {
-    const probed = sessionGenericFamilyOverrides.get(name);
+    const probed = sessionGenericFamilyOverrides.common.get(name);
     if (probed != null) {
       const probedName = probed.toLowerCase();
       if (probedName !== name) {

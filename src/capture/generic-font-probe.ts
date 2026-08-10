@@ -32,76 +32,146 @@
 // full binary vs headed) and Playwright's CDP update can even lose a race
 // against first layout on a loaded CI runner, no static table can be correct
 // for every session. When `DOMOTION_GENERIC_PROBE=1`, we instead ask the
-// capture session itself — render one hidden page with a span per generic and
-// read the painted family via CDP `CSS.getPlatformFontsForNode` — and route
-// the generic keywords to those families for the rest of the process
+// capture session itself — render one hidden page with Common and per-script
+// generic spans, read the painted family via CDP
+// `CSS.getPlatformFontsForNode`, and route the generic keywords to those
+// families for the rest of the process
 // (`setSessionGenericFamilyOverrides` in `src/render/font-resolution.ts`).
 // Default OFF: the calibrated static generic routes are unchanged unless the
 // flag is set.
 
 import type { BrowserContext, Page } from "@playwright/test";
 import { setSessionGenericFamilyOverrides } from "../render/font-resolution.js";
+import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
 
 /** The generic keywords probed. `standard` (no font-family) is intentionally
  *  excluded: capture reads the computed `font-family` stack, so an element
  *  with no declared family is handled by the renderer's default route, not by
  *  a generic keyword match. */
 const PROBED_GENERICS = ["serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
+const SCRIPT_PROBES = [
+  { lang: "ja", text: "日本語" },
+  { lang: "ko", text: "한국어" },
+  { lang: "zh-Hans", text: "简体中文" },
+  { lang: "zh-Hant", text: "繁體中文" },
+] as const;
+const SCRIPT_PROBED_GENERICS = ["serif", "sans-serif", "monospace"] as const;
+
+export interface SessionGenericFamilyProbe {
+  common: ReadonlyMap<string, string>;
+  /** UScriptCode name → generic keyword → painted family. */
+  byScript: ReadonlyMap<string, ReadonlyMap<string, string>>;
+}
+
+interface ProbeTarget {
+  id: string;
+  generic: string;
+  text: string;
+  lang: string | null;
+  script: string | null;
+}
+
+export function genericFamilyProbeTargets(): ProbeTarget[] {
+  const common = PROBED_GENERICS.map((generic, i) => ({
+    id: `gc${i}`, generic, text: "Regna", lang: null, script: null,
+  }));
+  const scripted = SCRIPT_PROBES.flatMap(({ lang, text }, scriptIndex) =>
+    SCRIPT_PROBED_GENERICS.map((generic, genericIndex) => ({
+      id: `gs${scriptIndex}-${genericIndex}`,
+      generic,
+      text,
+      lang,
+      script: localeToScriptCodeForFontSelection(lang),
+    })));
+  return [...common, ...scripted];
+}
 
 export function genericProbeArmed(): boolean {
   return process.env.DOMOTION_GENERIC_PROBE === "1";
 }
 
-/** Contexts already probed (or being probed) this process — one probe per
- *  browser context is enough: the settings are per-session, applied by
- *  Playwright at page init, and stable once a page has painted. */
-const probedContexts = new WeakSet<BrowserContext>();
+/** One shared task per browser context. Concurrent captures await the same
+ *  probe, and later captures reinstall that context's cached answer in case a
+ *  different context has since replaced the process-global renderer state. */
+const contextProbeTasks = new WeakMap<BrowserContext, Promise<SessionGenericFamilyProbe | null>>();
 
 /**
  * Ask THIS capture session which family each CSS generic keyword paints.
- * Returns a map from generic keyword to the painted platform family name
- * (e.g. "monospace" -> "Courier"), or null when the probe fails (non-CDP
- * browser, closed context, ...). Never throws.
+ * Returns Common and script-keyed maps from generic keyword to painted
+ * platform family name (e.g. "monospace" -> "Courier"), or null when the
+ * probe fails or never stabilizes. Never throws.
  */
 export async function probeSessionGenericFamilies(
   context: BrowserContext,
-): Promise<ReadonlyMap<string, string> | null> {
+): Promise<SessionGenericFamilyProbe | null> {
   let page: Page | null = null;
   try {
     page = await context.newPage();
-    const spans = PROBED_GENERICS.map(
-      (g, i) => `<span id="g${i}" style="font-family: ${g}; font-size: 32px;">Regna</span>`,
+    const targets = genericFamilyProbeTargets();
+    const spans = targets.map(
+      (target) => `<span id="${target.id}"${target.lang == null ? "" : ` lang="${target.lang}"`}`
+        + ` style="font-family: ${target.generic}; font-size: 32px;">${target.text}</span>`,
     ).join("<br>");
-    await page.setContent(`<!DOCTYPE html><meta charset="utf-8"><body>${spans}</body>`);
-    await page.evaluate(() => document.fonts.ready);
     const cdp = await context.newCDPSession(page);
     await cdp.send("DOM.enable");
     await cdp.send("CSS.enable");
-    const { root } = await cdp.send("DOM.getDocument");
-    const map = new Map<string, string>();
-    for (let i = 0; i < PROBED_GENERICS.length; i++) {
-      const { nodeId } = await cdp.send("DOM.querySelector", {
-        nodeId: root.nodeId,
-        selector: `#g${i}`,
-      });
-      if (nodeId === 0) continue;
-      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-      // The span is single-script Latin text; take the font that painted the
-      // most glyphs (there is essentially always exactly one entry).
-      const primary = fonts.reduce(
-        (best, f) => (best == null || f.glyphCount > best.glyphCount ? f : best),
-        null as (typeof fonts)[number] | null,
-      );
-      if (primary != null && primary.familyName !== "") {
-        map.set(PROBED_GENERICS[i], primary.familyName);
+    const read = async (): Promise<SessionGenericFamilyProbe | null> => {
+      await page!.setContent(`<!DOCTYPE html><meta charset="utf-8"><body>${spans}</body>`);
+      await page!.evaluate(() => document.fonts.ready);
+      const { root } = await cdp.send("DOM.getDocument");
+      const common = new Map<string, string>();
+      const byScript = new Map<string, Map<string, string>>();
+      for (const target of targets) {
+        const { nodeId } = await cdp.send("DOM.querySelector", {
+          nodeId: root.nodeId,
+          selector: `#${target.id}`,
+        });
+        if (nodeId === 0) continue;
+        const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+        const primary = fonts.reduce(
+          (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
+          null as (typeof fonts)[number] | null,
+        );
+        if (primary == null || primary.familyName === "") continue;
+        if (target.script == null) common.set(target.generic, primary.familyName);
+        else {
+          let scriptMap = byScript.get(target.script);
+          if (scriptMap == null) {
+            scriptMap = new Map();
+            byScript.set(target.script, scriptMap);
+          }
+          scriptMap.set(target.generic, primary.familyName);
+        }
       }
-    }
-    return map.size > 0 ? map : null;
+      return common.size > 0 ? { common, byScript } : null;
+    };
+
+    // Playwright's Page.setFontFamilies update can race the first layout on a
+    // loaded runner. Require two consecutive identical paints; a third pass
+    // lets the settled Playwright values win over a constructor-default first.
+    const first = await read();
+    const second = await read();
+    if (probeResultsEqual(first, second)) return second;
+    const third = await read();
+    return probeResultsEqual(second, third) ? third : null;
   } catch {
     return null;
   } finally {
     await page?.close().catch(() => {});
   }
+}
+
+function probeResultsEqual(
+  a: SessionGenericFamilyProbe | null,
+  b: SessionGenericFamilyProbe | null,
+): boolean {
+  if (a == null || b == null) return a === b;
+  const entries = (probe: SessionGenericFamilyProbe): string[] => [
+    ...[...probe.common].map(([generic, family]) => `COMMON/${generic}/${family}`),
+    ...[...probe.byScript].flatMap(([script, map]) =>
+      [...map].map(([generic, family]) => `${script}/${generic}/${family}`)),
+  ].sort();
+  return JSON.stringify(entries(a)) === JSON.stringify(entries(b));
 }
 
 /**
@@ -118,8 +188,14 @@ export async function ensureSessionGenericFamilyOverrides(page: Page): Promise<v
   } catch {
     return;
   }
-  if (probedContexts.has(context)) return;
-  probedContexts.add(context);
-  const map = await probeSessionGenericFamilies(context);
-  if (map != null) setSessionGenericFamilyOverrides(map);
+  const existing = contextProbeTasks.get(context);
+  if (existing != null) {
+    const result = await existing;
+    if (result != null) setSessionGenericFamilyOverrides(result);
+    return;
+  }
+  const task = probeSessionGenericFamilies(context);
+  contextProbeTasks.set(context, task);
+  const result = await task;
+  if (result != null) setSessionGenericFamilyOverrides(result);
 }

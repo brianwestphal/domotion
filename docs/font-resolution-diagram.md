@@ -132,13 +132,14 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > 7d859f27), the script being `LocaleToScriptCodeForFontSelection(lang)`
 > (`platform/text/locale_to_script_mapping.cc:164-470`, transcribed in full in
 > `src/render/generic-script-families.ts`). The capture session's per-script
-> values are Playwright's `forScripts` tables (`defaultFontFamilies.js`,
+> values default to Playwright's `forScripts` tables (`defaultFontFamilies.js`,
 > playwright-core 1.59.1; drift-guarded against the installed package by
 > `generic-script-families.test.ts`): mac carries jpan/hang/hans/hant, win
 > adds cyrl/arab/grek, linux has none — so `lang` never moves a Linux
 > generic. `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` /
 > `resolveFont` take an optional `lang`; a generic keyword with a per-script
-> entry nominates that entry's family (comma-lists via
+> entry first consults the live session probe when armed, then nominates the
+> static entry's family when no probed answer exists (comma-lists via
 > `FirstAvailableOrFirst`, `generic_font_family_settings.cc:88-104`), probes
 > it as the EXACT installed family first (Blink's plain family lookup — a
 > curated sibling key must not intercept: measured, lang=ja `sans-serif`
@@ -294,12 +295,16 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > (which is why `monospace`→`courier` on macOS, not the `.grd`'s Menlo). With
 > `DOMOTION_GENERIC_PROBE=1`, the capture funnel
 > (`captureElementTreeWithWarnings` → `src/capture/generic-font-probe.ts`)
-> instead probes the live session once per browser context — one hidden page,
-> `CSS.getPlatformFontsForNode` per generic — and installs the painted
-> families via `setSessionGenericFamilyOverrides`; `matchFamilyNameToKey`
-> then routes `serif` / `sans-serif` / `monospace` / `cursive` / `fantasy` /
-> `math` to the probed family ahead of the static routes, falling back to them
-> when the probe is silent or the probed family doesn't resolve on this host.
+> instead probes the live session once per browser context — one hidden page
+> containing Common-script spans for all six generics plus native-text spans
+> for ja/ko/zh-Hans/zh-Hant × serif/sans-serif/monospace. Two consecutive
+> identical paints are required (up to three attempts), so a first-layout race
+> between Playwright's `Page.setFontFamilies` and Blink's constructor defaults
+> is not installed as truth. `setSessionGenericFamilyOverrides` installs both
+> Common and script-keyed answers; `matchFamilyNameToKey` prefers the exact
+> probed script answer over the static `forScripts` transcription, then uses
+> the probed Common answer ahead of calibrated static routes. An absent or
+> unresolvable probed answer falls through to the same static path as before.
 
 ```mermaid
 flowchart TD
@@ -307,6 +312,9 @@ flowchart TD
   S1 --> L["for each entry in stack →<br/>matchFamilyNameToKey(name, generic)"]
   L --> M{"decision ladder (first hit wins)"}
 
+  M -->|"generic + lang + probed script answer"| PS["resolve painted family as literal<br/>else fall through"]
+  M -->|"generic + lang + no usable probe"| ST["static Playwright forScripts entry<br/>FirstAvailableOrFirst"]
+  M -->|"generic + probed Common answer"| PC["resolve painted family as literal<br/>else fall through"]
   M -->|"webfontRegistry.has(name)"| R1["webfont:&lt;name&gt;"]
   M -->|"localFontAliasRegistry.has(name)"| R2["localalias:&lt;name&gt;"]
   M -->|"linux, walk armed, non-generic name"| W{"transcribed nomination walk:<br/>matchFamilyName(name) →<br/>reject: retry blinkAlternateFamilyName(name)"}

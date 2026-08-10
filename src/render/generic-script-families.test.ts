@@ -183,7 +183,7 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
 
   it("the per-script entry outranks the session-probed Common-script override, mirroring the settings lookup order", () => {
     withHostPlatform("darwin", () => {
-      setSessionGenericFamilyOverrides(new Map([["serif", "Menlo"]]));
+      setSessionGenericFamilyOverrides({ common: new Map([["serif", "Menlo"]]), byScript: new Map() });
       // Common script: the probe's answer wins.
       expect(resolveFontKey("serif")).toBe("menlo");
       // Japanese script: settings.Serif(jpan) exists, so the Common-script
@@ -192,6 +192,18 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
       const key = resolveFontKey("serif", "ja");
       expect(key === "hiragino-mincho" || /^sysfb:HiraMinProN/.test(key)).toBe(true);
       expect(key).not.toBe("menlo");
+    });
+  });
+
+  it("a session-probed per-script answer outranks the static Playwright transcription", () => {
+    withHostPlatform("darwin", () => {
+      setSessionGenericFamilyOverrides({
+        common: new Map([["serif", "Georgia"]]),
+        byScript: new Map([["KATAKANA_OR_HIRAGANA", new Map([["serif", "Menlo"]])]]),
+      });
+      expect(resolveFontKey("serif", "ja")).toBe("menlo");
+      expect(resolveFontKey("serif", "ja-JP")).toBe("menlo");
+      expect(resolveFontKey("serif")).toBe("georgia");
     });
   });
 

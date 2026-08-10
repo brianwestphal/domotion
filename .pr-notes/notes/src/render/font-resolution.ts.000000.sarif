@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmzk2gn3fx9h31p",
+          "message": {
+            "text": "A live script-specific answer precedes the static Playwright forScripts transcription, while an absent or unresolvable probe falls through unchanged. Keys use Blink’s LocaleToScriptCodeForFontSelection, so aliases such as ja and ja-JP address the same installed answer; focused unit coverage proves both resolve through the override.",
+            "markdown": "A live script-specific answer precedes the static Playwright `forScripts` transcription, while an absent or unresolvable probe falls through unchanged. Keys use Blink’s `LocaleToScriptCodeForFontSelection`, so aliases such as `ja` and `ja-JP` address the same installed answer; focused unit coverage proves both resolve through the override."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7948,
+                  "endLine": 7955,
+                  "snippet": {
+                    "text": "  if (generic && lang != null) {\n    const script = localeToScriptCodeForFontSelection(lang);\n    const probed = sessionGenericFamilyOverrides?.byScript.get(script)?.get(name);\n    if (probed != null) {\n      const key = matchFamilyNameToKey(probed.toLowerCase(), false);\n      if (key != null) return key;\n    }\n    const scriptValue = perScriptGenericFamily(hostPlatform(), lang, name);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 74
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/generic-script-families.test.ts"
+                },
+                "region": {
+                  "startLine": 198
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2053"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bc149b99dae2fe2cc366f41a82e4e487"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "29cf78013669c9c24892ac3e393d9e0f568ce4a5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

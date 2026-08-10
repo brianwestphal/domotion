@@ -96,7 +96,7 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
 
   it("a quoted spelling bypasses the session-probed generic override; the keyword takes it", () => {
     withHostPlatform("darwin", () => {
-      setSessionGenericFamilyOverrides(new Map([["monospace", "Menlo"]]));
+      setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
       // Keyword: routed through the probed override to Menlo.
       expect(resolveFontKey("monospace")).toBe("menlo");
       // Literal name: never consults the override — walks past to Georgia.

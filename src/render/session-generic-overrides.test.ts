@@ -25,9 +25,9 @@ afterEach(() => setSessionGenericFamilyOverrides(null));
 describe("setSessionGenericFamilyOverrides", () => {
   it("defaults to null and round-trips through the accessor", () => {
     expect(getSessionGenericFamilyOverrides()).toBeNull();
-    const map = new Map([["monospace", "Menlo"]]);
-    setSessionGenericFamilyOverrides(map);
-    expect(getSessionGenericFamilyOverrides()).toBe(map);
+    const overrides = { common: new Map([["monospace", "Menlo"]]), byScript: new Map() };
+    setSessionGenericFamilyOverrides(overrides);
+    expect(getSessionGenericFamilyOverrides()).toBe(overrides);
     setSessionGenericFamilyOverrides(null);
     expect(getSessionGenericFamilyOverrides()).toBeNull();
   });
@@ -36,26 +36,26 @@ describe("setSessionGenericFamilyOverrides", () => {
     // On the darwin static route `monospace` → courier; a session that
     // painted Menlo must win. (Key names are platform-independent here — the
     // probed name goes back through the ordinary family matcher.)
-    setSessionGenericFamilyOverrides(new Map([["monospace", "Menlo"]]));
+    setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
     expect(resolveFontKey("monospace")).toBe("menlo");
   });
 
   it("falls back to the static route when the probed family is unrecognized", () => {
-    setSessionGenericFamilyOverrides(new Map([["monospace", "DoesNotExist"]]));
+    setSessionGenericFamilyOverrides({ common: new Map([["monospace", "DoesNotExist"]]), byScript: new Map() });
     const withOverride = resolveFontKey("monospace");
     setSessionGenericFamilyOverrides(null);
     expect(withOverride).toBe(resolveFontKey("monospace"));
   });
 
   it("falls back to the static route for generics the probe did not answer", () => {
-    setSessionGenericFamilyOverrides(new Map([["monospace", "Menlo"]]));
+    setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
     const withOverride = resolveFontKey("serif");
     setSessionGenericFamilyOverrides(null);
     expect(withOverride).toBe(resolveFontKey("serif"));
   });
 
   it("does not intercept non-generic family names", () => {
-    setSessionGenericFamilyOverrides(new Map([["monospace", "Menlo"]]));
+    setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
     if (hostPlatform() === "darwin") {
       expect(resolveFontKey("courier")).toBe("courier");
     }
@@ -64,7 +64,7 @@ describe("setSessionGenericFamilyOverrides", () => {
 
   it("leaves everything untouched when cleared (the default path)", () => {
     const before = resolveFontKey("monospace");
-    setSessionGenericFamilyOverrides(new Map([["monospace", "Menlo"]]));
+    setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
     setSessionGenericFamilyOverrides(null);
     expect(resolveFontKey("monospace")).toBe(before);
   });
