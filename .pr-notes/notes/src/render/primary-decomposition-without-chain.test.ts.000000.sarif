@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmyq8m07g2fs6wn",
+          "message": {
+            "text": "The invariant is portable, but the golden answer is a host-font fact and therefore remains macOS-only. Chromium 7d859f27 routes Linux fallback through gfx::GetFallbackFontForChar(c, locale) and fontconfig; in the pinned Playwright Noble image, Times/Courier nominate Liberation faces with different literal and decomposition coverage. Keeping noChain === withChain active on Linux preserves the regression signal without grading Liberation against macOS Times expectations. The CI-equivalent container now passes all 10 cases.",
+            "markdown": "The invariant is portable, but the golden answer is a host-font fact and therefore remains macOS-only. Chromium 7d859f27 routes Linux fallback through `gfx::GetFallbackFontForChar(c, locale)` and fontconfig; in the pinned Playwright Noble image, `Times`/`Courier` nominate Liberation faces with different literal and decomposition coverage. Keeping `noChain === withChain` active on Linux preserves the regression signal without grading Liberation against macOS Times expectations. The CI-equivalent container now passes all 10 cases."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/primary-decomposition-without-chain.test.ts"
+                },
+                "region": {
+                  "startLine": 46,
+                  "endLine": 53,
+                  "snippet": {
+                    "text": "// Needs the real host font. The chain-membership invariant is portable, while\n// the face/decomposition expectations below describe macOS Times specifically:\n// on Linux `Times` is nominated through fontconfig (the same mechanism Blink\n// calls in font_cache_linux.cc:50-63, Chromium 7d859f27) and commonly resolves\n// to Liberation Serif, whose cmap/decomposition coverage is different.\nconst timesKey = resolveFontKey(\"Times\");\nconst haveTimes = timesKey != null && getFontInstance(timesKey, 400, 16, 0) != null;\nconst isMac = process.platform === \"darwin\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2027"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "21f83cff2970c1b4898bcb24710baa82"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ed5c5f9751f996f4e6535677e5f463c829634b1b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

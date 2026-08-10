@@ -23,10 +23,10 @@
  * `decompose`, whose branches are all gated on that same per-font lookup of the
  * decomposed PIECES (`:108-147`). The asymmetry was ours.
  *
- * The discriminating case is U+2249 ≉ NOT ALMOST EQUAL TO and its four siblings
+ * The macOS discriminating case is U+2249 ≉ NOT ALMOST EQUAL TO and its four siblings
  * U+226E/226F/2270/2271, under a bare `math` stack — no installed family
  * matches `math`, so the chain is empty and the key comes from the terminal.
- * Times has no precomposed ≉ but covers both NFD pieces (U+2248 ≈ + U+0338
+ * macOS Times has no precomposed ≉ but covers both NFD pieces (U+2248 ≈ + U+0338
  * combining long solidus overlay), and Chrome paints them as two Times glyphs.
  * Before the fix we skipped that check and dropped to CoreText's answer, Apple
  * Symbols — a different family, and five rows of the darwin conformance corpus.
@@ -43,9 +43,14 @@ import {
   resolveFontKey,
 } from "./font-resolution.js";
 
-// Needs the real host font — the assertion is about Times' actual coverage.
+// Needs the real host font. The chain-membership invariant is portable, while
+// the face/decomposition expectations below describe macOS Times specifically:
+// on Linux `Times` is nominated through fontconfig (the same mechanism Blink
+// calls in font_cache_linux.cc:50-63, Chromium 7d859f27) and commonly resolves
+// to Liberation Serif, whose cmap/decomposition coverage is different.
 const timesKey = resolveFontKey("Times");
 const haveTimes = timesKey != null && getFontInstance(timesKey, 400, 16, 0) != null;
+const isMac = process.platform === "darwin";
 
 (haveTimes ? describe : describe.skip)("primary decomposition without a declared chain", () => {
   beforeEach(() => clearFontResolutionCaches());
@@ -76,10 +81,13 @@ const haveTimes = timesKey != null && getFontInstance(timesKey, 400, 16, 0) != n
       // The invariant: chain membership of the primary must not change the answer.
       expect(noChain).toEqual(withChain);
 
-      // …and the answer itself, so a shared regression cannot pass as agreement.
-      expect(noChain.key).toBe(timesKey);
-      expect(noChain.decomposed).toBe(true);
-      expect(noChain.covered).toBe(true);
+      // …and the macOS answer itself, so a shared regression cannot pass as
+      // agreement. Other platforms keep the portable equality assertion above.
+      if (isMac) {
+        expect(noChain.key).toBe(timesKey);
+        expect(noChain.decomposed).toBe(true);
+        expect(noChain.covered).toBe(true);
+      }
     });
   }
 
@@ -90,8 +98,10 @@ const haveTimes = timesKey != null && getFontInstance(timesKey, 400, 16, 0) != n
     const withChain = resolve(0x21ae, [timesKey!]);
     const noChain = resolve(0x21ae, []);
     expect(noChain).toEqual(withChain);
-    expect(noChain.key).not.toBe(timesKey);
-    expect(noChain.decomposed).toBe(false);
+    if (isMac) {
+      expect(noChain.key).not.toBe(timesKey);
+      expect(noChain.decomposed).toBe(false);
+    }
   });
 
   it("does not disturb a codepoint the primary covers literally", () => {
@@ -141,12 +151,14 @@ const haveCourier = courierKey != null && getFontInstance(courierKey, 400, 16, 0
       const noChain = resolve(cp, []);
 
       expect(noChain).toEqual(withChain);
-      expect(noChain.key).toBe(courierKey);
-      expect(noChain.decomposed).toBe(true);
-      expect(noChain.covered).toBe(true);
-      // The singleton path substitutes the emitted character, unlike the
-      // base+mark path which keeps the source char and lets HarfBuzz decompose.
-      expect(noChain.emitCh).toBe(String.fromCodePoint(decomposed));
+      if (isMac) {
+        expect(noChain.key).toBe(courierKey);
+        expect(noChain.decomposed).toBe(true);
+        expect(noChain.covered).toBe(true);
+        // The singleton path substitutes the emitted character, unlike the
+        // base+mark path which keeps the source char and lets HarfBuzz decompose.
+        expect(noChain.emitCh).toBe(String.fromCodePoint(decomposed));
+      }
     });
   }
 });
