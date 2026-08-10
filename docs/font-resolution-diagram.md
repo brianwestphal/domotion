@@ -970,8 +970,8 @@ Notes:
   from `base.getGlyph(id)`, which is well-defined because it is the same file
   and therefore the same gid space. The decision also carries a narrow
   resolved-face exception on noble Linux: Unifont / Unifont Upper select GSUB
-  `DFLT` for measured Tibetan, NKo, Mandaic, Phags-pa, Balinese, Javanese,
-  Kaithi, Brahmi, Adlam and Kharoshthi runs, so real HarfBuzz chooses DEFAULT
+  `DFLT` for measured Telugu, Myanmar, Tibetan, NKo, Mandaic, Phags-pa,
+  Balinese, Javanese, Kaithi, Brahmi, Adlam and Kharoshthi runs, so real HarfBuzz chooses DEFAULT
   for those faces even though the scripts normally dispatch to USE. Other
   resolved faces keep their script-selected plan (for example FreeSerif
   `sinh` remains USE).

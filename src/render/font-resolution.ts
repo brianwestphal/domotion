@@ -9194,6 +9194,10 @@ const LINUX_UNIFONT_DEFAULT_SHAPER_RANGES: ReadonlyArray<readonly [number, numbe
   // Telugu request order therefore lands on DFLT and selects DEFAULT. The
   // FreeSans / FreeSerif controls expose tel2 and select INDIC instead.
   [0x0C00, 0x0C7F],
+  // Myanmar. Noble's production stacks resolve U+1000 to Unifont DFLT, which
+  // hb_ot_shaper_categorize sends to DEFAULT; a Noto Myanmar face selecting
+  // modern `mym2` stays on HarfBuzz's Myanmar shaper.
+  [0x1000, 0x109F],
   [0x0F00, 0x0FFF], [0x07C0, 0x07FF], [0x0840, 0x085F], [0xA840, 0xA87F],
   [0x1B00, 0x1B7F], [0xA980, 0xA9DF], [0x11080, 0x110CF], [0x11000, 0x1107F],
   [0x1E900, 0x1E95F], [0x10A00, 0x10A5F],
