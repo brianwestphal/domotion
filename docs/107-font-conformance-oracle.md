@@ -38,7 +38,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 | `--reset-every n` | Drop the font-resolution memos every `n` batches (default 1; `0` disables). Keeps a long sweep inside a bounded heap — see [Memory](#memory-why-the-sweep-resets-its-own-caches). |
 | `--strict-alias` | Treat the documented naming aliases as mismatches (see below). |
 | `--allowlist <file>` | Accepted-divergence file (default `tools/font-conformance-allowlist.json`). |
-| `--lang <tag>` | Locale for both sides (default `en`): `<html lang>` on the probe page *and* the `lang` our resolver routes Han with. |
+| `--lang <tag>` | Default locale for both sides (default `en`): `<html lang>` on the probe page and the resolver's fallback language. A corpus entry's `lang` overrides it on that stack's probe cells and resolver calls. |
 | `--out <dir>` | Report directory (default `tests/output/font-conformance`). |
 
 ## What it sweeps
@@ -70,20 +70,22 @@ Size is part of the key, not collapsed away: macOS optical cuts mean Chrome genu
 | weights | the 9-rung CSS ladder, 100…900 |
 | stretches | the 9 CSS `font-stretch` keywords, stored as the percentages Chrome computes them to |
 | styles | `normal`, `italic` |
+| family spelling | canonical unquoted keyword; quoted lowercase literal plus `Menlo` continuation; quoted case-variant literal plus `Menlo` continuation |
+| content language | document default plus `ja`, `ko`, `zh-Hans`, `zh-Hant`, `ru`, `ar`, `el` — the union of Playwright's macOS and Windows `forScripts` tables |
 
-13 × 9 × 9 × 2 = **2,106 stacks**, all at 16 px.
+13 × 9 × 9 × 2 × 3 × 8 = **50,544 stacks**, all at 16 px. The same portable corpus runs on Linux deliberately: because Playwright's Linux settings have no `forScripts` table, its language arms are the standing null oracle and must not move a generic-family answer.
 
 Three properties are load-bearing rather than incidental.
 
 **It is generated, and the output is gitignored.** A committed copy is a copy someone can hand-edit, and a hand-edited "synthetic" corpus is a curated list with a misleading name — the same sampled artifact the whole instrument exists to eliminate. Regenerate with `npx tsx tools/font-conformance-synthetic-stacks.ts`; `tests/font-conformance-synthetic-stacks.test.ts` pins the rule.
 
-**Its identity is a digest of the rule's output, not a timestamp.** The baseline comparator refuses to judge across a change in the corpus's `generatedAt` — correct for a harvested corpus, where re-extraction can genuinely produce a different corpus. A rule-derived corpus has no such property, so a wall-clock stamp would invalidate every baseline on every CI run (each job regenerates it). Instead `generatedAt` is `synthetic:v1:<sha256-16>`: regenerating is comparable, changing the rule is not.
+**Its identity is a digest of the rule's output, not a timestamp.** The baseline comparator refuses to judge across a change in the corpus's `generatedAt` — correct for a harvested corpus, where re-extraction can genuinely produce a different corpus. A rule-derived corpus has no such property, so a wall-clock stamp would invalidate every baseline on every CI run (each job regenerates it). Instead `generatedAt` is `synthetic:v2:<sha256-16>`: regenerating is comparable, changing the rule is not.
 
-**Its ordering is part of the rule**, so a `--max-stacks` prefix is a meaningful slice. Stacks are sorted by distance from the CSS initial state (how many of weight / stretch / style differ from 400 / 100% / normal):
+**Its ordering is part of the rule**, so a `--max-stacks` prefix is a meaningful slice. Stacks are sorted by distance from the CSS initial/default state (how many of weight / stretch / style / spelling / language differ):
 
     --max-stacks 13     one stack per generic family, all at CSS initial
-    --max-stacks 234    …plus every single-axis departure from it
-    (no cap)            the full 2,106-way product
+    --max-stacks 351    …plus every single-axis departure from it
+    (no cap)            the full 50,544-way product
 
 It also declares `platform: "any"`, which the sweep's per-platform corpus guard accepts without `--allow-foreign-corpus`. That exemption is narrow and deliberate: the guard exists because a *harvested* corpus records computed style, and the computed `font-family` of an element that declares none is Chrome's per-platform default preference. This corpus holds only literal CSS keywords. What each keyword resolves to differs per platform — which is the question it asks, not a reason it cannot be asked.
 
@@ -93,7 +95,7 @@ It also declares `platform: "any"`, which the sweep's per-platform corpus guard 
 npx tsx tools/font-conformance-synthetic-stacks.ts                 # generate
 npx tsx tools/font-conformance.ts \
   --stacks tools/font-conformance-stacks.synthetic.json \
-  --max-stacks 234 --shard 1/200                                  # sweep a slice
+  --max-stacks 351 --shard 1/200                                  # sweep a slice
 ```
 
 On CI it has its **own dispatch and its own baselines** — `.github/workflows/font-conformance-synthetic.yml`, gating against `tests/baselines/font-conformance-synthetic-<os>.json`. Not an input to the default workflow: the cross product multiplies an already expensive sweep, and the two slices measure different questions, so they must not share a baseline. Both dispatches run the same `scripts/ci-font-conformance-shard.sh` (which now takes a `STACKS` env var) so the flags, exit-code discipline and recorded environment cannot drift between them.

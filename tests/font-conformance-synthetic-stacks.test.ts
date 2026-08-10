@@ -13,7 +13,9 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   DEFAULT_SYNTHETIC_STACKS_FILE,
+  FAMILY_SPELLINGS,
   GENERIC_FAMILIES,
+  LANGUAGES,
   PORTABLE_CORPUS_PLATFORM,
   RULE_VERSION,
   STRETCH_KEYWORDS,
@@ -27,30 +29,34 @@ import {
 } from "../tools/font-conformance-synthetic-stacks.js";
 
 /** How far a stack sits from the CSS initial state — the ordering key. */
-const distance = (s: { fontWeight: number; fontStretch: string; fontStyle: string }): number =>
-  (s.fontWeight === 400 ? 0 : 1) + (s.fontStretch === "100%" ? 0 : 1) + (s.fontStyle === "normal" ? 0 : 1);
+const distance = (s: { fontFamily: string; fontWeight: number; fontStretch: string; fontStyle: string;
+                       lang?: string }): number =>
+  (s.fontWeight === 400 ? 0 : 1) + (s.fontStretch === "100%" ? 0 : 1)
+  + (s.fontStyle === "normal" ? 0 : 1) + (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1)
+  + (s.lang == null ? 0 : 1);
 
 describe("the rule", () => {
-  it("is exactly the four-way cross product, with nothing added or dropped", () => {
+  it("is exactly the six-way cross product, with nothing added or dropped", () => {
     const stacks = buildSyntheticStacks();
     expect(stacks).toHaveLength(
-      GENERIC_FAMILIES.length * WEIGHT_LADDER.length * STRETCH_KEYWORDS.length * STYLES.length,
+      GENERIC_FAMILIES.length * WEIGHT_LADDER.length * STRETCH_KEYWORDS.length * STYLES.length
+      * FAMILY_SPELLINGS.length * LANGUAGES.length,
     );
-    expect(stacks).toHaveLength(2106);
+    expect(stacks).toHaveLength(50_544);
 
     // Every combination present exactly once. A duplicate would double-count a
     // stack in the sweep; a gap would be a curated omission.
-    const seen = new Set(stacks.map((s) => `${s.fontFamily}|${s.fontWeight}|${s.fontStretch}|${s.fontStyle}`));
+    const seen = new Set(stacks.map((s) =>
+      `${s.fontFamily}|${s.fontWeight}|${s.fontStretch}|${s.fontStyle}|${s.lang ?? "default"}`));
     expect(seen.size).toBe(stacks.length);
-    for (const f of GENERIC_FAMILIES) {
-      for (const w of WEIGHT_LADDER) {
-        for (const st of STRETCH_KEYWORDS) {
-          for (const y of STYLES) {
-            expect(seen.has(`${f}|${w}|${st.percent}|${y}`)).toBe(true);
-          }
-        }
-      }
-    }
+  });
+
+  it("derives literal spellings with a continuation and every Playwright script language", () => {
+    const initial = buildSyntheticStacks().filter((s) =>
+      s.fontWeight === 400 && s.fontStretch === "100%" && s.fontStyle === "normal");
+    expect(new Set(initial.map((s) => s.lang ?? null))).toEqual(new Set(LANGUAGES));
+    expect(initial.some((s) => s.fontFamily === '\"monospace\", Menlo')).toBe(true);
+    expect(initial.some((s) => s.fontFamily === '\"Monospace\", Menlo')).toBe(true);
   });
 
   it("uses the CSS weight ladder and both slope slots", () => {
@@ -103,11 +109,12 @@ describe("ordering makes a --max-stacks prefix meaningful", () => {
     expect(distance(stacks[GENERIC_FAMILIES.length])).toBe(1);
   });
 
-  it("makes the first 234 exactly 'every generic, plus every single-axis departure'", () => {
+  it("makes the first 351 exactly 'every generic, plus every single-axis departure'", () => {
     const singleAxis = GENERIC_FAMILIES.length
-      * ((WEIGHT_LADDER.length - 1) + (STRETCH_KEYWORDS.length - 1) + (STYLES.length - 1));
+      * ((WEIGHT_LADDER.length - 1) + (STRETCH_KEYWORDS.length - 1) + (STYLES.length - 1)
+        + (FAMILY_SPELLINGS.length - 1) + (LANGUAGES.length - 1));
     const cut = GENERIC_FAMILIES.length + singleAxis;
-    expect(cut).toBe(234);
+    expect(cut).toBe(351);
     for (const s of stacks.slice(0, cut)) expect(distance(s)).toBeLessThanOrEqual(1);
     expect(distance(stacks[cut])).toBe(2);
   });
@@ -147,6 +154,8 @@ describe("the corpus file the sweep loads", () => {
     const c = syntheticCorpus();
     expect(c.rule.total).toBe(c.stacks.length);
     expect(c.rule.generics).toEqual([...GENERIC_FAMILIES]);
+    expect(c.rule.spellings).toEqual([...FAMILY_SPELLINGS]);
+    expect(c.rule.languages).toEqual([...LANGUAGES]);
     expect(c.sources[0]).toContain("rule-derived");
   });
 

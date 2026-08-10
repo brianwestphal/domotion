@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmz38m5ry70a84i",
+          "message": {
+            "text": "Quoted literal arms use a fixed Menlo continuation so walking past the generic-spelled family is observable. The case-variant is quoted too: the live Chromium probe disproved the bare-case draft because CSS parses bare Serif case-insensitively as the generic keyword; \"Serif\", Menlo reaches the literal-family path this axis is meant to guard.",
+            "markdown": "Quoted literal arms use a fixed Menlo continuation so walking past the generic-spelled family is observable. The case-variant is quoted too: the live Chromium probe disproved the bare-case draft because CSS parses bare `Serif` case-insensitively as the generic keyword; `\"Serif\", Menlo` reaches the literal-family path this axis is meant to guard."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance-synthetic-stacks.ts"
+                },
+                "region": {
+                  "startLine": 213,
+                  "endLine": 228,
+                  "snippet": {
+                    "text": "/** Spellings whose distinction Blink preserves through computed style. */\nexport const FAMILY_SPELLINGS = [\"keyword\", \"quoted\", \"case-variant\"] as const;\nexport type FamilySpelling = typeof FAMILY_SPELLINGS[number];\n\n/** The union of Playwright's script-keyed generic-family tables on macOS and Windows. */\nexport const LANGUAGES: readonly (string | null)[] = [\n  null, \"ja\", \"ko\", \"zh-Hans\", \"zh-Hant\", \"ru\", \"ar\", \"el\",\n];\n\nfunction familyForSpelling(generic: string, spelling: FamilySpelling): string {\n  if (spelling === \"keyword\") return generic;\n  const literal = spelling === \"quoted\"\n    ? generic\n    : `${generic[0].toUpperCase()}${generic.slice(1)}`;\n  // A continuation makes walking past an unavailable literal observable.\n  return `\"${literal}\", Menlo`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 786
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2052"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "225da611f6832932f65a8d40dc6d594e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dcb7345ed0c7645e46c570734e08da21e6058299",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

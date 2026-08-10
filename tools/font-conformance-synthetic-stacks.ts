@@ -35,15 +35,19 @@
  * A hand-written list of interesting stacks is the same sampled artifact the
  * whole oracle exists to eliminate — it can only contain the cases someone
  * already thought of, and it drifts as people add "one more". So the corpus is
- * the CROSS PRODUCT of four enumerations that are themselves fixed by CSS:
+ * the CROSS PRODUCT of six enumerations derived from CSS and the capture
+ * session's generic-family settings:
  *
  *     generic families  the 13 CSS Fonts 4 generic-family KEYWORDS
  *     weights           the 9-rung CSS weight ladder, 100…900
  *     stretches         the 9 CSS font-stretch keywords, as the PERCENTAGES
  *                       Chrome computes them to
  *     styles            normal, italic
+ *     spellings         keyword, quoted literal, case-variant literal
+ *     languages         default plus the seven tags represented by
+ *                       Playwright's macOS/Windows forScripts tables
  *
- *     13 x 9 x 9 x 2 = 2,106 stacks
+ *     13 x 9 x 9 x 2 x 3 x 8 = 50,544 stacks
  *
  * There is nothing to curate: adding a case means changing the rule, and the
  * corpus's identity (see `corpusIdentity`) changes with it, which makes the
@@ -56,7 +60,7 @@
  * part of a stack's identity elsewhere in this oracle for a real reason (macOS
  * optical cuts mean Chrome reports a different face at 16px than at 32px), so
  * this is a stated gap and not an oversight: crossing in a size ladder would
- * multiply an already 1,944-way product, and the harvested corpus — which does
+ * multiply an already large product, and the harvested corpus — which does
  * span sizes — remains the instrument for that axis. See doc 107.
  *
  * **`font-variation-settings`.** A synthetic axis location is only meaningful
@@ -67,14 +71,14 @@
  *
  * ORDERING IS PART OF THE RULE
  *
- * Stacks are ordered by DISTANCE from the CSS initial state (400 / normal /
- * 100%) — how many of the three axes differ — then by the enumeration order of
+ * Stacks are ordered by DISTANCE from the CSS initial/default state — how many
+ * of the five non-family axes differ — then by the enumeration order of
  * each axis. That makes every `--max-stacks` prefix a meaningful slice rather
  * than an arbitrary one:
  *
  *     --max-stacks 13     one stack per generic family, all at CSS initial
- *     --max-stacks 234    …plus every single-axis departure from it
- *     (no cap)            the full 2,106-way product
+ *     --max-stacks 351    …plus every single-axis departure from it
+ *     (no cap)            the full 50,544-way product
  *
  * ---------------------------------------------------------------------------
  * Usage
@@ -104,7 +108,7 @@ import { resolve } from "node:path";
 
 /** Bump when the RULE changes. Part of the corpus identity, so the baseline
  *  comparator refuses to compare a v1 measurement against a v2 one. */
-export const RULE_VERSION = 1;
+export const RULE_VERSION = 2;
 
 /** Where the generator writes by default. Gitignored — see the header. */
 export const DEFAULT_SYNTHETIC_STACKS_FILE = "tools/font-conformance-stacks.synthetic.json";
@@ -118,9 +122,10 @@ export const DEFAULT_SYNTHETIC_STACKS_FILE = "tools/font-conformance-stacks.synt
  * per-platform default-font preference (`Times` on macOS, `"Times New Roman"`
  * on Linux) — so sweeping one platform's harvested corpus on another asks about
  * a stack that platform never computes. None of that applies here. Every family
- * in this corpus is a CSS GENERIC KEYWORD, written literally, identical on every
- * platform. What each keyword resolves to differs per platform, which is the
- * question being asked rather than a reason not to ask it.
+ * in this corpus is derived from a CSS generic spelling and a fixed portable
+ * continuation; its language tags are likewise platform-independent inputs.
+ * What each question resolves to differs per platform, which is the question
+ * being asked rather than a reason not to ask it.
  */
 export const PORTABLE_CORPUS_PLATFORM = "any";
 
@@ -205,6 +210,24 @@ export const STRETCH_KEYWORDS: ReadonlyArray<{ keyword: string; percent: string 
  *  stacks that ask the same matching question. */
 export const STYLES: readonly string[] = ["normal", "italic"];
 
+/** Spellings whose distinction Blink preserves through computed style. */
+export const FAMILY_SPELLINGS = ["keyword", "quoted", "case-variant"] as const;
+export type FamilySpelling = typeof FAMILY_SPELLINGS[number];
+
+/** The union of Playwright's script-keyed generic-family tables on macOS and Windows. */
+export const LANGUAGES: readonly (string | null)[] = [
+  null, "ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el",
+];
+
+function familyForSpelling(generic: string, spelling: FamilySpelling): string {
+  if (spelling === "keyword") return generic;
+  const literal = spelling === "quoted"
+    ? generic
+    : `${generic[0].toUpperCase()}${generic.slice(1)}`;
+  // A continuation makes walking past an unavailable literal observable.
+  return `"${literal}", Menlo`;
+}
+
 /**
  * The one size every synthetic stack uses: the CSS initial `medium`.
  * See the header for why size is deliberately not crossed in.
@@ -219,6 +242,8 @@ export interface SyntheticStack {
   fontWeight: number;
   fontStyle: string;
   fontStretch: string;
+  /** Per-element content language. Absent is the CSS/document default arm. */
+  lang?: string;
   /** Always 0 — nothing here came from a fixture, and pretending otherwise
    *  would make `--max-stacks` read as "most used" when it means "closest to
    *  the CSS initial state". */
@@ -230,9 +255,9 @@ export interface SyntheticStack {
 /**
  * The rule, evaluated.
  *
- * Ordered by distance from the CSS initial state (how many of weight / stretch /
- * style differ from 400 / 100% / normal), then by each axis's own enumeration
- * order. Deterministic: same rule ⇒ same list, byte for byte.
+ * Ordered by distance from the CSS initial/default state (how many of weight /
+ * stretch / style / spelling / language differ), then by each axis's own
+ * enumeration order. Deterministic: same rule ⇒ same list, byte for byte.
  */
 export function buildSyntheticStacks(): SyntheticStack[] {
   const rows: Array<{ distance: number; order: number[]; stack: SyntheticStack }> = [];
@@ -240,25 +265,34 @@ export function buildSyntheticStacks(): SyntheticStack[] {
     for (let wi = 0; wi < WEIGHT_LADDER.length; wi++) {
       for (let si = 0; si < STRETCH_KEYWORDS.length; si++) {
         for (let yi = 0; yi < STYLES.length; yi++) {
-          const weight = WEIGHT_LADDER[wi];
-          const stretch = STRETCH_KEYWORDS[si];
-          const style = STYLES[yi];
-          const distance = (wi === 0 ? 0 : 1) + (si === 0 ? 0 : 1) + (yi === 0 ? 0 : 1);
-          rows.push({
-            distance,
-            order: [gi, wi, si, yi],
-            stack: {
-              fontFamily: GENERIC_FAMILIES[gi],
-              fontSize: SYNTHETIC_FONT_SIZE,
-              fontWeight: weight,
-              fontStyle: style,
-              fontStretch: stretch.percent,
-              fixtures: 0,
-              example:
-                `rule v${RULE_VERSION}: ${GENERIC_FAMILIES[gi]} @${SYNTHETIC_FONT_SIZE}px`
-                + ` / ${weight} / ${style} / ${stretch.keyword} (${stretch.percent})`,
-            },
-          });
+          for (let qi = 0; qi < FAMILY_SPELLINGS.length; qi++) {
+            for (let li = 0; li < LANGUAGES.length; li++) {
+              const weight = WEIGHT_LADDER[wi];
+              const stretch = STRETCH_KEYWORDS[si];
+              const style = STYLES[yi];
+              const spelling = FAMILY_SPELLINGS[qi];
+              const lang = LANGUAGES[li];
+              const distance = (wi === 0 ? 0 : 1) + (si === 0 ? 0 : 1) + (yi === 0 ? 0 : 1)
+                + (qi === 0 ? 0 : 1) + (li === 0 ? 0 : 1);
+              rows.push({
+                distance,
+                order: [gi, wi, si, yi, qi, li],
+                stack: {
+                  fontFamily: familyForSpelling(GENERIC_FAMILIES[gi], spelling),
+                  fontSize: SYNTHETIC_FONT_SIZE,
+                  fontWeight: weight,
+                  fontStyle: style,
+                  fontStretch: stretch.percent,
+                  ...(lang == null ? {} : { lang }),
+                  fixtures: 0,
+                  example:
+                    `rule v${RULE_VERSION}: ${GENERIC_FAMILIES[gi]} @${SYNTHETIC_FONT_SIZE}px`
+                    + ` / ${weight} / ${style} / ${stretch.keyword} (${stretch.percent})`
+                    + ` / ${spelling} / lang=${lang ?? "default"}`,
+                },
+              });
+            }
+          }
         }
       }
     }
@@ -307,6 +341,8 @@ export interface SyntheticCorpus {
     weights: readonly number[];
     stretches: readonly string[];
     styles: readonly string[];
+    spellings: readonly FamilySpelling[];
+    languages: readonly (string | null)[];
     fontSize: number;
     total: number;
   };
@@ -319,7 +355,7 @@ export function syntheticCorpus(): SyntheticCorpus {
     generatedAt: corpusIdentity(stacks),
     platform: PORTABLE_CORPUS_PLATFORM,
     sources: [
-      "(rule-derived) CSS generic families x weight ladder x font-stretch keywords x style"
+      "(rule-derived) CSS generic families x weight ladder x font-stretch keywords x style x spelling x language"
       + ` — tools/font-conformance-synthetic-stacks.ts v${RULE_VERSION}`,
     ],
     rule: {
@@ -328,6 +364,8 @@ export function syntheticCorpus(): SyntheticCorpus {
       weights: WEIGHT_LADDER,
       stretches: STRETCH_KEYWORDS.map((s) => `${s.keyword} (${s.percent})`),
       styles: STYLES,
+      spellings: FAMILY_SPELLINGS,
+      languages: LANGUAGES,
       fontSize: SYNTHETIC_FONT_SIZE,
       total: stacks.length,
     },
@@ -361,13 +399,16 @@ function main(argv: string[]): number {
   const corpus = syntheticCorpus();
   const byDistance = new Map<number, number>();
   for (const s of corpus.stacks) {
-    const d = (s.fontWeight === 400 ? 0 : 1) + (s.fontStretch === "100%" ? 0 : 1) + (s.fontStyle === "normal" ? 0 : 1);
+    const d = (s.fontWeight === 400 ? 0 : 1) + (s.fontStretch === "100%" ? 0 : 1)
+      + (s.fontStyle === "normal" ? 0 : 1) + (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1)
+      + (s.lang == null ? 0 : 1);
     byDistance.set(d, (byDistance.get(d) ?? 0) + 1);
   }
   process.stdout.write(
     `synthetic stack corpus — rule v${RULE_VERSION}\n`
     + `  ${GENERIC_FAMILIES.length} generics x ${WEIGHT_LADDER.length} weights `
-    + `x ${STRETCH_KEYWORDS.length} stretches x ${STYLES.length} styles = ${corpus.stacks.length} stacks\n`
+    + `x ${STRETCH_KEYWORDS.length} stretches x ${STYLES.length} styles x ${FAMILY_SPELLINGS.length} spellings `
+    + `x ${LANGUAGES.length} languages = ${corpus.stacks.length} stacks\n`
     + `  all at ${SYNTHETIC_FONT_SIZE}px (CSS initial \`medium\`)\n`
     + `  identity ${corpus.generatedAt}\n`
     + [...byDistance.entries()].sort((a, b) => a[0] - b[0])

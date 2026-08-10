@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmz38rxrx2mez2d",
+          "message": {
+            "text": "Per-stack language now wins on Domotion’s side exactly where it wins on Chrome’s probe cells. The same effective tag reaches generic-primary resolution, fallback-chain construction, cache rebuilds, and per-codepoint fallback; the narrow live oracle exercised all 351 distance-0/1 stacks at U+0041 and reported 351 comparisons with zero mismatches.",
+            "markdown": "Per-stack language now wins on Domotion’s side exactly where it wins on Chrome’s probe cells. The same effective tag reaches generic-primary resolution, fallback-chain construction, cache rebuilds, and per-codepoint fallback; the narrow live oracle exercised all 351 distance-0/1 stacks at U+0041 and reported 351 comparisons with zero mismatches."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 643,
+                  "endLine": 651,
+                  "snippet": {
+                    "text": "export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | null {\n  // A per-stack language mirrors each probe cell's `lang`; otherwise the CLI\n  // default mirrors the probe page's `<html lang>`. The renderer resolves the\n  // settings-mapped generics per content script (Playwright's forScripts\n  // tables on mac/win), so the oracle must ask our side the same question the\n  // probe page asks Chrome.\n  lang = spec.lang ?? lang;\n  const chain = resolveFontKeyChain(spec.fontFamily, lang);\n  const primaryKey = resolveFontKey(spec.fontFamily, lang);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 786
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 1400
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2052"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e92b5886926b07ccfe520f48f763ffd7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dcb7345ed0c7645e46c570734e08da21e6058299",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

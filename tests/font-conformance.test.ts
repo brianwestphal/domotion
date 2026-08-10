@@ -505,6 +505,12 @@ describe("the probe page declares every property the corpus records", () => {
     expect(html).toContain('<html lang="ja"');
     expect(html).toContain("&#x4e00;");
   });
+
+  it("lets a per-stack language override the global language on every probe cell", () => {
+    const html = probePageHtml([0x41, 0x4e00], spec({ lang: "ja" }), "en");
+    expect(html).toContain('<html lang="en"');
+    expect(html.match(/class=c lang="ja"/g)).toHaveLength(2);
+  });
 });
 
 describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (platform) => {

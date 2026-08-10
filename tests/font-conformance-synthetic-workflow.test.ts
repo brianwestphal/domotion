@@ -13,7 +13,7 @@ import { DEFAULT_SYNTHETIC_STACKS_FILE } from "../tools/font-conformance-synthet
 //                                    shard, so this one at least is loud;
 //   - forget to pass STACKS       -> the job sweeps the HARVESTED corpus and
 //                                    gates it against the SYNTHETIC baseline;
-//   - point at the wrong baseline -> a 234-stack synthetic slice is compared to
+//   - point at the wrong baseline -> a 351-stack synthetic slice is compared to
 //                                    a 6-stack harvested one.
 //
 // Like the guard next door, this reads the workflow rather than the code,
@@ -133,5 +133,9 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     // The shard script omits `--shard` entirely when CP_TOTAL is 1, which the
     // merge relies on to key its codepoint accounting off `meta.shard` being null.
     expect(yaml).toMatch(/cp_total:[\s\S]{0,400}?default: '1'/);
+  });
+
+  it("defaults to the complete single-axis slice, including spelling and language", () => {
+    expect(yaml).toMatch(/max_stacks:[\s\S]{0,400}?default: '351'/);
   });
 });

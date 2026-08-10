@@ -11,7 +11,8 @@ run-name: Synthetic font conformance · os=${{ inputs.os }} · shards=${{ inputs
 #   platform, dominated by weight 400 at 100% stretch. The synthetic corpus is
 #   DERIVED FROM A RULE (tools/font-conformance-synthetic-stacks.ts): the CSS
 #   generic-family keywords crossed with the weight ladder, the stretch keywords
-#   and normal/italic — 2,106 stacks, identical on every platform.
+#   normal/italic, keyword/literal spelling and content language — 50,544
+#   stacks, identical on every platform.
 #
 #   That cross product multiplies an already expensive sweep, so folding it into
 #   the default dispatch would make the canonical baseline slice unrunnable. It
@@ -29,10 +30,10 @@ run-name: Synthetic font conformance · os=${{ inputs.os }} · shards=${{ inputs
 #   mismatches at weight 400 against 157 at weight 800/900.
 #
 # DEFAULT SLICE
-#   `max_stacks: 234` is not arbitrary — the corpus is ordered by distance from
-#   the CSS initial state, so 234 is exactly "every generic at its initial state,
+#   `max_stacks: 351` is not arbitrary — the corpus is ordered by distance from
+#   the CSS initial/default state, so 351 is exactly "every generic at its initial state,
 #   plus every single-axis departure from it". 13 is one per generic; empty is
-#   the full 2,106-way product, which is many hours per platform.
+#   the full 50,544-way product, which is many hours per platform.
 
 on:
   workflow_dispatch:
@@ -46,8 +47,8 @@ on:
         description: 'Number of stack shards to fan out across'
         default: '6'
       max_stacks:
-        description: 'Cap on synthetic stacks (ordered by distance from the CSS initial state). 13 = one per generic; 234 = +every single-axis departure; empty = all 2,106.'
-        default: '234'
+        description: 'Cap on synthetic stacks (ordered by distance from the CSS initial/default state). 13 = one per generic; 351 = +every single-axis departure; empty = all 50,544.'
+        default: '351'
       range:
         description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'
         default: ''

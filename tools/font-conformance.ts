@@ -46,8 +46,8 @@
  *                        0 disables. Bounds memory — see the loop for why.
  *   --strict-alias       treat the documented naming aliases as mismatches
  *   --allowlist <file>   accepted-divergence file
- *   --lang <tag>         locale for BOTH sides — <html lang> on the probe page
- *                        and the `lang` the resolver routes Han with (en)
+ *   --lang <tag>         default locale for BOTH sides — per-stack `lang`
+ *                        overrides it on probe cells and resolver calls (en)
  *   --out <dir>          report directory (tests/output/font-conformance)
  *
  * Exit code: 0 when every comparison agrees (or is allowlisted), 1 on any
@@ -119,6 +119,8 @@ export interface StackSpec {
   fontSize: number;
   fontWeight: number;
   fontStyle: string;
+  /** Per-stack content language. When present it overrides the CLI-wide language. */
+  lang?: string;
   /** Computed `font-stretch` (e.g. "100%", "75%"). Chrome's CSS font matching
    *  selects on stretch BEFORE weight, so a condensed face is a different
    *  matching decision, not a variation on the same one. Optional so a corpus
@@ -371,6 +373,7 @@ interface MismatchRow {
   fontSize: number;
   fontWeight: number;
   fontStyle: string;
+  lang: string;
   verdict: Verdict;
   /** Triage hint — see `mismatchClass`. Never an exemption, only a label. */
   class: "different-family" | "same-family-different-cut";
@@ -638,10 +641,12 @@ export function parseVariationSettings(value: string | undefined): Record<string
 }
 
 export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | null {
-  // `lang` mirrors the probe page's `<html lang>`: the renderer resolves the
+  // A per-stack language mirrors each probe cell's `lang`; otherwise the CLI
+  // default mirrors the probe page's `<html lang>`. The renderer resolves the
   // settings-mapped generics per content script (Playwright's forScripts
   // tables on mac/win), so the oracle must ask our side the same question the
   // probe page asks Chrome.
+  lang = spec.lang ?? lang;
   const chain = resolveFontKeyChain(spec.fontFamily, lang);
   const primaryKey = resolveFontKey(spec.fontFamily, lang);
   const slant = slantForStyle(spec.fontStyle);
@@ -779,8 +784,9 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
  * never asked.
  */
 export function probePageHtml(cps: number[], spec: StackSpec, lang: string): string {
+  const stackLang = spec.lang ?? lang;
   const cells = cps
-    .map((cp) => `<i class=c>&#x${cp.toString(16)};</i>`)
+    .map((cp) => `<i class=c lang="${stackLang}">&#x${cp.toString(16)};</i>`)
     .join("");
   // The computed `font-family` is already valid CSS and goes into a <style>
   // element, not an attribute — so it is embedded verbatim. Rewriting its
@@ -1305,7 +1311,8 @@ async function main(): Promise<number> {
       + (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "")
       + (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "")
       + (s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal" ? `/${s.fontVariantAlternates}` : "")
-      + (s.fontVariantEmoji != null && s.fontVariantEmoji !== "normal" ? `/${s.fontVariantEmoji}` : "");
+      + (s.fontVariantEmoji != null && s.fontVariantEmoji !== "normal" ? `/${s.fontVariantEmoji}` : "")
+      + ` lang=${s.lang ?? opts.lang}`;
     /**
      * Every distinct face Chrome named during the sweep, with how often.
      *
@@ -1336,7 +1343,7 @@ async function main(): Promise<number> {
       }
       process.stdout.write(
         `  stack ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`
-        + ` → chain [${rs.chain.join(", ")}]\n`,
+        + ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(", ")}]\n`,
       );
       // Ask Chrome for this stack's primary before sweeping it, and record it.
       // See `resolvedPrimary` — this is the quantity that flips, and inferring
@@ -1385,11 +1392,12 @@ async function main(): Promise<number> {
             const cf = chrome.postScriptName ?? chrome.familyName;
             chromeFaceTally.set(cf, (chromeFaceTally.get(cf) ?? 0) + 1);
           }
-          // Same `lang` both sides: it goes on the probe page's <html> element
+          // Same `lang` both sides: it goes on each probe cell (or inherits the
+          // CLI default from <html>)
           // AND into `fallbackFontChain`, which routes Han by locale (zh-TW →
           // PingFang TC, ja → Hiragino). Passing it to only one side would make
           // `--lang ja` move Chrome's answer and not ours.
-          const ours = ourFaceFor(cp, rs, opts.lang);
+          const ours = ourFaceFor(cp, rs, spec.lang ?? opts.lang);
 
           let verdict: Verdict;
           if (chrome == null) {
@@ -1427,6 +1435,7 @@ async function main(): Promise<number> {
                   fontSize: spec.fontSize,
                   fontWeight: spec.fontWeight,
                   fontStyle: spec.fontStyle,
+                  lang: spec.lang ?? opts.lang,
                   verdict,
                   class: cls,
                   chrome: chromeName,
