@@ -17,6 +17,17 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    // DM-2043: a persistent native-helper child is a good fit for long-lived
+    // render/conformance processes, but not for Vitest's short-lived fork pool.
+    // Each test-file fork starts and unrefs its own helper; Vitest then reaps
+    // the fork outside Node's normal `exit` cleanup, and on macOS the aggregate
+    // run is eventually killed (exit 144) without a test summary. The one-shot
+    // transport returns the same answers and gives every helper the same
+    // lifetime as its request. `helper-serve-switch.test.ts` deliberately
+    // removes this variable for its focused persistent-channel coverage.
+    env: {
+      DOMOTION_HELPER_NO_SERVE: "1",
+    },
     testTimeout: 30_000,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
     exclude: [

@@ -52,6 +52,18 @@ npm run demos:examples  # run the three example demo scripts
 npm run test:linux-docker  # run `npm test` inside the Linux container CI uses (reproduce Linux-only failures on a Mac)
 ```
 
+The unit-test config forces `DOMOTION_HELPER_NO_SERVE=1`. Vitest's `forks`
+pool creates short-lived test-file processes, while the persistent glyph helper
+is designed for long-lived render and conformance processes: every fork starts
+and unrefs its own native child, then Vitest reaps the fork outside Node's normal
+`exit` cleanup. On macOS a full run from the main checkout was consequently
+killed with exit 144 and no summary. The one-shot transport exercises the same
+resolution logic with request-scoped child lifetimes; the focused
+`helper-serve-switch.test.ts` test removes the variable to cover and compare the
+persistent channel itself. Do not remove the Vitest override to speed up the
+unit gate—use the channel in long-lived commands, where its lifecycle matches
+the host process.
+
 `npm run test:linux-docker` runs the suite inside `mcr.microsoft.com/playwright:v<locked-version>-noble` — the same Linux image CI's `test` job uses. Because the font-fallback chain is calibrated to the host platform's system fonts, text-rendering tests take a different code path on Linux (no `/System/Library/Fonts/...` → glyph-path rendering falls back to `<text>`), so some failures only surface in CI. This reproduces them without pushing a tag. Pass a file/`-t` filter (`npm run test:linux-docker -- src/scroll/composer.test.ts`) or set `CMD=` to run any other command (e.g. `CMD="npm run typecheck"`) in the container. `node_modules` is isolated in a Docker volume so the container's Linux install never clobbers your host's.
 
 **A container run writes its results to `tests/output-linux/`, NOT `tests/output/`** (`DOMOTION_OUTPUT_DIR`, DM-1802 — so a Linux run can't overwrite the host's macOS results and have `demos:review` show them as "Local · macOS"). The script prints the path in its banner. This matters more than it sounds: anything reading `tests/output/features-results.json` after a container run gets the **host's stale file**, and it will look like a perfectly plausible result. Measured cost — a font A/B run in here read the stale path in *both* arms, reported "0 of 114 fixtures moved" for a mechanism that moves exactly one, concluded the mechanism was inert, and produced a bug report against this script. The script was correct throughout. If you need a container run's numbers, read `tests/output-linux/`, and check `generatedAt` in the JSON before trusting it. (Verified: run through this script, `text-font-stretch-underline` reports 0.703% pass with the Linux glyph helper built and 1.989% fail with `DOMOTION_DISABLE_HELPER=1` — matching the x64 CI runner exactly, so this script does reproduce CI.)
