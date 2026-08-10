@@ -9189,6 +9189,11 @@ function sfProCoverageOtfKey(): string | null {
  * shaping it had.
  */
 const LINUX_UNIFONT_DEFAULT_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
+  // Telugu. Noble's Arial / Times New Roman / Monospace stacks all resolve
+  // U+0C15 to Unifont, whose GSUB has DFLT and no tel3/tel2/telu. HarfBuzz's
+  // Telugu request order therefore lands on DFLT and selects DEFAULT. The
+  // FreeSans / FreeSerif controls expose tel2 and select INDIC instead.
+  [0x0C00, 0x0C7F],
   [0x0F00, 0x0FFF], [0x07C0, 0x07FF], [0x0840, 0x085F], [0xA840, 0xA87F],
   [0x1B00, 0x1B7F], [0xA980, 0xA9DF], [0x11080, 0x110CF], [0x11000, 0x1107F],
   [0x1E900, 0x1E95F], [0x10A00, 0x10A5F],
@@ -9196,7 +9201,7 @@ const LINUX_UNIFONT_DEFAULT_SHAPER_RANGES: ReadonlyArray<readonly [number, numbe
 
 /**
  * Face-aware addition to the script-wide HarfBuzz routing. Noble Linux's
- * Unifont / Unifont Upper GSUB selects DFLT for these ten scripts, so HarfBuzz
+ * Unifont / Unifont Upper GSUB selects DFLT for these scripts, so HarfBuzz
  * rev 4de187d `hb_ot_shaper_categorize` dispatches its DEFAULT shaper rather
  * than USE. Routing the measured resolved face through real HarfBuzz expresses
  * that decision; a pure codepoint table cannot. Other faces (for example
@@ -9207,7 +9212,20 @@ export function resolvedFaceNeedsHarfbuzzShaping(
   fontKey: string,
   platform: NodeJS.Platform = hostPlatform(),
 ): boolean {
-  if (usesHarfbuzzShaping(cp)) return true;
+  if (resolvedFaceUsesDefaultOpenTypeShaper(cp, fontKey, platform)) return true;
+  return usesHarfbuzzShaping(cp);
+}
+
+/** Whether the measured resolved face selects DFLT/latn and is consequently
+ * categorized as DEFAULT by HarfBuzz rather than by its script's nominal
+ * dedicated shaper. Kept separate from the broader reroute predicate so tests
+ * can distinguish Telugu Unifont (DFLT → DEFAULT) from FreeSans (tel2 → INDIC),
+ * even though both already route through HarfBuzz for Telugu cluster fidelity. */
+export function resolvedFaceUsesDefaultOpenTypeShaper(
+  cp: number,
+  fontKey: string,
+  platform: NodeJS.Platform = hostPlatform(),
+): boolean {
   if (platform !== "linux" || (fontKey !== "u-unifont" && fontKey !== "u-unifont-upper")) return false;
   return LINUX_UNIFONT_DEFAULT_SHAPER_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);
 }

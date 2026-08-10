@@ -90,6 +90,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msn0f99ei4phgu98",
+          "message": {
+            "text": "Keep resolved DEFAULT classification separate from the broad HarfBuzz reroute. Telugu already routes through HarfBuzz for cluster fidelity on every face, but only noble Unifont selects GSUB DFLT; exposing that fact separately lets the A/B test prove Unifont DEFAULT versus FreeSans tel2/INDIC without weakening the existing route.",
+            "markdown": "Keep resolved DEFAULT classification separate from the broad HarfBuzz reroute. Telugu already routes through HarfBuzz for cluster fidelity on every face, but only noble Unifont selects GSUB DFLT; exposing that fact separately lets the A/B test prove Unifont DEFAULT versus FreeSans tel2/INDIC without weakening the existing route."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9219,
+                  "endLine": 9230,
+                  "snippet": {
+                    "text": "/** Whether the measured resolved face selects DFLT/latn and is consequently\n * categorized as DEFAULT by HarfBuzz rather than by its script's nominal\n * dedicated shaper. Kept separate from the broader reroute predicate so tests\n * can distinguish Telugu Unifont (DFLT → DEFAULT) from FreeSans (tel2 → INDIC),\n * even though both already route through HarfBuzz for Telugu cluster fidelity. */\nexport function resolvedFaceUsesDefaultOpenTypeShaper(\n  cp: number,\n  fontKey: string,\n  platform: NodeJS.Platform = hostPlatform(),\n): boolean {\n  if (platform !== \"linux\" || (fontKey !== \"u-unifont\" && fontKey !== \"u-unifont-upper\")) return false;\n  return LINUX_UNIFONT_DEFAULT_SHAPER_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2065"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9007e84bc5f3e94d6de7f0f794b8422a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bfc3640dcc58914e9c3fecb09a3567c2082bfe44",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
