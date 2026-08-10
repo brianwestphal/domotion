@@ -65,6 +65,7 @@
     "fonts:conformance": "tsx tools/font-conformance.ts",
     "fonts:conformance:iterate": "node scripts/font-conformance-iterate.mjs",
     "fonts:conformance:stacks": "tsx tools/font-conformance.ts --extract-stacks",
+    "fonts:cluster-conformance": "tsx tools/cluster-conformance.ts",
     "fonts:inventory": "node tools/font-inventory.mjs",
     "fonts:shaping": "tsx tools/shaping-conformance.ts",
     "fonts:shaping:runs": "tsx tools/shaping-conformance.ts --extract-runs",

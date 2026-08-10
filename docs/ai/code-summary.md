@@ -218,6 +218,10 @@ shortest possible map:
   `scripts/ci-font-conformance-shard.sh` →
   `scripts/merge-font-conformance-shards.mjs` →
   `scripts/diff-font-conformance-baseline.mjs` (regression-relative gate).
+  `tools/cluster-conformance.ts` (`npm run fonts:cluster-conformance`) covers
+  the complementary multi-codepoint unit: Chrome's painted face set vs the
+  production glyph-path run split for partially covered shaped clusters. Its
+  default-on/legacy A/B proves the oracle is sensitive to mid-cluster fallback.
   `tools/font-inventory.mjs` records the per-platform installed-font set the
   answers depend on. Logic pinned by `tests/font-conformance.test.ts` +
   `tests/font-conformance-baseline.test.ts`; see

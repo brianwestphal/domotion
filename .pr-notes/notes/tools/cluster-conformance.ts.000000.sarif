@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msmvu3gskxfq0w7u",
+          "message": {
+            "text": "The default/legacy A/B proves this oracle exercises shaped-cluster fallback rather than merely producing a plausible green report. On macOS with Chromium 147, the default arm reports 8 agreements, 0 mismatches, and 1 explicit known skip; DOMOTIONCLUSTERFALLBACK=0 reports exactly 4 mismatches—the four mid-cluster cases named here—plus the same skip. The focused reconciliation tests, full unit suite, build, and lint also pass.",
+            "markdown": "The default/legacy A/B proves this oracle exercises shaped-cluster fallback rather than merely producing a plausible green report. On macOS with Chromium 147, the default arm reports 8 agreements, 0 mismatches, and 1 explicit known skip; `DOMOTION_CLUSTER_FALLBACK=0` reports exactly 4 mismatches—the four mid-cluster cases named here—plus the same skip. The focused reconciliation tests, full unit suite, build, and lint also pass."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/cluster-conformance.ts"
+                },
+                "region": {
+                  "startLine": 43,
+                  "endLine": 50,
+                  "snippet": {
+                    "text": " * Discrimination (the requirement that makes the instrument worth its exit code):\n * the shaped-cluster mechanism is shipped default-on and agrees on every\n * currently comparable cell, so a DEFAULT run is GREEN. Toggling\n * `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk and this\n * oracle then reads RED on exactly the\n * cells the mechanism fixes (x+U+0951, ก+U+0301, Arial ل+U+08F0, Menlo α+U+0345).\n * That A/B is the proof the instrument discriminates; see docs/113 §2 and the\n * per-cell table in the ticket notes."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-1854"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "09586c9cd13e77b4bc889efc62615177"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "733d9f70860fcea0b5bb78bd566157e76f0a168b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

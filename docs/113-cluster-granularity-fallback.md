@@ -13,7 +13,16 @@ automatically. Both entry points score **10/10** on the Chrome probe corpus of
 miss; the legacy per-codepoint walk scores 6/10). Unit corpora:
 `src/render/cluster-fallback.test.ts` (embedded) and
 `src/render/glyph-path-run-split.test.ts` (paths — its cases fail against the
-legacy walk, the discrimination requirement).
+legacy walk, the discrimination requirement). The multi-codepoint face oracle
+is `tools/cluster-conformance.ts` (`npm run fonts:cluster-conformance`): it asks
+Chrome and the production glyph-path splitter which faces paint the same
+partially covered and control clusters. The default mechanism must pass every
+comparable cell; `DOMOTION_CLUSTER_FALLBACK=0` must fail the four cells whose
+mid-cluster assignment the shipped mechanism fixes. This A/B is the gate's
+discrimination proof. Reports are written to
+`tests/output/cluster-conformance/`. The partial-webfont conjunct remains in the
+report as an explicit known skip: DM-2059 tracks supplying an in-memory webfont
+as the CoreText fallback base so that cell asks the same OS question as Chrome.
 
 The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the two concerns
 the glyph-path emitter has and the embedded pipeline does not:
@@ -129,11 +138,11 @@ fixtures is identical to the flag-off arm to five decimals of raw `diffPct` on
 all 9 fixtures — **with the mechanism proven armed** (invocation counters:
 182/182 texts of the Thai fixture took the prototype path). The same is true of
 the font-conformance oracle: it asks one codepoint at a time, so it can never
-contain a mid-cluster case. Grading this mechanism needs a **new fixture family
-and a new oracle mode** (multi-codepoint cells: base+mark pairs and partial
-conjuncts against partially-covered primaries — the probe corpus above is the
-seed). This is the "a sample can be blind" lesson again: the existing gates
-would have scored the wrong unit at 100% forever.
+contain a mid-cluster case. Grading this mechanism needs a **multi-codepoint
+oracle** (base+mark pairs and partial conjuncts against partially-covered
+primaries). That oracle now ships as `tools/cluster-conformance.ts`; the probe
+corpus above is its seed. This is the "a sample can be blind" lesson again: the
+older gates would have scored the wrong unit at 100% forever.
 
 ## 4. Architecture
 
