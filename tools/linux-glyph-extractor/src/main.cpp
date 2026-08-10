@@ -1067,7 +1067,11 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   out << "{\"type\":\"meta\""
       << ",\"unitsPerEm\":" << static_cast<int>(face->units_per_EM)
       << ",\"ascent\":" << static_cast<int>(face->ascender)
-      << ",\"descent\":" << static_cast<int>(face->descender);
+      << ",\"descent\":" << static_cast<int>(face->descender)
+      // Blink's Linux synthetic-oblique rule asks typeface->isItalic(). The
+      // FreeType-backed face carries that native style bit directly.
+      << ",\"traitItalic\":"
+      << ((face->style_flags & FT_STYLE_FLAG_ITALIC) != 0 ? "true" : "false");
 
   // post table: underline position / thickness (design units).
   out << ",\"underlinePosition\":" << static_cast<int>(face->underline_position)

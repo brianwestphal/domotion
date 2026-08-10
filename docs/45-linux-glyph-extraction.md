@@ -137,7 +137,10 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    `face->underline_position` / `face->underline_thickness`. Strikeout from the
    `OS/2` table via `FT_Get_Sfnt_Table(face, FT_SFNT_OS2)` →
    `os2->yStrikeoutPosition` / `os2->yStrikeoutSize`. These map onto doc 16's
-   `meta` response fields.
+   `meta` response fields. The meta response also carries `traitItalic` from
+  FreeType's native `FT_STYLE_FLAG_ITALIC`; synthesis uses it as Linux's
+  `typeface->isItalic()` signal and falls back to the historical outline
+  heuristic when an older helper omits the optional field (DM-2056).
 
 8. **`familyMatch` query.** Which cut of a declared family Chrome-on-Linux
    opens at a given weight/width/slant — a transcription of

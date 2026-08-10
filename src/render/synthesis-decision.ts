@@ -220,13 +220,12 @@ export function faceNeedsSyntheticBold(
  * `blinkRequestedSlopeDegrees` in text-to-path.ts for where it is computed
  * from the captured `font-style` string.
  *
- * `faceIsItalicTrait` carries the macOS branch's `kCTFontTraitItalic` bit —
- * the mirror of `faceIsBoldTrait`, wired from the native helper's
- * `traitItalic` meta field (`FontInstance.faceIsItalicTrait`). Wired for
- * DARWIN ONLY: Linux and Windows would need `typeface->isItalic()` from
- * their own native glyph extractors, which do not currently report it, so
- * both platforms fall back to the pre-existing outline-derived heuristic
- * below rather than a half-plumbed trait.
+ * `faceIsItalicTrait` carries the platform face's italic style bit — the mirror
+ * of `faceIsBoldTrait`, wired from the native helper's `traitItalic` meta field.
+ * CoreText reports `kCTFontTraitItalic`; Linux reports the FreeType face's
+ * native italic style bit; Windows reports `IDWriteFontFace3::GetStyle()`.
+ * Older helpers omit the optional field and preserve the outline-derived
+ * fallback below.
  *
  * That heuristic — `hasSlantAxis` / `isRoutedItalicCut` /
  * `resolvedItalicAngle` — is what this predicate used exclusively before this
@@ -266,8 +265,7 @@ export function faceNeedsSyntheticOblique(
   }
   // The pre-existing outline-derived signal: does the RESOLVED face already
   // lean, by any of the three ways that can be true? Shared by every
-  // platform as either the primary test's negation (macOS, gated behind the
-  // trait) or the whole test (Linux/Windows, no trait signal yet).
+  // platform as the fallback when its native trait is unavailable.
   const faceAlreadyLeans = font.hasSlantAxis === true
     || font.isRoutedItalicCut === true
     || (font.resolvedItalicAngle != null && Math.abs(font.resolvedItalicAngle) >= 1);
@@ -284,8 +282,8 @@ export function faceNeedsSyntheticOblique(
   // `win/font_cache_skia_win.cc:490-493`, `skia/font_cache_skia.cc:341-345`.
   // The EXACT-14 test, not "any nonzero slope" — an author's `oblique 30deg`
   // does not synthesize here, only `italic` / bare `oblique` / literally
-  // `oblique 14deg` do. No `typeface->isItalic()` extractor signal exists on
-  // either platform yet (see `FontInstance.faceIsItalicTrait`), so both stay
-  // on the outline heuristic rather than a signal that isn't there.
-  return requestedSlopeDegrees === BLINK_ITALIC_SLOPE_VALUE && !faceAlreadyLeans;
+  // `oblique 14deg` do. Linux and Windows report their native face style bit;
+  // older helper binaries safely retain the outline heuristic.
+  const faceIsItalic = font.faceIsItalicTrait ?? faceAlreadyLeans;
+  return requestedSlopeDegrees === BLINK_ITALIC_SLOPE_VALUE && !faceIsItalic;
 }

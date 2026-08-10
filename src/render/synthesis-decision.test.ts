@@ -273,13 +273,12 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
       expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined))).toBe(false);
     });
 
-    it("ignores `faceIsItalicTrait` — that signal is darwin-only until the native extractors report it", () => {
-      // Same face, same request, only `faceIsItalicTrait` present: darwin
-      // reads it (see above); Windows/Linux must not, since no extractor on
-      // either platform has wired `typeface->isItalic()` yet.
+    it("prefers a native italic trait over the outline heuristic when reported", () => {
       const face: SynthesisFace = { resolvedItalicAngle: 0, faceIsItalicTrait: true };
-      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(true);
-      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(true);
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(false);
+      const uprightTrait: SynthesisFace = { resolvedItalicAngle: -12, faceIsItalicTrait: false };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightTrait, ITALIC, undefined))).toBe(true);
     });
   });
 

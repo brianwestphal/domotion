@@ -36,6 +36,12 @@ const LIBERATION_SANS = resolveFontFile([
   "/usr/share/fonts/liberation-fonts/LiberationSans-Regular.ttf",
   "/usr/share/fonts/TTF/LiberationSans-Regular.ttf",
 ]);
+const LIBERATION_SANS_ITALIC = resolveFontFile([
+  "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
+  "/usr/share/fonts/liberation/LiberationSans-Italic.ttf",
+  "/usr/share/fonts/liberation-fonts/LiberationSans-Italic.ttf",
+  "/usr/share/fonts/TTF/LiberationSans-Italic.ttf",
+]);
 const FREE_SANS = resolveFontFile([
   "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
   "/usr/share/fonts/gnu-free/FreeSans.ttf",
@@ -57,6 +63,7 @@ interface MetaResult {
   underlineThickness?: number;
   strikeoutPosition?: number;
   strikeoutThickness?: number;
+  traitItalic?: boolean;
 }
 
 function callHelper(request: unknown): { results: any[] } {
@@ -149,6 +156,15 @@ describeHelper("Linux FreeType glyph extractor", () => {
       expect(meta.ascent).toBeGreaterThan(0);
       expect(meta.descent).toBeLessThan(0);
       expect(meta.underlineThickness).toBeGreaterThan(0);
+      expect(meta.traitItalic).toBe(false);
+    });
+
+    (LIBERATION_SANS_ITALIC ? it : it.skip)("reports the native italic style bit", () => {
+      const resp = callHelper({
+        fonts: [{ ref: "f", fontPath: LIBERATION_SANS_ITALIC, size: 1000 }],
+        queries: [{ type: "meta", fontRef: "f" }],
+      });
+      expect((resp.results[0] as MetaResult).traitItalic).toBe(true);
     });
 
     it("extracts the H outline byte-faithfully vs fontkit (validates y-up + line mapping)", () => {

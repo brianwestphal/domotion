@@ -893,8 +893,19 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
       << ",\"underlinePosition\":" << static_cast<int>(m.underlinePosition)
       << ",\"underlineThickness\":" << static_cast<int>(m.underlineThickness)
       << ",\"strikeoutPosition\":" << static_cast<int>(m.strikethroughPosition)
-      << ",\"strikeoutThickness\":" << static_cast<int>(m.strikethroughThickness)
-      << "}";
+      << ",\"strikeoutThickness\":" << static_cast<int>(m.strikethroughThickness);
+  // Exact source of DWriteFontTypeface::fontStyle().slant() in Chromium's
+  // pinned Skia: IDWriteFontFace3::GetStyle() (SkTypeface_win_dw.cpp:39-58).
+  // Omit the optional field when older DirectWrite lacks Face3 so Node keeps
+  // its outline-derived compatibility fallback.
+  IDWriteFontFace3* face3 = nullptr;
+  if (SUCCEEDED(it->second.face->QueryInterface(__uuidof(IDWriteFontFace3),
+                                                reinterpret_cast<void**>(&face3))) && face3) {
+    out << ",\"traitItalic\":"
+        << (face3->GetStyle() != DWRITE_FONT_STYLE_NORMAL ? "true" : "false");
+    safeRelease(face3);
+  }
+  out << "}";
   return out.str();
 }
 

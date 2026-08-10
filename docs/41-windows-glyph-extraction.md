@@ -104,7 +104,11 @@ Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
    don't need to crack the raw `post` / `OS/2` tables). **Sign note (as built):**
    DirectWrite's `descent` is a positive magnitude below the baseline; fontkit
    and the other helpers report descent as negative, so the helper emits
-   `-m.descent`.
+   `-m.descent`. The optional `traitItalic` field comes from
+   `IDWriteFontFace3::GetStyle() != DWRITE_FONT_STYLE_NORMAL`, exactly the
+   source Chromium's pinned `DWriteFontTypeface::GetStyle` uses for
+   `typeface->isItalic()`; older DirectWrite versions omit it and retain the
+   renderer's outline-derived compatibility fallback (DM-2056).
 
 ### The geometry sink
 
