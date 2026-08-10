@@ -152,6 +152,104 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
       expect(usesDedicatedShaper(cp)).toBe(true);
     }
   });
+
+  it("covers Adlam and Hanifi Rohingya — the two DM-2054 additions that ALSO reroute", () => {
+    expect(usesHarfbuzzShaping(0x1E900)).toBe(true);  // Adlam block start
+    expect(usesHarfbuzzShaping(0x1E95F)).toBe(true);  // Adlam block end
+    expect(usesHarfbuzzShaping(0x1E960)).toBe(false); // just past the block
+    expect(usesHarfbuzzShaping(0x10D00)).toBe(true);  // Hanifi Rohingya block start
+    expect(usesHarfbuzzShaping(0x10D3F)).toBe(true);  // Hanifi Rohingya block end
+    expect(usesHarfbuzzShaping(0x10D40)).toBe(false); // Garay — a different script (RTL_SMP_SCRIPT_RANGES neighbor)
+  });
+
+  it("does NOT reroute the other DM-2033/DM-2054 dedicated-shaper additions — measured inert", () => {
+    // Sinhala, N'Ko, Mandaic, Phags-pa, Manichaean, Psalter Pahlavi and
+    // Kharoshthi all AGREED fontkit-vs-harfbuzzjs on their real darwin
+    // production faces (see the `DEDICATED_SHAPER_RANGES` comment), so unlike
+    // Adlam/Hanifi Rohingya above they stay OUT of `usesHarfbuzzShaping` —
+    // `isShapingRequired` alone is the whole fix for them.
+    for (const cp of [
+      0x0D91, // Sinhala KA
+      0x07C8, // N'Ko A
+      0x0845, // Mandaic AG
+      0xA841, // Phags-pa KA
+      0x10AC1, // Manichaean ALEPH
+      0x10B81, // Psalter Pahlavi ALEPH
+      0x10A02, // Kharoshthi I
+    ]) {
+      expect(usesHarfbuzzShaping(cp)).toBe(false);
+    }
+  });
+});
+
+describe("usesDedicatedShaper — DM-2033 / DM-2054 additions (isShapingRequired routing)", () => {
+  it("covers Sinhala — USE-shaped, not Indic-shaped", () => {
+    expect(usesDedicatedShaper(0x0D80)).toBe(true);  // block start
+    expect(usesDedicatedShaper(0x0DFF)).toBe(true);  // block end
+    expect(usesDedicatedShaper(0x0D91)).toBe(true);  // KA
+    expect(usesDedicatedShaper(0x0D7F)).toBe(true);  // still Indic (Malayalam block end) — unaffected neighbor
+    expect(usesDedicatedShaper(0x0E00)).toBe(true);  // Thai — unaffected neighbor on the other side
+  });
+
+  it("covers the reachable Arabic-misrouted set: N'Ko, Mandaic, Phags-pa, Manichaean, Psalter Pahlavi", () => {
+    const blocks: Array<[number, number]> = [
+      [0x07C0, 0x07FF], // N'Ko
+      [0x0840, 0x085F], // Mandaic
+      [0xA840, 0xA87F], // Phags-pa
+      [0x10AC0, 0x10AFF], // Manichaean
+      [0x10B80, 0x10BAF], // Psalter Pahlavi
+    ];
+    for (const [lo, hi] of blocks) {
+      expect(usesDedicatedShaper(lo), `0x${lo.toString(16)} (block start)`).toBe(true);
+      expect(usesDedicatedShaper(hi), `0x${hi.toString(16)} (block end)`).toBe(true);
+    }
+  });
+
+  it("does NOT cover Mongolian — deliberately out of scope (already extractor:'native' on darwin)", () => {
+    // HarfBuzz also sends Mongolian to USE (`hb-ot-shaper.hh:279`), but
+    // fontkit never shapes it on this platform today, so the bug this section
+    // fixes (fontkit's own wrong internal dispatch) does not apply to it.
+    expect(usesDedicatedShaper(0x1801)).toBe(false); // Mongolian block
+  });
+
+  it("covers Adlam, Kharoshthi and Hanifi Rohingya", () => {
+    const blocks: Array<[number, number]> = [
+      [0x1E900, 0x1E95F], // Adlam
+      [0x10A00, 0x10A5F], // Kharoshthi
+      [0x10D00, 0x10D3F], // Hanifi Rohingya
+    ];
+    for (const [lo, hi] of blocks) {
+      expect(usesDedicatedShaper(lo), `0x${lo.toString(16)} (block start)`).toBe(true);
+      expect(usesDedicatedShaper(hi), `0x${hi.toString(16)} (block end)`).toBe(true);
+    }
+  });
+
+  it("does NOT cover Old Sogdian, Sogdian or Old Uyghur — held out for no covering darwin face", () => {
+    // HarfBuzz also sends all three to USE (`hb-ot-shaper.hh:364-365,381`),
+    // but a live Playwright + CDP probe against this darwin checkout shows
+    // Chrome itself falls back to Times (no system font covers them), and
+    // Arial Unicode MS — the darwin routing table's own guess — has zero
+    // glyphs in any of the three blocks. Routing to nowhere is not "matching
+    // HarfBuzz's dispatch", it is unverifiable, so these stay out until a
+    // covering face is confirmed.
+    for (const cp of [0x10F00, 0x10F30, 0x10F70]) {
+      expect(usesDedicatedShaper(cp)).toBe(false);
+    }
+  });
+
+  it("does NOT cover the scripts HarfBuzz sends to its DEFAULT shaper, not USE", () => {
+    // No `case` at all for these four in `hb_ot_shaper_categorize`
+    // (`hb-ot-shaper.hh`, checked against the full switch) — they fall to
+    // `default: return &_hb_ot_shaper_default;`, so the per-character
+    // captured-xOffset path is already correct for them (HarfBuzz does no
+    // contextual substitution on them either). Adding them would have
+    // introduced a divergence from Chrome, not fixed one — mirrors the
+    // Old Hungarian exclusion already documented on `isRtlScriptCodepoint`.
+    expect(usesDedicatedShaper(0x10C05)).toBe(false); // Old Turkic
+    expect(usesDedicatedShaper(0x10C85)).toBe(false); // Old Hungarian
+    expect(usesDedicatedShaper(0x10905)).toBe(false); // Phoenician
+    expect(usesDedicatedShaper(0x1E805)).toBe(false); // Mende Kikakui
+  });
 });
 
 describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
@@ -300,6 +398,73 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
         expect(g.path.commands.length).toBeGreaterThan(0);
         expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
       }
+    }
+  });
+
+  // DM-2054: unlike Myanmar/Khmer/Bengali above (and every other DM-2033
+  // addition), fontkit's `ArabicShaper` picks DIFFERENT GLYPHS ENTIRELY for
+  // Adlam and Hanifi Rohingya — not a cluster-map or advance/offset nuance.
+  // Measured on the blocks' real darwin production faces with explicit RTL
+  // direction (both scripts are `isRtlScriptCodepoint`):
+  //
+  //     Adlam 𞤀𞤁𞤂𞤃: fontkit {70,66,18,1} vs hb {71,69,21,3} — disjoint id sets
+  //     on the SAME on-disk font file, so id N denotes the same outline under
+  //     both engines.
+  it("Adlam: HarfBuzz selects DIFFERENT glyphs than fontkit's ArabicShaper, with fontkit's outlines", () => {
+    const { override, base } = resolveOverride("u-noto-sans-adlam", 0x1E900);
+    expect(override).not.toBeNull();
+    const o = override as NonNullable<ReturnType<typeof getFontInstance>>;
+    const TEXT = "\u{1E900}\u{1E901}\u{1E902}\u{1E903}"; // 4 Adlam capital letters
+    const hb = o.layout(TEXT, undefined, undefined, undefined, "rtl");
+    const fk = base!.layout(TEXT, undefined, undefined, undefined, "rtl");
+    const hbIds = hb.glyphs.map((g) => g.id);
+    const fkIds = fk.glyphs.map((g) => g.id);
+    // The discriminating assertion: the two engines do NOT pick the same
+    // glyphs for this text on this font, so routing through this override
+    // (rather than fontkit's own ArabicShaper) is what makes Domotion's paint
+    // match Chrome's.
+    expect(hbIds).not.toEqual(fkIds);
+    expect(new Set(hbIds).size).toBeGreaterThan(0);
+    for (const id of hbIds) expect(fkIds).not.toContain(id); // disjoint, not just reordered
+    // And the outlines still come from fontkit's own `getGlyph` — the reroute
+    // moves shaping only, per the DM-1197 invariant this whole file guards.
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    for (const g of hb.glyphs) {
+      expect(g.path.commands.length).toBeGreaterThan(0);
+      expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
+    }
+  });
+
+  it("Hanifi Rohingya: HarfBuzz selects different glyphs and advances than fontkit's ArabicShaper", () => {
+    const { override, base } = resolveOverride("u-noto-sans-hanifirohg", 0x10D00);
+    expect(override).not.toBeNull();
+    const o = override as NonNullable<ReturnType<typeof getFontInstance>>;
+    const TEXT = "\u{10D00}\u{10D01}\u{10D02}";
+    const hb = o.layout(TEXT, undefined, undefined, undefined, "rtl");
+    const fk = base!.layout(TEXT, undefined, undefined, undefined, "rtl");
+    expect(hb.glyphs.map((g) => g.id)).not.toEqual(fk.glyphs.map((g) => g.id));
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    for (const g of hb.glyphs) {
+      expect(g.path.commands.length).toBeGreaterThan(0);
+      expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
+    }
+  });
+
+  it("Sinhala, N'Ko, Mandaic, Phags-pa, Manichaean, Psalter Pahlavi, Kharoshthi: NOT rerouted (measured inert)", () => {
+    // These seven stay off `HARFBUZZ_SHAPED_RANGES` — no override exists, so
+    // `resolveFontForCodepoint` must report `fontOverride: null` for each,
+    // unlike the Adlam/Hanifi Rohingya cases above.
+    for (const [fontKey, cp] of [
+      ["u-sinhala-sangam-mn", 0x0D91],
+      ["u-noto-sans-nko", 0x07C8],
+      ["u-noto-sans-mandaic", 0x0845],
+      ["u-noto-sans-phagspa", 0xA841],
+      ["u-noto-sans-manichaean", 0x10AC1],
+      ["u-noto-sans-psapahlavi", 0x10B81],
+      ["u-noto-sans-kharoshthi", 0x10A02],
+    ] as const) {
+      const { override } = resolveOverride(fontKey, cp);
+      expect(override, fontKey).toBeNull();
     }
   });
 });

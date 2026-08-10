@@ -236,22 +236,49 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
   return false;
 }
 
-// DM-1197: Unicode blocks whose script HarfBuzz shapes with a DEDICATED shaper
-// rather than the Universal Shaping Engine. The set is exactly the shapers that
-// exist as `hb-ot-shaper-*.cc` files: Indic, Thai(+Lao), Myanmar, Khmer,
+// DM-1197: Unicode blocks whose script needs RUN-based shaping rather than
+// Domotion's per-character fallback (`text-to-path.ts`'s `isShapingRequired`
+// gate — a member's whole run goes through `font.layout(runText, …, dir)` as a
+// unit so contextual joining, cluster reordering, and ligatures survive,
+// instead of one `font.layout(ch)` call per character with no shaping at all).
+// Originally scoped to exactly HarfBuzz's TRUE dedicated shapers — the scripts
+// with their own `hb-ot-shaper-*.cc` file: Indic, Thai(+Lao), Myanmar, Khmer,
 // Arabic(+Syriac), Hebrew, Hangul. **Tibetan is not one of them** — the file
 // does not exist and `HB_SCRIPT_TIBETAN` falls through to USE — and neither is
-// Sinhala; both were listed here and both were wrong. These are EXCLUDED from the
-// base+mark HarfBuzz rerouting below: the CoreText-vs-Chrome divergence that
-// motivates it is a USE shaper behavior (its `NO_SHORT_CIRCUIT` normalization
-// always decomposes), which the dedicated shapers don't trigger. The exclusion
-// is NOT because CoreText matches Chrome on these blocks — measured, it does
-// not in any of the ten scripts (see the block comment on
-// `complexShaperBaseMarkDecomposition`) — but because that hook reroutes the
-// OUTLINES along with the shaping, and swapping outline engines is a paint
-// change in its own right. Scripts whose shaping has been moved to HarfBuzz
-// with the outlines held fixed are listed in `HARFBUZZ_SHAPED_RANGES` below,
-// and stay in this list too. Inclusive [lo, hi].
+// Sinhala; both were listed here once and both were wrong for the ORIGINAL
+// purpose below.
+//
+// DM-2033 / DM-2054 (read against `external/harfbuzz` 4de187d) extended the
+// list to specific Universal-Shaping-Engine scripts too — Sinhala, N'Ko,
+// Mandaic, Phags-pa, Manichaean, Psalter Pahlavi, Adlam, Kharoshthi, Hanifi
+// Rohingya — because `isShapingRequired` needs "does this script need a
+// whole-run `font.layout` call", which is true for every non-default shaper
+// HarfBuzz dispatches to (`hb_ot_shaper_categorize`, `hb-ot-shaper.hh:181-415`
+// — USE and the true dedicated shapers are both non-default), not just the
+// dedicated ones. A run whose script isn't here still gets per-character
+// `font.layout(ch)` calls with no contextual shaping at all, which is what
+// left these scripts silently un-shaped even after DM-2007 fixed the bidi
+// level bug that was blamed for it — the run never reached the branch that
+// would have used the corrected levels.
+//
+// These are EXCLUDED from the base+mark HarfBuzz rerouting below (both the
+// original dedicated-shaper members and the USE additions): the
+// CoreText-vs-Chrome divergence that motivates that hook is a USE shaper
+// behavior (its `NO_SHORT_CIRCUIT` normalization always decomposes), which a
+// run ALREADY taking this list's whole-run shaping branch doesn't need routed
+// through a second, single-codepoint HarfBuzz hook — see the `HARFBUZZ_SHAPED_
+// RANGES` comment below, point 2. Verified NOT to silently drop coverage for
+// the two new members that could have hit it: Sinhala's four NFD-decomposable
+// codepoints (U+0DDA/DDC/DDD/DDE) already return null from
+// `complexShaperBaseMarkDecomposition` via the unrelated base-first filter
+// (their canonical decomposition is MARK+MARK, not base+mark), and Kharoshthi
+// (the only other new member inside `COMPLEX_SHAPER_MARK_RANGES`) has ZERO
+// codepoints with any canonical NFD decomposition at all — checked
+// exhaustively over both blocks, not assumed. So this list's expansion changes
+// that hook's observable output for neither. Scripts whose shaping has ALSO
+// been moved to real HarfBuzz (harfbuzzjs) with the outlines held fixed are
+// listed in `HARFBUZZ_SHAPED_RANGES` below, and stay in this list too.
+// Inclusive [lo, hi].
 const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x0590, 0x05FF], // Hebrew
   [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF], // Arabic + supplements
@@ -260,19 +287,98 @@ const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   // Gurmukhi, Kannada, Malayalam, Oriya, Tamil, Telugu — `hb-ot-shaper.hh:224-232`)
   // and **Sinhala is not one of them**. `HB_SCRIPT_SINHALA` (`:280`) sits in the
   // block that returns `_hb_ot_shaper_use` (`:414`), so Sinhala 0x0D80-0x0DFF
-  // belongs to the USE side of this split.
+  // is listed separately below, on the USE side of that split.
   [0x0900, 0x0D7F],
+  // Sinhala. USE-shaped (`hb-ot-shaper.hh:280,414`), not Indic-shaped — see the
+  // comment on the Indic range above. DM-2033: measured fontkit-vs-harfbuzzjs
+  // shaping agreement on the block's actual darwin production face (Sinhala
+  // Sangam MN) over a ZWJ-mediated conjunct (ශ්‍රී), a plain consonant+vowel-signs
+  // word (කන්නඩ), and an out-of-order vowel-sign-before-base case (ේක) — all
+  // three agreed byte-for-byte on glyph ids, advances and offsets. So this
+  // entry's effect today is purely "isShapingRequired becomes true, contextual
+  // joining reaches the block" — `HARFBUZZ_SHAPED_RANGES` stays un-touched for
+  // it because nothing measured diverges yet.
+  [0x0D80, 0x0DFF],
   [0x0E00, 0x0EFF], // Thai + Lao
   // Tibetan is NOT here: there is no `hb-ot-shaper-tibetan.cc`, and
   // `HB_SCRIPT_TIBETAN` (`hb-ot-shaper.hh:276`) falls through to the same USE
   // return as Sinhala. Listing it excluded exactly the scripts USE's
   // `NO_SHORT_CIRCUIT` normalization decomposes — i.e. the case the base+mark
   // rerouting hook exists to serve — and made `resolveDottedCircleHbRun` bail.
+  // Unlike Sinhala/the DM-2033/DM-2054 additions above and below, Tibetan's
+  // `isShapingRequired` gap has not been measured, so it stays out for now.
   [0x1000, 0x109F], // Myanmar
   [0x1780, 0x17FF], [0x19E0, 0x19FF], // Khmer
   [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF], // Hangul (Jamo / Compat / Ext-B / Syllables)
   [0xAA60, 0xAA7F], [0xA9E0, 0xA9FF], [0x116D0, 0x116FF], // Myanmar Extended A/B/C
   [0xFB1D, 0xFB4F], [0xFB50, 0xFDFF], [0xFE70, 0xFEFF], // Hebrew/Arabic presentation forms
+
+  // DM-2033: the "Arabic-misrouted" set — fontkit's own internal shaper
+  // dispatch sends these to its `ArabicShaper` (a generic RTL-joining
+  // approximation), but HarfBuzz's real dispatch sends all of them to USE
+  // (`hb-ot-shaper.hh:300-301,322,336,339,414`, checked against the block list
+  // at `:275-414`). Measured fontkit-vs-harfbuzzjs on each script's real darwin
+  // production face (Noto Sans NKo / Mandaic / PhagsPa / Manichaean /
+  // PsaPahlavi), explicit RTL direction where the script is RTL
+  // (`isRtlScriptCodepoint`), one connected word plus one mark/tone-mark
+  // sample per script: all AGREED byte-for-byte. As with Sinhala, this entry's
+  // effect today is enabling `isShapingRequired`'s whole-run branch, not a
+  // `HARFBUZZ_SHAPED_RANGES` reroute — nothing measured diverges (yet; only a
+  // handful of samples per script were checked, not an exhaustive sweep).
+  //
+  // Mongolian is DELIBERATELY NOT included even though HarfBuzz also sends it
+  // to USE (`hb-ot-shaper.hh:279`) and fontkit's own dispatch would misroute
+  // it the same way in principle: on darwin its routing key
+  // (`u-noto-sans-mongolian`) is `extractor: "native"`, so it is ALREADY
+  // shaped by the CoreText helper today, never by fontkit — the bug this
+  // section fixes (fontkit's wrong internal dispatch) cannot occur for a
+  // script fontkit never shapes. Whether Mongolian's OWN `isShapingRequired`
+  // gap (a native-extractor font still only gets per-character `.layout(ch)`
+  // calls today, one glyph at a time, when not listed here) is worth closing
+  // is unmeasured and out of scope for this pair of tickets.
+  [0x07C0, 0x07FF], // N'Ko
+  [0x0840, 0x085F], // Mandaic
+  [0xA840, 0xA87F], // Phags-pa
+  [0x10AC0, 0x10AFF], // Manichaean
+  [0x10B80, 0x10BAF], // Psalter Pahlavi
+
+  // DM-2054: SMP scripts HarfBuzz dispatches to USE
+  // (`hb-ot-shaper.hh:294,300...414` for Kharoshthi;
+  // `:348,361,364-365,414` for Adlam / Hanifi Rohingya / Old(+)Sogdian) that
+  // had no `DEDICATED_SHAPER_RANGES` entry at all, found while validating an
+  // unrelated bidi-js fix: even after that fix, a constructed
+  // `A` + Adlam letters + `B` probe rendered byte-identical SVG markup
+  // before/after, because these scripts never reached the shaping branch the
+  // bidi levels feed into.
+  //
+  // Adlam and Hanifi Rohingya are ALSO in `HARFBUZZ_SHAPED_RANGES` below —
+  // unlike every other script in this section, fontkit's `ArabicShaper`
+  // measurably picks the WRONG glyphs for them (not just a cluster-map or
+  // advance nuance — disjoint glyph-id sets from HarfBuzz's on the same font
+  // file), so shaping through this list alone is not enough; see that entry.
+  //
+  // Kharoshthi is `extractor: "native"` on darwin (`u-noto-sans-kharoshthi`,
+  // routed through the CoreText helper because fontkit's Noto Sans Indic
+  // parser crashes on some of its GSUB — DM-983) but that only changes WHICH
+  // engine's `.layout()` gets called, not whether `isShapingRequired` needs to
+  // be true for a whole segment to reach it in one call instead of
+  // one-character-at-a-time; measured fontkit(-proxy)-vs-harfbuzzjs agreement
+  // on the block's real face over a plain letter sequence and a
+  // vowel-sign-first edge case, both agreed.
+  //
+  // Old Sogdian, Sogdian and Old Uyghur are DELIBERATELY HELD OUT: probed live
+  // (Playwright + CDP `CSS.getPlatformFontsForNode`) against this darwin
+  // checkout, Chrome itself falls back to Times for all three (no system font
+  // covers them — the darwin routing table's own guess, Arial Unicode MS, has
+  // ZERO glyphs in any of the three blocks, checked with fontkit directly).
+  // Routing them through whole-run shaping would be provably inert on macOS
+  // today (no face to shape with, on either side), but adding an entry for a
+  // script with no verified covering face anywhere is exactly the "routing to
+  // tofu" the per-script check exists to catch, so they stay out until a real
+  // covering face is confirmed on a calibrated platform.
+  [0x1E900, 0x1E95F], // Adlam
+  [0x10A00, 0x10A5F], // Kharoshthi
+  [0x10D00, 0x10D3F], // Hanifi Rohingya
 ];
 export function usesDedicatedShaper(cp: number): boolean {
   for (const [lo, hi] of DEDICATED_SHAPER_RANGES) {
@@ -523,6 +629,40 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // named, and it is a real, visible glyph-COUNT divergence, not a cluster-map
   // nuance: Domotion previously never drew the circle.
   [0x0980, 0x09FF],                                              // Bengali
+
+  // Adlam and Hanifi Rohingya (DM-2054). UNLIKE the rest of the DM-2033/DM-2054
+  // `DEDICATED_SHAPER_RANGES` additions above, these two are NOT measured inert:
+  // fontkit's `ArabicShaper` — the shaper fontkit's own internal dispatch table
+  // picks for both scripts, not HarfBuzz's real USE dispatch
+  // (`hb-ot-shaper.hh:348,361,414`) — selects DIFFERENT GLYPHS entirely, not
+  // just a cluster-map or advance/offset nuance. Measured on the blocks' real
+  // darwin production faces (Noto Sans Adlam, Noto Sans HanifiRohg), explicit
+  // RTL direction on both engines (`isRtlScriptCodepoint` already covers both
+  // blocks):
+  //
+  //     Adlam 𞤀𞤁𞤂𞤃 (4 capital letters):
+  //       fontkit  70@626,0,0  66@816,0,0  18@636,0,0  1@715,0,0
+  //       hb       71@819,0,0  69@816,0,0  21@636,0,0  3@715,0,0
+  //
+  // Same visual order (both reverse the RTL run the same way, and the advance
+  // SEQUENCE is close), but the glyph id SETS are disjoint — {70,66,18,1}
+  // against {71,69,21,3} — on the SAME on-disk font file, so id N denotes the
+  // same outline under both engines: fontkit is drawing four glyphs HarfBuzz
+  // never selects for this text. HanifiRohingya 𐴀𐴁𐴂 shows the same shape of
+  // divergence (glyph ids AND advances differ: fontkit `19@446 15@433 13@532`
+  // vs hb `22@459 16@401 14@488`). Both scripts have real Arabic-style
+  // initial/medial/final/isolated joining forms in GSUB — plausibly why
+  // fontkit's generic `ArabicShaper` engages at all — but picks the wrong ones
+  // where HarfBuzz's USE-based joining picks correctly for Chrome's paint.
+  //
+  // A second sample per script (an Adlam tone-mark pair, a second Hanifi
+  // Rohingya letter pair) also diverged or agreed consistently with the above,
+  // and the N'Ko / Mandaic / Phags-pa / Manichaean / Psalter Pahlavi / Sinhala
+  // / Kharoshthi entries above were checked the same way and did NOT diverge —
+  // this is not "reroute everything DM-2033/DM-2054 touched", it is the two
+  // scripts that measurably need it.
+  [0x1E900, 0x1E95F], // Adlam
+  [0x10D00, 0x10D3F], // Hanifi Rohingya
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.

@@ -2238,6 +2238,133 @@ describe("ligature handling with captured xOffsets (DM-287 / DM-331)", () => {
   });
 });
 
+// DM-2033 / DM-2054: Sinhala, N'Ko, Mandaic, Phags-pa, Manichaean, Psalter
+// Pahlavi, Adlam, Kharoshthi and Hanifi Rohingya joined `DEDICATED_SHAPER_
+// RANGES`, so a multi-character run in one of these scripts now takes
+// `text-to-path.ts`'s RUN-based shaping branch (one `shapeFont.layout(
+// shapeText, ..., shapeDir)` call for the whole segment) instead of the
+// per-character branch (one `font.layout(ch)` call per character, no
+// contextual shaping). The two branches are structurally distinguishable in
+// the emitted markup: the per-char branch pushes one `<g transform=
+// "translate(...)">` wrapper PER CHARACTER (each anchored at its own captured
+// xOffset), while the run-based branch pushes exactly ONE wrapper per
+// contiguous same-script/same-direction segment.
+//
+// A DECLARED, entirely-covering font-family (e.g. `fontFamily: '"Noto Sans
+// Adlam"'` over pure Adlam text) does NOT exercise this: with only one run
+// covering the whole string, `renderTextAsPath` takes the SEPARATE
+// `singleFontMarkup` fast path (`runs.length === 1 && runs[0].fontKey ===
+// primaryFontKey`), which already calls `font.layout(text)` on the whole
+// string unconditionally — `DEDICATED_SHAPER_RANGES` membership never enters
+// it, so a test built that way would pass identically on the UNFIXED code and
+// prove nothing. Mirroring the ticket's OWN probe methodology (`A` + script
+// letters + `B`) avoids this: an undeclared `Helvetica` primary does not cover
+// the script, so its letters fall through to `resolveFontForCodepoint`'s
+// fallback stage as their OWN run, sitting between two single-Latin-char
+// Helvetica runs — three runs, so `singleFontMarkup`'s single-run gate never
+// fires and the real `isShapingRequired` branch is what's under test. "A" and
+// "B" each stay per-character (1 group each, `usesDedicatedShaper('A')` is
+// and stays false); only the middle run's group count depends on the fix:
+// N groups before it (one per character, `usesDedicatedShaper` was false for
+// every codepoint in these blocks), 1 after.
+describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping", () => {
+  // Matches only the PER-RUN/PER-CHARACTER glyph groups (each carries its own
+  // `scale(...)` alongside the translate) — NOT the single outer wrapper
+  // `renderTextAsPath` always emits around the whole result (`<g transform=
+  // "translate(x,y)" fill="..." role="img" ...>`), which has no `scale(...)`
+  // in the same attribute and would otherwise inflate every count by one.
+  const groupCount = (out: string): number => (out.match(/<g transform="translate\([^)]*\) scale\(/g) ?? []).length;
+  // One captured xOffset per UTF-16 code unit (surrogate-pair-safe): the
+  // per-char branch only reads the slot at each character's START index, so
+  // the low-surrogate slot's value is never consulted and can duplicate the
+  // high-surrogate one.
+  const perCodeUnitOffsets = (text: string, stepPerChar: number): number[] => {
+    const offsets: number[] = [];
+    let x = 0;
+    for (let i = 0; i < text.length;) {
+      const cp = text.codePointAt(i)!;
+      const chLen = cp > 0xFFFF ? 2 : 1;
+      for (let j = 0; j < chLen; j++) offsets.push(x);
+      x += stepPerChar;
+      i += chLen;
+    }
+    return offsets;
+  };
+  // Wraps `middle` (the script under test) in "A" … "B" (plain Helvetica) so
+  // the middle run is a genuine FALLBACK run, forcing `runs.length > 1` and
+  // routing through the real `isShapingRequired` branch. AFTER the fix this is
+  // always exactly 3 groups (A, the whole shaped middle run, B) regardless of
+  // how many characters `middle` has.
+  const wrapped = (middle: string): { text: string; xOffsets: number[] } => {
+    const text = `A${middle}B`;
+    const xOffsets = [0, ...perCodeUnitOffsets(middle, 20).map((v) => v + 20), 20 + [...middle].length * 20];
+    return { text, xOffsets };
+  };
+
+  const ADLAM_FONT = "/System/Library/Fonts/Supplemental/NotoSansAdlam-Regular.ttf";
+  const HAVE_ADLAM = fs.existsSync(ADLAM_FONT);
+  it.skipIf(!HAVE_ADLAM)("Adlam: A+4 letters+B collapses the middle run to ONE shaped group, not four", () => {
+    const { text, xOffsets } = wrapped("\u{1E900}\u{1E901}\u{1E902}\u{1E903}");
+    const out = renderTextAsPath(text, 0, 0,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    expect(out).not.toBeNull();
+    // 1 (A) + 1 (shaped Adlam run) + 1 (B) = 3. Pre-fix this would be
+    // 1 + 4 + 1 = 6 (one group per Adlam character).
+    expect(groupCount(out!)).toBe(3);
+  });
+
+  const HANIFI_FONT = "/System/Library/Fonts/Supplemental/NotoSansHanifiRohingya-Regular.ttf";
+  const HAVE_HANIFI = fs.existsSync(HANIFI_FONT);
+  it.skipIf(!HAVE_HANIFI)("Hanifi Rohingya: A+3 letters+B collapses the middle run to ONE shaped group", () => {
+    const { text, xOffsets } = wrapped("\u{10D00}\u{10D01}\u{10D02}");
+    const out = renderTextAsPath(text, 0, 0,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    expect(out).not.toBeNull();
+    expect(groupCount(out!)).toBe(3); // pre-fix: 1 + 3 + 1 = 5
+  });
+
+  const SINHALA_FONT = "/System/Library/Fonts/Supplemental/Sinhala Sangam MN.ttc";
+  const HAVE_SINHALA = fs.existsSync(SINHALA_FONT);
+  it.skipIf(!HAVE_SINHALA)("Sinhala: A+yansaya conjunct+B collapses the middle run to ONE shaped group", () => {
+    // ශ්‍රී — yansaya ZWJ conjunct (the ticket's own DM-2033 sample). Measured
+    // fontkit-vs-harfbuzzjs AGREE for this face, so this test only proves the
+    // routing changed (group count), not a glyph-id difference — see the
+    // `harfbuzz-script-routing.test.ts` proof for the two that DO diverge.
+    const middle = "ශ්‍රී";
+    const { text, xOffsets } = wrapped(middle);
+    const out = renderTextAsPath(text, 0, 0,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    expect(out).not.toBeNull();
+    // pre-fix: 1 + middle.length (one group per UTF-16-per-char-loop step,
+    // i.e. per codepoint including combining marks) + 1.
+    expect(groupCount(out!)).toBe(3);
+  });
+
+  const NKO_FONT = "/System/Library/Fonts/Supplemental/NotoSansNKo-Regular.ttf";
+  const HAVE_NKO = fs.existsSync(NKO_FONT);
+  it.skipIf(!HAVE_NKO)("N'Ko: A+3-letter RTL word+B collapses the middle run to ONE shaped group", () => {
+    const { text, xOffsets } = wrapped("ߒߞߏ");
+    const out = renderTextAsPath(text, 0, 0,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    expect(out).not.toBeNull();
+    expect(groupCount(out!)).toBe(3); // pre-fix: 1 + 3 + 1 = 5
+  });
+
+  it("does not affect an UNRELATED fallback script (Han stays per-character)", () => {
+    // Control: verifies the wrapping harness itself against a script that is
+    // NOT in `DEDICATED_SHAPER_RANGES` and must stay out — CJK ideographs,
+    // which fall back from Helvetica the same way the scripts above do, but
+    // are not shaping-required (no contextual joining). Confirms the 3-vs-N
+    // difference above is really `isShapingRequired`, not an artifact of
+    // wrapping/fallback-routing itself.
+    const { text, xOffsets } = wrapped("中文字");
+    const out = renderTextAsPath(text, 0, 0,
+      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    expect(out).not.toBeNull();
+    expect(groupCount(out!)).toBe(5); // 1 (A) + 3 (per-char Han) + 1 (B)
+  });
+});
+
 describe("Emoji codepoints suppress .notdef tofu emission (DM-334)", () => {
   // When a codepoint is one Chrome paints via Apple Color Emoji (✨ 😀 🚀
   // 🌟 🎉 etc.), neither Times nor Apple Symbols nor Zapf Dingbats has a
