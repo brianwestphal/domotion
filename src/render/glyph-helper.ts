@@ -1031,6 +1031,10 @@ export function createGlyphHelperFont(spec: {
     // DM-1880: CoreText's own bold trait, so the macOS synthetic-bold rule can
     // ask the question Blink asks instead of inferring it from a weight.
     ...(metaResp.traitBold != null ? { faceIsBoldTrait: metaResp.traitBold } : {}),
+    // The mirror for the ITALIC style bit — see `FontInstance.faceIsItalicTrait`.
+    // `metaResp` already carried `traitItalic`; this line is the fix — it was
+    // being read into nothing.
+    ...(metaResp.traitItalic != null ? { faceIsItalicTrait: metaResp.traitItalic } : {}),
     availableFeatures: [],
 
     warmGlyphs(cps: number[]): void {
@@ -2048,6 +2052,49 @@ export function resolveFaceTraitBold(
 }
 
 /**
+ * CoreText's `kCTFontTraitItalic` for a face — the mirror of
+ * `resolveFaceTraitBold` for the bit Blink's macOS synthetic-oblique rule
+ * tests: `matched_font_traits & kCTFontTraitItalic`
+ * (`mac/font_cache_mac.mm:431-436`, rev 7d859f27).
+ *
+ * Same rationale as the bold trait (OS/2 `fsSelection` bit 0 is not
+ * trustworthy on its own, and the same dot-prefixed-name substitution risk
+ * applies), same echoed-name guard, same null-on-unavailable contract so the
+ * caller falls back to its own outline-derived heuristic rather than
+ * assuming "not italic".
+ */
+const _traitItalicCache = new Map<string, boolean | null>();
+export function resolveFaceTraitItalic(
+  postscriptName: string, path?: string,
+): boolean | null {
+  if (postscriptName === "") return null;
+  const key = `${path ?? ""} ${postscriptName}`;
+  const hit = _traitItalicCache.get(key);
+  if (hit !== undefined) return hit;
+  let out: boolean | null = null;
+  if (isGlyphHelperAvailable()) {
+    try {
+      const resp = callHelper({
+        fonts: [{ ref: "f", postscriptName, ...(path != null && path !== "" ? { path } : {}), size: 16 }],
+        queries: [{ type: "meta", fontRef: "f" }],
+      });
+      const r = resp.results[0];
+      if (r != null && r.type === "meta") {
+        const meta = r as unknown as MetaResponse & { postscriptName?: string };
+        const got = meta.postscriptName;
+        // Only trust the trait when CoreText opened the face we named. A
+        // mismatch means it substituted (see `resolveFaceTraitBold`'s note).
+        if (got === postscriptName && typeof meta.traitItalic === "boolean") {
+          out = meta.traitItalic;
+        }
+      }
+    } catch { /* helper failed — keep null so the caller falls back */ }
+  }
+  _traitItalicCache.set(key, out);
+  return out;
+}
+
+/**
  * Drop ONLY the two memos keyed per codepoint — the CoreText cascade answers and
  * the fontconfig fallback answers.
  *
@@ -2090,6 +2137,7 @@ export function glyphHelperCodepointMemoSize(): number {
 
 export function clearGlyphHelperCache(): void {
   _traitBoldCache.clear();
+  _traitItalicCache.clear();
   helperAvailable = null;
   helperPath = undefined;
   // …and the resolved TRANSPORT, for the same reason as the resolved path.

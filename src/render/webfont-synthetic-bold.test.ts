@@ -155,7 +155,14 @@ describeWithSerif("registered webfont variants carry their synthesis facts", () 
   it("a static auto-descriptor face reports no axis, not bold, no declared caps", () => {
     registerWebfont("StaticAuto", 400, "normal", serifBuf!);
     const inst = resolveFont("StaticAuto", 700, 24, 0);
-    expect(inst?.webfontFace).toEqual({ declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false });
+    // DM-2016 added the italic-side sibling fields (`declaredStyleCaps` /
+    // `slntAxisMin` / `baseIsItalic`) to the same `WebfontSynthesisFace` this
+    // registration stamps — this fixture's face has no explicit style
+    // descriptor either, so they read the same "auto, not italic" defaults.
+    expect(inst?.webfontFace).toEqual({
+      declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
+      declaredStyleCaps: null, slntAxisMin: null, baseIsItalic: false,
+    });
     expect(webfontSyntheticBold(inst!.webfontFace!, 700)).toBe(true);
     expect(webfontSyntheticBold(inst!.webfontFace!, 400)).toBe(false);
   });

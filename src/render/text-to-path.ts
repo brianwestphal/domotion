@@ -45,6 +45,8 @@ import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnor
 
 
 import {
+  BLINK_ITALIC_SLOPE_VALUE,
+  BLINK_NORMAL_SLOPE,
   DecorationMetrics,
   FontInstance,
   FontRun,
@@ -91,6 +93,40 @@ function slantForStyle(style: string | undefined): number {
   if (style == null) return 0;
   const s = style.toLowerCase();
   return (s === "italic" || s.startsWith("oblique")) ? ITALIC_SLNT : 0;
+}
+
+/**
+ * The requested CSS `font-style` as Blink's `FontSelectionRequest.slope` —
+ * the value `faceNeedsSyntheticOblique`'s platform dispatch needs, in CSS
+ * degrees (positive = clockwise = right-leaning), NOT the OT-sign-convention
+ * boolean gate `slantForStyle` produces above.
+ *
+ * Transcribed from `StyleBuilderConverterBase::ConvertFontStyle`
+ * (`core/css/resolver/style_builder_converter.cc:1102-1140`, rev 7d859f27):
+ * `normal`/absent is `kNormalSlopeValue` (0); `italic` and bare `oblique`
+ * (no angle) are BOTH `kItalicSlopeValue` (14) — the CSS parser gives
+ * `oblique` the italic sentinel, not zero; `oblique <angle>` is the literal
+ * angle, WHATEVER it is — including 0 (collapses to normal) and including 14
+ * (indistinguishable from `italic` at the request level, which is why
+ * Windows/Linux's `Style() == kItalicSlopeValue` test cannot tell `italic`
+ * apart from `oblique 14deg`, only from every OTHER explicit angle).
+ *
+ * `getComputedStyle().fontStyle` (what `style` is captured as) already
+ * serializes with this much precision — `computed_style_utils.cc:1096-1129`
+ * keeps an author's explicit angle rather than collapsing it back to
+ * `oblique`, even at exactly 14deg — so no information is lost re-parsing it
+ * here.
+ */
+function blinkRequestedSlopeDegrees(style: string | undefined): number {
+  if (style == null) return BLINK_NORMAL_SLOPE;
+  const s = style.trim().toLowerCase();
+  if (s === "" || s === "normal") return BLINK_NORMAL_SLOPE;
+  if (s === "italic") return BLINK_ITALIC_SLOPE_VALUE;
+  const m = /^oblique(?:\s+(-?[\d.]+)deg)?$/.exec(s);
+  if (m == null) return BLINK_NORMAL_SLOPE; // unrecognized — treat as normal, never as italic
+  if (m[1] == null) return BLINK_ITALIC_SLOPE_VALUE; // bare `oblique`
+  const deg = parseFloat(m[1]);
+  return Number.isFinite(deg) ? deg : BLINK_NORMAL_SLOPE;
 }
 
 // macOS system font paths (the `darwin` column of the per-platform path
@@ -1975,7 +2011,7 @@ function renderTextAsEmbedded(
     // Chrome's device-space skew exactly and is safe on stroked runs too (no
     // gate). Paths mode applies the same factor as a group `skewX`; the
     // WHETHER is the shared predicate, only the HOW differs. DM-1984.
-    const shearFactor = faceNeedsSyntheticOblique(run.font, slant, fontSynthesis)
+    const shearFactor = faceNeedsSyntheticOblique(run.font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
       ? OBLIQUE_SHEAR : 0;
 
     // DM-1722: for a STATIC-weight source on the hinted path (no wght axis,
@@ -2693,7 +2729,7 @@ export function renderTextAsPath(
   // factor stays exact rather than round-tripping through tan(-14.036°).
   // Composed AFTER the translate, so the shear pivots on the baseline origin —
   // which is where Chrome's `SkFont.setSkewX` pivots too.
-  const shear = faceNeedsSyntheticOblique(font, slant, fontSynthesis)
+  const shear = faceNeedsSyntheticOblique(font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
     ? ` matrix(1,0,${-OBLIQUE_SHEAR},1,0,0)` : "";
   return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
 }

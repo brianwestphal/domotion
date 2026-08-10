@@ -165,33 +165,134 @@ describe("faceNeedsSyntheticBold — three platform rules, not one", () => {
   });
 });
 
-describe("faceNeedsSyntheticOblique", () => {
+describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (DM-2016)", () => {
   const upright: SynthesisFace = { resolvedItalicAngle: 0 };
+  const ITALIC = 14; // BLINK_ITALIC_SLOPE_VALUE — `italic` / bare `oblique`
+  const OBLIQUE_30 = 30; // an explicit `oblique 30deg` request
 
-  it("shears an upright face when a slant is requested", () => {
-    expect(faceNeedsSyntheticOblique(upright, -1, undefined)).toBe(true);
-    expect(faceNeedsSyntheticOblique(upright, 0, undefined)).toBe(false);
+  describe("macOS — ANY nonzero slope, tested against the CoreText trait", () => {
+    // `mac/font_cache_mac.mm:431-436`: desired_italic = Style() (truthy for ANY
+    // nonzero slope, not just the italic sentinel); synthetic = desired_italic
+    // && !(traits & kCTFontTraitItalic).
+
+    it("shears an upright face for `italic`", () => {
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(upright, ITALIC, undefined))).toBe(true);
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(upright, 0, undefined))).toBe(false);
+    });
+
+    it("ALSO shears for an explicit `oblique 30deg` — any nonzero slope counts", () => {
+      // The clean divergence from Windows/Linux, and the reason a single
+      // predicate cannot be transcribed: macOS's test has no equality check.
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(upright, OBLIQUE_30, undefined))).toBe(true);
+    });
+
+    it("asks the face's own ITALIC trait, not the outline heuristic, when the trait is known", () => {
+      // A face whose post.italicAngle reads 0 (the heuristic would say
+      // "needs a shear") but CoreText's kCTFontTraitItalic says it already
+      // leans: the trait wins, mirroring `faceIsBoldTrait`'s
+      // "asks the face's own BOLD flag ... not weight" test.
+      const trueItalicTrait: SynthesisFace = { resolvedItalicAngle: 0, faceIsItalicTrait: true };
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(trueItalicTrait, ITALIC, undefined))).toBe(false);
+      // Inverse: the heuristic would say "already leans" (angle -12°) but the
+      // trait explicitly says NOT italic — the trait overrides that too.
+      const falseItalicTrait: SynthesisFace = { resolvedItalicAngle: -12, faceIsItalicTrait: false };
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(falseItalicTrait, ITALIC, undefined))).toBe(true);
+    });
+
+    it("falls back to the outline heuristic only when the trait is absent", () => {
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, ITALIC, undefined))).toBe(false);
+      // The routing flag exists because some `.ttc` members report an angle of
+      // 0 despite a visibly slanted outline; shearing those doubled their lean.
+      expect(withHostPlatform("darwin",
+        () => faceNeedsSyntheticOblique({ resolvedItalicAngle: 0, isRoutedItalicCut: true }, ITALIC, undefined))).toBe(false);
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined))).toBe(false);
+    });
   });
 
-  it("leaves a face that already leans alone — by angle OR by routing", () => {
-    expect(faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, -1, undefined)).toBe(false);
-    // The routing flag exists because some `.ttc` members report an angle of 0
-    // despite a visibly slanted outline; shearing those doubled their lean.
-    expect(faceNeedsSyntheticOblique({ resolvedItalicAngle: 0, isRoutedItalicCut: true }, -1, undefined)).toBe(false);
-    expect(faceNeedsSyntheticOblique({ hasSlantAxis: true }, -1, undefined)).toBe(false);
+  describe("Windows / Linux (general path) — EXACTLY kItalicSlopeValue (14), not any nonzero slope", () => {
+    // `win/font_cache_skia_win.cc:490-493`, `skia/font_cache_skia.cc:341-345`:
+    // both read `Style() == kItalicSlopeValue && !typeface->isItalic()` —
+    // byte-identical rules, and an EQUALITY test rather than macOS's truthiness
+    // one.
+
+    it("shears an upright face for `italic` (== 14)", () => {
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(upright, ITALIC, undefined))).toBe(true);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(upright, ITALIC, undefined))).toBe(true);
+    });
+
+    it("does NOT shear for `oblique 30deg` — this is the split the ticket was filed about", () => {
+      // The same upright face, the same "italic requested" intent, but a
+      // DIFFERENT explicit angle: macOS synthesizes (any nonzero), Windows and
+      // Linux do not (not exactly 14). One un-dispatched predicate cannot
+      // produce both answers for the same inputs.
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(upright, OBLIQUE_30, undefined))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(upright, OBLIQUE_30, undefined))).toBe(false);
+      // …while macOS, from the block above, says true for the identical input.
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(upright, OBLIQUE_30, undefined))).toBe(true);
+    });
+
+    it("leaves a face that already leans alone — the outline heuristic, no trait signal here yet", () => {
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, ITALIC, undefined))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined))).toBe(false);
+    });
+
+    it("ignores `faceIsItalicTrait` — that signal is darwin-only until the native extractors report it", () => {
+      // Same face, same request, only `faceIsItalicTrait` present: darwin
+      // reads it (see above); Windows/Linux must not, since no extractor on
+      // either platform has wired `typeface->isItalic()` yet.
+      const face: SynthesisFace = { resolvedItalicAngle: 0, faceIsItalicTrait: true };
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(true);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(true);
+    });
   });
 
-  it("obeys `font-synthesis-style: none`", () => {
-    expect(faceNeedsSyntheticOblique(upright, -1, { style: false })).toBe(false);
-    // …and is not vetoed by the weight longhand.
-    expect(faceNeedsSyntheticOblique(upright, -1, { weight: false })).toBe(true);
+  it("obeys `font-synthesis-style: none` on every platform", () => {
+    for (const p of ["darwin", "win32", "linux"] as const) {
+      expect(withHostPlatform(p, () => faceNeedsSyntheticOblique(upright, ITALIC, { style: false }))).toBe(false);
+      // …and is not vetoed by the weight longhand.
+      expect(withHostPlatform(p, () => faceNeedsSyntheticOblique(upright, ITALIC, { weight: false }))).toBe(true);
+    }
+  });
+
+  it("routes a webfont run through the DESCRIPTOR rule, ignoring the file — platform-independent", () => {
+    // Mirrors `faceNeedsSyntheticBold`'s webfont branch: the decision is made
+    // in the CSS layer, so it must not consult the per-platform tests above.
+    const webfont: SynthesisFace = {
+      webfontFace: {
+        declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
+        declaredStyleCaps: [0, 0], slntAxisMin: null, baseIsItalic: false,
+      },
+    };
+    for (const p of ["darwin", "win32", "linux"] as const) {
+      expect(withHostPlatform(p, () => faceNeedsSyntheticOblique(webfont, ITALIC, undefined))).toBe(true);
+      expect(withHostPlatform(p, () => faceNeedsSyntheticOblique(webfont, 0, undefined))).toBe(false);
+    }
+  });
+
+  it("a webfont declared already-italic does NOT synthesize, even though the general heuristic (which the pre-fix code had no branch to skip) would say yes", () => {
+    // No `hasSlantAxis` / `isRoutedItalicCut` / `resolvedItalicAngle` are set
+    // on this face, so the outline heuristic alone (what every platform fell
+    // back to before this predicate had a `webfontFace` branch at all) reads
+    // "does not already lean" and would call for a shear. The webfont
+    // DESCRIPTOR says otherwise — `declaredStyleCaps: [14, 14]` means
+    // `caps.maximum < kItalicSlopeValue` is false, so Blink's CSS-layer flag
+    // never sets in the first place — and that must win.
+    const alreadyItalicWebfont: SynthesisFace = {
+      webfontFace: {
+        declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
+        declaredStyleCaps: [14, 14], slntAxisMin: null, baseIsItalic: false,
+      },
+    };
+    for (const p of ["darwin", "win32", "linux"] as const) {
+      expect(withHostPlatform(p, () => faceNeedsSyntheticOblique(alreadyItalicWebfont, ITALIC, undefined))).toBe(false);
+    }
   });
 
   describe("a Linux LIVE-FALLBACK pick obeys fontconfig's own is_italic bit (DM-2017)", () => {
     // `linux/font_cache_linux.cc:118-125`: should_set_synthetic_italic =
-    // !fallback_font.is_italic && description.Style() == kItalicSlopeValue.
-    // Mirrors the bold override above; overrides the outline-angle test for
-    // this one stage rather than adding to it.
+    // !fallback_font.is_italic && description.Style() == kItalicSlopeValue —
+    // an EQUALITY test here too. Mirrors the bold override above; overrides
+    // the outline-angle test for this one stage rather than adding to it.
 
     it("shears a fallback face fontconfig reports as upright", () => {
       const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
@@ -200,27 +301,82 @@ describe("faceNeedsSyntheticOblique", () => {
       // that test for a fallback pick, not an addition on top of it: Blink
       // trusts fontconfig's classification of the chosen face over the
       // outline's own reported angle at this stage.
-      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, -1, undefined))).toBe(true);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, ITALIC, undefined))).toBe(true);
     });
 
     it("leaves a fallback face fontconfig reports as already italic alone", () => {
       // Inverse: angle 0 (would read "needs a shear" under the general rule)
       // but fontconfig says this candidate IS italic — no double-shear.
       const italicFallback: SynthesisFace = { resolvedItalicAngle: 0, linuxFallbackIsItalic: true };
-      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(italicFallback, -1, undefined))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(italicFallback, ITALIC, undefined))).toBe(false);
+    });
+
+    it("also requires EXACTLY kItalicSlopeValue, not any nonzero slope", () => {
+      // The pre-fix code tested `slant !== 0` even on this branch — an
+      // `oblique 30deg` request would have shorn a fallback face fontconfig
+      // reports as upright, which Blink's `Style() == kItalicSlopeValue`
+      // equality test does not.
+      const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, OBLIQUE_30, undefined))).toBe(false);
     });
 
     it("is Linux-only — darwin and win32 ignore the field entirely", () => {
+      // `linuxFallbackIsItalic: false` would, on Linux, force a shear (see the
+      // first test above) — but on darwin/win32 the field is not consulted at
+      // all, so the outline heuristic alone decides: resolvedItalicAngle -12°
+      // already leans, so NO shear on either platform.
       const face: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
-      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(face, -1, undefined))).toBe(false);
-      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(face, -1, undefined))).toBe(false);
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(false);
+      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique(face, ITALIC, undefined))).toBe(false);
     });
 
     it("still obeys `font-synthesis-style: none`", () => {
       const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
       expect(withHostPlatform("linux",
-        () => faceNeedsSyntheticOblique(uprightFallback, -1, { style: false }))).toBe(false);
+        () => faceNeedsSyntheticOblique(uprightFallback, ITALIC, { style: false }))).toBe(false);
     });
+  });
+});
+
+describe("faceNeedsSyntheticOblique — geometry: the shear transform itself (paths mode, darwin)", () => {
+  // Not pixels — a string check on the emitted transform, per DM-2016's own
+  // gating instruction: the decoration-oracle-style guard for a geometry
+  // question pixel-diff structurally cannot answer cleanly (rasterization
+  // noise). This exercises the REAL parse-to-render path (`fontStyle` string
+  // -> `blinkRequestedSlopeDegrees` -> `faceNeedsSyntheticOblique` -> the
+  // `<g transform=...>` matrix), not the predicate in isolation.
+  const render = (family: string, fontStyle: string, fontSynthesis?: { style?: boolean }): string | null => {
+    const prev = getRenderTextMode();
+    setRenderTextMode("paths");
+    clearGlyphDefs();
+    const m = renderTextAsPath("Hag", 0, 100, {
+      fontSize: 100, fontFamily: family, fontWeight: "400", fontStyle, fill: "#000",
+      ascentOverride: 0, fontSynthesis,
+    });
+    setRenderTextMode(prev);
+    return m;
+  };
+  const hasShearMatrix = (markup: string | null): boolean => /matrix\(1,0,-?[\d.]+,1,0,0\)/.test(markup ?? "");
+
+  // Keyed on the DECISION, same pattern as the bold frame-placement tests
+  // below: a host without a matching upright family skips rather than fails,
+  // and a host WITH one fails if the shear ever goes missing.
+  const uprightFamily = ["Papyrus", "Comic Sans MS", "system-ui"].find((f) => {
+    const face = resolveFont(f, 400, 100, 14);
+    return face != null && faceNeedsSyntheticOblique(face, 14, undefined);
+  });
+  const itIf = uprightFamily != null ? it : it.skip;
+
+  itIf("emits the shear matrix for `italic` on a face with no italic sibling", () => {
+    expect(hasShearMatrix(render(uprightFamily!, "italic"))).toBe(true);
+  });
+
+  itIf("emits no shear at all for `normal`", () => {
+    expect(hasShearMatrix(render(uprightFamily!, "normal"))).toBe(false);
+  });
+
+  itIf("`font-synthesis-style: none` suppresses the shear end-to-end", () => {
+    expect(hasShearMatrix(render(uprightFamily!, "italic", { style: false }))).toBe(false);
   });
 });
 

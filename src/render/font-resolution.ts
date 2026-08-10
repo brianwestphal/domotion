@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import { perScriptGenericFamily, firstAvailableOrFirst } from "./generic-script-families.js";
 import { faceHasTrakAndStat, hbShapingBaseOf, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
@@ -63,6 +63,33 @@ export interface WebfontSynthesisFace {
   /** Whether the BASE buffer declares itself bold — Skia's
    *  `SkTypeface::isBold()`, i.e. the face's own style weight ≥ 600. */
   baseIsBold: boolean;
+  /** The `@font-face` `font-style` DESCRIPTOR as selection capabilities
+   *  `[min, max]` in Blink's slope-DEGREE convention (`normal` = `[0, 0]`,
+   *  `italic`/bare `oblique` = `[14, 14]`, `oblique <angle>` = `[a, a]`,
+   *  `oblique <min> <max>` = the range with decreasing endpoints swapped —
+   *  `core/css/font_face.cc:776-858`, rev 7d859f27), or null when the
+   *  descriptor is auto/absent. Null does NOT mean "no capabilities": an
+   *  auto descriptor SELECTS as exactly normal style `[0, 0]`, so the
+   *  distinction only changes whether the variable-`slnt`-axis exemption
+   *  below is allowed to fire — see `webfontSyntheticItalic`, the mirror of
+   *  `webfontSyntheticBold`. */
+  declaredStyleCaps: readonly [number, number] | null;
+  /** The buffer's own `slnt` fvar axis MINIMUM, in the axis's own OpenType
+   *  sign convention (negative = right-leaning — opposite of CSS), or null
+   *  when the buffer exposes no `slnt` axis (a static face). */
+  slntAxisMin: number | null;
+  /** Whether the BASE buffer declares itself italic — Skia's
+   *  `SkTypeface::isItalic()`, i.e. `fontStyle().slant() != kUpright_Slant`
+   *  (`external/skia` `src/core/SkTypeface.cpp:495-497`, rev ebf5052 — read
+   *  at the checkout's working-tree revision rather than Chromium's
+   *  DEPS-pinned `62efacd3`: this agent's worktree isolation blocks `git
+   *  show` against a revision other than the checkout's current HEAD, and
+   *  `isItalic()`/`isBold()` are adjacent one-line accessors unchanged across
+   *  the handful of `SkFontConfigInterface_direct.cpp` lines known to differ
+   *  between the two revisions, so the drift risk here is negligible).
+   *  Domotion's proxy for the underlying fact — OS/2 `fsSelection` bit 0
+   *  (ITALIC), the same table `baseIsBold` reads bit 5 from. */
+  baseIsItalic: boolean;
 }
 
 export interface FontInstance {
@@ -135,6 +162,25 @@ export interface FontInstance {
    * readable, and callers fall back to the weight comparison.
    */
   faceIsBoldTrait?: boolean;
+  /**
+   * The mirror of `faceIsBoldTrait` for the ITALIC style bit, which the macOS
+   * synthetic-oblique rule tests (`mac/font_cache_mac.mm:431-436`, rev
+   * 7d859f27): `matched_font_traits & kCTFontTraitItalic`, not the face's own
+   * `post.italicAngle` — see `faceNeedsSyntheticOblique`.
+   *
+   * Same two sources as the bold trait: OS/2 `fsSelection` bit 0 for a
+   * fontkit-opened face, the CoreText trait itself for a helper-backed one.
+   * Undefined when neither is readable, and callers fall back to the
+   * outline-derived heuristic (`hasSlantAxis` / `isRoutedItalicCut` /
+   * `resolvedItalicAngle`).
+   *
+   * Wired only for macOS today. Linux and Windows would need
+   * `typeface->isItalic()` from their native glyph extractors
+   * (`tools/{linux,win32}-glyph-extractor`), which do not currently report
+   * it — so `faceNeedsSyntheticOblique` never reads this field on those two
+   * platforms, and the outline-derived heuristic is their whole signal.
+   */
+  faceIsItalicTrait?: boolean;
   /**
    * DM-2017: set ONLY on a face resolved through the Linux live per-codepoint
    * SYSTEM-FALLBACK path (`resolveFcFallbackFonts`'s `fcfallback` query), from
@@ -575,8 +621,10 @@ export function getEmbeddedFontFaceCss(): string {
 /**
  * Open a webfont buffer with fontkit and register it under the given family
  * name (case-insensitive). `weight` is a CSS numeric weight (100-900); 400
- * when omitted. `style` is "normal" / "italic" / "oblique"; treated as italic
- * for any non-normal value.
+ * when omitted. `style` is "normal" / "italic" / "oblique" (already defaulted
+ * to "normal" by the capture side when the descriptor is absent — see
+ * `styleDesc` below); treated as italic for any non-normal value for the
+ * legacy per-variant `italic` boolean used by variant SELECTION.
  *
  * `unicodeRange` mirrors the `@font-face { unicode-range: ... }` descriptor as
  * a list of inclusive `[from, to]` codepoint intervals. Google-Fonts-style
@@ -600,8 +648,20 @@ export function getEmbeddedFontFaceCss(): string {
  * as the legacy pre-collapsed number (the capture side's
  * `parseWeightDescriptor`) for report rows; selection and instancing use the
  * descriptor capabilities. See `parseFontWeightDescriptor`.
+ *
+ * `styleDesc` is the RAW `@font-face { font-style: ... }` descriptor value
+ * ("italic", "oblique 20deg", "oblique 10deg 20deg"; `""`/absent/"auto" =
+ * auto). The exact same "needs a SEPARATE raw parameter" reasoning as
+ * `weightDesc` applies here, for the exact same structural reason: `style`
+ * above is ALREADY defaulted to "normal" by the capture side (used for
+ * variant selection and the legacy `local()`-probe path, where "no
+ * descriptor" and "declared normal" are the same CSS-selection outcome), so
+ * it cannot tell those two cases apart — but `webfontSyntheticItalic`'s
+ * variable-`slnt`-axis exemption is reachable ONLY for a genuinely-auto
+ * descriptor (`IsRangeSetFromAuto()`), never for an explicit `normal`. See
+ * `parseFontStyleDescriptor`.
  */
-export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>, stretch?: string, weightDesc?: string): void {
+export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>, stretch?: string, weightDesc?: string, styleDesc?: string): void {
   const key = family.toLowerCase().replace(/^["']|["']$/g, "");
   let font: FontInstance;
   try {
@@ -615,13 +675,14 @@ export function registerWebfont(family: string, weight: number, style: string, b
   const list = webfontRegistry.get(key) ?? [];
   const stretchCaps = parseFontStretchDescriptor(stretch);
   const weightCaps = parseFontWeightDescriptor(weightDesc);
+  const styleCaps = parseFontStyleDescriptor(styleDesc);
   // DM-652: retain the raw buffer so embedded-font mode can `@font-face`
   // it as a `data:` URI without re-reading from disk (webfonts have no
   // on-disk source path — they came down from a CDN during capture).
   list.push({ weight, italic, font, unicodeRange, buffer,
     ...(stretchCaps != null ? { stretch: stretchCaps } : {}),
     ...(weightCaps != null ? { weightCaps } : {}),
-    synthesisFace: buildWebfontSynthesisFace(font, weightCaps) });
+    synthesisFace: buildWebfontSynthesisFace(font, weightCaps, styleCaps) });
   webfontRegistry.set(key, list);
 }
 
@@ -700,12 +761,55 @@ export function parseFontWeightDescriptor(value: string | undefined): readonly [
   return a < b ? [a, b] : [b, a];
 }
 
+/**
+ * Parse an `@font-face` `font-style` DESCRIPTOR value into selection
+ * capabilities `[min, max]` in Blink's slope-DEGREE convention, or undefined
+ * for auto/absent/unparseable.
+ *
+ * Transcribed from `FontFace::GetFontSelectionCapabilities`
+ * (`core/css/font_face.cc:776-858`, rev 7d859f27): `normal` is `[0, 0]`;
+ * `italic` and bare `oblique` (no angle) are BOTH `[14, 14]` — Blink gives
+ * `oblique` the italic sentinel slope, not zero; `oblique <angle>` is
+ * `[a, a]`; `oblique <min> <max>` is the range, with decreasing endpoints
+ * swapped ("User agents must swap the computed value of the startpoint and
+ * endpoint of the range in order to forbid decreasing ranges", css-fonts-4).
+ * `auto` (present for symmetry with `parseFontWeightDescriptor`; not itself a
+ * valid `font-style` descriptor keyword) and anything unparseable yield
+ * undefined — normal-style capabilities flagged as set-from-auto, meaning the
+ * variable-`slnt`-axis exemption in `webfontSyntheticItalic` can fire.
+ */
+export function parseFontStyleDescriptor(value: string | undefined): readonly [number, number] | undefined {
+  if (value == null) return undefined;
+  const v = value.trim().toLowerCase();
+  if (v === "" || v === "auto") return undefined;
+  if (v === "normal") return [BLINK_NORMAL_SLOPE, BLINK_NORMAL_SLOPE];
+  if (v === "italic") return [BLINK_ITALIC_SLOPE_VALUE, BLINK_ITALIC_SLOPE_VALUE];
+  const m = /^oblique(?:\s+(-?[\d.]+)deg(?:\s+(-?[\d.]+)deg)?)?$/.exec(v);
+  if (m == null) return undefined;
+  if (m[1] == null) return [BLINK_ITALIC_SLOPE_VALUE, BLINK_ITALIC_SLOPE_VALUE]; // bare `oblique`
+  const a = parseFloat(m[1]);
+  if (!Number.isFinite(a)) return undefined;
+  if (m[2] == null) return [a, a];
+  const b = parseFloat(m[2]);
+  if (!Number.isFinite(b)) return undefined;
+  return a < b ? [a, b] : [b, a];
+}
+
 /** Blink's `kBoldThreshold` — the weight at or above which a run counts as a
  *  bold REQUEST (`platform/fonts/font_selection_types.h:182`, rev 7d859f27).
  *  600, not 700, and not the 500 the macOS SYSTEM-font rule uses. */
 const BLINK_BOLD_THRESHOLD = 600;
 /** Blink's `kNormalWeightValue` (`font_selection_types.h:201`, rev 7d859f27). */
 const BLINK_NORMAL_WEIGHT = 400;
+/** Blink's `kItalicSlopeValue` — the slope-request sentinel `italic` / bare
+ *  `oblique` resolve to, and the EXACT value the Windows/Linux system-font
+ *  synthetic-oblique rule tests for equality against
+ *  (`font_selection_types.h:171`, rev 7d859f27). Exported for
+ *  `synthesis-decision.ts`'s platform dispatch, which needs the same
+ *  constant on the system-font side of the rule. */
+export const BLINK_ITALIC_SLOPE_VALUE = 14;
+/** Blink's `kNormalSlopeValue` (`font_selection_types.h:169`, rev 7d859f27). */
+export const BLINK_NORMAL_SLOPE = 0;
 
 /**
  * Whether Chrome paints a WEBFONT run synthetic-bold. This is a different rule
@@ -777,22 +881,38 @@ const BLINK_NORMAL_WEIGHT = 400;
  * own declared style weight ≥ 600. `OS/2.usWeightClass` is where that weight
  * comes from for a font opened from a buffer.
  */
-function buildWebfontSynthesisFace(font: FontInstance, weightCaps: readonly [number, number] | undefined): WebfontSynthesisFace {
+function buildWebfontSynthesisFace(
+  font: FontInstance,
+  weightCaps: readonly [number, number] | undefined,
+  styleCaps: readonly [number, number] | undefined,
+): WebfontSynthesisFace {
   const f = font as unknown as {
     variationAxes?: Record<string, { min?: number; max?: number }>;
-    "OS/2"?: { usWeightClass?: number };
+    "OS/2"?: { usWeightClass?: number; fsSelection?: number | { italic?: boolean } };
   };
-  const wght = f.variationAxes?.wght;
-  const rawMin = wght?.min, rawMax = wght?.max;
   const quantize = (x: number): number => Math.trunc(x * 4) / 4;
-  const wghtAxisMax = wght != null && typeof rawMax === "number" && typeof rawMin === "number" && rawMin <= rawMax
-    ? quantize(rawMax)
+  const wght = f.variationAxes?.wght;
+  const rawWghtMin = wght?.min, rawWghtMax = wght?.max;
+  const wghtAxisMax = wght != null && typeof rawWghtMax === "number" && typeof rawWghtMin === "number" && rawWghtMin <= rawWghtMax
+    ? quantize(rawWghtMax)
+    : null;
+  const slnt = f.variationAxes?.slnt;
+  const rawSlntMin = slnt?.min, rawSlntMax = slnt?.max;
+  const slntAxisMin = slnt != null && typeof rawSlntMin === "number" && typeof rawSlntMax === "number" && rawSlntMin <= rawSlntMax
+    ? quantize(rawSlntMin)
     : null;
   const usWeight = f["OS/2"]?.usWeightClass;
+  const fsSelection = f["OS/2"]?.fsSelection;
+  const baseIsItalic = fsSelection == null ? false
+    : typeof fsSelection === "number" ? (fsSelection & 0x01) !== 0
+    : fsSelection.italic === true;
   return {
     declaredWeightCaps: weightCaps ?? null,
     wghtAxisMax,
     baseIsBold: typeof usWeight === "number" && usWeight >= BLINK_BOLD_THRESHOLD,
+    declaredStyleCaps: styleCaps ?? null,
+    slntAxisMin,
+    baseIsItalic,
   };
 }
 
@@ -810,6 +930,61 @@ export function webfontSyntheticBold(face: WebfontSynthesisFace, requestedWeight
     return false;
   }
   return !face.baseIsBold;
+}
+
+/**
+ * Whether Chrome paints a WEBFONT run synthetic-ITALIC. The mirror of
+ * `webfontSyntheticBold` — platform-independent, lives entirely in the
+ * CSS/webfont layer — composed from the same two places, transcribed at the
+ * SAME two citations' style/slope counterparts:
+ *
+ *  1. `CSSSegmentedFontFace::GetFontData` (`core/css/css_segmented_font_face.cc:
+ *     120-123`):
+ *
+ *         requested_font_description.SetSyntheticItalic(
+ *             font_selection_capabilities_.slope.maximum < kItalicSlopeValue &&
+ *             font_selection_request.slope >= kItalicSlopeValue &&
+ *             font_description.SyntheticItalicAllowed());
+ *
+ *  2. `FontCustomPlatformData::GetFontPlatformData`
+ *     (`platform/fonts/font_custom_platform_data.cc:130, 188-191, 291-292`)
+ *     starts from `synthetic_italic = italic` and exempts a variable face
+ *     whose style capabilities were set FROM AUTO and which exposes a valid
+ *     `slnt` axis:
+ *
+ *         bool has_right_slanted_variations = slnt_range.minimum < kNormalSlopeValue;
+ *         synthetic_italic = italic && !has_right_slanted_variations &&
+ *                            selection_request.slope >= kItalicSlopeValue;
+ *
+ *     …then gates on the buffer's own italic-ness:
+ *
+ *         synthetic_italic && !base_typeface_->isItalic()
+ *
+ *     `slnt_range` is read in the axis's OWN (OpenType) sign convention —
+ *     `RetrieveVariationDesignParametersByTag(base_typeface_, kSlntTag)` — so
+ *     "minimum < 0" asks whether the axis extends to any RIGHT-leaning value,
+ *     the opposite sign from CSS `oblique <angle>`'s positive-clockwise
+ *     convention (`font_custom_platform_data.cc:170-174` documents the flip;
+ *     it is why `slntAxisMin` is stored raw, not CSS-signed).
+ *
+ * `requestedSlopeDegrees` is Blink's `FontSelectionRequest.slope` in the SAME
+ * CSS-degree convention `parseFontStyleDescriptor` returns: 0 for `normal`,
+ * `BLINK_ITALIC_SLOPE_VALUE` (14) for `italic` / bare `oblique`, the literal
+ * angle for `oblique <angle>`.
+ */
+export function webfontSyntheticItalic(face: WebfontSynthesisFace, requestedSlopeDegrees: number): boolean {
+  const caps = face.declaredStyleCaps ?? [BLINK_NORMAL_SLOPE, BLINK_NORMAL_SLOPE];
+  const italic = caps[1] < BLINK_ITALIC_SLOPE_VALUE && requestedSlopeDegrees >= BLINK_ITALIC_SLOPE_VALUE;
+  if (!italic) return false;
+  // The auto-descriptor variable-face exemption. Only reachable when the
+  // descriptor is auto (`IsRangeSetFromAuto()`) AND the buffer exposes a
+  // slnt axis whose range reaches a right-leaning (OT-negative) coordinate —
+  // a declared descriptor keeps `synthetic_italic = italic` untouched.
+  if (face.declaredStyleCaps == null && face.slntAxisMin != null
+      && face.slntAxisMin < BLINK_NORMAL_SLOPE) {
+    return false;
+  }
+  return !face.baseIsItalic;
 }
 
 /** True iff `cp` falls in any of the inclusive `[from, to]` intervals. */
@@ -6267,6 +6442,11 @@ export function getFontInstance(
     instance.faceIsBoldTrait = typeof fsSelection === "number"
       ? (fsSelection & 0x20) !== 0
       : fsSelection.bold === true;
+    // Bit 0 (mask 0x01) is ITALIC, the same OpenType fsSelection field bold
+    // reads bit 5 from — see `FontInstance.faceIsItalicTrait`.
+    instance.faceIsItalicTrait = typeof fsSelection === "number"
+      ? (fsSelection & 0x01) !== 0
+      : fsSelection.italic === true;
   }
   // DM-2017: fontconfig's own is_bold/is_italic classification of a Linux
   // live-fallback pick, copied from the spec onto the instance so
@@ -6300,6 +6480,11 @@ export function getFontInstance(
     if (ps != null && ps !== "") {
       const ctTrait = resolveFaceTraitBold(ps, resolveFontSpec(key)?.path);
       if (ctTrait != null) instance.faceIsBoldTrait = ctTrait;
+      // Same override, for `kCTFontTraitItalic` — the bit
+      // `faceNeedsSyntheticOblique`'s macOS branch tests
+      // (`mac/font_cache_mac.mm:431-436`, rev 7d859f27).
+      const ctItalicTrait = resolveFaceTraitItalic(ps, resolveFontSpec(key)?.path);
+      if (ctItalicTrait != null) instance.faceIsItalicTrait = ctItalicTrait;
     }
   }
   // DM-2023: everything set above describes the DEFAULT instance, because it
@@ -9016,8 +9201,9 @@ function harfbuzzShapedScriptOverride(
  * `undefined` through it. That is harmless for a one-character override and not
  * harmless for a whole run: the embedded-font path reads `naturalWeight` /
  * `faceIsBoldTrait` (or `webfontFace`, for a run resolved through the
- * `@font-face` registry) to decide synthetic bold, `resolvedItalicAngle` /
- * `isRoutedItalicCut` for synthetic oblique, and looks the instance up in
+ * `@font-face` registry) to decide synthetic bold, `faceIsItalicTrait` /
+ * `resolvedItalicAngle` / `isRoutedItalicCut` for synthetic oblique, and
+ * looks the instance up in
  * `fontSourceMap` to fold the resolved axis location into the subset key. Losing
  * that last one silently collapses two optical instances of one face into a
  * single embedded TTF.
@@ -9029,6 +9215,7 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   proxy.naturalWeight = base.naturalWeight;
   proxy.hasWeightAxis = base.hasWeightAxis;
   proxy.faceIsBoldTrait = base.faceIsBoldTrait;
+  proxy.faceIsItalicTrait = base.faceIsItalicTrait;
   proxy.webfontFace = base.webfontFace;
   proxy.resolvedItalicAngle = base.resolvedItalicAngle;
   proxy.hasSlantAxis = base.hasSlantAxis;

@@ -389,7 +389,7 @@ export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: (
  */
 // Node-side discovered-font item shapes (the page.evaluate body declares its
 // own structurally-identical inline copies; these are the Node-side types).
-type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string };
+type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; styleDesc: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string };
 type ResourceUrl = { kind: "resource"; url: string };
 type LocalFace = { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null };
 type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
@@ -464,8 +464,15 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
         const weightNum = parseWeightDescriptor(item.weight);
         // `item.weight` is the RAW descriptor string ("" = auto/absent) —
         // the registry parses it into selection capabilities; `weightNum` is
-        // the legacy pre-collapsed scalar for the report row.
-        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch, item.weight);
+        // the legacy pre-collapsed scalar for the report row. `item.styleDesc`
+        // is the same idea for `font-style`: RAW ("" = auto/absent), kept
+        // separate from `item.style` because `item.style` is defaulted to
+        // "normal" for the legacy italic-boolean/local()-probe uses above and
+        // so cannot tell "declared normal" apart from "no descriptor at all"
+        // — a real distinction for the webfont synthetic-italic rule's
+        // variable-`slnt`-axis exemption (`webfontSyntheticItalic`), which
+        // only reaches an AUTO descriptor.
+        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch, item.weight, item.styleDesc);
         report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
       } else {
         const meta = await readFontMetadata(buf);
@@ -513,7 +520,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     if (typeof (window as any).__name === "undefined") {
       (window as any).__name = function (fn: any) { return fn; };
     }
-    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string }
+    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; styleDesc: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string }
     interface ResourceUrl { kind: "resource"; url: string }
     interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
     // Parse a CSS `unicode-range` descriptor value into inclusive [from, to]
@@ -600,7 +607,14 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         // numeric collapse for report rows happens Node-side
         // (`parseWeightDescriptor`, which maps "" to 400).
         const weight = r.style.getPropertyValue("font-weight") || "";
-        const style = r.style.getPropertyValue("font-style") || "normal";
+        const styleRaw = r.style.getPropertyValue("font-style") || "";
+        const style = styleRaw || "normal";
+        // The RAW `font-style` DESCRIPTOR, mirroring `weight` just above —
+        // empty string = auto/absent, kept distinct from `style`'s
+        // "normal" default so the Node-side registry can tell "declared
+        // normal" apart from "no descriptor at all" for the webfont
+        // synthetic-italic rule's variable-`slnt`-axis exemption.
+        const styleDesc = styleRaw;
         // The `font-stretch` DESCRIPTOR (Chrome also serializes it under the
         // spec's newer `font-width` name). Empty string = auto/absent — the
         // registry then treats the face's selection capabilities as normal
@@ -681,7 +695,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         }
         for (const u of absUrls) seenUrls.add(u);
         const unicodeRange = parseUnicodeRangeInline(r.style.getPropertyValue("unicode-range") || "");
-        out.push({ kind: "font-face", family, weight, style, url: absUrl, urls: absUrls, unicodeRange, ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}) });
+        out.push({ kind: "font-face", family, weight, style, styleDesc, url: absUrl, urls: absUrls, unicodeRange, ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}) });
       }
     }
 
@@ -851,7 +865,12 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   // The raw `font-weight` descriptor; "" = auto/absent (kept distinct from a
   // declared "400" — only a declared value pins a variable face's wght axis).
   const weight = (/font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "";
-  const style = (/font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "normal";
+  const styleMatch = /font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim();
+  const style = styleMatch ?? "normal";
+  // The RAW `font-style` descriptor, kept separate from `style` above for the
+  // same reason `weight` is kept separate from `parseWeightDescriptor`'s
+  // collapse — see the call-site comment in `registerDiscoveredFont`.
+  const styleDesc = styleMatch ?? "";
   // The `font-stretch` descriptor (or its spec-renamed `font-width` form).
   // Undefined = auto/absent; the registry then treats the face's selection
   // capabilities as normal width and instancing clamps to the font's own
@@ -893,7 +912,7 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
     try { absUrls.push(new URL(u, baseUrl).href); } catch { /* skip */ }
   }
   if (absUrls.length === 0) return null;
-  return { kind: "font-face", family, weight, style, url: absUrls[0], urls: absUrls, unicodeRange, ...(stretch != null ? { stretch } : {}) };
+  return { kind: "font-face", family, weight, style, styleDesc, url: absUrls[0], urls: absUrls, unicodeRange, ...(stretch != null ? { stretch } : {}) };
 }
 
 /**

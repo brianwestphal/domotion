@@ -723,7 +723,7 @@ flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
     W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) +<br/>weight distance (Blink WeightDistance, vs the<br/>font-weight DESCRIPTOR caps; auto = [400,400]) +<br/>descriptor-less faces only: legacy OS/2-scalar<br/>tie-break × 1e-4 (resource-discovery inference)<br/>EXACT ties → LAST-declared wins<br/>(ForEachReverse, css_segmented_font_face.cc:125-136 +<br/>segmented_font_data.cc:33-40)"]
     W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
-    W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold}<br/>→ webfontSyntheticBold() at the faux-bold seam<br/>(css_segmented_font_face.cc:116-119 +<br/>font_custom_platform_data.cc:129-154, 289-293)"]
+    W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold,<br/>declaredStyleCaps, slntAxisMin, baseIsItalic}<br/>→ webfontSyntheticBold() / webfontSyntheticItalic() at the faux-bold/-italic seam<br/>(css_segmented_font_face.cc:116-123 +<br/>font_custom_platform_data.cc:129-154, 188-193, 289-293)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
     P1 --> P2["score by (stretch distance, italic,<br/>weight distance vs caps) → best"]
     P2 --> W3
@@ -1149,8 +1149,9 @@ Notes:
   The proxy exposes a fixed property set, so `carryFontInstanceMetadata` copies
   the facts the embedded-font path reads off a resolved instance
   (`naturalWeight` / `faceIsBoldTrait` — or `webfontFace`, for a run resolved
-  through the `@font-face` registry — for synthetic bold, `resolvedItalicAngle`
-  / `isRoutedItalicCut` for synthetic oblique, `postscriptName`) plus its
+  through the `@font-face` registry — for synthetic bold, `faceIsItalicTrait`
+  (macOS only) / `resolvedItalicAngle` / `isRoutedItalicCut` for synthetic
+  oblique, `postscriptName`) plus its
   `fontSourceMap` entry — without which two optical instances of one face
   collapse into a single embedded TTF.
 - **Why the OS is asked first (step 2a before 2b).** Blink has exactly ONE stage
@@ -2321,8 +2322,9 @@ installed on the built instance, and fontkit keeps drawing by glyph id.
 
 Installed in place rather than proxied, and that is not a style choice. A
 `getFontInstance` result carries `naturalWeight`, `hasWeightAxis`,
-`faceIsBoldTrait`, `resolvedItalicAngle`, `hasSlantAxis`, `isRoutedItalicCut`
-and `postscriptName`, all read later by the renderer and the embedded-font path,
+`faceIsBoldTrait`, `faceIsItalicTrait`, `resolvedItalicAngle`, `hasSlantAxis`,
+`isRoutedItalicCut` and `postscriptName`, all read later by the renderer and
+the embedded-font path,
 and the object is itself the key of `fontSourceMap`. A proxy exposing a fixed
 property set would drop every one of them silently and break identity lookup
 besides. Replacing one method also keeps the identity that
@@ -2552,12 +2554,72 @@ genuinely different rules rather than one rule with a special case:
   those non-CSS-comparable numbers into `naturalWeight` would corrupt it, so
   `hasWeightAxis` stays false there and the base-face OS/2 / CoreText reads
   stand.
-- **Webfonts** — `webfontSyntheticBold(FontInstance.webfontFace, requestedWeight)`,
-  platform-independent, decided by the `@font-face` `font-weight` descriptor rather
-  than by the file (see the descriptor section above). A webfont run never reaches
-  the per-platform branch: `naturalWeight` / `faceIsBoldTrait` are set only on the
-  system-font path, so before this branch existed a webfont could not synthesize at
-  all.
+- **Oblique — system fonts** (`faceNeedsSyntheticOblique`, DM-2016) — also
+  per-platform, and also NOT the same predicate on all three; the shipped
+  version before DM-2016 tested a single un-dispatched signal (the face's own
+  `post.italicAngle` against an invented 1° threshold) that could not express
+  the platforms' actual disagreement. macOS tests `Style()` TRUTHY — ANY
+  nonzero requested slope, `italic` or an explicit `oblique <angle>` alike —
+  against the CoreText trait: `desired_italic && !(traits &
+  kCTFontTraitItalic)` (`mac/font_cache_mac.mm:431-436`). Windows and Linux
+  are byte-identical to each other and stricter: `Style() ==
+  kItalicSlopeValue && !typeface->isItalic()` (`win/font_cache_skia_win.cc:
+  490-493`, `skia/font_cache_skia.cc:341-345`) — an EQUALITY test against the
+  sentinel angle (14, `font_selection_types.h:171`) that `italic` and bare
+  `oblique` both resolve to, so an explicit `oblique 30deg` synthesizes on
+  macOS and must NOT on Windows/Linux. `requestedSlopeDegrees` (computed by
+  `blinkRequestedSlopeDegrees` in `text-to-path.ts` from the captured
+  `font-style` string, mirroring `StyleBuilderConverterBase::ConvertFontStyle`,
+  `resolver/style_builder_converter.cc:1102-1140`) carries this CSS-degree
+  value into the predicate — a DIFFERENT number space from `ITALIC_SLNT`, the
+  constant `slantForStyle` still produces for face-SELECTION routing
+  (`resolveFont`'s `slant` parameter), which stays an OT-convention on/off
+  gate untouched by this change.
+
+  The macOS branch reads `FontInstance.faceIsItalicTrait` — the mirror of
+  `faceIsBoldTrait`, wired from the native helper's `traitItalic` meta field
+  (`glyph-helper.ts`'s `MetaResponse.traitItalic`, always present since the
+  Swift helper's `main.swift` reports it alongside `traitBold`, but dropped on
+  the floor by `createGlyphHelperFont`'s returned object until this fix) and,
+  for a plain fontkit-opened face, from OS/2 `fsSelection` bit 0 (ITALIC,
+  bit 5 is BOLD) with the same darwin-only CoreText override
+  (`resolveFaceTraitItalic`, mirroring `resolveFaceTraitBold`) correcting it
+  when the bit and the trait disagree. **Wired for macOS only** — Windows and
+  Linux would need `typeface->isItalic()` from their own native glyph
+  extractors (`tools/{linux,win32}-glyph-extractor`), which do not currently
+  report it, so both platforms fall back to the SAME outline-derived heuristic
+  every platform used exclusively before this fix (`hasSlantAxis` /
+  `isRoutedItalicCut` / `resolvedItalicAngle`) rather than a half-plumbed
+  trait signal.
+- **Webfonts** — `webfontSyntheticBold(FontInstance.webfontFace, requestedWeight)`
+  and its DM-2016 mirror `webfontSyntheticItalic(FontInstance.webfontFace,
+  requestedSlopeDegrees)`, both platform-independent, decided by the
+  `@font-face` `font-weight` / `font-style` descriptors rather than by the
+  file (see the descriptor section above). A webfont run never reaches the
+  per-platform branches: `naturalWeight` / `faceIsBoldTrait` /
+  `faceIsItalicTrait` are set only on the system-font path, so before the
+  bold branch existed a webfont could not synthesize bold at all, and before
+  the italic branch existed (DM-2016 item 4 — `faceNeedsSyntheticOblique` had
+  NO `webfontFace` branch, unlike the bold predicate) it could not synthesize
+  italic either. `webfontSyntheticItalic` is `webfontSyntheticBold`'s exact
+  style/slope counterpart: `WebfontSynthesisFace.declaredStyleCaps` (the
+  `font-style` descriptor as slope capabilities — `core/css/font_face.cc:
+  776-858`), `slntAxisMin` (the buffer's own `slnt` fvar axis MINIMUM, in the
+  axis's OWN OpenType sign convention — negative = right-leaning, opposite of
+  CSS), and `baseIsItalic` (`SkTypeface::isItalic()`,
+  `fontStyle().slant() != kUpright_Slant` — Domotion's proxy is OS/2
+  `fsSelection` bit 0). The registration-time parser is
+  `parseFontStyleDescriptor` (mirroring `parseFontWeightDescriptor`), fed a
+  RAW `styleDesc` parameter `registerWebfont` takes SEPARATELY from its
+  existing `style` parameter — `style` is already collapsed to "normal" by
+  the capture side for the legacy italic-selection boolean and the
+  `local()`-probe path, so it cannot tell "explicitly declared normal" apart
+  from "no descriptor at all", and only the latter is eligible for the
+  variable-`slnt`-axis exemption (`font_custom_platform_data.cc:130, 188-193,
+  291-292`). Both `discoverAndRegisterWebfonts`' page-side and Node-side
+  `@font-face` parsers carry the raw `font-style` value through as
+  `FaceRule.styleDesc` (`""` = auto/absent, mirroring `weight`/`weightDesc`'s
+  existing convention) for exactly this reason.
 - **A Linux LIVE-FALLBACK pick** (the `fcfallback` resolver's answer, not a
   declared family or the static chain) takes a FIFTH rule instead of the Linux
   delta above — checked first, and it OVERRIDES rather than adds to it.
@@ -2565,19 +2627,27 @@ genuinely different rules rather than one rule with a special case:
   then explicitly sets its synthetic-bold/-italic flags from fontconfig's own
   `is_bold` / `is_italic` classification of the CHOSEN candidate
   (`linux/font_cache_linux.cc:106-125`) — a BINARY test shaped like the Windows
-  rule (`!is_bold && Weight() >= 600`), not the delta `CreateFontPlatformData`
-  would otherwise have computed internally. `resolveFcFallbackFonts` parses
-  these bits off the helper's `fcfallback` answer;
-  `resolveLinuxSystemFallbackKeyForCp` threads them into the registered
-  `FontPath` (`linuxFallbackIsBold` / `linuxFallbackIsItalic`); `getFontInstance`
-  copies them onto the resulting `FontInstance`, separately from
-  `faceIsBoldTrait` (an OS/2-table fact, not a fontconfig-classification one).
-  `faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` consult them ahead of
-  the general Linux tests whenever present — i.e. only for a face this specific
-  resolver produced. Before this wiring existed, the helper emitted the bits and
-  the Node side parsed them, but nothing read the parsed value: a bold run over
-  a fallback-only codepoint used the delta rule (right for a declared family,
-  wrong for this stage) and could paint with no synthetic-bold geometry at all.
+  rule (`!is_bold && Weight() >= 600` for bold; `!is_italic && Style() ==
+  kItalicSlopeValue` — an EQUALITY test, same sentinel as the general
+  Windows/Linux rule above — for italic), not the delta
+  `CreateFontPlatformData` would otherwise have computed internally.
+  `resolveFcFallbackFonts` parses these bits off the helper's `fcfallback`
+  answer; `resolveLinuxSystemFallbackKeyForCp` threads them into the
+  registered `FontPath` (`linuxFallbackIsBold` / `linuxFallbackIsItalic`);
+  `getFontInstance` copies them onto the resulting `FontInstance`, separately
+  from `faceIsBoldTrait` / `faceIsItalicTrait` (OS/2-table facts, not
+  fontconfig-classification ones). `faceNeedsSyntheticBold` /
+  `faceNeedsSyntheticOblique` consult them ahead of the general Linux tests
+  whenever present — i.e. only for a face this specific resolver produced.
+  Before this wiring existed, the helper emitted the bits and the Node side
+  parsed them, but nothing read the parsed value: a bold run over a
+  fallback-only codepoint used the delta rule (right for a declared family,
+  wrong for this stage) and could paint with no synthetic-bold geometry at
+  all — the italic side had the additional, DM-2016-fixed defect that the
+  fallback branch tested `slant !== 0` (any nonzero) rather than the
+  EQUALITY test Blink's own `Style() == kItalicSlopeValue` performs, so an
+  `oblique 30deg` request would have sheared a fallback face fontconfig
+  reports as upright.
 
 **Vetoed by `font-synthesis` (DM-1971).** Both bakes — and the synthesized
 small-caps stand-in — sit behind the three CSS `font-synthesis` longhands, which

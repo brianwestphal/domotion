@@ -13,7 +13,7 @@
 // What is NOT here: `resolveFakeBoldTextStroke` (embolden-outline.ts), which
 // turns "yes, synthesize" into the actual stroke width, and is likewise shared.
 
-import { webfontSyntheticBold, type FontInstance } from "./font-resolution.js";
+import { webfontSyntheticBold, webfontSyntheticItalic, BLINK_ITALIC_SLOPE_VALUE, type FontInstance } from "./font-resolution.js";
 import { hostPlatform } from "./host-platform.js";
 import { FAUX_BOLD_WEIGHT_DELTA } from "./embolden-outline.js";
 
@@ -49,7 +49,7 @@ export function synthesisAllowed(
  *  holding a partial instance (or a test fixture) can pass one without
  *  fabricating a whole font. */
 export type SynthesisFace = Pick<FontInstance,
-  "naturalWeight" | "faceIsBoldTrait" | "webfontFace"
+  "naturalWeight" | "faceIsBoldTrait" | "faceIsItalicTrait" | "webfontFace"
   | "hasSlantAxis" | "isRoutedItalicCut" | "resolvedItalicAngle"
   | "linuxFallbackIsBold" | "linuxFallbackIsItalic">;
 
@@ -174,25 +174,71 @@ export function faceNeedsSyntheticBold(
 /**
  * Whether Chrome would synthesize an OBLIQUE for this resolved face.
  *
- * DM-1695: when italic is requested (slant ≠ 0) but the resolved face is
- * UPRIGHT — no italic sibling was routed to, no `slnt` axis carried the slant —
- * Chrome shears the glyph (`SkFont.setSkewX(-1/4)`, `font_platform_data.cc`).
+ * DM-1695 first built this as ONE predicate for every platform, testing the
+ * face's own `post.italicAngle` against an invented 1° threshold. Neither
+ * half of that survives scrutiny against `external/chromium` (checkout
+ * 7d859f27): Blink tests the ITALIC STYLE BIT, not the angle — and the three
+ * platforms genuinely disagree about WHICH bit and how the request must
+ * compare, so one un-dispatched predicate cannot express Chrome's actual
+ * behavior:
  *
- * `resolvedItalicAngle` is the face's own `post.italicAngle`: a real italic
- * (|angle| ≥ 1°) already leans, so skip it. `isRoutedItalicCut` covers the
- * faces that lean but UNDER-REPORT it — some `.ttc` members ship an angle of 0
- * despite a visibly slanted outline, and shearing those a second time doubled
- * their lean.
+ *   macOS   mac/font_cache_mac.mm:431-436
+ *           desired_italic = font_description.Style();  // ANY nonzero slope
+ *           matched_font_italic = matched_font_traits & kCTFontTraitItalic;
+ *           synthetic = desired_italic && !matched_font_italic;
  *
- * DM-2017: a Linux LIVE-FALLBACK pick is the one exception to all of the
+ *   Windows win/font_cache_skia_win.cc:490-493
+ *           synthetic = (Style() == kItalicSlopeValue) && !typeface->isItalic();
+ *           // EXACTLY 14 — kItalicSlopeValue, font_selection_types.h:171 —
+ *           // not any nonzero slope.
+ *
+ *   Linux   skia/font_cache_skia.cc:341-345
+ *           Byte-identical rule to Windows: `Style() == kItalicSlopeValue &&
+ *           !typeface->isItalic()`.
+ *
+ * The macOS test is "any nonzero slope" (an author's `oblique 30deg` counts);
+ * Windows and Linux test EQUALITY to the italic sentinel angle, which CSS
+ * gives to `italic` and to bare `oblique` (no angle) alike
+ * (`resolver/style_builder_converter.cc:1102-1140`) but NOT to
+ * `oblique <angle>` for any angle other than exactly 14 — so `oblique 30deg`
+ * synthesizes on macOS and must NOT on Linux/Windows. `requestedSlopeDegrees`
+ * is that CSS-degree value (`BLINK_ITALIC_SLOPE_VALUE` = 14 for
+ * `italic`/bare `oblique`, the literal angle otherwise); see
+ * `blinkRequestedSlopeDegrees` in text-to-path.ts for where it is computed
+ * from the captured `font-style` string.
+ *
+ * `faceIsItalicTrait` carries the macOS branch's `kCTFontTraitItalic` bit —
+ * the mirror of `faceIsBoldTrait`, wired from the native helper's
+ * `traitItalic` meta field (`FontInstance.faceIsItalicTrait`). Wired for
+ * DARWIN ONLY: Linux and Windows would need `typeface->isItalic()` from
+ * their own native glyph extractors, which do not currently report it, so
+ * both platforms fall back to the pre-existing outline-derived heuristic
+ * below rather than a half-plumbed trait.
+ *
+ * That heuristic — `hasSlantAxis` / `isRoutedItalicCut` /
+ * `resolvedItalicAngle` — is what this predicate used exclusively before this
+ * platform split, and remains each platform's fallback when its trait signal
+ * is unavailable: `resolvedItalicAngle` is the face's own `post.italicAngle`
+ * (a real italic, |angle| ≥ 1°, already leans, so skip it); `isRoutedItalicCut`
+ * covers faces that lean but UNDER-REPORT it (some `.ttc` members ship an
+ * angle of 0 despite a visibly slanted outline, and shearing those a second
+ * time doubled their lean); `hasSlantAxis` covers a variable face that baked
+ * the slant into its `slnt` axis instead.
+ *
+ * DM-2017: a Linux LIVE-FALLBACK pick is a separate exception to all of the
  * above — Blink's `PlatformFallbackFontForCharacter` sets synthetic italic
- * from fontconfig's own `is_italic` bit, not from the resolved outline's own
- * angle (`linux/font_cache_linux.cc:118-125`, mirroring the bold override in
+ * from fontconfig's own `is_italic` bit tested against `Style() ==
+ * kItalicSlopeValue` (EXACTLY, same sentinel as the general Linux rule above
+ * — `linux/font_cache_linux.cc:118-125`, mirroring the bold override in
  * `faceNeedsSyntheticBold`). See `FontInstance.linuxFallbackIsItalic`.
+ *
+ * A run resolved through the `@font-face` registry obeys a fourth, and
+ * platform-INDEPENDENT, rule — mirroring `faceNeedsSyntheticBold`'s webfont
+ * branch: `webfontSyntheticItalic`.
  */
 export function faceNeedsSyntheticOblique(
   font: SynthesisFace,
-  slant: number,
+  requestedSlopeDegrees: number,
   fontSynthesis: FontSynthesisAllowance | undefined,
 ): boolean {
   // DM-1971: `font-synthesis-style: none` vetoes the synthesized oblique —
@@ -200,11 +246,33 @@ export function faceNeedsSyntheticOblique(
   // one (`core/css/css_segmented_font_face.cc:120-123`). A face that really
   // leans is unaffected: the conditions below already exclude it.
   if (!synthesisAllowed(fontSynthesis, "style")) return false;
-  if (hostPlatform() === "linux" && font.linuxFallbackIsItalic != null) {
-    return slant !== 0 && !font.linuxFallbackIsItalic;
+  if (font.webfontFace != null) return webfontSyntheticItalic(font.webfontFace, requestedSlopeDegrees);
+  const platform = hostPlatform();
+  if (platform === "linux" && font.linuxFallbackIsItalic != null) {
+    return requestedSlopeDegrees === BLINK_ITALIC_SLOPE_VALUE && !font.linuxFallbackIsItalic;
   }
-  return slant !== 0
-    && font.hasSlantAxis !== true
-    && font.isRoutedItalicCut !== true
-    && (font.resolvedItalicAngle == null || Math.abs(font.resolvedItalicAngle) < 1);
+  // The pre-existing outline-derived signal: does the RESOLVED face already
+  // lean, by any of the three ways that can be true? Shared by every
+  // platform as either the primary test's negation (macOS, gated behind the
+  // trait) or the whole test (Linux/Windows, no trait signal yet).
+  const faceAlreadyLeans = font.hasSlantAxis === true
+    || font.isRoutedItalicCut === true
+    || (font.resolvedItalicAngle != null && Math.abs(font.resolvedItalicAngle) >= 1);
+  if (platform === "darwin") {
+    // `mac/font_cache_mac.mm:431-436`: ANY nonzero requested slope, tested
+    // against the CoreText trait — full stop, when the trait is known. Falls
+    // back to the outline heuristic only when the helper never answered
+    // (older binary, no helper on host), same shape as `faceIsBoldTrait`'s
+    // fallback in `faceNeedsSyntheticBold`.
+    const faceIsItalic = font.faceIsItalicTrait ?? faceAlreadyLeans;
+    return requestedSlopeDegrees !== 0 && !faceIsItalic;
+  }
+  // Windows / Linux (general, non-live-fallback) path — byte-identical rules:
+  // `win/font_cache_skia_win.cc:490-493`, `skia/font_cache_skia.cc:341-345`.
+  // The EXACT-14 test, not "any nonzero slope" — an author's `oblique 30deg`
+  // does not synthesize here, only `italic` / bare `oblique` / literally
+  // `oblique 14deg` do. No `typeface->isItalic()` extractor signal exists on
+  // either platform yet (see `FontInstance.faceIsItalicTrait`), so both stay
+  // on the outline heuristic rather than a signal that isn't there.
+  return requestedSlopeDegrees === BLINK_ITALIC_SLOPE_VALUE && !faceAlreadyLeans;
 }
