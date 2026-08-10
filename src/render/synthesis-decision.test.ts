@@ -69,6 +69,43 @@ describe("faceNeedsSyntheticBold — three platform rules, not one", () => {
     expect(withHostPlatform("darwin", () => faceNeedsSyntheticBold(noFlag700, 900, undefined))).toBe(false);
   });
 
+  it("uses the bold trait for a native-helper face that reports NO numeric weight (DM-2025)", () => {
+    // The macOS PingFang/SF-Compact cuts and the Windows DirectWrite default
+    // path are native-helper-backed: `createGlyphHelperFont` reports the
+    // CoreText/DirectWrite bold trait at the instantiated axis but never
+    // parses an OS/2 weight class, so `naturalWeight` is absent while
+    // `faceIsBoldTrait` is present. Blink's macOS/Windows test is the trait
+    // bit alone (`mac/font_cache_mac.mm:425-427`,
+    // `win/font_cache_skia_win.cc:486-488`), so a non-bold face requested bold
+    // MUST synthesize. Before the fix the up-front `naturalWeight == null`
+    // bail returned false here, silently disabling synthetic bold for every
+    // such face — this asserts the branch now decides on the signal it has.
+    const helperNonBold: SynthesisFace = { faceIsBoldTrait: false };
+    expect(withHostPlatform("darwin", () => faceNeedsSyntheticBold(helperNonBold, 700, undefined))).toBe(true);
+    expect(withHostPlatform("win32", () => faceNeedsSyntheticBold(helperNonBold, 700, undefined))).toBe(true);
+    // Just below each platform's threshold, still no synthesis — the trait is
+    // consulted but the request isn't bold enough (darwin > 500, win32 >= 600).
+    expect(withHostPlatform("darwin", () => faceNeedsSyntheticBold(helperNonBold, 500, undefined))).toBe(false);
+    expect(withHostPlatform("win32", () => faceNeedsSyntheticBold(helperNonBold, 599, undefined))).toBe(false);
+
+    // A native-helper face that IS bold (its trait set) must NOT double-bold,
+    // whatever the request.
+    const helperBold: SynthesisFace = { faceIsBoldTrait: true };
+    expect(withHostPlatform("darwin", () => faceNeedsSyntheticBold(helperBold, 900, undefined))).toBe(false);
+    expect(withHostPlatform("win32", () => faceNeedsSyntheticBold(helperBold, 900, undefined))).toBe(false);
+  });
+
+  it("degrades to no synthesis when a face reports NEITHER trait nor weight", () => {
+    // Both signals absent (helper unavailable, no OS/2 read): we cannot tell
+    // whether the face is already bold, so we must not synthesize — doing so
+    // would double-bold a real Bold face. Preserves the pre-DM-2025 behavior
+    // for this specific degenerate case on the threshold platforms.
+    const noSignal: SynthesisFace = {};
+    for (const p of ["darwin", "win32", "linux"] as const) {
+      expect(withHostPlatform(p, () => faceNeedsSyntheticBold(noSignal, 900, undefined))).toBe(false);
+    }
+  });
+
   it("a variable face instantiated at the requested weight needs no synthetic bold", () => {
     // DM-2023: once `naturalWeight` / `faceIsBoldTrait` describe the
     // INSTANTIATED variation position — the same fact

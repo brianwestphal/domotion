@@ -140,18 +140,24 @@ export function faceNeedsSyntheticBold(
     return requestedWeight >= 600 && !font.linuxFallbackIsBold;
   }
   const faceNaturalWeight = font.naturalWeight;
-  if (faceNaturalWeight == null) return false;
 
   if (platform === "darwin") {
     // `mac/font_cache_mac.mm:425-427`, rev 7d859f27:
     //   desired_bold = Weight() > 500
     //   synthetic = desired_bold && !(matched_font_traits & kCTFontTraitBold)
     // The trait is the WHOLE test upstream — there is no numeric fallback,
-    // because CoreText always answers. Ours can be absent when the native
-    // helper is unavailable, and defaulting that to "not bold" would synthesize
-    // a second bold on top of every real Bold face; the declared-weight test is
-    // the degradation for that case only, not part of the transcription.
-    const faceIsBold = font.faceIsBoldTrait ?? faceNaturalWeight >= 600;
+    // because CoreText always answers. `faceIsBoldTrait` carries exactly that
+    // bit (OS/2 fsSelection for a fontkit face, the CoreText trait for a
+    // native-helper one), read at the INSTANTIATED axis. `naturalWeight` is
+    // only a degradation for a face reporting NEITHER, and must NOT gate the
+    // branch: a native-helper-backed face (the PingFang/SF-Compact cuts)
+    // reports the trait but never parses an OS/2 weight class, so the old
+    // up-front `naturalWeight == null` bail silently disabled synthetic bold
+    // for every one of them (DM-2025). Bail only when both signals are absent,
+    // where "not bold" is the safe degradation (never double-bold a real Bold).
+    const faceIsBold =
+      font.faceIsBoldTrait ?? (faceNaturalWeight != null ? faceNaturalWeight >= 600 : null);
+    if (faceIsBold == null) return false;
     return requestedWeight > 500 && !faceIsBold;
   }
   if (platform === "win32") {
@@ -159,15 +165,22 @@ export function faceNeedsSyntheticBold(
     // !typeface->isBold()`, with `kBoldThreshold = 600`
     // (`font_selection_types.h:182`). Here the numeric test IS the definition —
     // Skia's `isBold()` is the face's own declared weight >= 600 — so the
-    // fallback and the trait agree by construction.
-    const faceIsBold = font.faceIsBoldTrait ?? faceNaturalWeight >= 600;
+    // fallback and the trait agree by construction. Same null handling as
+    // darwin: the DirectWrite default path is native-helper-backed and reports
+    // the trait without an OS/2 weight, so gating on `naturalWeight` up front
+    // disabled it there too (DM-2025).
+    const faceIsBold =
+      font.faceIsBoldTrait ?? (faceNaturalWeight != null ? faceNaturalWeight >= 600 : null);
+    if (faceIsBold == null) return false;
     return requestedWeight >= 600 && !faceIsBold;
   }
   // Linux (also Android/Fuchsia) — `skia/font_cache_skia.cc:333-337`:
   //   Weight() > FontSelectionValue(200) + typeface->fontStyle().weight()
   // A DELTA against the matched face's own weight, not a fixed threshold, and
   // it never consults a bold trait. Porting either threshold rule here would
-  // break it.
+  // break it. This branch genuinely needs the numeric weight, so it keeps the
+  // `naturalWeight == null` bail the other two branches no longer share.
+  if (faceNaturalWeight == null) return false;
   return requestedWeight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA;
 }
 
