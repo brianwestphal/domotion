@@ -2507,7 +2507,7 @@ const _fallbackBaseFromPrimary = process.env.DOMOTION_FALLBACK_BASE !== "0";
 
 /** Memo for `fallbackBaseFor` — the base is asked for once per codepoint, and
  *  the cut resolution behind it walks the platform style matcher. */
-const fallbackBaseCache = new Map<string, { name: string; path?: string }>();
+const fallbackBaseCache = new Map<string, { name: string; path?: string; data?: Buffer }>();
 
 /** The cascade base to ask CoreText from, for a run whose primary is `primaryKey`
  *  at this CSS style.
@@ -2542,11 +2542,13 @@ const fallbackBaseCache = new Map<string, { name: string; path?: string }>();
  *  At 400 / upright / 100% the instance IS the base entry, so this changes
  *  nothing there by construction. */
 const _fallbackBaseCutEnabled = process.env.DOMOTION_FALLBACK_BASE_CUT !== "0";
+/** DM-2059 A/B: restore the Times stand-in for in-memory webfonts. */
+const _webfontFallbackBaseEnabled = process.env.DOMOTION_WEBFONT_FALLBACK_BASE !== "0";
 
 function fallbackBaseFor(
   primaryKey: string | undefined, weight: number = 400, fontSize: number = 16,
   slant: number = 0, stretch: number = 100,
-): { name: string; path?: string } {
+): { name: string; path?: string; data?: Buffer } {
   if (!_fallbackBaseFromPrimary || primaryKey == null) return { name: "Helvetica" };
   const cacheKey = `${primaryKey}|${weight}|${fontSize}|${slant !== 0 ? 1 : 0}|${stretch}`;
   const hit = fallbackBaseCache.get(cacheKey);
@@ -2566,7 +2568,7 @@ function fallbackBaseFor(
     ? primaryKey
     : resolveEffectiveCutKey(primaryKey, weight, slant, stretch).key;
   const spec = resolveFontSpec(cutKey) ?? resolveFontSpec(primaryKey);
-  let base: { name: string; path?: string };
+  let base: { name: string; path?: string; data?: Buffer };
   if (spec?.postscriptName == null || spec.postscriptName === "") {
     // A primary with no on-disk spec of its own — a webfont / local-alias
     // registry key, i.e. exactly the faces for which Blink's `ct_font` is
@@ -2577,7 +2579,10 @@ function fallbackBaseFor(
     // 7d859f27, quoting the "default value of standard font from user
     // settings"). `Times-Roman` is the face the "Times" family name
     // instantiates.
-    base = { name: "Times-Roman" };
+    const registryInstance = getFontInstance(primaryKey, weight, fontSize, slant, undefined, stretch);
+    base = _webfontFallbackBaseEnabled && registryInstance?.webfontBuffer != null
+      ? { name: registryInstance.postscriptName ?? "", data: registryInstance.webfontBuffer }
+      : { name: "Times-Roman" };
   } else {
     base = { name: spec.postscriptName, path: spec.path };
     if (_fallbackBaseCutEnabled && !isRegistryKey
@@ -3081,7 +3086,7 @@ function resolveSystemFallbackKeyForCp(
       // the in-family re-selection at the requested traits + weight that Blink
       // runs on the nominated face (font_cache_mac.mm:242-267).
       let resolved = resolveSystemFallbackFonts([cp], base.name, {
-        weight, italic: slant !== 0, fontSize, basePath: base.path,
+        weight, italic: slant !== 0, fontSize, basePath: base.path, baseData: base.data,
         // DM-1859: a `system-ui` run's cascade is walked from the platform UI
         // font, which the helper builds with `CTFontCreateUIFontForLanguage` the
         // way `MatchSystemUIFont` does. Not expressible as a path — the UI font
@@ -3135,7 +3140,7 @@ function resolveSystemFallbackKeyForCp(
       if (wantMonoEmojiReplacement && resolved != null
           && isAppleColorEmojiFamily(resolved.familyName)) {
         const unreplaced = resolveSystemFallbackFonts([cp], base.name, {
-          weight, italic: slant !== 0, fontSize, basePath: base.path,
+          weight, italic: slant !== 0, fontSize, basePath: base.path, baseData: base.data,
           ...(useSystemUiBase ? { systemUi: true } : {}),
         }).get(cp);
         if (unreplaced != null && unreplaced.path !== "") resolved = unreplaced;
@@ -10178,4 +10183,3 @@ export function glyphPathIntercepts(
  *  stretchy-fence markup). Named distinctly from the one-decimal `r` in
  *  `format.ts` so the precision is explicit at the call site (DM-1340). */
 export function r2(n: number): string { return Number(n.toFixed(2)).toString(); }
-

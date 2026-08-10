@@ -11,4 +11,9 @@ describe("macOS helper request-scoped font contract", () => {
     expect(helperSource).toContain("if !requestScoped, let cached = fontCache[key]");
     expect(helperSource).toContain("if !requestScoped { fontCache[key] = entry }");
   });
+
+  it("opens in-memory webfont data for an identical CoreText cascade base", () => {
+    expect(helperSource).toContain('spec["fontData"] as? String');
+    expect(helperSource).toContain("CTFontManagerCreateFontDescriptorsFromData");
+  });
 });

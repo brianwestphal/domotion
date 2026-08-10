@@ -34,6 +34,7 @@ describe("cluster conformance reconciliation", () => {
         "menlo-alpha-ypogegrammeni",
       ]),
     );
+    expect(cells.find((cell) => cell.id === "webfont-partial-conjunct-ksha")?.knownSkipReason).toBeUndefined();
   });
 
   it("accepts the same face and rejects an extra face on either side", () => {

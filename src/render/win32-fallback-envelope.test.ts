@@ -85,6 +85,15 @@ describe("system-fallback envelope: Windows declares no base font (DM-1889)", ()
     expect(env.fonts[0]).toMatchObject({ fontPath: "/System/Library/Fonts/X.ttc" });
   });
 
+  it("passes in-memory webfont bytes through as the darwin cascade base", () => {
+    const env = buildFallbackEnvelope("DMPartialDeva", [0x0937], {
+      ...REQ, baseData: Buffer.from([0, 1, 2, 3]),
+    }, "darwin");
+    expect(env.fonts[0]).toMatchObject({
+      postscriptName: "DMPartialDeva", fontData: "AAECAw==", requestScoped: true,
+    });
+  });
+
   it("builds the system-ui base the way MatchSystemUIFont does (darwin)", () => {
     // DM-1859: the traits are derived helper-side from these CSS numbers, so the
     // envelope carries the numbers rather than pre-computed booleans.

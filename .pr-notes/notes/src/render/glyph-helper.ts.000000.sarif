@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [{
+    "tool": { "driver": { "name": "Hot Sheet", "rules": [{
+      "id": "review-note", "name": "ReviewNote",
+      "shortDescription": { "text": "AI-authored, line-anchored review note." }
+    }] } },
+    "results": [{
+      "ruleId": "review-note", "ruleIndex": 0, "kind": "informational", "level": "none",
+      "message": {
+        "text": "The in-memory bytes are the cascade base, not merely another way to extract glyphs. This mirrors Blink handing CTFontCreateForString the current webfont-backed run face. The cluster oracle passes 9/9 with no skips; DOMOTION_WEBFONT_FALLBACK_BASE=0 restores the Times stand-in and changes the partial-webfont cell to the prior Kohinoor-versus-ITF mismatch.",
+        "markdown": "The in-memory bytes are the cascade base, not merely another way to extract glyphs. This mirrors Blink handing `CTFontCreateForString` the current webfont-backed run face. The cluster oracle passes 9/9 with no skips; `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the Times stand-in and changes the partial-webfont cell to the prior Kohinoor-versus-ITF mismatch."
+      },
+      "locations": [{ "physicalLocation": {
+        "artifactLocation": { "uri": "src/render/glyph-helper.ts" },
+        "region": { "startLine": 1325 }
+      } }],
+      "properties": { "tags": ["test-evidence"], "ext-ai-tool-confidence": 1 },
+      "rank": 95,
+      "workItemUris": ["DM-2059"]
+    }]
+  }]
+}

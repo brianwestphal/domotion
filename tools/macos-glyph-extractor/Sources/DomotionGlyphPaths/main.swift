@@ -199,6 +199,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     }
     let postscriptName = spec["postscriptName"] as? String
     let fontPath = spec["fontPath"] as? String
+    let fontData = (spec["fontData"] as? String).flatMap { Data(base64Encoded: $0) }
     let size = (spec["size"] as? NSNumber)?.doubleValue ?? 16.0
 
     var baseFont: CTFont?
@@ -245,9 +246,14 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     // zero must not stand in for it (see the throw below).
     var nameAbsentFromFile = false
 
-    if let path = fontPath {
-        let url = URL(fileURLWithPath: path) as CFURL
-        // CTFontManagerCreateFontDescriptorsFromURL returns every face in the file.
+    if fontPath != nil || fontData != nil {
+        let descriptors: [CTFontDescriptor]?
+        if let data = fontData {
+            descriptors = CTFontManagerCreateFontDescriptorsFromData(data as CFData) as? [CTFontDescriptor]
+        } else {
+            descriptors = CTFontManagerCreateFontDescriptorsFromURL(URL(fileURLWithPath: fontPath!) as CFURL) as? [CTFontDescriptor]
+        }
+        // The URL/data descriptor APIs return every face in the file.
         // Note it reports CoreText's NAMED-INSTANCE-EXPANDED list, not the file's
         // physical sfnt members: SFIndia.ttc has 9 physical members but reports 81
         // descriptors (9 scripts x 9 named weights), and PingFangUI.ttc reports 268
@@ -255,7 +261,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
         // never be handed to a collection-indexing API (hb_face_create and
         // FT_New_Face take the physical index; the Node side resolves that
         // separately through fontkit). That is why no face index is reported here.
-        if let array = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor] {
+        if let array = descriptors {
             var picked: CTFontDescriptor? = nil
             if let want = postscriptName {
                 for d in array {
@@ -1309,6 +1315,7 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
 func fontCacheKey(_ spec: [String: Any]) -> String {
     let ps = spec["postscriptName"] as? String ?? ""
     let fp = spec["fontPath"] as? String ?? ""
+    let fd = spec["fontData"] as? String ?? ""
     let sz = (spec["size"] as? NSNumber)?.stringValue ?? "16"
     var varKey = ""
     if let v = spec["variations"] as? [String: Any] {
@@ -1329,7 +1336,7 @@ func fontCacheKey(_ spec: [String: Any]) -> String {
         let css = systemUICSS(from: spec)
         uiKey = "|ui:\(css.weight),\(css.slant),\(css.width)"
     }
-    return "\(ps)|\(fp)|\(sz)|\(varKey)\(uiKey)"
+    return "\(ps)|\(fp)|\(fd)|\(sz)|\(varKey)\(uiKey)"
 }
 
 // Process one request envelope into a response, opening (or reusing, via

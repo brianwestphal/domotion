@@ -226,7 +226,7 @@ export function measureOutlineOffsetY(
 
 // Spawn the helper once, request meta + a batch of glyphs in one envelope.
 interface HelperRequest {
-  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; size: number; variations?: Record<string, number>; requestScoped?: boolean }>;
+  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; fontData?: string; size: number; variations?: Record<string, number>; requestScoped?: boolean }>;
   queries: Array<
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
@@ -1322,6 +1322,8 @@ export interface SystemFallbackRequest {
    *  would silently walk the wrong font's cascade. With a path the helper opens
    *  the exact face out of the file. */
   basePath?: string;
+  /** Raw sfnt bytes for an in-memory webfont cascade base (macOS only). */
+  baseData?: Buffer;
   /** DM-1859: the run's primary is the CSS `system-ui` / `BlinkMacSystemFont`
    *  keyword, i.e. the platform UI font.
    *
@@ -1490,6 +1492,7 @@ export function buildFallbackEnvelope(
     fonts: platform === "win32" ? [] : [{
       ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
       ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
+      ...(req?.baseData != null ? { fontData: req.baseData.toString("base64") } : {}),
       // CoreText's cascade base belongs to the current run. The persistent
       // helper may cache ordinary opened faces, but sharing this CTFontRef
       // between envelopes lets its cascade state leak into later Han queries.

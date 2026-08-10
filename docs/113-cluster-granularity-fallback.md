@@ -20,9 +20,11 @@ partially covered and control clusters. The default mechanism must pass every
 comparable cell; `DOMOTION_CLUSTER_FALLBACK=0` must fail the four cells whose
 mid-cluster assignment the shipped mechanism fixes. This A/B is the gate's
 discrimination proof. Reports are written to
-`tests/output/cluster-conformance/`. The partial-webfont conjunct remains in the
-report as an explicit known skip: DM-2059 tracks supplying an in-memory webfont
-as the CoreText fallback base so that cell asks the same OS question as Chrome.
+`tests/output/cluster-conformance/`. The partial-webfont conjunct is graded too:
+the macOS helper opens the registered webfont's retained sfnt bytes as the
+CoreText cascade base, matching the current run Blink passes to
+`CTFontCreateForString`. `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the old
+Times stand-in for a live A/B; the partial-webfont cell must then move red.
 
 The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the two concerns
 the glyph-path emitter has and the embedded pipeline does not:

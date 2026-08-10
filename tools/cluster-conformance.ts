@@ -199,7 +199,6 @@ function buildCells(): Cell[] {
         sourcePath: devaSrc,
         retainCps: [0x0915, 0x094d],
       },
-      knownSkipReason: "DM-2059: an in-memory webfont cannot yet be supplied as the CoreText helper base; Chrome chooses Kohinoor while Domotion asks from a different base and chooses ITF Devanagari",
     });
   }
   return cells;
