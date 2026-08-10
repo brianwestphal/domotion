@@ -22,6 +22,7 @@ import { createEmojiDetect } from "./emoji-detect.js";
 import { createDottedCircleDetect } from "./dotted-circle-detect.js";
 import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
+import { createFontFamilyDefault } from "./font-family-default.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
 import { createCounterStyleResolver } from "./walker/counter-style-resolver.js";
@@ -60,6 +61,7 @@ export const captureScript =
   const { markGetsDottedCircle } = createDottedCircleDetect();
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
+  const { familyIsUADefault: _familyIsUADefault } = createFontFamilyDefault();
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   // DM-770: counter-style map is populated by the pre-walk below (which
@@ -582,7 +584,17 @@ export const captureScript =
           if (_s === 1) return cs.fontSize;
           return (_fs * _s).toFixed(4) + 'px';
         })(),
-        fontFamily: cs.fontFamily,
+        // DM-2051: an element with NO author-declared font-family is a Blink
+        // kStandardFamily description, which resolves to the SCRIPT-KEYED
+        // `settings.Standard(script)` — so `lang=ja` with no declared family
+        // paints the Japanese standard face for the whole run, though the
+        // computed string serializes to the concrete standard name ("Times").
+        // Rewrite that case to the `-webkit-standard` generic keyword, which is
+        // exactly what kStandardFamily maps to; the renderer's
+        // `matchFamilyNameToKey("-webkit-standard", true, lang)` then routes it
+        // script-keyed. A declared `font-family: Times` (identical computed
+        // string, but Latin→Times / CJK→fallback) is left untouched.
+        fontFamily: _familyIsUADefault(el, cs.fontFamily) ? '-webkit-standard' : cs.fontFamily,
         fontWeight: cs.fontWeight,
         fontStyle: cs.fontStyle,
         opacity: cs.opacity,
