@@ -106,6 +106,68 @@ Routine synthetic testing uses a **rotating low-byte sample**. The default bucke
 
 Each bucket has its own baseline, `tests/baselines/font-conformance-synthetic-<os>-byte-<XX>.json`; unlike buckets are never compared. Baseline identity also includes stack- and codepoint-shard denominators. This is semantic, not operational bookkeeping: each shard owns an independent browser/document and both Chromium and Domotion retain document-scoped fallback state, so changing shard topology changes cache history even when the union of stacks and codepoints is identical. `sample_byte: all` explicitly selects the exhaustive universe and keeps the established unsuffixed synthetic baseline. A first run of a new bucket is dispatched with `update_baseline` and its artifact is reviewed and committed before that bucket becomes a gate. A contiguous `range` remains available for diagnosis, but requires `sample_byte: all` so two selectors cannot silently intersect; range baselines include a digest of the range spelling and therefore cannot overwrite the exhaustive baseline.
 
+### Linux byte-00 residual classification (2026-08-11)
+
+Run `31473008700` repeated the committed Linux byte-00 topology after the live
+session-family changes: 351 stacks × 1,179 codepoints, 413,829 comparisons in
+88.1 seconds. It reproduced the baseline exactly: 646 disagreements, 20 face
+pairs. Retaining every row made the stage boundary unambiguous rather than
+inferring it from the aggregate:
+
+| Count | Chromium → Domotion | Classification |
+|---:|---|---|
+| 208 | FreeSans → Unifont | `gfx::GetFallbackFontForChar` / Fontations configuration |
+| 169 | FreeSans → FreeSerif | same |
+| 91 | FreeSerif → Unifont | same |
+| 25 | IPAGothic → IPAPGothic | same |
+| 13 | FreeMono → Unifont | same |
+| 13 | Loma → Unifont | same |
+| 13 | Loma → FreeSerif | same |
+| 13 | Loma → FreeSans | same |
+| 12 | IPAGothic → Unifont | same |
+| 12 | IPAGothic → FreeSerif | same |
+| 12 | IPAGothic → FreeSans | same |
+| 11 | WenQuanYiZenHei → FreeSerif | same |
+| 23 | NotoColorEmoji → IPAGothic | Blink fallback-priority font stage |
+| 22 | NotoColorEmoji → LiberationSerif | same |
+| 4 | NotoColorEmoji → LiberationSerif-Bold | same |
+| 1 | NotoColorEmoji → IPAPGothic | same |
+| 1 | NotoColorEmoji → Unifont | same |
+| 1 | NotoColorEmoji → FreeSerif | same |
+| 1 | NotoColorEmoji → FreeSans | same |
+| 1 | NotoColorEmoji → LiberationSerif-Italic | same |
+
+The first group is 593 rows and is entirely language-sensitive: 13 generic
+stacks repeat each Korean/Arabic answer, with the Japanese and Greek U+2600
+cases completing the group. The helper transcribes Chromium's pattern,
+`FcFontSort(trim=false)`, validity filter, and first-covering-face walk, but not
+the process setup immediately above it: Chromium sets `FC_FONTATIONS=1` before
+Fontconfig initialization (`ui/gfx/linux/fontconfig_util.cc:44-64`). The helper
+never sets it. That switches Fontconfig's face indexing implementation and is a
+source-proven input to the differing sorted sets; the follow-up must test this
+mechanism directly rather than hardcode the 12 observed pair choices.
+
+The remaining 53 rows all start from the CSS `emoji` family and two sampled
+codepoints, U+2000 and U+2600. Chromium retains `NotoColorEmoji` through Blink's
+`kFallbackPriorityFonts` stage; the direct per-codepoint oracle route instead
+asks ordinary fontconfig and records its returned text face. This is not a
+generic-nomination, last-resort, or oracle-cache difference. It belongs to the
+existing work to model Blink's one-shot fallback-priority stage, including its
+variation-selector reset semantics.
+
+Representative reproduction is deliberately the sampled instrument, not a
+new hand-curated resolver table:
+
+```sh
+gh workflow run font-conformance-synthetic.yml --ref main \
+  -f os=linux -f shards=auto -f max_stacks=351 \
+  -f sample_byte=00 -f cp_total=1 -f update_baseline=false
+```
+
+Read the retained rows for `lang=ko` at U+0600/U+0700, `lang=ar` at U+2200,
+`lang=ja` at U+2600, and `emoji` at U+2000/U+2600. Together they discriminate
+the Fontations-configured fontconfig stage from fallback-priority handling.
+
 Every shard also records a streaming SHA-256 digest of Domotion's complete ordered `(stack, codepoint → key/PostScript name/file/coverage)` answer stream. It is independent of Chromium's result. If Chrome's face tally moves but this resolver digest is identical to the baseline, the strict gate passes with an oracle-instability warning: every answer produced by the code under test is proven unchanged. If both move—or an older baseline lacks the digest—the verdict remains withheld and strict mode fails. This keeps routine samples sensitive to resolver regressions without making a four-row Chromium wobble a red build.
 
 At the default 351-stack slice, one low-byte bucket is roughly 1,100–1,200 codepoints, or about 400,000 comparisons per platform instead of 104 million. Automatic fan-out remains stack-based but is mode-aware. The byte-`00` validation run completed the entire sampled job in 2m19s on Linux and 3m21s on macOS. Three Windows shards completed in 4m26s–4m43s; scaling that measured work to two shards projects about seven minutes. Routine samples therefore use **1 macOS, 1 Linux, and 2 Windows** jobs. Windows receives an extra shard because its best-effort DirectWrite path is substantially slower; routine parity decisions remain macOS/Linux-first under the project platform policy.
