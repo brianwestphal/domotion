@@ -90,8 +90,8 @@
           "level": "none",
           "guid": "msoa4cfntd3in6o5",
           "message": {
-            "text": "Sampled-mode fan-out is based on live byte-00 CI timings, not the obsolete exhaustive rates: macOS 44-stack shards took 35–49s, Linux 58–59-stack shards 17–20s, and Windows 21–22-stack shards 47–61s. Scaling those measurements gives one macOS job at roughly 5–7m, one Linux job near 2m plus setup, and three Windows jobs at 5–8m, reducing routine fan-out from 30 runners to five.",
-            "markdown": "Sampled-mode fan-out is based on live byte-00 CI timings, not the obsolete exhaustive rates: macOS 44-stack shards took 35–49s, Linux 58–59-stack shards 17–20s, and Windows 21–22-stack shards 47–61s. Scaling those measurements gives one macOS job at roughly 5–7m, one Linux job near 2m plus setup, and three Windows jobs at 5–8m, reducing routine fan-out from 30 runners to five."
+            "text": "Sampled-mode fan-out is based on live byte-00 CI timings: the full 351-stack job completed in 2m19s on Linux and 3m21s on macOS; three Windows shards completed in 4m26s–4m43s. Two Windows shards project to about seven minutes, so routine auto mode uses 1/1/2 jobs while exhaustive mode retains 8/6/16, reducing repeated installs and helper builds from 30 runners to four.",
+            "markdown": "Sampled-mode fan-out is based on live byte-00 CI timings: the full 351-stack job completed in 2m19s on Linux and 3m21s on macOS; three Windows shards completed in 4m26s–4m43s. Two Windows shards project to about seven minutes, so routine auto mode uses 1/1/2 jobs while exhaustive mode retains 8/6/16, reducing repeated installs and helper builds from 30 runners to four."
           },
           "locations": [
             {

@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mso9sbtwoprmzn4u",
           "message": {
-            "text": "The selected sample is part of measurement identity at both merge and baseline layers. Mixed-bucket shards are rejected as an environment conflict, while the merged slice records sampleByte and the comparator refuses unlike buckets; focused tests pin both failure modes.",
-            "markdown": "The selected sample is part of measurement identity at both merge and baseline layers. Mixed-bucket shards are rejected as an environment conflict, while the merged slice records sampleByte and the comparator refuses unlike buckets; focused tests pin both failure modes."
+            "text": "Measurement identity includes the selected sample and document/cache topology. Mixed-bucket or mixed-denominator shards are rejected during merge, and the baseline comparator refuses unlike sample bytes, stack-shard totals, or codepoint-shard totals; this matters because each shard creates an independent Chromium document whose fallback cache history can change the answers.",
+            "markdown": "Measurement identity includes the selected sample and document/cache topology. Mixed-bucket or mixed-denominator shards are rejected during merge, and the baseline comparator refuses unlike sample bytes, stack-shard totals, or codepoint-shard totals; this matters because each shard creates an independent Chromium document whose fallback cache history can change the answers."
           },
           "locations": [
             {

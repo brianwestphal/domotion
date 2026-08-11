@@ -152,7 +152,10 @@ describe("mergeShards", () => {
 describe("sliceOf", () => {
   it("keeps exactly the fields that make two runs comparable", () => {
     expect(sliceOf({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], strictAlias: true, lang: "ja" }))
-      .toEqual({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], sampleByte: null, strictAlias: true, lang: "ja" });
+      .toEqual({
+        codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], sampleByte: null,
+        stackShardTotal: 1, codepointShardTotal: 1, strictAlias: true, lang: "ja",
+      });
   });
 });
 
@@ -163,7 +166,10 @@ describe("comparability", () => {
     unicode: "16.0",
     corpus: { generatedAt: "2026-07-29T23:19:22.108Z" },
     fontInventory: { digest: "abc123" },
-    slice: { codepoints: 292466, stacks: 6, includePua: true, ranges: null, sampleByte: null, strictAlias: false, lang: "en" },
+    slice: {
+      codepoints: 292466, stacks: 6, includePua: true, ranges: null, sampleByte: null,
+      stackShardTotal: 1, codepointShardTotal: 1, strictAlias: false, lang: "en",
+    },
   };
 
   it("accepts a run measured in the same environment over the same slice", () => {
@@ -204,6 +210,8 @@ describe("comparability", () => {
     expect(comparability({ ...meta, slice: { ...meta.slice, stacks: 12 } }, meta)[0]).toMatch(/slice\.stacks/);
     const byteZero = { ...meta, slice: { ...meta.slice, sampleByte: 0 } };
     expect(comparability({ ...meta, slice: { ...meta.slice, sampleByte: 1 } }, byteZero)[0]).toMatch(/slice\.sampleByte/);
+    expect(comparability({ ...meta, slice: { ...meta.slice, stackShardTotal: 8 } }, meta)[0])
+      .toMatch(/slice\.stackShardTotal/);
   });
 
   it("stays silent about a field either side never recorded", () => {
@@ -289,6 +297,14 @@ describe("environment agreement across shards (DM-1898)", () => {
       shard("s2", { sampleByte: 0x01 }),
     ]);
     expect(conflicts.map((c) => c.field)).toContain("sample low byte");
+  });
+
+  it("catches shards that disagree about cache/document topology", () => {
+    const conflicts = environmentConflicts([
+      shard("s1", { stackShard: [1, 2] }),
+      shard("s2", { stackShard: [2, 3] }),
+    ]);
+    expect(conflicts.map((c) => c.field)).toContain("stack-shard total");
   });
 
   it("ignores a field absent on one shard rather than crying wolf", () => {

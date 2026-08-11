@@ -64,6 +64,8 @@ const ENV_FIELDS = [
   // beside totals accumulated from several different universes.
   ["sample low byte", (s) => JSON.stringify(s.report?.meta?.sampleByte ?? null)],
   ["codepoint ranges", (s) => JSON.stringify(s.report?.meta?.ranges ?? null)],
+  ["stack-shard total", (s) => s.report?.meta?.stackShard?.[1] ?? 1],
+  ["codepoint-shard total", (s) => s.report?.meta?.shard?.[1] ?? 1],
   ["runner image", (s) => s.env?.image],
   ["font inventory digest", (s) => s.env?.fontInventory?.digest],
 ];
@@ -219,6 +221,12 @@ export function sliceOf(meta) {
     includePua: meta?.includePua ?? null,
     ranges: meta?.ranges ?? null,
     sampleByte: meta?.sampleByte ?? null,
+    // Chromium and Domotion both keep document-scoped fallback state. Changing
+    // either shard denominator changes how many independent document/cache
+    // scopes produced the aggregate, so equal stack/codepoint totals alone do
+    // not make two runs comparable.
+    stackShardTotal: meta?.stackShard?.[1] ?? 1,
+    codepointShardTotal: meta?.shard?.[1] ?? 1,
     strictAlias: meta?.strictAlias ?? null,
     lang: meta?.lang ?? null,
   };
