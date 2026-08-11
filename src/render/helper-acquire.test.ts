@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   __resetAcquireState,
   acquireGlyphHelper,
@@ -70,6 +71,13 @@ describe("acquisition failure / cache behavior (offline)", () => {
   });
   it("async acquire returns null for an unsupported arch", async () => {
     await expect(acquireGlyphHelper({ platform: "linux", arch: "ppc64" })).resolves.toBeNull();
+  });
+  it("describes helper acquisition failure as a fidelity degradation, not performance-only", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const source = readFileSync(path.join(here, "helper-acquire.ts"), "utf8");
+    expect(source).toContain("using degraded font resolution");
+    expect(source).toContain("may differ from Chromium on this host");
+    expect(source).not.toContain("This is a performance-only fallback");
   });
   it("reuses an already-cached binary without downloading", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "dm886-"));

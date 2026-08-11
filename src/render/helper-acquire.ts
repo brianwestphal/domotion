@@ -166,10 +166,12 @@ export function acquireGlyphHelperSync(opts: AcquireOptions = {}): string | unde
   if (proc.status === 0 && existsSync(target.dest)) return target.dest;
 
   syncFailedThisProcess = true;
-  // DM-1325: this is a PERF-only fallback — fontkit produces the same glyph
-  // paths, so the SVG output is byte-for-byte unaffected; only render speed
-  // differs. Word the warning so it doesn't read as a correctness problem.
-  warnOnce(`glyph helper (${target.asset}) unavailable — using fontkit instead. This is a performance-only fallback; the SVG output is unaffected. To speed up runs, set DOMOTION_HELPER_PATH to a local binary or pre-warm with acquireGlyphHelper().`);
+  // The helper owns more than outline extraction: it also supplies the live
+  // CoreText/fontconfig/DirectWrite family, fallback, traits, and axis answers.
+  // Fontkit keeps rendering functional, but static tables/cut ladders are only
+  // deterministic approximations and are not family- or pixel-exact. Do not
+  // describe this as performance-only (the old warning hid a fidelity change).
+  warnOnce(`glyph helper (${target.asset}) unavailable — using degraded font resolution. Rendering remains deterministic and functional, but installed-family selection, fallback faces, traits, axes, and pixels may differ from Chromium on this host. Set DOMOTION_HELPER_PATH to a matching helper or pre-warm with acquireGlyphHelper() for live platform resolution.`);
   return undefined;
 }
 
