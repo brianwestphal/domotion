@@ -411,8 +411,8 @@
           "level": "none",
           "guid": "mspaeur689j98t79",
           "message": {
-            "text": "Linux locale arms require separate Chromium renderer caches because WebSandboxSupportLinux keys its fallback cache by codepoint alone; sharing one renderer makes corpus order, rather than the requested locale, choose Chrome's answer. A fresh BrowserContext provides a distinct renderer scope without multiplying full browser processes.",
-            "markdown": "Linux locale arms require separate Chromium renderer caches because WebSandboxSupportLinux keys its fallback cache by codepoint alone; sharing one renderer makes corpus order, rather than the requested locale, choose Chrome's answer. A fresh BrowserContext provides a distinct renderer scope without multiplying full browser processes."
+            "text": "Linux locale arms require separate Chromium renderer caches because WebSandboxSupportLinux keys its fallback cache by codepoint alone; sharing one renderer makes corpus order, rather than the requested locale, choose Chrome's answer. A fresh BrowserContext provides a distinct renderer scope without multiplying full browser processes. Validation run 31546403775 reduced the bounded Linux byte-00 sample from 646 mismatches across 20 routes to 0 across 413,829 comparisons; baseline-refresh run 31546612051 reproduced zero.",
+            "markdown": "Linux locale arms require separate Chromium renderer caches because WebSandboxSupportLinux keys its fallback cache by codepoint alone; sharing one renderer makes corpus order, rather than the requested locale, choose Chrome's answer. A fresh BrowserContext provides a distinct renderer scope without multiplying full browser processes. Validation run 31546403775 reduced the bounded Linux byte-00 sample from 646 mismatches across 20 routes to 0 across 413,829 comparisons; baseline-refresh run 31546612051 reproduced zero."
           },
           "locations": [
             {
@@ -432,11 +432,11 @@
           ],
           "properties": {
             "tags": [
-              "rationale"
+              "proof"
             ],
-            "ext-ai-tool-confidence": 0.98
+            "ext-ai-tool-confidence": 0.99
           },
-          "rank": 95,
+          "rank": 100,
           "workItemUris": [
             "DM-2085"
           ],
