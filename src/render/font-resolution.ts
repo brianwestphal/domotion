@@ -9807,7 +9807,10 @@ function resolveFontForCodepointInner(
   // survives that gap — the walk has to keep going either way — which is also
   // where nearly all the probes are: Arial's cmap holds 3,506 of 292,466
   // assigned codepoints, so the negative answer is the common one.
-  if (nativeFaceCoversCp(primaryFont, cp) !== false && glyphIdForCp(primaryFont, cp) !== 0) {
+  const primaryCovers = fontHasSupportedColorTable(primaryFont, primaryFontKey)
+    ? fontCoversCp(primaryFont, cp)
+    : glyphIdForCp(primaryFont, cp) !== 0;
+  if (nativeFaceCoversCp(primaryFont, cp) !== false && primaryCovers) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null);
   }
@@ -9819,7 +9822,10 @@ function resolveFontForCodepointInner(
   // come from Chromium, so emitting U+0020 preserves the same invisible glyph
   // while avoiding a false family fallback. U+3000 is excluded by the predicate
   // because Blink explicitly requeues its synthesized space.
-  if (isHarfbuzzSameFontSpaceFallback(cp) && glyphIdForCp(primaryFont, 0x20) !== 0) {
+  const primaryCoversSpace = fontHasSupportedColorTable(primaryFont, primaryFontKey)
+    ? fontCoversCp(primaryFont, 0x20)
+    : glyphIdForCp(primaryFont, 0x20) !== 0;
+  if (isHarfbuzzSameFontSpaceFallback(cp) && primaryCoversSpace) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null, " ");
   }

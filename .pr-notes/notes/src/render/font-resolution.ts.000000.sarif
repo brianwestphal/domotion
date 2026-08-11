@@ -734,6 +734,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msp8qjeon9vtvf0e",
+          "message": {
+            "text": "A color bitmap primary can cover a codepoint without exposing an outline glyph. Primary-family selection therefore uses cmap coverage for supported color-table faces, while ordinary outline fonts retain the stricter glyph-id question; otherwise the emoji generic incorrectly falls out of Noto Color Emoji before Blink’s fallback iterator even begins.",
+            "markdown": "A color bitmap primary can cover a codepoint without exposing an outline glyph. Primary-family selection therefore uses cmap coverage for supported color-table faces, while ordinary outline fonts retain the stricter glyph-id question; otherwise the emoji generic incorrectly falls out of Noto Color Emoji before Blink’s fallback iterator even begins."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9800,
+                  "endLine": 9820,
+                  "snippet": {
+                    "text": "  // the asymmetry is not theoretical: a full-corpus macOS slice moved 364\n  // comparisons out of agree-exact, every one of them a chain walk stopping\n  // early at Arial Unicode MS because the FILE's cmap claimed a codepoint its\n  // CoreText probe reported as uncovered. A helper face is resolved by\n  // PostScript NAME on macOS, and CoreText may hand back a different face than\n  // the path we recorded (\"Client requested name X, it will get Y\"), so the\n  // file's cmap is not necessarily the table Chrome consulted. Non-coverage\n  // survives that gap — the walk has to keep going either way — which is also\n  // where nearly all the probes are: Arial's cmap holds 3,506 of 292,466\n  // assigned codepoints, so the negative answer is the common one.\n  const primaryCovers = fontHasSupportedColorTable(primaryFont, primaryFontKey)\n    ? fontCoversCp(primaryFont, cp)\n    : glyphIdForCp(primaryFont, cp) !== 0;\n  if (nativeFaceCoversCp(primaryFont, cp) !== false && primaryCovers) {\n    _stageStats.fastPathPrimary++;\n    return cover(primaryFontKey, null);\n  }\n\n  // HarfBuzz keeps these spaces in the CURRENT font when their literal cmap\n  // entry is absent: it substitutes that face's U+0020 glyph and synthesizes\n  // the requested advance (`decompose_current_character`,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 93,
+          "workItemUris": [
+            "DM-1990"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f7f579dd16cfe925b2104696cbb97ffb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9a4384cbb78d3de477d56916820da4677ceaa8df",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
