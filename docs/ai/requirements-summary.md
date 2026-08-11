@@ -155,16 +155,15 @@ they describe (see `CLAUDE.md` "Documentation"):
   candidate baseline and uploads it as an artifact; committing it arms the
   gate. **`Linux family-match conformance` runs per PR** (test-linux.yml);
   **`Windows family-match conformance` is manual-dispatch only**
-  (windows-fidelity.yml) under the best-effort Windows policy — see the support
-  tiers in doc 42 and the platform section of CLAUDE.md.
+  (windows-fidelity.yml) because its DirectWrite path is substantially slower;
+  this scheduling difference does not change its first-class support contract.
 
-- **PLATFORM SUPPORT TIERS.** macOS and Linux are **first-class** for
-  font-capture precision — calibrated, per-PR gated, and a parity defect on
-  either is a real defect. Windows is **best-effort**: it must keep working
-  (install, run, correct SVG, no crashes), and its win32 routing/calibration
-  stays in the tree, but exact font-capture precision is not a goal and a
-  Windows-only divergence is not a release blocker. Windows fidelity and
-  conformance runs are on-demand, not routine.
+- **PLATFORM SUPPORT.** macOS, Linux, and Windows are **first-class** for
+  font-capture precision, and a parity defect on any platform is a real defect.
+  macOS is always the primary development and testing platform. Linux and
+  Windows receive native validation for affected changes; Windows fidelity is
+  manually dispatched and routine conformance is sampled because DirectWrite
+  runs are slower, not because Windows has a weaker correctness contract.
 
 - **Doc 104 §3.1 (DM-1796) — typing-overlay handoff seam, FIXED.** A `typing`
   overlay used to fade out starting 150 ms before its window ended and sit fully
@@ -1050,10 +1049,9 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
 - All three platforms now have calibrated fallback chains AND generated
   per-Unicode-block routing tables — `unicode-font-routing.{darwin,linux,win32}
   .generated.ts`, from Chrome CDP `CSS.getPlatformFontsForNode` sweeps
-  (macOS DM-983, Linux DM-984, Windows DM-987). macOS remains the most
-  mature / most-validated; Linux + Windows native glyph extractors and CI
-  are partially landed (docs 41 / 45 / 49–52). Treat macOS as the reference
-  and re-probe the others when their font set changes.
+  (macOS DM-983, Linux DM-984, Windows DM-987). All three are first-class;
+  macOS remains the primary and most frequently validated platform. Re-probe
+  each native platform when its font inventory or runner image changes.
 - **Windows no longer routes off a probed table (DM-1864).**
   `win32FallbackChain` is a transcription of the hardcoded per-script stage Blink
   consults BEFORE DirectWrite (`win/font_cache_skia_win.cc:286-296`) —

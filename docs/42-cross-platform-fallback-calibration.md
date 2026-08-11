@@ -514,24 +514,21 @@ naive "just `apt install noto` on the noble image" is NOT a faithful desktop
 calibration — the image keeps WenQuanYi at higher fontconfig priority, so it
 still paints CJK with WenQuanYi; the strip step above is what makes it faithful.
 
-## Support tiers: macOS and Linux first-class, Windows best-effort
+## Support policy: all three first-class; macOS primary
 
-Read the rest of this document with that split in mind. **macOS and Linux are
-held to font-capture precision** — their calibration is a contract, their
-fidelity gates run per PR, and a parity defect on either is a real defect.
-**Windows is best-effort**: it must keep *working* (install, run, produce a
-correct SVG, never crash), but exact font-capture precision is not a goal there
-and a Windows-only divergence is not a release blocker.
+macOS, Linux, and Windows are all held to the font-capture precision contract.
+Their platform-native calibration is supported behavior, and a parity defect on
+any one of them is a real defect. macOS remains the primary development,
+calibration, and test platform, so it receives the default local and broadest
+routine validation.
 
-Practically: `windows-fidelity.yml` is **manual-dispatch only** — everything in
-it still works and the baseline-relative `regression` gate is still meaningful,
-it is simply not consulted automatically. Dispatch it before a release, after
-touching the win32 routing or the DirectWrite helper, or when chasing a
-Windows-specific report. Windows conformance sweeps are likewise on-demand
-rather than routine.
-
-The win32 numbers below remain accurate and worth keeping — they document where
-Windows stands. They are no longer a standard to defend.
+`windows-fidelity.yml` remains manual-dispatch because the DirectWrite path is
+substantially slower, not because Windows has a weaker support contract.
+Dispatch it before a release, after touching win32 routing or the DirectWrite
+helper, and when investigating a Windows-specific report. Routine conformance
+uses the representative sampled profile; exhaustive sweeps remain an occasional
+confidence gate. The win32 numbers below are standards to monitor and defend,
+subject to the same documented native-raster hinting floor as Linux.
 
 ## Per-platform visual-gate hinting floor (DM-262 / DM-884)
 

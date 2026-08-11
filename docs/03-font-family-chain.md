@@ -6,7 +6,7 @@ Requirements for honoring author-specified font-family chains in Domotion. Origi
 >
 > **Path discovery is now platform-aware (DM-258, done).** `getFontInstance` no longer reads `FONT_PATHS` directly — it calls `resolveFontSpec(key)`, which on macOS returns the `FONT_PATHS` entry unchanged, on Linux resolves via canonical `/usr/share/fonts/...` paths + `fc-match`, and on Windows via `%WINDIR%\Fonts`. So each logical key resolves to a real face on every platform instead of tofu. See `docs/40-cross-platform-font-paths.md` for the full per-platform key→font mapping.
 >
-> **Fallback-chain *calibration* is still macOS-only.** `fallbackFontChain` (which logical key handles which Unicode block) is reverse-engineered from Chromium-on-macOS painted widths (DM-241 / DM-256 / DM-257). That empirical-probe methodology must be re-run on each target platform to populate per-platform chains: Linux is DM-259, Windows is DM-260. Until then, Linux/Windows render with macOS's *routing* over their *own* fonts — primaries are faithful, symbol/CJK/RTL blocks are approximate.
+> **Fallback-chain calibration is platform-native.** `fallbackFontChain` dispatches to macOS, Linux, and Windows routing, backed by CoreText, fontconfig, and DirectWrite helpers respectively. All three are first-class; macOS remains the primary and most frequently exercised test platform.
 
 ## Why now
 

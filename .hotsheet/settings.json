@@ -5,12 +5,9 @@
   "terminals": [
     {
       "id": "t-mogdhedd-kh3g",
-      "command": "{{claudeCommand}}",
-      "name": "Claude",
-      "lazy": false,
-      "theme": "github-dark",
-      "fontFamily": "system",
-      "fontSize": 17
+      "command": "{{aiCommand}}",
+      "name": "AI",
+      "lazy": false
     }
   ],
   "auto_context": [
@@ -37,7 +34,12 @@
     {
       "type": "tag",
       "key": "fable",
-      "text": "Use a subagent running the Fable model for this ticket.\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
+      "text": "Use a subagent running the Fable model for this ticket. (ONLY APPLICABLE WHEN USING CLAUDE)\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
+    },
+    {
+      "type": "category",
+      "key": "issue",
+      "text": "Clarify the problem and its impact before acting. If it turns out to be a defect, add a test that guards against regressions; if it needs a larger change, file follow-up tickets for the work."
     }
   ],
   "custom_commands": [

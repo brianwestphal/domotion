@@ -2,7 +2,7 @@
 
 Requirements / design docs for the rendering pipeline. Numbered to match the order they were authored; numbering does not imply dependency order.
 
-> **Cross-platform note**: Domotion is an npm package and is expected to function on macOS, Linux, and Windows. Today the rendering pipeline is fully calibrated only against Chromium-on-macOS (CoreText-based fallback chain); Linux (fontconfig — Noto / DejaVu / Liberation) and Windows (DirectWrite — Arial / Consolas / Segoe UI Symbol / Cambria Math) calibration is roadmap work tracked in DM-258 (path discovery) → DM-259 (Linux) / DM-260 (Windows) / DM-261 (bundled fallback fonts) → DM-262 (per-platform CI). Treat any macOS-only code path as debt to flag, not a design choice — match Chromium's actual painted output on each target platform.
+> **Cross-platform note**: macOS, Linux, and Windows are first-class supported capture platforms. The rendering and font-fallback pipelines are calibrated against Chromium's native platform path (CoreText, fontconfig, and DirectWrite respectively). macOS remains the primary development and testing platform, but that testing priority is not a separate support tier: platform-specific defects on Linux or Windows are supported defects, and changes that affect them require native validation.
 
 | Doc | Topic |
 |---|---|

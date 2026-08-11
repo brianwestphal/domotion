@@ -5,7 +5,7 @@ The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual s
 ## When to use it
 
 - **Only when a run needs more than ~50 fixtures.** For a handful of fixtures, run locally (`npm run demos:test:html -- --only <name>`, or with the throttle off: `DOMOTION_NO_NICE=1 DOMOTION_TEST_WORKERS=<cores> npm run demos:test:unicode`).
-- **Default to macOS** — it is the calibration target. Use **Linux** only to debug a Linux-specific issue and **Windows** only to debug a Windows-specific issue (see caveats below).
+- **Default to macOS** — it is always the primary testing and calibration target. Linux and Windows are equally supported; select either for platform-specific validation, or `--os all` when a cross-platform change warrants it.
 
 ## One-command path
 

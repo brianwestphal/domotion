@@ -99,5 +99,6 @@ install (where the spawn then surfaces the real error). No user action required.
 - **No input events recorded.** Only `"o"` (output) events are captured, matching
   what the renderer consumes; keystrokes aren't separately timed (a typed
   command appears at the settle-point where its echo lands).
-- Color emoji / wide glyphs / fallback fonts follow the same platform calibration
-  caveats as the rest of the renderer (currently macOS-calibrated).
+- Color emoji / wide glyphs / fallback fonts follow the renderer's native
+  platform calibration. macOS is the primary test platform; Linux and Windows
+  remain first-class supported platforms.
