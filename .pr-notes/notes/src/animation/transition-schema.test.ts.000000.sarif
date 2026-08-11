@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnyos23xxy8on6y",
+          "message": {
+            "text": "The canonical vocabulary and normalizer are covered across every legacy transition spelling. Focused schema/animator/CLI tests passed, the generated schemas rebuilt cleanly, feature coverage is complete, and the final full suite passed: 3,596 tests (29 skipped).",
+            "markdown": "The canonical vocabulary and normalizer are covered across every legacy transition spelling. Focused schema/animator/CLI tests passed, the generated schemas rebuilt cleanly, feature coverage is complete, and the final full suite passed: 3,596 tests (29 skipped)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/transition-schema.test.ts"
+                },
+                "region": {
+                  "startLine": 8,
+                  "endLine": 50,
+                  "snippet": {
+                    "text": "] as const;\n\ndescribe(\"canonical transition schema\", () => {\n  it(\"validates every legacy spelling from one vocabulary\", () => {\n    expect(transitionTypeSchema.options).toEqual(TYPES);\n    for (const type of TYPES) {\n      expect(transitionSchema.parse({ type, duration: 300 }).type).toBe(type);\n    }\n  });\n\n  it(\"rejects negative transition durations\", () => {\n    expect(transitionSchema.safeParse({ type: \"crossfade\", duration: -1 }).success).toBe(false);\n  });\n});\n\ndescribe(\"legacy transition normalization\", () => {\n  it(\"normalizes aliases to identical motion channels while retaining their spelling\", () => {\n    const scroll = normalizeTransition({ type: \"scroll\", duration: 300 });\n    const pushUp = normalizeTransition({ type: \"push-up\", duration: 300 });\n    expect(scroll.incoming).toEqual(pushUp.incoming);\n    expect(scroll.outgoing).toEqual(pushUp.outgoing);\n\n    const iris = normalizeTransition({ type: \"iris\", duration: 300 });\n    const radial = normalizeTransition({ type: \"wipe-radial\", duration: 300 });\n    expect(iris.incoming).toEqual(radial.incoming);\n    expect(iris.outgoing).toEqual(radial.outgoing);\n  });\n\n  it(\"maps every legacy type onto only opacity, translate, scale, clip, and overlay channels\", () => {\n    for (const type of TYPES) {\n      const plan = normalizeTransition({ type, duration: 300 });\n      expect(plan.legacyType).toBe(type);\n      expect(Object.keys(plan.incoming).sort()).toEqual(expect.arrayContaining([\"opacity\"]));\n      expect(Object.keys(plan.incoming).every(key => [\"opacity\", \"translate\", \"scale\", \"clip\"].includes(key))).toBe(true);\n      expect(Object.keys(plan.outgoing).every(key => [\"opacity\", \"translate\"].includes(key))).toBe(true);\n      expect(plan.overlay == null || [\"shine\", \"magic-move\"].includes(plan.overlay)).toBe(true);\n    }\n  });\n\n  it(\"retains legacy wipe and clock parameters in their normalized clip plans\", () => {\n    expect(normalizeTransition({ type: \"wipe\", duration: 200, wipeAngle: 37 }).incoming.clip).toEqual({ shape: \"wipe\", angle: 37 });\n    expect(normalizeTransition({ type: \"wipe-clock\", duration: 200, wipeStartAngle: 90, wipeCounterclockwise: true }).incoming.clip).toEqual({\n      shape: \"clock\", startAngle: 90, counterclockwise: true,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2070"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b499edc9805a07a203ae69c5de5cbe3b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "69248c73be8c30818af4a51654a5ce7670c80a90",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -46,6 +46,7 @@ import { resolve, dirname } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
+import { storyboardTransitionSchema as transitionSchema } from "../animation/transition-schema.js";
 import {
   launchChromium,
   captureElementTreeSelfContained,
@@ -101,15 +102,6 @@ const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 // needs NO new storyboard-side machinery — the enum just widens to pass it through.
 // `magic-move` stays out — it needs a per-frame element-tree bridge built from two
 // captured DOMs, which distinct opaque scenes don't share.
-const transitionSchema = z.object({
-  type: z.enum([
-    "crossfade", "cut", "push-left", "scroll",
-    "push-right", "push-up", "push-down",
-    "wipe", "iris", "zoom-in", "zoom-out", "shine",
-  ]),
-  duration: z.number().nonnegative(),
-});
-
 const captureSourceSchema = z
   .object({
     url: z.string().optional().describe("A URL to capture (http/https)."),

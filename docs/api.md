@@ -83,6 +83,9 @@ and typing / tap / SVG overlays.
 | `EmbeddedTimelineMode` | type | `"hold"` \| `"stretch"` \| `"loop"` — the nested-timeline playback mode. |
 | `AnimationConfig` | type | Top-level config: `{ width, height, frames, sharedDefs?, fontFaceCss?, cursorOverlay?, resolveSelector?, background? }`. (`fontFaceCss` injects embedded-font `@font-face` once; `background` paints a full-viewport canvas rect.) |
 | `AnimationFrame` | type | Per-frame data: `{ svgContent, duration, transition?, magicMove?, overlays?, animations?, cullCss? }`. (`magicMove` is the per-frame bridge layer built by `buildMagicMove`.) |
+| `Transition` / `TransitionType` | type | Canonical frame-transition object and legacy-name vocabulary, derived from the shared zod schema. See doc 116. |
+| `transitionSchema` / `transitionTypeSchema` | schema | Runtime source of truth used by animate, storyboard, the programmatic API, and generated JSON Schemas. |
+| `normalizeTransition` / `NormalizedTransitionPlan` | function / type | Compatibility normalization from legacy transition names to bounded opacity/translate/scale/clip/overlay channels. |
 | `AnimationOverlay` | type | Discriminated union of `TypingOverlay` \| `TapOverlay` \| `SvgOverlay` \| `BlinkOverlay` \| `ShineOverlay` \| `InteractOverlay`. (Renamed from `Overlay` in DM-622.) Every kind takes the optional **`endAt`** — the ms from frame start at which that overlay's window closes, instead of the frame's end (DM-1767, `docs/104-overlay-windows.md`); omitted, the window ends with the frame, and it is clamped so an overlay can never outlive its frame. |
 | `TypingOverlay` | type | Frame-relative typed-text reveal. Character-by-character with the caret glued to the fontkit-measured text edge (DM-1518); `mode: "type" \| "paste"` and `jitter: 0–1` tune the feel. See `docs/93-realistic-typing.md`. |
 | `TapOverlay` | type | Frame-relative tap-ripple at `(x, y)`. |

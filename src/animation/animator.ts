@@ -26,6 +26,7 @@ import { buildShineSweep } from "./shine.js";
 import { barCaretHeightPx, caretShapeRect, type CaretShape } from "./caret-metrics.js";
 import { textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
+import { normalizeTransition, type NormalizedTransitionPlan, type Transition } from "./transition-schema.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -54,66 +55,8 @@ export interface AnimationFrame {
    * `offsetEmbeddedAnimatedSvgTimeline`). Omit for ordinary captured frames.
    */
   embeddedAnimationPeriodMs?: number;
-  /** Transition to next frame */
-  transition?: {
-    /**
-     * `crossfade` (default) overlaps fade-out and fade-in. `push-left` slides
-     * the outgoing frame off and the incoming frame in from the right.
-     * `scroll` keeps both visible during the transition. `cut` is instant —
-     * no fade, no slide. For `cut`, `duration` is ignored. `magic-move` blends
-     * shared elements between the two frames — matched elements slide from
-     * their old position to their new one while added/removed elements
-     * cross-fade (DM-898; see `docs/53-magic-move-transition.md`). It requires
-     * the per-frame `magicMove` bridge layer (built caller-side from the
-     * element trees); when that's absent it degrades to `crossfade`.
-     *
-     * DM-1524 adds the cross-engine-safe transition/effect expansion (docs/88):
-     * directional pushes `push-right` / `push-up` / `push-down` (the vertical/
-     * horizontal siblings of `push-left`; `push-up` is the alias of `scroll`'s
-     * motion), the `wipe` (linear left→right `clip-path` reveal) and `iris`
-     * (expanding-circle `clip-path` reveal) reveals, `zoom-in` / `zoom-out`
-     * (scale dolly under a crossfade), and `shine` (a crossfade with a swept
-     * gradient highlight over the handoff — the shared `buildShineSweep` helper).
-     *
-     * DM-1547 adds the radial / clock wipes (docs/88): `wipe-radial` (an
-     * expanding-circle reveal — the same geometry family as `iris`, kept as a
-     * named alias so the "radial wipe" vocabulary is complete, mirroring how
-     * `push-up` aliases `scroll`) and `wipe-clock` (an angular "clock hand" sweep
-     * that reveals the incoming frame around the center via an animated
-     * `clip-path: polygon()` with a fixed vertex count — NO animated conic mask,
-     * NO animated filter, so it composites identically on Blink / WebKit / Gecko).
-     *
-     * All express motion in `transform` / `clip-path` / `opacity` / gradients
-     * only — never an animated CSS `filter` (Chromium-only in `<img>`, docs/84).
-     */
-    type:
-      | "crossfade" | "push-left" | "scroll" | "cut" | "magic-move"
-      | "push-right" | "push-up" | "push-down"
-      | "wipe" | "iris" | "zoom-in" | "zoom-out" | "shine"
-      | "wipe-radial" | "wipe-clock";
-    duration: number;
-    /**
-     * DM-1550: optional named easing (or a raw CSS easing string) for the
-     * `wipe` / `iris` clip-path reveal and the `zoom-in` / `zoom-out` scale
-     * dolly this transition drives into the NEXT frame. Resolved through the
-     * motion-preset vocabulary (`resolveEasingPreset`) so the sampled
-     * `spring-soft` / `spring-bouncy` `linear(...)` curves — and their visible
-     * overshoot — apply to the reveal / dolly. Ignored by the other transition
-     * types (their motion is fixed). Default: `linear`.
-     */
-    easing?: string;
-    /** `wipe` only: reveal direction in degrees clockwise from left-to-right. */
-    wipeAngle?: number;
-    /**
-     * DM-1585: `wipe-clock` only — where the clock hand STARTS, in degrees
-     * clockwise from 12 o'clock (default 0), and whether it sweeps
-     * counterclockwise (default clockwise). Lets a clock wipe open from, say, 3
-     * o'clock (`wipeStartAngle: 90`) or unwind anticlockwise
-     * (`wipeCounterclockwise: true`). Ignored by every other transition type.
-     */
-    wipeStartAngle?: number;
-    wipeCounterclockwise?: boolean;
-  };
+  /** Transition to the next frame. The type is derived from the canonical zod schema. */
+  transition?: Transition;
   /**
    * Magic-move bridge layer for this frame's transition to the next, built by
    * the caller via `buildMagicMove(prevTree, nextTree, …)`. Present only when
@@ -491,34 +434,12 @@ type SlideEnter =
  * `push-down` are the DM-1524 additions. All route through the same slide
  * machinery (`emitSlideFrame`), which moves BOTH frames as one push.
  */
-const PUSH_DIRS: Record<string, { axis: "X" | "Y"; sign: 1 | -1 }> = {
-  "push-left": { axis: "X", sign: -1 },
-  "push-right": { axis: "X", sign: 1 },
-  "push-up": { axis: "Y", sign: -1 },
-  "push-down": { axis: "Y", sign: 1 },
-  scroll: { axis: "Y", sign: -1 },
-};
-
-/** DM-1524 / DM-1547: reveal-on-top transitions — the outgoing frame HOLDS
- *  beneath and hard-cuts at the window end while the incoming frame unveils on
- *  top via an animated `clip-path` (`wipe` = linear inset, `iris` /
- *  `wipe-radial` = expanding circle, `wipe-clock` = angular polygon sweep). */
-const REVEAL_KINDS = new Set(["wipe", "iris", "wipe-radial", "wipe-clock"]);
-
 /** The clip-path reveal SHAPE a reveal transition unveils with. DM-1547 folds
  *  the two new radial/clock names in: `wipe-radial` is an alias of the `iris`
  *  expanding circle (same geometry, complete-vocabulary name — cf. `push-up`
  *  aliasing `scroll`), and `wipe-clock` is the distinct angular `polygon()`
  *  sweep. `wipe` stays the linear inset. */
 type RevealShape = "wipe" | "iris" | "clock";
-function revealShapeOf(transType: string): RevealShape {
-  switch (transType) {
-    case "wipe": return "wipe";
-    case "wipe-clock": return "clock";
-    // `iris` and its `wipe-radial` alias both reveal with the expanding circle.
-    default: return "iris";
-  }
-}
 
 const WIPE_POLYGON_VERTICES = 8;
 
@@ -950,19 +871,20 @@ interface ComposedExit {
  *  scroll predecessor slides the incoming in; a crossfade/shine fades it in; a
  *  zoom dollies it in (a fade + scale); a wipe/iris/… reveals it on top; a cut /
  *  magic-move / first-frame appears at its own start. */
-function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolean, prevEasing: string | undefined, prevWipeStartAngle?: number, prevWipeCcw?: boolean, prevWipeAngle?: number): ComposedEntrance {
-  if (prevType == null) return { kind: "cut" };
-  const dir = PUSH_DIRS[prevType];
+function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicBridged: boolean): ComposedEntrance {
+  if (plan == null) return { kind: "cut" };
+  const dir = plan.incoming.translate;
   if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
-  if (REVEAL_KINDS.has(prevType)) {
-    const clock = resolveClockParams(prevWipeStartAngle, prevWipeCcw);
-    return { kind: "reveal", reveal: revealShapeOf(prevType), easing: resolveEasingPreset(prevEasing), clockStartDeg: clock.startDeg, clockDir: clock.dir, wipeAngle: prevWipeAngle };
+  const clip = plan.incoming.clip;
+  if (clip != null) {
+    const clock = resolveClockParams(clip.startAngle, clip.counterclockwise);
+    return { kind: "reveal", reveal: clip.shape, easing: resolveEasingPreset(plan.easing), clockStartDeg: clock.startDeg, clockDir: clock.dir, wipeAngle: clip.angle };
   }
-  if (prevType === "zoom-in" || prevType === "zoom-out") return { kind: "dolly", fromScale: prevType === "zoom-in" ? 0.9 : 1.1, easing: resolveEasingPreset(prevEasing) };
-  if (prevType === "crossfade" || prevType === "shine") return { kind: "fade" };
+  if (plan.incoming.scale != null) return { kind: "dolly", fromScale: plan.incoming.scale.from, easing: resolveEasingPreset(plan.easing) };
+  if (plan.incoming.opacity === "fade") return { kind: "fade" };
   // magic-move WITH a built bridge: appears at its own start (the bridge covered
   // the window). WITHOUT a bridge it degraded to crossfade → fade.
-  if (prevType === "magic-move") return { kind: prevMagicBridged ? "cut" : "fade" };
+  if (plan.overlay === "magic-move") return { kind: prevMagicBridged ? "cut" : "fade" };
   return { kind: "cut" };
 }
 
@@ -970,12 +892,12 @@ function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolea
  *  crossfade/zoom/shine fade out (the dolly rides on the NEXT frame's entrance);
  *  wipe/iris/… hold beneath and hard-cut (the next frame reveals on top); cut
  *  hard-cuts; magic-move is special-cased elsewhere. */
-function classifyExit(ownType: string): ComposedExit {
-  const dir = PUSH_DIRS[ownType];
+function classifyExit(plan: NormalizedTransitionPlan): ComposedExit {
+  const dir = plan.outgoing.translate;
   if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
-  if (REVEAL_KINDS.has(ownType)) return { kind: "hold" };
-  if (ownType === "magic-move") return { kind: "magic" };
-  if (ownType === "cut") return { kind: "cut" };
+  if (plan.incoming.clip != null) return { kind: "hold" };
+  if (plan.overlay === "magic-move") return { kind: "magic" };
+  if (plan.outgoing.opacity === "cut") return { kind: "cut" };
   return { kind: "fade" }; // crossfade / zoom-in / zoom-out / shine / default
 }
 
@@ -1491,6 +1413,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     const frame = frames[i];
     const transDur = transitionDurationMs(frame);
     const transType = frame.transition?.type ?? "crossfade";
+    const transitionPlan = normalizeTransition(frame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
 
     const startPct = pct(timeOffset, totalDuration);
     const holdEndPct = pct(timeOffset + frame.duration, totalDuration);
@@ -1498,6 +1421,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
 
     const prevFrame = i > 0 ? frames[i - 1] : null;
     const prevType = prevFrame?.transition?.type;
+    const prevPlan = prevFrame == null ? undefined : normalizeTransition(prevFrame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
     // DM-1414: a frame's ENTRANCE is driven by the PREVIOUS frame's transition
     // type (how it hands off TO this frame), independently of this frame's OWN
     // type (how it exits TO the next). So a push/scroll frame entered from a
@@ -1509,11 +1433,11 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // `shine`, and `zoom-*` all overlap-fade the incoming in. `wipe`/`iris`
     // predecessors reveal the incoming on top (handled in emitRevealFrame, not
     // here), so they appear at their own start → `cut`.
-    const prevDir = prevType != null ? PUSH_DIRS[prevType] : undefined;
+    const prevDir = prevPlan?.incoming.translate;
     const slideEnter: SlideEnter =
       prevDir != null
         ? { mode: "slide", axis: prevDir.axis, enterOffset: -prevDir.sign * (prevDir.axis === "X" ? width : height) }
-      : prevType === "crossfade" || prevType === "shine" || prevType === "zoom-in" || prevType === "zoom-out"
+      : prevPlan?.incoming.opacity === "fade"
         ? { mode: "fade" }
       : { mode: "cut" }; // cut / magic-move / wipe / iris / first frame — appears at its own start
     // DM-898: a frame entered from a magic-move transition appears at its own
@@ -1536,9 +1460,9 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // scroll) this means: slide in, then hold (no slide-out / fade-out).
     const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
 
-    const ownDir = PUSH_DIRS[transType];
-    const ownReveal = REVEAL_KINDS.has(transType);
-    const prevReveal = prevType != null && REVEAL_KINDS.has(prevType);
+    const ownDir = transitionPlan.outgoing.translate;
+    const ownReveal = transitionPlan.incoming.clip != null;
+    const prevReveal = prevPlan?.incoming.clip != null;
 
     // DM-1548: unified entrance/exit composition. Classify the two halves of this
     // boundary independently — the entrance from the previous transition, the exit
@@ -1546,8 +1470,8 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // branch would drop half of) through `emitComposedFrame`. Same-type chains and
     // the slide/fade mixes the DM-1414 branches already compose stay on those
     // branches, so their output is byte-identical (see `composedBoundaryNeeded`).
-    const composedEntrance = classifyEntrance(prevType, entersViaMagicMove, prevFrame?.transition?.easing, prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise, prevFrame?.transition?.wipeAngle);
-    const composedExit = classifyExit(transType);
+    const composedEntrance = classifyEntrance(prevPlan, entersViaMagicMove);
+    const composedExit = classifyExit(transitionPlan);
     const useComposed = composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
 
     if (useComposed) {
@@ -1586,10 +1510,10 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // This frame HOLDS beneath (opacity 1 through its window) and hard-cuts out;
       // a reveal predecessor's handoff instead UNVEILS this frame on top via an
       // animated `clip-path` over the entrance window. The reveal SHAPE is derived
-      // from the PREVIOUS type (`revealShapeOf` folds `wipe-radial` into the iris
-      // circle and `wipe-clock` into the polygon sweep); the hold-then-cut exit
-      // serves whatever reveals on top NEXT.
-      const entranceReveal = prevReveal && prevType != null ? revealShapeOf(prevType) : null;
+      // from the PREVIOUS normalized plan (`wipe-radial` shares the iris circle;
+      // `wipe-clock` uses the polygon sweep); the hold-then-cut exit serves
+      // whatever reveals on top NEXT.
+      const entranceReveal = prevReveal ? prevPlan?.incoming.clip?.shape ?? null : null;
       const revealEnterStartPct = entranceReveal != null ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
       // DM-1550: the reveal's easing is authored on the PREVIOUS frame's
       // transition (the one that unveils THIS frame). Resolve any named preset

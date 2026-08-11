@@ -368,7 +368,8 @@
                 ]
               },
               "duration": {
-                "type": "number"
+                "type": "number",
+                "minimum": 0
               },
               "easing": {
                 "description": "Named/raw easing for wipe/iris/zoom reveals (spring-* etc.).",

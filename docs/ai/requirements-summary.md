@@ -1157,6 +1157,17 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   DirectWrite resolver. Verified by the `check-requirements-against-code`
   skill; must be updated in lockstep with any font-routing change.
 
+### Transition schema and normalization (docs 115–116)
+
+- `src/animation/transition-schema.ts` is the transition SSOT: the exported
+  programmatic type, animate/storyboard validation, and both generated JSON
+  Schemas derive from it. Storyboard only refines out `magic-move`, which needs
+  element-tree pairs unavailable between opaque scenes.
+- Normalize legacy names before renderer classification into the bounded
+  opacity / translate / scale / clip / supported-overlay channel plan. Preserve
+  every compatibility spelling and the existing emitter output; new built-in
+  parameters and custom recipes belong to DM-2071 and DM-2072 respectively.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

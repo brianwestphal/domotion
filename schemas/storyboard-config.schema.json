@@ -230,9 +230,9 @@
                 "type": "string",
                 "enum": [
                   "crossfade",
-                  "cut",
                   "push-left",
                   "scroll",
+                  "cut",
                   "push-right",
                   "push-up",
                   "push-down",
@@ -240,12 +240,30 @@
                   "iris",
                   "zoom-in",
                   "zoom-out",
-                  "shine"
+                  "shine",
+                  "wipe-radial",
+                  "wipe-clock"
                 ]
               },
               "duration": {
                 "type": "number",
                 "minimum": 0
+              },
+              "easing": {
+                "description": "Named/raw easing for wipe/iris/zoom reveals (spring-* etc.).",
+                "type": "string"
+              },
+              "wipeAngle": {
+                "description": "wipe: reveal angle in degrees clockwise from left-to-right (default 0).",
+                "type": "number"
+              },
+              "wipeStartAngle": {
+                "description": "wipe-clock: start angle in degrees clockwise from 12 o'clock (default 0).",
+                "type": "number"
+              },
+              "wipeCounterclockwise": {
+                "description": "wipe-clock: sweep counterclockwise instead of clockwise.",
+                "type": "boolean"
               }
             },
             "required": [

@@ -78,6 +78,7 @@ import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { prefixSvgIds, prefixSvgClasses } from "../render/svg-inline.js";
 import { escapeAttr } from "../utils/escapeHtml.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
+import { transitionSchema } from "../animation/transition-schema.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
 import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resample.js";
@@ -98,32 +99,6 @@ import {
 // a zod schema rather than hand-rolled type guards. The schema is the single
 // source of truth for the config's shape; the exported/used types below are
 // inferred from it (`z.infer`), so type and runtime check can't drift apart.
-
-const transitionSchema = z.object({
-  // DM-1524 / DM-1547: the cross-engine-safe transition/effect vocabulary
-  // (docs/88). The originals plus directional pushes, clip-path reveals (`wipe` /
-  // `iris` / the DM-1547 radial `wipe-radial` + angular `wipe-clock`), scale
-  // dollies, and the shine sweep — all transform / clip-path / opacity / gradient
-  // only (never an animated filter, so they composite on Blink / WebKit / Gecko).
-  type: z.enum([
-    "crossfade", "push-left", "scroll", "cut", "magic-move",
-    "push-right", "push-up", "push-down",
-    "wipe", "iris", "zoom-in", "zoom-out", "shine",
-    "wipe-radial", "wipe-clock",
-  ]),
-  duration: z.number(),
-  // DM-1550: optional named easing (or a raw CSS easing string) for the
-  // `wipe` / `iris` clip-path reveal and the `zoom-in` / `zoom-out` scale dolly
-  // this transition drives into the next frame. Resolved through the motion-
-  // preset vocabulary in the animator (incl. the sampled `spring-*` curves).
-  // Ignored by the other transition types. Default: linear.
-  easing: z.string().optional().describe("Named/raw easing for wipe/iris/zoom reveals (spring-* etc.)."),
-  wipeAngle: z.number().optional().describe("wipe: reveal angle in degrees clockwise from left-to-right (default 0)."),
-  // DM-1585: `wipe-clock` only — start angle (deg clockwise from 12 o'clock) and
-  // counterclockwise sweep. Ignored by other transition types.
-  wipeStartAngle: z.number().optional().describe("wipe-clock: start angle in degrees clockwise from 12 o'clock (default 0)."),
-  wipeCounterclockwise: z.boolean().optional().describe("wipe-clock: sweep counterclockwise instead of clockwise."),
-});
 
 const scrollSchema = z.object({
   // Pattern string per the scroll-pattern grammar (docs/37). Validated by

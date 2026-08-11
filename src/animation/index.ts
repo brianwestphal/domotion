@@ -41,6 +41,7 @@ export {
   type SvgOverlay,
   type IntraFrameAnimation,
 } from "./animator.js";
+export { transitionSchema, transitionTypeSchema, normalizeTransition, type Transition, type TransitionType, type NormalizedTransitionPlan } from "./transition-schema.js";
 
 // Caret + selection track (docs/101): node-side captured-text addressing plus
 // the declarative caret / selection track `generateAnimatedSvg` layers above

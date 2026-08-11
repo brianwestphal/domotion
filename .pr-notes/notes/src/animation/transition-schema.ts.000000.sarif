@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnyenzc7nm3202y",
+          "message": {
+            "text": "Legacy spellings normalize into bounded motion channels before renderer dispatch. Keeping legacyType on the plan lets the existing emitters preserve byte-identical class/keyframe output while aliases share geometry; the focused suite covers all 15 spellings and both alias pairs.",
+            "markdown": "Legacy spellings normalize into bounded motion channels before renderer dispatch. Keeping legacyType on the plan lets the existing emitters preserve byte-identical class/keyframe output while aliases share geometry; the focused suite covers all 15 spellings and both alias pairs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/transition-schema.ts"
+                },
+                "region": {
+                  "startLine": 42,
+                  "endLine": 77,
+                  "snippet": {
+                    "text": "const push = (legacyType: TransitionType, duration: number, axis: TransitionAxis, sign: 1 | -1): NormalizedTransitionPlan => ({\n  legacyType, duration,\n  incoming: { opacity: \"hold\", translate: { axis, sign } },\n  outgoing: { opacity: \"hold\", translate: { axis, sign } },\n});\n\n/** Normalize all compatibility spellings into the renderer's safe motion channels. */\nexport function normalizeTransition(transition: Transition): NormalizedTransitionPlan {\n  const { type, duration, easing } = transition;\n  switch (type) {\n    case \"push-left\": return push(type, duration, \"X\", -1);\n    case \"push-right\": return push(type, duration, \"X\", 1);\n    case \"push-up\":\n    case \"scroll\": return push(type, duration, \"Y\", -1);\n    case \"push-down\": return push(type, duration, \"Y\", 1);\n    case \"wipe\":\n      return { legacyType: type, duration, easing, incoming: { opacity: \"hold\", clip: { shape: \"wipe\", angle: transition.wipeAngle } }, outgoing: { opacity: \"hold\" } };\n    case \"iris\":\n    case \"wipe-radial\":\n      return { legacyType: type, duration, easing, incoming: { opacity: \"hold\", clip: { shape: \"iris\" } }, outgoing: { opacity: \"hold\" } };\n    case \"wipe-clock\":\n      return { legacyType: type, duration, easing, incoming: { opacity: \"hold\", clip: { shape: \"clock\", startAngle: transition.wipeStartAngle, counterclockwise: transition.wipeCounterclockwise } }, outgoing: { opacity: \"hold\" } };\n    case \"zoom-in\":\n    case \"zoom-out\":\n      return { legacyType: type, duration, easing, incoming: { opacity: \"fade\", scale: { from: type === \"zoom-in\" ? 0.9 : 1.1 } }, outgoing: { opacity: \"fade\" } };\n    case \"shine\":\n      return { legacyType: type, duration, incoming: { opacity: \"fade\" }, outgoing: { opacity: \"fade\" }, overlay: \"shine\" };\n    case \"magic-move\":\n      return { legacyType: type, duration, incoming: { opacity: \"hold\" }, outgoing: { opacity: \"cut\" }, overlay: \"magic-move\" };\n    case \"cut\":\n      return { legacyType: type, duration, incoming: { opacity: \"hold\" }, outgoing: { opacity: \"cut\" } };\n    case \"crossfade\":\n      return { legacyType: type, duration, incoming: { opacity: \"fade\" }, outgoing: { opacity: \"fade\" } };\n  }\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2070"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "007ac8ee27e9cfb02fd8c124f2799d5e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "69248c73be8c30818af4a51654a5ce7670c80a90",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
