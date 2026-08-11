@@ -313,6 +313,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnz9j9qqop9noxr",
+          "message": {
+            "text": "Chromium and WebKit both pass the 1440×900 mixed-family sample. The test seeks multiple points through push, off-center counterclockwise clock reveal, off-center zoom, and parameterized shine; every sample retains a fully opaque visible frame and the computed origins agree across engines.",
+            "markdown": "Chromium and WebKit both pass the 1440×900 mixed-family sample. The test seeks multiple points through push, off-center counterclockwise clock reveal, off-center zoom, and parameterized shine; every sample retains a fully opaque visible frame and the computed origins agree across engines."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 100,
+                  "endLine": 139,
+                  "snippet": {
+                    "text": "      frames: [\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"red\"/>', duration: 400, transition: { type: \"push\", duration: 300, push: { angle: 35, distance: 0.75 } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"blue\"/>', duration: 400, transition: { type: \"reveal\", duration: 300, reveal: { shape: \"clock\", origin: { x: 0.35, y: 0.6 }, startAngle: 45, direction: \"counterclockwise\" } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"green\"/>', duration: 400, transition: { type: \"zoom\", duration: 300, zoom: { fromScale: 1.35, origin: { x: 0.7, y: 0.3 } } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"black\"/>', duration: 400, transition: { type: \"shine\", duration: 300, shine: { angle: 25, bandWidth: 0.2, color: \"#ffeeaa\", opacity: 0.4 } } },\n      ],\n    });\n    for (const browser of [env!.browser, webkitBrowser!]) {\n      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });\n      try {\n        await page.setContent(svg);\n        for (const time of [475, 625, 775, 1175, 1325, 1475]) {\n          const state = await page.evaluate((at) => {\n            for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at; }\n            const frames = [...document.querySelectorAll<SVGGElement>(\".f\")];\n            return frames.map(frame => ({ opacity: Number.parseFloat(getComputedStyle(frame).opacity), display: getComputedStyle(frame).display }));\n          }, time);\n          expect(state.some(frame => frame.display !== \"none\" && frame.opacity > 0.99)).toBe(true);\n        }\n        const geometry = await page.evaluate(() => ({\n          clockOrigin: getComputedStyle(document.querySelector(\".fr-2\")!).clipPath,\n          zoomOrigin: getComputedStyle(document.querySelector(\".fz-3\")!).transformOrigin,\n        }));\n        expect(geometry.clockOrigin).toMatch(/^polygon\\(504px 540px,/);\n        expect(geometry.zoomOrigin).toBe(\"1008px 270px\");\n      } finally { await page.close(); }\n    }\n  });\n});\n\ndescribeBrowser(\"composeAnimateFrames (DM-1137)\", () => {\n  it(\"renders exact frame/overlay boundaries without ghost layers (DM-1994)\", async () => {\n    const { browser } = env!;\n    const svg = generateAnimatedSvg({\n      width: 300,\n      height: 120,\n      frames: [\n        {\n          svgContent: '<rect width=\"300\" height=\"120\" fill=\"red\"/>',\n          duration: 1000,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2071"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9e7753949939fcfb0c95cf0cb6db9a48"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6b35791732e10ed542ca81e56b0890dbc8a25fcd",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

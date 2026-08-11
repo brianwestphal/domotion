@@ -9,7 +9,7 @@ const TYPES = [
 
 describe("canonical transition schema", () => {
   it("validates every legacy spelling from one vocabulary", () => {
-    expect(transitionTypeSchema.options).toEqual(TYPES);
+    expect(transitionTypeSchema.options).toEqual([...TYPES, "push", "reveal", "zoom"]);
     for (const type of TYPES) {
       expect(transitionSchema.parse({ type, duration: 300 }).type).toBe(type);
     }
@@ -17,6 +17,15 @@ describe("canonical transition schema", () => {
 
   it("rejects negative transition durations", () => {
     expect(transitionSchema.safeParse({ type: "crossfade", duration: -1 }).success).toBe(false);
+  });
+
+  it("discriminates family parameters and rejects irrelevant channels", () => {
+    expect(transitionSchema.parse({ type: "push", duration: 300, push: { angle: 35, distance: 0.8 } }).push).toEqual({ angle: 35, distance: 0.8 });
+    expect(transitionSchema.parse({ type: "reveal", duration: 300, reveal: { shape: "radial" } }).reveal).toEqual({ shape: "radial", origin: { x: 0.5, y: 0.5 }, radius: 1 });
+    expect(transitionSchema.parse({ type: "zoom", duration: 300, zoom: {} }).zoom).toEqual({ fromScale: 0.9, origin: { x: 0.5, y: 0.5 } });
+    expect(transitionSchema.safeParse({ type: "push", duration: 300, push: { direction: "left" }, reveal: { shape: "linear" } }).success).toBe(false);
+    expect(transitionSchema.safeParse({ type: "reveal", duration: 300, reveal: { shape: "linear", origin: { x: 0.5, y: 0.5 } } }).success).toBe(false);
+    expect(transitionSchema.safeParse({ type: "zoom", duration: 300, zoom: { fromScale: 5 } }).success).toBe(false);
   });
 });
 
@@ -42,6 +51,13 @@ describe("legacy transition normalization", () => {
       expect(Object.keys(plan.outgoing).every(key => ["opacity", "translate"].includes(key))).toBe(true);
       expect(plan.overlay == null || ["shine", "magic-move"].includes(plan.overlay)).toBe(true);
     }
+  });
+
+  it("normalizes parameter families to bounded viewer-safe channels", () => {
+    const translate = normalizeTransition({ type: "push", duration: 200, push: { angle: 45, distance: 1 } }).incoming.translate;
+    expect(translate != null && "x" in translate ? translate.x : NaN).toBeCloseTo(Math.SQRT1_2);
+    expect(translate != null && "y" in translate ? translate.y : NaN).toBeCloseTo(Math.SQRT1_2);
+    expect(normalizeTransition({ type: "zoom", duration: 200, zoom: { fromScale: 1.4, origin: { x: 0.25, y: 0.75 } } }).incoming.scale).toEqual({ from: 1.4, origin: { x: 0.25, y: 0.75 } });
   });
 
   it("retains legacy wipe and clock parameters in their normalized clip plans", () => {

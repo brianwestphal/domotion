@@ -506,9 +506,7 @@ function linearWipeStops(width: number, height: number, enterPct: number, endPct
  * clock wipe with plain linear interpolation. Cross-engine-safe: polygon clip-path
  * animates on Blink / WebKit / Gecko; no conic mask, no filter (docs/84).
  */
-function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -1 = 1): string {
-  const cx = w / 2;
-  const cy = h / 2;
+function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -1 = 1, cx = w / 2, cy = h / 2): string {
   const theta = 2 * Math.PI * f;
   const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
   // DM-1585: the sweep starts at `startDeg` (clockwise from 12 o'clock) and turns
@@ -518,10 +516,10 @@ function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -
   const s = (startDeg * Math.PI) / 180;
   const phase = (a: number): number => norm(dir * (a - s));
   // Corner angles, measured clockwise from straight up.
-  const aTR = Math.atan2(w / 2, h / 2);
-  const aBR = Math.atan2(w / 2, -h / 2);
-  const aBL = Math.atan2(-w / 2, -h / 2);
-  const aTL = Math.atan2(-w / 2, h / 2);
+  const aTR = Math.atan2(w - cx, cy);
+  const aBR = Math.atan2(w - cx, cy - h);
+  const aBL = Math.atan2(-cx, cy - h);
+  const aTL = Math.atan2(-cx, cy);
   // Where the ray from center at clockwise-from-up angle `t` hits the rect edge.
   const edgePoint = (t: number): [number, number] => {
     const dx = Math.sin(t);
@@ -609,7 +607,7 @@ function cubicBezierSampler(easingCss: string): ((u: number) => number) | null {
   };
 }
 
-function clockWipeStops(w: number, h: number, enterNum: number, startNum: number, startDeg = 0, dir: 1 | -1 = 1, ease?: (u: number) => number): string {
+function clockWipeStops(w: number, h: number, enterNum: number, startNum: number, startDeg = 0, dir: 1 | -1 = 1, ease?: (u: number) => number, cx = w / 2, cy = h / 2): string {
   // DM-1583: with an easing, remap the sweep by placing stops at even TIME steps
   // whose GEOMETRY is the eased progress (clamped to [0,1] so a `back-*`
   // overshoot settles at full rather than over-rotating). Without an easing, keep
@@ -621,7 +619,7 @@ function clockWipeStops(w: number, h: number, enterNum: number, startNum: number
       const u = k / N;
       const f = Math.max(0, Math.min(1, ease(u)));
       const p = enterNum + (startNum - enterNum) * u;
-      out.push(`      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h, startDeg, dir)}; }`);
+      out.push(`      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h, startDeg, dir, cx, cy)}; }`);
     }
     return out.join("\n");
   }
@@ -630,10 +628,10 @@ function clockWipeStops(w: number, h: number, enterNum: number, startNum: number
   // Corner fractions = each corner's phase into the sweep (respects start + dir),
   // so a stop lands exactly where the polygon threads each corner (DM-1585).
   const cornerFracs = [
-    Math.atan2(w / 2, h / 2),
-    Math.atan2(w / 2, -h / 2),
-    Math.atan2(-w / 2, -h / 2),
-    Math.atan2(-w / 2, h / 2),
+    Math.atan2(w - cx, cy),
+    Math.atan2(w - cx, cy - h),
+    Math.atan2(-cx, cy - h),
+    Math.atan2(-cx, cy),
   ].map((a) => norm(dir * (a - s)) / (2 * Math.PI));
   const fracs = new Set<number>(cornerFracs);
   const SUBDIVISIONS = 16;
@@ -642,7 +640,7 @@ function clockWipeStops(w: number, h: number, enterNum: number, startNum: number
   return sorted
     .map((f) => {
       const p = enterNum + (startNum - enterNum) * f;
-      return `      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h, startDeg, dir)}; }`;
+      return `      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h, startDeg, dir, cx, cy)}; }`;
     })
     .join("\n");
 }
@@ -843,8 +841,11 @@ interface ComposedEntrance {
    *  opposite side, so its offset is `-sign · size`). */
   axis?: "X" | "Y";
   sign?: 1 | -1;
+  vector?: { x: number; y: number };
   /** dolly: the scale the incoming grows/settles FROM (zoom-in 0.9, zoom-out 1.1). */
   fromScale?: number;
+  origin?: { x: number; y: number };
+  radius?: number;
   /** reveal: the clip-path shape the incoming unveils with. */
   reveal?: RevealShape;
   /** dolly / reveal: resolved CSS easing for the entrance segment (DM-1550). */
@@ -865,6 +866,7 @@ interface ComposedExit {
   /** slide: the OWN push/scroll axis + sign (outgoing slides by `sign · size`). */
   axis?: "X" | "Y";
   sign?: 1 | -1;
+  vector?: { x: number; y: number };
 }
 
 /** Classify a frame's ENTRANCE from the previous frame's transition type. A push/
@@ -874,13 +876,13 @@ interface ComposedExit {
 function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicBridged: boolean): ComposedEntrance {
   if (plan == null) return { kind: "cut" };
   const dir = plan.incoming.translate;
-  if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
+  if (dir != null) return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
   const clip = plan.incoming.clip;
   if (clip != null) {
     const clock = resolveClockParams(clip.startAngle, clip.counterclockwise);
-    return { kind: "reveal", reveal: clip.shape, easing: resolveEasingPreset(plan.easing), clockStartDeg: clock.startDeg, clockDir: clock.dir, wipeAngle: clip.angle };
+    return { kind: "reveal", reveal: clip.shape, easing: resolveEasingPreset(plan.easing), clockStartDeg: clock.startDeg, clockDir: clock.dir, wipeAngle: clip.angle, origin: clip.origin, radius: clip.radius };
   }
-  if (plan.incoming.scale != null) return { kind: "dolly", fromScale: plan.incoming.scale.from, easing: resolveEasingPreset(plan.easing) };
+  if (plan.incoming.scale != null) return { kind: "dolly", fromScale: plan.incoming.scale.from, easing: resolveEasingPreset(plan.easing), origin: plan.incoming.scale.origin };
   if (plan.incoming.opacity === "fade") return { kind: "fade" };
   // magic-move WITH a built bridge: appears at its own start (the bridge covered
   // the window). WITHOUT a bridge it degraded to crossfade → fade.
@@ -894,7 +896,7 @@ function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicB
  *  hard-cuts; magic-move is special-cased elsewhere. */
 function classifyExit(plan: NormalizedTransitionPlan): ComposedExit {
   const dir = plan.outgoing.translate;
-  if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
+  if (dir != null) return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
   if (plan.incoming.clip != null) return { kind: "hold" };
   if (plan.overlay === "magic-move") return { kind: "magic" };
   if (plan.outgoing.opacity === "cut") return { kind: "cut" };
@@ -950,8 +952,8 @@ function emitComposedFrame(
   holdToEnd: boolean,
 ): { group: string; keyframe: string } {
   const { width, height } = dims;
-  const cx = width / 2;
-  const cy = height / 2;
+  const cx = (entrance.origin?.x ?? 0.5) * width;
+  const cy = (entrance.origin?.y ?? 0.5) * height;
   const enterNum = parseFloat(win.enterStartPct);
   const startNum = parseFloat(win.startPct);
   const holdNum = parseFloat(win.holdEndPct);
@@ -1006,11 +1008,11 @@ function emitComposedFrame(
     if (shape === "clock") {
       const cStart = entrance.clockStartDeg ?? 0;
       const cDir = entrance.clockDir ?? 1;
-      const hidden = clockWipeClip(0, width, height, cStart, cDir);
-      const shown = clockWipeClip(1, width, height, cStart, cDir);
+      const hidden = clockWipeClip(0, width, height, cStart, cDir, cx, cy);
+      const shown = clockWipeClip(1, width, height, cStart, cDir, cx, cy);
       // DM-1583: cubic-bezier easing time-remaps the sweep (springs stay linear).
       const cEase = entrance.easing != null ? cubicBezierSampler(entrance.easing) ?? undefined : undefined;
-      const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir, cEase);
+      const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir, cEase, cx, cy);
       keyframe += `
     @keyframes fr-${i} {
       0%, ${rBefore}% { clip-path: ${hidden}; }
@@ -1036,7 +1038,8 @@ ${mid}
     }
     .fr-${i} { animation: fr-${i} ${dur} linear infinite; }`;
     } else {
-      const r = Math.ceil(Math.hypot(cx, cy));
+      const farRadius = Math.max(Math.hypot(cx, cy), Math.hypot(width - cx, cy), Math.hypot(cx, height - cy), Math.hypot(width - cx, height - cy));
+      const r = Math.ceil(farRadius * (entrance.radius ?? 1));
       const [hidden, shown] = shape === "wipe"
         ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
         : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
@@ -1072,10 +1075,15 @@ ${mid}
   let clipDef = "";
   if (needSlide) {
     const off = (axis: "X" | "Y", d: number): string => `translate(${axis === "X" ? d : 0}px, ${axis === "Y" ? d : 0}px)`;
-    const enterT = entrance.kind === "slide" && entrance.axis != null && entrance.sign != null
+    const vector = (v: { x: number; y: number }): string => `translate(${v.x * width}px, ${v.y * height}px)`;
+    const enterT = entrance.kind === "slide" && entrance.vector != null
+      ? vector({ x: -entrance.vector.x, y: -entrance.vector.y })
+      : entrance.kind === "slide" && entrance.axis != null && entrance.sign != null
       ? off(entrance.axis, -entrance.sign * (entrance.axis === "X" ? width : height))
       : "translate(0px, 0px)";
-    const exitT = exit.kind === "slide" && exit.axis != null && exit.sign != null
+    const exitT = exit.kind === "slide" && exit.vector != null
+      ? vector(exit.vector)
+      : exit.kind === "slide" && exit.axis != null && exit.sign != null
       ? off(exit.axis, exit.sign * (exit.axis === "X" ? width : height))
       : "translate(0px, 0px)";
     const enterBound = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
@@ -1433,7 +1441,8 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // `shine`, and `zoom-*` all overlap-fade the incoming in. `wipe`/`iris`
     // predecessors reveal the incoming on top (handled in emitRevealFrame, not
     // here), so they appear at their own start → `cut`.
-    const prevDir = prevPlan?.incoming.translate;
+    const prevTranslate = prevPlan?.incoming.translate;
+    const prevDir = prevTranslate != null && "axis" in prevTranslate ? prevTranslate : undefined;
     const slideEnter: SlideEnter =
       prevDir != null
         ? { mode: "slide", axis: prevDir.axis, enterOffset: -prevDir.sign * (prevDir.axis === "X" ? width : height) }
@@ -1460,7 +1469,8 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // scroll) this means: slide in, then hold (no slide-out / fade-out).
     const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
 
-    const ownDir = transitionPlan.outgoing.translate;
+    const ownTranslate = transitionPlan.outgoing.translate;
+    const ownDir = ownTranslate != null && "axis" in ownTranslate ? ownTranslate : undefined;
     const ownReveal = transitionPlan.incoming.clip != null;
     const prevReveal = prevPlan?.incoming.clip != null;
 
@@ -1472,7 +1482,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // branches, so their output is byte-identical (see `composedBoundaryNeeded`).
     const composedEntrance = classifyEntrance(prevPlan, entersViaMagicMove);
     const composedExit = classifyExit(transitionPlan);
-    const useComposed = composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
+    const useComposed = transitionPlan.parameterized || prevPlan?.parameterized === true || composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
 
     if (useComposed) {
       // Mixed-family boundary: compose the entrance (from prevType) and the exit
@@ -1487,8 +1497,10 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       keyframes.push(r.keyframe);
       // A `shine` EXIT still sweeps its gradient highlight over the handoff window
       // on top of the composed dissolve (same helper as the crossfade branch).
-      if (transType === "shine") {
-        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec });
+      if (transitionPlan.overlay === "shine") {
+        const shine = transitionPlan.shine;
+        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec,
+          color: shine?.color, opacity: shine?.opacity, bandWidth: shine == null ? undefined : shine.bandWidth * width, skewDeg: shine?.angle });
         shineTransitionGroups.push(sweep.markup);
         keyframes.push(sweep.css);
       }
@@ -1518,11 +1530,12 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // DM-1550: the reveal's easing is authored on the PREVIOUS frame's
       // transition (the one that unveils THIS frame). Resolve any named preset
       // (incl. the sampled springs) to a CSS easing string.
-      const revealEasing = entranceReveal != null ? resolveEasingPreset(prevFrame?.transition?.easing) : undefined;
+      const revealEasing = entranceReveal != null ? resolveEasingPreset(prevPlan?.easing) : undefined;
       // DM-1585: wipe-clock start angle + direction are authored on the PREVIOUS
       // frame's transition (the one that unveils THIS frame), like the easing.
-      const clock = resolveClockParams(prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise);
-      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing, clock.startDeg, clock.dir, prevFrame?.transition?.wipeAngle);
+      const clip = prevPlan?.incoming.clip;
+      const clock = resolveClockParams(clip?.startAngle, clip?.counterclockwise);
+      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing, clock.startDeg, clock.dir, clip?.angle);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -1550,7 +1563,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // DM-1148: the last frame holds solid to 100% (no loop cross-dissolve)
       // unless `loopFade` is set. Only the crossfade path fades — cut already
       // holds-then-cuts — so this is a no-op for cut frames.
-      const isCutFrame = transType === "cut" || transDur === 0;
+      const isCutFrame = transitionPlan.outgoing.opacity === "cut" || transDur === 0;
       const holdToEnd = i === frames.length - 1 && config.loopFade !== true && !isCutFrame;
       // DM-1524: `shine` and `zoom-*` ride the crossfade opacity machinery (the
       // frame fades in/out normally); the extra motion is layered on top. A
@@ -1558,11 +1571,11 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // entrance window (`zoom-in` grows 0.9→1, `zoom-out` settles 1.1→1); the
       // element rests at scale(1). Passing the crossfade type through keeps
       // `isCut` false so the frame cross-dissolves.
-      const entranceScale = (prevType === "zoom-in" || prevType === "zoom-out")
-        ? { fromScale: prevType === "zoom-in" ? 0.9 : 1.1, enterStartPct, startPct, width, height,
+      const entranceScale = prevPlan?.incoming.scale != null
+        ? { fromScale: prevPlan.incoming.scale.from, enterStartPct, startPct, width, height,
             // DM-1550: the dolly easing is authored on the zoom transition that
             // drives THIS frame's entrance (the previous frame's transition).
-            easing: resolveEasingPreset(prevFrame?.transition?.easing) }
+            easing: resolveEasingPreset(prevPlan.easing) }
         : null;
       const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, { startPct, holdEndPct, transEndPct, fadeInStartPct }, totalSec, holdToEnd, entranceScale);
       frameGroups.push(...r.groups);
@@ -1571,8 +1584,10 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // DM-1524: a `shine` transition sweeps a gradient highlight across the whole
       // viewport over the handoff window [holdEnd..transEnd] on TOP of the
       // cross-dissolve (the shared helper, also behind the `shine` overlay preset).
-      if (transType === "shine") {
-        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec });
+      if (transitionPlan.overlay === "shine") {
+        const shine = transitionPlan.shine;
+        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec,
+          color: shine?.color, opacity: shine?.opacity, bandWidth: shine == null ? undefined : shine.bandWidth * width, skewDeg: shine?.angle });
         shineTransitionGroups.push(sweep.markup);
         keyframes.push(sweep.css);
       }

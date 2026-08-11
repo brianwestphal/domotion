@@ -241,7 +241,7 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "One canonical schema validates frame transitions; legacy names normalize to bounded motion channels and compose each scene's entrance from its predecessor.",
     doc: "docs/116-transition-schema-and-normalization.md",
     exports: ["transitionSchema", "transitionTypeSchema", "normalizeTransition"],
-    tests: ["src/animation/transition-schema.test.ts", "src/animation/animator-mixed-transitions.test.ts"],
+    tests: ["src/animation/transition-schema.test.ts", "src/animation/animator-parameterized-transitions.test.ts", "src/animation/animator-mixed-transitions.test.ts", "tests/compose-animate-frames.e2e.test.ts"],
     transition: "a frame's entrance depends on the PREVIOUS transition type (fade-in after crossfade, slide-in after a same-axis slide, cut after cut) — the transition-to-transition matrix.",
   },
   {

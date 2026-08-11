@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg, type AnimationFrame } from "./animator.js";
+import type { LegacyTransitionType } from "./transition-schema.js";
 import { buildMagicMove } from "./magic-move.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -23,7 +24,7 @@ function keyframeBlock(svg: string, name: string): string {
   return m ? m[0] : "";
 }
 
-function gen(types: NonNullable<AnimationFrame["transition"]>["type"][]): string {
+function gen(types: LegacyTransitionType[]): string {
   const colors = ["#3366ff", "#33cc66", "#ffaa00", "#cc3366"];
   return generateAnimatedSvg({
     width: W,

@@ -46,8 +46,9 @@ describe("storyboard-config JSON Schema", () => {
       expect(scene, `missing scene property: ${key}`).toHaveProperty(key);
     }
     // The inter-scene transition enum is the opaque-scene-safe subset.
-    const transition = (scene.transition as { properties: { type: { enum: string[] } } }).properties.type;
-    expect(transition.enum).toEqual(expect.arrayContaining(["crossfade", "cut", "push-left", "scroll"]));
-    expect(transition.enum).not.toContain("magic-move");
+    const variants = (scene.transition as { anyOf: Array<{ properties: { type: { const: string } } }> }).anyOf;
+    const types = variants.map(variant => variant.properties.type.const);
+    expect(types).toEqual(expect.arrayContaining(["crossfade", "cut", "push-left", "scroll", "push", "reveal", "zoom", "shine"]));
+    expect(types).not.toContain("magic-move");
   });
 });

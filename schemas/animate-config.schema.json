@@ -345,52 +345,614 @@
             "type": "number"
           },
           "transition": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "crossfade",
-                  "push-left",
-                  "scroll",
-                  "cut",
-                  "magic-move",
-                  "push-right",
-                  "push-up",
-                  "push-down",
-                  "wipe",
-                  "iris",
-                  "zoom-in",
-                  "zoom-out",
-                  "shine",
-                  "wipe-radial",
-                  "wipe-clock"
-                ]
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "crossfade"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
               },
-              "duration": {
-                "type": "number",
-                "minimum": 0
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "cut"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
               },
-              "easing": {
-                "description": "Named/raw easing for wipe/iris/zoom reveals (spring-* etc.).",
-                "type": "string"
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "magic-move"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
               },
-              "wipeAngle": {
-                "description": "wipe: reveal angle in degrees clockwise from left-to-right (default 0).",
-                "type": "number"
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "push-left"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
               },
-              "wipeStartAngle": {
-                "description": "wipe-clock: start angle in degrees clockwise from 12 o'clock (default 0).",
-                "type": "number"
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "push-right"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
               },
-              "wipeCounterclockwise": {
-                "description": "wipe-clock: sweep counterclockwise instead of clockwise.",
-                "type": "boolean"
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "push-up"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "push-down"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "scroll"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "wipe"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  },
+                  "wipeAngle": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "iris"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "wipe-radial"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "wipe-clock"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  },
+                  "wipeStartAngle": {
+                    "type": "number"
+                  },
+                  "wipeCounterclockwise": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "zoom-in"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "zoom-out"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "shine"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "shine": {
+                    "type": "object",
+                    "properties": {
+                      "angle": {
+                        "default": 14,
+                        "type": "number",
+                        "minimum": -360,
+                        "maximum": 360
+                      },
+                      "bandWidth": {
+                        "default": 0.28,
+                        "description": "Band width as a fraction of viewport width.",
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 2
+                      },
+                      "color": {
+                        "default": "#ffffff",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "opacity": {
+                        "default": 0.55,
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "push"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  },
+                  "push": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "direction": {
+                            "default": "left",
+                            "type": "string",
+                            "enum": [
+                              "left",
+                              "right",
+                              "up",
+                              "down"
+                            ]
+                          },
+                          "distance": {
+                            "default": 1,
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 2
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "angle": {
+                            "type": "number",
+                            "minimum": -360,
+                            "maximum": 360
+                          },
+                          "distance": {
+                            "default": 1,
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 2
+                          }
+                        },
+                        "required": [
+                          "angle"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration",
+                  "push"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "reveal"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  },
+                  "reveal": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "shape": {
+                            "type": "string",
+                            "const": "linear"
+                          },
+                          "angle": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": -360,
+                            "maximum": 360
+                          }
+                        },
+                        "required": [
+                          "shape"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "shape": {
+                            "type": "string",
+                            "const": "radial"
+                          },
+                          "origin": {
+                            "default": {
+                              "x": 0.5,
+                              "y": 0.5
+                            },
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                                "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                              },
+                              "y": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                                "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                              }
+                            },
+                            "required": [
+                              "x",
+                              "y"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "radius": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 2
+                          }
+                        },
+                        "required": [
+                          "shape"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "shape": {
+                            "type": "string",
+                            "const": "clock"
+                          },
+                          "origin": {
+                            "default": {
+                              "x": 0.5,
+                              "y": 0.5
+                            },
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                                "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                              },
+                              "y": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                                "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                              }
+                            },
+                            "required": [
+                              "x",
+                              "y"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "startAngle": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": -360,
+                            "maximum": 360
+                          },
+                          "direction": {
+                            "default": "clockwise",
+                            "type": "string",
+                            "enum": [
+                              "clockwise",
+                              "counterclockwise"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "shape"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration",
+                  "reveal"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "zoom"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  },
+                  "zoom": {
+                    "type": "object",
+                    "properties": {
+                      "fromScale": {
+                        "default": 0.9,
+                        "type": "number",
+                        "minimum": 0.01,
+                        "maximum": 4
+                      },
+                      "origin": {
+                        "default": {
+                          "x": 0.5,
+                          "y": 0.5
+                        },
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration",
+                  "zoom"
+                ],
+                "additionalProperties": false
               }
-            },
-            "required": [
-              "type",
-              "duration"
             ]
           },
           "selector": {

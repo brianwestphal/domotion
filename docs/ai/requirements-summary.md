@@ -1167,6 +1167,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   opacity / translate / scale / clip / supported-overlay channel plan. Preserve
   every compatibility spelling and the existing emitter output; new built-in
   parameters and custom recipes belong to DM-2071 and DM-2072 respectively.
+- Parameterized built-ins (doc 117) use strict nested objects: push angle or
+  cardinal direction + viewport-fraction distance; reveal shape-specific
+  angle/origin/radius/direction; zoom scale + viewport-relative origin; shine
+  angle/band fraction/color/opacity. Reject irrelevant fields and out-of-range
+  values. Every form settles at identity and stays on the CSS timeline using
+  opacity, transform, clip-path, and the supported gradient sweep only.
 
 ## What this file is NOT
 

@@ -43,6 +43,8 @@ Frame compositing tracks (`fv-*` opacity and `fd-*` visibility) and whole-SVG-ov
 
 The transition object has one source of truth: `src/animation/transition-schema.ts`. The exported `Transition` type, declarative animate/storyboard validators, and generated JSON Schemas all derive from it. Before rendering, every legacy name normalizes to the bounded opacity/translate/scale/clip/overlay plan described in [doc 116](116-transition-schema-and-normalization.md); this keeps compatibility spellings while removing duplicated family dispatch.
 
+Parameterized `push`, `reveal`, and `zoom` forms—and the optional `shine` parameter object—are documented in [doc 117](117-parameterized-built-in-transitions.md). Their nested objects are strict and bounded; legacy named transitions remain aliases with unchanged output.
+
 | Type | Behavior | Path |
 |---|---|---|
 | `crossfade` | Outgoing fades out while incoming fades in (windows overlap). | Composited (per-frame `<g class="f f-N">`). |

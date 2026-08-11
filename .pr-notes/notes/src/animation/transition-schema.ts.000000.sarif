@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnz9exaxktfnjd4",
+          "message": {
+            "text": "Each new family owns a strict nested parameter object, and reveal is discriminated again by shape. This makes irrelevant channels unrepresentable in generated schemas while legacy aliases remain separate variants with their historical defaults and emitter paths.",
+            "markdown": "Each new family owns a strict nested parameter object, and reveal is discriminated again by shape. This makes irrelevant channels unrepresentable in generated schemas while legacy aliases remain separate variants with their historical defaults and emitter paths."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/transition-schema.ts"
+                },
+                "region": {
+                  "startLine": 28,
+                  "endLine": 67,
+                  "snippet": {
+                    "text": "const revealParamsSchema = z.discriminatedUnion(\"shape\", [\n  z.object({ shape: z.literal(\"linear\"), angle: z.number().min(-360).max(360).default(0) }).strict(),\n  z.object({ shape: z.literal(\"radial\"), origin: originSchema.default({ x: 0.5, y: 0.5 }), radius: z.number().min(1).max(2).default(1) }).strict(),\n  z.object({ shape: z.literal(\"clock\"), origin: originSchema.default({ x: 0.5, y: 0.5 }), startAngle: z.number().min(-360).max(360).default(0), direction: z.enum([\"clockwise\", \"counterclockwise\"]).default(\"clockwise\") }).strict(),\n]);\nconst zoomParamsSchema = z.object({\n  fromScale: z.number().min(0.01).max(4).default(0.9),\n  origin: originSchema.default({ x: 0.5, y: 0.5 }),\n}).strict();\nconst shineParamsSchema = z.object({\n  angle: z.number().min(-360).max(360).default(14),\n  bandWidth: z.number().positive().max(2).default(0.28).describe(\"Band width as a fraction of viewport width.\"),\n  color: z.string().min(1).default(\"#ffffff\"),\n  opacity: z.number().min(0).max(1).default(0.55),\n}).strict();\n\nexport const transitionSchema = z.discriminatedUnion(\"type\", [\n  plainLegacy(\"crossfade\"), plainLegacy(\"cut\"), plainLegacy(\"magic-move\"),\n  pushLegacy(\"push-left\"), pushLegacy(\"push-right\"), pushLegacy(\"push-up\"), pushLegacy(\"push-down\"), pushLegacy(\"scroll\"),\n  z.object({ type: z.literal(\"wipe\"), duration, easing, wipeAngle: z.number().optional() }).strict(),\n  radialLegacy(\"iris\"), radialLegacy(\"wipe-radial\"),\n  z.object({ type: z.literal(\"wipe-clock\"), duration, easing, wipeStartAngle: z.number().optional(), wipeCounterclockwise: z.boolean().optional() }).strict(),\n  zoomLegacy(\"zoom-in\"), zoomLegacy(\"zoom-out\"),\n  z.object({ type: z.literal(\"shine\"), duration, shine: shineParamsSchema.optional() }).strict(),\n  z.object({ type: z.literal(\"push\"), duration, easing, push: pushParamsSchema }).strict(),\n  z.object({ type: z.literal(\"reveal\"), duration, easing, reveal: revealParamsSchema }).strict(),\n  z.object({ type: z.literal(\"zoom\"), duration, easing, zoom: zoomParamsSchema }).strict(),\n]);\n\n/** Opaque storyboard scenes cannot build the element-tree bridge magic-move needs. */\nexport const storyboardTransitionSchema = z.union(transitionSchema.options.filter(option => option.shape.type.value !== \"magic-move\"));\n\nexport type Transition = z.infer<typeof transitionSchema>;\nexport type TransitionType = z.infer<typeof transitionTypeSchema>;\nexport type LegacyTransitionType = z.infer<typeof legacyTransitionTypeSchema>;\nexport type TransitionAxis = \"X\" | \"Y\";\nexport type TransitionRevealShape = \"wipe\" | \"iris\" | \"clock\";\nexport interface ViewportOrigin { x: number; y: number }\n\nexport interface NormalizedTransitionPlan {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2071"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b8a07a9d5e7b79ed5f20dcac688067bc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6b35791732e10ed542ca81e56b0890dbc8a25fcd",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

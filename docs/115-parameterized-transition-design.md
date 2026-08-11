@@ -1,7 +1,7 @@
 # 115 — Parameterized transition design
 
-**Status: investigation complete (DM-2042); implementation split into DM-2070,
-DM-2071, and DM-2072.**
+**Status: investigation complete (DM-2042); foundation and built-in parameters
+shipped in DM-2070/DM-2071; custom recipes remain DM-2072.**
 
 ## Finding
 

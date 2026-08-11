@@ -93,6 +93,40 @@ describeCrossEngine("clock-wipe viewport geometry (DM-1996)", () => {
   });
 });
 
+describeCrossEngine("parameterized transition families (DM-2071)", () => {
+  it("samples rectangular mixed-family handoffs in Chromium and WebKit", async () => {
+    const svg = generateAnimatedSvg({
+      width: 1440, height: 900,
+      frames: [
+        { svgContent: '<rect width="1440" height="900" fill="red"/>', duration: 400, transition: { type: "push", duration: 300, push: { angle: 35, distance: 0.75 } } },
+        { svgContent: '<rect width="1440" height="900" fill="blue"/>', duration: 400, transition: { type: "reveal", duration: 300, reveal: { shape: "clock", origin: { x: 0.35, y: 0.6 }, startAngle: 45, direction: "counterclockwise" } } },
+        { svgContent: '<rect width="1440" height="900" fill="green"/>', duration: 400, transition: { type: "zoom", duration: 300, zoom: { fromScale: 1.35, origin: { x: 0.7, y: 0.3 } } } },
+        { svgContent: '<rect width="1440" height="900" fill="black"/>', duration: 400, transition: { type: "shine", duration: 300, shine: { angle: 25, bandWidth: 0.2, color: "#ffeeaa", opacity: 0.4 } } },
+      ],
+    });
+    for (const browser of [env!.browser, webkitBrowser!]) {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      try {
+        await page.setContent(svg);
+        for (const time of [475, 625, 775, 1175, 1325, 1475]) {
+          const state = await page.evaluate((at) => {
+            for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at; }
+            const frames = [...document.querySelectorAll<SVGGElement>(".f")];
+            return frames.map(frame => ({ opacity: Number.parseFloat(getComputedStyle(frame).opacity), display: getComputedStyle(frame).display }));
+          }, time);
+          expect(state.some(frame => frame.display !== "none" && frame.opacity > 0.99)).toBe(true);
+        }
+        const geometry = await page.evaluate(() => ({
+          clockOrigin: getComputedStyle(document.querySelector(".fr-2")!).clipPath,
+          zoomOrigin: getComputedStyle(document.querySelector(".fz-3")!).transformOrigin,
+        }));
+        expect(geometry.clockOrigin).toMatch(/^polygon\(504px 540px,/);
+        expect(geometry.zoomOrigin).toBe("1008px 270px");
+      } finally { await page.close(); }
+    }
+  });
+});
+
 describeBrowser("composeAnimateFrames (DM-1137)", () => {
   it("renders exact frame/overlay boundaries without ghost layers (DM-1994)", async () => {
     const { browser } = env!;
