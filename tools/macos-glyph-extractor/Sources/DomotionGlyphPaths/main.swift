@@ -1011,10 +1011,50 @@ func runFamilyMatchQuery(_ query: [String: Any]) -> [String: Any] {
 
     let members = NSFontManager.shared.availableMembers(ofFontFamily: family) ?? []
     if members.isEmpty {
-        // Blink falls back to the CoreText enumeration here (`:284-286`). Report
-        // rather than guess: the caller keeps its existing selection, and a
-        // silent wrong answer is the failure mode this whole area is removing.
-        return ["type": "familyMatch", "found": false, "reason": "no AppKit members"]
+        // Blink falls back to CoreText's all-system-font collection when
+        // AppKit exposes no members (`BestStyleMatchForFamilyNS` →
+        // `BestStyleMatchForFamily`, font_matcher_mac.mm:280-286, 359-426).
+        // This is load-bearing for protected/hidden aliases: macos26's Chrome
+        // resolves the ordinary family `System-ui` to .SFNS-Regular through
+        // this path even though AppKit's public member list is empty.
+        let collection = CTFontCollectionCreateFromAvailableFonts(nil)
+        let descriptors = CTFontCollectionCreateMatchingFontDescriptorsForFamily(
+            collection, family as CFString, nil
+        ) as? [CTFontDescriptor] ?? []
+        var matchedName: String? = nil
+        var chosenTraits: CTFontSymbolicTraits = []
+        var chosenWeight = 400
+        var candidates: [[String: Any]] = []
+        for descriptor in descriptors {
+            let traits = CTFontDescriptorCopyAttribute(
+                descriptor, kCTFontTraitsAttribute
+            ) as? [CFString: Any] ?? [:]
+            let candidateTraits = CTFontSymbolicTraits(
+                rawValue: (traits[kCTFontSymbolicTrait] as? NSNumber)?.uint32Value ?? 0
+            ).intersection(kTraitsMask)
+            let candidateWeight = (traits[kCTFontWeightTrait] as? NSNumber)
+                .map { toCSSFontWeight($0.floatValue) } ?? 400
+            let font = CTFontCreateWithFontDescriptor(descriptor, 16, nil)
+            let candidateName = (CTFontCopyPostScriptName(font) as String?) ?? ""
+            if candidateName.isEmpty { continue }
+            candidates.append(["name": candidateName, "weight": candidateWeight,
+                               "descriptorWeight": candidateWeight,
+                               "traits": candidateTraits.rawValue,
+                               "appKitWeight": -1, "appKitTraits": -1])
+            if matchedName == nil || betterChoiceCT(desiredTraits, desiredWeight,
+                                                    chosenTraits, chosenWeight,
+                                                    candidateTraits, candidateWeight) {
+                matchedName = candidateName
+                chosenTraits = candidateTraits
+                chosenWeight = candidateWeight
+            }
+        }
+        guard let name = matchedName else {
+            return ["type": "familyMatch", "found": false,
+                    "reason": "no AppKit or CoreText members"]
+        }
+        return ["type": "familyMatch", "found": true, "postscriptName": name,
+                "weight": chosenWeight, "candidates": candidates]
     }
 
     var matchedName: String? = nil

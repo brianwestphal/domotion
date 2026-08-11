@@ -66,6 +66,78 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "hotsheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msod31nagr5dnpga",
+          "message": {
+            "text": "Chromium BestStyleMatchForFamilyNS does not stop when AppKit returns zero family members; it falls back to CTFontCollectionCreateMatchingFontDescriptorsForFamily. macos26 exposes the hidden System-ui alias only through that fallback, while local macOS exposes it through neither. Transcribing the fallback preserves host-dependent behavior instead of hardcoding the runner answer.",
+            "markdown": "Chromium BestStyleMatchForFamilyNS does not stop when AppKit returns zero family members; it falls back to CTFontCollectionCreateMatchingFontDescriptorsForFamily. macos26 exposes the hidden System-ui alias only through that fallback, while local macOS exposes it through neither. Transcribing the fallback preserves host-dependent behavior instead of hardcoding the runner answer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                },
+                "region": {
+                  "startLine": 1010,
+                  "endLine": 1060,
+                  "snippet": {
+                    "text": "    if desiredWidth < 100 { desiredTraits.insert(.traitCondensed) }\n\n    let members = NSFontManager.shared.availableMembers(ofFontFamily: family) ?? []\n    if members.isEmpty {\n        // Blink falls back to CoreText's all-system-font collection when\n        // AppKit exposes no members (`BestStyleMatchForFamilyNS` →\n        // `BestStyleMatchForFamily`, font_matcher_mac.mm:280-286, 359-426).\n        // This is load-bearing for protected/hidden aliases: macos26's Chrome\n        // resolves the ordinary family `System-ui` to .SFNS-Regular through\n        // this path even though AppKit's public member list is empty.\n        let collection = CTFontCollectionCreateFromAvailableFonts(nil)\n        let descriptors = CTFontCollectionCreateMatchingFontDescriptorsForFamily(\n            collection, family as CFString, nil\n        ) as? [CTFontDescriptor] ?? []\n        var matchedName: String? = nil\n        var chosenTraits: CTFontSymbolicTraits = []\n        var chosenWeight = 400\n        var candidates: [[String: Any]] = []\n        for descriptor in descriptors {\n            let traits = CTFontDescriptorCopyAttribute(\n                descriptor, kCTFontTraitsAttribute\n            ) as? [CFString: Any] ?? [:]\n            let candidateTraits = CTFontSymbolicTraits(\n                rawValue: (traits[kCTFontSymbolicTrait] as? NSNumber)?.uint32Value ?? 0\n            ).intersection(kTraitsMask)\n            let candidateWeight = (traits[kCTFontWeightTrait] as? NSNumber)\n                .map { toCSSFontWeight($0.floatValue) } ?? 400\n            let font = CTFontCreateWithFontDescriptor(descriptor, 16, nil)\n            let candidateName = (CTFontCopyPostScriptName(font) as String?) ?? \"\"\n            if candidateName.isEmpty { continue }\n            candidates.append([\"name\": candidateName, \"weight\": candidateWeight,\n                               \"descriptorWeight\": candidateWeight,\n                               \"traits\": candidateTraits.rawValue,\n                               \"appKitWeight\": -1, \"appKitTraits\": -1])\n            if matchedName == nil || betterChoiceCT(desiredTraits, desiredWeight,\n                                                    chosenTraits, chosenWeight,\n                                                    candidateTraits, candidateWeight) {\n                matchedName = candidateName\n                chosenTraits = candidateTraits\n                chosenWeight = candidateWeight\n            }\n        }\n        guard let name = matchedName else {\n            return [\"type\": \"familyMatch\", \"found\": false,\n                    \"reason\": \"no AppKit or CoreText members\"]\n        }\n        return [\"type\": \"familyMatch\", \"found\": true, \"postscriptName\": name,\n                \"weight\": chosenWeight, \"candidates\": candidates]\n    }\n\n    var matchedName: String? = nil"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2074"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "315d45dbdf87ff033c254b07b89c97ff"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "https://github.com/brianwestphal/domotion/actions/runs/31470339965"
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "524c11ef8ca2a1551270a5c05a33149ab0204810",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }
