@@ -43,6 +43,49 @@ afterAll(async () => {
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("composeAnimateFrames (DM-1137)", () => {
+  it("renders exact frame/overlay boundaries without ghost layers (DM-1994)", async () => {
+    const { browser } = env!;
+    const svg = generateAnimatedSvg({
+      width: 300,
+      height: 120,
+      frames: [
+        {
+          svgContent: '<rect width="300" height="120" fill="red"/>',
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+          overlays: [{
+            kind: "svg", innerSvg: '<rect width="20" height="20"/>',
+            x: 0, y: 0, width: 20, height: 20, animId: "boundary", endAt: 1000,
+          }],
+        },
+        {
+          svgContent: '<rect width="300" height="120" fill="blue"/>',
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
+      ],
+    });
+    const page = await browser.newPage({ viewport: { width: 300, height: 120 } });
+    try {
+      await page.setContent(svg);
+      const sample = async (time: number) => page.evaluate((at) => {
+        for (const animation of document.getAnimations()) {
+          animation.pause();
+          animation.currentTime = at;
+        }
+        const opacity = (selector: string) =>
+          Number.parseFloat(getComputedStyle(document.querySelector(selector)!).opacity);
+        return { outgoing: opacity(".f-0"), incoming: opacity(".f-1"), overlay: opacity(".ov-0-boundary") };
+      }, time);
+
+      expect(await sample(999)).toEqual({ outgoing: 1, incoming: 0, overlay: 1 });
+      expect(await sample(1000)).toEqual({ outgoing: 0, incoming: 1, overlay: 0 });
+      expect(await sample(1001)).toEqual({ outgoing: 0, incoming: 1, overlay: 0 });
+    } finally {
+      await page.close();
+    }
+  });
+
   it("returns the assembled AnimationConfig; mutating it before render is reflected; and composeAnimateConfig == frames-out + render", async () => {
     const { browser } = env!;
     const dir = mkdtempSync(path.join(tmpdir(), "compose-frames-"));

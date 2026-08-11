@@ -389,7 +389,7 @@ function emitCrossfadeOrCutFrame(
     const startNum = parseFloat(startPct);
     const endNum = parseFloat(transEndPct);
     const beforeStart = padBefore(startNum, KEYFRAME_EPSILON.cull, 3);
-    const afterEnd = padAfter(endNum, KEYFRAME_EPSILON.cull, 3);
+    const beforeEnd = padBefore(endNum, KEYFRAME_EPSILON.cull, 3);
     // DM-1511: opacity does the cut (tight overlap, Firefox-safe); `visibility`
     // is a SEPARATE wide-overlap paint-cull track so Firefox can't flash a
     // transparent gap at the hand-off. (Previously one combined keyframe.)
@@ -398,8 +398,8 @@ function emitCrossfadeOrCutFrame(
       0% { opacity: 0; }
       ${beforeStart}% { opacity: 0; }
       ${startNum.toFixed(3)}% { opacity: 1; }
-      ${endNum.toFixed(3)}% { opacity: 1; }
-      ${afterEnd}% { opacity: 0; }
+      ${beforeEnd}% { opacity: 1; }
+      ${endNum.toFixed(3)}% { opacity: 0; }
       100% { opacity: 0; }
     }${buildDisplayKeyframes(`fd-${i}`, startPct, transEndPct, totalSec)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite, fd-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
@@ -1238,6 +1238,83 @@ function dedupeCullCss(perFrameCss: string[]): string {
   return blocks.join("\n");
 }
 
+/**
+ * Collapse repeated numeric offsets inside whole-layer CSS `@keyframes` blocks.
+ * Later declarations win per property, matching CSS source-order cascading,
+ * but each offset is emitted once so boundary behavior is engine-independent.
+ * Blocks without repeated offsets remain byte-identical.
+ */
+export function consolidateKeyframeOffsets(svg: string): string {
+  const keyframes = /@keyframes\s+([^\s{]+)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g;
+  return svg.replace(keyframes, (whole, name: string, inner: string) => {
+    // Frame opacity/visibility and whole-overlay visibility are the compositing
+    // tracks whose contradictory boundary stops can ghost entire layers. Other
+    // effect tracks intentionally reuse offsets for property-specific motion;
+    // leave those byte-identical until their emitters adopt this invariant.
+    if (!/^(?:fv-|fd-|ov-.+-vis$)/.test(name)) return whole;
+    const stops = new Map<number, Map<string, string>>();
+    let duplicate = false;
+    const rules = /([^{}]+)\{([^{}]*)\}/g;
+    let rule: RegExpExecArray | null;
+    while ((rule = rules.exec(inner)) != null) {
+      const declarations = splitCssDeclarations(rule[2]);
+      for (const rawSelector of rule[1].split(",")) {
+        const selector = rawSelector.trim();
+        const offset = selector === "from" ? 0 : selector === "to" ? 100
+          : /^[-+]?(?:\d+\.?\d*|\.\d+)%$/.test(selector) ? Number.parseFloat(selector) : null;
+        if (offset == null || !Number.isFinite(offset)) return whole;
+        if (stops.has(offset)) duplicate = true;
+        const merged = stops.get(offset) ?? new Map<string, string>();
+        for (const declaration of declarations) {
+          const colon = declaration.indexOf(":");
+          if (colon < 1) return whole;
+          merged.set(declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim());
+        }
+        stops.set(offset, merged);
+      }
+    }
+    if (!duplicate) return whole;
+    const body = [...stops.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([offset, declarations]) => {
+        const label = offset === 0 || offset === 100 ? `${offset}%` : `${Number(offset.toFixed(6))}%`;
+        const css = [...declarations].map(([property, value]) => `${property}: ${value};`).join(" ");
+        return `${label} { ${css} }`;
+      })
+      .join(" ");
+    return `@keyframes ${name} { ${body} }`;
+  });
+}
+
+/** Split a declaration list without treating semicolons in strings/functions as separators. */
+function splitCssDeclarations(body: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let quote: "\"" | "'" | null = null;
+  let escaped = false;
+  for (let i = 0; i < body.length; i++) {
+    const char = body[i];
+    if (quote != null) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "\"" || char === "'") quote = char;
+    else if (char === "(") depth++;
+    else if (char === ")") depth = Math.max(0, depth - 1);
+    else if (char === ";" && depth === 0) {
+      const declaration = body.slice(start, i).trim();
+      if (declaration !== "") out.push(declaration);
+      start = i + 1;
+    }
+  }
+  const tail = body.slice(start).trim();
+  if (tail !== "") out.push(tail);
+  return out;
+}
+
 export function generateAnimatedSvg(config: AnimationConfig): string {
   // One document scope for the macOS ideograph fallback cache across the whole
   // composition: all frames (and the typing overlays rendered late, below) came
@@ -1570,7 +1647,7 @@ ${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n
   // raw, 47.5 KB once shared. Fonts and glyph paths are already shared this way
   // (one `@font-face` block, one `<path id="gN">` per glyph); this gives images
   // the same treatment. No-op when nothing repeats.
-  return hoistDuplicateImagePayloads(out);
+  return hoistDuplicateImagePayloads(consolidateKeyframeOffsets(out));
 }
 
 /**
@@ -2709,9 +2786,11 @@ function renderSvgOverlay(
   const visEnd = pct(overlayEnd, totalDuration);
 
   const cssRules: string[] = [];
-  // Visibility timeline: hidden until the appear time, visible during the hold.
+  // Visibility timeline: hidden until the appear time, visible during the
+  // half-open hold [appear, end). Keeping the end stop hidden avoids a one-tick
+  // overlap with the next frame/overlay at an exact shared boundary.
   cssRules.push(`
-    @keyframes ${visibilityId} { 0%, ${pct(Math.max(0, appearMs - 1), totalDuration)} { opacity: 0; } ${visStart} { opacity: 1; } ${visEnd} { opacity: 1; } ${pct(overlayEnd + 1, totalDuration)}, 100% { opacity: 0; } }
+    @keyframes ${visibilityId} { 0%, ${pct(Math.max(0, appearMs - 1), totalDuration)} { opacity: 0; } ${visStart} { opacity: 1; } ${pct(Math.max(appearMs, overlayEnd - 1), totalDuration)} { opacity: 1; } ${visEnd}, 100% { opacity: 0; } }
     .${id} { animation: ${visibilityId} ${totalSec.toFixed(2)}s infinite; }`);
 
   // Slide-in entrance (DM-211): translate from off-screen to (0, 0) over

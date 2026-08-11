@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateAnimatedSvg, dedupeFrameIds, overlayWindowEndMs } from "./animator.js";
+import { generateAnimatedSvg, dedupeFrameIds, overlayWindowEndMs, consolidateKeyframeOffsets } from "./animator.js";
 import type { IntraFrameAnimation } from "./animator.js";
 import type { CapturedElement } from "../capture/types.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/viewbox-culling.js";
@@ -1242,7 +1242,7 @@ describe("animator", () => {
     });
     expect(svg).toMatch(/--scene-dur:\s*2\.00s/);
     // 50.000% boundary — frame 0 fades out and frame 1 fades in at the same instant.
-    expect(svg).toMatch(/50\.000%/);
+    expect(svg).toMatch(/50%/);
   });
 
   // DM-840: a typing overlay over a bgWidth-constrained field must wrap like a
@@ -1925,12 +1925,69 @@ describe("per-overlay window — `endAt` (DM-1767)", () => {
     });
     // Default (no delay) — the overlay appears with the frame, as it always has.
     expect(mk({})).toBe(mk({ delay: 0 }));
-    // The visibility track is `0%, <appear-1ms> { opacity: 0 } <appear> { 1 } <end> { 1 } <end+1ms>, 100% { 0 }`.
-    const appearPct = (svg: string): number => stopsOf(svg, "ov-0-pip-vis")[2];
-    const closePct = (svg: string): number => stopsOf(svg, "ov-0-pip-vis")[3];
+    // The visibility track is hidden through appear-1ms, visible on the
+    // half-open [appear, end) window, and hidden exactly at end.
+    const opacityStops = (svg: string): Array<{ pct: number; opacity: number }> => {
+      const line = svg.split("\n").find((l) => l.includes("@keyframes ov-0-pip-vis ")) ?? "";
+      return [...line.matchAll(/([\d.]+)%\s*\{\s*opacity:\s*([01])/g)]
+        .map((m) => ({ pct: parseFloat(m[1]), opacity: parseFloat(m[2]) }));
+    };
+    const appearPct = (svg: string): number => Math.min(...opacityStops(svg).filter((s) => s.opacity === 1).map((s) => s.pct));
+    const closePct = (svg: string): number => {
+      const stops = opacityStops(svg);
+      const appear = Math.min(...stops.filter((s) => s.opacity === 1).map((s) => s.pct));
+      return Math.min(...stops.filter((s) => s.opacity === 0 && s.pct > appear).map((s) => s.pct));
+    };
     expect(appearPct(mk({}))).toBeCloseTo(0, 1);
     expect(appearPct(mk({ delay: 1000 }))).toBeCloseTo(25, 0);
     expect(closePct(mk({}))).toBeCloseTo(100, 1);
     expect(closePct(mk({ endAt: 2000 }))).toBeCloseTo(50, 1);
+  });
+});
+
+describe("duplicate animation offsets", () => {
+  const keyframeOffsets = (svg: string): Map<string, number[]> => {
+    const out = new Map<string, number[]>();
+    for (const block of svg.matchAll(/@keyframes\s+([^\s{]+)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)) {
+      const offsets = [...block[2].matchAll(/(?:^|[},]\s*)(\d+(?:\.\d+)?)%/g)].map((m) => Number(m[1]));
+      out.set(block[1], offsets);
+    }
+    return out;
+  };
+
+  it("consolidates frame and overlay declarations that collide at exact boundaries", () => {
+    const cut = { type: "cut", duration: 0 } as const;
+    const svg = generateAnimatedSvg({
+      width: 300,
+      height: 120,
+      frames: [
+        {
+          svgContent: "<rect/>",
+          duration: 1000,
+          transition: cut,
+          overlays: [{ kind: "svg", innerSvg: "<circle/>", x: 0, y: 0, width: 20, height: 20, animId: "x", endAt: 1000 }],
+        },
+        { svgContent: "<path/>", duration: 1000, transition: cut },
+      ],
+    });
+
+    for (const [name, offsets] of keyframeOffsets(svg)) {
+      expect(new Set(offsets).size, name).toBe(offsets.length);
+    }
+    expect(svg).toMatch(/@keyframes fv-0 \{ 0% \{ opacity: 1;/);
+    expect(svg).toMatch(/@keyframes fv-1 \{[\s\S]*100% \{ opacity: 0;/);
+    expect(svg).toMatch(/@keyframes ov-0-x-vis \{ 0% \{ opacity: 1;/);
+  });
+
+  it("keeps non-conflicting keyframes byte-identical", () => {
+    const css = "<style>@keyframes clean{0%{opacity:0}50%{opacity:.5}100%{opacity:1}}</style>";
+    expect(consolidateKeyframeOffsets(css)).toBe(css);
+  });
+
+  it("merges properties and preserves semicolons inside CSS strings", () => {
+    const css = "<style>@keyframes ov-0-x-vis{0%{opacity:0;content:'a;b'}0.000%{opacity:1;transform:scale(1)}100%{opacity:0}}</style>";
+    const out = consolidateKeyframeOffsets(css);
+    expect(out).toContain("0% { opacity: 1; content: 'a;b'; transform: scale(1); }");
+    expect((out.match(/(?:^|\s)0% \{/g) ?? []).length).toBe(1);
   });
 });

@@ -204,6 +204,137 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnwsaoaizxfcxiz",
+          "message": {
+            "text": "The final composer consolidates only whole-layer visibility tracks because those tracks control ghosting across frames, while effect tracks can intentionally repeat offsets to compose distinct motion properties. Numeric-equivalent offsets are merged in source order so the result preserves CSS's later-property-wins behavior without leaving browser-dependent duplicate stops.",
+            "markdown": "The final composer consolidates only whole-layer visibility tracks because those tracks control ghosting across frames, while effect tracks can intentionally repeat offsets to compose distinct motion properties. Numeric-equivalent offsets are merged in source order so the result preserves CSS's later-property-wins behavior without leaving browser-dependent duplicate stops."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 1247,
+                  "endLine": 1286,
+                  "snippet": {
+                    "text": "export function consolidateKeyframeOffsets(svg: string): string {\n  const keyframes = /@keyframes\\s+([^\\s{]+)\\s*\\{((?:[^{}]|\\{[^{}]*\\})*)\\}/g;\n  return svg.replace(keyframes, (whole, name: string, inner: string) => {\n    // Frame opacity/visibility and whole-overlay visibility are the compositing\n    // tracks whose contradictory boundary stops can ghost entire layers. Other\n    // effect tracks intentionally reuse offsets for property-specific motion;\n    // leave those byte-identical until their emitters adopt this invariant.\n    if (!/^(?:fv-|fd-|ov-.+-vis$)/.test(name)) return whole;\n    const stops = new Map<number, Map<string, string>>();\n    let duplicate = false;\n    const rules = /([^{}]+)\\{([^{}]*)\\}/g;\n    let rule: RegExpExecArray | null;\n    while ((rule = rules.exec(inner)) != null) {\n      const declarations = splitCssDeclarations(rule[2]);\n      for (const rawSelector of rule[1].split(\",\")) {\n        const selector = rawSelector.trim();\n        const offset = selector === \"from\" ? 0 : selector === \"to\" ? 100\n          : /^[-+]?(?:\\d+\\.?\\d*|\\.\\d+)%$/.test(selector) ? Number.parseFloat(selector) : null;\n        if (offset == null || !Number.isFinite(offset)) return whole;\n        if (stops.has(offset)) duplicate = true;\n        const merged = stops.get(offset) ?? new Map<string, string>();\n        for (const declaration of declarations) {\n          const colon = declaration.indexOf(\":\");\n          if (colon < 1) return whole;\n          merged.set(declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim());\n        }\n        stops.set(offset, merged);\n      }\n    }\n    if (!duplicate) return whole;\n    const body = [...stops.entries()]\n      .sort(([a], [b]) => a - b)\n      .map(([offset, declarations]) => {\n        const label = offset === 0 || offset === 100 ? `${offset}%` : `${Number(offset.toFixed(6))}%`;\n        const css = [...declarations].map(([property, value]) => `${property}: ${value};`).join(\" \");\n        return `${label} { ${css} }`;\n      })\n      .join(\" \");\n    return `@keyframes ${name} { ${body} }`;\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.test.ts"
+                },
+                "region": {
+                  "startLine": 1947
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-1994"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3cf6be6701e665c23508eb2abb8b1ddb"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnwsb644xcvbfgm",
+          "message": {
+            "text": "Cut windows are half-open at their end: the outgoing frame remains opaque through the last pre-boundary epsilon and becomes transparent exactly when the incoming frame starts. This removes deterministic-but-wrong double compositing at a shared cut boundary while retaining the separate wide visibility track used for Firefox paint culling.",
+            "markdown": "Cut windows are half-open at their end: the outgoing frame remains opaque through the last pre-boundary epsilon and becomes transparent exactly when the incoming frame starts. This removes deterministic-but-wrong double compositing at a shared cut boundary while retaining the separate wide visibility track used for Firefox paint culling."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 387,
+                  "endLine": 405,
+                  "snippet": {
+                    "text": "  const isCut = transType === \"cut\" || transDur === 0;\n  if (isCut) {\n    const startNum = parseFloat(startPct);\n    const endNum = parseFloat(transEndPct);\n    const beforeStart = padBefore(startNum, KEYFRAME_EPSILON.cull, 3);\n    const beforeEnd = padBefore(endNum, KEYFRAME_EPSILON.cull, 3);\n    // DM-1511: opacity does the cut (tight overlap, Firefox-safe); `visibility`\n    // is a SEPARATE wide-overlap paint-cull track so Firefox can't flash a\n    // transparent gap at the hand-off. (Previously one combined keyframe.)\n    keyframes.push(`\n    @keyframes fv-${i} {\n      0% { opacity: 0; }\n      ${beforeStart}% { opacity: 0; }\n      ${startNum.toFixed(3)}% { opacity: 1; }\n      ${beforeEnd}% { opacity: 1; }\n      ${endNum.toFixed(3)}% { opacity: 0; }\n      100% { opacity: 0; }\n    }${buildDisplayKeyframes(`fd-${i}`, startPct, transEndPct, totalSec)}\n    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite, fd-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 46
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-1994"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "27c9af10c2140272bf8ce9cf2d98952f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e4d10b3115fbd04463a45fd56cec380344c3e844",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
