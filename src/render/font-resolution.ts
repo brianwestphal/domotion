@@ -231,6 +231,11 @@ export interface FontInstance {
    *  (`ShapeRange(..., current_font_data_for_range_set->Ranges(), ...)`,
    *  `harfbuzz_shaper.cc:1119`, rev 7d859f27). */
   webfontUnicodeRange?: Array<[number, number]>;
+  /** Zero-based source declaration order within an author webfont family.
+   * Blink retains this identity while walking a segmented face in reverse
+   * declaration order; physical font bytes are not sufficient because two
+   * overlapping declarations may reference the same resource. */
+  webfontDeclarationOrder?: number;
   /** The resolved face's `post.italicAngle` in degrees (0 for an upright face,
    *  negative for a right-leaning italic). Drives the embedded-mode faux-italic
    *  decision (DM-1695): when italic is requested but the resolved face is
@@ -686,6 +691,7 @@ export function registerWebfont(family: string, weight: number, style: string, b
   // DM-652: retain the raw buffer so embedded-font mode can `@font-face`
   // it as a `data:` URI without re-reading from disk (webfonts have no
   // on-disk source path — they came down from a CDN during capture).
+  font.webfontDeclarationOrder = list.length;
   list.push({ weight, italic, font, unicodeRange, buffer,
     ...(stretchCaps != null ? { stretch: stretchCaps } : {}),
     ...(weightCaps != null ? { weightCaps } : {}),
@@ -1208,6 +1214,41 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
   if (best == null) return null;
   return tagWebfontInstance(applyVariationAxes(best.font, weight, fontSize, slant, variationSettings, stretch,
     { wdthCapabilities: best.stretch ?? null, wdthAlways: true, wghtCapabilities: best.weightCaps ?? null }), best);
+}
+
+/**
+ * Materialize a segmented webfont family's faces in Blink's iteration order.
+ * `CSSSegmentedFontFace::GetFontData` appends every valid declaration via
+ * `ForEachReverse`; `FontFallbackIterator` subsequently filters those faces
+ * against the CURRENT hint list. Do not score or collapse overlaps here: a
+ * later declaration that shares both bytes and unicode-range with an earlier
+ * one is still a distinct segmented face.
+ */
+export function webfontVariantsInDeclarationOrder(
+  family: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings?: Record<string, number>,
+  stretch: number = 100,
+): FontInstance[] {
+  const variants = webfontRegistry.get(family.toLowerCase()) ?? [];
+  const out: FontInstance[] = [];
+  for (let i = variants.length - 1; i >= 0; i--) {
+    const variant = variants[i];
+    const instance = tagWebfontInstance(applyVariationAxes(
+      variant.font,
+      weight,
+      fontSize,
+      slant,
+      variationSettings,
+      stretch,
+      { wdthCapabilities: variant.stretch ?? null, wdthAlways: true, wghtCapabilities: variant.weightCaps ?? null },
+    ), variant);
+    instance.webfontDeclarationOrder = i;
+    out.push(instance);
+  }
+  return out;
 }
 
 /**

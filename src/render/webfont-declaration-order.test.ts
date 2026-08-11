@@ -18,6 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   registerWebfont, clearWebfonts,
   __pickWebfontVariantMetaForTest, __pickWebfontVariantMetaForCodepointForTest,
+  webfontVariantsInDeclarationOrder,
 } from "./font-resolution.js";
 
 // A real parseable font buffer — which font it is doesn't matter for
@@ -48,6 +49,25 @@ describeWithFont("last-declared wins on exact score ties (Blink's reverse-declar
     registerWebfont("dupcp", 400, "normal", fontBuf!, MARK_FIRST, undefined, "400");
     registerWebfont("dupcp", 400, "normal", fontBuf!, MARK_LAST, undefined, "400");
     expect(__pickWebfontVariantMetaForCodepointForTest("dupcp", 400, false, 0x00E9)?.unicodeRange).toEqual(MARK_LAST);
+  });
+});
+
+describeWithFont("segmented fallback walks declarations instead of re-scoring a codepoint", () => {
+  beforeEach(() => clearWebfonts());
+
+  it("retains every overlapping face in reverse declaration order", () => {
+    registerWebfont("overlap", 400, "normal", fontBuf!, MARK_FIRST, undefined, "400");
+    registerWebfont("overlap", 400, "normal", fontBuf!, MARK_LAST, undefined, "400");
+
+    const faces = webfontVariantsInDeclarationOrder("overlap", 400, 16, 0);
+    expect(faces.map((face) => face.webfontUnicodeRange)).toEqual([MARK_LAST, MARK_FIRST]);
+    expect(faces.map((face) => face.webfontDeclarationOrder)).toEqual([1, 0]);
+  });
+
+  it("does not collapse two declarations that reference identical font bytes", () => {
+    registerWebfont("same-resource", 400, "normal", fontBuf!, MARK_FIRST, undefined, "400");
+    registerWebfont("same-resource", 400, "normal", fontBuf!, MARK_LAST, undefined, "400");
+    expect(webfontVariantsInDeclarationOrder("same-resource", 400, 16, 0)).toHaveLength(2);
   });
 });
 

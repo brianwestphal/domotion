@@ -221,9 +221,11 @@ export function splitTextIntoGlyphPathRuns(
   fontFamily: string,
   /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
   features?: string[],
+  /** CSS bidi override applied before Blink's script/run segmentation. */
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): FontRun[] {
   if (clusterFallbackEnabled()) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths", features });
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths", features, bidiOverride });
     if (shaped != null) return shaped;
   }
   const runs: FontRun[] = [];
@@ -491,7 +493,7 @@ export function textToPathMarkup(
   // Math-Alphanumeric base letters, dotted-circle clusters); those render
   // through the run-text / min-x anchored branch — the per-char path (which
   // reads `text` by index) can't be used for them.
-  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features);
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
@@ -1566,6 +1568,7 @@ function splitTextIntoFontRuns(
   fontFamily?: string,
   /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
   features?: string[],
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): FontRun[] {
   // Default: fallback at shaped-cluster granularity — Blink's shape-then-
   // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
@@ -1573,7 +1576,7 @@ function splitTextIntoFontRuns(
   // falls through to the legacy walk, and `DOMOTION_CLUSTER_FALLBACK=0`
   // restores it wholesale for an A/B. See docs/113-cluster-granularity-fallback.md.
   if (clusterFallbackEnabled()) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { features });
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { features, bidiOverride });
     if (shaped != null) return shaped;
   }
   const runs: FontRun[] = [];
@@ -1815,6 +1818,8 @@ function renderTextAsEmbedded(
   fontVariantEmoji?: FontVariantEmojiOverride,
   /** DM-1971: the run's `font-synthesis` permissions. Absent = `auto`. */
   fontSynthesis?: FontSynthesisAllowance,
+  /** CSS bidi override applied before Blink's script/run segmentation. */
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -1829,7 +1834,7 @@ function renderTextAsEmbedded(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
   if (runs.length === 0) return null;
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -2677,7 +2682,7 @@ export function renderTextAsPath(
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
       textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-      fontSynthesis);
+      fontSynthesis, bidiOverride);
     if (embedded != null) return embedded;
   }
 

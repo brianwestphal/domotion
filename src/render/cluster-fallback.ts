@@ -58,7 +58,7 @@
 import {
   FontInstance, FontRun,
   getFontInstance, getFontSourceInfo, shapingFaceFor, webfontShapingFace,
-  pickWebfontVariantForCodepoint, unicodeRangeCovers,
+  webfontVariantsInDeclarationOrder, unicodeRangeCovers,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
   forcesEmojiPresentation, isEmojiCharCp, isEmojiCodepoint, isColorEmojiFontKey,
   glyphIdForCp, fallbackFontChain, harfbuzzShapedRunOverride,
@@ -115,6 +115,10 @@ interface Assignment {
  *    emitter picks its per-char vs run-text branch per run from the flag. */
 export interface ShapedSplitOptions {
   mode?: "embedded" | "paths";
+  /** CSS bidi override captured from the live run. Blink applies this before
+   * RunSegmenter, so fallback shaping must use the same forced direction as
+   * the final glyph emitter. */
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string };
   /**
    * The run's OpenType features (HarfBuzz feature strings), threaded into the
    * shape-then-requeue verdict below. Blink's `ShapeRange` passes the run's
@@ -609,7 +613,7 @@ function splitShapedInner(
   // so a Thai-script mark (U+0E48, Script=Thai, not Inherited) never joins a
   // Latin base's fallback context: Chrome splits Geneva "e"+U+0E48 into
   // Geneva + Thonburi because the segments never shared a shaping call.
-  const levels = bidiLevelsFor(text);
+  const levels = bidiLevelsFor(text, opts?.bidiOverride);
   const segments = segmentForShaping(text, levels);
 
   // Mirror-domain adjustment for the shaping-side questions (RTL only, and
@@ -661,10 +665,9 @@ function splitShapedInner(
     // A range-partitioned webfont primary gets a SECOND entry for its remaining
     // unicode-range partitions (kSegmentedFace walks every face of the family;
     // the primary instance is just the first).
-    const familyCycle: Array<{ key: string; inst: FontInstance | null }> = [
-      { key: primaryFontKey, inst: primaryFont },
-    ];
-    if (primaryFontKey.startsWith("webfont:")) familyCycle.push({ key: primaryFontKey, inst: null });
+    const familyCycle: Array<{ key: string; inst: FontInstance | null }> = primaryFontKey.startsWith("webfont:")
+      ? [{ key: primaryFontKey, inst: null }]
+      : [{ key: primaryFontKey, inst: primaryFont }];
     for (const key of fontKeyChain) {
       if (key === primaryFontKey) continue;
       familyCycle.push({ key, inst: null });
@@ -677,9 +680,10 @@ function splitShapedInner(
     const returnedFaces = new Set<string>();
     /** `previously_asked_for_hint_` — each hint char asked of the system once. */
     const previouslyAskedHints = new Set<number>();
-    /** Per-family tried segmented-webfont variants (Blink walks each face of a
-     *  segmented family once per pass). */
-    const triedWebfontVariants = new Map<string, Set<string>>();
+    /** Per-family segmented-face arrays and cursors. Blink builds the array in
+     * reverse declaration order, then advances it once while filtering each
+     * face against the current hint list. */
+    const segmentedWebfonts = new Map<string, { faces: FontInstance[]; index: number }>();
     // Wrapped in an object so TypeScript does not narrow the union across the
     // closure mutations in `nextFont` (the loop below reads it after each call).
     const iter = { stage: "family" as Stage };
@@ -711,30 +715,32 @@ function splitShapedInner(
             const entry = familyCycle[familyIndex];
             if (entry.inst == null && entry.key.startsWith("webfont:")) {
               // kSegmentedFace: a webfont family's unicode-range partitions.
-              // Pick the variant covering a hint character
-              // (`RangeSetContributesForHint`); each variant is tried once per
-              // pass, and subsetted variants are not added to the unique set.
-              // For the primary family the caller's own variant is pre-seeded
-              // as tried — it was the first face returned.
+              // Walk EVERY declaration in reverse source order and apply
+              // `RangeSetContributesForHint` to the current hint list. Scoring
+              // each hint independently loses the next overlapping face.
               const family = entry.key.slice("webfont:".length);
-              const tried = triedWebfontVariants.get(entry.key)
-                ?? new Set<string>(entry.key === primaryFontKey ? [`${primaryFace.path}#${primaryFace.faceIndex}`] : []);
-              triedWebfontVariants.set(entry.key, tried);
-              for (const hintCp of hints) {
-                const isPrimaryFamily = entry.key === primaryFontKey;
-                const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, hintCp, isPrimaryFamily ? variationSettings : undefined, stretch);
-                if (v == null) continue;
+              let state = segmentedWebfonts.get(entry.key);
+              if (state == null) {
+                state = { faces: webfontVariantsInDeclarationOrder(family, weight, fontSize, slant,
+                  entry.key === primaryFontKey ? variationSettings : undefined, stretch), index: 0 };
+                segmentedWebfonts.set(entry.key, state);
+              }
+              while (state.index < state.faces.length) {
+                let v = state.faces[state.index++];
+                const ranges = v.webfontUnicodeRange;
+                if (ranges != null && !hints.some((cp) => unicodeRangeCovers(ranges, cp))) continue;
+                const isPrimary = entry.key === primaryFontKey
+                  && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
+                if (isPrimary) v = primaryFont;
                 const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);
                 if (face == null || face.faceIndex == null) throw new DeclineError();
                 const identity = `${face.path}#${face.faceIndex}`;
-                if (tried.has(identity)) continue;
-                tried.add(identity);
                 const subsetted = v.webfontUnicodeRange != null;
                 if (!subsetted) {
                   if (returnedFaces.has(identity)) continue;
                   returnedFaces.add(identity);
                 }
-                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: false, clampRanges: v.webfontUnicodeRange ?? null };
+                const cand: Candidate = { key: entry.key, font: v, face, isPrimary, clampRanges: ranges ?? null };
                 if (firstCandidate == null) firstCandidate = cand;
                 return cand;
               }
@@ -931,7 +937,7 @@ function splitShapedInner(
         familyIndex = 0;
         returnedFaces.clear();
         previouslyAskedHints.clear();
-        triedWebfontVariants.clear();
+        segmentedWebfonts.clear();
         firstCandidate = null;
         iter.stage = "family";
         ignoreVS = true;
