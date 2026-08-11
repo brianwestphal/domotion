@@ -141,6 +141,20 @@ function baselineFrom(run) {
     // terminate on it — so one stack flipping moves ~108k answers and looks
     // identical to a broad drift.
     stackPrimaries: (run.meta?.stackPrimaries ?? []).map((s) => ({ key: `${s.fontFamily}@${s.fontSize}/${s.fontWeight}/${s.fontStyle}`, chromePrimary: s.chromePrimary })),
+    // Shard-keyed digests of Domotion's complete answer stream, independent of
+    // Chrome. This distinguishes oracle wobble from a resolver change.
+    resolverAnswerDigests: { ...(run.resolverAnswerDigests ?? {}) },
+  };
+}
+
+/** Compare the complete Domotion-side answer stream recorded by each shard. */
+export function resolverAnswersMatch(runDigests, baseDigests) {
+  if (runDigests == null || baseDigests == null) return { comparable: false, same: false };
+  const keys = [...new Set([...Object.keys(runDigests), ...Object.keys(baseDigests)])].sort();
+  if (keys.length === 0) return { comparable: false, same: false };
+  return {
+    comparable: true,
+    same: keys.every((key) => runDigests[key] != null && runDigests[key] === baseDigests[key]),
   };
 }
 
@@ -286,6 +300,7 @@ function main() {
   // reported, the delta cannot be attributed to the code and the verdict is
   // withheld — you cannot read a signal smaller than the noise under it.
   const oracle = oracleMovement(run.chromeFaces ?? {}, base.chromeFaceCounts);
+  const resolver = resolverAnswersMatch(run.resolverAnswerDigests, base.resolverAnswerDigests);
   const mismatchDelta = Math.abs(total - baseTotal);
   if (!oracle.comparable) {
     md.push(
@@ -329,11 +344,23 @@ function main() {
         + (inv != null ? `, font inventory \`${inv.digest}\` (${inv.count} entries).` : "."), "");
     }
     if (oracle.total >= mismatchDelta && mismatchDelta > 0) {
+      if (resolver.comparable && resolver.same) {
+        md.push(
+          `> ✅ **Domotion's complete resolver-answer digest is unchanged.** The mismatch delta is`,
+          `> entirely Chrome-side oracle movement; the code under test produced the same face for every`,
+          `> sampled (stack, codepoint) pair. The gate passes with this warning.`,
+          "",
+        );
+        emit(md);
+        return;
+      }
       md.push(
         `> **VERDICT WITHHELD.** Chrome's own answers moved by ${oracle.total.toLocaleString()},`,
         `> which is at least the ${mismatchDelta.toLocaleString()} this run differs from the baseline by.`,
-        `> The delta is therefore not attributable to the code under test. Re-run the same ref before`,
-        `> concluding anything — a repeat that reproduces the baseline means the oracle wobbled, not the renderer.`,
+        resolver.comparable
+          ? `> Domotion's resolver-answer digest also changed, so the two movements cannot be separated safely.`
+          : `> The baseline lacks a Domotion resolver-answer digest, so the two sides cannot be separated safely.`,
+        `> Re-run or re-seed only after understanding which side changed.`,
         "",
       );
       emit(md);

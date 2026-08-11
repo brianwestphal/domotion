@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { environmentConflicts, mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
-import { comparability, oracleMovement, stackDelta } from "../scripts/diff-font-conformance-baseline.mjs";
+import { comparability, oracleMovement, resolverAnswersMatch, stackDelta } from "../scripts/diff-font-conformance-baseline.mjs";
 
 const report = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   meta: {
@@ -420,5 +420,22 @@ describe("oracle movement (DM-1903)", () => {
     expect(oracleMovement({ A: 1 }, undefined).comparable).toBe(false);
     expect(oracleMovement({ A: 1 }, null).comparable).toBe(false);
     expect(oracleMovement(undefined, { A: 1 }).comparable).toBe(false);
+  });
+});
+
+describe("resolverAnswersMatch", () => {
+  it("proves Domotion stayed unchanged independently of Chrome", () => {
+    expect(resolverAnswersMatch({ "stack-0/1:codepoint-0/1": "abc" }, { "stack-0/1:codepoint-0/1": "abc" }))
+      .toEqual({ comparable: true, same: true });
+  });
+
+  it("detects a changed answer or changed shard key", () => {
+    expect(resolverAnswersMatch({ a: "abc" }, { a: "def" })).toEqual({ comparable: true, same: false });
+    expect(resolverAnswersMatch({ a: "abc" }, { b: "abc" })).toEqual({ comparable: true, same: false });
+  });
+
+  it("does not fabricate comparability for legacy or empty reports", () => {
+    expect(resolverAnswersMatch(undefined, { a: "abc" })).toEqual({ comparable: false, same: false });
+    expect(resolverAnswersMatch({}, {})).toEqual({ comparable: false, same: false });
   });
 });

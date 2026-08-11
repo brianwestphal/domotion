@@ -1386,6 +1386,11 @@ async function main(): Promise<number> {
     const stackPrimaries: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string;
                                   chromePrimary: string | null; ourPrimaryKey: string }> = [];
     const classCounts = { "different-family": 0, "same-family-different-cut": 0 };
+    // Independent fingerprint of OUR side of every comparison. Mismatch counts
+    // move when Chrome moves, so they cannot by themselves say whether the
+    // resolver under test changed. The ordered sweep makes this streaming hash
+    // deterministic without retaining every sampled answer in memory.
+    const resolverAnswerHash = createHash("sha256");
     let allowlistedCount = 0;
     let skippedStacks = 0;
     let chromeMs = 0;
@@ -1458,6 +1463,9 @@ async function main(): Promise<number> {
           // PingFang TC, ja → Hiragino). Passing it to only one side would make
           // `--lang ja` move Chrome's answer and not ours.
           const ours = ourFaceFor(cp, rs, spec.lang ?? opts.lang);
+          resolverAnswerHash.update(`${JSON.stringify([
+            stackKey(spec), cp, ours.key, ours.postscriptName, ours.path, ours.covered,
+          ])}\n`);
 
           // CDP names Chrome's selected face, including the `.notdef` face for
           // uncovered characters. `verdictForCodepoint` also handles the one
@@ -1530,6 +1538,7 @@ async function main(): Promise<number> {
     const wallMs = Date.now() - t0;
     const comparisons = Object.values(counts).reduce((a, b) => a + b, 0) + allowlistedCount;
     const mismatchTotal = counts.mismatch + counts["mismatch-we-paint"] + counts["mismatch-we-tofu"];
+    const resolverAnswerDigest = resolverAnswerHash.digest("hex");
 
     // ---- report -------------------------------------------------------------
     mkdirSync(opts.outDir, { recursive: true });
@@ -1575,6 +1584,7 @@ async function main(): Promise<number> {
         maxRows: opts.maxRows,
         lang: opts.lang,
         resetEvery: opts.resetEvery,
+        resolverAnswerDigest,
         // DM-1922. Attribution fields for an intermittent, Chrome-side flip of
         // the `sans-serif` generic's primary, seen four times in real runs and
         // never once in ~2,000 probe samples across 32 runner allocations. The

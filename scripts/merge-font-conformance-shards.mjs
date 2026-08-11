@@ -112,6 +112,7 @@ export function mergeShards(shards, opts = {}) {
   const byPair = {};
   const chromeFaces = {};
   const missingShards = [];
+  const resolverAnswerDigests = {};
   let meta = null;
 
   // DM-1887: the two axes must be accounted DIFFERENTLY, and getting either one
@@ -140,6 +141,11 @@ export function mergeShards(shards, opts = {}) {
     if (meta == null) meta = report.meta ?? null;
     const si = report.meta?.stackShard?.[0] ?? 0;
     const ci = report.meta?.shard?.[0] ?? 0;
+    const sn = report.meta?.stackShard?.[1] ?? 1;
+    const cn = report.meta?.shard?.[1] ?? 1;
+    if (report.meta?.resolverAnswerDigest != null) {
+      resolverAnswerDigests[`stack-${si}/${sn}:codepoint-${ci}/${cn}`] = report.meta.resolverAnswerDigest;
+    }
     stacksByStackShard.set(si, report.meta?.stacks ?? 0);
     cpsByCpShard.set(ci, report.meta?.codepoints ?? 0);
     for (const [k, v] of Object.entries(report.summary ?? {})) {
@@ -203,6 +209,7 @@ export function mergeShards(shards, opts = {}) {
     byStack,
     byPair,
     chromeFaces,
+    resolverAnswerDigests,
   };
 }
 

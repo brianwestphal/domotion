@@ -309,6 +309,84 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msob8yirmlsot7y8",
+          "message": {
+            "text": "A separate digest of Domotion's complete ordered answer stream makes oracle drift distinguishable from resolver drift. It hashes every sampled stack/codepoint face decision without retaining rows, so unchanged digests prove our side is byte-for-byte semantically stable even when Chromium's platform-font tally moves.",
+            "markdown": "A separate digest of Domotion's complete ordered answer stream makes oracle drift distinguishable from resolver drift. It hashes every sampled stack/codepoint face decision without retaining rows, so unchanged digests prove our side is byte-for-byte semantically stable even when Chromium's platform-font tally moves."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 1389,
+                  "endLine": 1393,
+                  "snippet": {
+                    "text": "    // Independent fingerprint of OUR side of every comparison. Mismatch counts\n    // move when Chrome moves, so they cannot by themselves say whether the\n    // resolver under test changed. The ordered sweep makes this streaming hash\n    // deterministic without retaining every sampled answer in memory.\n    const resolverAnswerHash = createHash(\"sha256\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/diff-font-conformance-baseline.mjs"
+                },
+                "region": {
+                  "startLine": 346
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2073"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "857bbc8bf42072f4144ef986d1f2007e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3bb817dbd8efdb2801e4cca5c8ec12eaabd8d91c",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }
