@@ -25,6 +25,7 @@ import {
   clearFontResolutionCaches,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
+import { resolveFamilyStyleMatch } from "./glyph-helper.js";
 
 // Pin the live resolvers off: these tests assert the platform-independent
 // keyword-vs-literal logic (same rig as family-pin-parity.test.ts).
@@ -97,7 +98,16 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
   it("preserves the case-sensitive system-ui platform intercept", () => {
     withHostPlatform("darwin", () => {
       expect(resolveFontKey('"system-ui", Menlo')).toBe("sf-pro");
-      expect(resolveFontKey('"System-ui", Menlo')).toBe("menlo");
+      // The case variant is an ordinary family, not the system-ui intercept.
+      // Ordinary macOS family lookup is AppKit's case-insensitive
+      // availableMembersOfFontFamily walk. macOS releases disagree on whether
+      // that API exposes `System-ui` as an alias: when it does (the CI image),
+      // Blink and our transcribed matcher both select its .SFNS member; when it
+      // does not (the local image), both walk to Menlo.
+      const appKit = resolveFamilyStyleMatch("system-ui");
+      expect(resolveFontKey('"System-ui", Menlo')).toBe(
+        appKit == null ? "menlo" : `sysfb:${appKit.postscriptName}`,
+      );
     });
   });
 

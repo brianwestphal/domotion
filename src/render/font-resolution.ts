@@ -2783,8 +2783,8 @@ const _liveFallbackFirst =
  */
 export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean {
   if (fontFamily == null || fontFamily === "") return false;
-  const first = fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "").toLowerCase();
-  return first === "system-ui" || first === "blinkmacsystemfont";
+  const first = fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "");
+  return first === "system-ui" || first === "BlinkMacSystemFont";
 }
 
 // A batch pre-warm of the system-fallback helper (`warmSystemFallbackForCodepoints`)
@@ -8452,7 +8452,24 @@ function matchFamilyNameToKey(
     // Supplement fixture paint Mplus 1p's blank `.notdef`, matching Chrome.
     // The calibrated families above still win (they carry metric tuning); only
     // genuinely-unrecognized names reach here.
-    const installed = resolveInstalledFont(name);
+    // Blink does not ask CoreText whether a family name resolves to a face and
+    // then verify that face's returned family name. It asks MatchFontFamily,
+    // whose first operation on macOS is AppKit's
+    // `availableMembersOfFontFamily` (case-insensitive) followed by Blink's
+    // family-member comparator (`font_matcher_mac.mm:599-765`, rev 7d859f27).
+    // Those questions differ for aliases/hidden families. In particular, on
+    // the macOS CI image AppKit accepts the ordinary literal family
+    // `System-ui` and returns .SFNS-Regular, while CTFont reports the resolved
+    // family as `.SF NS`; the old identity check rejected it and walked to
+    // Menlo. Ask the already-transcribed family matcher first, then open its
+    // chosen PostScript face. If AppKit has no members, preserve the existing
+    // exact-name probe as the degraded/unique-name path.
+    const darwinFamilyMatch = hostPlatform() === "darwin"
+      ? resolveFamilyStyleMatch(name, { weight: 400, italic: false, stretch: 100 })
+      : null;
+    const installed = darwinFamilyMatch != null
+      ? resolveInstalledFont(darwinFamilyMatch.postscriptName)
+      : resolveInstalledFont(name);
     if (installed != null) {
       const key = `sysfb:${installed.postscriptName}`;
       // DM-1721: `resolvedAxes` carries DirectWrite's pinned axis values for

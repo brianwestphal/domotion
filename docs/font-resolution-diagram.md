@@ -1930,7 +1930,9 @@ Three consequences worth holding onto:
   be freezing one OS version's behavior into source.
 
   The signal travels **beside** the font key, not derived from it:
-  `stackPrimaryIsSystemUi(fontFamily)` reads the stack's first family, because
+  `stackPrimaryIsSystemUi(fontFamily)` reads the stack's first family with
+  Blink's case-sensitive `AtomicString` spelling (`system-ui` and, on macOS,
+  `BlinkMacSystemFont` only), because
   `system-ui`, `BlinkMacSystemFont` and an explicitly-named `"SF Pro Text"` all
   collapse onto the single `sf-pro` key while Blink sends the first two to
   `MatchSystemUIFont` and the third to `MatchFontFamily`

@@ -375,6 +375,71 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "hotsheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msocio0v1122jdne",
+          "message": {
+            "text": "Blink macOS declared-family availability is AppKit availableMembersOfFontFamily plus its member comparator, not CTFontCreateWithName followed by returned-family identity. The distinction is OS-dependent: CI exposes ordinary literal System-ui as an .SFNS family alias while this local macOS does not. Query the transcribed family matcher first and preserve the exact-name probe only as fallback.",
+            "markdown": "Blink macOS declared-family availability is AppKit availableMembersOfFontFamily plus its member comparator, not CTFontCreateWithName followed by returned-family identity. The distinction is OS-dependent: CI exposes ordinary literal System-ui as an .SFNS family alias while this local macOS does not. Query the transcribed family matcher first and preserve the exact-name probe only as fallback."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8452,
+                  "endLine": 8478,
+                  "snippet": {
+                    "text": "    // Supplement fixture paint Mplus 1p's blank `.notdef`, matching Chrome.\n    // The calibrated families above still win (they carry metric tuning); only\n    // genuinely-unrecognized names reach here.\n    // Blink does not ask CoreText whether a family name resolves to a face and\n    // then verify that face's returned family name. It asks MatchFontFamily,\n    // whose first operation on macOS is AppKit's\n    // `availableMembersOfFontFamily` (case-insensitive) followed by Blink's\n    // family-member comparator (`font_matcher_mac.mm:599-765`, rev 7d859f27).\n    // Those questions differ for aliases/hidden families. In particular, on\n    // the macOS CI image AppKit accepts the ordinary literal family\n    // `System-ui` and returns .SFNS-Regular, while CTFont reports the resolved\n    // family as `.SF NS`; the old identity check rejected it and walked to\n    // Menlo. Ask the already-transcribed family matcher first, then open its\n    // chosen PostScript face. If AppKit has no members, preserve the existing\n    // exact-name probe as the degraded/unique-name path.\n    const darwinFamilyMatch = hostPlatform() === \"darwin\"\n      ? resolveFamilyStyleMatch(name, { weight: 400, italic: false, stretch: 100 })\n      : null;\n    const installed = darwinFamilyMatch != null\n      ? resolveInstalledFont(darwinFamilyMatch.postscriptName)\n      : resolveInstalledFont(name);\n    if (installed != null) {\n      const key = `sysfb:${installed.postscriptName}`;\n      // DM-1721: `resolvedAxes` carries DirectWrite's pinned axis values for\n      // variable-face matches (e.g. \"Segoe UI Variable Text\" → opsz 10.5 at\n      // every size) so the hinted-subset pin embeds the instance Chrome paints.\n      // On macOS `ctAxes` carries the CoreText handle's own position instead."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2074"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5a88252aea8c27c019387e6d9147c4a8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1f05eb74ecddbd486a4c546e53927cf0bf41a36d",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }

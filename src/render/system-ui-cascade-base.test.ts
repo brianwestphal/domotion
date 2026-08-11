@@ -76,8 +76,9 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
   it("normalizes quoting, casing and whitespace the way a computed style may present it", () => {
     expect(stackPrimaryIsSystemUi("'system-ui', sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"system-ui"')).toBe(true);
-    expect(stackPrimaryIsSystemUi("  System-UI , sans-serif")).toBe(true);
-    expect(stackPrimaryIsSystemUi("blinkmacsystemfont")).toBe(true);
+    expect(stackPrimaryIsSystemUi("  System-UI , sans-serif")).toBe(false);
+    expect(stackPrimaryIsSystemUi("blinkmacsystemfont")).toBe(false);
+    expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
   });
 
   it("is false for an absent or empty stack rather than throwing", () => {
