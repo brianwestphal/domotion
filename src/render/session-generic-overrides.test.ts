@@ -18,7 +18,7 @@ import {
   resolveFontKey,
   setSessionGenericFamilyOverrides,
 } from "./font-resolution.js";
-import { hostPlatform } from "./host-platform.js";
+import { hostPlatform, withHostPlatform } from "./host-platform.js";
 
 afterEach(() => setSessionGenericFamilyOverrides(null));
 
@@ -43,6 +43,37 @@ describe("setSessionGenericFamilyOverrides", () => {
   it("routes the implicit standard-family terminal from the session", () => {
     setSessionGenericFamilyOverrides({ common: new Map([["standard", "Menlo"]]), byScript: new Map() });
     expect(resolveFontKey("DoesNotExist")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+  });
+
+  it("routes Linux system-ui from the live browser-side face", () => {
+    setSessionGenericFamilyOverrides({
+      common: new Map([["system-ui", "Menlo"], ["serif", "Times"]]),
+      byScript: new Map(),
+    });
+    withHostPlatform("linux", () => {
+      const firstInventory = resolveFontKey("system-ui, serif");
+      expect(firstInventory).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+      // Reinstalling a different capture context's answer must move the route;
+      // the implementation follows the session rather than freezing Noble's
+      // WenQuanYi answer or this developer host's first result.
+      setSessionGenericFamilyOverrides({
+        common: new Map([["system-ui", "Times"], ["serif", "Menlo"]]),
+        byScript: new Map(),
+      });
+      const secondInventory = resolveFontKey("system-ui, serif");
+      expect(secondInventory).toMatch(/^(?:times|sysfb:Times-Roman)$/);
+      expect(secondInventory).not.toBe(firstInventory);
+    });
+  });
+
+  it("walks past Linux system-ui when the paired browser probe found no stable system face", () => {
+    setSessionGenericFamilyOverrides({
+      common: new Map([["serif", "Menlo"]]),
+      byScript: new Map(),
+    });
+    withHostPlatform("linux", () => {
+      expect(resolveFontKey("system-ui, serif")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+    });
   });
 
   it("routes a script-specific standard-family terminal from the session", () => {

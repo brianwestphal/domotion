@@ -7988,6 +7988,22 @@ function matchFamilyNameToKey(
   const settingsName = name === "-webkit-standard" || name === "-webkit-body"
     ? "standard"
     : name;
+  // Linux `system-ui` is supplied by the browser process through
+  // FontCache::SystemFontFamily(), not the generic settings table. The capture
+  // handshake asks the live browser with two distinct fallback tails. A
+  // recorded face means the system family itself answered; an installed probe
+  // with no system-ui entry means Blink walked past it, so return null and let
+  // resolveFontKey continue the author stack. With no session probe at all,
+  // retain the calibrated `fc-match sans-serif` degraded route below.
+  if (hostPlatform() === "linux" && name === "system-ui" && canonicalSystemUiName
+      && sessionGenericFamilyOverrides != null) {
+    const probed = sessionGenericFamilyOverrides.common.get("system-ui");
+    if (probed == null) return null;
+    const exact = sessionProbedFaceKey(probed);
+    if (exact != null) return exact;
+    const matched = matchFamilyNameToKey(probed.toLowerCase(), false);
+    return matched;
+  }
   // ── Per-script generic-family settings (Playwright forScripts, mac/win) ──
   // Blink keys every settings-mapped generic on the run's content script:
   // `FamilyNameFromSettings` consults `settings.<Generic>(script)` with

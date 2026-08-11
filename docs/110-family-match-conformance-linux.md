@@ -109,17 +109,21 @@ the values live in the browser process, outside the renderer checkout:
   the standard family — which is why bare `cursive` / `fantasy` paint
   Liberation Serif. Playwright's Linux table has NO `forScripts` per-script
   entries (unlike mac/win), so on Linux the content script must never move a
-  generic's family; the only un-transcribed residual is a non-default user
-  pref (or a headed launch, which skips Playwright's override entirely).
+  generic's family. The capture-session probe supplies the actual Common
+  values, including non-default preferences and headed launches; the static
+  table is now degraded-mode only.
 - The `-webkit-standard` stage a fully-rejected stack falls to
   (`settings.Standard(script)`). Playwright's standard entry is "Times New
   Roman" (as is the grd's IDS_STANDARD_FONT_FAMILY), matching what was
   measured on noble ("Times New Roman" → Liberation Serif); carried as the
   `times` terminal.
-- What `system-ui` becomes (`FontCache::SystemFontFamily()`, pushed from the
-  browser side; `CreateTypeface` asserts `DCHECK_NE(family, kSystemUi)`).
-  Its Linux route (the fontconfig default) and its weight ladder stay
-  measured, not transcribed.
+- What `system-ui` becomes is now obtained from the live browser-side
+  `FontCache::SystemFontFamily()` result (`CreateTypeface` asserts
+  `DCHECK_NE(family, kSystemUi)`). Paired `system-ui, serif` and `system-ui,
+  monospace` probes distinguish a real shared system face from Blink walking
+  past an empty/unusable value. The adopted family still enters the
+  transcribed fontconfig cut matcher for weight/style/stretch; only the
+  helperless/no-probe route remains measured.
 
 The quoted-generic residual this section used to record is fixed: a QUOTED
 generic (`font-family: "sans-serif"`) is a plain family name to Blink
@@ -236,8 +240,8 @@ image is expected to take the candidate path.
   transcribed and pinned by `src/render/linux-declared-family-cut.test.ts`
   against CDP-measured paint, but this oracle still does not score it; doc
   107's whole-pipeline oracle covers that end. The generic-family
-  preferences and `-webkit-standard` remain browser-side VALUES (measured,
-  un-transcribed — see above).
+  preferences, `-webkit-standard`, and `system-ui` remain browser-side VALUES,
+  now measured from the live capture session rather than transcribed.
 - Italic and width axes are not swept (weight only, upright, normal width).
 - Where a rejected family's paint actually LANDS is asserted only as
   "Chrome left the family", not face-for-face. The stages it lands through —

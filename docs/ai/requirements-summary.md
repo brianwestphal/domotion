@@ -128,10 +128,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   `WebPreferences` constructor since Playwright has no math key), so a
   settings value the matcher's acceptance filter rejects makes the family
   unavailable and the stack terminates at the standard family — which is why
-  bare `cursive`/`fantasy` paint Liberation Serif on the noble image. Only
-  `system-ui` (a `FontCache::SystemFontFamily()` value, not a settings-table
-  entry) remains un-transcribed; Playwright's Linux table has no per-script
-  entries, so the content script never moves a Linux generic (doc 110).
+  bare `cursive`/`fantasy` paint Liberation Serif on the noble image.
+  `system-ui` is not a settings-table entry: the capture handshake now probes
+  the live browser-side `FontCache::SystemFontFamily()` result with distinct
+  serif/monospace fallback tails, adopting the common painted face or walking
+  past an unusable system family. The former `fc-match sans-serif` answer is
+  degraded-mode only. Playwright's Linux table has no per-script entries, so
+  the content script never moves a Linux settings generic (doc 110 and the
+  font-resolution diagram §2).
 - **Script-keyed generic families on mac/win (font-resolution-diagram §2)** —
   **Shipped.** The settings-mapped generics resolve per content script,
   mirroring `FamilyNameFromSettings`'s `settings.<Generic>(script)` consult

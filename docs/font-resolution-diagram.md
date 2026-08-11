@@ -155,6 +155,18 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > stays Courier). Measured end-to-end on the oracle: lang=ja 645/645
 > agree-exact (was 632 mismatches), ko / zh-Hans / zh-Hant all zero.
 >
+> **Linux `system-ui` is probed from the browser-side system family, not the
+> settings table.** `FontCache::SystemFontFamily()` is supplied by the browser
+> process and can differ from both `sans-serif` and a host-side `fc-match`.
+> The session handshake renders two otherwise identical spans with
+> `system-ui, serif` and `system-ui, monospace`. If CDP reports the same primary
+> face for both, that face is the live system family and is registered with its
+> declared family provenance so the fontconfig matcher still owns
+> weight/style/stretch. If the faces differ, Blink walked past an empty or
+> unusable system family; the probe records no override and `resolveFontKey`
+> walks the author's stack too. Only a missing/disabled session probe retains
+> the calibrated `fc-match sans-serif` degraded route.
+>
 > **An UNDECLARED family reaches these script-keyed routes via a capture-side
 > rewrite.** An element with no author `font-family` anywhere in its cascade is
 > a Blink `kStandardFamily` description → `settings.Standard(script)`
@@ -218,10 +230,10 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > means the family is unavailable and the stack terminates at the standard
 > family — the `times` terminal — never at "no font". Playwright's Linux table
 > has no `forScripts` entries, so the content script never moves a Linux
-> generic. Only `system-ui` stays
-> excluded (its family comes from `FontCache::SystemFontFamily()`, not a
-> settings-table entry) on its calibrated static route, which is also the
-> degrade path for everything when the walk is disarmed (doc 110).
+> generic. `system-ui` stays excluded from this SETTINGS walk because its
+> family comes from `FontCache::SystemFontFamily()`; the separate paired live
+> probe described above supplies it. Its former calibrated static route remains
+> only as the degraded path when the session probe is unavailable (doc 110).
 >
 > Otherwise, `matchFamilyNameToKey` unconditionally encodes Chrome-**on-macOS**'s family and
 > generic resolution (each entry is probe-calibrated against Chrome-macOS). The

@@ -72,6 +72,9 @@ interface ProbeTarget {
   text: string;
   lang: string | null;
   script: string | null;
+  /** Paired fallback used to distinguish a real browser-side system family
+   *  from Blink walking past an empty/unusable SystemFontFamily(). */
+  systemUiFallback?: "serif" | "monospace";
 }
 
 export function genericFamilyProbeTargets(): ProbeTarget[] {
@@ -86,7 +89,11 @@ export function genericFamilyProbeTargets(): ProbeTarget[] {
       lang,
       script: localeToScriptCodeForFontSelection(lang),
     })));
-  return [...common, ...scripted];
+  const systemUi = (["serif", "monospace"] as const).map((fallback, i) => ({
+    id: `gui${i}`, generic: "system-ui", text: "Regna", lang: null, script: null,
+    systemUiFallback: fallback,
+  }));
+  return [...common, ...systemUi, ...scripted];
 }
 
 export function genericProbeArmed(): boolean {
@@ -114,7 +121,7 @@ export async function probeSessionGenericFamilies(
     const targets = genericFamilyProbeTargets();
     const spans = targets.map(
       (target) => `<span id="${target.id}"${target.lang == null ? "" : ` lang="${target.lang}"`}`
-        + ` style="${target.generic === "standard" ? "" : `font-family: ${target.generic}; `}font-size: 32px;">${target.text}</span>`,
+        + ` style="${target.generic === "standard" ? "" : `font-family: ${target.generic}${target.systemUiFallback == null ? "" : `, ${target.systemUiFallback}`}; `}font-size: 32px;">${target.text}</span>`,
     ).join("<br>");
     const cdp = await context.newCDPSession(page);
     await cdp.send("DOM.enable");
@@ -125,6 +132,7 @@ export async function probeSessionGenericFamilies(
       const { root } = await cdp.send("DOM.getDocument");
       const common = new Map<string, string>();
       const byScript = new Map<string, Map<string, string>>();
+      const systemUiFaces = new Map<string, string>();
       for (const target of targets) {
         const { nodeId } = await cdp.send("DOM.querySelector", {
           nodeId: root.nodeId,
@@ -143,7 +151,9 @@ export async function probeSessionGenericFamilies(
         // matcher re-selected the unrelated HiraginoSans-W4 face. Preserve
         // Chromium's concrete face identity whenever CDP supplies it.
         const faceName = primary.postScriptName ?? primary.familyName;
-        if (target.script == null) common.set(target.generic, faceName);
+        if (target.systemUiFallback != null) {
+          systemUiFaces.set(target.systemUiFallback, faceName);
+        } else if (target.script == null) common.set(target.generic, faceName);
         else {
           let scriptMap = byScript.get(target.script);
           if (scriptMap == null) {
@@ -152,6 +162,15 @@ export async function probeSessionGenericFamilies(
           }
           scriptMap.set(target.generic, faceName);
         }
+      }
+      // Same face through two deliberately different fallback families means
+      // system-ui itself answered. Different faces mean Blink walked the stack
+      // after SystemFontPlatformData declined; omit the override so the Node
+      // resolver performs that same walk.
+      const serifSystem = systemUiFaces.get("serif");
+      const monoSystem = systemUiFaces.get("monospace");
+      if (serifSystem != null && serifSystem === monoSystem) {
+        common.set("system-ui", serifSystem);
       }
       return common.size > 0 ? { common, byScript } : null;
     };

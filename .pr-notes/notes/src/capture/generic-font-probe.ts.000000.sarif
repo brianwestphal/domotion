@@ -168,6 +168,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msoeza2utipnf7v0",
+          "message": {
+            "text": "A single system-ui probe cannot distinguish the browser-side system family from Blink walking to its implicit fallback. Two probes with different tails turn that hidden branch into an observable invariant: equal primary faces mean system-ui answered; different faces mean the system family declined and Domotion must walk the author stack.",
+            "markdown": "A single system-ui probe cannot distinguish the browser-side system family from Blink walking to its implicit fallback. Two probes with different tails turn that hidden branch into an observable invariant: equal primary faces mean system-ui answered; different faces mean the system family declined and Domotion must walk the author stack."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 154,
+                  "endLine": 174,
+                  "snippet": {
+                    "text": "        if (target.systemUiFallback != null) {\n          systemUiFaces.set(target.systemUiFallback, faceName);\n        } else if (target.script == null) common.set(target.generic, faceName);\n        else {\n          let scriptMap = byScript.get(target.script);\n          if (scriptMap == null) {\n            scriptMap = new Map();\n            byScript.set(target.script, scriptMap);\n          }\n          scriptMap.set(target.generic, faceName);\n        }\n      }\n      // Same face through two deliberately different fallback families means\n      // system-ui itself answered. Different faces mean Blink walked the stack\n      // after SystemFontPlatformData declined; omit the override so the Node\n      // resolver performs that same walk.\n      const serifSystem = systemUiFaces.get(\"serif\");\n      const monoSystem = systemUiFaces.get(\"monospace\");\n      if (serifSystem != null && serifSystem === monoSystem) {\n        common.set(\"system-ui\", serifSystem);\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7991
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2075"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d0636ea9684daf21e7b9fcfac46e3593"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b11cbe0e23bedd7f8589ac97d4dc41ff16c623da",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -4,7 +4,7 @@ import { genericFamilyProbeTargets, genericProbeArmed } from "./generic-font-pro
 describe("genericFamilyProbeTargets", () => {
   it("covers Common plus every requested script/generic cross product", () => {
     const targets = genericFamilyProbeTargets();
-    expect(targets).toHaveLength(7 + 7 * 7);
+    expect(targets).toHaveLength(7 + 2 + 7 * 7);
     expect(new Set(targets.map((target) => target.id)).size).toBe(targets.length);
 
     const scripted = targets.filter((target) => target.lang != null);
@@ -14,6 +14,14 @@ describe("genericFamilyProbeTargets", () => {
       expect(scripted.filter((target) => target.lang === lang).map((target) => target.generic))
         .toEqual(["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"]);
     }
+  });
+
+  it("pairs system-ui with distinct fallbacks so walk-past is observable", () => {
+    const system = genericFamilyProbeTargets().filter((target) => target.generic === "system-ui");
+    expect(system).toEqual([
+      expect.objectContaining({ id: "gui0", systemUiFallback: "serif", lang: null }),
+      expect.objectContaining({ id: "gui1", systemUiFallback: "monospace", lang: null }),
+    ]);
   });
 
   it("uses a primary-covered sample and canonical Blink script keys", () => {
