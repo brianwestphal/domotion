@@ -3307,11 +3307,20 @@ function resolveSystemFallbackKeyForCp(
       // `fileFamilyNameForKey` reads it from the file the key resolves to, so
       // this is derived rather than a second key→family table; `system-ui` has
       // no literal name and comes from the OS.
-      const primaryFamily = primaryKey == null
+      // Blink passes `font_description.Family().FamilyName()` verbatim
+      // (`win/font_cache_skia_win.cc:234-240`). That is the first DECLARED CSS
+      // family, not the family name of the face the preceding stack walk
+      // resolved. They differ for generics, missing names followed by an
+      // installed family, and aliases — precisely the cases where feeding
+      // DirectWrite the resolved file family changes its fallback cascade.
+      const declaredHead = declaredFamily != null
+        ? splitFontFamilyNames(declaredFamily)[0]?.name
+        : undefined;
+      const primaryFamily = declaredHead ?? (primaryKey == null
         ? undefined
         : (primaryKey === "sf-pro"
           ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(primaryKey))
-          : fileFamilyNameForKey(primaryKey)) ?? undefined;
+          : fileFamilyNameForKey(primaryKey)) ?? undefined);
       // DM-1896: and the run's fallback LOCALE, the last of `MapCharacters`'
       // arguments we were supplying a constant for (the helper reported a
       // hardcoded `en-us`). Blink resolves it per codepoint —
@@ -10077,11 +10086,15 @@ function resolveFontForCodepointInner(
       // font file already holds. `nativeFaceCoversCp` returns null rather than
       // guessing when it cannot name the face, so the helper stays the
       // authority for exactly the cases it is needed for.
-      if (cf != null && (nativeFaceCoversCp(cf, cp) ?? glyphIdForCp(cf, cp) !== 0)) {
+      // Blink's Windows guard is `CreateSkFont().unicharToGlyph(character)`
+      // (`font_platform_data.cc:219-221`), so a cmap entry that resolves to
+      // glyph zero is NOT coverage. The bitset is only a fast negative here;
+      // the glyph-id check is the source-equivalent positive predicate.
+      if (cf != null && nativeFaceCoversCp(cf, cp) !== false && glyphIdForCp(cf, cp) !== 0) {
         const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
         if (cut != null) {
           const cutFont = getFontInstance(cut, weight, fontSize, slant);
-          if (cutFont != null && (nativeFaceCoversCp(cutFont, cp) ?? glyphIdForCp(cutFont, cp) !== 0)) { recordStaticAnswer(cut); return cover(cut, null); }
+          if (cutFont != null && nativeFaceCoversCp(cutFont, cp) !== false && glyphIdForCp(cutFont, cp) !== 0) { recordStaticAnswer(cut); return cover(cut, null); }
         }
         recordStaticAnswer(candidate);
         return cover(candidate, null);
@@ -10239,7 +10252,7 @@ export function __resolveFontForCodepointForTest(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, 100, lang);
   if (primaryFont == null) return null;
   const r = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, lang,
-    resolveFontKeyChain(fontFamily, lang));
+    resolveFontKeyChain(fontFamily, lang), false, 100, undefined, fontFamily);
   return { key: r.key, decomposed: r.decomposed, covered: r.covered };
 }
 
