@@ -45,4 +45,16 @@ describe("parameterized transition rendering", () => {
     expect(svg).not.toContain("<animate");
     expect(svg).not.toContain("<script");
   });
+
+  it("composes a custom multi-primitive recipe without raw viewer code", () => {
+    const svg = render({ type: "custom", duration: 400, easing: "ease-out", custom: {
+      incoming: { opacity: 0.15, translate: { x: 0.2, y: -0.1 }, scale: { from: 0.8, origin: { x: 0.5, y: 0.5 } }, clip: { shape: "radial", origin: { x: 0.5, y: 0.5 }, radius: 1 } },
+      outgoing: { opacity: 0.1, translate: { x: -0.15, y: 0.05 }, scale: { to: 1.2, origin: { x: 0.25, y: 0.75 } } },
+      overlay: { angle: 20, bandWidth: 0.2, color: "#ccddff", opacity: 0.35 },
+      reducedMotion: "cut", loop: "crossfade-to-first", zOrder: "incoming-on-top",
+    } });
+    for (const track of ["fv-0", "fp-0", "fz-1", "fzo-0", "fr-1", "shine-tr0"]) expect(svg).toContain(track);
+    expect(svg).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(svg).not.toMatch(/<script|<animate|filter:|mask:/);
+  });
 });

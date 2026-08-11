@@ -378,6 +378,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnzs2gc6hmxe04k",
+          "message": {
+            "text": "The cross-engine sample now includes a custom opacity+translate+scale recipe with a supported shine overlay after the built-in push/reveal/zoom chain. Chromium and WebKit pass every sampled transition quartile with a fully opaque visible frame; the full unit suite passes 3,604 tests.",
+            "markdown": "The cross-engine sample now includes a custom opacity+translate+scale recipe with a supported shine overlay after the built-in push/reveal/zoom chain. Chromium and WebKit pass every sampled transition quartile with a fully opaque visible frame; the full unit suite passes 3,604 tests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 100,
+                  "endLine": 145,
+                  "snippet": {
+                    "text": "      frames: [\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"red\"/>', duration: 400, transition: { type: \"push\", duration: 300, push: { angle: 35, distance: 0.75 } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"blue\"/>', duration: 400, transition: { type: \"reveal\", duration: 300, reveal: { shape: \"clock\", origin: { x: 0.35, y: 0.6 }, startAngle: 45, direction: \"counterclockwise\" } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"green\"/>', duration: 400, transition: { type: \"zoom\", duration: 300, zoom: { fromScale: 1.35, origin: { x: 0.7, y: 0.3 } } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"black\"/>', duration: 400, transition: { type: \"custom\", duration: 300, custom: {\n          incoming: { opacity: 0.1, translate: { x: 0.15, y: -0.1 }, scale: { from: 0.85, origin: { x: 0.5, y: 0.5 } } },\n          outgoing: { opacity: 0, translate: { x: -0.1, y: 0.05 }, scale: { to: 1.15, origin: { x: 0.3, y: 0.7 } } },\n          overlay: { angle: 25, bandWidth: 0.2, color: \"#ffeeaa\", opacity: 0.4 }, reducedMotion: \"crossfade\", loop: \"hold-last\", zOrder: \"incoming-on-top\",\n        } } },\n        { svgContent: '<rect width=\"1440\" height=\"900\" fill=\"white\"/>', duration: 400, transition: { type: \"cut\", duration: 0 } },\n      ],\n    });\n    for (const browser of [env!.browser, webkitBrowser!]) {\n      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });\n      try {\n        await page.setContent(svg);\n        for (const time of [475, 625, 775, 1175, 1325, 1475, 2575, 2650, 2725]) {\n          const state = await page.evaluate((at) => {\n            for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at; }\n            const frames = [...document.querySelectorAll<SVGGElement>(\".f\")];\n            return frames.map(frame => ({ opacity: Number.parseFloat(getComputedStyle(frame).opacity), display: getComputedStyle(frame).display }));\n          }, time);\n          expect(state.some(frame => frame.display !== \"none\" && frame.opacity > 0.99)).toBe(true);\n        }\n        const geometry = await page.evaluate(() => ({\n          clockOrigin: getComputedStyle(document.querySelector(\".fr-2\")!).clipPath,\n          zoomOrigin: getComputedStyle(document.querySelector(\".fz-3\")!).transformOrigin,\n        }));\n        expect(geometry.clockOrigin).toMatch(/^polygon\\(504px 540px,/);\n        expect(geometry.zoomOrigin).toBe(\"1008px 270px\");\n      } finally { await page.close(); }\n    }\n  });\n});\n\ndescribeBrowser(\"composeAnimateFrames (DM-1137)\", () => {\n  it(\"renders exact frame/overlay boundaries without ghost layers (DM-1994)\", async () => {\n    const { browser } = env!;\n    const svg = generateAnimatedSvg({\n      width: 300,\n      height: 120,\n      frames: [\n        {\n          svgContent: '<rect width=\"300\" height=\"120\" fill=\"red\"/>',\n          duration: 1000,\n          transition: { type: \"cut\", duration: 0 },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 93,
+          "workItemUris": [
+            "DM-2072"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a98eade3678e4a8e470c1cb02f426807"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5694850757da28b61da2aefd54bcd75e62fb19a3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -9,10 +9,28 @@ const TYPES = [
 
 describe("canonical transition schema", () => {
   it("validates every legacy spelling from one vocabulary", () => {
-    expect(transitionTypeSchema.options).toEqual([...TYPES, "push", "reveal", "zoom"]);
+    expect(transitionTypeSchema.options).toEqual([...TYPES, "push", "reveal", "zoom", "custom"]);
     for (const type of TYPES) {
       expect(transitionSchema.parse({ type, duration: 300 }).type).toBe(type);
     }
+  });
+
+  it("accepts bounded custom recipes and rejects unsafe or unsupported channels actionably", () => {
+    const recipe = { type: "custom" as const, duration: 400, custom: {
+      incoming: { opacity: 0, translate: { x: 0.2, y: -0.1 }, scale: { from: 0.8, origin: { x: 0.5, y: 0.5 } } },
+      outgoing: { opacity: 0.2, translate: { x: -0.1, y: 0 } },
+    } };
+    expect(transitionSchema.safeParse(recipe).success).toBe(true);
+    expect(transitionSchema.safeParse({ ...recipe, custom: { ...recipe.custom, css: "filter: blur(2px)" } }).success).toBe(false);
+    const outgoingClip = transitionSchema.safeParse({ ...recipe, custom: { ...recipe.custom, outgoing: { clip: { shape: "linear" } } } });
+    expect(outgoingClip.success).toBe(false);
+    if (!outgoingClip.success) expect(outgoingClip.error.issues.map(issue => issue.message).join(" ")).toMatch(/unrecognized|outgoing/i);
+    const mismatchedOrigins = transitionSchema.safeParse({ type: "custom", duration: 300, custom: {
+      incoming: { scale: { from: 0.8, origin: { x: 0.2, y: 0.2 } }, clip: { shape: "radial", origin: { x: 0.8, y: 0.8 } } },
+      outgoing: { opacity: 0 },
+    } });
+    expect(mismatchedOrigins.success).toBe(false);
+    if (!mismatchedOrigins.success) expect(mismatchedOrigins.error.issues[0].message).toContain("same viewport-relative origin");
   });
 
   it("rejects negative transition durations", () => {

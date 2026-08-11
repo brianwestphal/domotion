@@ -1173,6 +1173,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   angle/band fraction/color/opacity. Reject irrelevant fields and out-of-range
   values. Every form settles at identity and stays on the CSS timeline using
   opacity, transform, clip-path, and the supported gradient sweep only.
+- Custom recipes (doc 118) are strict declarative compositions, never raw CSS,
+  filters, masks, JS, SMIL, or arbitrary SVG. Incoming owns optional clip and
+  rests at opacity 1 / translate 0 / scale 1 / full clip; outgoing owns its
+  opacity/translate/scale exit. Z-order is incoming-on-top. Require at least one
+  primitive per layer, shared origins for combined entrance scale+clip, explicit
+  reduced-motion (`crossfade`/`cut`) and loop (`hold-last`/`crossfade-to-first`).
 
 ## What this file is NOT
 

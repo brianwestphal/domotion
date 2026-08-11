@@ -131,6 +131,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnzk92c2cp4763c",
+          "message": {
+            "text": "The custom recipe is intentionally asymmetric: incoming owns clip/reveal, while outgoing owns opacity/translate/scale only. An outgoing collapsing clip can uncover the viewport before the incoming layer covers it, so strict validation rejects that channel and tells authors to place clip on incoming; combined entrance scale+clip must also share one pivot.",
+            "markdown": "The custom recipe is intentionally asymmetric: incoming owns clip/reveal, while outgoing owns opacity/translate/scale only. An outgoing collapsing clip can uncover the viewport before the incoming layer covers it, so strict validation rejects that channel and tells authors to place clip on incoming; combined entrance scale+clip must also share one pivot."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/transition-schema.ts"
+                },
+                "region": {
+                  "startLine": 65,
+                  "endLine": 91,
+                  "snippet": {
+                    "text": "  reducedMotion: z.enum([\"crossfade\", \"cut\"]).default(\"crossfade\"),\n  loop: z.enum([\"hold-last\", \"crossfade-to-first\"]).default(\"hold-last\"),\n}).strict().superRefine((recipe, ctx) => {\n  const scaleOrigin = recipe.incoming.scale?.origin;\n  const clipOrigin = recipe.incoming.clip != null && recipe.incoming.clip.shape !== \"linear\" ? recipe.incoming.clip.origin : undefined;\n  if (scaleOrigin != null && clipOrigin != null && (scaleOrigin.x !== clipOrigin.x || scaleOrigin.y !== clipOrigin.y)) {\n    ctx.addIssue({ code: \"custom\", path: [\"incoming\"], message: \"combined scale + clip must use the same viewport-relative origin\" });\n  }\n});\n\nexport const transitionSchema = z.discriminatedUnion(\"type\", [\n  plainLegacy(\"crossfade\"), plainLegacy(\"cut\"), plainLegacy(\"magic-move\"),\n  pushLegacy(\"push-left\"), pushLegacy(\"push-right\"), pushLegacy(\"push-up\"), pushLegacy(\"push-down\"), pushLegacy(\"scroll\"),\n  z.object({ type: z.literal(\"wipe\"), duration, easing, wipeAngle: z.number().optional() }).strict(),\n  radialLegacy(\"iris\"), radialLegacy(\"wipe-radial\"),\n  z.object({ type: z.literal(\"wipe-clock\"), duration, easing, wipeStartAngle: z.number().optional(), wipeCounterclockwise: z.boolean().optional() }).strict(),\n  zoomLegacy(\"zoom-in\"), zoomLegacy(\"zoom-out\"),\n  z.object({ type: z.literal(\"shine\"), duration, shine: shineParamsSchema.optional() }).strict(),\n  z.object({ type: z.literal(\"push\"), duration, easing, push: pushParamsSchema }).strict(),\n  z.object({ type: z.literal(\"reveal\"), duration, easing, reveal: revealParamsSchema }).strict(),\n  z.object({ type: z.literal(\"zoom\"), duration, easing, zoom: zoomParamsSchema }).strict(),\n  z.object({ type: z.literal(\"custom\"), duration, easing, custom: customRecipeSchema }).strict(),\n]);\n\n/** Opaque storyboard scenes cannot build the element-tree bridge magic-move needs. */\nexport const storyboardTransitionSchema = z.union(transitionSchema.options.filter(option => option.shape.type.value !== \"magic-move\"));\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2072"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "62e7fc15d34b1c8dfb3dea3abfebc7f1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5694850757da28b61da2aefd54bcd75e62fb19a3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

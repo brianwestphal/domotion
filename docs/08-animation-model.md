@@ -45,6 +45,8 @@ The transition object has one source of truth: `src/animation/transition-schema.
 
 Parameterized `push`, `reveal`, and `zoom` forms—and the optional `shine` parameter object—are documented in [doc 117](117-parameterized-built-in-transitions.md). Their nested objects are strict and bounded; legacy named transitions remain aliases with unchanged output.
 
+For motion beyond built-in families, the strict `custom` recipe in [doc 118](118-custom-transition-recipes.md) composes safe incoming/outgoing primitives on the same CSS clock. It accepts no raw CSS or viewer code and defines ownership, z-order, reduced-motion, and loop behavior explicitly.
+
 | Type | Behavior | Path |
 |---|---|---|
 | `crossfade` | Outgoing fades out while incoming fades in (windows overlap). | Composited (per-frame `<g class="f f-N">`). |

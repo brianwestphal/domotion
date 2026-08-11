@@ -813,6 +813,360 @@
                   "zoom"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "custom"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "easing": {
+                    "description": "Named or CSS easing for the transition timeline.",
+                    "type": "string"
+                  },
+                  "custom": {
+                    "type": "object",
+                    "properties": {
+                      "zOrder": {
+                        "default": "incoming-on-top",
+                        "type": "string",
+                        "const": "incoming-on-top"
+                      },
+                      "incoming": {
+                        "type": "object",
+                        "properties": {
+                          "opacity": {
+                            "description": "Starting opacity; settles at 1.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "translate": {
+                            "description": "Starting viewport-fraction offset; settles at zero.",
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "default": 0,
+                                "description": "Horizontal viewport fraction.",
+                                "type": "number",
+                                "minimum": -2,
+                                "maximum": 2
+                              },
+                              "y": {
+                                "default": 0,
+                                "description": "Vertical viewport fraction.",
+                                "type": "number",
+                                "minimum": -2,
+                                "maximum": 2
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "scale": {
+                            "description": "Starting scale; settles at 1.",
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "number",
+                                "minimum": 0.01,
+                                "maximum": 4
+                              },
+                              "origin": {
+                                "default": {
+                                  "x": 0.5,
+                                  "y": 0.5
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "x": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                    "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                                  },
+                                  "y": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                    "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                                  }
+                                },
+                                "required": [
+                                  "x",
+                                  "y"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "from"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "clip": {
+                            "description": "Starting reveal clip; settles fully revealed.",
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "shape": {
+                                    "type": "string",
+                                    "const": "linear"
+                                  },
+                                  "angle": {
+                                    "default": 0,
+                                    "type": "number",
+                                    "minimum": -360,
+                                    "maximum": 360
+                                  }
+                                },
+                                "required": [
+                                  "shape"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "shape": {
+                                    "type": "string",
+                                    "const": "radial"
+                                  },
+                                  "origin": {
+                                    "default": {
+                                      "x": 0.5,
+                                      "y": 0.5
+                                    },
+                                    "type": "object",
+                                    "properties": {
+                                      "x": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1,
+                                        "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                                      },
+                                      "y": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1,
+                                        "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                                      }
+                                    },
+                                    "required": [
+                                      "x",
+                                      "y"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "radius": {
+                                    "default": 1,
+                                    "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 2
+                                  }
+                                },
+                                "required": [
+                                  "shape"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "shape": {
+                                    "type": "string",
+                                    "const": "clock"
+                                  },
+                                  "origin": {
+                                    "default": {
+                                      "x": 0.5,
+                                      "y": 0.5
+                                    },
+                                    "type": "object",
+                                    "properties": {
+                                      "x": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1,
+                                        "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                                      },
+                                      "y": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1,
+                                        "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                                      }
+                                    },
+                                    "required": [
+                                      "x",
+                                      "y"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "startAngle": {
+                                    "default": 0,
+                                    "type": "number",
+                                    "minimum": -360,
+                                    "maximum": 360
+                                  },
+                                  "direction": {
+                                    "default": "clockwise",
+                                    "type": "string",
+                                    "enum": [
+                                      "clockwise",
+                                      "counterclockwise"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "shape"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "outgoing": {
+                        "type": "object",
+                        "properties": {
+                          "opacity": {
+                            "description": "Ending opacity; starts at 1.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "translate": {
+                            "description": "Ending viewport-fraction offset; starts at zero.",
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "default": 0,
+                                "description": "Horizontal viewport fraction.",
+                                "type": "number",
+                                "minimum": -2,
+                                "maximum": 2
+                              },
+                              "y": {
+                                "default": 0,
+                                "description": "Vertical viewport fraction.",
+                                "type": "number",
+                                "minimum": -2,
+                                "maximum": 2
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "scale": {
+                            "description": "Ending scale; starts at 1.",
+                            "type": "object",
+                            "properties": {
+                              "to": {
+                                "type": "number",
+                                "minimum": 0.01,
+                                "maximum": 4
+                              },
+                              "origin": {
+                                "default": {
+                                  "x": 0.5,
+                                  "y": 0.5
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "x": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                    "description": "Viewport-relative x coordinate: 0=left, 1=right."
+                                  },
+                                  "y": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                    "description": "Viewport-relative y coordinate: 0=top, 1=bottom."
+                                  }
+                                },
+                                "required": [
+                                  "x",
+                                  "y"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "to"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "overlay": {
+                        "type": "object",
+                        "properties": {
+                          "angle": {
+                            "default": 14,
+                            "type": "number",
+                            "minimum": -360,
+                            "maximum": 360
+                          },
+                          "bandWidth": {
+                            "default": 0.28,
+                            "description": "Band width as a fraction of viewport width.",
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 2
+                          },
+                          "color": {
+                            "default": "#ffffff",
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "opacity": {
+                            "default": 0.55,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "reducedMotion": {
+                        "default": "crossfade",
+                        "type": "string",
+                        "enum": [
+                          "crossfade",
+                          "cut"
+                        ]
+                      },
+                      "loop": {
+                        "default": "hold-last",
+                        "type": "string",
+                        "enum": [
+                          "hold-last",
+                          "crossfade-to-first"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "incoming",
+                      "outgoing"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration",
+                  "custom"
+                ],
+                "additionalProperties": false
               }
             ]
           },

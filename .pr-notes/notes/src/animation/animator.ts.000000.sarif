@@ -491,6 +491,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnzkeqpqlbq7nn3",
+          "message": {
+            "text": "Separate entrance-scale, exit-scale, and translate wrappers let mixed custom primitives share the master CSS timeline without overwriting one another's transform declaration. Reduced-motion disables only motion/clip wrappers, preserving the frame visibility clock; the cut option additionally makes that clock step-end.",
+            "markdown": "Separate entrance-scale, exit-scale, and translate wrappers let mixed custom primitives share the master CSS timeline without overwriting one another's transform declaration. Reduced-motion disables only motion/clip wrappers, preserving the frame visibility clock; the cut option additionally makes that clock step-end."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 1097,
+                  "endLine": 1160,
+                  "snippet": {
+                    "text": "  }\n\n  // Custom outgoing scale gets its own wrapper so entrance/exit origins remain\n  // independently owned and mixed scales still share the scene CSS clock.\n  if (needExitScale) {\n    const to = exit.toScale ?? 1;\n    const ox = (exit.origin?.x ?? 0.5) * width;\n    const oy = (exit.origin?.y ?? 0.5) * height;\n    keyframe += `\n    @keyframes fzo-${i} {\n      0%, ${win.holdEndPct} { transform: scale(1); }\n      ${win.transEndPct}, 100% { transform: scale(${to}); }\n    }\n    .fzo-${i} { animation: fzo-${i} ${dur} linear infinite; transform-origin: ${ox}px ${oy}px; }`;\n    inner = `<g class=\"fzo-${i}\">\\n${inner}\\n  </g>`;\n  }\n\n  // ── Slide transform track (fp) — entrance and/or exit; clipped ─────────────\n  let clipDef = \"\";\n  if (needSlide) {\n    const off = (axis: \"X\" | \"Y\", d: number): string => `translate(${axis === \"X\" ? d : 0}px, ${axis === \"Y\" ? d : 0}px)`;\n    const vector = (v: { x: number; y: number }): string => `translate(${v.x * width}px, ${v.y * height}px)`;\n    const enterT = entrance.kind === \"slide\" && entrance.vector != null\n      ? vector({ x: -entrance.vector.x, y: -entrance.vector.y })\n      : entrance.kind === \"slide\" && entrance.axis != null && entrance.sign != null\n      ? off(entrance.axis, -entrance.sign * (entrance.axis === \"X\" ? width : height))\n      : \"translate(0px, 0px)\";\n    const exitT = exit.kind === \"slide\" && exit.vector != null\n      ? vector(exit.vector)\n      : exit.kind === \"slide\" && exit.axis != null && exit.sign != null\n      ? off(exit.axis, exit.sign * (exit.axis === \"X\" ? width : height))\n      : \"translate(0px, 0px)\";\n    const enterBound = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);\n    if (holdToEnd) {\n      keyframe += `\n    @keyframes fp-${i} {\n      0%, ${enterBound}% { transform: ${enterT}; }\n      ${win.startPct} { transform: translate(0px, 0px); }\n      100% { transform: translate(0px, 0px); }\n    }\n    .fp-${i} { animation: fp-${i} ${dur} infinite; }`;\n    } else {\n      keyframe += `\n    @keyframes fp-${i} {\n      0%, ${enterBound}% { transform: ${enterT}; }\n      ${win.startPct} { transform: translate(0px, 0px); }\n      ${win.holdEndPct} { transform: translate(0px, 0px); }\n      ${win.transEndPct} { transform: ${exitT}; }\n      ${padAfter(transNum, KEYFRAME_EPSILON.slide, 2)}%, 100% { transform: ${exitT}; }\n    }\n    .fp-${i} { animation: fp-${i} ${dur} infinite; }`;\n    }\n    clipDef = `<clipPath id=\"fc-${i}\"><rect width=\"${width}\" height=\"${height}\" /></clipPath>`;\n    inner = `<g clip-path=\"url(#fc-${i})\" class=\"fp-${i}\">\\n${inner}\\n  </g>`;\n  }\n\n  const motionClasses = [needSlide ? `.fp-${i}` : \"\", needScale ? `.fz-${i}` : \"\", needExitScale ? `.fzo-${i}` : \"\", needReveal ? `.fr-${i}` : \"\"].filter(Boolean).join(\", \");\n  if (motionClasses !== \"\") {\n    keyframe += `\n    @media (prefers-reduced-motion: reduce) {\n      ${motionClasses} { animation: none; transform: none; clip-path: none; }\n      ${reducedMotion === \"cut\" ? `.f-${i} { animation-timing-function: step-end; }` : \"\"}\n    }`;\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2072"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "eddca97c0ecca8dcbedcf70f01860407"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5694850757da28b61da2aefd54bcd75e62fb19a3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

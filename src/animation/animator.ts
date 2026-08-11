@@ -842,6 +842,7 @@ interface ComposedEntrance {
   axis?: "X" | "Y";
   sign?: 1 | -1;
   vector?: { x: number; y: number };
+  opacityFrom?: number;
   /** dolly: the scale the incoming grows/settles FROM (zoom-in 0.9, zoom-out 1.1). */
   fromScale?: number;
   origin?: { x: number; y: number };
@@ -867,6 +868,9 @@ interface ComposedExit {
   axis?: "X" | "Y";
   sign?: 1 | -1;
   vector?: { x: number; y: number };
+  opacityTo?: number;
+  toScale?: number;
+  origin?: { x: number; y: number };
 }
 
 /** Classify a frame's ENTRANCE from the previous frame's transition type. A push/
@@ -875,6 +879,20 @@ interface ComposedExit {
  *  magic-move / first-frame appears at its own start. */
 function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicBridged: boolean): ComposedEntrance {
   if (plan == null) return { kind: "cut" };
+  if (plan.custom != null) {
+    const translate = plan.incoming.translate;
+    const clip = plan.incoming.clip;
+    const clock = resolveClockParams(clip?.startAngle, clip?.counterclockwise);
+    return {
+      kind: translate != null ? "slide" : clip != null ? "reveal" : plan.incoming.scale != null ? "dolly" : "fade",
+      vector: translate != null && "x" in translate ? translate : undefined,
+      opacityFrom: plan.incoming.opacityFrom,
+      fromScale: plan.incoming.scale?.from,
+      origin: plan.incoming.scale?.origin ?? clip?.origin,
+      reveal: clip?.shape, wipeAngle: clip?.angle, radius: clip?.radius,
+      clockStartDeg: clock.startDeg, clockDir: clock.dir, easing: resolveEasingPreset(plan.easing),
+    };
+  }
   const dir = plan.incoming.translate;
   if (dir != null) return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
   const clip = plan.incoming.clip;
@@ -895,6 +913,11 @@ function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicB
  *  wipe/iris/… hold beneath and hard-cut (the next frame reveals on top); cut
  *  hard-cuts; magic-move is special-cased elsewhere. */
 function classifyExit(plan: NormalizedTransitionPlan): ComposedExit {
+  if (plan.custom != null) {
+    const translate = plan.outgoing.translate;
+    return { kind: translate != null ? "slide" : plan.outgoing.opacityTo != null ? "fade" : "hold", vector: translate != null && "x" in translate ? translate : undefined,
+      opacityTo: plan.outgoing.opacityTo, toScale: plan.outgoing.scale?.to, origin: plan.outgoing.scale?.origin };
+  }
   const dir = plan.outgoing.translate;
   if (dir != null) return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
   if (plan.incoming.clip != null) return { kind: "hold" };
@@ -950,6 +973,7 @@ function emitComposedFrame(
   win: ComposedWindow,
   totalSec: number,
   holdToEnd: boolean,
+  reducedMotion: "crossfade" | "cut" = "crossfade",
 ): { group: string; keyframe: string } {
   const { width, height } = dims;
   const cx = (entrance.origin?.x ?? 0.5) * width;
@@ -960,12 +984,13 @@ function emitComposedFrame(
   const transNum = parseFloat(win.transEndPct);
   const dur = `${totalSec.toFixed(2)}s`;
 
-  const needSlide = entrance.kind === "slide" || exit.kind === "slide";
-  const needScale = entrance.kind === "dolly";
-  const needReveal = entrance.kind === "reveal";
+  const needSlide = entrance.kind === "slide" || exit.kind === "slide" || entrance.vector != null || exit.vector != null;
+  const needScale = entrance.fromScale != null;
+  const needExitScale = exit.toScale != null;
+  const needReveal = entrance.reveal != null;
   // A fade/dolly entrance RAMPS opacity in over [enter, start]; a slide/reveal
   // entrance SNAPS opacity to 1 at `enter` (the transform / clip does the hiding).
-  const leadRamp = entrance.kind === "fade" || entrance.kind === "dolly";
+  const leadRamp = entrance.opacityFrom != null || entrance.kind === "fade" || entrance.kind === "dolly";
 
   // ── Opacity track (fv) ───────────────────────────────────────────────────
   const preEnter = padBefore(enterNum, KEYFRAME_EPSILON.cull, 3);
@@ -974,7 +999,7 @@ function emitComposedFrame(
     `${preEnter}% { opacity: 0; }`,
   ];
   if (leadRamp) {
-    opacityStops.push(`${enterNum.toFixed(3)}% { opacity: 0; }`);
+    opacityStops.push(`${enterNum.toFixed(3)}% { opacity: ${entrance.opacityFrom ?? 0}; }`);
     opacityStops.push(`${startNum.toFixed(3)}% { opacity: 1; }`);
   } else {
     opacityStops.push(`${enterNum.toFixed(3)}% { opacity: 1; }`);
@@ -984,8 +1009,8 @@ function emitComposedFrame(
   } else if (exit.kind === "fade") {
     // Crossfade/zoom/shine exit: hold, then dissolve out over the trans window.
     opacityStops.push(`${holdNum.toFixed(3)}% { opacity: 1; }`);
-    opacityStops.push(`${transNum.toFixed(3)}% { opacity: 0; }`);
-    opacityStops.push(`100% { opacity: 0; }`);
+    opacityStops.push(`${transNum.toFixed(3)}% { opacity: ${exit.opacityTo ?? 0}; }`);
+    opacityStops.push(`100% { opacity: ${exit.opacityTo ?? 0}; }`);
   } else {
     // Slide / reveal-hold / cut exit: hold solid to the trans end, then hard-cut.
     opacityStops.push(`${transNum.toFixed(3)}% { opacity: 1; }`);
@@ -1071,6 +1096,21 @@ ${mid}
     inner = `<g class="fz-${i}">\n${inner}\n  </g>`;
   }
 
+  // Custom outgoing scale gets its own wrapper so entrance/exit origins remain
+  // independently owned and mixed scales still share the scene CSS clock.
+  if (needExitScale) {
+    const to = exit.toScale ?? 1;
+    const ox = (exit.origin?.x ?? 0.5) * width;
+    const oy = (exit.origin?.y ?? 0.5) * height;
+    keyframe += `
+    @keyframes fzo-${i} {
+      0%, ${win.holdEndPct} { transform: scale(1); }
+      ${win.transEndPct}, 100% { transform: scale(${to}); }
+    }
+    .fzo-${i} { animation: fzo-${i} ${dur} linear infinite; transform-origin: ${ox}px ${oy}px; }`;
+    inner = `<g class="fzo-${i}">\n${inner}\n  </g>`;
+  }
+
   // ── Slide transform track (fp) — entrance and/or exit; clipped ─────────────
   let clipDef = "";
   if (needSlide) {
@@ -1108,6 +1148,15 @@ ${mid}
     }
     clipDef = `<clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath>`;
     inner = `<g clip-path="url(#fc-${i})" class="fp-${i}">\n${inner}\n  </g>`;
+  }
+
+  const motionClasses = [needSlide ? `.fp-${i}` : "", needScale ? `.fz-${i}` : "", needExitScale ? `.fzo-${i}` : "", needReveal ? `.fr-${i}` : ""].filter(Boolean).join(", ");
+  if (motionClasses !== "") {
+    keyframe += `
+    @media (prefers-reduced-motion: reduce) {
+      ${motionClasses} { animation: none; transform: none; clip-path: none; }
+      ${reducedMotion === "cut" ? `.f-${i} { animation-timing-function: step-end; }` : ""}
+    }`;
   }
 
   const group = `  <g class="f f-${i}">${clipDef}\n${inner}\n  </g>`;
@@ -1467,7 +1516,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // unless `loopFade` is set — same rule the crossfade/cut path applies via
     // DM-1148 (see emitCrossfadeOrCutFrame). For the slide paths (push-left /
     // scroll) this means: slide in, then hold (no slide-out / fade-out).
-    const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
+    const holdLastFrame = i === frames.length - 1 && config.loopFade !== true && transitionPlan.custom?.loop !== "crossfade-to-first";
 
     const ownTranslate = transitionPlan.outgoing.translate;
     const ownDir = ownTranslate != null && "axis" in ownTranslate ? ownTranslate : undefined;
@@ -1492,6 +1541,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       const r = emitComposedFrame(
         i, frame.svgContent, composedEntrance, composedExit, { width, height },
         { enterStartPct: composedEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame,
+        transitionPlan.custom?.reducedMotion ?? prevPlan?.custom?.reducedMotion ?? "crossfade",
       );
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
