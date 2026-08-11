@@ -3,7 +3,7 @@
     "suite": "font-conformance",
     "os": "windows",
     "image": "win25-vs2026-x64",
-    "capturedAt": "2026-08-11T06:46:39.814Z",
+    "capturedAt": "2026-08-11T07:06:46.053Z",
     "platform": "win32",
     "arch": "x64",
     "node": "v22.21.0",
@@ -36,23 +36,23 @@
     "missingShards": [],
     "envConflicts": [],
     "complete": true,
-    "commit": "811b41fc3937bfc9363516a353ee687dcfd25b1a"
+    "commit": "f2441097c5c6d9410135f2787b8a862c2c90d7f6"
   },
   "summary": {
     "comparisons": 407862,
-    "agree-exact": 195262,
+    "agree-exact": 195260,
     "agree-same-file": 0,
     "agree-alias": 0,
     "agree-tofu": 211524,
     "agree-not-painted": 702,
-    "mismatch": 374,
+    "mismatch": 376,
     "mismatch-we-paint": 0,
     "mismatch-we-tofu": 0,
     "allowlisted": 0,
-    "mismatchTotal": 374,
-    "mismatchDifferentFamily": 349,
+    "mismatchTotal": 376,
+    "mismatchDifferentFamily": 351,
     "mismatchSameFamilyDifferentCut": 25,
-    "distinctMismatchPairs": 18
+    "distinctMismatchPairs": 19
   },
   "byStack": {
     "sans-serif @16/900/normal lang=en": 11,
@@ -85,6 +85,7 @@
     "monospace @16/400/normal lang=en": 3,
     "serif @16/400/italic lang=en": 3,
     "sans-serif @16/400/normal lang=ar": 3,
+    "system-ui @16/400/normal lang=zh-Hant": 3,
     "system-ui @16/400/normal lang=ar": 3,
     "\"system-ui\", Menlo @16/400/normal lang=en": 3,
     "system-ui @16/400/normal/62.5% lang=en": 3,
@@ -117,8 +118,8 @@
     "sans-serif @16/200/normal lang=en": 2,
     "sans-serif @16/500/normal lang=en": 2,
     "sans-serif @16/700/normal lang=en": 2,
-    "system-ui @16/400/normal lang=zh-Hant": 2,
     "fantasy @16/400/normal lang=zh-Hant": 2,
+    "system-ui @16/400/normal lang=ko": 1,
     "monospace @16/400/normal lang=ko": 1,
     "monospace @16/400/normal lang=zh-Hant": 1,
     "sans-serif @16/800/normal lang=en": 11,
@@ -180,11 +181,12 @@
     "Tahoma → TimesNewRomanPSMT": 8,
     "TimesNewRomanPS-ItalicMT → LucidaSansUnicode": 8,
     "TimesNewRomanPS-ItalicMT → Tahoma": 5,
-    "SegoeUI → MicrosoftJhengHeiRegular": 2,
+    "SegoeUI → MicrosoftJhengHeiRegular": 3,
     "TimesNewRomanPS-BoldMT → SegoeUI": 4,
     "Impact → MicrosoftJhengHeiRegular": 2,
     "CourierNewPSMT → Tahoma": 4,
     "Tahoma → ArialMT": 1,
+    "SegoeUI → MalgunGothic": 1,
     "SegoeUI → MicrosoftYaHei": 2,
     "Impact → MicrosoftYaHei": 2,
     "ComicSansMS → YuGothic-Regular": 1
@@ -266,14 +268,14 @@
   "chromeFaceCounts": {
     "TimesNewRomanPSMT": 95498,
     "SimSun-ExtB": 82810,
-    "MalgunGothic": 18733,
+    "MalgunGothic": 18732,
     "MicrosoftYaHei": 29604,
     "TimesNewRomanPS-BoldMT": 19950,
     "Impact": 15196,
     "SimSun-ExtG": 13689,
-    "MicrosoftJhengHeiRegular": 6700,
+    "MicrosoftJhengHeiRegular": 6699,
     "SansSerifCollection": 13338,
-    "SegoeUI": 11353,
+    "SegoeUI": 11355,
     "TimesNewRomanPS-ItalicMT": 4971,
     "Consolas": 9856,
     "ComicSansMS": 10336,
@@ -337,5 +339,9 @@
     "NSimSun": 718,
     "MS-Gothic": 670
   },
-  "stackPrimaries": []
+  "stackPrimaries": [],
+  "resolverAnswerDigests": {
+    "stack-1/2:codepoint-0/1": "5421c4a8b21b7e8fb300c275acd02beb014a887b1e49aa8a76f12dda5f1c2e27",
+    "stack-2/2:codepoint-0/1": "1adcd89ae5c6aa884792961deda8d375b7df4f9874a1549fe5302ecce80d1b3c"
+  }
 }

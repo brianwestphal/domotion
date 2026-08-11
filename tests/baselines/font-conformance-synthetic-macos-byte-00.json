@@ -3,7 +3,7 @@
     "suite": "font-conformance",
     "os": "macos",
     "image": "macos26-arm64",
-    "capturedAt": "2026-08-11T06:46:39.966Z",
+    "capturedAt": "2026-08-11T07:06:50.202Z",
     "platform": "darwin",
     "arch": "arm64",
     "node": "v22.21.0",
@@ -36,7 +36,7 @@
     "missingShards": [],
     "envConflicts": [],
     "complete": true,
-    "commit": "811b41fc3937bfc9363516a353ee687dcfd25b1a"
+    "commit": "f2441097c5c6d9410135f2787b8a862c2c90d7f6"
   },
   "summary": {
     "comparisons": 407862,
@@ -676,5 +676,8 @@
     "HelveticaNeue-Thin": 1,
     "HelveticaNeue-UltraLight": 1
   },
-  "stackPrimaries": []
+  "stackPrimaries": [],
+  "resolverAnswerDigests": {
+    "stack-1/1:codepoint-0/1": "8a2a3fecb49f8a6ffd69915cfcc040d28cd9c30497cd2edb9cd7a5b4deb5d6f2"
+  }
 }
