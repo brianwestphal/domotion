@@ -108,6 +108,7 @@ import {
   stretchPercent,
 } from "../src/render/font-resolution.js";
 import { glyphHelperCodepointMemoSize, resolveInstalledFont } from "../src/render/glyph-helper.js";
+import { isHarfbuzzDefaultIgnorable } from "../src/render/unicode-classification.js";
 import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
 import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
 
@@ -581,6 +582,25 @@ export function identifyFace(chrome: ChromeFace, ours: OurFace, strictAlias: boo
     }
   }
   return null;
+}
+
+/** Grade one single-codepoint face-selection result. */
+export function verdictForCodepoint(
+  cp: number,
+  chrome: ChromeFace | null,
+  ours: OurFace,
+  strictAlias: boolean,
+): Verdict {
+  // HarfBuzz replaces default-ignorables with the current font's space glyph
+  // at zero advance, or deletes them (`hb_ot_hide_default_ignorables`,
+  // hb-ot-shape.cc:824-846, rev 4de187d). CDP still reports the selected run
+  // face, so comparing that bookkeeping face would manufacture a mismatch for
+  // output neither Chromium nor Domotion paints.
+  if (isHarfbuzzDefaultIgnorable(cp)) return "agree-not-painted";
+  if (chrome == null) return ours.covered ? "mismatch-we-paint" : "agree-not-painted";
+  const id = identifyFace(chrome, ours, strictAlias);
+  if (ours.covered) return id ?? "mismatch";
+  return id != null ? "agree-tofu" : "mismatch-we-tofu";
 }
 
 // ---------------------------------------------------------------------------
@@ -1410,19 +1430,10 @@ async function main(): Promise<number> {
           // `--lang ja` move Chrome's answer and not ours.
           const ours = ourFaceFor(cp, rs, spec.lang ?? opts.lang);
 
-          let verdict: Verdict;
-          if (chrome == null) {
-            verdict = ours.covered ? "mismatch-we-paint" : "agree-not-painted";
-          } else {
-            // `getPlatformFontsForNode` reports the face Chrome SELECTED, which
-            // for an uncovered codepoint is the face whose `.notdef` it painted.
-            // So the same face-identity test answers both questions: covered →
-            // "did we pick the same font?", uncovered → "do we tofu out of the
-            // same font?".
-            const id = identifyFace(chrome, ours, opts.strictAlias);
-            if (ours.covered) verdict = id ?? "mismatch";
-            else verdict = id != null ? "agree-tofu" : "mismatch-we-tofu";
-          }
+          // CDP names Chrome's selected face, including the `.notdef` face for
+          // uncovered characters. `verdictForCodepoint` also handles the one
+          // exception: default-ignorables that shaping makes invisible.
+          const verdict = verdictForCodepoint(cp, chrome, ours, opts.strictAlias);
           counts[verdict]++;
           if (verdict.startsWith("mismatch")) {
             if (allowlisted(allowlist, cp, spec.fontFamily)) {

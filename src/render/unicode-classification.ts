@@ -23,6 +23,20 @@ export function isHarfbuzzDefaultIgnorable(cp: number): boolean {
 }
 
 /**
+ * Spaces HarfBuzz synthesizes from the current face's U+0020 glyph when their
+ * own nominal glyph is absent (`space_fallback_type`, hb-unicode.hh:203-244,
+ * rev 4de187d). U+3000 is deliberately excluded: Blink rejects that synthesized
+ * glyph before the last fallback face (`harfbuzz_shaper.cc:684-691`, rev
+ * 7d859f27) and lets font fallback continue.
+ */
+export function isHarfbuzzSameFontSpaceFallback(cp: number): boolean {
+  return cp === 0x00A0
+    || (cp >= 0x2000 && cp <= 0x200A)
+    || cp === 0x202F
+    || cp === 0x205F;
+}
+
+/**
  * Decompose a Mathematical Alphanumeric Symbols codepoint (U+1D400–U+1D7FF)
  * into its base letter / digit plus the implied bold / italic style.
  *
@@ -748,6 +762,37 @@ export function nfdBaseMarkDecomposition(cp: number): string | null {
   if (/\p{M}/u.test(cps[0])) return null;                // first element must be a base
   if (!/\p{M}/u.test(cps[cps.length - 1])) return null;  // last element must be a combining mark
   return nfd;
+}
+
+/**
+ * Canonical decomposition candidates in HarfBuzz's lookup order: the shortest
+ * one-step decomposition first, then recursively expanded forms. HarfBuzz's
+ * `decompose()` accepts the first form whose pieces the current font covers
+ * (`hb-ot-shape-normalize.cc:102-143`, rev 4de187d). Limiting this to
+ * decompositions ending in marks preserves the existing Hangul exclusion.
+ */
+export function harfbuzzCanonicalDecompositionCandidates(cp: number): number[][] {
+  const source = String.fromCodePoint(cp);
+  const full = [...source.normalize("NFD")];
+  if (full.length < 2 || !/\p{M}/u.test(full[full.length - 1])) return [];
+
+  const candidates: number[][] = [];
+  let remaining = full;
+  let suffix: number[] = [];
+  while (remaining.length >= 2) {
+    const tail = remaining[remaining.length - 1].codePointAt(0)!;
+    suffix = [tail, ...suffix];
+    const prefix = remaining.slice(0, -1).join("").normalize("NFC");
+    const prefixCps = [...prefix].map((char) => char.codePointAt(0)!);
+    if (prefixCps.length === 1) candidates.push([prefixCps[0], ...suffix]);
+    remaining = [...prefix.normalize("NFD")];
+  }
+  const fullCps = full.map((char) => char.codePointAt(0)!);
+  if (!candidates.some((candidate) => candidate.length === fullCps.length
+    && candidate.every((value, index) => value === fullCps[index]))) {
+    candidates.push(fullCps);
+  }
+  return candidates;
 }
 
 // DM-1109: pre-base (LEFT) matras — VOWEL SIGNS the Universal Shaping Engine

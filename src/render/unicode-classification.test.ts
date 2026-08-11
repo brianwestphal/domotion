@@ -8,7 +8,7 @@
  * actual rule is caught.
  */
 import { describe, it, expect } from "vitest";
-import { isRtlScriptCodepoint } from "./unicode-classification.js";
+import { harfbuzzCanonicalDecompositionCandidates, isHarfbuzzSameFontSpaceFallback, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 // Transcribed directly from `hb_script_get_horizontal_direction`'s switch
 // statement (`hb-common.cc:522-613`, rev 4de187d) — the FULL `HB_DIRECTION_RTL`
@@ -138,5 +138,32 @@ describe("isRtlScriptCodepoint / RTL_SMP_SCRIPT_RANGES (DM-2019)", () => {
     expect(isRtlScriptCodepoint(0x05d0)).toBe(false); // Hebrew alef — BMP, not covered
     expect(isRtlScriptCodepoint(0x0627)).toBe(false); // Arabic alef — BMP, not covered
     expect(isRtlScriptCodepoint(0x0041)).toBe(false); // Latin A
+  });
+});
+describe("isHarfbuzzSameFontSpaceFallback", () => {
+  it("transcribes HarfBuzz's same-face space fallback set", () => {
+    for (const cp of [0x00A0, 0x2000, 0x2005, 0x200A, 0x202F, 0x205F]) {
+      expect(isHarfbuzzSameFontSpaceFallback(cp)).toBe(true);
+    }
+  });
+
+  it("leaves Blink's U+3000 exception and non-space characters to fallback", () => {
+    for (const cp of [0x20, 0x1680, 0x200B, 0x3000, 0x41]) {
+      expect(isHarfbuzzSameFontSpaceFallback(cp)).toBe(false);
+    }
+  });
+});
+
+describe("harfbuzzCanonicalDecompositionCandidates", () => {
+  it("orders shortest canonical decompositions before fully expanded NFD", () => {
+    expect(harfbuzzCanonicalDecompositionCandidates(0x1EDA)).toEqual([
+      [0x01A0, 0x0301],
+      [0x004F, 0x031B, 0x0301],
+    ]);
+  });
+
+  it("includes mark-only decompositions and excludes Hangul", () => {
+    expect(harfbuzzCanonicalDecompositionCandidates(0x0344)).toEqual([[0x0308, 0x0301]]);
+    expect(harfbuzzCanonicalDecompositionCandidates(0xAC00)).toEqual([]);
   });
 });

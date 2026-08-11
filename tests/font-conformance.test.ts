@@ -26,6 +26,7 @@ import {
   probePageHtml,
   slantForStyle,
   stacksFileFor,
+  verdictForCodepoint,
   type ChromeFace,
   type OurFace,
   type StackSpec,
@@ -37,6 +38,23 @@ const ours = (o: Partial<OurFace>): OurFace =>
   ({ key: "x", path: null, postscriptName: null, covered: true, ...o });
 const chrome = (o: Partial<ChromeFace>): ChromeFace =>
   ({ familyName: "", glyphCount: 1, ...o });
+
+describe("verdictForCodepoint", () => {
+  it("does not grade HarfBuzz default-ignorables by CDP's bookkeeping face", () => {
+    const c = chrome({ postScriptName: "Times-Roman", familyName: "Times" });
+    const o = ours({ postscriptName: "AppleColorEmoji" });
+    for (const cp of [0x00AD, 0x061C, 0x180B, 0x2064, 0xFE0F, 0xE0061]) {
+      expect(verdictForCodepoint(cp, c, o, false)).toBe("agree-not-painted");
+    }
+  });
+
+  it("still grades visible codepoints and width-carrying spaces by face", () => {
+    const c = chrome({ postScriptName: "Times-Roman", familyName: "Times" });
+    const o = ours({ postscriptName: "TimesNewRomanPSMT" });
+    expect(verdictForCodepoint(0x41, c, o, false)).toBe("mismatch");
+    expect(verdictForCodepoint(0x2000, c, o, false)).toBe("mismatch");
+  });
+});
 
 describe("buildUniverse", () => {
   it("excludes surrogates, noncharacters and controls, and keeps everything else assigned", () => {

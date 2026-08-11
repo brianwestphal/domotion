@@ -45,8 +45,8 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
-export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, harfbuzzCanonicalDecompositionCandidates, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
+export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 /**
  * The three per-variant constants Blink's WEBFONT synthetic-bold rule reads.
@@ -9665,6 +9665,18 @@ function resolveFontForCodepointInner(
     return cover(primaryFontKey, null);
   }
 
+  // HarfBuzz keeps these spaces in the CURRENT font when their literal cmap
+  // entry is absent: it substitutes that face's U+0020 glyph and synthesizes
+  // the requested advance (`decompose_current_character`,
+  // hb-ot-shape-normalize.cc:174-185, rev 4de187d). Our text positions already
+  // come from Chromium, so emitting U+0020 preserves the same invisible glyph
+  // while avoiding a false family fallback. U+3000 is excluded by the predicate
+  // because Blink explicitly requeues its synthesized space.
+  if (isHarfbuzzSameFontSpaceFallback(cp) && glyphIdForCp(primaryFont, 0x20) !== 0) {
+    _stageStats.fastPathPrimary++;
+    return cover(primaryFontKey, null, " ");
+  }
+
   // DM-1659: SF Pro Text/Display and the system font resolve to SFNS (matching
   // Chrome's PAINTED glyph shapes — see matchFamilyNameToKey). But SFNS lacks a
   // few glyphs the standalone `/Library/Fonts/SF-Pro-*.otf` carries (the two-digit
@@ -9723,7 +9735,14 @@ function resolveFontForCodepointInner(
   // developer Mac (which has SF Pro Text, so it never reaches Arial Unicode MS)
   // cannot reproduce.
   const baseMarkNfd = singleton == null ? nfdBaseMarkDecomposition(cp) : null;
-  const baseMarkCps = baseMarkNfd != null ? [...baseMarkNfd].map((c) => c.codePointAt(0)!) : null;
+  const canonicalCandidates = singleton == null
+    ? harfbuzzCanonicalDecompositionCandidates(cp)
+    : [];
+  // Keep the established base+mark gate for ordinary cases, but add mark-only
+  // decompositions such as U+0344 that HarfBuzz normalizes by the same rule.
+  const decompositionCandidates = baseMarkNfd != null || canonicalCandidates.length > 0
+    ? canonicalCandidates
+    : [];
 
   // Materialize a chain key to an instance — webfont-partition-aware, and only
   // the primary carries the author's font-variation-settings.
@@ -9775,7 +9794,7 @@ function resolveFontForCodepointInner(
     if (singleton != null && glyphIdForCp(primaryFont, singleton) !== 0) {
       return cover(primaryFontKey, null, String.fromCodePoint(singleton), true);
     }
-    if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
+    if (decompositionCandidates.some((candidate) => candidate.every((d) => glyphIdForCp(primaryFont, d) !== 0))) {
       const hbFace = shapingFaceFor(primaryFontKey, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
         const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
@@ -9805,7 +9824,7 @@ function resolveFontForCodepointInner(
     // so clusters / xOffsets stay aligned; `decomposed: true` routes the
     // glyph-path emitter to its run-shaping branch. Falls through when the key
     // has no on-disk file HarfBuzz can open.
-    if (baseMarkCps != null && baseMarkCps.every((d) => glyphIdForCp(inst, d) !== 0)) {
+    if (decompositionCandidates.some((candidate) => candidate.every((d) => glyphIdForCp(inst, d) !== 0))) {
       const hbFace = shapingFaceFor(key, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
         const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
@@ -9952,6 +9971,24 @@ function resolveFontForCodepointInner(
   const noSystemFallback = isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp);
   if (noSystemFallback) {
     _stageStats.noSystemFallback++;
+    // A null platform-fallback answer advances the iterator to its explicit
+    // last-resort face BEFORE `kFirstCandidateForNotdefGlyph`
+    // (`font_fallback_iterator.cc:143-162`, rev 7d859f27). On macOS that face
+    // is Times, then Lucida Grande only if Times cannot be opened
+    // (`mac/font_cache_mac.mm:376-393`). This is observable for U+F8FF: a
+    // Japanese serif primary lacks it, but Times carries the Apple-logo glyph,
+    // so Chrome paints Times rather than the primary's `.notdef`. When Times
+    // lacks the codepoint too, fall through to the first candidate exactly as
+    // before.
+    if (hostPlatform() === "darwin") {
+      for (const lastResortKey of ["times", "lucida-grande"]) {
+        const lastResort = getFontInstance(lastResortKey, weight, fontSize, slant);
+        if (lastResort != null && glyphIdForCp(lastResort, cp) !== 0) {
+          return cover(lastResortKey, lastResort);
+        }
+        if (lastResortKey === "times" && lastResort != null) break;
+      }
+    }
     return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
   }
 
@@ -10047,11 +10084,11 @@ export function __resolveFontForCodepointForTest(
   slant = 0,
   lang?: string,
 ): { key: string; decomposed: boolean; covered: boolean } | null {
-  const primaryFontKey = resolveFontKey(fontFamily);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, 100, lang);
   if (primaryFont == null) return null;
   const r = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, lang,
-    resolveFontKeyChain(fontFamily));
+    resolveFontKeyChain(fontFamily, lang));
   return { key: r.key, decomposed: r.decomposed, covered: r.covered };
 }
 
