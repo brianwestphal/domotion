@@ -1,6 +1,6 @@
 name: Font conformance oracle (synthetic stacks)
 
-run-name: Synthetic font conformance · os=${{ inputs.os }} · shards=${{ inputs.shards }} · max-stacks=${{ inputs.max_stacks }}
+run-name: Synthetic font conformance · os=${{ inputs.os }} · byte=${{ inputs.sample_byte }} · max-stacks=${{ inputs.max_stacks }}
 
 # The SYNTHETIC half of the font-conformance oracle. Same instrument, same shard
 # script, same gate — a different stack corpus.
@@ -21,8 +21,8 @@ run-name: Synthetic font conformance · os=${{ inputs.os }} · shards=${{ inputs
 #   refuses to compare across one.
 #
 # WHY IT IS WORTH RUNNING AT ALL
-#   The oracle's codepoint axis is exhaustive; its stack axis was bounded by what
-#   the fixtures happen to contain. Measured on a 234-stack / 1,463-codepoint
+#   The oracle can make its codepoint axis exhaustive; its stack axis was bounded
+#   by what the fixtures happen to contain. Measured on a 234-stack / 1,463-codepoint
 #   slice on a developer Mac, the departures the harvested corpus never asks
 #   about are where the defects are: `fantasy` measures 3 mismatches at 100%
 #   stretch and 1,110 at each of 50 / 62.5 / 75 / 87.5% (Chrome takes
@@ -32,8 +32,11 @@ run-name: Synthetic font conformance · os=${{ inputs.os }} · shards=${{ inputs
 # DEFAULT SLICE
 #   `max_stacks: 351` is not arbitrary — the corpus is ordered by distance from
 #   the CSS initial/default state, so 351 is exactly "every generic at its initial state,
-#   plus every single-axis departure from it". 13 is one per generic; empty is
-#   the full 50,544-way product, which is many hours per platform.
+#   plus every single-axis departure from it". On the codepoint axis, `00`
+#   means every assigned codepoint ending in hex 00 across all Unicode planes.
+#   It is a deterministic 1/256 sample; advancing through 00..FF eventually
+#   covers the exhaustive universe exactly once. `all` is the expensive full
+#   universe and is reserved for deliberate confidence/release sweeps.
 
 on:
   workflow_dispatch:
@@ -44,14 +47,17 @@ on:
         options: [macos, linux, windows, all]
         default: macos
       shards:
-        description: 'Stack shards per platform. auto = macOS 8, Linux 6, Windows 10; a number overrides all platforms.'
+        description: 'Stack shards per platform. auto = macOS 8, Linux 6, Windows 16; a number overrides all platforms.'
         default: 'auto'
       max_stacks:
         description: 'Cap on synthetic stacks (ordered by distance from the CSS initial/default state). 13 = one per generic; 351 = +every single-axis departure; empty = all 50,544.'
         default: '351'
       range:
-        description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'
+        description: 'Expert override: contiguous codepoint range. Set sample_byte=all when using this.'
         default: ''
+      sample_byte:
+        description: 'Routine rotating sample: 00..FF selects assigned codepoints with that low byte across Unicode; all runs the full universe.'
+        default: '00'
       cp_shard:
         description: 'Codepoint stride index i, applied INSIDE every stack shard (used with cp_total). The stack axis is the expensive one here, so a stride keeps a wide stack slice affordable.'
         default: '1'
@@ -93,13 +99,22 @@ jobs:
           if [ "$requested" = auto ]; then
             macos_n=8
             linux_n=6
-            windows_n=10
+            windows_n=16
           elif [[ "$requested" =~ ^[1-9][0-9]*$ ]]; then
             macos_n="$requested"
             linux_n="$requested"
             windows_n="$requested"
           else
             echo "::error::shards must be 'auto' or a positive integer (got '$requested')"
+            exit 2
+          fi
+          sample="${{ inputs.sample_byte }}"
+          if [[ ! "$sample" =~ ^([0-9A-Fa-f]{2}|all|ALL)$ ]]; then
+            echo "::error::sample_byte must be 00..FF or all (got '$sample')"
+            exit 2
+          fi
+          if [ -n "${{ inputs.range }}" ] && [ "$sample" != all ] && [ "$sample" != ALL ]; then
+            echo "::error::set sample_byte=all when supplying range"
             exit 2
           fi
           matrix() {
@@ -160,6 +175,7 @@ jobs:
           TOTAL: ${{ matrix.total }}
           STACKS: ${{ env.STACKS_FILE }}
           RANGE: ${{ inputs.range }}
+          SAMPLE_BYTE: ${{ inputs.sample_byte }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           NO_PUA: ${{ inputs.no_pua }}
           CP_SHARD: ${{ inputs.cp_shard }}
@@ -201,6 +217,7 @@ jobs:
           TOTAL: ${{ matrix.total }}
           STACKS: ${{ env.STACKS_FILE }}
           RANGE: ${{ inputs.range }}
+          SAMPLE_BYTE: ${{ inputs.sample_byte }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           NO_PUA: ${{ inputs.no_pua }}
           CP_SHARD: ${{ inputs.cp_shard }}
@@ -237,6 +254,7 @@ jobs:
           TOTAL: ${{ matrix.total }}
           STACKS: ${{ env.STACKS_FILE }}
           RANGE: ${{ inputs.range }}
+          SAMPLE_BYTE: ${{ inputs.sample_byte }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           NO_PUA: ${{ inputs.no_pua }}
           CP_SHARD: ${{ inputs.cp_shard }}
@@ -275,12 +293,32 @@ jobs:
       # anyway (`slice.stacks` and the corpus identity both differ) — this makes
       # that separation explicit rather than relying on the refusal.
       - name: Gate vs the synthetic baseline for this platform
-        run: >
-          node scripts/diff-font-conformance-baseline.mjs
-          --results merged.json
-          --baseline tests/baselines/font-conformance-synthetic-${{ matrix.os }}.json
-          --label "${{ matrix.os }} / font-conformance (synthetic stacks)"
-          ${{ inputs.update_baseline && '--update-baseline' || '--strict' }}
+        shell: bash
+        run: |
+          sample="${{ inputs.sample_byte }}"
+          range="${{ inputs.range }}"
+          if [ -n "$range" ]; then
+            # A diagnostic range is its own slice too. Hash the spelling into
+            # the artifact filename so updating it can never overwrite the
+            # authoritative exhaustive baseline.
+            range_id=$(printf '%s' "$range" | sha256sum | cut -c1-12)
+            baseline="tests/baselines/font-conformance-synthetic-${{ matrix.os }}-range-${range_id}.json"
+            label="range ${range}"
+          elif [ "$sample" = all ] || [ "$sample" = ALL ]; then
+            # Preserve the established exhaustive baseline names. Sampled
+            # buckets are separate measurements and get explicit suffixes.
+            baseline="tests/baselines/font-conformance-synthetic-${{ matrix.os }}.json"
+            label="full"
+          else
+            sample="${sample^^}"
+            baseline="tests/baselines/font-conformance-synthetic-${{ matrix.os }}-byte-${sample}.json"
+            label="low-byte ${sample}"
+          fi
+          node scripts/diff-font-conformance-baseline.mjs \
+            --results merged.json \
+            --baseline "$baseline" \
+            --label "${{ matrix.os }} / font-conformance (synthetic stacks, $label)" \
+            ${{ inputs.update_baseline && '--update-baseline' || '--strict' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -288,4 +326,5 @@ jobs:
           path: |
             merged.json
             tests/baselines/font-conformance-synthetic-${{ matrix.os }}.json
+            tests/baselines/font-conformance-synthetic-${{ matrix.os }}-*.json
           retention-days: 30

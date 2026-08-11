@@ -59,6 +59,11 @@ const ENV_FIELDS = [
   ["Unicode version", (s) => s.report?.meta?.unicode],
   ["ICU version", (s) => s.report?.meta?.icu],
   ["stack corpus generatedAt", (s) => s.report?.meta?.stackCorpusGeneratedAt],
+  // Sampling is part of the question, not merely bookkeeping. A malformed
+  // matrix that mixed buckets would otherwise present the first shard's byte
+  // beside totals accumulated from several different universes.
+  ["sample low byte", (s) => JSON.stringify(s.report?.meta?.sampleByte ?? null)],
+  ["codepoint ranges", (s) => JSON.stringify(s.report?.meta?.ranges ?? null)],
   ["runner image", (s) => s.env?.image],
   ["font inventory digest", (s) => s.env?.fontInventory?.digest],
 ];
@@ -213,6 +218,7 @@ export function sliceOf(meta) {
     stacks: meta?.stacks ?? null,
     includePua: meta?.includePua ?? null,
     ranges: meta?.ranges ?? null,
+    sampleByte: meta?.sampleByte ?? null,
     strictAlias: meta?.strictAlias ?? null,
     lang: meta?.lang ?? null,
   };

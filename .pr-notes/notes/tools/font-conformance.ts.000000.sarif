@@ -244,6 +244,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso9sbnstwm1a9cd",
+          "message": {
+            "text": "Low-byte bucketing is stratified across all Unicode planes, so each routine run retains broad script coverage while reducing the exhaustive axis by 256. The 256 buckets are disjoint and union to the exact original universe; measured under this checkout's Node/ICU tables, bucket sizes are 1,086–1,169 and sum to 292,466.",
+            "markdown": "Low-byte bucketing is stratified across all Unicode planes, so each routine run retains broad script coverage while reducing the exhaustive axis by 256. The 256 buckets are disjoint and union to the exact original universe; measured under this checkout's Node/ICU tables, bucket sizes are 1,086–1,169 and sum to 292,466."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 435,
+                  "endLine": 449,
+                  "snippet": {
+                    "text": "export function buildUniverse(opts: {\n  includePua: boolean;\n  ranges: Array<[number, number]> | null;\n  sampleByte?: number | null;\n}): number[] {\n  const out: number[] = [];\n  for (let cp = 0; cp <= 0x10ffff; cp++) {\n    if (cp >= 0xd800 && cp <= 0xdfff) continue;\n    if (opts.ranges != null && !opts.ranges.some(([lo, hi]) => cp >= lo && cp <= hi)) continue;\n    // A low-byte bucket is a deterministic 1/256 stratified sample across the\n    // entire Unicode space: bucket 00 contains U+0000, U+0100, U+0200, … rather\n    // than one contiguous Latin-only page. Walking 00 through FF therefore\n    // covers the exhaustive universe exactly once, with no random gaps or\n    // duplicate rows between buckets.\n    if (opts.sampleByte != null && (cp & 0xff) !== opts.sampleByte) continue;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2073"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1b6a4b9fdd67a9660f393f03df72b829"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cf296aa696a54f85115d11b97af22ab961aa3f4b",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }

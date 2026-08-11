@@ -6,7 +6,7 @@
 # between them — a Windows shard that quietly swept a different slice than the
 # macOS one would produce two baselines that look comparable and are not.
 #
-# Inputs (env): SHARD TOTAL RANGE MAX_STACKS NO_PUA STRICT_ALIAS OUT_DIR STACKS
+# Inputs (env): SHARD TOTAL RANGE SAMPLE_BYTE MAX_STACKS NO_PUA STRICT_ALIAS OUT_DIR STACKS
 #
 # STACKS selects the stack corpus. Unset = the platform's own harvested corpus
 # (the tool's default), which is what the canonical baseline slice sweeps. The
@@ -39,6 +39,10 @@ if [ -n "${CP_TOTAL:-}" ] && [ "${CP_TOTAL}" != "1" ]; then
 fi
 [ -n "${STACKS:-}" ] && args+=(--stacks "$STACKS")
 [ -n "${RANGE:-}" ] && args+=(--range "$RANGE")
+case "${SAMPLE_BYTE:-}" in
+  ""|all|ALL) ;;
+  *) args+=(--sample-byte "$SAMPLE_BYTE") ;;
+esac
 # `all` (and `0`) mean "no cap", i.e. the whole corpus.
 #
 # The obvious way to say that from the workflow — leave the input empty — does

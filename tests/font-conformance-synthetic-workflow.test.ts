@@ -119,6 +119,7 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
   it("gates against the SYNTHETIC baseline, never the harvested one", () => {
     const job = jobs["aggregate"];
     expect(job).toMatch(/tests\/baselines\/font-conformance-synthetic-\$\{\{ matrix\.os \}\}\.json/);
+    expect(job).toContain('font-conformance-synthetic-${{ matrix.os }}-byte-${sample}.json');
     // …and not the harvested path, which differs by one word.
     expect(job).not.toMatch(/baselines\/font-conformance-\$\{\{ matrix\.os \}\}\.json/);
   });
@@ -133,21 +134,26 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     // Six shards put 59 stacks on each runner. The authoritative rule-v2 run
     // reached only 49 on Windows before GitHub's six-hour job ceiling killed it,
     // and the last queued macOS shard hit the same ceiling. Keep both comfortably
-    // below that bound while avoiding unnecessary Linux runner fan-out.
+    // below that bound while avoiding unnecessary Linux runner fan-out. The
+    // DirectWrite health sample gets more shards because it remains far slower.
     expect(yaml).toMatch(/shards:[\s\S]{0,300}?default: 'auto'/);
     expect(jobs["setup"]).toMatch(/macos_n=8/);
     expect(jobs["setup"]).toMatch(/linux_n=6/);
-    expect(jobs["setup"]).toMatch(/windows_n=10/);
+    expect(jobs["setup"]).toMatch(/windows_n=16/);
     expect(jobs["sweep-macos"]).toContain("needs.setup.outputs.macos_matrix");
     expect(jobs["sweep-linux"]).toContain("needs.setup.outputs.linux_matrix");
     expect(jobs["sweep-windows"]).toContain("needs.setup.outputs.windows_matrix");
     expect(jobs["setup"]).toContain("shards must be 'auto' or a positive integer");
   });
 
-  it("defaults the codepoint stride to 1, so the default slice is the full universe", () => {
+  it("defaults to low-byte 00 across Unicode, with no extra codepoint stride", () => {
     // The shard script omits `--shard` entirely when CP_TOTAL is 1, which the
     // merge relies on to key its codepoint accounting off `meta.shard` being null.
     expect(yaml).toMatch(/cp_total:[\s\S]{0,400}?default: '1'/);
+    expect(yaml).toMatch(/sample_byte:[\s\S]{0,400}?default: '00'/);
+    for (const os of PLATFORMS) {
+      expect(jobs[`sweep-${os}`]).toMatch(/SAMPLE_BYTE: \$\{\{ inputs\.sample_byte \}\}/);
+    }
   });
 
   it("defaults to the complete single-axis slice, including spelling and language", () => {

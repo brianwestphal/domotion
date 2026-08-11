@@ -87,4 +87,10 @@ describe("the conformance shard script passes exactly the flags it was asked for
       .toContain("--stacks tools/font-conformance-stacks.synthetic.json");
     expect(argsFor({})).not.toContain("--stacks");
   });
+
+  it("passes a rotating low-byte sample and treats all as exhaustive", () => {
+    expect(argsFor({ SAMPLE_BYTE: "00" })).toContain("--sample-byte 00");
+    expect(argsFor({ SAMPLE_BYTE: "AF" })).toContain("--sample-byte AF");
+    expect(argsFor({ SAMPLE_BYTE: "all" })).not.toContain("--sample-byte");
+  });
 });

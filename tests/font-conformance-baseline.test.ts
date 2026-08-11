@@ -23,7 +23,7 @@ const report = (over: Record<string, unknown> = {}): Record<string, unknown> => 
     stacksFile: "tools/font-conformance-stacks.linux.json",
     stackCorpusGeneratedAt: "2026-07-29T23:19:22.108Z",
     stackCorpusPlatform: "linux",
-    codepoints: 292466, stacks: 1, includePua: true, ranges: null, strictAlias: false, lang: "en",
+    codepoints: 292466, stacks: 1, includePua: true, ranges: null, sampleByte: null, strictAlias: false, lang: "en",
   },
   summary: { comparisons: 100, mismatchTotal: 10, "agree-exact": 90 },
   mismatchesByStack: [{ stack: "Times", count: 10 }],
@@ -152,7 +152,7 @@ describe("mergeShards", () => {
 describe("sliceOf", () => {
   it("keeps exactly the fields that make two runs comparable", () => {
     expect(sliceOf({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], strictAlias: true, lang: "ja" }))
-      .toEqual({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], strictAlias: true, lang: "ja" });
+      .toEqual({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], sampleByte: null, strictAlias: true, lang: "ja" });
   });
 });
 
@@ -163,7 +163,7 @@ describe("comparability", () => {
     unicode: "16.0",
     corpus: { generatedAt: "2026-07-29T23:19:22.108Z" },
     fontInventory: { digest: "abc123" },
-    slice: { codepoints: 292466, stacks: 6, includePua: true, strictAlias: false, lang: "en" },
+    slice: { codepoints: 292466, stacks: 6, includePua: true, ranges: null, sampleByte: null, strictAlias: false, lang: "en" },
   };
 
   it("accepts a run measured in the same environment over the same slice", () => {
@@ -202,6 +202,8 @@ describe("comparability", () => {
 
   it("refuses a run that swept a different slice", () => {
     expect(comparability({ ...meta, slice: { ...meta.slice, stacks: 12 } }, meta)[0]).toMatch(/slice\.stacks/);
+    const byteZero = { ...meta, slice: { ...meta.slice, sampleByte: 0 } };
+    expect(comparability({ ...meta, slice: { ...meta.slice, sampleByte: 1 } }, byteZero)[0]).toMatch(/slice\.sampleByte/);
   });
 
   it("stays silent about a field either side never recorded", () => {
@@ -279,6 +281,14 @@ describe("environment agreement across shards (DM-1898)", () => {
       shard("s2", {}, { image: "macos26-arm64", fontInventory: { digest: "bbbb" } }),
     ]);
     expect(conflicts.map((c) => c.field)).toEqual(["font inventory digest"]);
+  });
+
+  it("catches shards that accidentally mixed rotating sample buckets", () => {
+    const conflicts = environmentConflicts([
+      shard("s1", { sampleByte: 0x00 }),
+      shard("s2", { sampleByte: 0x01 }),
+    ]);
+    expect(conflicts.map((c) => c.field)).toContain("sample low byte");
   });
 
   it("ignores a field absent on one shard rather than crying wolf", () => {

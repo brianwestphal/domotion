@@ -76,7 +76,7 @@ export function comparability(runMeta, baseMeta) {
   cmp("Unicode version", runMeta?.unicode, baseMeta?.unicode);
   cmp("stack corpus generatedAt", runMeta?.corpus?.generatedAt, baseMeta?.corpus?.generatedAt);
   cmp("font inventory digest", runMeta?.fontInventory?.digest, baseMeta?.fontInventory?.digest);
-  for (const k of ["codepoints", "stacks", "includePua", "strictAlias", "lang"]) {
+  for (const k of ["codepoints", "stacks", "includePua", "ranges", "sampleByte", "strictAlias", "lang"]) {
     cmp(`slice.${k}`, runMeta?.slice?.[k], baseMeta?.slice?.[k]);
   }
   return reasons;

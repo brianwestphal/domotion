@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso9sbtwoprmzn4u",
+          "message": {
+            "text": "The selected sample is part of measurement identity at both merge and baseline layers. Mixed-bucket shards are rejected as an environment conflict, while the merged slice records sampleByte and the comparator refuses unlike buckets; focused tests pin both failure modes.",
+            "markdown": "The selected sample is part of measurement identity at both merge and baseline layers. Mixed-bucket shards are rejected as an environment conflict, while the merged slice records sampleByte and the comparator refuses unlike buckets; focused tests pin both failure modes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/merge-font-conformance-shards.mjs"
+                },
+                "region": {
+                  "startLine": 62,
+                  "endLine": 66,
+                  "snippet": {
+                    "text": "  // Sampling is part of the question, not merely bookkeeping. A malformed\n  // matrix that mixed buckets would otherwise present the first shard's byte\n  // beside totals accumulated from several different universes.\n  [\"sample low byte\", (s) => JSON.stringify(s.report?.meta?.sampleByte ?? null)],\n  [\"codepoint ranges\", (s) => JSON.stringify(s.report?.meta?.ranges ?? null)],"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2073"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "72c9cc13f6f876d918df8de2421e1ff8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cf296aa696a54f85115d11b97af22ab961aa3f4b",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
+    }
+  ]
+}

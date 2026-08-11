@@ -14,6 +14,7 @@ Domotion's font goal is guaranteed parity with Chromium's font-selection mechani
 ```sh
 npx tsx tools/font-conformance.ts                          # full sweep, all corpus stacks
 npx tsx tools/font-conformance.ts --range 0000-2FFF        # one slice of Unicode
+npx tsx tools/font-conformance.ts --sample-byte 00         # every assigned U+…00 codepoint
 npx tsx tools/font-conformance.ts --max-stacks 12          # the most-used stacks only
 npx tsx tools/font-conformance.ts --shard 2/8              # codepoint shard 2 of 8
 npx tsx tools/font-conformance.ts --stack-shard 3/16       # stack shard 3 of 16
@@ -29,6 +30,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 | `--allow-foreign-corpus` | Sweep a corpus extracted on another platform. Refused by default. |
 | `--source a,b` | Fixture directories to extract from (default `external/html-test`, `../html-test/unicode`). |
 | `--range 0000-2FFF` | Restrict the codepoint universe; repeatable / comma-separated. |
+| `--sample-byte 00` | Deterministic 1/256 sample across Unicode: retain assigned codepoints whose low byte is `00`. Accepts `00` through `FF`; mutually exclusive with `--range`. |
 | `--no-pua` | Drop `\p{Private_Use}` — 137k of the 292k codepoints. Makes the run a subset; the report records it. |
 | `--shard i/N` | Stride shard over codepoints. |
 | `--stack-shard i/N` | Stride shard over stacks. |
@@ -98,9 +100,15 @@ npx tsx tools/font-conformance.ts \
   --max-stacks 351 --shard 1/200                                  # sweep a slice
 ```
 
-On CI it has its **own dispatch and its own baselines** — `.github/workflows/font-conformance-synthetic.yml`, gating against `tests/baselines/font-conformance-synthetic-<os>.json`. Not an input to the default workflow: the cross product multiplies an already expensive sweep, and the two slices measure different questions, so they must not share a baseline. Both dispatches run the same `scripts/ci-font-conformance-shard.sh` (which now takes a `STACKS` env var) so the flags, exit-code discipline and recorded environment cannot drift between them.
+On CI it has its **own dispatch and its own baselines** — `.github/workflows/font-conformance-synthetic.yml`. Not an input to the default workflow: the cross product multiplies an already expensive sweep, and the two slices measure different questions, so they must not share a baseline. Both dispatches run the same `scripts/ci-font-conformance-shard.sh` so the flags, exit-code discipline and recorded environment cannot drift between them.
 
-The synthetic workflow's default `shards=auto` is platform-specific: **8 macOS, 6 Linux, and 10 Windows**. This is a runtime bound, not a throughput guess carried over from another environment. In the authoritative 351-stack rule-v2 run, six-way Windows shards received 58–59 stacks and one reached only its 50th before GitHub's six-hour hosted-job ceiling; the last queued macOS shard also reached that ceiling, while every six-way Linux shard finished in under two hours. The automatic fan-out caps the slower platforms at 44 and 36 assigned stacks respectively and leaves Linux at six. A positive numeric `shards` input still overrides all three when deliberately measuring another split. Every sweep log labels the current stack as `stack i/N`, so a live or canceled job exposes its completed prefix instead of showing only per-codepoint progress within an unnamed stack.
+Routine synthetic testing uses a **rotating low-byte sample**. The default bucket `00` retains every eligible assigned codepoint for which `cp & 0xFF === 0x00`: `U+0100`, `U+0200`, … through supplementary planes. This is not the contiguous Latin-1 page `U+0000–U+00FF`. A bucket therefore samples scripts, symbol ranges, CJK, emoji, and private-use planes throughout Unicode while reducing the codepoint axis to approximately 1/256. Buckets `00` through `FF` are disjoint and their union is the exhaustive universe, so advancing the focus from `00` to `01` and onward accumulates complete coverage without the probabilistic holes of a random sample.
+
+Each bucket has its own baseline, `tests/baselines/font-conformance-synthetic-<os>-byte-<XX>.json`; unlike buckets are never compared. `sample_byte: all` explicitly selects the exhaustive universe and keeps the established unsuffixed synthetic baseline. A first run of a new bucket is dispatched with `update_baseline` and its artifact is reviewed and committed before that bucket becomes a gate. A contiguous `range` remains available for diagnosis, but requires `sample_byte: all` so two selectors cannot silently intersect; range baselines include a digest of the range spelling and therefore cannot overwrite the exhaustive baseline.
+
+At the default 351-stack slice, one low-byte bucket is roughly 1,100–1,200 codepoints, or about 400,000 comparisons per platform instead of 104 million. Automatic fan-out remains stack-based—8 macOS, 6 Linux, and 16 Windows shards—targeting roughly 5–10 minutes of sweep time per platform under the measured native-helper rates. Windows receives extra shards because its best-effort DirectWrite path is substantially slower; routine parity decisions remain macOS/Linux-first under the project platform policy.
+
+The synthetic workflow's default `shards=auto` is platform-specific: **8 macOS, 6 Linux, and 16 Windows**. This is a runtime bound, not a throughput guess carried over from another environment. The exhaustive 351-stack rule-v2 runs demonstrated why they are now exceptional: individual hosted jobs approached the six-hour ceiling. The routine low-byte slice cuts the codepoint axis by approximately 256 while preserving Unicode-wide representation. A positive numeric `shards` input still overrides all three when deliberately measuring another split. Every sweep log labels the current stack as `stack i/N`, so a live or canceled job exposes its completed prefix instead of showing only per-codepoint progress within an unnamed stack.
 
 #### What it found immediately
 

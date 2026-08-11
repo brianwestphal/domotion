@@ -35,6 +35,7 @@
  *   --allow-foreign-corpus  sweep a corpus extracted on another platform
  *   --source a,b         fixture dirs to extract from
  *   --range 0000-2FFF    restrict the codepoint universe (comma-separated, repeatable)
+ *   --sample-byte 00     assigned codepoints whose low byte is 00 (00..FF)
  *   --no-pua             drop private-use codepoints (137k of 292k)
  *   --shard i/N          stride shard over codepoints
  *   --stack-shard i/N    stride shard over stacks (preferred for CI — warmer caches)
@@ -431,11 +432,21 @@ const RE_DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/u;
  * them — Apple's U+F8FF logo, for one) but they are 137k of the 292k total, so
  * `--no-pua` exists for a faster local run. It is a SUBSET, and the report says so.
  */
-export function buildUniverse(opts: { includePua: boolean; ranges: Array<[number, number]> | null }): number[] {
+export function buildUniverse(opts: {
+  includePua: boolean;
+  ranges: Array<[number, number]> | null;
+  sampleByte?: number | null;
+}): number[] {
   const out: number[] = [];
   for (let cp = 0; cp <= 0x10ffff; cp++) {
     if (cp >= 0xd800 && cp <= 0xdfff) continue;
     if (opts.ranges != null && !opts.ranges.some(([lo, hi]) => cp >= lo && cp <= hi)) continue;
+    // A low-byte bucket is a deterministic 1/256 stratified sample across the
+    // entire Unicode space: bucket 00 contains U+0000, U+0100, U+0200, … rather
+    // than one contiguous Latin-only page. Walking 00 through FF therefore
+    // covers the exhaustive universe exactly once, with no random gaps or
+    // duplicate rows between buckets.
+    if (opts.sampleByte != null && (cp & 0xff) !== opts.sampleByte) continue;
     const ch = String.fromCodePoint(cp);
     if (!RE_ASSIGNED.test(ch)) continue;
     if (RE_NONCHARACTER.test(ch)) continue;
@@ -1127,6 +1138,8 @@ export interface Options {
   extractStacks: boolean;
   sources: string[];
   ranges: Array<[number, number]> | null;
+  /** Low byte (00..FF) selected across the whole assigned Unicode universe. */
+  sampleByte: number | null;
   includePua: boolean;
   shard: [number, number] | null;
   stackShard: [number, number] | null;
@@ -1149,6 +1162,7 @@ export function parseArgs(argv: string[]): Options {
     extractStacks: false,
     sources: ["external/html-test", "../html-test/unicode"],
     ranges: null,
+    sampleByte: null,
     includePua: true,
     shard: null,
     stackShard: null,
@@ -1184,6 +1198,14 @@ export function parseArgs(argv: string[]): Options {
         }
         break;
       }
+      case "--sample-byte": {
+        const value = next();
+        if (!/^[0-9a-fA-F]{2}$/.test(value)) {
+          throw new Error(`--sample-byte wants exactly two hex digits from 00 to FF, got ${value}`);
+        }
+        o.sampleByte = parseInt(value, 16);
+        break;
+      }
       case "--no-pua": o.includePua = false; break;
       case "--shard": {
         const m = /^(\d+)\/(\d+)$/.exec(next());
@@ -1213,6 +1235,9 @@ export function parseArgs(argv: string[]): Options {
         process.exit(0);
       default: throw new Error(`unknown option ${a}`);
     }
+  }
+  if (o.sampleByte != null && o.ranges != null) {
+    throw new Error("--sample-byte and --range select different sampling schemes; use only one");
   }
   return o;
 }
@@ -1282,7 +1307,11 @@ async function main(): Promise<number> {
 
     const allowlist = loadAllowlist(opts.allowlistFile);
 
-    let universe = buildUniverse({ includePua: opts.includePua, ranges: opts.ranges });
+    let universe = buildUniverse({
+      includePua: opts.includePua,
+      ranges: opts.ranges,
+      sampleByte: opts.sampleByte,
+    });
     if (opts.shard != null) {
       const [i, n] = opts.shard;
       universe = universe.filter((_, idx) => idx % n === i - 1);
@@ -1539,6 +1568,7 @@ async function main(): Promise<number> {
         skippedStacks,
         includePua: opts.includePua,
         ranges: opts.ranges,
+        sampleByte: opts.sampleByte,
         shard: opts.shard,
         stackShard: opts.stackShard,
         strictAlias: opts.strictAlias,

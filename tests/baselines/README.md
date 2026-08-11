@@ -108,7 +108,7 @@ node scripts/diff-font-conformance-baseline.mjs --results merged.json \
   --baseline tests/baselines/font-conformance-macos.json --update-baseline
 ```
 
-### `font-conformance-synthetic-<os>.json` — same instrument, different corpus
+### `font-conformance-synthetic-<os>[-byte-XX].json` — same instrument, different corpus
 
 The same shape, from `.github/workflows/font-conformance-synthetic.yml`, sweeping
 the **rule-derived** stack corpus instead of the harvested one (doc 107, *"The
@@ -120,17 +120,24 @@ comparator would refuse to compare them anyway (`meta.slice.stacks` and
 `meta.corpus.generatedAt` both differ); the separate path makes that explicit
 rather than relying on the refusal.
 
+Routine runs use a rotating Unicode-wide low-byte bucket. For example, `byte-00`
+contains every eligible assigned codepoint ending in hex `00`, not the contiguous
+Latin-1 page. Buckets `00` through `FF` are disjoint and together equal the full
+universe. Each gets its own baseline because their mismatch totals are different
+questions; the unsuffixed file remains the explicit exhaustive baseline.
+
 One difference worth knowing when reading `meta.corpus`: the synthetic corpus's
 `generatedAt` is a **digest of the rule's output** (`synthetic:v1:<hex>`), not a
 timestamp. It is regenerated in every CI job, and a wall-clock stamp would
 invalidate the baseline on every run for no reason. Regenerating is comparable;
 changing the rule is not, which is the discrimination the field is for.
 
-These are **not seeded yet** — no synthetic sweep has been run on CI. Until one
-is, the comparator reports the run and says there is nothing to compare.
+The exhaustive synthetic baselines are seeded. A newly selected low-byte bucket
+must be seeded once; until then the comparator reports the run and says there is
+nothing to compare. Review and commit that artifact before using the bucket as a gate.
 
 ```sh
-gh workflow run font-conformance-synthetic.yml -f os=macos -f update_baseline=true
+gh workflow run font-conformance-synthetic.yml -f os=macos -f sample_byte=00 -f update_baseline=true
 ```
 
 ## Files

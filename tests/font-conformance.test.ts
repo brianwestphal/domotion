@@ -104,6 +104,20 @@ describe("buildUniverse", () => {
     const u = buildUniverse({ includePua: true, ranges: [[0x41, 0x43], [0x61, 0x62]] });
     expect(u).toEqual([0x41, 0x42, 0x43, 0x61, 0x62]);
   });
+
+  it("uses low-byte buckets as disjoint samples spanning Unicode", () => {
+    const zero = buildUniverse({ includePua: true, ranges: null, sampleByte: 0x00 });
+    const one = buildUniverse({ includePua: true, ranges: null, sampleByte: 0x01 });
+    expect(zero.length).toBeGreaterThan(1_000);
+    expect(zero.every((cp) => (cp & 0xff) === 0x00)).toBe(true);
+    expect(one.every((cp) => (cp & 0xff) === 0x01)).toBe(true);
+    const oneSet = new Set(one);
+    expect(zero.some((cp) => oneSet.has(cp))).toBe(false);
+    // These are separated by many Unicode blocks and planes, proving this is
+    // not the contiguous U+0000–U+00FF page.
+    expect(zero).toContain(0x0100);
+    expect(zero).toContain(0x1f600);
+  });
 });
 
 describe("needsIsolatedQuery", () => {
@@ -293,6 +307,7 @@ describe("parseArgs", () => {
   it("defaults to the whole universe and THIS PLATFORM's committed corpus", () => {
     const o = parseArgs([]);
     expect(o.ranges).toBe(null);
+    expect(o.sampleByte).toBe(null);
     expect(o.includePua).toBe(true);
     expect(o.shard).toBe(null);
     expect(o.stackShard).toBe(null);
@@ -319,6 +334,13 @@ describe("parseArgs", () => {
     expect(o.stackShard).toEqual([3, 16]);
     expect(o.includePua).toBe(false);
     expect(o.strictAlias).toBe(true);
+  });
+
+  it("parses a two-digit low-byte sample and rejects ambiguous selectors", () => {
+    expect(parseArgs(["--sample-byte", "aF"]).sampleByte).toBe(0xaf);
+    expect(() => parseArgs(["--sample-byte", "0"])).toThrow(/two hex digits/);
+    expect(() => parseArgs(["--sample-byte", "100"])).toThrow(/two hex digits/);
+    expect(() => parseArgs(["--sample-byte", "00", "--range", "0000-00FF"])).toThrow(/use only one/);
   });
 
   it("caps retained rows by default, because one wrong route makes ~200k of them", () => {
