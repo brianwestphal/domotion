@@ -47,6 +47,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   left-to-right default. Non-axis angles use analytically clipped, fixed-eight-
   vertex polygon samples so CSS interpolation remains valid across viewer
   engines; both ordinary and mixed-family reveal paths carry the parameter.
+- **Doc 115 (`docs/115-parameterized-transition-design.md`, DM-2042) —
+  Investigation complete.** Transition names, optional knobs, animator dispatch,
+  and duplicated CLI schemas should converge on a shared discriminated schema
+  plus a compatibility normalizer into one viewer-safe motion plan. Delivery is
+  split into DM-2070 (foundation), DM-2071 (built-in parameters), and DM-2072
+  (bounded custom recipe); legacy defaults retain byte-identical output.
 
 - **Doc 113 (`docs/113-cluster-granularity-fallback.md`)** — **Shipped,
   default-on for BOTH run splitters (embedded-font and glyph-path).** Blink
