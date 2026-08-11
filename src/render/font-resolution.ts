@@ -7701,6 +7701,8 @@ const BLINK_GENERIC_FAMILY_SPELLINGS: ReadonlySet<string> = new Set([
  *  literal family (the keyword serializes canonically lowercase). */
 interface FontFamilyStackEntry {
   name: string;
+  /** Original unquoted spelling passed to the platform family matcher. */
+  lookupName: string;
   generic: boolean;
   /** Exact canonical spelling after quote removal. Family lookup is generally
    * case-insensitive, but Blink's `system-ui` platform intercept is not. */
@@ -7719,6 +7721,7 @@ function splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[] {
     const name = unquoted.toLowerCase();
     return {
       name,
+      lookupName: unquoted,
       generic: !wasQuoted && unquoted === name && BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
       canonicalSystemUiName: unquoted === "system-ui",
     };
@@ -7951,6 +7954,7 @@ function matchFamilyNameToKey(
   generic: boolean = BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
   lang?: string,
   canonicalSystemUiName: boolean = name === "system-ui",
+  lookupName: string = name,
 ): string | null {
   if (name === "" || name === "doesnotexist") return null;
   const settingsName = name === "-webkit-standard" || name === "-webkit-body"
@@ -8465,7 +8469,7 @@ function matchFamilyNameToKey(
     // chosen PostScript face. If AppKit has no members, preserve the existing
     // exact-name probe as the degraded/unique-name path.
     const darwinFamilyMatch = hostPlatform() === "darwin"
-      ? resolveFamilyStyleMatch(name, { weight: 400, italic: false, stretch: 100 })
+      ? resolveFamilyStyleMatch(lookupName, { weight: 400, italic: false, stretch: 100 })
       : null;
     // AppKit can hand Blink a protected system-font member that CoreText will
     // not let another client reopen by its dot-prefixed PostScript name. Blink
@@ -8477,7 +8481,7 @@ function matchFamilyNameToKey(
     }
     const installed = darwinFamilyMatch != null
       ? resolveInstalledFont(darwinFamilyMatch.postscriptName)
-      : resolveInstalledFont(name);
+      : resolveInstalledFont(lookupName);
     if (installed != null) {
       const key = `sysfb:${installed.postscriptName}`;
       // DM-1721: `resolvedAxes` carries DirectWrite's pinned axis values for
@@ -8560,7 +8564,9 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
   // element's content locale; it moves the settings-mapped generics on
   // mac/win via Playwright's per-script tables (see matchFamilyNameToKey).
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName);
+    const key = matchFamilyNameToKey(
+      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,
+    );
     if (key != null) return key;
   }
   // Last-resort fallback when no family in the stack matched: Blink falls to
@@ -8591,7 +8597,9 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
 export function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {
   const out: string[] = [];
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName);
+    const key = matchFamilyNameToKey(
+      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,
+    );
     if (key != null && !out.includes(key)) out.push(key);
   }
   // Blink's family list ends with the STANDARD family: a codepoint no

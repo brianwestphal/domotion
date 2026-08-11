@@ -512,6 +512,78 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "hotsheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msodbbb2tsr01bzk",
+          "message": {
+            "text": "CSS family classification and table lookup use normalized lowercase names, but Blink passes the original AtomicString family spelling to MatchFontFamily. Preserve both forms in each stack entry; macos26 exposes the System-ui hidden alias only for the original platform query observed in Chrome, while generic recognition remains canonical and case-sensitive.",
+            "markdown": "CSS family classification and table lookup use normalized lowercase names, but Blink passes the original AtomicString family spelling to MatchFontFamily. Preserve both forms in each stack entry; macos26 exposes the System-ui hidden alias only for the original platform query observed in Chrome, while generic recognition remains canonical and case-sensitive."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7695,
+                  "endLine": 7730,
+                  "snippet": {
+                    "text": " *  `FontSelector::FamilyNameFromSettings` refuses to substitute settings for\n *  them (`platform/fonts/font_selector.cc:25-32`, rev 7d859f27: \"Quoted\n *  <font-family> values corresponding to a <generic-family> keyword should\n *  not be converted to a family name via user settings\", gated on\n *  `!generic_family.FamilyIsGeneric()`) — and neither is a case-variant\n *  spelling like `Monospace`, which the computed style only contains for a\n *  literal family (the keyword serializes canonically lowercase). */\ninterface FontFamilyStackEntry {\n  name: string;\n  /** Original unquoted spelling passed to the platform family matcher. */\n  lookupName: string;\n  generic: boolean;\n  /** Exact canonical spelling after quote removal. Family lookup is generally\n   * case-insensitive, but Blink's `system-ui` platform intercept is not. */\n  canonicalSystemUiName: boolean;\n}\n\n/** Normalize a computed `font-family` string into its ordered list of\n *  lower-cased, unquoted family names (Chrome's `getComputedStyle().fontFamily`\n *  is the full unresolved comma-separated stack), carrying the\n *  generic-keyword-vs-literal-name bit per entry (see FontFamilyStackEntry). */\nfunction splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[] {\n  return fontFamily.split(\",\").map((s) => {\n    const trimmed = s.trim();\n    const unquoted = trimmed.replace(/^[\"']|[\"']$/g, \"\");\n    const wasQuoted = unquoted !== trimmed;\n    const name = unquoted.toLowerCase();\n    return {\n      name,\n      lookupName: unquoted,\n      generic: !wasQuoted && unquoted === name && BLINK_GENERIC_FAMILY_SPELLINGS.has(name),\n      canonicalSystemUiName: unquoted === \"system-ui\",\n    };\n  });\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2074"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3add206d0d2696119c79198d7e671e33"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "https://github.com/brianwestphal/domotion/actions/runs/31470800864"
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2adf681af941975201f337c8f9580af5df8d9a2",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }
