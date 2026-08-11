@@ -440,6 +440,78 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "hotsheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msocw24uuonp81ed",
+          "message": {
+            "text": "CI sample 31469684313 proved AppKit nominated .SFNS-Regular but the resolver still fell through because protected dot-prefixed system faces cannot be reopened with CTFontCreateWithName. Blink retains the AppKit-created handle; Domotion must route that nomination to its path-opened sf-pro key while leaving systemUiPrimary false because the selection came through MatchFontFamily.",
+            "markdown": "CI sample 31469684313 proved AppKit nominated .SFNS-Regular but the resolver still fell through because protected dot-prefixed system faces cannot be reopened with CTFontCreateWithName. Blink retains the AppKit-created handle; Domotion must route that nomination to its path-opened sf-pro key while leaving systemUiPrimary false because the selection came through MatchFontFamily."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8468,
+                  "endLine": 8485,
+                  "snippet": {
+                    "text": "      ? resolveFamilyStyleMatch(name, { weight: 400, italic: false, stretch: 100 })\n      : null;\n    // AppKit can hand Blink a protected system-font member that CoreText will\n    // not let another client reopen by its dot-prefixed PostScript name. Blink\n    // keeps that NSFont/CTFont handle; our equivalent is the existing SFNS file\n    // key. Keep `stackPrimaryIsSystemUi` false for this route: it came through\n    // MatchFontFamily, not MatchSystemUIFont, even though both selected SFNS.\n    if (darwinFamilyMatch?.postscriptName.startsWith(\".SFNS-\") === true) {\n      return \"sf-pro\";\n    }\n    const installed = darwinFamilyMatch != null\n      ? resolveInstalledFont(darwinFamilyMatch.postscriptName)\n      : resolveInstalledFont(name);\n    if (installed != null) {\n      const key = `sysfb:${installed.postscriptName}`;\n      // DM-1721: `resolvedAxes` carries DirectWrite's pinned axis values for\n      // variable-face matches (e.g. \"Segoe UI Variable Text\" → opsz 10.5 at\n      // every size) so the hinted-subset pin embeds the instance Chrome paints."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2074"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9a574d9a6c0def30644b504fe337844f"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "https://github.com/brianwestphal/domotion/actions/runs/31469684313"
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "84f66554bb2e4271333071f22e5ff34f0af9d545",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }

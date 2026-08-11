@@ -106,7 +106,7 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
       // does not (the local image), both walk to Menlo.
       const appKit = resolveFamilyStyleMatch("system-ui");
       expect(resolveFontKey('"System-ui", Menlo')).toBe(
-        appKit == null ? "menlo" : `sysfb:${appKit.postscriptName}`,
+        appKit == null ? "menlo" : "sf-pro",
       );
     });
   });

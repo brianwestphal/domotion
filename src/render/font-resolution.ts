@@ -8467,6 +8467,14 @@ function matchFamilyNameToKey(
     const darwinFamilyMatch = hostPlatform() === "darwin"
       ? resolveFamilyStyleMatch(name, { weight: 400, italic: false, stretch: 100 })
       : null;
+    // AppKit can hand Blink a protected system-font member that CoreText will
+    // not let another client reopen by its dot-prefixed PostScript name. Blink
+    // keeps that NSFont/CTFont handle; our equivalent is the existing SFNS file
+    // key. Keep `stackPrimaryIsSystemUi` false for this route: it came through
+    // MatchFontFamily, not MatchSystemUIFont, even though both selected SFNS.
+    if (darwinFamilyMatch?.postscriptName.startsWith(".SFNS-") === true) {
+      return "sf-pro";
+    }
     const installed = darwinFamilyMatch != null
       ? resolveInstalledFont(darwinFamilyMatch.postscriptName)
       : resolveInstalledFont(name);
