@@ -47,7 +47,7 @@ on:
         options: [macos, linux, windows, all]
         default: macos
       shards:
-        description: 'Stack shards per platform. auto = macOS 8, Linux 6, Windows 16; a number overrides all platforms.'
+        description: 'Stack shards per platform. auto sizes sampled runs to 1 macOS / 1 Linux / 3 Windows; exhaustive runs use 8 / 6 / 16.'
         default: 'auto'
       max_stacks:
         description: 'Cap on synthetic stacks (ordered by distance from the CSS initial/default state). 13 = one per generic; 351 = +every single-axis departure; empty = all 50,544.'
@@ -97,9 +97,19 @@ jobs:
         run: |
           requested="${{ inputs.shards }}"
           if [ "$requested" = auto ]; then
-            macos_n=8
-            linux_n=6
-            windows_n=16
+            sample="${{ inputs.sample_byte }}"
+            if [ "$sample" = all ] || [ "$sample" = ALL ]; then
+              macos_n=8
+              linux_n=6
+              windows_n=16
+            else
+              # Measured on byte 00 / 351 stacks: one macOS shard projects to
+              # 5–7m, one Linux shard to ~2m plus setup, and three Windows
+              # shards to 5–8m. More fan-out mostly recompiles helpers.
+              macos_n=1
+              linux_n=1
+              windows_n=3
+            fi
           elif [[ "$requested" =~ ^[1-9][0-9]*$ ]]; then
             macos_n="$requested"
             linux_n="$requested"

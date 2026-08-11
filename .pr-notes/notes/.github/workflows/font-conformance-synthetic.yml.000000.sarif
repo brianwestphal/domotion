@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msoa4cfntd3in6o5",
+          "message": {
+            "text": "Sampled-mode fan-out is based on live byte-00 CI timings, not the obsolete exhaustive rates: macOS 44-stack shards took 35–49s, Linux 58–59-stack shards 17–20s, and Windows 21–22-stack shards 47–61s. Scaling those measurements gives one macOS job at roughly 5–7m, one Linux job near 2m plus setup, and three Windows jobs at 5–8m, reducing routine fan-out from 30 runners to five.",
+            "markdown": "Sampled-mode fan-out is based on live byte-00 CI timings, not the obsolete exhaustive rates: macOS 44-stack shards took 35–49s, Linux 58–59-stack shards 17–20s, and Windows 21–22-stack shards 47–61s. Scaling those measurements gives one macOS job at roughly 5–7m, one Linux job near 2m plus setup, and three Windows jobs at 5–8m, reducing routine fan-out from 30 runners to five."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/font-conformance-synthetic.yml"
+                },
+                "region": {
+                  "startLine": 99,
+                  "endLine": 119,
+                  "snippet": {
+                    "text": "          if [ \"$requested\" = auto ]; then\n            sample=\"${{ inputs.sample_byte }}\"\n            if [ \"$sample\" = all ] || [ \"$sample\" = ALL ]; then\n              macos_n=8\n              linux_n=6\n              windows_n=16\n            else\n              # Measured on byte 00 / 351 stacks: one macOS shard projects to\n              # 5–7m, one Linux shard to ~2m plus setup, and three Windows\n              # shards to 5–8m. More fan-out mostly recompiles helpers.\n              macos_n=1\n              linux_n=1\n              windows_n=3\n            fi\n          elif [[ \"$requested\" =~ ^[1-9][0-9]*$ ]]; then\n            macos_n=\"$requested\"\n            linux_n=\"$requested\"\n            windows_n=\"$requested\"\n          else\n            echo \"::error::shards must be 'auto' or a positive integer (got '$requested')\"\n            exit 2"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2073"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "58aefc026a6d56bc3c059550e7d9ab2c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "886e4ade31004f2bed164ac9ab2463b9205b7c35",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }
