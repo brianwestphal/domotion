@@ -7689,6 +7689,13 @@ const BLINK_GENERIC_FAMILY_SPELLINGS: ReadonlySet<string> = new Set([
   "math", "-webkit-standard", "-webkit-body",
 ]);
 
+// Blink's macOS platform-font cache folds family keys case-insensitively even
+// though the `system-ui` intercept itself is an exact AtomicString comparison.
+// Consequently an exact system-ui lookup warms the cache entry later used by
+// an ordinary case-variant `System-ui` family. Keep this process-scoped like
+// Blink's FontCache; memory-trim resets deliberately do not clear it.
+let darwinSystemUiPlatformCacheWarm = false;
+
 /** One name of a computed `font-family` stack: the lower-cased unquoted name,
  *  plus whether this occurrence is a CSS `<generic-family>` KEYWORD rather
  *  than a literal family name. Quoted values are never generic — Blink's
@@ -8309,6 +8316,7 @@ function matchFamilyNameToKey(
     // family and must walk on. `splitFontFamilyNames` preserves that one bit
     // before lower-casing names for ordinary case-insensitive family lookup.
     if (name === "system-ui" && canonicalSystemUiName) {
+      if (hostPlatform() === "darwin") darwinSystemUiPlatformCacheWarm = true;
       if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
         const matched = fcMatch("sans-serif");
         if (matched != null) {
@@ -8318,6 +8326,9 @@ function matchFamilyNameToKey(
           return key;
         }
       }
+      return "sf-pro";
+    }
+    if (name === "system-ui" && hostPlatform() === "darwin" && darwinSystemUiPlatformCacheWarm) {
       return "sf-pro";
     }
     // `BlinkMacSystemFont` is rewritten to `system-ui` only on macOS — the

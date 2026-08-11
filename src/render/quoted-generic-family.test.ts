@@ -25,7 +25,6 @@ import {
   clearFontResolutionCaches,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
-import { resolveFamilyStyleMatch } from "./glyph-helper.js";
 
 // Pin the live resolvers off: these tests assert the platform-independent
 // keyword-vs-literal logic (same rig as family-pin-parity.test.ts).
@@ -104,10 +103,10 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
       // that API exposes `System-ui` as an alias: when it does (the CI image),
       // Blink and our transcribed matcher both select its .SFNS member; when it
       // does not (the local image), both walk to Menlo.
-      const appKit = resolveFamilyStyleMatch("system-ui");
-      expect(resolveFontKey('"System-ui", Menlo')).toBe(
-        appKit == null ? "menlo" : "sf-pro",
-      );
+      // This exact lookup also warms Blink's case-insensitive platform-font
+      // cache. The following ordinary case variant therefore reuses SFNS even
+      // on a host where a cold `System-ui` family query would walk to Menlo.
+      expect(resolveFontKey('"System-ui", Menlo')).toBe("sf-pro");
     });
   });
 

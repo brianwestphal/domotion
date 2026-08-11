@@ -584,6 +584,78 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "hotsheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msodlvgc61uezn32",
+          "message": {
+            "text": "A same-browser Chromium probe showed the stateful rule: cold quoted System-ui paints Menlo; after exact quoted system-ui resolves once, quoted System-ui paints .SFNS-Regular. Blink system-ui interception is exact, but its macOS platform-font cache key aliases family casing. Preserve that cache warmth process-wide and outside memory-trim resets, matching the conformance oracle single-renderer ask sequence.",
+            "markdown": "A same-browser Chromium probe showed the stateful rule: cold quoted System-ui paints Menlo; after exact quoted system-ui resolves once, quoted System-ui paints .SFNS-Regular. Blink system-ui interception is exact, but its macOS platform-font cache key aliases family casing. Preserve that cache warmth process-wide and outside memory-trim resets, matching the conformance oracle single-renderer ask sequence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7690,
+                  "endLine": 7720,
+                  "snippet": {
+                    "text": "]);\n\n// Blink's macOS platform-font cache folds family keys case-insensitively even\n// though the `system-ui` intercept itself is an exact AtomicString comparison.\n// Consequently an exact system-ui lookup warms the cache entry later used by\n// an ordinary case-variant `System-ui` family. Keep this process-scoped like\n// Blink's FontCache; memory-trim resets deliberately do not clear it.\nlet darwinSystemUiPlatformCacheWarm = false;\n\n/** One name of a computed `font-family` stack: the lower-cased unquoted name,\n *  plus whether this occurrence is a CSS `<generic-family>` KEYWORD rather\n *  than a literal family name. Quoted values are never generic — Blink's\n *  `FontSelector::FamilyNameFromSettings` refuses to substitute settings for\n *  them (`platform/fonts/font_selector.cc:25-32`, rev 7d859f27: \"Quoted\n *  <font-family> values corresponding to a <generic-family> keyword should\n *  not be converted to a family name via user settings\", gated on\n *  `!generic_family.FamilyIsGeneric()`) — and neither is a case-variant\n *  spelling like `Monospace`, which the computed style only contains for a\n *  literal family (the keyword serializes canonically lowercase). */\ninterface FontFamilyStackEntry {\n  name: string;\n  /** Original unquoted spelling passed to the platform family matcher. */\n  lookupName: string;\n  generic: boolean;\n  /** Exact canonical spelling after quote removal. Family lookup is generally\n   * case-insensitive, but Blink's `system-ui` platform intercept is not. */\n  canonicalSystemUiName: boolean;\n}\n\n/** Normalize a computed `font-family` string into its ordered list of\n *  lower-cased, unquoted family names (Chrome's `getComputedStyle().fontFamily`"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2074"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d037bcf20cfde2f6b245e789e89d5e0f"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "https://github.com/brianwestphal/domotion/actions/runs/31471155034"
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6b253a6b95b6ea8831c46b3accdf479a315a7829",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }
