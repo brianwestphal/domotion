@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msogrf0cladsi4cl",
+          "message": {
+            "text": "Segmented webfont fallback must preserve Blink’s reverse declaration-order cursor. Re-selecting the best face for each hint can never reach a second overlapping unicode-range declaration, and physical-face deduplication is invalid when declarations share bytes but carry distinct range sets.",
+            "markdown": "Segmented webfont fallback must preserve Blink’s reverse declaration-order cursor. Re-selecting the best face for each hint can never reach a second overlapping unicode-range declaration, and physical-face deduplication is invalid when declarations share bytes but carry distinct range sets."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 714,
+                  "endLine": 752,
+                  "snippet": {
+                    "text": "            if (familyIndex >= familyCycle.length) { iter.stage = \"system\"; break; }\n            const entry = familyCycle[familyIndex];\n            if (entry.inst == null && entry.key.startsWith(\"webfont:\")) {\n              // kSegmentedFace: a webfont family's unicode-range partitions.\n              // Walk EVERY declaration in reverse source order and apply\n              // `RangeSetContributesForHint` to the current hint list. Scoring\n              // each hint independently loses the next overlapping face.\n              const family = entry.key.slice(\"webfont:\".length);\n              let state = segmentedWebfonts.get(entry.key);\n              if (state == null) {\n                state = { faces: webfontVariantsInDeclarationOrder(family, weight, fontSize, slant,\n                  entry.key === primaryFontKey ? variationSettings : undefined, stretch), index: 0 };\n                segmentedWebfonts.set(entry.key, state);\n              }\n              while (state.index < state.faces.length) {\n                let v = state.faces[state.index++];\n                const ranges = v.webfontUnicodeRange;\n                if (ranges != null && !hints.some((cp) => unicodeRangeCovers(ranges, cp))) continue;\n                const isPrimary = entry.key === primaryFontKey\n                  && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;\n                if (isPrimary) v = primaryFont;\n                const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);\n                if (face == null || face.faceIndex == null) throw new DeclineError();\n                const identity = `${face.path}#${face.faceIndex}`;\n                const subsetted = v.webfontUnicodeRange != null;\n                if (!subsetted) {\n                  if (returnedFaces.has(identity)) continue;\n                  returnedFaces.add(identity);\n                }\n                const cand: Candidate = { key: entry.key, font: v, face, isPrimary, clampRanges: ranges ?? null };\n                if (firstCandidate == null) firstCandidate = cand;\n                return cand;\n              }\n              familyIndex++; // no (further) contributing variant for these hints\n              break;\n            }\n            familyIndex++;\n            const inst = entry.inst ?? getFontInstance(entry.key, weight, fontSize, slant);\n            if (inst == null) break;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2040"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c1dcb5bc6761c2693b07b167f498b4d0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1ca9c65245b578b745555eb4cd5b6b11c857cbaf",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

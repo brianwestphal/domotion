@@ -218,6 +218,7 @@ jobs:
           cmake -S tools/linux-glyph-extractor -B /tmp/lgx -DCMAKE_BUILD_TYPE=Release
           cmake --build /tmp/lgx -j
           cp /tmp/lgx/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
+          test "$(tools/linux-glyph-extractor/domotion-glyph-paths --fontconfig-mode)" = '{"fontations":true,"configReady":true}'
       - name: Generate the synthetic stack corpus
         run: npx tsx tools/font-conformance-synthetic-stacks.ts
       - name: Sweep

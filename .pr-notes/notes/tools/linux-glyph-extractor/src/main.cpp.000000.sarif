@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msogrf5w7ty112kg",
+          "message": {
+            "text": "Fontations mode is process initialization state, not a per-query option. Chromium requires FC_FONTATIONS=1 before FcInit; setting it here before any helper argument handling guarantees every fontconfig cache and sorted-set query observes the same indexer.",
+            "markdown": "Fontations mode is process initialization state, not a per-query option. Chromium requires FC_FONTATIONS=1 before FcInit; setting it here before any helper argument handling guarantees every fontconfig cache and sorted-set query observes the same indexer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1184,
+                  "endLine": 1190,
+                  "snippet": {
+                    "text": "  // Chromium sets this before any threads — and, critically, before FcInit —\n  // so fontconfig indexes faces with Fontations rather than FreeType. Its\n  // sorted fallback set is observably different for language-sensitive runs.\n  // This helper is single-threaded at startup, so setenv has the same safe\n  // ordering as ContentMainRunnerImpl::Initialize + GlobalFontConfig.\n  if (setenv(\"FC_FONTATIONS\", \"1\", 1) != 0) die(\"setenv FC_FONTATIONS failed\");\n  if (!FcInit()) die(\"FcInit failed\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2082"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "95f079b701bbba99df6cfc211ad0d5ea"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1ca9c65245b578b745555eb4cd5b6b11c857cbaf",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -38,6 +38,7 @@
 #include FT_SFNT_NAMES_H
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -1180,6 +1181,14 @@ static std::string readAll(std::istream& in) {
 }
 
 int main(int argc, char** argv) {
+  // Chromium sets this before any threads — and, critically, before FcInit —
+  // so fontconfig indexes faces with Fontations rather than FreeType. Its
+  // sorted fallback set is observably different for language-sensitive runs.
+  // This helper is single-threaded at startup, so setenv has the same safe
+  // ordering as ContentMainRunnerImpl::Initialize + GlobalFontConfig.
+  if (setenv("FC_FONTATIONS", "1", 1) != 0) die("setenv FC_FONTATIONS failed");
+  if (!FcInit()) die("FcInit failed");
+
   std::string inputPath;
   bool serve = false;
   for (int i = 1; i < argc; i++) {
@@ -1190,8 +1199,16 @@ int main(int argc, char** argv) {
       std::cout << "domotion-glyph-paths (linux/freetype) 0.2.0\n";
       return 0;
     }
+    if (a == "--fontconfig-mode") {
+      const char* mode = std::getenv("FC_FONTATIONS");
+      std::cout << "{\"fontations\":"
+                << (mode != nullptr && std::strcmp(mode, "1") == 0 ? "true" : "false")
+                << ",\"configReady\":" << (FcConfigGetCurrent() != nullptr ? "true" : "false")
+                << "}\n";
+      return 0;
+    }
     if (a == "--help" || a == "-h") {
-      std::cout << "Usage: domotion-glyph-paths [--input <path>] [--serve]\n"
+      std::cout << "Usage: domotion-glyph-paths [--input <path>] [--serve] [--fontconfig-mode]\n"
                    "Reads a JSON request envelope from stdin (default) or the given file.\n"
                    "Writes a JSON response to stdout.\n"
                    "--serve: persistent mode — read one request envelope per line on stdin,\n"

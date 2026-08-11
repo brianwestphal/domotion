@@ -185,6 +185,7 @@ jobs:
           cmake --build /tmp/lgx -j
           cp /tmp/lgx/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
           echo "helper built: $(file tools/linux-glyph-extractor/domotion-glyph-paths)"
+          test "$(tools/linux-glyph-extractor/domotion-glyph-paths --fontconfig-mode)" = '{"fontations":true,"configReady":true}'
       - name: Sweep
         run: bash scripts/ci-font-conformance-shard.sh
         env:

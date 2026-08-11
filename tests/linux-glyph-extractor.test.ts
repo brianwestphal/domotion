@@ -24,6 +24,14 @@ const HELPER = path.resolve(HERE, "..", "tools", "linux-glyph-extractor", "domot
 const helperAvailable = process.platform === "linux" && existsSync(HELPER);
 const describeHelper = helperAvailable ? describe : describe.skip;
 
+describeHelper("Chromium fontconfig process configuration", () => {
+  it("enables Fontations indexing before exposing the initialized config", () => {
+    const proc = spawnSync(HELPER, ["--fontconfig-mode"], { encoding: "utf-8" });
+    expect(proc.status, proc.stderr).toBe(0);
+    expect(JSON.parse(proc.stdout)).toEqual({ fontations: true, configReady: true });
+  });
+});
+
 // Resolve a system font file across distro layout differences; null when absent
 // (the individual case skips rather than failing on a runner without that font).
 function resolveFontFile(candidates: string[]): string | null {
