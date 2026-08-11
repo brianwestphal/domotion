@@ -95,7 +95,12 @@ gradient / `conic` mask (which has cross-engine caveats), no animated filter.
   them) still interpolates smoothly. The default (`start 0`, clockwise) is
   byte-identical to the original. `clockWipeClip` / `clockWipeStops` take
   `(startDeg, dir)`; the value flows through `classifyEntrance` → the composed
-  reveal and through `emitRevealFrame`.
+  reveal and through `emitRevealFrame`. **Viewport reference box (DM-1996):**
+  every clock polygon explicitly appends the `view-box` geometry box. Its pixel
+  coordinates are authored in the root SVG viewBox (center `w/2,h/2` and the
+  four viewport corners); leaving the geometry box implicit allowed WebKit to
+  resolve the animated basic shape against the clipped group's changing bounds,
+  visibly shifting the origin and cropping a rectangular scene mid-sweep.
 
 ### Why a `polygon()` sweep, not a conic mask
 

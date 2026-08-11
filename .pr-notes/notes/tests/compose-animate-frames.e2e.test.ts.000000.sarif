@@ -235,6 +235,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnxx1m9vazxt1mc",
+          "message": {
+            "text": "The 1440x900 regression runs the same generated SVG in Chromium and Playwright WebKit at 25%, 50%, 75%, and completion. Both engines report seven vertices centered at 720,450, retain an opaque handoff layer at every sample, and include all four viewport corners at completion.",
+            "markdown": "The 1440x900 regression runs the same generated SVG in Chromium and Playwright WebKit at 25%, 50%, 75%, and completion. Both engines report seven vertices centered at 720,450, retain an opaque handoff layer at every sample, and include all four viewport corners at completion."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 49,
+                  "endLine": 94,
+                  "snippet": {
+                    "text": "describeCrossEngine(\"clock-wipe viewport geometry (DM-1996)\", () => {\n  it(\"keeps a rectangular wipe centered and covering the handoff in Chromium and WebKit\", async () => {\n    const svg = generateAnimatedSvg({\n      width: 1440,\n      height: 900,\n      frames: [\n        { svgContent: '<rect width=\"1440\" height=\"900\"/>', duration: 500, transition: { type: \"wipe-clock\", duration: 400 } },\n        { svgContent: '<rect width=\"1440\" height=\"900\"/>', duration: 500, transition: { type: \"cut\", duration: 0 } },\n      ],\n    });\n    expect(svg).toMatch(/clip-path: polygon\\([^;]+\\) view-box/);\n    for (const browser of [env!.browser, webkitBrowser!]) {\n      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });\n      try {\n        await page.setContent(svg);\n        for (const time of [600, 700, 800, 900]) {\n          const state = await page.evaluate((at) => {\n            for (const animation of document.getAnimations()) {\n              animation.pause();\n              animation.currentTime = at;\n            }\n            const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);\n            return {\n              clip: style(\".fr-1\").clipPath,\n              outgoing: Number.parseFloat(style(\".f-0\").opacity),\n              incoming: Number.parseFloat(style(\".f-1\").opacity),\n            };\n          }, time);\n          const points = [...state.clip.matchAll(/([-\\d.]+)px\\s+([-\\d.]+)px/g)]\n            .map((match) => [Number(match[1]), Number(match[2])]);\n          expect(points).toHaveLength(7);\n          expect(points[0][0]).toBeCloseTo(720, 1);\n          expect(points[0][1]).toBeCloseTo(450, 1);\n          expect(Math.max(state.outgoing, state.incoming)).toBe(1);\n          if (time === 900) {\n            for (const corner of [[0, 0], [1440, 0], [1440, 900], [0, 900]]) {\n              expect(points.some(([x, y]) => x === corner[0] && y === corner[1])).toBe(true);\n            }\n          }\n        }\n      } finally {\n        await page.close();\n      }\n    }\n  });\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 632
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-1996"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "96f5d4d9ecf9d35f575cccc1a8269be5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cfaff0f882ce2ecfa39190c7815441a71307170",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

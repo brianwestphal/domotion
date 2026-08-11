@@ -629,7 +629,11 @@ function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -
     ...corners.map((c) => (theta >= c.ph ? c.pt : lead)),
     lead,              // current leading edge
   ];
-  return "polygon(" + verts.map(([x, y]) => `${x.toFixed(2)}px ${y.toFixed(2)}px`).join(", ") + ")";
+  // DM-1996: explicitly bind the basic shape to the nearest SVG viewport.
+  // Leaving the geometry box implicit lets WebKit resolve the px coordinates
+  // against the clipped group's changing object bounds, shifting the apparent
+  // center and temporarily cropping an edge on rectangular scenes.
+  return "polygon(" + verts.map(([x, y]) => `${x.toFixed(2)}px ${y.toFixed(2)}px`).join(", ") + ") view-box";
 }
 
 /**

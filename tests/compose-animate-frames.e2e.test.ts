@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { webkit } from "@playwright/test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -36,11 +37,61 @@ async function setup() {
 }
 
 const env = await setup();
+const webkitBrowser = await webkit.launch().catch(() => null);
 afterAll(async () => {
   await closeBrowserSafely(env?.browser);
+  await closeBrowserSafely(webkitBrowser);
 }, 15_000);
 
 const describeBrowser = env ? describe : describe.skip;
+const describeCrossEngine = env && webkitBrowser ? describe : describe.skip;
+
+describeCrossEngine("clock-wipe viewport geometry (DM-1996)", () => {
+  it("keeps a rectangular wipe centered and covering the handoff in Chromium and WebKit", async () => {
+    const svg = generateAnimatedSvg({
+      width: 1440,
+      height: 900,
+      frames: [
+        { svgContent: '<rect width="1440" height="900"/>', duration: 500, transition: { type: "wipe-clock", duration: 400 } },
+        { svgContent: '<rect width="1440" height="900"/>', duration: 500, transition: { type: "cut", duration: 0 } },
+      ],
+    });
+    expect(svg).toMatch(/clip-path: polygon\([^;]+\) view-box/);
+    for (const browser of [env!.browser, webkitBrowser!]) {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      try {
+        await page.setContent(svg);
+        for (const time of [600, 700, 800, 900]) {
+          const state = await page.evaluate((at) => {
+            for (const animation of document.getAnimations()) {
+              animation.pause();
+              animation.currentTime = at;
+            }
+            const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
+            return {
+              clip: style(".fr-1").clipPath,
+              outgoing: Number.parseFloat(style(".f-0").opacity),
+              incoming: Number.parseFloat(style(".f-1").opacity),
+            };
+          }, time);
+          const points = [...state.clip.matchAll(/([-\d.]+)px\s+([-\d.]+)px/g)]
+            .map((match) => [Number(match[1]), Number(match[2])]);
+          expect(points).toHaveLength(7);
+          expect(points[0][0]).toBeCloseTo(720, 1);
+          expect(points[0][1]).toBeCloseTo(450, 1);
+          expect(Math.max(state.outgoing, state.incoming)).toBe(1);
+          if (time === 900) {
+            for (const corner of [[0, 0], [1440, 0], [1440, 900], [0, 900]]) {
+              expect(points.some(([x, y]) => x === corner[0] && y === corner[1])).toBe(true);
+            }
+          }
+        }
+      } finally {
+        await page.close();
+      }
+    }
+  });
+});
 
 describeBrowser("composeAnimateFrames (DM-1137)", () => {
   it("renders exact frame/overlay boundaries without ghost layers (DM-1994)", async () => {

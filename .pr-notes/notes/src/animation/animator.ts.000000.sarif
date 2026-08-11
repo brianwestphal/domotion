@@ -413,6 +413,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnxx1e3nu5mjjuf",
+          "message": {
+            "text": "Clock-wipe polygons use root-viewBox pixel coordinates, so the clip explicitly selects the SVG view-box geometry box. The attached failing artifact already proved the numeric center and corners were correct; binding their reference box removes WebKit's content-bounds-dependent offset and crop without changing the polygon math.",
+            "markdown": "Clock-wipe polygons use root-viewBox pixel coordinates, so the clip explicitly selects the SVG view-box geometry box. The attached failing artifact already proved the numeric center and corners were correct; binding their reference box removes WebKit's content-bounds-dependent offset and crop without changing the polygon math."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 632,
+                  "endLine": 636,
+                  "snippet": {
+                    "text": "  // DM-1996: explicitly bind the basic shape to the nearest SVG viewport.\n  // Leaving the geometry box implicit lets WebKit resolve the px coordinates\n  // against the clipped group's changing object bounds, shifting the apparent\n  // center and temporarily cropping an edge on rectangular scenes.\n  return \"polygon(\" + verts.map(([x, y]) => `${x.toFixed(2)}px ${y.toFixed(2)}px`).join(\", \") + \") view-box\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 49
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-1996"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d7756a02a9b154e6c8df4cbc2963c264"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cfaff0f882ce2ecfa39190c7815441a71307170",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
