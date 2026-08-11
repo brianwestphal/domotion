@@ -97,6 +97,9 @@ export interface WebfontSynthesisFace {
 }
 
 export interface FontInstance {
+  /** Physical SFNT table directory when fontkit opened the face. Native-helper
+   * instances omit it. Used for Blink's color-table presentation test. */
+  directory?: { tables?: Record<string, unknown> };
   /**
    * DM-1894: `script`/`language`/`direction` mirror fontkit's own signature, and
    * `direction` is the one that matters — Blink passes direction into the shaper
@@ -3488,6 +3491,25 @@ export function isColorEmojiFontKey(key: string): boolean {
   const k = key.toLowerCase();
   return k.includes("applecoloremoji") || k.includes("notocoloremoji")
     || k.includes("noto color emoji") || k.includes("segoe-ui-emoji") || k.includes("seguiemj");
+}
+
+/**
+ * Blink `ColorTableLookup::TypefaceHasAnySupportedColorTable`, transcribed
+ * from `opentype/color_table_lookup.cc` (Chromium rev 7d859f27).
+ *
+ * A face is color-capable when it contains sbix, both COLR+CPAL, or both
+ * CBDT+CBLC. This is deliberately a table query rather than an emoji-family
+ * allowlist: author webfonts can carry any of these formats under any name.
+ * Native-helper faces currently expose no SFNT directory, so only that tier
+ * retains the established platform-family fallback.
+ */
+export function fontHasSupportedColorTable(font: Pick<FontInstance, "directory">, key = ""): boolean {
+  const tables = font.directory?.tables;
+  if (tables == null) return isColorEmojiFontKey(key);
+  if ("sbix" in tables) return true;
+  if ("COLR" in tables && "CPAL" in tables) return true;
+  if ("CBDT" in tables && "CBLC" in tables) return true;
+  return false;
 }
 
 /**

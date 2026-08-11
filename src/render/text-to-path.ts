@@ -61,7 +61,7 @@ import {
   fontAutoInsertsDottedCircle,
   fontFeatureValueShapingOverride,
   FontVariantEmojiOverride,
-  isColorEmojiFontKey,
+  fontHasSupportedColorTable,
   isEmojiCharCp,
   getFontInstance,
   getFontSourceInfo,
@@ -689,8 +689,8 @@ export function textToPathMarkup(
           const isEmoji = charFve == null
             ? isEmojiCodepoint(cp, nextCp)
             : charFve === "text"
-              ? isEmojiCodepoint(cp, nextCp) && isColorEmojiFontKey(run.fontKey)
-              : isEmojiCodepoint(cp, nextCp) || (isEmojiCharCp(cp) && isColorEmojiFontKey(run.fontKey));
+              ? isEmojiCodepoint(cp, nextCp) && fontHasSupportedColorTable(run.font, run.fontKey)
+              : isEmojiCodepoint(cp, nextCp) || (isEmojiCharCp(cp) && fontHasSupportedColorTable(run.font, run.fontKey));
           const uses: string[] = [];
           for (const g of layout.glyphs) {
             const gCmds = commandsFor(g, run.fontKey, weight, fontSize, slant);
