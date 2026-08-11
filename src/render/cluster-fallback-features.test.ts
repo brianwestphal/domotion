@@ -100,7 +100,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     const { splitTextIntoGlyphPathRuns } = await import("./text-to-path.js");
     const { harfbuzzShapeRun } = await import("./harfbuzz-shaper.js");
     const spy = harfbuzzShapeRun as unknown as ReturnType<typeof vi.fn>;
-    const passthrough = spy.getMockImplementation()!;
+    const passthrough = spy.getMockImplementation()! as (...args: unknown[]) => any;
     const family = "Helvetica";
     const key = resolveFontKey(family);
     const font = resolveFont(family, 400, 32, 0)!;

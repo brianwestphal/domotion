@@ -280,7 +280,7 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > macOS"; doc [40](40-cross-platform-font-paths.md) L62 notes the keys are
 > "macOS-centric".
 >
-> **Session generic-family overrides (flag-gated, default OFF).** The concrete
+> **Session generic-family resolution (live-browser authority, default ON).** The concrete
 > family behind a generic keyword is a property of the LAUNCHED capture
 > session, not of Chromium's source: Playwright applies its own vendored
 > per-platform table to every non-headful page via CDP `Page.setFontFamilies`
@@ -291,20 +291,21 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 > (`third_party/blink/common/web_preferences/web_preferences.cc:25-41`, rev
 > 7d859f27 — the only layer a headless-shell launch otherwise has; the chrome
 > prefs layer's `locale_settings_<platform>.grd` applies only headed/full).
-> The calibrated static generic routes above encode the Playwright-table state
-> (which is why `monospace`→`courier` on macOS, not the `.grd`'s Menlo). With
-> `DOMOTION_GENERIC_PROBE=1`, the capture funnel
+> The capture funnel
 > (`captureElementTreeWithWarnings` → `src/capture/generic-font-probe.ts`)
 > instead probes the live session once per browser context — one hidden page
-> containing Common-script spans for all six generics plus native-text spans
-> for ja/ko/zh-Hans/zh-Hant × serif/sans-serif/monospace. Two consecutive
+> containing Common-script spans for the standard family and all six generics,
+> plus primary-covered spans for ja/ko/zh-Hans/zh-Hant/ru/ar/el across that
+> same family set. Two consecutive
 > identical paints are required (up to three attempts), so a first-layout race
 > between Playwright's `Page.setFontFamilies` and Blink's constructor defaults
 > is not installed as truth. `setSessionGenericFamilyOverrides` installs both
 > Common and script-keyed answers; `matchFamilyNameToKey` prefers the exact
 > probed script answer over the static `forScripts` transcription, then uses
-> the probed Common answer ahead of calibrated static routes. An absent or
-> unresolvable probed answer falls through to the same static path as before.
+> the probed Common answer ahead of calibrated static routes. CDP PostScript
+> identity is preserved so a settings-selected face is not rematched to a
+> different curated family cut. `DOMOTION_GENERIC_PROBE=0` explicitly selects
+> the degraded static path; probe failure otherwise falls back safely.
 
 ```mermaid
 flowchart TD

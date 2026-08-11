@@ -103,11 +103,13 @@ import {
   resolveFontKey,
   resolveFontKeyChain,
   resolveFontSpec,
+  setSessionGenericFamilyOverrides,
   stackPrimaryIsSystemUi,
   stretchPercent,
 } from "../src/render/font-resolution.js";
 import { glyphHelperCodepointMemoSize, resolveInstalledFont } from "../src/render/glyph-helper.js";
 import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
+import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -848,6 +850,15 @@ class ChromeOracle {
 
   static async create(browser: Browser, concurrency: number, lang: string): Promise<ChromeOracle> {
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+    // Resolve settings-backed families from the exact Chromium context whose
+    // answers this oracle compares. Browser launch shape and Playwright's
+    // Page.setFontFamilies override are runtime inputs to Blink, not constants
+    // that can be transcribed from the Chromium checkout.
+    const generics = await probeSessionGenericFamilies(ctx);
+    if (generics == null) {
+      throw new Error("oracle: Chromium session-family probe did not stabilize");
+    }
+    setSessionGenericFamilyOverrides(generics);
     const page = await ctx.newPage();
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("DOM.enable");

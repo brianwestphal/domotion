@@ -1,4 +1,5 @@
-// Session generic-family probe (flag-gated prototype, default OFF).
+// Session generic-family probe (default-on; explicitly disable with
+// DOMOTION_GENERIC_PROBE=0).
 //
 // The concrete families behind the CSS generic keywords (`serif`,
 // `sans-serif`, `monospace`, `cursive`, `fantasy`, `math`) are a property of
@@ -31,31 +32,33 @@
 // Because the winning layer changes with the launch shape (headless shell vs
 // full binary vs headed) and Playwright's CDP update can even lose a race
 // against first layout on a loaded CI runner, no static table can be correct
-// for every session. When `DOMOTION_GENERIC_PROBE=1`, we instead ask the
+// for every session. We therefore ask the
 // capture session itself — render one hidden page with Common and per-script
 // generic spans, read the painted family via CDP
 // `CSS.getPlatformFontsForNode`, and route the generic keywords to those
 // families for the rest of the process
 // (`setSessionGenericFamilyOverrides` in `src/render/font-resolution.ts`).
-// Default OFF: the calibrated static generic routes are unchanged unless the
-// flag is set.
+// Static routes remain only as a degraded fallback when probing fails or is
+// explicitly disabled.
 
 import type { BrowserContext, Page } from "@playwright/test";
 import { setSessionGenericFamilyOverrides } from "../render/font-resolution.js";
 import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
 
-/** The generic keywords probed. `standard` (no font-family) is intentionally
- *  excluded: capture reads the computed `font-family` stack, so an element
- *  with no declared family is handled by the renderer's default route, not by
- *  a generic keyword match. */
-const PROBED_GENERICS = ["serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
+/** Browser settings families that participate in Blink's declared-family
+ *  list. `standard` is the implicit final family and therefore also owns the
+ *  `.notdef` donor when every declared candidate is exhausted. */
+const PROBED_GENERICS = ["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
 const SCRIPT_PROBES = [
-  { lang: "ja", text: "日本語" },
-  { lang: "ko", text: "한국어" },
-  { lang: "zh-Hans", text: "简体中文" },
-  { lang: "zh-Hant", text: "繁體中文" },
+  { lang: "ja", text: "A" },
+  { lang: "ko", text: "A" },
+  { lang: "zh-Hans", text: "A" },
+  { lang: "zh-Hant", text: "A" },
+  { lang: "ru", text: "A" },
+  { lang: "ar", text: "A" },
+  { lang: "el", text: "A" },
 ] as const;
-const SCRIPT_PROBED_GENERICS = ["serif", "sans-serif", "monospace"] as const;
+const SCRIPT_PROBED_GENERICS = PROBED_GENERICS;
 
 export interface SessionGenericFamilyProbe {
   common: ReadonlyMap<string, string>;
@@ -87,7 +90,7 @@ export function genericFamilyProbeTargets(): ProbeTarget[] {
 }
 
 export function genericProbeArmed(): boolean {
-  return process.env.DOMOTION_GENERIC_PROBE === "1";
+  return process.env.DOMOTION_GENERIC_PROBE !== "0";
 }
 
 /** One shared task per browser context. Concurrent captures await the same
@@ -98,7 +101,8 @@ const contextProbeTasks = new WeakMap<BrowserContext, Promise<SessionGenericFami
 /**
  * Ask THIS capture session which family each CSS generic keyword paints.
  * Returns Common and script-keyed maps from generic keyword to painted
- * platform family name (e.g. "monospace" -> "Courier"), or null when the
+ * platform face name (preferentially PostScript, e.g. "monospace" ->
+ * "Courier"), or null when the
  * probe fails or never stabilizes. Never throws.
  */
 export async function probeSessionGenericFamilies(
@@ -110,7 +114,7 @@ export async function probeSessionGenericFamilies(
     const targets = genericFamilyProbeTargets();
     const spans = targets.map(
       (target) => `<span id="${target.id}"${target.lang == null ? "" : ` lang="${target.lang}"`}`
-        + ` style="font-family: ${target.generic}; font-size: 32px;">${target.text}</span>`,
+        + ` style="${target.generic === "standard" ? "" : `font-family: ${target.generic}; `}font-size: 32px;">${target.text}</span>`,
     ).join("<br>");
     const cdp = await context.newCDPSession(page);
     await cdp.send("DOM.enable");
@@ -133,14 +137,20 @@ export async function probeSessionGenericFamilies(
           null as (typeof fonts)[number] | null,
         );
         if (primary == null || primary.familyName === "") continue;
-        if (target.script == null) common.set(target.generic, primary.familyName);
+        // Family names can collapse distinct Chromium cuts. In particular,
+        // CoreText reports family "Hiragino Kaku Gothic ProN" while Blink has
+        // selected HiraKakuProN-W3; feeding only the family back through our
+        // matcher re-selected the unrelated HiraginoSans-W4 face. Preserve
+        // Chromium's concrete face identity whenever CDP supplies it.
+        const faceName = primary.postScriptName ?? primary.familyName;
+        if (target.script == null) common.set(target.generic, faceName);
         else {
           let scriptMap = byScript.get(target.script);
           if (scriptMap == null) {
             scriptMap = new Map();
             byScript.set(target.script, scriptMap);
           }
-          scriptMap.set(target.generic, primary.familyName);
+          scriptMap.set(target.generic, faceName);
         }
       }
       return common.size > 0 ? { common, byScript } : null;
@@ -175,10 +185,10 @@ function probeResultsEqual(
 }
 
 /**
- * Flag-gated entry point called from the capture funnel: probe the page's
+ * Default-on entry point called from the capture funnel: probe the page's
  * browser context once and install the result as the session generic-family
  * overrides consulted by `matchFamilyNameToKey`. No-op unless
- * `DOMOTION_GENERIC_PROBE=1`; never throws; never re-probes a context.
+ * `DOMOTION_GENERIC_PROBE=0`; never throws; never re-probes a context.
  */
 export async function ensureSessionGenericFamilyOverrides(page: Page): Promise<void> {
   if (!genericProbeArmed()) return;

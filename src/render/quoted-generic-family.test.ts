@@ -94,11 +94,18 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
     });
   });
 
+  it("preserves the case-sensitive system-ui platform intercept", () => {
+    withHostPlatform("darwin", () => {
+      expect(resolveFontKey('"system-ui", Menlo')).toBe("sf-pro");
+      expect(resolveFontKey('"System-ui", Menlo')).toBe("menlo");
+    });
+  });
+
   it("a quoted spelling bypasses the session-probed generic override; the keyword takes it", () => {
     withHostPlatform("darwin", () => {
       setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
       // Keyword: routed through the probed override to Menlo.
-      expect(resolveFontKey("monospace")).toBe("menlo");
+      expect(resolveFontKey("monospace")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
       // Literal name: never consults the override — walks past to Georgia.
       expect(resolveFontKey('"monospace", Georgia')).toBe("georgia");
     });

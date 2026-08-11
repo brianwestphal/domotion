@@ -1,5 +1,5 @@
 /**
- * Session generic-family overrides (flag-gated prototype, default OFF).
+ * Session generic-family overrides (live-browser authority, default ON).
  *
  * The concrete family behind a CSS generic keyword is a property of the
  * launched capture session — Playwright applies its own per-platform table
@@ -8,9 +8,9 @@
  * overriding blink's `WebPreferences` constructor defaults
  * (`third_party/blink/common/web_preferences/web_preferences.cc:25-41`, rev
  * 7d859f27). So when the capture side probes the session
- * (`DOMOTION_GENERIC_PROBE=1`), the probed painted families must win over the
- * static generic routes; when no overrides are installed (the default), the
- * static routes must be untouched.
+ * the probed painted families must win over the static generic routes. Static
+ * routes remain the degraded path when probing is explicitly disabled or
+ * unavailable.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -37,7 +37,20 @@ describe("setSessionGenericFamilyOverrides", () => {
     // painted Menlo must win. (Key names are platform-independent here — the
     // probed name goes back through the ordinary family matcher.)
     setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
-    expect(resolveFontKey("monospace")).toBe("menlo");
+    expect(resolveFontKey("monospace")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+  });
+
+  it("routes the implicit standard-family terminal from the session", () => {
+    setSessionGenericFamilyOverrides({ common: new Map([["standard", "Menlo"]]), byScript: new Map() });
+    expect(resolveFontKey("DoesNotExist")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+  });
+
+  it("routes a script-specific standard-family terminal from the session", () => {
+    setSessionGenericFamilyOverrides({
+      common: new Map([["standard", "Times"]]),
+      byScript: new Map([["ARABIC", new Map([["standard", "Menlo"]])]]),
+    });
+    expect(resolveFontKey("DoesNotExist", "ar")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
   });
 
   it("falls back to the static route when the probed family is unrecognized", () => {

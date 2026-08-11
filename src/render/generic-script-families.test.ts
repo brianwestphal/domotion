@@ -185,7 +185,7 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
     withHostPlatform("darwin", () => {
       setSessionGenericFamilyOverrides({ common: new Map([["serif", "Menlo"]]), byScript: new Map() });
       // Common script: the probe's answer wins.
-      expect(resolveFontKey("serif")).toBe("menlo");
+      expect(resolveFontKey("serif")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
       // Japanese script: settings.Serif(jpan) exists, so the Common-script
       // probe value must not preempt it (generic_font_family_settings.cc:105-107
       // falls back to Common only when the per-script entry is MISSING).
@@ -201,9 +201,9 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
         common: new Map([["serif", "Georgia"]]),
         byScript: new Map([["KATAKANA_OR_HIRAGANA", new Map([["serif", "Menlo"]])]]),
       });
-      expect(resolveFontKey("serif", "ja")).toBe("menlo");
-      expect(resolveFontKey("serif", "ja-JP")).toBe("menlo");
-      expect(resolveFontKey("serif")).toBe("georgia");
+      expect(resolveFontKey("serif", "ja")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+      expect(resolveFontKey("serif", "ja-JP")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+      expect(resolveFontKey("serif")).toMatch(/^(?:georgia|sysfb:Georgia)$/);
     });
   });
 

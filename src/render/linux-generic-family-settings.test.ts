@@ -75,15 +75,15 @@ describe("Linux settings-mapped generics run the transcribed nomination walk (gr
       // Mechanism: nominate the grd default "Comic Sans MS"; fontconfig can
       // only offer WenQuanYi Zen Hei, the acceptance filter refuses it, the
       // family is unavailable, the (one-name) stack exhausts, and
-      // `resolveFontKey` lands on its standard-family terminal.
-      expect(fr.resolveFontKey("cursive")).toBe("times");
+      // `resolveFontKey` lands on the live standard-family face.
+      expect(fr.resolveFontKey("cursive")).toBe("sysfb:LiberationSerif");
     });
   });
 
   it("fantasy: 'Impact' is REJECTED the same way", () => {
     host.withHostPlatform("linux", () => {
       // Pre-fix: "papyrus".
-      expect(fr.resolveFontKey("fantasy")).toBe("times");
+      expect(fr.resolveFontKey("fantasy")).toBe("sysfb:LiberationSerif");
     });
   });
 
@@ -123,10 +123,9 @@ describe("Linux settings-mapped generics run the transcribed nomination walk (gr
 
   it("math: 'Latin Modern Math' is not installed → rejected → standard-family terminal (same terminal as before, now via the mechanism)", () => {
     host.withHostPlatform("linux", () => {
-      // NOT discriminating on this image (pre-fix `math` also fell through to
-      // the terminal); pinned so an installed Latin Modern Math later flips
-      // this to an acceptance rather than silently changing routes.
-      expect(fr.resolveFontKey("math")).toBe("times");
+      // Pinned so an installed Latin Modern Math later flips this to an
+      // acceptance rather than silently changing routes.
+      expect(fr.resolveFontKey("math")).toBe("sysfb:LiberationSerif");
     });
   });
 

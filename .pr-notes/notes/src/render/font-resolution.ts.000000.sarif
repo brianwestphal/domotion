@@ -155,6 +155,226 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso770mezqj847wd",
+          "message": {
+            "text": "Preserving Chromium’s concrete PostScript face eliminates primary and .notdef donor drift caused by rematching a family name. Before this path, the focused 351-stack matrix had 22/702 mismatches, including HiraKakuProN-W3 → HiraginoSans-W4; after registering the exact probed face it reports 0/702 across U+0041 and U+E000.",
+            "markdown": "Preserving Chromium’s concrete PostScript face eliminates primary and `.notdef` donor drift caused by rematching a family name. Before this path, the focused 351-stack matrix had 22/702 mismatches, including `HiraKakuProN-W3 → HiraginoSans-W4`; after registering the exact probed face it reports 0/702 across U+0041 and U+E000."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7876,
+                  "endLine": 7890,
+                  "snippet": {
+                    "text": "/** Materialize the concrete face Chromium reported for a session setting.\n * Prefer this over sending a PostScript name back through the curated family\n * table: that table intentionally collapses families, while the browser has\n * already completed style selection and told us the exact cut. */\nfunction sessionProbedFaceKey(faceName: string): string | null {\n  const installed = resolveInstalledFont(faceName);\n  if (installed == null || installed.path === \"\" || installed.postscriptName === \"\") return null;\n  const key = `sysfb:${installed.postscriptName}`;\n  registerDynamicSystemFont(\n    key, installed.path, installed.postscriptName, \"native\", installed.resolvedAxes, installed.ctAxes,\n  );\n  if (installed.familyName !== \"\" && !installed.familyName.startsWith(\".\")) {\n    declaredFamilyForKey.set(key, installed.familyName);\n  }\n  return key;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 140
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 851
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2063"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fe68d95412f0cde04d3e94d6c5c80fac"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f430e0755f877b61fb611ff2bb31e3fdb7c337c1",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso7mxx3764hhjln",
+          "message": {
+            "text": "Preserving canonical spelling fixes the one family-name comparison that cannot survive global lower-casing. Focused CI showed Chromium routes quoted \"system-ui\" through the system font but walks past \"System-ui\"; both previously became the same internal name.",
+            "markdown": "Preserving canonical spelling fixes the one family-name comparison that cannot survive global lower-casing. Focused CI showed Chromium routes quoted `\"system-ui\"` through the system font but walks past `\"System-ui\"`; both previously became the same internal name."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7702,
+                  "endLine": 7724,
+                  "snippet": {
+                    "text": "interface FontFamilyStackEntry {\n  name: string;\n  generic: boolean;\n  /** Exact canonical spelling after quote removal. Family lookup is generally\n   * case-insensitive, but Blink's `system-ui` platform intercept is not. */\n  canonicalSystemUiName: boolean;\n}\n\n/** Normalize a computed `font-family` string into its ordered list of\n *  lower-cased, unquoted family names (Chrome's `getComputedStyle().fontFamily`\n *  is the full unresolved comma-separated stack), carrying the\n *  generic-keyword-vs-literal-name bit per entry (see FontFamilyStackEntry). */\nfunction splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[] {\n  return fontFamily.split(\",\").map((s) => {\n    const trimmed = s.trim();\n    const unquoted = trimmed.replace(/^[\"']|[\"']$/g, \"\");\n    const wasQuoted = unquoted !== trimmed;\n    const name = unquoted.toLowerCase();\n    return {\n      name,\n      generic: !wasQuoted && unquoted === name && BLINK_GENERIC_FAMILY_SPELLINGS.has(name),\n      canonicalSystemUiName: unquoted === \"system-ui\",\n    };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8301
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2063"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c3dc476b7d1aa0b639d5d49e0a900ad5"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso7my36p9d6cdmd",
+          "message": {
+            "text": "A session-probed Windows face is a resolved primary family, not a terminal fallback face, so its requested weight and slope must still go through DirectWrite family matching. The first focused CI run exposed regular Consolas being reused for bold/italic monospace; retaining the declared-family marker lets the existing Chromium-derived cut matcher select Consolas-Bold and Consolas-Italic.",
+            "markdown": "A session-probed Windows face is a resolved primary family, not a terminal fallback face, so its requested weight and slope must still go through DirectWrite family matching. The first focused CI run exposed regular Consolas being reused for bold/italic `monospace`; retaining the declared-family marker lets the existing Chromium-derived cut matcher select `Consolas-Bold` and `Consolas-Italic`."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 4151,
+                  "endLine": 4183,
+                  "snippet": {
+                    "text": "function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch: number = 100): string | null {\n  if (WIN32_PRIMARY_CUT_SKIP.has(key)) return null;\n  // A suffix-declared family re-resolves per style even though its key is\n  // dynamic: the suffix pinned one axis, the run still owns the slope.\n  const suffixDecl = win32SuffixDeclaredForKey.get(key);\n  const declaredFamily = declaredFamilyForKey.get(key);\n  // Already-resolved or dynamically-registered faces: the key IS the answer.\n  if (suffixDecl == null && (\n    (key.startsWith(\"sysfb:\") && declaredFamily == null) || key.startsWith(\"winfam:\")\n      || key.startsWith(\"webfont:\") || key.startsWith(\"localalias:\"))) return null;\n\n  const cacheKey = `${key}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;\n  const cached = win32PrimaryCutCache.get(cacheKey);\n  if (cached !== undefined) return cached;\n\n  let result: string | null = null;\n  try {\n    // `system-ui` never reaches font matching as a literal in Blink\n    // (`DCHECK_NE(family, kSystemUi)`), so it is asked of the OS.\n    const family = suffixDecl != null\n      ? suffixDecl.family\n      : declaredFamily != null\n        ? declaredFamily\n      : key === \"sf-pro\"\n        ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(key))\n        : fileFamilyNameForKey(key);\n    if (family != null && family !== \"\") {\n      const cut = win32FamilyKey(family, {\n        weight: suffixDecl?.weight ?? weight,\n        slant,\n        fontSize: 16,\n        stretch: suffixDecl?.stretch ?? stretch,\n      });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7880
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2063"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ac1b2236117879367048e9225a82c524"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "14595a529ff5bc640edc1b5ecaecddb97aee460c",
+          "branch": "validate/dm2063-live-session-fonts"
+        }
+      ]
     }
   ]
 }

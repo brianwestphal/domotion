@@ -212,7 +212,10 @@ describe("resolveFontKey: explicit-name resolution", () => {
       expect(resolveFontKey('"SF Pro Text", sans-serif')).toBe("helvetica");
     }
 
-    if (process.platform !== "darwin") return; // no CoreText helper off macOS
+    if (process.platform !== "darwin" || resolveInstalledFont("SF Pro Text") == null) return;
+    // The system SFNS reroute exists only when the author-named downloadable
+    // family resolves. A stock macOS host without that optional font follows
+    // the same standard-family path asserted above.
     // Per-codepoint: SFNS-covered glyphs stay on SFNS (correct SHAPE) — the '!' and
     // the single-digit circled numbers SFNS.ttf carries.
     expect(__resolveFontForCodepointForTest(0x21, "SF Pro Text")?.key).toBe("sf-pro");   // '!'

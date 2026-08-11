@@ -155,6 +155,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso770stxt6ytdxf",
+          "message": {
+            "text": "The oracle now initializes Domotion from the same Chromium context it measures. This prevents a loaded CI runner’s runtime generic-family state from being compared against unrelated static assumptions; an unstable probe is a harness error rather than a plausible but invalid baseline.",
+            "markdown": "The oracle now initializes Domotion from the same Chromium context it measures. This prevents a loaded CI runner’s runtime generic-family state from being compared against unrelated static assumptions; an unstable probe is a harness error rather than a plausible but invalid baseline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 851,
+                  "endLine": 866,
+                  "snippet": {
+                    "text": "  static async create(browser: Browser, concurrency: number, lang: string): Promise<ChromeOracle> {\n    const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });\n    // Resolve settings-backed families from the exact Chromium context whose\n    // answers this oracle compares. Browser launch shape and Playwright's\n    // Page.setFontFamilies override are runtime inputs to Blink, not constants\n    // that can be transcribed from the Chromium checkout.\n    const generics = await probeSessionGenericFamilies(ctx);\n    if (generics == null) {\n      throw new Error(\"oracle: Chromium session-family probe did not stabilize\");\n    }\n    setSessionGenericFamilyOverrides(generics);\n    const page = await ctx.newPage();\n    const cdp = await ctx.newCDPSession(page);\n    await cdp.send(\"DOM.enable\");\n    await cdp.send(\"CSS.enable\");\n    return new ChromeOracle(page, cdp, concurrency, lang);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 108
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7893
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2063"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "619cbec8d51153a74ce5f761b7c03af5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f430e0755f877b61fb611ff2bb31e3fdb7c337c1",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1063,7 +1063,7 @@ export async function captureElementTreeWithWarnings(
   // warns as before.
   await inlineExternalSvgRefs(page);
 
-  // Flag-gated (DOMOTION_GENERIC_PROBE=1, default off): probe THIS capture
+  // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture
   // session's painted generic families once per browser context and install
   // them as the renderer's generic-keyword routes — the concrete family
   // behind `serif` / `monospace` / ... is a property of the launched session

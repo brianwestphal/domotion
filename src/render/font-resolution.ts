@@ -4153,9 +4153,10 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch:
   // A suffix-declared family re-resolves per style even though its key is
   // dynamic: the suffix pinned one axis, the run still owns the slope.
   const suffixDecl = win32SuffixDeclaredForKey.get(key);
+  const declaredFamily = declaredFamilyForKey.get(key);
   // Already-resolved or dynamically-registered faces: the key IS the answer.
   if (suffixDecl == null && (
-    key.startsWith("sysfb:") || key.startsWith("winfam:")
+    (key.startsWith("sysfb:") && declaredFamily == null) || key.startsWith("winfam:")
       || key.startsWith("webfont:") || key.startsWith("localalias:"))) return null;
 
   const cacheKey = `${key}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;
@@ -4168,6 +4169,8 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch:
     // (`DCHECK_NE(family, kSystemUi)`), so it is asked of the OS.
     const family = suffixDecl != null
       ? suffixDecl.family
+      : declaredFamily != null
+        ? declaredFamily
       : key === "sf-pro"
         ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(key))
         : fileFamilyNameForKey(key);
@@ -4442,7 +4445,7 @@ export function blinkAlternateFamilyName(name: string): string | null {
  * `system-ui` is NOT here: it resolves through
  * `FontCache::SystemFontFamily()`, a different browser-side mechanism, and
  * stays on its measured static route. When the session probe is armed
- * (`DOMOTION_GENERIC_PROBE=1`), the probed answers supersede this table —
+ * the default-on session probe supersedes this table —
  * they measure the same Playwright layer from inside the live session.
  */
 const LINUX_GENERIC_FAMILY_DEFAULTS: ReadonlyMap<string, string> = new Map([
@@ -7699,6 +7702,9 @@ const BLINK_GENERIC_FAMILY_SPELLINGS: ReadonlySet<string> = new Set([
 interface FontFamilyStackEntry {
   name: string;
   generic: boolean;
+  /** Exact canonical spelling after quote removal. Family lookup is generally
+   * case-insensitive, but Blink's `system-ui` platform intercept is not. */
+  canonicalSystemUiName: boolean;
 }
 
 /** Normalize a computed `font-family` string into its ordered list of
@@ -7714,6 +7720,7 @@ function splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[] {
     return {
       name,
       generic: !wasQuoted && unquoted === name && BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
+      canonicalSystemUiName: unquoted === "system-ui",
     };
   });
 }
@@ -7873,7 +7880,24 @@ function authorFamilyAvailable(name: string): boolean {
   return avail;
 }
 
-// ── Session generic-family overrides (flag-gated prototype, default OFF) ──
+/** Materialize the concrete face Chromium reported for a session setting.
+ * Prefer this over sending a PostScript name back through the curated family
+ * table: that table intentionally collapses families, while the browser has
+ * already completed style selection and told us the exact cut. */
+function sessionProbedFaceKey(faceName: string): string | null {
+  const installed = resolveInstalledFont(faceName);
+  if (installed == null || installed.path === "" || installed.postscriptName === "") return null;
+  const key = `sysfb:${installed.postscriptName}`;
+  registerDynamicSystemFont(
+    key, installed.path, installed.postscriptName, "native", installed.resolvedAxes, installed.ctAxes,
+  );
+  if (installed.familyName !== "" && !installed.familyName.startsWith(".")) {
+    declaredFamilyForKey.set(key, installed.familyName);
+  }
+  return key;
+}
+
+// ── Session generic-family overrides (live browser authority) ──
 // The concrete family behind a CSS generic keyword is a property of the
 // LAUNCHED browser session, not of Chromium's source: Playwright applies its
 // own vendored per-platform table via CDP `Page.setFontFamilies` to every
@@ -7882,12 +7906,11 @@ function authorFamilyAvailable(name: string): boolean {
 // defaults (`third_party/blink/common/web_preferences/web_preferences.cc:25-41`,
 // rev 7d859f27); headed launches skip that and get the full binary's chrome
 // prefs layer (`locale_settings_<platform>.grd`) instead. When the capture
-// side has probed the session (`DOMOTION_GENERIC_PROBE=1`,
-// `src/capture/generic-font-probe.ts`), the probed painted families are
-// installed here and the generic keywords route to them; when null (the
-// default), the calibrated static generic routes below are unchanged.
+// side probes the session (`src/capture/generic-font-probe.ts`), the probed
+// painted faces are installed here and the generic keywords route to them;
+// the calibrated static routes below are only the explicit/failure fallback.
 const SESSION_PROBED_GENERICS = new Set([
-  "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
+  "standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
 ]);
 export interface SessionGenericFamilyOverrides {
   common: ReadonlyMap<string, string>;
@@ -7927,8 +7950,12 @@ function matchFamilyNameToKey(
   name: string,
   generic: boolean = BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
   lang?: string,
+  canonicalSystemUiName: boolean = name === "system-ui",
 ): string | null {
   if (name === "" || name === "doesnotexist") return null;
+  const settingsName = name === "-webkit-standard" || name === "-webkit-body"
+    ? "standard"
+    : name;
   // ── Per-script generic-family settings (Playwright forScripts, mac/win) ──
   // Blink keys every settings-mapped generic on the run's content script:
   // `FamilyNameFromSettings` consults `settings.<Generic>(script)` with
@@ -7947,8 +7974,10 @@ function matchFamilyNameToKey(
   // and substitution.
   if (generic && lang != null) {
     const script = localeToScriptCodeForFontSelection(lang);
-    const probed = sessionGenericFamilyOverrides?.byScript.get(script)?.get(name);
+    const probed = sessionGenericFamilyOverrides?.byScript.get(script)?.get(settingsName);
     if (probed != null) {
+      const exact = sessionProbedFaceKey(probed);
+      if (exact != null) return exact;
       const key = matchFamilyNameToKey(probed.toLowerCase(), false);
       if (key != null) return key;
     }
@@ -7986,9 +8015,11 @@ function matchFamilyNameToKey(
   // family (never a generic keyword), so the recursion is single-step; if it
   // doesn't resolve to a key on this host, fall through to the static routes.
   // Quoted spellings are literal family names, so they bypass this route.
-  if (generic && sessionGenericFamilyOverrides != null && SESSION_PROBED_GENERICS.has(name)) {
-    const probed = sessionGenericFamilyOverrides.common.get(name);
+  if (generic && sessionGenericFamilyOverrides != null && SESSION_PROBED_GENERICS.has(settingsName)) {
+    const probed = sessionGenericFamilyOverrides.common.get(settingsName);
     if (probed != null) {
+      const exact = sessionProbedFaceKey(probed);
+      if (exact != null) return exact;
       const probedName = probed.toLowerCase();
       if (probedName !== name) {
         const key = matchFamilyNameToKey(probedName);
@@ -8118,9 +8149,8 @@ function matchFamilyNameToKey(
     // `Page.setFontFamilies` -> renderer pref update loses the race against
     // first layout on a loaded runner (see tools/probe-sans-serif-flip.mjs —
     // its two recorded flip states are byte-exact these two tables). Static
-    // routes here therefore encode the applied-table state; the flag-gated
-    // session probe (DOMOTION_GENERIC_PROBE=1, src/capture/generic-font-probe.ts)
-    // asks the live session instead.
+    // routes here therefore encode only the degraded applied-table state; the
+    // default-on session probe asks the live session instead.
     //
     // For author-named monospaces we map to whatever the author asked for if
     // we have it on disk; SF Mono is only used when explicitly requested.
@@ -8155,9 +8185,11 @@ function matchFamilyNameToKey(
       if (spec?.path != null && spec.path !== "" && existsSync(spec.path)) return "courier-new";
       return hostPlatform() === "win32" ? null : "courier";
     }
-    if (name === "menlo") return "menlo";
-    if (name === "monaco") return "monaco";
-    if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") return "sf-mono";
+    if (name === "menlo") return authorFamilyAvailable("Menlo") ? "menlo" : null;
+    if (name === "monaco") return authorFamilyAvailable("Monaco") ? "monaco" : null;
+    if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") {
+      return authorFamilyAvailable("SF Mono") ? "sf-mono" : null;
+    }
     // `Times New Roman` resolves to the Microsoft TNR face (separate file from
     // Apple's Times.ttc); bare `Times` / `serif` / the UA default resolve to
     // Apple Times (DM-330). The two have identical metrics but visibly
@@ -8266,14 +8298,13 @@ function matchFamilyNameToKey(
     // not the next declared family, so its system font family is non-empty —
     // and the VALUE that would decide it is browser-side and un-transcribed.
     //
-    // NOT gated on the generic bit: unlike the settings-mapped generics,
-    // Blink's system-ui dispatch compares the family NAME — `font_cache.cc:
-    // 161-166` (`creation_params.Family() == font_family_names::kSystemUi`,
-    // !IS_MAC) and `font_cache_mac.mm:402-417` (the `MatchSystemUIFont`
-    // branch), rev 7d859f27 — so a quoted `"system-ui"` resolves the platform
-    // UI font exactly like the keyword. Measured: Chrome paints .SFNS-Regular
-    // for `font-family: "system-ui", Georgia` (425/425 oracle rows, macOS).
-    if (name === "system-ui") {
+    // The platform matcher dispatches the exact canonical NAME `system-ui`,
+    // independently of the generic bit: quoted `"system-ui"` therefore takes
+    // the system-font route on every platform. The comparison itself remains
+    // case-sensitive (`AtomicString`): `"System-ui"` is an ordinary literal
+    // family and must walk on. `splitFontFamilyNames` preserves that one bit
+    // before lower-casing names for ordinary case-insensitive family lookup.
+    if (name === "system-ui" && canonicalSystemUiName) {
       if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
         const matched = fcMatch("sans-serif");
         if (matched != null) {
@@ -8377,7 +8408,7 @@ function matchFamilyNameToKey(
     // what the HEADED full Chrome binary's prefs layer picks, not our render
     // target, and routing it measured as a conformance regression. (A host
     // that HAS Latin Modern Math installed would paint it; only the session
-    // probe, `DOMOTION_GENERIC_PROBE=1`, gets that case right.)
+    // live session probe gets that case right.)
     //
     // Either way: `continue` past them so the rest of the stack (Menlo,
     // monospace, …) gets a chance to match; the last-resort `times` at the
@@ -8504,7 +8535,7 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
   // element's content locale; it moves the settings-mapped generics on
   // mac/win via Playwright's per-script tables (see matchFamilyNameToKey).
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang);
+    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName);
     if (key != null) return key;
   }
   // Last-resort fallback when no family in the stack matched: Blink falls to
@@ -8516,10 +8547,8 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
   // jpan STANDARD entry — for every codepoint, not Times. Consult the
   // per-script standard entry first; no entry (Common script, Linux, no
   // lang) keeps the calibrated Times default.
-  if (lang != null) {
-    const std = matchFamilyNameToKey("-webkit-standard", true, lang);
-    if (std != null) return std;
-  }
+  const std = matchFamilyNameToKey("-webkit-standard", true, lang);
+  if (std != null) return std;
   return "times";
 }
 
@@ -8537,7 +8566,7 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
 export function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {
   const out: string[] = [];
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang);
+    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName);
     if (key != null && !out.includes(key)) out.push(key);
   }
   // Blink's family list ends with the STANDARD family: a codepoint no

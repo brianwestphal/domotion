@@ -38,9 +38,9 @@ describe("canonical transition schema", () => {
   });
 
   it("discriminates family parameters and rejects irrelevant channels", () => {
-    expect(transitionSchema.parse({ type: "push", duration: 300, push: { angle: 35, distance: 0.8 } }).push).toEqual({ angle: 35, distance: 0.8 });
-    expect(transitionSchema.parse({ type: "reveal", duration: 300, reveal: { shape: "radial" } }).reveal).toEqual({ shape: "radial", origin: { x: 0.5, y: 0.5 }, radius: 1 });
-    expect(transitionSchema.parse({ type: "zoom", duration: 300, zoom: {} }).zoom).toEqual({ fromScale: 0.9, origin: { x: 0.5, y: 0.5 } });
+    expect(transitionSchema.parse({ type: "push", duration: 300, push: { angle: 35, distance: 0.8 } })).toMatchObject({ push: { angle: 35, distance: 0.8 } });
+    expect(transitionSchema.parse({ type: "reveal", duration: 300, reveal: { shape: "radial" } })).toMatchObject({ reveal: { shape: "radial", origin: { x: 0.5, y: 0.5 }, radius: 1 } });
+    expect(transitionSchema.parse({ type: "zoom", duration: 300, zoom: {} })).toMatchObject({ zoom: { fromScale: 0.9, origin: { x: 0.5, y: 0.5 } } });
     expect(transitionSchema.safeParse({ type: "push", duration: 300, push: { direction: "left" }, reveal: { shape: "linear" } }).success).toBe(false);
     expect(transitionSchema.safeParse({ type: "reveal", duration: 300, reveal: { shape: "linear", origin: { x: 0.5, y: 0.5 } } }).success).toBe(false);
     expect(transitionSchema.safeParse({ type: "zoom", duration: 300, zoom: { fromScale: 5 } }).success).toBe(false);

@@ -79,6 +79,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mso770fp8kj2ny2y",
+          "message": {
+            "text": "The launched Chromium session is the authority for settings-backed font families. Playwright applies Page.setFontFamilies at runtime, so source-derived static defaults cannot determine the active family; this probe includes the implicit standard terminal, all supported script keys, waits for a stable answer, and preserves CDP PostScript identity so the selected cut is not lost.",
+            "markdown": "The launched Chromium session is the authority for settings-backed font families. Playwright applies `Page.setFontFamilies` at runtime, so source-derived static defaults cannot determine the active family; this probe includes the implicit standard terminal, all supported script keys, waits for a stable answer, and preserves CDP PostScript identity so the selected cut is not lost."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 108,
+                  "endLine": 166,
+                  "snippet": {
+                    "text": "export async function probeSessionGenericFamilies(\n  context: BrowserContext,\n): Promise<SessionGenericFamilyProbe | null> {\n  let page: Page | null = null;\n  try {\n    page = await context.newPage();\n    const targets = genericFamilyProbeTargets();\n    const spans = targets.map(\n      (target) => `<span id=\"${target.id}\"${target.lang == null ? \"\" : ` lang=\"${target.lang}\"`}`\n        + ` style=\"${target.generic === \"standard\" ? \"\" : `font-family: ${target.generic}; `}font-size: 32px;\">${target.text}</span>`,\n    ).join(\"<br>\");\n    const cdp = await context.newCDPSession(page);\n    await cdp.send(\"DOM.enable\");\n    await cdp.send(\"CSS.enable\");\n    const read = async (): Promise<SessionGenericFamilyProbe | null> => {\n      await page!.setContent(`<!DOCTYPE html><meta charset=\"utf-8\"><body>${spans}</body>`);\n      await page!.evaluate(() => document.fonts.ready);\n      const { root } = await cdp.send(\"DOM.getDocument\");\n      const common = new Map<string, string>();\n      const byScript = new Map<string, Map<string, string>>();\n      for (const target of targets) {\n        const { nodeId } = await cdp.send(\"DOM.querySelector\", {\n          nodeId: root.nodeId,\n          selector: `#${target.id}`,\n        });\n        if (nodeId === 0) continue;\n        const { fonts } = await cdp.send(\"CSS.getPlatformFontsForNode\", { nodeId });\n        const primary = fonts.reduce(\n          (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),\n          null as (typeof fonts)[number] | null,\n        );\n        if (primary == null || primary.familyName === \"\") continue;\n        // Family names can collapse distinct Chromium cuts. In particular,\n        // CoreText reports family \"Hiragino Kaku Gothic ProN\" while Blink has\n        // selected HiraKakuProN-W3; feeding only the family back through our\n        // matcher re-selected the unrelated HiraginoSans-W4 face. Preserve\n        // Chromium's concrete face identity whenever CDP supplies it.\n        const faceName = primary.postScriptName ?? primary.familyName;\n        if (target.script == null) common.set(target.generic, faceName);\n        else {\n          let scriptMap = byScript.get(target.script);\n          if (scriptMap == null) {\n            scriptMap = new Map();\n            byScript.set(target.script, scriptMap);\n          }\n          scriptMap.set(target.generic, faceName);\n        }\n      }\n      return common.size > 0 ? { common, byScript } : null;\n    };\n\n    // Playwright's Page.setFontFamilies update can race the first layout on a\n    // loaded runner. Require two consecutive identical paints; a third pass\n    // lets the settled Playwright values win over a constructor-default first.\n    const first = await read();\n    const second = await read();\n    if (probeResultsEqual(first, second)) return second;\n    const third = await read();\n    return probeResultsEqual(second, third) ? third : null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7876
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 851
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2063"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0725c4f62ad25c2f2cc9548c26d247ef"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f430e0755f877b61fb611ff2bb31e3fdb7c337c1",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
