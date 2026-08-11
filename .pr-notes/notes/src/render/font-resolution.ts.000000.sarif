@@ -656,6 +656,84 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msoegirdr7kunp9m",
+          "message": {
+            "text": "Route provenance must survive the shared SF key. Blink dispatches system-ui to MatchSystemUIFont but author-named SF families to MatchFontFamily; using only sf-pro erased that distinction and leaked CSS-valued axes across routes. The side-band bit avoids duplicating platform tables and is included in cache identity so interleaved calls cannot alias.",
+            "markdown": "Route provenance must survive the shared SF key. Blink dispatches system-ui to MatchSystemUIFont but author-named SF families to MatchFontFamily; using only sf-pro erased that distinction and leaked CSS-valued axes across routes. The side-band bit avoids duplicating platform tables and is included in cache identity so interleaved calls cannot alias."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 5964,
+                  "endLine": 5977,
+                  "snippet": {
+                    "text": "  // macOS: for a family named by CSS, ask Blink's declared-family style matcher\n  // which CUT the run opens, instead of picking between the two `key` /\n  // `key-bold` slots above. Reads the BASE key, so its answer REPLACES that\n  // routing rather than composing with it (composing would re-weight an\n  // already-re-weighted face). Null leaves the two-slot result standing, which\n  // is the degradation contract for a host with no helper binary.\n  const darwinCut = systemUiPrimary\n    ? null\n    : darwinPrimaryCutKey(key, weight, slant, stretch, declaredFamily);\n  if (darwinCut != null) {\n    effectiveKey = darwinCut.key;\n    // A matched face carrying CoreText's italic trait satisfies the slant with\n    // a real cut; without it the renderer would shear an already-italic face.\n    routedItalicCut = slant !== 0 && darwinCut.italic;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-stretch-wdth.test.ts"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2080"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9f80c476d67b4a3ff20de6321311d70b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f03d6fa0a94aa22998567d801f586028491cdc33",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

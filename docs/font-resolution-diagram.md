@@ -372,12 +372,16 @@ Doc [03](03-font-family-chain.md).
 
 ## 3. Key → FontInstance (`getFontInstance`)
 
-Given a logical key + `(weight, fontSize, slant, variationSettings, stretch)`,
+Given a logical key + `(weight, fontSize, slant, variationSettings, stretch,
+systemUiPrimary)`,
 `getFontInstance` returns a cached, weight/slant/width-correct, variation-driven
 `FontInstance`, or `null` (caller walks to the next candidate). `stretch` is CSS
 `font-stretch` as a percentage (100 = `normal`, `stretchPercent` parses the
 computed string); it reaches the declared-family style matcher, and the cut it
-selects is what `effectiveKey` ends up naming. On the macOS `system-ui` face
+selects is what `effectiveKey` ends up naming. `systemUiPrimary` is the route
+provenance from `stackPrimaryIsSystemUi`: it distinguishes Blink's
+`MatchSystemUIFont` path from explicitly named SF families that share the same
+logical key but enter `MatchFontFamily`. On the macOS `system-ui` face
 (`sf-pro` / `sf-pro-italic`) and on variable webfonts it ALSO drives the `wdth`
 variation axis — the identity mapping clamped into the capabilities, which is
 the two places Blink applies it (`MatchSystemUIFont`,
@@ -473,14 +477,14 @@ flowchart TD
   G0["getFontInstance(key, weight, fontSize, slant, fvs, stretch)"] --> G1{"key prefix?"}
   G1 -->|"webfont:&lt;family&gt;"| GW["pickWebfontVariant()<br/>(§4 registry scoring + variation axes)"]
   G1 -->|"localalias:&lt;family&gt;"| GL["pickLocalFontAliasVariant()<br/>→ recurse getFontInstance(baseKey,<br/>declared weight/italic)"]
-  G1 -->|"plain / sysfb: / u- / un-"| G2["resolveEffectiveCutKey(key, weight, slant, stretch)<br/>effectiveKey = key — the G3…G3d ladder below.<br/>Also called by fallbackBaseFor (§8a) to name the<br/>cascade BASE, which is why it is its own function."]
+  G1 -->|"plain / sysfb: / u- / un-"| G2["resolveEffectiveCutKey(key, weight, slant, stretch, systemUiPrimary)<br/>effectiveKey = key — the G3…G3d ladder below.<br/>systemUiPrimary skips declared-family matching.<br/>Also called by fallbackBaseFor (§8a) to name the<br/>cascade BASE, which is why it is its own function."]
 
   G2 --> G3["Style→file remap (fonts w/o variable axes):<br/>slant≠0: sf-pro→sf-pro-italic, sf-mono→sf-mono-italic<br/>weight≥600 &/or italic: helvetica/arial/courier/courier-new/menlo/<br/>times/georgia/helvetica-neue/source-serif-pro/<br/>playfair-display → -bold / -italic / -bold-italic<br/>cjk/cjk-serif/hiragino-mincho/korean/<br/>pingfang-* → -bold when weight≥600<br/>hiragino-jp → hiragino-jp-w{0,1,3..9} by EXACT usWeightClass<br/>lucida-grande → -bold when weight≥450"]
   G3 --> G3b["Sub-bold cut (SUB_BOLD_WEIGHT_CUTS +<br/>subBoldWeightCutSuffix): weight&lt;600 and the family<br/>ships a face BELOW regular →<br/>helvetica → -light / -light-italic when weight≤300.<br/>Adopted only if resolveFontSpec(cutKey) ≠ null,<br/>so non-darwin mappings keep their regular face."]
   G3b --> G3c["win32 + helper: win32PrimaryCutKey(effectiveKey, weight, slant, stretch)<br/>→ winfam:&lt;psName&gt; (DirectWrite matchFamilyStyle:<br/>FindFamilyName + GetFirstMatchingFont, plus Blink's<br/>family-name suffix layer — win32FamilySuffixAdjustment —<br/>and win32SuffixDeclaredForKey's pinned axis for<br/>author-declared 'Segoe UI Light'-style keys)"]
   G3c --> G3d["darwin + helper: darwinPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (DARWIN_DECLARED_FAMILY_KEYS<br/>+ declaredFamilyForKey for dynamic sysfb: keys).<br/>CoreText family → resolveFamilyStyleMatch(weight, italic, WIDTH)<br/>→ helper 'familyMatch' (cssWeight / italic / cssWidth)<br/>= Blink ComputeDesiredTraits + BestStyleMatchForFamilyNS /<br/>BetterChoiceCT, transcribed at tag 147.0.7727.15.<br/>Reads the BASE key, so its answer REPLACES G3/G3b<br/>rather than composing with them — sysfb:&lt;psName&gt; for a cut,<br/>the BASE key itself when the matcher answers the base face<br/>(an answer, not an abstention — Blink runs no ladder behind it).<br/>null = could not ask → G3/G3b stand (degraded tier)."]
   G3d --> G3e["linux + helper + resolver flag: linuxPrimaryCutKey(KEY, weight, slant, stretch)<br/>Declared families only (same key set + declaredFamilyForKey).<br/>Family = ACCEPTED spelling (declaredFamilyForKey) ?? LINUX_FONT_PATHS<br/>fcMatch base (system-ui / the times terminal; other generics resolve upstream) →<br/>linuxFamilyMatchWithAlternate (alias retry per Blink) →<br/>helper 'familyMatch' = SkFontConfigInterfaceDirect::matchFamilyName<br/>transcribed (Skia rev fd139e79, confirmed unchanged in substance at the<br/>Chromium-pinned 62efacd3): FcFontSort(trim=0),<br/>first SFNT-valid pattern, family/alias/metric-equiv acceptance.<br/>Both reject → linuxLastResortMatch ('' → Sans → Arial → '',<br/>GetLastResortFallbackFont transcribed).<br/>Reads the BASE key; the answer REPLACES G3/G3b (sysfb:&lt;psName&gt;<br/>for a cut, the BASE key when the score picks the base face).<br/>null = could not ask → G3/G3b stand (degraded tier)."]
-  G3e --> G4["darwinSystemUiWdth(effectiveKey, stretch):<br/>sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey = effectiveKey-weight-size-slant-fvs[-wdth]<br/>→ fontInstanceCache hit? return"]
+  G3e --> G4["darwinSystemUiWdth(effectiveKey, stretch, systemUiPrimary):<br/>system-ui route + sf-pro / sf-pro-italic → wdth request = stretch, else 100<br/>cacheKey includes declared/system-ui provenance + optional wdth<br/>→ fontInstanceCache hit? return"]
   G4 --> G5["resolveFontSpec(effectiveKey) → { path, postscriptName?, extractor? }<br/>(§5 platform dispatch)"]
   G5 -->|"null"| GNull["return null"]
   G5 --> G6{"extractor === 'native'<br/>&& glyph helper available?"}
@@ -1940,6 +1944,13 @@ Three consequences worth holding onto:
   Latin metrics are load-bearing (SF Pro's advances measure ~3% wider than
   Helvetica's) and a second key would have to reproduce every entry across three
   platform tables plus the italic sibling to stay metric-identical.
+
+  The same side-band now reaches `getFontInstance`, its cache key, the macOS
+  declared-cut gate, and the CSS-valued `wght`/`wdth` gates. Thus two calls that
+  resolve to `sf-pro` remain distinct instances: `system-ui` skips
+  `darwinPrimaryCutKey` and receives the clamped axes, while `SF Pro`, `SF Pro
+  Text`, and `SF Pro Display` use the declared-family cut and retain that face's
+  own coordinates.
 
   **This flag and `DOMOTION_LIVE_FALLBACK_FIRST` are only scoreable together**
   (see §7). With the static per-block chain answering first, the OS is never asked,

@@ -34,7 +34,7 @@ describeDarwin("sf-pro (macOS system-ui) reports the INSTANTIATED wght, not the 
     [700, true],
     [900, true],
   ])("weight %i -> naturalWeight equals the request, faceIsBoldTrait is %s", (weight, expectBold) => {
-    const inst = getFontInstance("sf-pro", weight, 16, 0);
+    const inst = getFontInstance("sf-pro", weight, 16, 0, undefined, 100, true);
     expect(inst).not.toBeNull();
     expect(inst?.naturalWeight).toBe(weight);
     expect(inst?.faceIsBoldTrait).toBe(expectBold);
@@ -42,7 +42,7 @@ describeDarwin("sf-pro (macOS system-ui) reports the INSTANTIATED wght, not the 
 
   it("end-to-end: the corrected reporting alone (no hasWeightAxis short-circuit) is enough for faceNeedsSyntheticBold to say no at every weight", () => {
     for (const weight of [400, 700, 900]) {
-      const inst = getFontInstance("sf-pro", weight, 16, 0)!;
+      const inst = getFontInstance("sf-pro", weight, 16, 0, undefined, 100, true)!;
       expect(faceNeedsSyntheticBold(inst, weight, undefined)).toBe(false);
     }
   });

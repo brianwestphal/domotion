@@ -4320,19 +4320,20 @@ function darwinCoreTextFamilyForKey(key: string): string | null {
  */
 function darwinPrimaryCutKey(
   key: string, weight: number, slant: number, stretch: number = 100,
+  declaredFamilyOverride?: string,
 ): { key: string; italic: boolean } | null {
   if (hostPlatform() !== "darwin" || !isGlyphHelperAvailable()) return null;
   const declaredFamily = declaredFamilyForKey.get(key);
-  if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
+  if (declaredFamilyOverride == null && declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
 
   const italicRequested = slant !== 0;
-  const cacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
+  const cacheKey = `${key}|${declaredFamilyOverride ?? declaredFamily ?? ""}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
   const cached = darwinPrimaryCutCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   let result: { key: string; italic: boolean } | null = null;
   try {
-    const family = declaredFamily ?? darwinCoreTextFamilyForKey(key);
+    const family = declaredFamilyOverride ?? declaredFamily ?? darwinCoreTextFamilyForKey(key);
     if (family != null) {
       const match = resolveFamilyStyleMatch(family, { weight, italic: italicRequested, stretch });
       const base = resolveFontSpec(key)?.postscriptName;
@@ -5832,6 +5833,8 @@ export function hiraginoWeightCut(weight: number): string | null {
  */
 function resolveEffectiveCutKey(
   key: string, weight: number, slant: number, stretch: number,
+  systemUiPrimary: boolean = false,
+  declaredFamily?: string,
 ): { key: string; routedItalicCut: boolean } {
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
@@ -5964,7 +5967,9 @@ function resolveEffectiveCutKey(
   // routing rather than composing with it (composing would re-weight an
   // already-re-weighted face). Null leaves the two-slot result standing, which
   // is the degradation contract for a host with no helper binary.
-  const darwinCut = darwinPrimaryCutKey(key, weight, slant, stretch);
+  const darwinCut = systemUiPrimary
+    ? null
+    : darwinPrimaryCutKey(key, weight, slant, stretch, declaredFamily);
   if (darwinCut != null) {
     effectiveKey = darwinCut.key;
     // A matched face carrying CoreText's italic trait satisfies the slant with
@@ -5999,15 +6004,14 @@ function resolveEffectiveCutKey(
  * no axis applied — including families that carry a wdth axis (measured on the
  * `Skia` family: 50%/62.5%/75% all paint the same `Skia-Regular_Condensed`).
  *
- * Keyed on the sf-pro keys because that is what `system-ui` resolves to here.
- * The key model conflates a literal CSS `"SF Pro"` declaration with
- * `system-ui` (both map to `sf-pro`), so a declared "SF Pro" at non-normal
- * stretch takes the axis where Chrome's declared-family matcher would pick a
- * cut — a known residual of the shared key, same as its weight behavior.
+ * The shared `sf-pro` key is necessary but not sufficient: `systemUiPrimary`
+ * preserves whether the winning CSS family entered through
+ * `MatchSystemUIFont`, so explicitly named SF families keep the declared-family
+ * cut matcher even though they open the same underlying files.
  */
-function darwinSystemUiWdth(effectiveKey: string, stretch: number): number {
+function darwinSystemUiWdth(effectiveKey: string, stretch: number, systemUiPrimary: boolean): number {
   if (hostPlatform() !== "darwin" || stretch === 100) return 100;
-  return isDarwinSystemUiAxisKey(effectiveKey) ? stretch : 100;
+  return isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary) ? stretch : 100;
 }
 
 /** The keys standing for the macOS `system-ui` face — the ONLY faces whose
@@ -6017,17 +6021,18 @@ function darwinSystemUiWdth(effectiveKey: string, stretch: number): number {
  *  7d859f27). Every other darwin key is a declared family or fallback face,
  *  where the weight lives in WHICH face the matcher picked and only `opsz` +
  *  font-variation-settings are applied on top. Shared by the `wdth` gate
- *  (`darwinSystemUiWdth`) and the `wght` gate on the fontkit path. The key
- *  model's known residual applies: a literal CSS "SF Pro" shares `sf-pro`
- *  with `system-ui` and takes the axis where Chrome's declared-family matcher
- *  would pick a cut. */
-function isDarwinSystemUiAxisKey(effectiveKey: string): boolean {
-  return effectiveKey === "sf-pro" || effectiveKey === "sf-pro-italic";
+ *  (`darwinSystemUiWdth`) and the `wght` gate on the fontkit path. The model
+ *  therefore carries the route as the separate `systemUiPrimary`
+ *  bit rather than duplicating every SF entry in the platform tables. */
+function isDarwinSystemUiAxisKey(effectiveKey: string, systemUiPrimary: boolean): boolean {
+  return systemUiPrimary && (effectiveKey === "sf-pro" || effectiveKey === "sf-pro-italic");
 }
 
 /** Test-only view of the system-ui `wdth` gate (not in the package barrel). */
-export function __darwinSystemUiWdthForTest(effectiveKey: string, stretch: number): number {
-  return darwinSystemUiWdth(effectiveKey, stretch);
+export function __darwinSystemUiWdthForTest(
+  effectiveKey: string, stretch: number, systemUiPrimary: boolean,
+): number {
+  return darwinSystemUiWdth(effectiveKey, stretch, systemUiPrimary);
 }
 
 /**
@@ -6040,6 +6045,11 @@ export function __darwinSystemUiWdthForTest(effectiveKey: string, stretch: numbe
 export function getFontInstance(
   key: string, weight: number, fontSize: number, slant: number = 0,
   variationSettings?: Record<string, number>, stretch: number = 100,
+  /** True only when the winning CSS family entered Blink through
+   *  `MatchSystemUIFont`; named SF families share the key but not this route. */
+  systemUiPrimary: boolean = false,
+  /** Original author family when a protected SF family shares `sf-pro`. */
+  declaredFamily?: string,
 ): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
@@ -6057,9 +6067,9 @@ export function getFontInstance(
     const family = key.slice("localalias:".length);
     const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
     if (variant == null) return null;
-    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0, variationSettings, stretch);
+    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0, variationSettings, stretch, false);
   }
-  const cut = resolveEffectiveCutKey(key, weight, slant, stretch);
+  const cut = resolveEffectiveCutKey(key, weight, slant, stretch, systemUiPrimary, declaredFamily);
   const effectiveKey = cut.key;
   const routedItalicCut = cut.routedItalicCut;
 
@@ -6074,8 +6084,8 @@ export function getFontInstance(
   // stretch ALSO drives the variable `wdth` axis (see `darwinSystemUiWdth`), so
   // two stretches on the same key are two different instances and the width
   // needs its own slot.
-  const wdthStretch = darwinSystemUiWdth(effectiveKey, stretch);
-  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}${wdthStretch !== 100 ? `-wdth${wdthStretch}` : ""}`;
+  const wdthStretch = darwinSystemUiWdth(effectiveKey, stretch, systemUiPrimary);
+  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}-${systemUiPrimary ? "system-ui" : `declared:${declaredFamily ?? ""}`}${wdthStretch !== 100 ? `-wdth${wdthStretch}` : ""}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
   // Platform-aware path discovery (DM-258): darwin → FONT_PATHS, linux →
@@ -6361,7 +6371,8 @@ export function getFontInstance(
   // coordinates (CoreText handle position / fvar named instance) replace the
   // CSS-derived wght, and `wght` is left at the file default when the matched
   // face IS the default instance.
-  const darwinDeclaredAxisPath = hostPlatform() === "darwin" && !isDarwinSystemUiAxisKey(effectiveKey);
+  const darwinDeclaredAxisPath = hostPlatform() === "darwin"
+    && !isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary);
   const fontkitFaceAxes = darwinDeclaredAxisPath
       && font?.variationAxes != null && Object.keys(font.variationAxes).length > 0
     ? darwinFaceOwnAxes(spec.ctAxes,
@@ -6412,6 +6423,16 @@ export function getFontInstance(
   } else {
     instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings, wdthStretch,
       darwinDeclaredAxisPath ? { faceAxes: fontkitFaceAxes, cssWghtPin: false } : undefined);
+    // A declared variable-family cut can be a named instance in a single file.
+    // fontkit returns the base master's PostScript name from getVariation(),
+    // but Blink/CoreText retain the matched instance identity. The requested
+    // spec is source-derived from MatchFontFamily, and `fontkitFaceAxes` proves
+    // that name resolved to coordinates in this exact file, so preserve it for
+    // the conformance/oracle identity as well as the outlines already selected.
+    if (darwinDeclaredAxisPath && fontkitFaceAxes != null
+        && spec.postscriptName != null && spec.postscriptName !== font?.postscriptName) {
+      instance.instantiatedPostscriptName = spec.postscriptName;
+    }
   }
   // DM-1693: expose the static face's natural weight + whether a variable wght
   // axis was baked, so the embedded-font path can decide faux-bold. Read from
@@ -7063,7 +7084,7 @@ export function shapingFaceFor(
       ? (info.instanceAxes != null ? { ...info.instanceAxes } : null)
       : weight == null || fontSize == null
       ? null
-      : hostPlatform() === "darwin" && !isDarwinSystemUiAxisKey(fontKey)
+      : hostPlatform() === "darwin" && !isDarwinSystemUiAxisKey(fontKey, false)
       // The darwin declared/fallback derivation — the face's own coordinates
       // plus the opsz/font-variation-settings clone pins, never a CSS-valued
       // `wght`. Must stay the same derivation `getFontInstance` uses (that is
@@ -8705,6 +8726,21 @@ export function stretchPercent(value: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 100;
 }
 
+/** Preserve the author-visible SF family name through the shared `sf-pro` key.
+ * Apple's protected `.SFNS-*` base cannot be reopened by family name, while
+ * these public families can and are exactly what Blink gives MatchFontFamily. */
+function explicitDarwinSfFamily(fontFamily: string): string | undefined {
+  if (hostPlatform() !== "darwin") return undefined;
+  for (const entry of splitFontFamilyNames(fontFamily)) {
+    const key = matchFamilyNameToKey(entry.name, entry.generic);
+    if (key == null) continue;
+    return key === "sf-pro" && (
+      entry.name === "sf pro" || entry.name === "sf pro text" || entry.name === "sf pro display"
+    ) ? entry.name : undefined;
+  }
+  return undefined;
+}
+
 export function resolveFont(
   fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0,
   variationSettings?: Record<string, number>,
@@ -8722,7 +8758,11 @@ export function resolveFont(
   if (cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)) {
     variationSettings = { ...(variationSettings ?? {}), opsz: cutOpsz };
   }
-  return getFontInstance(resolveFontKey(fontFamily, lang), fontWeight, fontSize, slant, variationSettings, stretch);
+  return getFontInstance(
+    resolveFontKey(fontFamily, lang), fontWeight, fontSize, slant,
+    variationSettings, stretch, stackPrimaryIsSystemUi(fontFamily),
+    explicitDarwinSfFamily(fontFamily),
+  );
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──

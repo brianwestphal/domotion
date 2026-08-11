@@ -42,20 +42,61 @@ function advanceOfH(inst: InstanceView): number {
 describe("darwinSystemUiWdth gate", () => {
   it("requests the axis only for the system-ui face keys", () => {
     if (process.platform !== "darwin") return;
-    expect(__darwinSystemUiWdthForTest("sf-pro", 50)).toBe(50);
-    expect(__darwinSystemUiWdthForTest("sf-pro-italic", 125)).toBe(125);
+    expect(__darwinSystemUiWdthForTest("sf-pro", 50, true)).toBe(50);
+    expect(__darwinSystemUiWdthForTest("sf-pro-italic", 125, true)).toBe(125);
+    // The same logical keys reached through an author-named family are not the
+    // system face and must retain Blink's declared-family cut selection.
+    expect(__darwinSystemUiWdthForTest("sf-pro", 50, false)).toBe(100);
+    expect(__darwinSystemUiWdthForTest("sf-pro-italic", 125, false)).toBe(100);
     // Declared families keep the trait/cut mechanism — no axis request, even
     // for keys whose file exposes a wdth axis.
-    expect(__darwinSystemUiWdthForTest("helvetica-neue", 50)).toBe(100);
-    expect(__darwinSystemUiWdthForTest("sysfb:Skia-Regular", 50)).toBe(100);
-    expect(__darwinSystemUiWdthForTest("sf-pro", 100)).toBe(100);
+    expect(__darwinSystemUiWdthForTest("helvetica-neue", 50, false)).toBe(100);
+    expect(__darwinSystemUiWdthForTest("sysfb:Skia-Regular", 50, false)).toBe(100);
+    expect(__darwinSystemUiWdthForTest("sf-pro", 100, true)).toBe(100);
   });
 });
 
 describeMac("system-ui wdth axis (macOS)", () => {
+  it("keeps system-ui CSS weight axes separate from named-family cuts", () => {
+    const systemLight = resolveFont("system-ui", 300, 26, 0) as InstanceView;
+    const systemBold = resolveFont("system-ui", 700, 26, 0) as InstanceView;
+    expect(systemLight?._appliedVariationAxes?.wght).toBe(300);
+    expect(systemBold?._appliedVariationAxes?.wght).toBe(700);
+
+    const expected: Record<string, [string, string]> = {
+      "SF Pro": ["SFPro-Thin", "SFPro-Bold"],
+      "SF Pro Text": ["SFProText-Thin", "SFProText-Bold"],
+      "SF Pro Display": ["SFProDisplay-Thin", "SFProDisplay-Bold"],
+    };
+    for (const [family, [lightName, boldName]] of Object.entries(expected)) {
+      const light = resolveFont(`"${family}"`, 300, 26, 0) as (InstanceView & { postscriptName?: string; instantiatedPostscriptName?: string });
+      const bold = resolveFont(`"${family}"`, 700, 26, 0) as (InstanceView & { postscriptName?: string; instantiatedPostscriptName?: string });
+      // These public families are optional downloads. Assert exact Chromium
+      // identities when present; on a stock host the route still remains
+      // declared (the pure provenance gate above covers that invariant).
+      const lightResolved = light?.instantiatedPostscriptName ?? light?.postscriptName;
+      const boldResolved = bold?.instantiatedPostscriptName ?? bold?.postscriptName;
+      if (lightResolved?.startsWith(family.replaceAll(" ", "")) === true) {
+        expect(lightResolved, family).toBe(lightName);
+        expect(boldResolved, family).toBe(boldName);
+      }
+    }
+  });
+
+  it("does not leak the system axis into explicitly named SF families", () => {
+    const system = resolveFont("system-ui", 400, 26, 0, undefined, 50) as InstanceView;
+    expect(system?._appliedVariationAxes?.wdth).toBe(50);
+
+    for (const family of ["SF Pro", "SF Pro Text", "SF Pro Display"]) {
+      const named = resolveFont(`"${family}"`, 400, 26, 0, undefined, 50) as InstanceView;
+      expect(named, family).not.toBeNull();
+      expect(named!._appliedVariationAxes?.wdth, family).not.toBe(50);
+    }
+  });
+
   it("narrows the SF face at font-stretch 50% and records the axis location", () => {
-    const normal = getFontInstance("sf-pro", 400, 26, 0) as InstanceView;
-    const condensed = getFontInstance("sf-pro", 400, 26, 0, undefined, 50) as InstanceView;
+    const normal = getFontInstance("sf-pro", 400, 26, 0, undefined, 100, true) as InstanceView;
+    const condensed = getFontInstance("sf-pro", 400, 26, 0, undefined, 50, true) as InstanceView;
     expect(normal).not.toBeNull();
     expect(condensed).not.toBeNull();
     expect(advanceOfH(condensed)).toBeLessThan(advanceOfH(normal));
@@ -70,16 +111,16 @@ describeMac("system-ui wdth axis (macOS)", () => {
     // Skia clamps again in `ctvariation_from_SkFontArguments` (SkTPin,
     // `src/ports/SkTypeface_mac_ct.cpp:1147`, rev ebf5052) — so 200% and 150%
     // are the same instance.
-    const at200 = getFontInstance("sf-pro", 400, 26, 0, undefined, 200) as InstanceView;
-    const at150 = getFontInstance("sf-pro", 400, 26, 0, undefined, 150) as InstanceView;
+    const at200 = getFontInstance("sf-pro", 400, 26, 0, undefined, 200, true) as InstanceView;
+    const at150 = getFontInstance("sf-pro", 400, 26, 0, undefined, 150, true) as InstanceView;
     expect(at200!._appliedVariationAxes?.wdth).toBe(150);
     expect(advanceOfH(at200)).toBe(advanceOfH(at150));
-    expect(advanceOfH(at200)).toBeGreaterThan(advanceOfH(getFontInstance("sf-pro", 400, 26, 0) as InstanceView));
+    expect(advanceOfH(at200)).toBeGreaterThan(advanceOfH(getFontInstance("sf-pro", 400, 26, 0, undefined, 100, true) as InstanceView));
   });
 
   it("keeps distinct stretches as distinct cached instances", () => {
-    const a = getFontInstance("sf-pro", 400, 26, 0, undefined, 50) as InstanceView;
-    const b = getFontInstance("sf-pro", 400, 26, 0, undefined, 75) as InstanceView;
+    const a = getFontInstance("sf-pro", 400, 26, 0, undefined, 50, true) as InstanceView;
+    const b = getFontInstance("sf-pro", 400, 26, 0, undefined, 75, true) as InstanceView;
     expect(a!._appliedVariationAxes?.wdth).toBe(50);
     expect(b!._appliedVariationAxes?.wdth).toBe(75);
     expect(advanceOfH(a)).toBeLessThan(advanceOfH(b));
