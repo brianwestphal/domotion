@@ -1333,7 +1333,29 @@ async function main(): Promise<number> {
     // `clearFontResolutionCaches()` memory trims — Chrome's cache is not
     // dropped there either. Closed in the outer `finally` beside browser.close.
     beginCharacterFallbackDocument();
-    const oracle = await ChromeOracle.create(browser, opts.concurrency, opts.lang);
+    // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
+    // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
+    // though the browser-side miss path is locale-sensitive. Reusing one
+    // renderer across synthetic language arms therefore makes the first locale
+    // to ask for a character contaminate every later arm. Keep one Chromium
+    // renderer scope per locale on Linux so the authoritative per-locale oracle asks
+    // the same isolated question as Domotion. Other platforms retain the one-
+    // process sweep they have always used.
+    const oracleIsolation = process.platform === "linux" ? "renderer-per-locale" : "shared-renderer";
+    const oracles = new Map<string, ChromeOracle>();
+    const oracleFor = async (spec: StackSpec): Promise<ChromeOracle> => {
+      const lang = spec.lang ?? opts.lang;
+      const key = process.platform === "linux" ? lang : "shared";
+      const hit = oracles.get(key);
+      if (hit != null) return hit;
+      // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
+      // documents from different BrowserContexts in one renderer process, so
+      // each locale gets a distinct WebSandboxSupportLinux cache without the
+      // cost of keeping eight complete browser processes alive.
+      const oracle = await ChromeOracle.create(browser, opts.concurrency, lang);
+      oracles.set(key, oracle);
+      return oracle;
+    };
     const counts: Record<Verdict, number> = {
       "agree-exact": 0,
       "agree-same-file": 0,
@@ -1400,6 +1422,7 @@ async function main(): Promise<number> {
     const t0 = Date.now();
 
     for (const [stackIndex, spec] of stacks.entries()) {
+      const oracle = await oracleFor(spec);
       let rs = prepareStack(spec, opts.lang);
       if (rs == null) {
         skippedStacks++;
@@ -1533,7 +1556,7 @@ async function main(): Promise<number> {
         );
       }
     }
-    await oracle.close();
+    for (const oracle of oracles.values()) await oracle.close();
 
     const wallMs = Date.now() - t0;
     const comparisons = Object.values(counts).reduce((a, b) => a + b, 0) + allowlistedCount;
@@ -1584,6 +1607,7 @@ async function main(): Promise<number> {
         maxRows: opts.maxRows,
         lang: opts.lang,
         resetEvery: opts.resetEvery,
+        oracleIsolation,
         resolverAnswerDigest,
         // DM-1922. Attribution fields for an intermittent, Chrome-side flip of
         // the `sans-serif` generic's primary, seen four times in real runs and

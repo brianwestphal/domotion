@@ -59,6 +59,7 @@ const ENV_FIELDS = [
   ["Unicode version", (s) => s.report?.meta?.unicode],
   ["ICU version", (s) => s.report?.meta?.icu],
   ["stack corpus generatedAt", (s) => s.report?.meta?.stackCorpusGeneratedAt],
+  ["oracle isolation", (s) => s.report?.meta?.oracleIsolation],
   // Sampling is part of the question, not merely bookkeeping. A malformed
   // matrix that mixed buckets would otherwise present the first shard's byte
   // beside totals accumulated from several different universes.
@@ -236,6 +237,7 @@ export function sliceOf(meta) {
     codepointShardTotal: meta?.shard?.[1] ?? 1,
     strictAlias: meta?.strictAlias ?? null,
     lang: meta?.lang ?? null,
+    oracleIsolation: meta?.oracleIsolation ?? "shared-renderer",
   };
 }
 

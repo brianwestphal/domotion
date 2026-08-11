@@ -151,10 +151,11 @@ describe("mergeShards", () => {
 
 describe("sliceOf", () => {
   it("keeps exactly the fields that make two runs comparable", () => {
-    expect(sliceOf({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], strictAlias: true, lang: "ja" }))
+    expect(sliceOf({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], strictAlias: true, lang: "ja", oracleIsolation: "renderer-per-locale" }))
       .toEqual({
         codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], sampleByte: null,
         stackShardTotal: 1, codepointShardTotal: 1, strictAlias: true, lang: "ja",
+        oracleIsolation: "renderer-per-locale",
       });
   });
 });
@@ -169,11 +170,17 @@ describe("comparability", () => {
     slice: {
       codepoints: 292466, stacks: 6, includePua: true, ranges: null, sampleByte: null,
       stackShardTotal: 1, codepointShardTotal: 1, strictAlias: false, lang: "en",
+      oracleIsolation: "renderer-per-locale",
     },
   };
 
   it("accepts a run measured in the same environment over the same slice", () => {
     expect(comparability(meta, meta)).toEqual([]);
+  });
+
+  it("refuses to compare locale-isolated and shared-process oracle results", () => {
+    const shared = { ...meta, slice: { ...meta.slice, oracleIsolation: "shared-renderer" } };
+    expect(comparability(meta, shared).join(" ")).toMatch(/oracleIsolation/);
   });
 
   it("refuses a run whose runner image rotated", () => {

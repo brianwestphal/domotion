@@ -78,7 +78,7 @@ export function comparability(runMeta, baseMeta) {
   cmp("font inventory digest", runMeta?.fontInventory?.digest, baseMeta?.fontInventory?.digest);
   for (const k of [
     "codepoints", "stacks", "includePua", "ranges", "sampleByte",
-    "stackShardTotal", "codepointShardTotal", "strictAlias", "lang",
+    "stackShardTotal", "codepointShardTotal", "strictAlias", "lang", "oracleIsolation",
   ]) {
     cmp(`slice.${k}`, runMeta?.slice?.[k], baseMeta?.slice?.[k]);
   }

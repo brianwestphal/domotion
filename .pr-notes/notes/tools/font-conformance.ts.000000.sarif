@@ -387,6 +387,71 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspaeur689j98t79",
+          "message": {
+            "text": "Linux locale arms require separate Chromium renderer caches because WebSandboxSupportLinux keys its fallback cache by codepoint alone; sharing one renderer makes corpus order, rather than the requested locale, choose Chrome's answer. A fresh BrowserContext provides a distinct renderer scope without multiplying full browser processes.",
+            "markdown": "Linux locale arms require separate Chromium renderer caches because WebSandboxSupportLinux keys its fallback cache by codepoint alone; sharing one renderer makes corpus order, rather than the requested locale, choose Chrome's answer. A fresh BrowserContext provides a distinct renderer scope without multiplying full browser processes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 1336,
+                  "endLine": 1362,
+                  "snippet": {
+                    "text": "    // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY\n    // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even\n    // though the browser-side miss path is locale-sensitive. Reusing one\n    // renderer across synthetic language arms therefore makes the first locale\n    // to ask for a character contaminate every later arm. Keep one Chromium\n    // renderer scope per locale on Linux so the authoritative per-locale oracle asks\n    // the same isolated question as Domotion. Other platforms retain the one-\n    // process sweep they have always used.\n    const oracleIsolation = process.platform === \"linux\" ? \"renderer-per-locale\" : \"shared-renderer\";\n    const oracles = new Map<string, ChromeOracle>();\n    const oracleFor = async (spec: StackSpec): Promise<ChromeOracle> => {\n      const lang = spec.lang ?? opts.lang;\n      const key = process.platform === \"linux\" ? lang : \"shared\";\n      const hit = oracles.get(key);\n      if (hit != null) return hit;\n      // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts\n      // documents from different BrowserContexts in one renderer process, so\n      // each locale gets a distinct WebSandboxSupportLinux cache without the\n      // cost of keeping eight complete browser processes alive.\n      const oracle = await ChromeOracle.create(browser, opts.concurrency, lang);\n      oracles.set(key, oracle);\n      return oracle;\n    };\n    const counts: Record<Verdict, number> = {\n      \"agree-exact\": 0,\n      \"agree-same-file\": 0,\n      \"agree-alias\": 0,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2085"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0e14576a54f2ef9596f95e935d11a897"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "76dd2e2ab9cb918fc67104b461774dcd9d8a6a8d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
