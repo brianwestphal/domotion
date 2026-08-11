@@ -86,6 +86,36 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     }
   });
 
+  it("interpolates an angled linear wipe as a fixed-vertex clip (DM-2041)", async () => {
+    const { browser } = env!;
+    const svg = generateAnimatedSvg({
+      width: 400,
+      height: 200,
+      frames: [
+        { svgContent: '<rect width="400" height="200"/>', duration: 500, transition: { type: "wipe", duration: 400, wipeAngle: 90 } },
+        { svgContent: '<rect width="400" height="200"/>', duration: 500, transition: { type: "cut", duration: 0 } },
+      ],
+    });
+    const page = await browser.newPage({ viewport: { width: 400, height: 200 } });
+    try {
+      await page.setContent(svg);
+      const clip = await page.evaluate(() => {
+        for (const animation of document.getAnimations()) {
+          animation.pause();
+          animation.currentTime = 700;
+        }
+        return getComputedStyle(document.querySelector(".fr-1")!).clipPath;
+      });
+      const points = [...clip.matchAll(/[-\d.]+px\s+[-\d.]+px/g)].map((m) => m[0]);
+      const ys = points.map((point) => Number(point.split(/\s+/)[1].replace("px", "")));
+      expect(points).toHaveLength(8);
+      expect(Math.min(...ys)).toBeCloseTo(0, 1);
+      expect(Math.max(...ys)).toBeCloseTo(100, 0);
+    } finally {
+      await page.close();
+    }
+  });
+
   it("returns the assembled AnimationConfig; mutating it before render is reflected; and composeAnimateConfig == frames-out + render", async () => {
     const { browser } = env!;
     const dir = mkdtempSync(path.join(tmpdir(), "compose-frames-"));

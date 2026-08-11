@@ -157,6 +157,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnxito1ld14v562",
+          "message": {
+            "text": "Chromium pauses the generated SVG at the exact midpoint of a 90-degree wipe and reports an eight-point computed polygon spanning y=0 through y=100 in a 200px viewport. This verifies the browser interpolation path, not only the geometry helper.",
+            "markdown": "Chromium pauses the generated SVG at the exact midpoint of a 90-degree wipe and reports an eight-point computed polygon spanning y=0 through y=100 in a 200px viewport. This verifies the browser interpolation path, not only the geometry helper."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 89,
+                  "endLine": 117,
+                  "snippet": {
+                    "text": "  it(\"interpolates an angled linear wipe as a fixed-vertex clip (DM-2041)\", async () => {\n    const { browser } = env!;\n    const svg = generateAnimatedSvg({\n      width: 400,\n      height: 200,\n      frames: [\n        { svgContent: '<rect width=\"400\" height=\"200\"/>', duration: 500, transition: { type: \"wipe\", duration: 400, wipeAngle: 90 } },\n        { svgContent: '<rect width=\"400\" height=\"200\"/>', duration: 500, transition: { type: \"cut\", duration: 0 } },\n      ],\n    });\n    const page = await browser.newPage({ viewport: { width: 400, height: 200 } });\n    try {\n      await page.setContent(svg);\n      const clip = await page.evaluate(() => {\n        for (const animation of document.getAnimations()) {\n          animation.pause();\n          animation.currentTime = 700;\n        }\n        return getComputedStyle(document.querySelector(\".fr-1\")!).clipPath;\n      });\n      const points = [...clip.matchAll(/[-\\d.]+px\\s+[-\\d.]+px/g)].map((m) => m[0]);\n      const ys = points.map((point) => Number(point.split(/\\s+/)[1].replace(\"px\", \"\")));\n      expect(points).toHaveLength(8);\n      expect(Math.min(...ys)).toBeCloseTo(0, 1);\n      expect(Math.max(...ys)).toBeCloseTo(100, 0);\n    } finally {\n      await page.close();\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 562
+                }
+              }
+            }
+          ],
+          "rank": 87,
+          "workItemUris": [
+            "DM-2041"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "483db1509ec13072e3bc00dd291a6a60"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1224103122a8ea8a9665d17ccfdf2453b957438a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

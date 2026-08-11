@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateAnimatedSvg, dedupeFrameIds, overlayWindowEndMs, consolidateKeyframeOffsets } from "./animator.js";
+import { generateAnimatedSvg, dedupeFrameIds, overlayWindowEndMs, consolidateKeyframeOffsets, linearWipeClip } from "./animator.js";
 import type { IntraFrameAnimation } from "./animator.js";
 import type { CapturedElement } from "../capture/types.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/viewbox-culling.js";
@@ -1989,5 +1989,36 @@ describe("duplicate animation offsets", () => {
     const out = consolidateKeyframeOffsets(css);
     expect(out).toContain("0% { opacity: 1; content: 'a;b'; transform: scale(1); }");
     expect((out.match(/(?:^|\s)0% \{/g) ?? []).length).toBe(1);
+  });
+});
+
+describe("angled linear wipe (DM-2041)", () => {
+  const render = (wipeAngle?: number) => generateAnimatedSvg({
+    width: 400,
+    height: 200,
+    frames: [
+      { svgContent: "<rect/>", duration: 500, transition: { type: "wipe", duration: 400, ...(wipeAngle == null ? {} : { wipeAngle }) } },
+      { svgContent: "<path/>", duration: 500, transition: { type: "cut", duration: 0 } },
+    ],
+  });
+
+  it("keeps the default 0-degree wipe byte-identical", () => {
+    expect(render(0)).toBe(render());
+    expect(render(360)).toBe(render());
+  });
+
+  it("emits fixed-vertex polygon samples for an arbitrary angle", () => {
+    const svg = render(35);
+    const block = svg.match(/@keyframes fr-1\s*\{((?:[^{}]|\{[^{}]*\})*)\}/)?.[1] ?? "";
+    const polygons = [...block.matchAll(/polygon\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(polygons.length).toBeGreaterThan(10);
+    expect(new Set(polygons.map((polygon) => polygon.split(",").length))).toEqual(new Set([8]));
+  });
+
+  it("maps 90 degrees to a top-to-bottom half-plane", () => {
+    const clip = linearWipeClip(0.5, 400, 200, 90);
+    const ys = [...clip.matchAll(/[-\d.]+px ([-\d.]+)px/g)].map((m) => Number(m[1]));
+    expect(Math.min(...ys)).toBe(0);
+    expect(Math.max(...ys)).toBe(100);
   });
 });

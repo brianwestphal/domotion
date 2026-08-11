@@ -335,6 +335,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnxit6l1ohmxyih",
+          "message": {
+            "text": "Angled wipes are modeled as a moving half-plane clipped against the viewport, then perimeter-resampled to eight vertices at every stop. Fixed polygon arity keeps CSS basic-shape interpolation continuous across engines; cubic-bezier easing is baked into the samples, while spring/linear-function easing follows the bounded clock-wipe policy and stays linear.",
+            "markdown": "Angled wipes are modeled as a moving half-plane clipped against the viewport, then perimeter-resampled to eight vertices at every stop. Fixed polygon arity keeps CSS basic-shape interpolation continuous across engines; cubic-bezier easing is baked into the samples, while spring/linear-function easing follows the bounded clock-wipe policy and stays linear."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 523,
+                  "endLine": 568,
+                  "snippet": {
+                    "text": "const WIPE_POLYGON_VERTICES = 8;\n\n/** A rectangular half-plane reveal sampled to a fixed vertex count so angled\n * wipe polygons remain CSS-interpolable on every supported engine. */\nexport function linearWipeClip(f: number, width: number, height: number, angleDeg: number): string {\n  const rad = angleDeg * Math.PI / 180;\n  const dx = Math.cos(rad), dy = Math.sin(rad);\n  const rect = [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: height }, { x: 0, y: height }];\n  const projection = (p: { x: number; y: number }) => p.x * dx + p.y * dy;\n  const values = rect.map(projection);\n  const lo = Math.min(...values), hi = Math.max(...values);\n  const threshold = lo + Math.max(0, Math.min(1, f)) * (hi - lo);\n  const clipped: typeof rect = [];\n  for (let i = 0; i < rect.length; i++) {\n    const a = rect[i], b = rect[(i + 1) % rect.length];\n    const pa = projection(a), pb = projection(b);\n    const aIn = pa <= threshold + 1e-7, bIn = pb <= threshold + 1e-7;\n    if (aIn) clipped.push(a);\n    if (aIn !== bIn) {\n      const t = (threshold - pa) / (pb - pa);\n      clipped.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });\n    }\n  }\n  const source = clipped.length > 0 ? clipped : [rect[values.indexOf(lo)]];\n  const lengths = source.map((p, i) => Math.hypot(source[(i + 1) % source.length].x - p.x, source[(i + 1) % source.length].y - p.y));\n  const perimeter = lengths.reduce((sum, n) => sum + n, 0);\n  const points = Array.from({ length: WIPE_POLYGON_VERTICES }, (_, i) => {\n    if (perimeter < 1e-7) return source[0];\n    let distance = perimeter * i / WIPE_POLYGON_VERTICES;\n    let edge = 0;\n    while (edge < lengths.length - 1 && distance > lengths[edge]) distance -= lengths[edge++];\n    const a = source[edge], b = source[(edge + 1) % source.length];\n    const t = lengths[edge] < 1e-7 ? 0 : distance / lengths[edge];\n    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };\n  });\n  const n = (value: number) => Number(value.toFixed(3));\n  return `polygon(${points.map((p) => `${n(p.x)}px ${n(p.y)}px`).join(\", \")})`;\n}\n\nfunction linearWipeStops(width: number, height: number, enterPct: number, endPct: number, angle: number): string {\n  return Array.from({ length: 15 }, (_, i) => {\n    const f = (i + 1) / 16;\n    const at = enterPct + (endPct - enterPct) * f;\n    return `      ${Number(at.toFixed(6))}% { clip-path: ${linearWipeClip(f, width, height, angle)}; }`;\n  }).join(\"\\n\");\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 89
+                }
+              }
+            }
+          ],
+          "rank": 87,
+          "workItemUris": [
+            "DM-2041"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "172427400102d15ed48376c11ef8b17d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1224103122a8ea8a9665d17ccfdf2453b957438a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

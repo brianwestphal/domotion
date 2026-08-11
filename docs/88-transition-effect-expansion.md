@@ -37,8 +37,10 @@ These are **reveal-on-top** transitions: the outgoing frame HOLDS fully painted
 beneath and hard-cuts out at the window end, while the incoming frame unveils on
 top via an animated `clip-path` and RESTS fully revealed (identity clip).
 
-- **`wipe`** — a linear left→right reveal: the incoming frame's clip animates
-  `inset(0 100% 0 0)` → `inset(0 0 0 0)`.
+- **`wipe`** — a linear reveal. It defaults to left→right (`inset(0 100% 0 0)`
+  → `inset(0 0 0 0)`). `wipeAngle` rotates the direction clockwise from that
+  default (`90` = top→bottom); arbitrary angles use fixed-eight-vertex sampled
+  `polygon()` clips. See doc 114.
 - **`iris`** — an expanding circle from the center: `circle(0px at cx cy)` →
   `circle(Rpx at cx cy)`, where `R = ⌈hypot(w/2, h/2)⌉` (reaches the farthest
   corner). Rests fully open.

@@ -374,6 +374,10 @@
                 "description": "Named/raw easing for wipe/iris/zoom reveals (spring-* etc.).",
                 "type": "string"
               },
+              "wipeAngle": {
+                "description": "wipe: reveal angle in degrees clockwise from left-to-right (default 0).",
+                "type": "number"
+              },
               "wipeStartAngle": {
                 "description": "wipe-clock: start angle in degrees clockwise from 12 o'clock (default 0).",
                 "type": "number"

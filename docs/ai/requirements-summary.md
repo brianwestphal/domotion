@@ -42,6 +42,12 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 114 (`docs/114-angled-linear-wipe.md`, DM-2041) — Shipped.** The linear
+  `wipe` transition accepts `wipeAngle`, clockwise from its byte-identical
+  left-to-right default. Non-axis angles use analytically clipped, fixed-eight-
+  vertex polygon samples so CSS interpolation remains valid across viewer
+  engines; both ordinary and mixed-family reveal paths carry the parameter.
+
 - **Doc 113 (`docs/113-cluster-granularity-fallback.md`)** — **Shipped,
   default-on for BOTH run splitters (embedded-font and glyph-path).** Blink
   runs font fallback at SHAPED-CLUSTER granularity (shape with the current

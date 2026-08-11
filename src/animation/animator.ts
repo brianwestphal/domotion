@@ -102,6 +102,8 @@ export interface AnimationFrame {
      * types (their motion is fixed). Default: `linear`.
      */
     easing?: string;
+    /** `wipe` only: reveal direction in degrees clockwise from left-to-right. */
+    wipeAngle?: number;
     /**
      * DM-1585: `wipe-clock` only — where the clock hand STARTS, in degrees
      * clockwise from 12 o'clock (default 0), and whether it sweeps
@@ -518,6 +520,54 @@ function revealShapeOf(transType: string): RevealShape {
   }
 }
 
+const WIPE_POLYGON_VERTICES = 8;
+
+/** A rectangular half-plane reveal sampled to a fixed vertex count so angled
+ * wipe polygons remain CSS-interpolable on every supported engine. */
+export function linearWipeClip(f: number, width: number, height: number, angleDeg: number): string {
+  const rad = angleDeg * Math.PI / 180;
+  const dx = Math.cos(rad), dy = Math.sin(rad);
+  const rect = [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: height }, { x: 0, y: height }];
+  const projection = (p: { x: number; y: number }) => p.x * dx + p.y * dy;
+  const values = rect.map(projection);
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const threshold = lo + Math.max(0, Math.min(1, f)) * (hi - lo);
+  const clipped: typeof rect = [];
+  for (let i = 0; i < rect.length; i++) {
+    const a = rect[i], b = rect[(i + 1) % rect.length];
+    const pa = projection(a), pb = projection(b);
+    const aIn = pa <= threshold + 1e-7, bIn = pb <= threshold + 1e-7;
+    if (aIn) clipped.push(a);
+    if (aIn !== bIn) {
+      const t = (threshold - pa) / (pb - pa);
+      clipped.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  const source = clipped.length > 0 ? clipped : [rect[values.indexOf(lo)]];
+  const lengths = source.map((p, i) => Math.hypot(source[(i + 1) % source.length].x - p.x, source[(i + 1) % source.length].y - p.y));
+  const perimeter = lengths.reduce((sum, n) => sum + n, 0);
+  const points = Array.from({ length: WIPE_POLYGON_VERTICES }, (_, i) => {
+    if (perimeter < 1e-7) return source[0];
+    let distance = perimeter * i / WIPE_POLYGON_VERTICES;
+    let edge = 0;
+    while (edge < lengths.length - 1 && distance > lengths[edge]) distance -= lengths[edge++];
+    const a = source[edge], b = source[(edge + 1) % source.length];
+    const t = lengths[edge] < 1e-7 ? 0 : distance / lengths[edge];
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  });
+  const n = (value: number) => Number(value.toFixed(3));
+  return `polygon(${points.map((p) => `${n(p.x)}px ${n(p.y)}px`).join(", ")})`;
+}
+
+function linearWipeStops(width: number, height: number, enterPct: number, endPct: number, angle: number, ease?: (u: number) => number): string {
+  return Array.from({ length: 15 }, (_, i) => {
+    const u = (i + 1) / 16;
+    const f = Math.max(0, Math.min(1, ease?.(u) ?? u));
+    const at = enterPct + (endPct - enterPct) * u;
+    return `      ${Number(at.toFixed(6))}% { clip-path: ${linearWipeClip(f, width, height, angle)}; }`;
+  }).join("\n");
+}
+
 /**
  * DM-1547: one `clip-path: polygon()` frame of the `wipe-clock` sweep at progress
  * `f` ∈ [0, 1] (0 → fully hidden, 1 → fully revealed). A "clock hand" sweeps
@@ -727,6 +777,7 @@ function emitRevealFrame(
   /** DM-1585: wipe-clock start angle (deg CW from 12) + sweep direction. */
   clockStartDeg = 0,
   clockDir: 1 | -1 = 1,
+  wipeAngle = 0,
 ): { group: string; keyframe: string } {
   const { revealEnterStartPct, startPct, transEndPct } = win;
   // Opacity ON-window: visible from the entrance (or its own start) through the
@@ -799,6 +850,20 @@ ${midStops}
       100% { clip-path: ${shown}; }
     }
     .fr-${i} { animation: fr-${i} ${totalSec.toFixed(2)}s linear infinite; }`;
+    } else if (entranceReveal === "wipe" && ((wipeAngle % 360) + 360) % 360 !== 0) {
+      const hidden = linearWipeClip(0, dims.width, dims.height, wipeAngle);
+      const shown = linearWipeClip(1, dims.width, dims.height, wipeAngle);
+      const wipeEase = revealEasing != null ? cubicBezierSampler(revealEasing) ?? undefined : undefined;
+      const midStops = linearWipeStops(dims.width, dims.height, parseFloat(revealEnterStartPct), parseFloat(startPct), wipeAngle, wipeEase);
+      revealKf = `
+    @keyframes fr-${i} {
+      0%, ${beforeEnter}% { clip-path: ${hidden}; }
+      ${revealEnterStartPct} { clip-path: ${hidden};${revealTf} }
+${midStops}
+      ${startPct} { clip-path: ${shown}; }
+      100% { clip-path: ${shown}; }
+    }
+    .fr-${i} { animation: fr-${i} ${totalSec.toFixed(2)}s linear infinite; }`;
     } else {
       const [hidden, shown] = entranceReveal === "wipe"
         ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
@@ -862,6 +927,7 @@ interface ComposedEntrance {
   /** reveal (clock only): sweep start angle (deg CW from 12) + direction (DM-1585). */
   clockStartDeg?: number;
   clockDir?: 1 | -1;
+  wipeAngle?: number;
 }
 
 /** DM-1585: resolve a transition's `wipe-clock` start angle + sweep direction
@@ -880,13 +946,13 @@ interface ComposedExit {
  *  scroll predecessor slides the incoming in; a crossfade/shine fades it in; a
  *  zoom dollies it in (a fade + scale); a wipe/iris/… reveals it on top; a cut /
  *  magic-move / first-frame appears at its own start. */
-function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolean, prevEasing: string | undefined, prevWipeStartAngle?: number, prevWipeCcw?: boolean): ComposedEntrance {
+function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolean, prevEasing: string | undefined, prevWipeStartAngle?: number, prevWipeCcw?: boolean, prevWipeAngle?: number): ComposedEntrance {
   if (prevType == null) return { kind: "cut" };
   const dir = PUSH_DIRS[prevType];
   if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
   if (REVEAL_KINDS.has(prevType)) {
     const clock = resolveClockParams(prevWipeStartAngle, prevWipeCcw);
-    return { kind: "reveal", reveal: revealShapeOf(prevType), easing: resolveEasingPreset(prevEasing), clockStartDeg: clock.startDeg, clockDir: clock.dir };
+    return { kind: "reveal", reveal: revealShapeOf(prevType), easing: resolveEasingPreset(prevEasing), clockStartDeg: clock.startDeg, clockDir: clock.dir, wipeAngle: prevWipeAngle };
   }
   if (prevType === "zoom-in" || prevType === "zoom-out") return { kind: "dolly", fromScale: prevType === "zoom-in" ? 0.9 : 1.1, easing: resolveEasingPreset(prevEasing) };
   if (prevType === "crossfade" || prevType === "shine") return { kind: "fade" };
@@ -1019,6 +1085,21 @@ function emitComposedFrame(
       // DM-1583: cubic-bezier easing time-remaps the sweep (springs stay linear).
       const cEase = entrance.easing != null ? cubicBezierSampler(entrance.easing) ?? undefined : undefined;
       const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir, cEase);
+      keyframe += `
+    @keyframes fr-${i} {
+      0%, ${rBefore}% { clip-path: ${hidden}; }
+      ${win.enterStartPct} { clip-path: ${hidden};${tf} }
+${mid}
+      ${win.startPct} { clip-path: ${shown}; }
+      100% { clip-path: ${shown}; }
+    }
+    .fr-${i} { animation: fr-${i} ${dur} linear infinite; }`;
+    } else if (shape === "wipe" && (((entrance.wipeAngle ?? 0) % 360) + 360) % 360 !== 0) {
+      const angle = entrance.wipeAngle ?? 0;
+      const hidden = linearWipeClip(0, width, height, angle);
+      const shown = linearWipeClip(1, width, height, angle);
+      const wipeEase = entrance.easing != null ? cubicBezierSampler(entrance.easing) ?? undefined : undefined;
+      const mid = linearWipeStops(width, height, enterNum, startNum, angle, wipeEase);
       keyframe += `
     @keyframes fr-${i} {
       0%, ${rBefore}% { clip-path: ${hidden}; }
@@ -1461,7 +1542,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // branch would drop half of) through `emitComposedFrame`. Same-type chains and
     // the slide/fade mixes the DM-1414 branches already compose stay on those
     // branches, so their output is byte-identical (see `composedBoundaryNeeded`).
-    const composedEntrance = classifyEntrance(prevType, entersViaMagicMove, prevFrame?.transition?.easing, prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise);
+    const composedEntrance = classifyEntrance(prevType, entersViaMagicMove, prevFrame?.transition?.easing, prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise, prevFrame?.transition?.wipeAngle);
     const composedExit = classifyExit(transType);
     const useComposed = composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
 
@@ -1513,7 +1594,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // DM-1585: wipe-clock start angle + direction are authored on the PREVIOUS
       // frame's transition (the one that unveils THIS frame), like the easing.
       const clock = resolveClockParams(prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise);
-      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing, clock.startDeg, clock.dir);
+      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing, clock.startDeg, clock.dir, prevFrame?.transition?.wipeAngle);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
