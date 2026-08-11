@@ -135,7 +135,8 @@ describe("Linux settings-mapped generics run the transcribed nomination walk (gr
       // has no familyMatch entry for it, the replayer would miss, the walk
       // would read that as a rejection, and the key would collapse to the
       // "times" terminal. Its real route is the raw fontconfig default
-      // (`fcMatch("sans-serif")` → a host-dependent `sysfb:` key) or the
+      // (`fcMatch("sans")` → a host-dependent `sysfb:` key), matching
+      // PlatformFontSkia's headless fallback-family input, or the
       // `sf-pro` static when fc-match is unavailable on the host.
       expect(fr.resolveFontKey("system-ui")).toMatch(/^(sysfb:.+|sf-pro)$/);
     });

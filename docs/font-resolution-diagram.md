@@ -656,8 +656,11 @@ ACCEPTED spelling the §2 nomination walk recorded (`declaredFamilyForKey`,
 re-matched here with the same alias retry Blink's lookup carries) and, for
 the static keys that still reach this stage — `system-ui` and the `times`
 terminal (with the walk armed, the other generics resolve upstream via the
-grd-default nomination) — the calibrated `fcMatch` base the
-`LINUX_FONT_PATHS` entry carries. When both match nothing on this host,
+grd-default nomination) — the calibrated live fontconfig base. In particular,
+Linux `system-ui` asks `fc-match "sans"`: this is PlatformFontSkia's exact
+headless fallback-family input behind the browser-supplied
+`FontCache::SystemFontFamily()`, so the answer follows the host font inventory
+instead of freezing one runner's painted Latin cut. When both match nothing on this host,
 `linuxLastResortMatch` runs the transcribed last-resort chain
 (`GetLastResortFallbackFont`, `fonts/skia/font_cache_skia.cc:147-261` at the
 tag: empty name → "Sans" → "Arial" → `legacyMakeTypeface(nullptr)` ≡

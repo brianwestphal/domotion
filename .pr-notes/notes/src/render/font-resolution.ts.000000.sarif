@@ -799,6 +799,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspb0r3mjq8xewav",
+          "message": {
+            "text": "Linux system-ui does not need a painted-face handshake in Domotion's supported headless launch. Chromium supplies gfx::Font().GetFontName(); without LinuxUi, PlatformFontSkia begins from the literal fallback family 'sans' and resolves it through the live host fontconfig manager. Asking fc-match 'sans' mirrors that mechanism and remains inventory-dependent, while freezing CDP's Latin cut loses the family's fallback behavior.",
+            "markdown": "Linux system-ui does not need a painted-face handshake in Domotion's supported headless launch. Chromium supplies gfx::Font().GetFontName(); without LinuxUi, PlatformFontSkia begins from the literal fallback family 'sans' and resolves it through the live host fontconfig manager. Asking fc-match 'sans' mirrors that mechanism and remains inventory-dependent, while freezing CDP's Latin cut loses the family's fallback behavior."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8370,
+                  "endLine": 8409,
+                  "snippet": {
+                    "text": "    // `system-ui` on Linux comes from the browser's RendererPreferences, not\n    // the generic-family settings. In Domotion's supported headless launch,\n    // `RenderViewHostImpl::GetPlatformSpecificPrefs` reads\n    // `gfx::Font().GetFontName()`. With no LinuxUi installed, PlatformFontSkia\n    // starts from its source-defined fallback family \"sans\" and resolves that\n    // name live through the host's Skia/fontconfig manager. Ask that identical\n    // host-dependent question here; do not freeze the painted Latin cut from a\n    // probe, because it does not carry the UI family's fallback behavior.\n    //\n    // Deliberately NO walk-past branch for an unresolvable system-ui. Blink\n    // does have one — `FontCache::SystemFontPlatformData` returns\n    // nullptr when the browser-side system font family is empty or literally\n    // \"system-ui\", and the stack walks on — but that return is inside\n    // `#if !BUILDFLAG(IS_MAC)` and further gated to\n    // IS_LINUX/IS_CHROMEOS/IS_FUCHSIA/IS_IOS (`platform/fonts/\n    // font_cache.cc:139-152`, rev 7d859f27; on win32 the same condition is a\n    // DCHECK, i.e. assumed unreachable, and macOS resolves system-ui in\n    // font_cache_mac.mm and never takes this path). So a walk-past on darwin\n    // or win32 would CONTRADICT Blink. On Linux the branch exists but the\n    // measured capture environment never fires it — the runner's paint for\n    // `system-ui, sans-serif` is WenQuanYi (the system-ui answer itself),\n    // not the next declared family, so its system font family is non-empty —\n    // and the VALUE that would decide it is browser-side and un-transcribed.\n    //\n    // The platform matcher dispatches the exact canonical NAME `system-ui`,\n    // independently of the generic bit: quoted `\"system-ui\"` therefore takes\n    // the system-font route on every platform. The comparison itself remains\n    // case-sensitive (`AtomicString`): `\"System-ui\"` is an ordinary literal\n    // family and must walk on. `splitFontFamilyNames` preserves that one bit\n    // before lower-casing names for ordinary case-insensitive family lookup.\n    if (name === \"system-ui\" && canonicalSystemUiName) {\n      if (hostPlatform() === \"darwin\") darwinSystemUiPlatformCacheWarm = true;\n      if (hostPlatform() === \"linux\" && _systemFallbackResolutionEnabled) {\n        const matched = fcMatch(\"sans\");\n        if (matched != null) {\n          const psName = matched.postscriptName ?? matched.path.split(\"/\").pop() ?? \"system-ui\";\n          const key = `sysfb:${psName}`;\n          registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? psName, \"fontkit\");\n          return key;\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2075"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "872f7447aab9fbffeb527f68912bd091"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "68f29652ca28fc57d2ab60fa4011c0e6bbff02b0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

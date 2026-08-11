@@ -8367,16 +8367,14 @@ function matchFamilyNameToKey(
     // jammed against the adjacent Arabic/CJK glyphs because SF Pro's "t"
     // and "o" advances are ~1px wider than Helvetica's at 18px. Let
     // `-apple-system` fall through via the `continue` clause below.
-    // DM-1681: `system-ui` on Linux does NOT resolve to the `sans-serif` face.
-    // Blink configures a `sans-serif` family (Liberation on the noble image) but
-    // has no Linux `system-ui` family, so Chrome-on-Linux resolves `system-ui`
-    // via fontconfig's raw default — WenQuanYi Zen Hei on noble (verified with
-    // `getPlatformFontsForNode`: the `system-ui, sans-serif` fixtures paint
-    // WenQuanYi, not Liberation). This is the ONE generic keyword where `fc-match`
-    // agrees with Chrome (unlike `sans-serif` — see DM-1691), because Blink
-    // doesn't override it. Resolve `system-ui` via the fontconfig default so we
-    // match Chrome; keep macOS/Windows on the `sf-pro` key. Gated by the
-    // live-resolver flag (default-on; honors DOMOTION_SYSTEM_FALLBACK=0).
+    // `system-ui` on Linux comes from the browser's RendererPreferences, not
+    // the generic-family settings. In Domotion's supported headless launch,
+    // `RenderViewHostImpl::GetPlatformSpecificPrefs` reads
+    // `gfx::Font().GetFontName()`. With no LinuxUi installed, PlatformFontSkia
+    // starts from its source-defined fallback family "sans" and resolves that
+    // name live through the host's Skia/fontconfig manager. Ask that identical
+    // host-dependent question here; do not freeze the painted Latin cut from a
+    // probe, because it does not carry the UI family's fallback behavior.
     //
     // Deliberately NO walk-past branch for an unresolvable system-ui. Blink
     // does have one — `FontCache::SystemFontPlatformData` returns
@@ -8402,7 +8400,7 @@ function matchFamilyNameToKey(
     if (name === "system-ui" && canonicalSystemUiName) {
       if (hostPlatform() === "darwin") darwinSystemUiPlatformCacheWarm = true;
       if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
-        const matched = fcMatch("sans-serif");
+        const matched = fcMatch("sans");
         if (matched != null) {
           const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? "system-ui";
           const key = `sysfb:${psName}`;
