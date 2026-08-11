@@ -39,6 +39,16 @@ const ours = (o: Partial<OurFace>): OurFace =>
 const chrome = (o: Partial<ChromeFace>): ChromeFace =>
   ({ familyName: "", glyphCount: 1, ...o });
 
+describe("oracle resolver question", () => {
+  it("passes the raw CSS family stack used by Blink's standard-style retry", () => {
+    const source = readFileSync(join(process.cwd(), "tools/font-conformance.ts"), "utf8")
+      .replace(/\s+/g, " ");
+    expect(source).toMatch(
+      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
+    );
+  });
+});
+
 describe("verdictForCodepoint", () => {
   it("does not grade HarfBuzz default-ignorables by CDP's bookkeeping face", () => {
     const c = chrome({ postScriptName: "Times-Roman", familyName: "Times" });

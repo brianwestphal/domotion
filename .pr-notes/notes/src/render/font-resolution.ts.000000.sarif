@@ -864,6 +864,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspbgzvtmuj52jgk",
+          "message": {
+            "text": "Windows fallback must preserve Blink's declared-family question. Chromium passes FontDescription::Family().FamilyName() to matchFamilyStyleCharacter; using the already-resolved primary file family changes DirectWrite's cascade for generics, aliases, and missing-first-family stacks. The bounded Windows oracle is the proof target; see the related oracle call, which now carries the raw stack.",
+            "markdown": "Windows fallback must preserve Blink's declared-family question. Chromium passes FontDescription::Family().FamilyName() to matchFamilyStyleCharacter; using the already-resolved primary file family changes DirectWrite's cascade for generics, aliases, and missing-first-family stacks. The bounded Windows oracle is the proof target; see the related oracle call, which now carries the raw stack."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 3312,
+                  "endLine": 3344,
+                  "snippet": {
+                    "text": "      // family, not the family name of the face the preceding stack walk\n      // resolved. They differ for generics, missing names followed by an\n      // installed family, and aliases — precisely the cases where feeding\n      // DirectWrite the resolved file family changes its fallback cascade.\n      const declaredHead = declaredFamily != null\n        ? splitFontFamilyNames(declaredFamily)[0]?.name\n        : undefined;\n      const primaryFamily = declaredHead ?? (primaryKey == null\n        ? undefined\n        : (primaryKey === \"sf-pro\"\n          ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(primaryKey))\n          : fileFamilyNameForKey(primaryKey)) ?? undefined);\n      // DM-1896: and the run's fallback LOCALE, the last of `MapCharacters`'\n      // arguments we were supplying a constant for (the helper reported a\n      // hardcoded `en-us`). Blink resolves it per codepoint —\n      // `FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`,\n      // `win/font_cache_skia_win.cc:228-240` — and it is what disambiguates\n      // unified Han, so asking without it answers by DirectWrite's default\n      // preference order instead of by the page's language. The reduction is\n      // Blink's own and is NOT the raw CSS `lang`: it keeps the script subtag\n      // and drops the region (`zh-CN` → `zh-Hans`), which is the only part\n      // DirectWrite discriminates on. Transcribed in `blinkWinFallbackLocale`.\n      const dwLocale = blinkWinFallbackLocale(cp, lang);\n      const resolved = resolveSystemFallbackFonts([cp], \"Helvetica\", {\n        weight, italic: slant !== 0, fontSize,\n        ...(primaryFamily != null ? { baseFamilyName: primaryFamily } : {}),\n        ...(dwLocale !== \"\" ? { locale: dwLocale } : {}),\n      }).get(cp);\n      if (resolved != null && resolved.path !== \"\") {\n        key = `sysfb:${resolved.postscriptName}`;\n        // DM-1721: carry DirectWrite's resolved axis values (variable faces\n        // only) into the dynamic spec so the hinted-subset pin can adopt them.\n        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName, \"native\", resolved.resolvedAxes);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 766
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3d65a6b9815d28a1b1cc2847806da81e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6ae6943ea733a9a462c0aabfb9eab4f0bfecd89f",
+          "branch": "validate/dm2083-windows-fallback"
+        }
+      ]
     }
   ]
 }

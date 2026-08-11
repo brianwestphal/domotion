@@ -780,6 +780,12 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
     // instrument defect this tool was corrected for once already.
     stackPrimaryIsSystemUi(rs.spec.fontFamily),
     rs.stretch,
+    undefined,
+    // The renderer passes the raw declaration because Blink's standard-style
+    // retry reopens the first declared family, not whichever fallback key the
+    // stack walk happened to resolve. Omitting it made the oracle bypass the
+    // Windows/Linux retry while claiming to measure the production question.
+    rs.spec.fontFamily,
   );
   // An uncovered codepoint has no resolved face of its own — the renderer draws
   // the run primary's `.notdef`, so THAT is the face to compare against Chrome.

@@ -452,6 +452,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspbh022jrabhbgy",
+          "message": {
+            "text": "The conformance oracle now asks the production resolver question, including the raw CSS family stack. Run 31547607541 proved the previous instrument's answer digest and all 378 mismatches were unchanged despite the standard-style implementation, exposing that this argument was absent; the follow-up Windows byte-00 run validates the corrected contract.",
+            "markdown": "The conformance oracle now asks the production resolver question, including the raw CSS family stack. Run 31547607541 proved the previous instrument's answer digest and all 378 mismatches were unchanged despite the standard-style implementation, exposing that this argument was absent; the follow-up Windows byte-00 run validates the corrected contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 766,
+                  "endLine": 789,
+                  "snippet": {
+                    "text": "  const r = resolveFontForCodepoint(\n    cp,\n    rs.primary,\n    rs.primaryKey,\n    rs.spec.fontWeight,\n    rs.spec.fontSize,\n    rs.slant,\n    undefined,\n    lang,\n    rs.chain,\n    // DM-1859: the oracle must ask the question the RENDERER asks, and the\n    // renderer distinguishes a `system-ui` primary from an explicitly-named\n    // \"SF Pro\" even though both share the `sf-pro` key. Omitting this would\n    // measure a different code path than the one that paints — the exact\n    // instrument defect this tool was corrected for once already.\n    stackPrimaryIsSystemUi(rs.spec.fontFamily),\n    rs.stretch,\n    undefined,\n    // The renderer passes the raw declaration because Blink's standard-style\n    // retry reopens the first declared family, not whichever fallback key the\n    // stack walk happened to resolve. Omitting it made the oracle bypass the\n    // Windows/Linux retry while claiming to measure the production question.\n    rs.spec.fontFamily,\n  );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 3312
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4379b85cfc5693f4e703616dcb5715b4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6ae6943ea733a9a462c0aabfb9eab4f0bfecd89f",
+          "branch": "validate/dm2083-windows-fallback"
+        }
+      ]
     }
   ]
 }
