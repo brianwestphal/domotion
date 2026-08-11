@@ -83,6 +83,15 @@ describe("flag gate", () => {
 });
 
 (MACOS_FONTS ? describe : describe.skip)("shape-then-requeue vs Chrome ground truth (docs/113 §2)", () => {
+  it("uses the one-shot emoji fallback-priority stage before ordinary system fallback", () => {
+    const before = _clusterFallbackCounters();
+    const runs = split("Helvetica", "😀");
+    const after = _clusterFallbackCounters();
+    expect(runs?.[0].key.toLowerCase()).toContain("applecoloremoji");
+    expect(after.priorityAsked).toBeGreaterThan(before.priorityAsked);
+    expect(after.priorityAnswered).toBeGreaterThan(before.priorityAnswered);
+  });
+
   it("keeps an uncovered mark WITH its covered base: Helvetica x+U+0951 is ONE Helvetica run", () => {
     // Chrome: Helvetica x2 — the cluster's hint char is `x` (U+0951 is
     // Inherited), CoreText answers Helvetica, the iterator refuses the

@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msp8a0yxv08jc7ms",
+          "message": {
+            "text": "Fallback priority is a one-shot iterator stage, not a parameter on ordinary system fallback. Advancing the state to system before returning the priority candidate reproduces Blink’s ownership: a failed/requeued priority face cannot be asked twice, and the next candidate is the platform fallback.",
+            "markdown": "Fallback priority is a one-shot iterator stage, not a parameter on ordinary system fallback. Advancing the state to system before returning the priority candidate reproduces Blink’s ownership: a failed/requeued priority face cannot be asked twice, and the next candidate is the platform fallback."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 774,
+                  "endLine": 798,
+                  "snippet": {
+                    "text": "            if (inst == null) break;\n            const isPrimary = entry.key === primaryFontKey && inst === primaryFont;\n            const cand = candidateFor(entry.key, inst, isPrimary, inst.webfontUnicodeRange ?? null, isPrimary ? variationSettings : undefined);\n            const identity = `${cand.face.path}#${cand.face.faceIndex}`;\n            if (cand.clampRanges == null) {\n              if (returnedFaces.has(identity)) break;\n              returnedFaces.add(identity);\n            }\n            if (firstCandidate == null) firstCandidate = cand;\n            return cand;\n          }\n          case \"priority\": {\n            // `kFallbackPriorityFonts` is one-shot and owns the first hint,\n            // ahead of `UniqueSystemFontForHintList`. A miss proceeds to the\n            // ordinary system stage; it never retries another priority face.\n            iter.stage = \"system\";\n            _priorityAsked++;\n            const hint = hints[0];\n            const key = resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang);\n            if (key == null) break;\n            const font = getFontInstance(key, weight, fontSize, slant);\n            if (font == null) break;\n            const cand = candidateFor(key, font, false, null);\n            const identity = `${cand.face.path}#${cand.face.faceIndex}`;\n            if (returnedFaces.has(identity)) break;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-1990"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "eba393b3b00e4d82e11869ad37485a8f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e89c55d2988864a08f282696dbb105eb70794a08",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -59,8 +59,9 @@ import {
   FontInstance, FontRun,
   getFontInstance, getFontSourceInfo, shapingFaceFor, webfontShapingFace,
   webfontVariantsInDeclarationOrder, unicodeRangeCovers,
+  resolveColorEmojiKeyForCp, isEmojiCharCp, isEmojiPresentationCp,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
-  forcesEmojiPresentation, isEmojiCharCp, isEmojiCodepoint, isColorEmojiFontKey,
+  forcesEmojiPresentation, isEmojiCodepoint, isColorEmojiFontKey,
   glyphIdForCp, fallbackFontChain, harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
 } from "./font-resolution.js";
@@ -80,12 +81,14 @@ export function clusterFallbackEnabled(): boolean {
 // so a zero-delta A/B can be distinguished from an A/B that never took the path.
 let _invoked = 0;
 let _accepted = 0;
-export function _clusterFallbackCounters(): { invoked: number; accepted: number } {
-  return { invoked: _invoked, accepted: _accepted };
+let _priorityAsked = 0;
+let _priorityAnswered = 0;
+export function _clusterFallbackCounters(): { invoked: number; accepted: number; priorityAsked: number; priorityAnswered: number } {
+  return { invoked: _invoked, accepted: _accepted, priorityAsked: _priorityAsked, priorityAnswered: _priorityAnswered };
 }
 if (process.env.DOMOTION_CLUSTER_FALLBACK_DEBUG === "1") {
   process.on("exit", () => {
-    console.error(`[cluster-fallback] invoked=${_invoked} accepted=${_accepted}`);
+    console.error(`[cluster-fallback] invoked=${_invoked} accepted=${_accepted} priorityAsked=${_priorityAsked} priorityAnswered=${_priorityAnswered}`);
   });
 }
 
@@ -509,7 +512,7 @@ function pinnedEmojiTerminalSpans(
 
 // ── The FontFallbackIterator port ───────────────────────────────────────────
 
-type Stage = "family" | "system" | "lastResort" | "firstCandidate" | "outOfLuck";
+type Stage = "family" | "priority" | "system" | "lastResort" | "firstCandidate" | "outOfLuck";
 
 interface Candidate {
   key: string;
@@ -695,6 +698,22 @@ function splitShapedInner(
 
     const needsFullHints = familyCycle.some((f) => f.key.startsWith("webfont:"));
 
+    /** Effective non-text fallback priority for the first hint. Explicit
+     * selectors win over the CSS property; otherwise the run's Unicode emoji
+     * presentation supplies Blink's default priority. */
+    const emojiPriorityFor = (hint: number): boolean => {
+      const pos = findCodepoint(logicalText, queue, hint);
+      const len = String.fromCodePoint(hint).length;
+      const next = pos >= 0 && pos + len < logicalText.length
+        ? logicalText.codePointAt(pos + len)! : 0;
+      if (next === 0xFE0F) return true;
+      if (next === 0xFE0E) return false;
+      if (fontVariantEmoji === "emoji") return isEmojiCharCp(hint);
+      if (fontVariantEmoji === "text") return false;
+      if (fontVariantEmoji === "unicode") return isEmojiPresentationCp(hint);
+      return isEmojiPresentationCp(hint);
+    };
+
     const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, vs?: Record<string, number>): Candidate => {
       const face = isPrimary ? primaryFace : hbFaceFor(font, key, weight, fontSize, slant, vs);
       // A candidate HarfBuzz cannot open cannot take this mechanism at all —
@@ -711,7 +730,10 @@ function splitShapedInner(
       for (;;) {
         switch (iter.stage) {
           case "family": {
-            if (familyIndex >= familyCycle.length) { iter.stage = "system"; break; }
+            if (familyIndex >= familyCycle.length) {
+              iter.stage = emojiPriorityFor(hints[0]) ? "priority" : "system";
+              break;
+            }
             const entry = familyCycle[familyIndex];
             if (entry.inst == null && entry.key.startsWith("webfont:")) {
               // kSegmentedFace: a webfont family's unicode-range partitions.
@@ -758,6 +780,25 @@ function splitShapedInner(
               returnedFaces.add(identity);
             }
             if (firstCandidate == null) firstCandidate = cand;
+            return cand;
+          }
+          case "priority": {
+            // `kFallbackPriorityFonts` is one-shot and owns the first hint,
+            // ahead of `UniqueSystemFontForHintList`. A miss proceeds to the
+            // ordinary system stage; it never retries another priority face.
+            iter.stage = "system";
+            _priorityAsked++;
+            const hint = hints[0];
+            const key = resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang);
+            if (key == null) break;
+            const font = getFontInstance(key, weight, fontSize, slant);
+            if (font == null) break;
+            const cand = candidateFor(key, font, false, null);
+            const identity = `${cand.face.path}#${cand.face.faceIndex}`;
+            if (returnedFaces.has(identity)) break;
+            returnedFaces.add(identity);
+            if (firstCandidate == null) firstCandidate = cand;
+            _priorityAnswered++;
             return cand;
           }
           case "system": {

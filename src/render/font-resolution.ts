@@ -3564,7 +3564,7 @@ export function fontHasSupportedColorTable(font: Pick<FontInstance, "directory">
  * fontconfig substitution), Windows `font_fallback_win.cc` GetFallbackFamily
  * under kEmojiEmoji (the color-emoji family list).
  */
-function resolveColorEmojiKeyForCp(
+export function resolveColorEmojiKeyForCp(
   cp: number, weight: number, fontSize: number, slant: number, lang: string | undefined,
 ): string | null {
   let key: string | null = null;
