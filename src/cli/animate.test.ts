@@ -960,6 +960,17 @@ describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
     }
   });
 
+  it("carries a pre-action target cursor onto the generated move", () => {
+    const ov = buildCursorOverlay(
+      true, [], undefined,
+      [{ frame: 1, cx: 20, cy: 20, cursor: "pointer" }],
+      new Map(), starts, frames,
+    );
+    expect(ov?.events.find((event) => event.type === "move")).toMatchObject({
+      type: "move", to: { x: 20, y: 20 }, cursor: "pointer",
+    });
+  });
+
   it("does NOT fire a click during its OWN result frame's hold (the bug)", () => {
     const ov = buildCursorOverlay(true, [], undefined, targets, new Map(), starts, frames);
     const clickTimes = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);

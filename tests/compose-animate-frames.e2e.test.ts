@@ -342,4 +342,34 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 90_000);
+
+  it("keeps the pre-action cursor when a click removes its target (DM-1995)", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(path.join(tmpdir(), "cursor-pre-action-"));
+    try {
+      writeFileSync(path.join(dir, "dismiss.html"),
+        `<!doctype html><html><head><meta charset="utf-8"><style>
+          body{margin:0;width:320px;height:180px;font:16px sans-serif}
+          #under{position:absolute;left:80px;top:60px;width:160px;height:50px;cursor:text}
+          #save{position:absolute;left:80px;top:60px;width:160px;height:50px;cursor:pointer}
+        </style></head><body>
+          <div id="under">Underlying text</div>
+          <button id="save" onclick="this.remove()">Save</button>
+        </body></html>`);
+      const config = await composeAnimateFrames(browser, validateAnimateConfig({
+        width: 320,
+        height: 180,
+        cursor: "auto",
+        frames: [{ input: "dismiss.html", duration: 800, actions: [{ type: "click", selector: "#save" }] }],
+      }), dir, () => {});
+
+      const move = config.cursorOverlay?.events.find((event) => event.type === "move");
+      expect(move).toMatchObject({ type: "move", to: { x: 160, y: 85 }, cursor: "pointer" });
+      // The captured post-action tree sees the text revealed at the same point;
+      // this proves the move override, rather than that tree, preserves the hand.
+      expect(config.resolveCursorAt?.(160, 85, 0)).toBe("text");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
 });

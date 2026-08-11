@@ -215,6 +215,137 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnx3pi9l2wlcxbi",
+          "message": {
+            "text": "Automatic interaction recording snapshots the effective cursor keyword alongside the target coordinates before actions execute. Carrying that value forward is necessary because the captured frame tree represents post-action DOM and may no longer contain the clicked element.",
+            "markdown": "Automatic interaction recording snapshots the effective cursor keyword alongside the target coordinates before actions execute. Carrying that value forward is necessary because the captured frame tree represents post-action DOM and may no longer contain the clicked element."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 1589,
+                  "endLine": 1601,
+                  "snippet": {
+                    "text": "  // DM-851 §6: for `cursor: \"auto\"`, record each interaction target's\n  // aim point BEFORE the action runs (that's where the pointer clicks).\n  // DM-1742: the action's optional `cursorAt` / `cursorOffset` aim the\n  // pointer at a named border-box anchor + px nudge instead of the center.\n  if (cursorAuto && fc.actions != null) {\n    for (const a of fc.actions) {\n      if (a.type === \"click\" || a.type === \"hover\" || a.type === \"fill\") {\n        const c = await queryCursorBox(page, a.selector, a.cursorAt, a.cursorOffset);\n        if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy, cursor: c.cursor });\n      }\n    }\n  }\n  if (fc.actions != null) await runActions(page, fc.actions, log);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 346
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-1995"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "df39ac65ea1fa9728917b164b82b5cd4"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnx3q11b45p7898",
+          "message": {
+            "text": "The live-target resolver mirrors the capture script's effective-cursor rules for custom URL fallbacks and Blink-style auto handling. Keeping these rules aligned ensures the pre-action override uses the same keyword vocabulary as ordinary captured-tree hit testing.",
+            "markdown": "The live-target resolver mirrors the capture script's effective-cursor rules for custom URL fallbacks and Blink-style auto handling. Keeping these rules aligned ensures the pre-action override uses the same keyword vocabulary as ordinary captured-tree hit testing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 3560,
+                  "endLine": 3588,
+                  "snippet": {
+                    "text": "async function queryCursorBox(\n  page: Page,\n  sel: string,\n  at: BoxAnchor = \"center\",\n  offset?: { dx?: number; dy?: number },\n): Promise<{ cx: number; cy: number; cursor: string } | null> {\n  try {\n    const [cx, cy] = (await borderBox(page, sel, { at, dx: offset?.dx ?? 0, dy: offset?.dy ?? 0 })).at;\n    const cursor = await page.evaluate((selector: string) => {\n      const el = document.querySelector(selector);\n      if (!(el instanceof HTMLElement)) return \"default\";\n      const cs = getComputedStyle(el);\n      let value = (cs.cursor || \"auto\").trim();\n      if (value.includes(\"url(\")) value = value.split(\",\").at(-1)?.trim() ?? \"default\";\n      if (value !== \"auto\") return value;\n      const textInputTypes = new Set([\"text\", \"search\", \"url\", \"tel\", \"email\", \"password\", \"number\"]);\n      const editable = el.isContentEditable\n        || el.tagName === \"TEXTAREA\"\n        || (el.tagName === \"INPUT\" && textInputTypes.has((el.getAttribute(\"type\") || \"text\").toLowerCase()));\n      const selectableText = !editable\n        && (cs.userSelect || cs.webkitUserSelect || \"\") !== \"none\"\n        && [...el.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && (node.textContent || \"\").trim() !== \"\");\n      if (editable || selectableText) return (cs.writingMode || \"\").startsWith(\"vertical\") ? \"vertical-text\" : \"text\";\n      return \"default\";\n    }, sel);\n    return { cx, cy, cursor };\n  } catch {\n    return null;\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "assumption"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/utils.ts"
+                },
+                "region": {
+                  "startLine": 86
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-1995"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0822c506b65a9c67d9e16f8a4f674a71"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d574e747ee2e1501f1c975fa3eb057cdd2c93fc2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

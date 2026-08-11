@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msnx3qg8kw2gwmtg",
+          "message": {
+            "text": "The Chromium regression fixture clicks a pointer-styled button that removes itself and reveals cursor:text content at exactly the same coordinates. The captured post-action hit-test returns text, while the generated move retains pointer, directly proving the fix is sourced from the live pre-action target.",
+            "markdown": "The Chromium regression fixture clicks a pointer-styled button that removes itself and reveals cursor:text content at exactly the same coordinates. The captured post-action hit-test returns text, while the generated move retains pointer, directly proving the fix is sourced from the live pre-action target."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 346,
+                  "endLine": 374,
+                  "snippet": {
+                    "text": "  it(\"keeps the pre-action cursor when a click removes its target (DM-1995)\", async () => {\n    const { browser } = env!;\n    const dir = mkdtempSync(path.join(tmpdir(), \"cursor-pre-action-\"));\n    try {\n      writeFileSync(path.join(dir, \"dismiss.html\"),\n        `<!doctype html><html><head><meta charset=\"utf-8\"><style>\n          body{margin:0;width:320px;height:180px;font:16px sans-serif}\n          #under{position:absolute;left:80px;top:60px;width:160px;height:50px;cursor:text}\n          #save{position:absolute;left:80px;top:60px;width:160px;height:50px;cursor:pointer}\n        </style></head><body>\n          <div id=\"under\">Underlying text</div>\n          <button id=\"save\" onclick=\"this.remove()\">Save</button>\n        </body></html>`);\n      const config = await composeAnimateFrames(browser, validateAnimateConfig({\n        width: 320,\n        height: 180,\n        cursor: \"auto\",\n        frames: [{ input: \"dismiss.html\", duration: 800, actions: [{ type: \"click\", selector: \"#save\" }] }],\n      }), dir, () => {});\n\n      const move = config.cursorOverlay?.events.find((event) => event.type === \"move\");\n      expect(move).toMatchObject({ type: \"move\", to: { x: 160, y: 85 }, cursor: \"pointer\" });\n      // The captured post-action tree sees the text revealed at the same point;\n      // this proves the move override, rather than that tree, preserves the hand.\n      expect(config.resolveCursorAt?.(160, 85, 0)).toBe(\"text\");\n    } finally {\n      rmSync(dir, { recursive: true, force: true });\n    }\n  }, 90_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 1589
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-1995"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9bf3921d1bd074a23264f49ae3b224e7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d574e747ee2e1501f1c975fa3eb057cdd2c93fc2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

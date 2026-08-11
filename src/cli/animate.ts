@@ -1526,7 +1526,7 @@ interface CapturedFrameContext {
   tracker: ReturnType<typeof attachWebfontTracker>;
   cursorAuto: boolean;
   explicitCursorEvents: CursorEventInput[];
-  autoCursorTargets: Array<{ frame: number; cx: number; cy: number }>;
+  autoCursorTargets: Array<{ frame: number; cx: number; cy: number; cursor: string }>;
   explicitCursorBoxes: Map<string, { cx: number; cy: number }>;
   /** DM-1747 (docs/101): resolved caret/selection tracks accumulated across
    *  frames (global-time geometry) for `AnimationConfig.textTracks`. */
@@ -1594,7 +1594,7 @@ async function buildCapturedFrame(
     for (const a of fc.actions) {
       if (a.type === "click" || a.type === "hover" || a.type === "fill") {
         const c = await queryCursorBox(page, a.selector, a.cursorAt, a.cursorOffset);
-        if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy });
+        if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy, cursor: c.cursor });
       }
     }
   }
@@ -2914,7 +2914,7 @@ export async function composeAnimateFrames(
     const cursorAuto = cursorCfg === "auto";
     const explicitCursorEvents = cursorCfg != null && cursorCfg !== "auto" ? cursorCfg.events : [];
     const cursorStyleCfg = cursorCfg != null && cursorCfg !== "auto" ? cursorCfg.style : undefined;
-    const autoCursorTargets: Array<{ frame: number; cx: number; cy: number }> = [];
+    const autoCursorTargets: Array<{ frame: number; cx: number; cy: number; cursor: string }> = [];
     const explicitCursorBoxes = new Map<string, { cx: number; cy: number }>();
     const frameStartsMs: number[] = [];
     {
@@ -3562,10 +3562,27 @@ async function queryCursorBox(
   sel: string,
   at: BoxAnchor = "center",
   offset?: { dx?: number; dy?: number },
-): Promise<{ cx: number; cy: number } | null> {
+): Promise<{ cx: number; cy: number; cursor: string } | null> {
   try {
     const [cx, cy] = (await borderBox(page, sel, { at, dx: offset?.dx ?? 0, dy: offset?.dy ?? 0 })).at;
-    return { cx, cy };
+    const cursor = await page.evaluate((selector: string) => {
+      const el = document.querySelector(selector);
+      if (!(el instanceof HTMLElement)) return "default";
+      const cs = getComputedStyle(el);
+      let value = (cs.cursor || "auto").trim();
+      if (value.includes("url(")) value = value.split(",").at(-1)?.trim() ?? "default";
+      if (value !== "auto") return value;
+      const textInputTypes = new Set(["text", "search", "url", "tel", "email", "password", "number"]);
+      const editable = el.isContentEditable
+        || el.tagName === "TEXTAREA"
+        || (el.tagName === "INPUT" && textInputTypes.has((el.getAttribute("type") || "text").toLowerCase()));
+      const selectableText = !editable
+        && (cs.userSelect || cs.webkitUserSelect || "") !== "none"
+        && [...el.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && (node.textContent || "").trim() !== "");
+      if (editable || selectableText) return (cs.writingMode || "").startsWith("vertical") ? "vertical-text" : "text";
+      return "default";
+    }, sel);
+    return { cx, cy, cursor };
   } catch {
     return null;
   }
@@ -3589,7 +3606,7 @@ export function buildCursorOverlay(
   auto: boolean,
   explicitEvents: CursorEventInput[],
   styleCfg: CursorStyleInput | undefined,
-  autoTargets: Array<{ frame: number; cx: number; cy: number }>,
+  autoTargets: Array<{ frame: number; cx: number; cy: number; cursor?: string }>,
   explicitBoxes: Map<string, { cx: number; cy: number }>,
   frameStarts: number[],
   frames: AnimateConfig["frames"],
@@ -3614,11 +3631,11 @@ export function buildCursorOverlay(
       const isContinue = fc.continue === true || fc.input == null;
       return isContinue ? actionFrame - 1 : actionFrame;
     };
-    const byStage = new Map<number, Array<{ cx: number; cy: number }>>();
+    const byStage = new Map<number, Array<{ cx: number; cy: number; cursor?: string }>>();
     for (const tgt of autoTargets) {
       const stage = stageFor(tgt.frame);
       const arr = byStage.get(stage) ?? [];
-      arr.push({ cx: tgt.cx, cy: tgt.cy });
+      arr.push({ cx: tgt.cx, cy: tgt.cy, cursor: tgt.cursor });
       byStage.set(stage, arr);
     }
     for (const [stage, targets] of byStage) {
@@ -3634,7 +3651,7 @@ export function buildCursorOverlay(
         // Single click → land at `lastHit` (just before the transition).
         // Multiple → spread across the hold so the LAST still lands at lastHit.
         const tHit = targets.length === 1 ? lastHit : start + (span * (m + 1)) / targets.length;
-        events.push({ type: "move", t: Math.max(start, tHit - moveDur), duration: moveDur, to: { x: tg.cx, y: tg.cy } });
+        events.push({ type: "move", t: Math.max(start, tHit - moveDur), duration: moveDur, to: { x: tg.cx, y: tg.cy }, cursor: tg.cursor });
         events.push({ type: "click", t: tHit });
       });
     }
