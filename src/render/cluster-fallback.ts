@@ -233,7 +233,7 @@ function shapeVerdicts(
   const post = fullText.slice(range.end, range.end + CONTEXT_UNITS);
   const axesKey = face.axes == null ? "" : JSON.stringify(face.axes);
   const featuresKey = features == null || features.length === 0 ? "" : features.join(",");
-  const cacheKey = `${face.path}#${face.faceIndex}|${fontSize}|${axesKey}|${rtl ? "r" : "l"}|${scriptTag ?? ""}|${lang ?? ""}|${featuresKey}|${pre} ${item} ${post}`;
+  const cacheKey = `${face.path}#${face.faceIndex}|${fontSize}|${axesKey}|${rtl ? "r" : "l"}|${scriptTag ?? ""}|${lang ?? ""}|${featuresKey}|${pre}\0${item}\0${post}`;
   const cached = verdictCache.get(cacheKey);
   if (cached !== undefined) return cached;
 

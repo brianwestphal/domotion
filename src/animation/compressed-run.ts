@@ -691,7 +691,7 @@ function lineSignature(items: Array<{ ch: string; styleKey: string; x: number }>
   if (items.length === 0) return "";
   const sorted = [...items].sort((a, b) => a.x - b.x);
   const minX = sorted[0].x;
-  return sorted.map((g) => `${g.ch} ${g.styleKey} ${round2(g.x - minX)}`).join("");
+  return sorted.map((g) => `${g.ch}\0${g.styleKey}\0${round2(g.x - minX)}`).join("\x01");
 }
 
 interface BucketPairing {

@@ -2032,7 +2032,7 @@ export function resolveFaceTraitBold(
   postscriptName: string, path?: string,
 ): boolean | null {
   if (postscriptName === "") return null;
-  const key = `${path ?? ""} ${postscriptName}`;
+  const key = `${path ?? ""}\0${postscriptName}`;
   const hit = _traitBoldCache.get(key);
   if (hit !== undefined) return hit;
   let out: boolean | null = null;

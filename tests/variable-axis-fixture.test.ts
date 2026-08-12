@@ -19,7 +19,7 @@
  * that `identifyFace` cannot see any of it — is `variable-axis-oracle-pair.e2e.test.ts`.
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import * as fontkit from "fontkit";
 import {
   DEFAULT_FIXTURE,
@@ -39,12 +39,21 @@ const html = existsSync(DEFAULT_FIXTURE) ? readFileSync(DEFAULT_FIXTURE, "utf-8"
 const TEXT = "Hamburgefonstiv";
 
 describe("the fixture", () => {
-  it("keeps the paired oracle's import graph free of literal NUL bytes", () => {
+  it("keeps production TypeScript free of literal NUL bytes", () => {
     // Oxc accepted the NUL embedded in shaping-conformance.ts on macOS/Linux,
     // but rejected that module during Vitest import on Windows before any test
     // was collected. `\\0` produces the same runtime separator portably.
-    const shapingSource = readFileSync("tools/shaping-conformance.ts");
-    expect(shapingSource.includes(0)).toBe(false);
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const name of readdirSync(dir)) {
+        const path = `${dir}/${name}`;
+        if (statSync(path).isDirectory()) { walk(path); continue; }
+        if (/\.tsx?$/.test(name) && readFileSync(path).includes(0)) offenders.push(path);
+      }
+    };
+    walk("src");
+    walk("tools");
+    expect(offenders).toEqual([]);
   });
 
   it("exists and is self-contained", () => {

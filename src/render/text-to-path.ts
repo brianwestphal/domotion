@@ -1643,7 +1643,7 @@ function splitTextIntoFontRuns(
     for (const cp of uncovered) {
       const chain = fallbackFontChain(cp, primaryFontKey, lang);
       if (chain.length === 0) continue;
-      const key = chain.join(" ");
+      const key = chain.join("\0");
       const entry = byChain.get(key);
       if (entry != null) entry.cps.push(cp);
       else byChain.set(key, { chain, cps: [cp] });
