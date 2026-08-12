@@ -68,6 +68,7 @@ import {
 } from "./font-resolution.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
 import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
+import { STANDARDIZED_VARIATION_SEQUENCES } from "./standardized-variation-sequences.generated.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 
 /** Flag gate. Read per call so tests can toggle via env. Default ON;
@@ -84,8 +85,17 @@ let _invoked = 0;
 let _accepted = 0;
 let _priorityAsked = 0;
 let _priorityAnswered = 0;
-export function _clusterFallbackCounters(): { invoked: number; accepted: number; priorityAsked: number; priorityAnswered: number } {
-  return { invoked: _invoked, accepted: _accepted, priorityAsked: _priorityAsked, priorityAnswered: _priorityAnswered };
+let _vsRequeued = 0;
+let _vsResets = 0;
+export function _clusterFallbackCounters(): {
+  invoked: number; accepted: number; priorityAsked: number; priorityAnswered: number;
+  vsRequeued: number; vsResets: number;
+} {
+  return {
+    invoked: _invoked, accepted: _accepted,
+    priorityAsked: _priorityAsked, priorityAnswered: _priorityAnswered,
+    vsRequeued: _vsRequeued, vsResets: _vsResets,
+  };
 }
 if (process.env.DOMOTION_CLUSTER_FALLBACK_DEBUG === "1") {
   process.on("exit", () => {
@@ -323,6 +333,29 @@ function isVariationSelectorCp(cp: number): boolean {
     || (cp >= 0x180B && cp <= 0x180D) || cp === 0x180F; // Mongolian FVS1-4
 }
 
+function hasStandardizedVariationSequence(base: number, selector: number): boolean {
+  const needle = base * 0x110000 + selector;
+  let lo = 0;
+  let hi = STANDARDIZED_VARIATION_SEQUENCES.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const value = STANDARDIZED_VARIATION_SEQUENCES[mid];
+    if (value < needle) lo = mid + 1;
+    else hi = mid;
+  }
+  return STANDARDIZED_VARIATION_SEQUENCES[lo] === needle;
+}
+
+/** Blink's `Character::IsVariationSequence` transcription
+ * (`character_variation_sequences.cc`, Chromium rev 7d859f27). */
+export function _isBlinkVariationSequenceForTest(base: number, selector: number): boolean {
+  if ((selector === 0xfe0e || selector === 0xfe0f) && isEmojiCharCp(base)) return true;
+  if (hasStandardizedVariationSequence(base, selector)) return true;
+  if (selector < 0xe0100 || selector > 0xe01ef) return false;
+  const ch = String.fromCodePoint(base);
+  return /\p{Ideographic}/u.test(ch) && ch.normalize("NFD") === ch && ch.normalize("NFKD") === ch;
+}
+
 function collectVsSequences(
   text: string, start: number, end: number, fve: FontVariantEmojiOverride | undefined,
 ): VsSequence[] {
@@ -333,7 +366,8 @@ function collectVsSequences(
   while (i < end) {
     const cp = text.codePointAt(i)!;
     const len = cp > 0xffff ? 2 : 1;
-    if (isVariationSelectorCp(cp) && prevIndex >= 0 && !isVariationSelectorCp(prevCp)) {
+    if (isVariationSelectorCp(cp) && prevIndex >= 0 && !isVariationSelectorCp(prevCp)
+      && _isBlinkVariationSequenceForTest(prevCp, cp)) {
       out.push({ index: prevIndex, base: prevCp, selector: cp });
     } else if (forcesEmojiPresentation(cp, fve)) {
       // Synthesized VS16, unless an explicit selector follows (explicit wins —
@@ -956,7 +990,12 @@ function splitShapedInner(
           if (ok && rangeVs.length > 0) {
             for (const seq of rangeVs) {
               if (seq.index < abs.start || seq.index >= abs.end) continue;
-              if (vsUnmatchedInFace(current.face, current.key, seq)) { ok = false; vsSeen = true; break; }
+              if (vsUnmatchedInFace(current.face, current.key, seq)) {
+                ok = false;
+                vsSeen = true;
+                _vsRequeued++;
+                break;
+              }
             }
           }
           if (ok || isLast) {
@@ -986,6 +1025,7 @@ function splitShapedInner(
         firstCandidate = null;
         iter.stage = "family";
         ignoreVS = true;
+        _vsResets++;
       }
     }
     // Anything still queued after a defensive break paints the FIRST

@@ -52,8 +52,11 @@ shortest possible map:
   glyph-path emitter, preserving the raster-emoji terminal pin + per-run
   `decomposed` flags; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
   per-codepoint walk in both) — see `docs/113-cluster-granularity-fallback.md`.
-  `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
-  `hb_buffer_set_script` takes (derived from hb-script-list.h).
+  `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags;
+  `standardized-variation-sequences.generated.ts` mirrors Chromium's valid
+  standardized base+selector pairs for the shaped fallback retry gate. The
+  former supplies the tag `hb_buffer_set_script` takes (derived from
+  hb-script-list.h).
   `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows
   per-script fallback stage** — the 74-row `InitializeScriptFontMap` table,
   `GetFontBasedOnUnicodeBlock`, the emoji/math font lists, the Han locale

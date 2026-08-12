@@ -216,8 +216,12 @@ capture text
   last font, so a font with a real ideographic-space glyph is found.
 - **`kUnmatchedVSGlyphId` re-cycling**: modeled outside the glyph funcs (wasm
   fonts take no callbacks) — `variationGlyph` asks the identical cmap-14
-  question per (base, selector) pair, the VS15/VS16 presentation rule
-  substitutes `isColorEmojiFontKey` for Blink's
+  question per (base, selector) pair after the pair passes Blink's
+  `Character::IsVariationSequence` gate. That gate recognizes emoji sequences,
+  Chromium's generated standardized-sequence table, and undecomposed
+  ideographic sequences; an invalid base+selector pair remains an ordinary
+  default-ignorable and does not spuriously requeue. The VS15/VS16 presentation
+  rule substitutes `isColorEmojiFontKey` for Blink's
   `TypefaceHasAnySupportedColorTable`, an unmatched sequence re-queues its
   cluster, and exhausting the list with unmatched sequences left triggers the
   `kReshapeQueueReset` restart in ignore-VS mode. `font-variant-emoji`

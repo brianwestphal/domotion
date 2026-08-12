@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
 import {
   chooseHintIndex, collectHintChars, clusterFallbackEnabled,
-  splitTextIntoFontRunsShaped, _clusterFallbackCounters,
+  splitTextIntoFontRunsShaped, _clusterFallbackCounters, _isBlinkVariationSequenceForTest,
 } from "./cluster-fallback.js";
 import {
   resolveFont, resolveFontKey, resolveFontKeyChain, registerWebfont, clearWebfonts,
@@ -66,6 +66,20 @@ describe("collectHintChars (CollectFallbackHintChars port)", () => {
   });
 });
 
+describe("Character::IsVariationSequence transcription", () => {
+  it("accepts emoji, standardized, and undecomposed ideographic sequences", () => {
+    expect(_isBlinkVariationSequenceForTest(0x2764, 0xfe0f)).toBe(true); // emoji VS16
+    expect(_isBlinkVariationSequenceForTest(0x0030, 0xfe00)).toBe(true); // standardized short zero
+    expect(_isBlinkVariationSequenceForTest(0x845B, 0xe0100)).toBe(true); // ideographic IVS
+  });
+
+  it("rejects selectors that Blink leaves as ordinary default-ignorables", () => {
+    expect(_isBlinkVariationSequenceForTest(0x0061, 0xfe0f)).toBe(false); // non-Emoji + VS16
+    expect(_isBlinkVariationSequenceForTest(0x0061, 0xfe00)).toBe(false); // pair absent from standardized table
+    expect(_isBlinkVariationSequenceForTest(0xfa10, 0xe0100)).toBe(false); // compatibility-decomposable ideograph
+  });
+});
+
 describe("flag gate", () => {
   const saved = process.env.DOMOTION_CLUSTER_FALLBACK;
   afterAll(() => {
@@ -83,6 +97,18 @@ describe("flag gate", () => {
 });
 
 (MACOS_FONTS ? describe : describe.skip)("shape-then-requeue vs Chrome ground truth (docs/113 §2)", () => {
+  it("requeues valid variation sequences but ignores invalid base+selector pairs", () => {
+    const before = _clusterFallbackCounters();
+    split("Helvetica", "0\uFE00"); // standardized short-zero sequence
+    const afterValid = _clusterFallbackCounters();
+    expect(afterValid.vsRequeued).toBeGreaterThan(before.vsRequeued);
+    expect(afterValid.vsResets).toBeGreaterThan(before.vsResets);
+
+    split("Helvetica", "a\uFE00"); // not a Character::IsVariationSequence pair
+    const afterInvalid = _clusterFallbackCounters();
+    expect(afterInvalid.vsRequeued).toBe(afterValid.vsRequeued);
+  });
+
   it("uses the one-shot emoji fallback-priority stage before ordinary system fallback", () => {
     const before = _clusterFallbackCounters();
     const runs = split("Helvetica", "😀");

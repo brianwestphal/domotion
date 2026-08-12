@@ -196,6 +196,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspphhjpiu9cn3ig",
+          "message": {
+            "text": "The retry gate now matches Blink’s three-way Character::IsVariationSequence predicate before consulting cmap-14. Chromium rev 7d859f27 accepts only Emoji+VS15/16, pairs in its generated standardized table, or undecomposed Ideographic+supplementary-VS sequences; treating every adjacent selector as valid spuriously requeued default-ignorables. The focused test proves both sides: Helvetica 0+VS1 enters the unmatched-VS requeue and ignore-VS reset, while a+VS1 does neither.",
+            "markdown": "The retry gate now matches Blink’s three-way Character::IsVariationSequence predicate before consulting cmap-14. Chromium rev 7d859f27 accepts only Emoji+VS15/16, pairs in its generated standardized table, or undecomposed Ideographic+supplementary-VS sequences; treating every adjacent selector as valid spuriously requeued default-ignorables. The focused test proves both sides: Helvetica 0+VS1 enters the unmatched-VS requeue and ignore-VS reset, while a+VS1 does neither."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 349,
+                  "endLine": 370,
+                  "snippet": {
+                    "text": "/** Blink's `Character::IsVariationSequence` transcription\n * (`character_variation_sequences.cc`, Chromium rev 7d859f27). */\nexport function _isBlinkVariationSequenceForTest(base: number, selector: number): boolean {\n  if ((selector === 0xfe0e || selector === 0xfe0f) && isEmojiCharCp(base)) return true;\n  if (hasStandardizedVariationSequence(base, selector)) return true;\n  if (selector < 0xe0100 || selector > 0xe01ef) return false;\n  const ch = String.fromCodePoint(base);\n  return /\\p{Ideographic}/u.test(ch) && ch.normalize(\"NFD\") === ch && ch.normalize(\"NFKD\") === ch;\n}\n\nfunction collectVsSequences(\n  text: string, start: number, end: number, fve: FontVariantEmojiOverride | undefined,\n): VsSequence[] {\n  const out: VsSequence[] = [];\n  let prevIndex = -1;\n  let prevCp = 0;\n  let i = start;\n  while (i < end) {\n    const cp = text.codePointAt(i)!;\n    const len = cp > 0xffff ? 2 : 1;\n    if (isVariationSelectorCp(cp) && prevIndex >= 0 && !isVariationSelectorCp(prevCp)\n      && _isBlinkVariationSequenceForTest(prevCp, cp)) {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.test.ts"
+                },
+                "region": {
+                  "startLine": 68
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2091"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "89aa19ed255a1842c652212e105abdbc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ab8bd8c0c111c29cf67668c24b6c0c8e9acdd438",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

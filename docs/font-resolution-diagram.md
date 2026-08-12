@@ -1919,14 +1919,16 @@ Three consequences worth holding onto:
   override — which was not a transcription of anything, just where the rule had
   been left while its effect went unmeasured.
 
-  **The replacement's OUTPUT is then guarded, and this part is knowingly
-  partial.** The re-ask can come back having found no monochrome face at all,
-  and Chrome does not paint that answer. Blink reaches that outcome through the
-  VS-aware fallback walk — each candidate tested for the *sequence*, a candidate
-  whose colour-ness contradicts the request reported as `kUnmatchedVSGlyphId`
-  (`shaping/harfbuzz_face.cc:191-204`), and one `kIgnoreVariationSelector` restart
-  when the walk empties (`shaping/harfbuzz_shaper.cc:1008-1019`). We model none
-  of that walk. What we model is its one consequence at this seam: **if the
+  **The replacement's OUTPUT is then guarded.** The re-ask can come back having
+  found no monochrome face at all, and Chrome does not paint that answer. The
+  shaped-cluster fallback walk now models Blink's sequence-aware path: valid
+  pairs are gated by `Character::IsVariationSequence` (emoji, Chromium's
+  standardized table, or undecomposed ideographic sequence), each candidate is
+  tested for the sequence, a face whose color-table presentation contradicts
+  VS15/VS16 reports `kUnmatchedVSGlyphId`, and an exhausted walk restarts once
+  in `kIgnoreVariationSelector` mode (`shaping/harfbuzz_face.cc:127-206`;
+  `shaping/harfbuzz_shaper.cc:1008-1019`, rev `7d859f27`). The older
+  per-codepoint replacement seam still preserves one consequence: **if the
   re-ask lands back on an Apple colour emoji face, keep the pre-replacement
   answer.** Measured on a `system-ui` stack, U+1F321 🌡 re-asks to plain
   `AppleColorEmoji` while Chrome paints `.Apple Color Emoji UI` — precisely the
