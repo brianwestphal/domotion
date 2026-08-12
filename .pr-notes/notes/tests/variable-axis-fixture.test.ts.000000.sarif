@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mspm989dzgg4h0d0",
           "message": {
-            "text": "The paired oracle imports three CLI-oriented TypeScript modules as libraries. Their hashbangs are unnecessary under npm/tsx and can leave an unexpected carriage-return token in the Windows Oxc transform path, so this guard keeps those imports hashbang-free.",
-            "markdown": "The paired oracle imports three CLI-oriented TypeScript modules as libraries. Their hashbangs are unnecessary under npm/tsx and can leave an unexpected carriage-return token in the Windows Oxc transform path, so this guard keeps those imports hashbang-free."
+            "text": "The exact Windows failure reproduces in an isolated all-CRLF checkout: Vitest reports SyntaxError: Invalid or unexpected token with zero collected tests. Restoring only transitive import tools/font-inventory.mjs to LF makes all eight tests collect; removing its CLI hashbang makes the all-CRLF graph collect too. This guard covers every hashbang-bearing module in the paired-oracle import chain.",
+            "markdown": "The exact Windows failure reproduces in an isolated all-CRLF checkout: Vitest reports `SyntaxError: Invalid or unexpected token` with zero collected tests. Restoring only transitive import `tools/font-inventory.mjs` to LF makes all eight tests collect; removing its CLI hashbang makes the all-CRLF graph collect too. This guard covers every hashbang-bearing module in the paired-oracle import chain."
           },
           "locations": [
             {

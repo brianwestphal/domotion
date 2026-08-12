@@ -62,6 +62,7 @@ describe("the fixture", () => {
     // hashbang's carriage return behind as an unexpected token during import.
     for (const path of [
       "tools/font-conformance.ts",
+      "tools/font-inventory.mjs",
       "tools/shaping-conformance.ts",
       "tools/variable-axis-oracle-pair.ts",
     ]) {

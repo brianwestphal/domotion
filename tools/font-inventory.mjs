@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Per-platform installed-font inventory.
 //
 // The font-conformance oracle's answers are a function of the host's installed
