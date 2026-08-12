@@ -70,6 +70,7 @@ import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./
 import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import { STANDARDIZED_VARIATION_SEQUENCES } from "./standardized-variation-sequences.generated.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
+import { isHarfbuzzDefaultIgnorable } from "./unicode-classification.js";
 
 /** Flag gate. Read per call so tests can toggle via env. Default ON;
  *  `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk. */
@@ -282,10 +283,19 @@ function shapeVerdicts(
     for (let ci = 0; ci < starts.length; ci++) {
       const clStart = starts[ci];
       const clEnd = ci + 1 < starts.length ? starts[ci + 1] : range.end;
+      let allNonZero = ok.get(clStart)!;
+      if (!allNonZero) {
+        // `hb_ot_hide_default_ignorables` turns an orphan default-ignorable
+        // into an invisible zero glyph; Blink treats that as shaped, not as a
+        // reason to ask another face. Valid base+VS sequences are adjudicated
+        // separately below and therefore never enter this all-ignorable case.
+        const clusterText = fullText.slice(clStart, clEnd);
+        allNonZero = [...clusterText].every((ch) => isHarfbuzzDefaultIgnorable(ch.codePointAt(0)!));
+      }
       verdicts.push({
         startRel: clStart - range.start,
         endRel: clEnd - range.start,
-        allNonZero: ok.get(clStart)!,
+        allNonZero,
         ideoSpaceSynth: ideo.get(clStart) ?? false,
       });
     }
