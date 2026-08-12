@@ -65,7 +65,7 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     // UI font, so it falls THROUGH the stack instead of becoming the primary —
     // which is also why it is excluded from the `sf-pro` mapping (DM-291
     // measured SF Pro's advances ~3% wider than Helvetica's).
-    expect(stackPrimaryIsSystemUi("-apple-system, system-ui, sans-serif")).toBe(false);
+    expect(stackPrimaryIsSystemUi("-apple-system, system-ui, sans-serif")).toBe(true);
   });
 
   it("matches on the FIRST family only, since that is the primary the cascade is walked from", () => {

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspwx77bwxshyuwt",
+          "message": {
+            "text": "Default shaped fallback must own dotted-circle insertion for uncovered broken clusters. Chromium passes the source cluster through HarfBuzz once; preprocessing U+25CC first made the later HarfBuzz pass insert a second circle. The legacy per-codepoint path retains synthesis because it never shapes .notdef.",
+            "markdown": "Default shaped fallback must own dotted-circle insertion for uncovered broken clusters. Chromium passes the source cluster through HarfBuzz once; preprocessing U+25CC first made the later HarfBuzz pass insert a second circle. The legacy per-codepoint path retains synthesis because it never shapes `.notdef`."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2609,
+                  "endLine": 2612,
+                  "snippet": {
+                    "text": "  // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts\n  // before an orphaned complex-shaper combining mark — for UNCOVERED marks\n  // (no-font Brahmic blocks, detected here) and for CAPTURE-flagged COVERED marks\n  // (`dottedCircleMarks`, e.g. Mukta Vedic). Run once at the funnel so both the"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2112"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c9fa8907fc0aef810c2eeba8d09f8b7f"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqoe1lxthcebxtl",
+          "message": {
+            "text": "Final shaping must receive the UBA run direction, not ask HarfBuzz to guess from Script. Old Hungarian is deliberately dual-direction (HBDIRECTIONINVALID), so a guess is LTR while Blink’s CSS/UBA run can be RTL; dropping that signal selected the font’s horizontally mirrored alternates.",
+            "markdown": "Final shaping must receive the UBA run direction, not ask HarfBuzz to guess from Script. Old Hungarian is deliberately dual-direction (`HB_DIRECTION_INVALID`), so a guess is LTR while Blink’s CSS/UBA run can be RTL; dropping that signal selected the font’s horizontally mirrored alternates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1968,
+                  "endLine": 1971,
+                  "snippet": {
+                    "text": "      const runDirection = shapingDirectionAt(text, run.startIdx);\n      layout = features != null && features.length > 0\n        ? run.font.layout(shapingText, fontkitFeatureList(features), undefined, lang, runDirection)\n        : run.font.layout(shapingText, undefined, undefined, lang, runDirection);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2104"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d58a860ae08900a8906bae01a6bda3b1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ed1b2e2534dd88ff175670c8dec9664d85f6b691",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

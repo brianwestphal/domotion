@@ -1293,6 +1293,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqoe1n42hd7h1vw",
+          "message": {
+            "text": "The system-ui route follows the first effective family after unresolved aliases fall through. In -apple-system, system-ui, Blink reaches MatchSystemUIFont for the second token; retaining the raw-first-token rule left SFNS at its regular axis while labeling it weight 800.",
+            "markdown": "The system-ui route follows the first effective family after unresolved aliases fall through. In `-apple-system, system-ui`, Blink reaches MatchSystemUIFont for the second token; retaining the raw-first-token rule left SFNS at its regular axis while labeling it weight 800."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 2858,
+                  "endLine": 2865,
+                  "snippet": {
+                    "text": "export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean {\n  if (fontFamily == null || fontFamily === \"\") return false;\n  for (const raw of fontFamily.split(\",\")) {\n    const family = raw.trim().replace(/^[\"']|[\"']$/g, \"\");\n    if (family === \"-apple-system\") continue;\n    return family === \"system-ui\" || family === \"BlinkMacSystemFont\";\n  }\n  return false;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2103"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "34bf0e6c215b7c88e97941f16bafb20d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ed1b2e2534dd88ff175670c8dec9664d85f6b691",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

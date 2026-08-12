@@ -858,6 +858,18 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     const r = run("\u{113C9}"); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
     expect(r.text).toBe("◌\u{113C9}");
   });
+  it("leaves probe-flagged uncovered clusters bare when HarfBuzz will shape .notdef", () => {
+    // Kawi U+11F02 is General_Category=Lo, but Blink's USE shaper classifies it
+    // as a broken syllable and inserts U+25CC. Prepending one here caused the
+    // production shaped fallback to emit two dotted circles.
+    const source = "\u{11F02}";
+    const r = insertSyntheticDottedCircles(
+      source, [170.39, 170.39], fam, 400, 32, 0, undefined, undefined,
+      [0], undefined, true,
+    );
+    expect(r.text).toBe(source);
+    expect(r.xOffsets).toEqual([170.39, 170.39]);
+  });
   it("DM-1215: an orphaned RTL-SMP-script mark paints mark-then-circle (tofu LEFT, ◌ RIGHT)", () => {
     // Sogdian COMBINING DOT BELOW U+10F46 — no font covers it. Chrome lays the
     // cell out right-to-left, so the .notdef tofu sits LEFT and the synthetic ◌

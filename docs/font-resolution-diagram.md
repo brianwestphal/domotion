@@ -1037,6 +1037,33 @@ Notes:
   HarfBuzz's own `glyphToPath`. Pinned by
   `src/render/harfbuzz-run-routing.test.ts`.
 
+- **Uncovered orphan clusters get exactly one dotted circle.** When the default
+  shaped-cluster splitter is active, `insertSyntheticDottedCircles` leaves an
+  uncovered probe-flagged cluster in source form. The same HarfBuzz syllabic
+  pass used for Blink's `.notdef` verdict then inserts U+25CC itself. The
+  preprocessing insertion is retained only for the legacy per-codepoint
+  terminal (which never shapes `.notdef`) and for explicit vowel-constraint
+  cases absent from the vendored table. This is important for category-Lo
+  broken-syllable members such as Kawi U+11F02: an explicit U+25CC followed by
+  the source character made the later HarfBuzz pass insert a second circle.
+
+- **Final glyph emission preserves Blink's bidi-run direction.** Font fallback
+  already segmented and tested candidates with the UBA-resolved direction, but
+  the embedded-font and multi-font path emitters later called `layout()` without
+  forwarding it. HarfBuzz then guessed from Script and chose LTR for scripts
+  whose native direction is `HB_DIRECTION_INVALID` (notably Old Hungarian),
+  skipping the RTL alternate forms Chromium selected. Final layout now derives
+  direction from the run's UTF-16 start embedding level and passes it explicitly
+  in both render modes and ink measurement.
+
+- **The system-ui route follows the first effective family, not the first raw
+  token.** `-apple-system` is intentionally unresolved by the family matcher and
+  falls through the CSS stack. When `system-ui` follows it, Blink therefore uses
+  `MatchSystemUIFont`; Domotion must carry the same `systemUiPrimary` signal so
+  SFNS receives CSS `wght`/`wdth` axis coordinates and its UI cascade base. The
+  old raw-first-token test lost that signal and embedded regular SF outlines
+  under 700/800 descriptors, producing visibly underweight headings.
+
 - **hb-backed `layout()` is a MIRROR-DOMAIN boundary** (the adapter in
   `harfbuzz-shaper.ts`). The text the renderer hands to `FontInstance.layout`
   is paint-domain: `applyBidi` (`text.ts`) already substituted the

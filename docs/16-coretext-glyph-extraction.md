@@ -92,6 +92,15 @@ The helper accepts a single request as JSON, either inline on stdin or via `--in
 
 - **Synthetic dotted circle for UNCOVERED orphaned marks (DM-1026).** The `shape` path above only inserts a dotted circle for marks the font COVERS. For the "no font" Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) the marks are uncovered — they stay on the `.notdef` path — yet Chrome's HarfBuzz STILL inserts a U+25CC before each orphaned mark and paints it from a fallback font, so a vowel-sign cell paints "◌ + .notdef tofu" (~51 px), not a bare tofu. `insertSyntheticDottedCircles` (in `text-to-path.ts`, run once at the `renderTextAsPath` funnel before run-splitting) reproduces this: it prepends a real U+25CC to each combining mark that is (a) Unicode category M, (b) in a complex-shaper block (`usesComplexShaperDottedCircle`, in `src/render/unicode-classification.ts` — a positive list of Brahmic / Indic / SE-Asian ranges that DELIBERATELY EXCLUDES the generic combining-mark blocks 0300–036F / 1AB0 / 1DC0 / 20D0, which the default shaper paints with NO dotted circle), (c) uncovered by the whole font chain, and (d) orphaned (no base in its cluster — a base letter or an already-inserted ◌ satisfies the cluster, so consecutive orphaned marks share one ◌). The ◌ itself is covered, so it routes and renders through the normal pipeline; only the INSERTION is synthetic. Its advance is read from the PRIMARY font when that covers U+25CC (Chrome does the same — Arial Unicode MS gives ◌ a 0.6 em advance, not the fallback chain's full-width 1 em), so the displaced tofu lands where Chrome paints it. Empirically: Soyombo 1.20 % → 0.22 %, Zanabazar 0.80 % → 0 %, Dogra 0.52 % → 0.04 %, with the covered Indic blocks (Devanagari, Tibetan, Khmer, Balinese) and the generic combining-mark blocks byte-identical (gates (b)/(c) keep them untouched).
 
+  With default shaped-cluster fallback, uncovered clusters are now left in
+  their source form: the production HarfBuzz pass sees the broken syllable and
+  inserts U+25CC itself, exactly as Blink does. Preprocessing remains the
+  legacy/per-codepoint fallback for callers that do not shape `.notdef`, and
+  remains responsible for the explicit vowel-constraint cases below. This
+  distinction also covers probe-flagged category-Lo cluster members (for
+  example Kawi U+11F02); prepending U+25CC before the shaped pass made HarfBuzz
+  insert a second circle.
+
   **Mid-sequence vowel constraints.** Current Chromium's HarfBuzz also inserts
   U+25CC between particular invalid base + dependent-vowel pairs even though a
   base is present. The vendored harfbuzzjs v1.4.0 predates the generated Tamil,

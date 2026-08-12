@@ -88,6 +88,12 @@ import {
   win,
   stackPrimaryIsSystemUi,
 } from "./font-resolution.js";
+
+/** Blink shapes each font run with the UBA-resolved text direction, including
+ * dual-direction scripts whose HarfBuzz script default is INVALID/LTR. */
+export function shapingDirectionAt(text: string, utf16Index: number): "ltr" | "rtl" {
+  return ((bidiLevelsFor(text)?.[utf16Index] ?? 0) & 1) === 1 ? "rtl" : "ltr";
+}
 export * from "./font-resolution.js";
 
 function slantForStyle(style: string | undefined): number {
@@ -892,9 +898,10 @@ export function textToPathMarkup(
   let xCss = 0;
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
+    const runDirection = shapingDirectionAt(text, run.startIdx);
     const layout = features != null && features.length > 0
-      ? run.font.layout(run.text, fontkitFeatureList(features))
-      : run.font.layout(run.text);
+      ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
+      : run.font.layout(run.text, undefined, undefined, lang, runDirection);
     const uses: string[] = [];
     let runX = 0;
     for (let i = 0; i < layout.glyphs.length; i++) {
@@ -1235,6 +1242,11 @@ export function insertSyntheticDottedCircles(
   dottedCircleMarks?: number[],
   /** Computed CSS `font-stretch` (e.g. `"75%"`). */
   fontStretch?: string,
+  /** Default shaped-cluster fallback feeds uncovered clusters through the same
+   *  HarfBuzz syllabic shaper as Chromium. In that mode HarfBuzz inserts its
+   *  own U+25CC, so preprocessing must not insert a second one. Kept false for
+   *  direct/legacy callers whose per-codepoint terminal never shapes .notdef. */
+  shapeUncoveredOrphansNatively = false,
 ): { text: string; xOffsets: number[] | undefined } {
   // Fast path: nothing to do when the text has no combining marks AND the
   // capture probe flagged no codepoints (the latter can be category-Lo cluster
@@ -1376,6 +1388,7 @@ export function insertSyntheticDottedCircles(
       // REMOVE a circle we would otherwise have drawn, never add one.
       const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
+          && !shapeUncoveredOrphansNatively
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
             variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)) {
         const adv = resolveDottedCircleAdvance();
@@ -1952,7 +1965,10 @@ function renderTextAsEmbedded(
     const { shapingText, perCharScale } = computeRunShaping(run);
     let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters?: number[] };
     try {
-      layout = features != null && features.length > 0 ? run.font.layout(shapingText, fontkitFeatureList(features)) : run.font.layout(shapingText);
+      const runDirection = shapingDirectionAt(text, run.startIdx);
+      layout = features != null && features.length > 0
+        ? run.font.layout(shapingText, fontkitFeatureList(features), undefined, lang, runDirection)
+        : run.font.layout(shapingText, undefined, undefined, lang, runDirection);
     } catch {
       return null;
     }
@@ -2607,7 +2623,8 @@ export function renderTextAsPath(
   // embedded-font and glyph-path branches below receive the augmented text +
   // xOffsets. A no-op for text with no combining marks.
   ({ text, xOffsets } = insertSyntheticDottedCircles(
-    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang, dottedCircleMarks, fontStretch));
+    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang,
+    dottedCircleMarks, fontStretch, clusterFallbackEnabled()));
 
   // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for
   // (they otherwise fall through to a last-resort tofu box).
@@ -3092,7 +3109,10 @@ export function measureInkMetrics(
     const scale = fontSize / run.font.unitsPerEm;
     let layout;
     try {
-      layout = features != null && features.length > 0 ? run.font.layout(run.text, fontkitFeatureList(features)) : run.font.layout(run.text);
+      const runDirection = shapingDirectionAt(text, run.startIdx);
+      layout = features != null && features.length > 0
+        ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
+        : run.font.layout(run.text, undefined, undefined, lang, runDirection);
     } catch { continue; }
     for (const g of layout.glyphs) {
       // Skip .notdef tofu (id 0) — its placeholder bbox would inflate the ink

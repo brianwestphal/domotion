@@ -2850,15 +2850,19 @@ const _liveFallbackFirst =
  * The distinction only matters for the fallback BASE, so it travels as its own
  * signal.
  *
- * Matches on the FIRST family in the stack, since that is the one whose primary
- * the cascade is walked from. `-apple-system` is excluded on purpose, matching
- * `matchFamilyNameToKey`: Chrome resolves it to the UA standard font, not to the
- * UI font, so it falls through the stack rather than becoming the primary.
+ * Matches the first EFFECTIVE family in the stack. `-apple-system` is not a
+ * resolvable family in this pipeline (matching `matchFamilyNameToKey`), so it
+ * falls through; when the next family is `system-ui`, that family entered
+ * Blink's MatchSystemUIFont path and must retain the axis/cascade signal.
  */
 export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean {
   if (fontFamily == null || fontFamily === "") return false;
-  const first = fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "");
-  return first === "system-ui" || first === "BlinkMacSystemFont";
+  for (const raw of fontFamily.split(",")) {
+    const family = raw.trim().replace(/^["']|["']$/g, "");
+    if (family === "-apple-system") continue;
+    return family === "system-ui" || family === "BlinkMacSystemFont";
+  }
+  return false;
 }
 
 // A batch pre-warm of the system-fallback helper (`warmSystemFallbackForCodepoints`)

@@ -37,6 +37,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bidiLevelsFor } from "./script-segmentation.js";
+import { shapingDirectionAt } from "./text-to-path.js";
 
 /** `bidiLevelsFor` returns undefined when it decides the text cannot contain a
  *  direction boundary — i.e. when the UBA is skipped entirely. */
@@ -121,5 +122,10 @@ describe("bidiLevelsFor — SMP RTL scripts reach the bidi algorithm", () => {
     // The BMP case, to show both paths now agree — Hebrew is a single code
     // unit, so its level lands at index 1 directly.
     expect(bidiLevelsFor("AאB")![1] % 2).toBe(1);
+  });
+  it("forwards UBA direction for dual-direction Old Hungarian into final shaping", () => {
+    const text = `A\u{10C80}B`;
+    expect(shapingDirectionAt(text, 1)).toBe("rtl");
+    expect(shapingDirectionAt(text, 0)).toBe("ltr");
   });
 });
