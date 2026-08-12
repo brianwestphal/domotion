@@ -266,6 +266,7 @@ interface HelperRequest {
     | { type: "shape"; fontRef: string; text: string }
     // DM-1886 (Linux): per-codepoint fallback via fontconfig sort-and-walk.
     | { type: "fcfallback"; lang: string; cps: number[] }
+    | { type: "fcdiagnostic"; lang: string; cps: number[] }
   >;
 }
 // DM-1028: one shaped glyph from the CoreText `shape` query. Coordinates are
@@ -1392,6 +1393,31 @@ export interface FcFallbackFont {
   isBold: boolean;
   isItalic: boolean;
   family?: string;
+}
+
+export interface FcFallbackDiagnostic {
+  before: string;
+  after: string;
+  fingerprint: string;
+  candidates: Array<{
+    rank: number; path: string; index: number; family?: string;
+    postscriptName?: string; covers: number[];
+  }>;
+}
+
+/** Diagnostics only: serialize Blink's effective Fontconfig fallback question. */
+export function resolveFcFallbackDiagnostic(
+  cps: number[], lang: string = "en",
+): FcFallbackDiagnostic | null {
+  if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return null;
+  try {
+    const resp = callHelper({ fonts: [], queries: [{ type: "fcdiagnostic", lang, cps }] });
+    const r = resp.results[0] as unknown as (FcFallbackDiagnostic & { type?: string; error?: string }) | undefined;
+    if (r?.type !== "fcdiagnostic" || r.error != null || !Array.isArray(r.candidates)) return null;
+    return { before: r.before, after: r.after, fingerprint: r.fingerprint, candidates: r.candidates };
+  } catch {
+    return null; // older helper / unavailable diagnostics must not affect resolution
+  }
 }
 
 /**

@@ -599,6 +599,84 @@ static std::string runFcFallbackQuery(const JsonValue& query) {
   return out.str();
 }
 
+// Diagnostics-only companion to fcfallback (DM-2086). It exposes the exact
+// Fontconfig question and candidates without participating in resolution.
+static std::string runFcDiagnosticQuery(const JsonValue& query) {
+  std::string lang = query.at("lang").asString();
+  if (lang.empty()) lang = "en";
+  FcConfig* config = FcConfigGetCurrent();
+  FcPattern* pattern = FcPatternCreate();
+  FcPatternAddString(pattern, FC_LANG, reinterpret_cast<const FcChar8*>(lang.c_str()));
+  FcPatternAddBool(pattern, FC_SCALABLE, FcTrue);
+  FcChar8* raw = FcNameUnparse(pattern);
+  const std::string before = raw ? reinterpret_cast<const char*>(raw) : "";
+  if (raw) FcStrFree(raw);
+  FcConfigSubstitute(config, pattern, FcMatchPattern);
+  FcDefaultSubstitute(pattern);
+  raw = FcNameUnparse(pattern);
+  const std::string after = raw ? reinterpret_cast<const char*>(raw) : "";
+  if (raw) FcStrFree(raw);
+
+  uint64_t hash = 1469598103934665603ULL;
+  auto hashString = [&hash](const std::string& value) {
+    for (unsigned char c : value) { hash ^= c; hash *= 1099511628211ULL; }
+    hash ^= '\n'; hash *= 1099511628211ULL;
+  };
+  FcStrList* configs = FcConfigGetConfigFiles(config);
+  if (configs != nullptr) {
+    while (FcChar8* p = FcStrListNext(configs)) hashString(reinterpret_cast<const char*>(p));
+    FcStrListDone(configs);
+  }
+  FcResult result;
+  FcFontSet* fonts = FcFontSort(config, pattern, FcFalse, nullptr, &result);
+  if (fonts != nullptr) {
+    for (int i = 0; i < fonts->nfont; i++) {
+      FcChar8* file = nullptr;
+      if (FcPatternGetString(fonts->fonts[i], FC_FILE, 0, &file) == FcResultMatch && file != nullptr)
+        hashString(reinterpret_cast<const char*>(file));
+    }
+  }
+
+  std::ostringstream out;
+  out << "{\"type\":\"fcdiagnostic\",\"before\":\"" << jsonEscape(before)
+      << "\",\"after\":\"" << jsonEscape(after) << "\",\"fingerprint\":\""
+      << std::hex << hash << std::dec << "\",\"candidates\":[";
+  bool first = true;
+  const JsonArray& cps = query.at("cps").asArray();
+  if (fonts != nullptr) {
+    for (int f = 0; f < fonts->nfont; f++) {
+      FcPattern* font = fonts->fonts[f];
+      if (!fcIsValidPattern(font)) continue;
+      FcCharSet* charset = nullptr;
+      if (FcPatternGetCharSet(font, FC_CHARSET, 0, &charset) != FcResultMatch || charset == nullptr) continue;
+      std::vector<long> covered;
+      for (const JsonValue& cpv : cps) {
+        const FcChar32 cp = static_cast<FcChar32>(cpv.asNumber());
+        if (FcCharSetHasChar(charset, cp)) covered.push_back(static_cast<long>(cp));
+      }
+      if (covered.empty()) continue;
+      FcChar8 *file = nullptr, *family = nullptr, *postscript = nullptr;
+      if (FcPatternGetString(font, FC_FILE, 0, &file) != FcResultMatch || file == nullptr) continue;
+      FcPatternGetString(font, FC_FAMILY, 0, &family);
+      FcPatternGetString(font, FC_POSTSCRIPT_NAME, 0, &postscript);
+      int index = 0; FcPatternGetInteger(font, FC_INDEX, 0, &index);
+      if (!first) out << ","; first = false;
+      out << "{\"rank\":" << f << ",\"path\":\"" << jsonEscape(reinterpret_cast<const char*>(file))
+          << "\",\"index\":" << index;
+      if (family) out << ",\"family\":\"" << jsonEscape(reinterpret_cast<const char*>(family)) << "\"";
+      if (postscript) out << ",\"postscriptName\":\"" << jsonEscape(reinterpret_cast<const char*>(postscript)) << "\"";
+      out << ",\"covers\":[";
+      for (size_t i = 0; i < covered.size(); i++) { if (i) out << ","; out << covered[i]; }
+      out << "]}";
+      if (f >= 31) break;
+    }
+  }
+  out << "]}";
+  if (fonts) FcFontSetDestroy(fonts);
+  FcPatternDestroy(pattern);
+  return out.str();
+}
+
 // ──────────────── declared-family style match (fontconfig) ─────────────────
 //
 // Which CUT of a declared CSS family Chrome-on-Linux opens at a given
@@ -1162,6 +1240,8 @@ static std::string handleEnvelope(FT_Library lib, const JsonValue& envelope,
       response << runMetaQuery(queries[i], fonts);
     } else if (type == "fcfallback") {
       response << runFcFallbackQuery(queries[i]);
+    } else if (type == "fcdiagnostic") {
+      response << runFcDiagnosticQuery(queries[i]);
     } else if (type == "familyMatch") {
       response << runFamilyMatchQuery(lib, queries[i]);
     } else {
@@ -1194,9 +1274,8 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      // 0.2.0: added the `familyMatch` query (declared-family style match —
-      // the fontconfig transcription of Skia's matchFamilyName).
-      std::cout << "domotion-glyph-paths (linux/freetype) 0.2.0\n";
+      // 0.3.0: added the diagnostics-only `fcdiagnostic` query (DM-2086).
+      std::cout << "domotion-glyph-paths (linux/freetype) 0.3.0\n";
       return 0;
     }
     if (a == "--fontconfig-mode") {

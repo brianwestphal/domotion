@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msptse537jb4vi50",
+          "message": {
+            "text": "The required U+0600/U+0700 ko, U+2200 ar, and U+2600 ja cases are paired with same-container CDP platform-font observations. The Noble run completed successfully and emitted effective patterns, one inventory fingerprint, and covering sorted candidates without hardcoded face expectations.",
+            "markdown": "The required U+0600/U+0700 ko, U+2200 ar, and U+2600 ja cases are paired with same-container CDP platform-font observations. The Noble run completed successfully and emitted effective patterns, one inventory fingerprint, and covering sorted candidates without hardcoded face expectations."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/probe-linux-fallback-diagnostics.ts"
+                },
+                "region": {
+                  "startLine": 5,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "\nconst cases = [\n  { cp: 0x0600, lang: \"ko\" }, { cp: 0x0700, lang: \"ko\" },\n  { cp: 0x2200, lang: \"ar\" }, { cp: 0x2600, lang: \"ja\" },\n];\nif (process.platform !== \"linux\") process.exit(0);\nconst browser = await chromium.launch();\ntry {\n  const page = await browser.newPage();\n  const cdp = await page.context().newCDPSession(page);\n  await cdp.send(\"DOM.enable\"); await cdp.send(\"CSS.enable\");\n  const rows = [];\n  for (const c of cases) {\n    await page.setContent(`<span id=\"p\" lang=\"${c.lang}\" style=\"font:32px sans-serif\">${String.fromCodePoint(c.cp)}</span>`);\n    const { root } = await cdp.send(\"DOM.getDocument\", { depth: -1 });\n    const { nodeId } = await cdp.send(\"DOM.querySelector\", { nodeId: root.nodeId, selector: \"#p\" });\n    const { fonts } = await cdp.send(\"CSS.getPlatformFontsForNode\", { nodeId });\n    const diagnostic = resolveFcFallbackDiagnostic([c.cp], c.lang);\n    if (diagnostic == null) throw new Error(\"Linux helper does not support fcdiagnostic\");\n    rows.push({ ...c, chromium: fonts.filter((f) => f.glyphCount > 0), diagnostic });\n  }\n  console.log(JSON.stringify({ chromium: await browser.version(), rows }, null, 2));\n} finally {\n  await browser.close();\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2086"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2f9bfe626013ec51d8732701d207caf9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dd6148cdf750ca015606bda36f8141cd5e2314cd",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

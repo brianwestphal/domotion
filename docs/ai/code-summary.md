@@ -61,6 +61,9 @@ shortest possible map:
   alternate DejaVu Linux `system-ui` oracle is documented in doc 123 and run
   by `.github/workflows/linux-system-ui-inventory.yml`; it stays separate from
   the stock Noble baseline and proves host-dependent family/cut selection.
+  The Linux helper's diagnostics-only `fcdiagnostic` query exposes effective
+  Fontconfig patterns, inventory fingerprints, and covering sorted candidates;
+  `tools/probe-linux-fallback-diagnostics.ts` pairs them with CDP paint results.
   former supplies the tag `hb_buffer_set_script` takes (derived from
   hb-script-list.h).
   `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows

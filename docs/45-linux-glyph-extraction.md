@@ -155,6 +155,18 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    `linuxPrimaryCutKey`, and scored end to end against Chrome by
    `npm run fonts:family-match:linux` (doc 110).
 
+9. **`fcdiagnostic` query (diagnostics only).** Serializes the effective
+   fallback pattern before and after `FcConfigSubstitute` plus
+   `FcDefaultSubstitute`, fingerprints the active config-file and sorted-font
+   inventory, and reports valid sorted-set entries whose `FC_CHARSET` covers
+   requested codepoints. It constructs Chromium's exact
+   `ui/gfx/font_fallback_linux.cc` question: locale + `FC_SCALABLE`, no
+   codepoint in the pattern, `FcFontSort(trim=false)`, then coverage as a
+   filter. The query never participates in production resolution. Run
+   `npm run test:linux-fallback-diagnostics` to pair U+0600/U+0700 `lang=ko`,
+   U+2200 `lang=ar`, and U+2600 `lang=ja` with same-container CDP results.
+   Candidate faces are observations, not hardcoded expectations.
+
 ### Persistent `--serve` mode *(DM-1034)*
 
 By default the helper is one-shot: read one JSON request envelope from stdin (or

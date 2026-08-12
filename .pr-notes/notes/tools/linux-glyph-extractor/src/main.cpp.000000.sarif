@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msptsdz4uk2mk9yx",
+          "message": {
+            "text": "The diagnostic query reconstructs Chromium’s exact locale-only Fontconfig pattern and reports substitution plus coverage candidates without feeding any answer back into resolution. Keeping it diagnostics-only prevents instrumentation from becoming a second production resolver.",
+            "markdown": "The diagnostic query reconstructs Chromium’s exact locale-only Fontconfig pattern and reports substitution plus coverage candidates without feeding any answer back into resolution. Keeping it diagnostics-only prevents instrumentation from becoming a second production resolver."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 611,
+                  "endLine": 700,
+                  "snippet": {
+                    "text": "  FcChar8* raw = FcNameUnparse(pattern);\n  const std::string before = raw ? reinterpret_cast<const char*>(raw) : \"\";\n  if (raw) FcStrFree(raw);\n  FcConfigSubstitute(config, pattern, FcMatchPattern);\n  FcDefaultSubstitute(pattern);\n  raw = FcNameUnparse(pattern);\n  const std::string after = raw ? reinterpret_cast<const char*>(raw) : \"\";\n  if (raw) FcStrFree(raw);\n\n  uint64_t hash = 1469598103934665603ULL;\n  auto hashString = [&hash](const std::string& value) {\n    for (unsigned char c : value) { hash ^= c; hash *= 1099511628211ULL; }\n    hash ^= '\\n'; hash *= 1099511628211ULL;\n  };\n  FcStrList* configs = FcConfigGetConfigFiles(config);\n  if (configs != nullptr) {\n    while (FcChar8* p = FcStrListNext(configs)) hashString(reinterpret_cast<const char*>(p));\n    FcStrListDone(configs);\n  }\n  FcResult result;\n  FcFontSet* fonts = FcFontSort(config, pattern, FcFalse, nullptr, &result);\n  if (fonts != nullptr) {\n    for (int i = 0; i < fonts->nfont; i++) {\n      FcChar8* file = nullptr;\n      if (FcPatternGetString(fonts->fonts[i], FC_FILE, 0, &file) == FcResultMatch && file != nullptr)\n        hashString(reinterpret_cast<const char*>(file));\n    }\n  }\n\n  std::ostringstream out;\n  out << \"{\\\"type\\\":\\\"fcdiagnostic\\\",\\\"before\\\":\\\"\" << jsonEscape(before)\n      << \"\\\",\\\"after\\\":\\\"\" << jsonEscape(after) << \"\\\",\\\"fingerprint\\\":\\\"\"\n      << std::hex << hash << std::dec << \"\\\",\\\"candidates\\\":[\";\n  bool first = true;\n  const JsonArray& cps = query.at(\"cps\").asArray();\n  if (fonts != nullptr) {\n    for (int f = 0; f < fonts->nfont; f++) {\n      FcPattern* font = fonts->fonts[f];\n      if (!fcIsValidPattern(font)) continue;\n      FcCharSet* charset = nullptr;\n      if (FcPatternGetCharSet(font, FC_CHARSET, 0, &charset) != FcResultMatch || charset == nullptr) continue;\n      std::vector<long> covered;\n      for (const JsonValue& cpv : cps) {\n        const FcChar32 cp = static_cast<FcChar32>(cpv.asNumber());\n        if (FcCharSetHasChar(charset, cp)) covered.push_back(static_cast<long>(cp));\n      }\n      if (covered.empty()) continue;\n      FcChar8 *file = nullptr, *family = nullptr, *postscript = nullptr;\n      if (FcPatternGetString(font, FC_FILE, 0, &file) != FcResultMatch || file == nullptr) continue;\n      FcPatternGetString(font, FC_FAMILY, 0, &family);\n      FcPatternGetString(font, FC_POSTSCRIPT_NAME, 0, &postscript);\n      int index = 0; FcPatternGetInteger(font, FC_INDEX, 0, &index);\n      if (!first) out << \",\"; first = false;\n      out << \"{\\\"rank\\\":\" << f << \",\\\"path\\\":\\\"\" << jsonEscape(reinterpret_cast<const char*>(file))\n          << \"\\\",\\\"index\\\":\" << index;\n      if (family) out << \",\\\"family\\\":\\\"\" << jsonEscape(reinterpret_cast<const char*>(family)) << \"\\\"\";\n      if (postscript) out << \",\\\"postscriptName\\\":\\\"\" << jsonEscape(reinterpret_cast<const char*>(postscript)) << \"\\\"\";\n      out << \",\\\"covers\\\":[\";\n      for (size_t i = 0; i < covered.size(); i++) { if (i) out << \",\"; out << covered[i]; }\n      out << \"]}\";\n      if (f >= 31) break;\n    }\n  }\n  out << \"]}\";\n  if (fonts) FcFontSetDestroy(fonts);\n  FcPatternDestroy(pattern);\n  return out.str();\n}\n\n// ──────────────── declared-family style match (fontconfig) ─────────────────\n//\n// Which CUT of a declared CSS family Chrome-on-Linux opens at a given\n// weight / width / slant. This is a transcription of the code the Chrome build\n// Playwright pins (tag 147.0.7727.15) actually runs for that decision:\n//\n//   Blink `FontCache::CreateTypeface` → `skia::DefaultFontMgr()->\n//   matchFamilyStyle(name, font_description.SkiaFontStyle())`\n//     (`third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc`,\n//      tag 147.0.7727.15; identical at local checkout rev 7d859f27:262-295)\n//   → on Linux that font manager is `SkFontMgr_New_FCI(SkFontConfigInterface::\n//     RefGlobal(), …)` (`skia/ext/font_utils.cc:86-89`, tag 147.0.7727.15)\n//   → `SkFontMgr_FCI::onMatchFamilyStyle` → `fFCI->matchFamilyName(...)`\n//     (Skia `src/ports/SkFontMgr_FontConfigInterface.cpp`, rev 62efacd3 —\n//      the revision `external/chromium` DEPS:330 pins at rev 7d859f27)\n//   → `SkFontConfigInterfaceDirect::matchFamilyName`\n//     (Skia `src/ports/SkFontConfigInterface_direct.cpp:592-713`, rev 62efacd3).\n//\n// The pinned revision matters: the CURRENT Skia tree rewrote `MatchFont` to\n// keep scanning the sorted set until it finds an *acceptable* pattern and added\n// a direct `FcFontMatch` fast path. The shipping build has neither — it takes"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2086"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "96bf79a163ac0f2be7c70e283041bdb7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dd6148cdf750ca015606bda36f8141cd5e2314cd",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

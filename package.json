@@ -54,6 +54,7 @@
     "test:watch": "npm run build:capture-script && vitest",
     "test:linux-docker": "bash scripts/test-linux-docker.sh",
     "test:linux-system-ui-alternate": "FONTCONFIG_FILE=/work/tests/fontconfig/alternate-system-ui.conf CMD='apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core build-essential cmake pkg-config libfreetype-dev libfontconfig-dev && bash tools/linux-glyph-extractor/build.sh && npx tsx tools/assert-linux-system-ui-profile.ts && npm run fonts:conformance -- --stack-filter system-ui --range 0020-007f,0600-06ff,4e00-4e7f --max-rows 2000 --reset-every 1 --out tests/output/font-conformance-system-ui-alternate' bash scripts/test-linux-docker.sh",
+    "test:linux-fallback-diagnostics": "CMD='apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev && bash tools/linux-glyph-extractor/build.sh && npx tsx tools/probe-linux-fallback-diagnostics.ts' bash scripts/test-linux-docker.sh",
     "demos:test": "npm run build:capture-script && tsx tests/features.ts",
     "demos:test:showcase": "npm run build:capture-script && tsx tests/showcase.tsx",
     "demos:test:html": "npm run build:capture-script && tsx tests/html-test-suite.tsx",
