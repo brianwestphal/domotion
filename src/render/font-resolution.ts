@@ -9001,6 +9001,14 @@ export function clearFontResolutionCaches(): void {
   clearGlyphHelperCodepointMemos();
 }
 
+const fontEnvironmentInvalidators = new Set<() => void>();
+
+/** Register a cache owned by a higher renderer layer for host-environment invalidation. */
+export function registerFontEnvironmentInvalidator(invalidate: () => void): () => void {
+  fontEnvironmentInvalidators.add(invalidate);
+  return () => fontEnvironmentInvalidators.delete(invalidate);
+}
+
 /**
  * Invalidate answers derived from the host font environment.
  *
@@ -9023,6 +9031,7 @@ export function invalidateFontEnvironmentCaches(): void {
   win32SuffixDeclaredForKey.clear();
   localFontAliasRegistry.clear();
   darwinSystemUiPlatformCacheWarm = false;
+  for (const invalidate of fontEnvironmentInvalidators) invalidate();
 }
 
 /** Test-only sizes for the three platform primary-cut memos. */

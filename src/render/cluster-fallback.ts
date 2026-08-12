@@ -64,6 +64,7 @@ import {
   forcesEmojiPresentation, isEmojiCodepoint, isColorEmojiFontKey,
   glyphIdForCp, fallbackFontChain, harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
+  registerFontEnvironmentInvalidator,
 } from "./font-resolution.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
 import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
@@ -214,6 +215,9 @@ interface ClusterVerdict {
 const verdictCache = new Map<string, ClusterVerdict[] | null>();
 const VERDICT_CACHE_CAP = 4096;
 export function _clearClusterVerdictCache(): void { verdictCache.clear(); }
+export function _clusterVerdictCacheSizeForTest(): number { return verdictCache.size; }
+export function _seedClusterVerdictCacheForTest(): void { verdictCache.set("test", null); }
+registerFontEnvironmentInvalidator(_clearClusterVerdictCache);
 
 const CONTEXT_UNITS = 5;
 

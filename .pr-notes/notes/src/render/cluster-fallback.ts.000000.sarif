@@ -131,6 +131,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msponf5o0yytsnni",
+          "message": {
+            "text": "Environment invalidation clears shaped-cluster verdicts while ordinary memory trim preserves them. The key names a face by path and collection member, so a host font update can replace bytes without changing the key; retaining the verdict across that transition would be stale, whereas retaining it across a memory-only trim is answer-neutral.",
+            "markdown": "Environment invalidation clears shaped-cluster verdicts while ordinary memory trim preserves them. The key names a face by path and collection member, so a host font update can replace bytes without changing the key; retaining the verdict across that transition would be stale, whereas retaining it across a memory-only trim is answer-neutral."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 214,
+                  "endLine": 220,
+                  "snippet": {
+                    "text": "}\nconst verdictCache = new Map<string, ClusterVerdict[] | null>();\nconst VERDICT_CACHE_CAP = 4096;\nexport function _clearClusterVerdictCache(): void { verdictCache.clear(); }\nexport function _clusterVerdictCacheSizeForTest(): number { return verdictCache.size; }\nexport function _seedClusterVerdictCacheForTest(): void { verdictCache.set(\"test\", null); }\nregisterFontEnvironmentInvalidator(_clearClusterVerdictCache);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2092"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b57a497535e19f2d4a1b15b386bcb2bb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ed1a14fc471149ff0401c44cad89954abd010989",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

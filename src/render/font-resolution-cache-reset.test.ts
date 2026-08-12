@@ -15,6 +15,10 @@ import {
   resolveFontSpec,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
+import {
+  _clusterVerdictCacheSizeForTest,
+  _seedClusterVerdictCacheForTest,
+} from "./cluster-fallback.js";
 
 /**
  * `clearFontResolutionCaches()` exists so a long sweep over a large codepoint
@@ -140,6 +144,13 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
 
     expect(resolveFontKey("dm-env-local")).not.toBe("localalias:dm-env-local");
     if (fs.existsSync(path)) expect(resolveFontKey("dm-env-web")).toBe("webfont:dm-env-web");
+  });
+
+  it("environment invalidation expires shaped-cluster verdicts", () => {
+    _seedClusterVerdictCacheForTest();
+    expect(_clusterVerdictCacheSizeForTest()).toBe(1);
+    invalidateFontEnvironmentCaches();
+    expect(_clusterVerdictCacheSizeForTest()).toBe(0);
   });
 
   it("survives repeated clear/resolve cycles without drifting", () => {

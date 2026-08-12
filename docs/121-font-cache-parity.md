@@ -26,7 +26,7 @@ memos, and therefore have their own explicit lifecycle.
 | `darwinHandleAxesMap` | resolved key + weight + size + slope | process side-band memo; trim + invalidate | substituted CoreText handle’s current axes |
 | HarfBuzz `hbFontCache` | source id/path + physical face index | process memo; environment invalidate | Blink `HarfBuzzFace` / `HbFaceFromSkTypeface` |
 | HarfBuzz proxy cache | base object identity + face, size, axes/features | weak lifetime of base font instance | Blink font-data/shaping object ownership |
-| cluster `verdictCache` | face/member, size, axes, direction, script, language, features, item + bounded context | capped process optimization; explicit clear | `ShapeCache`-class optimization; answer-neutral |
+| cluster `verdictCache` | face/member, size, axes, direction, script, language, features, item + bounded context | capped process optimization; environment invalidate or explicit clear; survives trim | `ShapeCache`-class optimization; answer-neutral until font bytes at a path change |
 | `webfontRegistry` | CSS family; ordered variants carry descriptors, unicode-range, and bytes | capture/session registry; `clearWebfonts`; survives trim/invalidate | `CSSFontSelector` / segmented `FontFace` state |
 | `localFontAliasRegistry` | CSS family + ordered weight/style variants | capture/session registry; clear on `clearWebfonts` and environment invalidate | `local()` source resolution in `CSSFontSelector` |
 | `dynamicSystemFontPaths` | resolved PostScript face key | process discovered registry; survives trim, clears on environment invalidate | concrete platform typeface retained by font data |
