@@ -530,6 +530,71 @@
           "branch": "validate/dm2083-windows-fallback"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspihm1a7rc1k9na",
+          "message": {
+            "text": "Fingerprint the helper implementation, not locally linked executable bytes. The corrected Windows run 31558825528 built identical sources on two runners but PE/COFF output hashes differed (8cb18c… vs f1fadd…), causing the merge to withhold a complete 407,862-comparison verdict; source plus build-recipe hashing preserves semantic change detection without treating linker timestamps as environment changes.",
+            "markdown": "Fingerprint the helper implementation, not locally linked executable bytes. The corrected Windows run 31558825528 built identical sources on two runners but PE/COFF output hashes differed (8cb18c… vs f1fadd…), causing the merge to withhold a complete 407,862-comparison verdict; source plus build-recipe hashing preserves semantic change detection without treating linker timestamps as environment changes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance.ts"
+                },
+                "region": {
+                  "startLine": 92,
+                  "endLine": 129,
+                  "snippet": {
+                    "text": "export function helperImplementationDigest(\n  platform: NodeJS.Platform = process.platform,\n  root = \".\",\n): string | null {\n  // Locally-built executables are not reproducible artifacts: PE/COFF embeds a\n  // linker timestamp (and other toolchains may carry build IDs), so hashing the\n  // binary made identical source builds disagree across CI shards. Hash the\n  // native implementation and the build recipe that defines it instead. The OS\n  // and architecture remain separate fields in the parity fingerprint.\n  const relative = platform === \"darwin\"\n    ? [\n        \"tools/macos-glyph-extractor/Package.swift\",\n        \"tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift\",\n      ]\n    : platform === \"linux\"\n      ? [\n          \"tools/linux-glyph-extractor/CMakeLists.txt\",\n          \"tools/linux-glyph-extractor/src/main.cpp\",\n        ]\n      : platform === \"win32\"\n        ? [\n            \"tools/win32-glyph-extractor/build-msvc-direct.bat\",\n            \"tools/win32-glyph-extractor/src/main.cpp\",\n          ]\n        : [];\n  if (relative.length === 0) return null;\n  try {\n    const digest = createHash(\"sha256\");\n    for (const file of relative) {\n      digest.update(file).update(\"\\0\").update(readFileSync(join(root, file))).update(\"\\0\");\n    }\n    return digest.digest(\"hex\");\n  } catch {\n    return null;\n  }\n}\n\n/** Inputs that define whether two same-machine oracle measurements are comparable. */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b5f622733a5c0b39354a4c8916b3f090"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d524933dc0bb0315a084380fc9ff34ec3fadbe90",
+          "branch": "validation/dm-2083"
+        }
+      ]
     }
   ]
 }

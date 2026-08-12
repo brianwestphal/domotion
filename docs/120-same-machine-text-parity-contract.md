@@ -50,7 +50,9 @@ applicable value changes:
 - launched Chromium version/revision and relevant launch flags;
 - OS image/version, architecture, and installed-font inventory digest;
 - locale, language preferences, and generic-family preference resolution;
-- native helper binary/version and whether each resolver path was enabled;
+- native helper implementation/build-recipe version and whether each resolver
+  path was enabled (locally built executable bytes are not a stable version: PE
+  timestamps and build IDs may differ across otherwise identical builds);
 - Node ICU and Unicode versions, HarfBuzz build/revision, the Chromium checkout
   revision, and Chromium-pinned Skia revision used for transcriptions;
 - device scale factor, page zoom, writing mode, and text direction; and

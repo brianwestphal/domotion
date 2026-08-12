@@ -9,7 +9,7 @@
  * the module only sweeps when invoked as a script.
  */
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -17,6 +17,7 @@ import {
   buildUniverse,
   faceFor,
   identifyFace,
+  helperImplementationDigest,
   loadAllowlist,
   mismatchClass,
   needsIsolatedQuery,
@@ -33,6 +34,24 @@ import {
 } from "../tools/font-conformance.js";
 import { getFontInstance, getFontSourceInfo, resolveFontSpec } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
+
+describe("helperImplementationDigest", () => {
+  it("is stable across rebuilt Windows executable bytes", () => {
+    const root = mkdtempSync(join(tmpdir(), "domotion-helper-digest-"));
+    const helper = join(root, "tools", "win32-glyph-extractor");
+    mkdirSync(join(helper, "src"), { recursive: true });
+    writeFileSync(join(helper, "build-msvc-direct.bat"), "cl src\\main.cpp\n");
+    writeFileSync(join(helper, "src", "main.cpp"), "int main() { return 0; }\n");
+    writeFileSync(join(helper, "domotion-glyph-paths.exe"), "build-one");
+
+    const first = helperImplementationDigest("win32", root);
+    writeFileSync(join(helper, "domotion-glyph-paths.exe"), "build-two");
+    expect(helperImplementationDigest("win32", root)).toBe(first);
+
+    writeFileSync(join(helper, "src", "main.cpp"), "int main() { return 1; }\n");
+    expect(helperImplementationDigest("win32", root)).not.toBe(first);
+  });
+});
 
 const ours = (o: Partial<OurFace>): OurFace =>
   ({ key: "x", path: null, postscriptName: null, covered: true, ...o });

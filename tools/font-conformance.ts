@@ -89,14 +89,38 @@ function shardFontInventory(): { digest: string; count: number; source: string }
   }
 }
 
-function helperBinaryDigest(): string | null {
-  const relative = process.platform === "darwin"
-    ? "tools/macos-glyph-extractor/domotion-glyph-paths"
-    : process.platform === "linux"
-      ? "tools/linux-glyph-extractor/domotion-glyph-paths"
-      : "tools/win32-glyph-extractor/domotion-glyph-paths.exe";
+export function helperImplementationDigest(
+  platform: NodeJS.Platform = process.platform,
+  root = ".",
+): string | null {
+  // Locally-built executables are not reproducible artifacts: PE/COFF embeds a
+  // linker timestamp (and other toolchains may carry build IDs), so hashing the
+  // binary made identical source builds disagree across CI shards. Hash the
+  // native implementation and the build recipe that defines it instead. The OS
+  // and architecture remain separate fields in the parity fingerprint.
+  const relative = platform === "darwin"
+    ? [
+        "tools/macos-glyph-extractor/Package.swift",
+        "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift",
+      ]
+    : platform === "linux"
+      ? [
+          "tools/linux-glyph-extractor/CMakeLists.txt",
+          "tools/linux-glyph-extractor/src/main.cpp",
+        ]
+      : platform === "win32"
+        ? [
+            "tools/win32-glyph-extractor/build-msvc-direct.bat",
+            "tools/win32-glyph-extractor/src/main.cpp",
+          ]
+        : [];
+  if (relative.length === 0) return null;
   try {
-    return createHash("sha256").update(readFileSync(relative)).digest("hex");
+    const digest = createHash("sha256");
+    for (const file of relative) {
+      digest.update(file).update("\0").update(readFileSync(join(root, file))).update("\0");
+    }
+    return digest.digest("hex");
   } catch {
     return null;
   }
@@ -117,7 +141,7 @@ function parityEnvironment(chromiumVersion: string): Record<string, unknown> {
     helper: {
       disabled: process.env.DOMOTION_DISABLE_HELPER === "1",
       systemFallbackEnabled: process.env.DOMOTION_SYSTEM_FALLBACK !== "0",
-      version: process.env.DOMOTION_HELPER_VERSION ?? helperBinaryDigest(),
+      version: process.env.DOMOTION_HELPER_VERSION ?? helperImplementationDigest(),
     },
     sources: {
       unicode: process.versions.unicode,
