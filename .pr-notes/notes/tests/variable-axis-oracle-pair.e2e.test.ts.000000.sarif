@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspni05c8tbu8evm",
+          "message": {
+            "text": "Windows confirms the parser repair by collecting and running all eight tests. Its font backend reports a name that makes both the correct and counterfactual base comparisons mismatch; the oracle blind spot is equality of those verdicts when only our axis changes, not a platform-universal agree spelling. Local macOS validation passes 8/8 with this platform-neutral contract.",
+            "markdown": "Windows confirms the parser repair by collecting and running all eight tests. Its font backend reports a name that makes both the correct and counterfactual base comparisons `mismatch`; the oracle blind spot is equality of those verdicts when only our axis changes, not a platform-universal `agree` spelling. Local macOS validation passes 8/8 with this platform-neutral contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/variable-axis-oracle-pair.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 130,
+                  "endLine": 139,
+                  "snippet": {
+                    "text": "\n  it(\"scores an INCORRECT render exactly like the corresponding correct one\", () => {\n    // Platform font backends disagree about the name exposed for a variable\n    // instance: the verdict can be agreement or mismatch. The blindness is\n    // that changing only OUR axis never changes that verdict. Pin one explicit\n    // counterfactual in addition to the exhaustive grouping assertion above.\n    const correct = rows.find((r) => r.chromeInstance === \"base\" && r.ourInstance === \"base\");\n    const incorrect = rows.find((r) => r.chromeInstance === \"base\" && r.ourInstance === \"wght800\");\n    expect(incorrect?.face).toBe(correct?.face);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2099"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4ab7c6dadcdec1c1db8e152f91821491"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "64d010dbd86651a6b53628c847835fe2b55b9d9d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

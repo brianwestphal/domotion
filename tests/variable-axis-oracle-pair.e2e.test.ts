@@ -128,13 +128,14 @@ describe("the face oracle cannot see a wrong axis instance", () => {
     }
   });
 
-  it("scores an INCORRECT render as agreement — the lenient direction", () => {
-    // Our side reports the base master (`OpenSans-Regular`) at every axis
-    // location, because an instanced variable face keeps the base master's
-    // PostScript name. So a run we painted at the wrong location still matches
-    // by name. This direction holds on every platform.
-    const wrongScoredAgree = rows.find((r) => r.chromeInstance === "base" && r.ourInstance === "wght800");
-    expect(wrongScoredAgree?.face).toMatch(/^agree/);
+  it("scores an INCORRECT render exactly like the corresponding correct one", () => {
+    // Platform font backends disagree about the name exposed for a variable
+    // instance: the verdict can be agreement or mismatch. The blindness is
+    // that changing only OUR axis never changes that verdict. Pin one explicit
+    // counterfactual in addition to the exhaustive grouping assertion above.
+    const correct = rows.find((r) => r.chromeInstance === "base" && r.ourInstance === "base");
+    const incorrect = rows.find((r) => r.chromeInstance === "base" && r.ourInstance === "wght800");
+    expect(incorrect?.face).toBe(correct?.face);
   });
 
   it("also scores a CORRECT render as a mismatch, wherever Chrome names the instance", () => {
