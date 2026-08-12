@@ -16,18 +16,24 @@ import {
 } from "./cluster-fallback.js";
 import {
   resolveFont, resolveFontKey, resolveFontKeyChain, registerWebfont, clearWebfonts,
+  type FontVariantEmojiOverride,
 } from "./font-resolution.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
 import fontkit from "fontkit";
 
 const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
-function split(fam: string, text: string): Array<{ text: string; key: string }> | null {
+function split(
+  fam: string, text: string, fontVariantEmoji?: FontVariantEmojiOverride,
+): Array<{ text: string; key: string }> | null {
   const key = resolveFontKey(fam);
   const font = resolveFont(fam, 400, 32, 0);
   expect(font).not.toBeNull();
   const chain = resolveFontKeyChain(fam);
-  const runs = splitTextIntoFontRunsShaped(text, font!, key, 400, 32, 0, undefined, undefined, chain);
+  const runs = splitTextIntoFontRunsShaped(
+    text, font!, key, 400, 32, 0, undefined, undefined, chain,
+    false, 100, fontVariantEmoji, fam,
+  );
   return runs == null ? null : runs.map((r) => ({ text: r.text, key: r.fontKey }));
 }
 
@@ -99,14 +105,39 @@ describe("flag gate", () => {
 (MACOS_FONTS ? describe : describe.skip)("shape-then-requeue vs Chrome ground truth (docs/113 §2)", () => {
   it("requeues valid variation sequences but ignores invalid base+selector pairs", () => {
     const before = _clusterFallbackCounters();
+    expect(split("STIX Two Math", "0\uFE00")).toEqual([
+      { text: "0\uFE00", key: "sysfb:STIXTwoMath-Regular" },
+    ]); // positive cmap-14: the selected face owns the sequence
+    const afterPositiveCmap14 = _clusterFallbackCounters();
+    expect(afterPositiveCmap14.vsRequeued).toBe(before.vsRequeued);
+
     split("Helvetica", "0\uFE00"); // standardized short-zero sequence
     const afterValid = _clusterFallbackCounters();
-    expect(afterValid.vsRequeued).toBeGreaterThan(before.vsRequeued);
-    expect(afterValid.vsResets).toBeGreaterThan(before.vsResets);
+    expect(afterValid.vsRequeued).toBeGreaterThan(afterPositiveCmap14.vsRequeued);
+    expect(afterValid.vsResets).toBeGreaterThan(afterPositiveCmap14.vsResets);
 
     split("Helvetica", "a\uFE00"); // not a Character::IsVariationSequence pair
     const afterInvalid = _clusterFallbackCounters();
     expect(afterInvalid.vsRequeued).toBe(afterValid.vsRequeued);
+  });
+
+  it("applies font-variant-emoji through the same VS fallback and lets explicit selectors win", () => {
+    expect(split("Helvetica", "❤", "emoji")?.[0].key.toLowerCase()).toContain("applecoloremoji");
+    expect(split("Helvetica", "⚡", "text")?.[0].key.toLowerCase()).not.toContain("applecoloremoji");
+    expect(split("Helvetica", "⚡︎", "emoji")?.[0].key.toLowerCase()).not.toContain("applecoloremoji");
+
+    const before = _clusterFallbackCounters();
+    expect(split("Helvetica", "😀", "text")?.[0].key.toLowerCase()).toContain("applecoloremoji");
+    const after = _clusterFallbackCounters();
+    expect(after.vsResets).toBeGreaterThan(before.vsResets); // no mono face: one ignore-VS retry
+  });
+
+  it("does not treat an orphan selector as an independently fallbackable character", () => {
+    const before = _clusterFallbackCounters();
+    expect(split("Helvetica", "\uFE0F")).toEqual([{ text: "\uFE0F", key: "helvetica" }]);
+    const after = _clusterFallbackCounters();
+    expect(after.vsRequeued).toBe(before.vsRequeued);
+    expect(after.vsResets).toBe(before.vsResets);
   });
 
   it("uses the one-shot emoji fallback-priority stage before ordinary system fallback", () => {
@@ -245,5 +276,24 @@ describe("flag gate", () => {
     expect(runs![0]).toMatchObject({ text: "क्", key: "webfont:dm2029 partial deva" });
     expect(runs![1].text).toBe("ष");
     expect(runs![1].key).toContain("Kohinoor");
+  });
+});
+
+(MACOS_FONTS ? describe : describe.skip)("variation sequence across @font-face unicode-range", () => {
+  afterAll(() => clearWebfonts());
+
+  it("applies the base range to a base+selector callback instead of requiring a selector range", () => {
+    const path = "/System/Library/Fonts/Supplemental/STIXTwoMath.otf";
+    if (!fs.existsSync(path)) return;
+    // U+0030+VS1 is a positive cmap-14 sequence in STIX Two Math. Blink's
+    // HarfBuzzGetGlyph applies the face's unicode-range to `unicode` (U+0030),
+    // not independently to its `variation_selector` (U+FE00).
+    registerWebfont("DM VS Base Range", 400, "normal", fs.readFileSync(path), [[0x30, 0x30]]);
+    const before = _clusterFallbackCounters();
+    expect(split('"DM VS Base Range"', "0\uFE00")).toEqual([
+      { text: "0\uFE00", key: "webfont:dm vs base range" },
+    ]);
+    const after = _clusterFallbackCounters();
+    expect(after.vsRequeued).toBe(before.vsRequeued);
   });
 });

@@ -35,15 +35,12 @@ the glyph-path emitter has and the embedded pipeline does not:
   stable `.notdef` advance (or the primary when the chain is empty, grouping
   the suppressed tofu with the surrounding run) — instead of the resolver's
   color-font answer, which would split it out of the surrounding run and drift
-  the overlay alignment. A variation selector immediately following a pinned
-  base keeps the legacy resolver decision (measured: the live CoreText
-  resolver answers `sysfb:.AppleColorEmojiUI` for a lone U+FE0F) — with its
-  base carved out of the requeue queue, the cluster-level `kUnmatchedVSGlyphId`
-  machinery cannot see the sequence, and a stranded one-selector range would
-  otherwise commit to whichever candidate shapes it first. These spans are
-  pinned before the requeue loop like the dotted-circle runs; the split is
-  byte-identical to the legacy walk on the emoji corpus (asserted in the unit
-  tests). Not a Blink behavior — parity for these glyphs is carried by the
+  the overlay alignment for bare emoji. A valid base+selector sequence is not
+  pinned: it remains whole in the shaped VS retry loop and lands on the face
+  Chromium selects. Invalid/default-ignorable selector tails share the pinned
+  base's advance donor rather than becoming independent fallback requests.
+  These spans are pinned before the requeue loop like the dotted-circle runs.
+  Not a Blink behavior — parity for these glyphs is carried by the
   overlay, not the run split.
 - **Per-run `decomposed` flags.** `FontRun.decomposed` marks runs whose `text`
   is not the source slice (Math-Alphanumeric base substitutions, dotted-circle
@@ -221,18 +218,22 @@ capture text
   Chromium's generated standardized-sequence table, and undecomposed
   ideographic sequences; an invalid base+selector pair remains an ordinary
   default-ignorable and does not spuriously requeue. The VS15/VS16 presentation
-  rule substitutes `isColorEmojiFontKey` for Blink's
+  rule calls `fontHasSupportedColorTable`, the same sbix / COLR+CPAL /
+  CBDT+CBLC test as Blink's
   `TypefaceHasAnySupportedColorTable`, an unmatched sequence re-queues its
   cluster, and exhausting the list with unmatched sequences left triggers the
   `kReshapeQueueReset` restart in ignore-VS mode. `font-variant-emoji`
-  emoji/unicode forcing rides the same path as a synthesized VS16.
+  forcing rides the same path: `text` synthesizes VS15, `emoji` synthesizes
+  VS16, and `unicode` chooses VS15/VS16 from the codepoint's default.
 - **Webfont primaries and unicode-range partitions**: the primary shapes via
   its retained `@font-face` bytes (`webfontShapingFace` /
   `registerHbBufferSource`); a range-partitioned family walks its variants as
   kSegmentedFace faces (contribution checked against the hint list, subsetted
   variants exempt from the unique-set dedup), with cluster verdicts clamped to
   the variant's `unicode-range` — the stand-in for Blink passing the face's
-  range set into `ShapeRange` (`harfbuzz_shaper.cc:1119`).
+  range set into `ShapeRange` (`harfbuzz_shaper.cc:1119`). For variation-glyph
+  callbacks, the clamp applies to the base `unicode`, never independently to
+  `variation_selector` (`harfbuzz_face.cc:98-101`).
 - **Shape-verdict cache**: keyed on face, size, axes, direction, script,
   language, and the item text with five code units of context per side —
   exact, because `hb_buffer_t::CONTEXT_LENGTH` is 5 (`hb-buffer.hh`, rev

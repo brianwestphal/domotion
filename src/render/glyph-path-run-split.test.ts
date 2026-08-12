@@ -166,11 +166,11 @@ function splitFull(fam: string, text: string): Array<{ text: string; key: string
   // The pin is a Domotion overlay calibration, not a Blink behavior: Chrome
   // paints these from Apple Color Emoji; the glyph-path emitter covers them
   // with a captured raster and needs the underlying run's advance stable. The
-  // shaped split must therefore be BYTE-IDENTICAL to the legacy walk here.
+  // Bare emoji keep that legacy pin. Explicit variation sequences are the
+  // exception: they stay in Blink's sequence-aware walk as one cluster.
   const emojiTexts: Array<[string, string]> = [
     ["Helvetica", "a\u{1F600}b"],   // empty chain → grouped with the primary run
     ["Helvetica", "x⭐y"],           // chain tail (last-resort)
-    ["Helvetica", "a❤️b"],           // chain tail (symbols) + trailing VS16 (legacy resolver decision)
     ["Helvetica", "\u{1F44D}\u{1F3FB}"], // modifier sequence
   ];
 
@@ -182,6 +182,15 @@ function splitFull(fam: string, text: string): Array<{ text: string; key: string
       const legacy = splitFull(fam, text);
       expect(shaped, `${fam} ${text}`).toEqual(legacy);
     }
+  });
+
+  it("keeps an explicit emoji variation sequence together on Chromium's selected face", () => {
+    delete process.env.DOMOTION_CLUSTER_FALLBACK;
+    expect(split("Helvetica", "a❤️b")).toEqual([
+      { text: "a", key: "helvetica" },
+      { text: "❤️", key: "sysfb:AppleColorEmoji" },
+      { text: "b", key: "helvetica" },
+    ]);
   });
 
   it("keeps an uncovered empty-chain emoji grouped with the surrounding primary run", () => {

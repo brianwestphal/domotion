@@ -61,7 +61,7 @@ import {
   webfontVariantsInDeclarationOrder, unicodeRangeCovers,
   resolveColorEmojiKeyForCp, isEmojiCharCp, isEmojiPresentationCp,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
-  forcesEmojiPresentation, isEmojiCodepoint, isColorEmojiFontKey,
+  isEmojiCodepoint, fontHasSupportedColorTable,
   glyphIdForCp, fallbackFontChain, harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
   registerFontEnvironmentInvalidator,
@@ -313,10 +313,9 @@ function shapeVerdicts(
 //
 // We cannot install glyph callbacks on the wasm font, so the same verdict is
 // computed OUTSIDE shaping: `variationGlyph` asks the identical cmap-14
-// question, and the presentation rule for VS15/VS16 substitutes
-// `isColorEmojiFontKey` for Blink's `TypefaceHasAnySupportedColorTable` — on
-// the font inventories this project routes, the color-table faces are exactly
-// the platform emoji fonts.
+// question, and the presentation rule for VS15/VS16 calls the shared
+// `fontHasSupportedColorTable` transcription of Blink's
+// `TypefaceHasAnySupportedColorTable` (including author webfonts).
 interface VsSequence {
   /** Code-unit index of the base character. */
   index: number;
@@ -369,11 +368,16 @@ function collectVsSequences(
     if (isVariationSelectorCp(cp) && prevIndex >= 0 && !isVariationSelectorCp(prevCp)
       && _isBlinkVariationSequenceForTest(prevCp, cp)) {
       out.push({ index: prevIndex, base: prevCp, selector: cp });
-    } else if (forcesEmojiPresentation(cp, fve)) {
-      // Synthesized VS16, unless an explicit selector follows (explicit wins —
-      // `HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`).
+    } else if (fve != null && isEmojiCharCp(cp)) {
+      // `GetVariationSelectorModeFromFontVariantEmoji`: text synthesizes VS15,
+      // emoji VS16, and unicode selects VS15/VS16 from the codepoint's default.
+      // An explicit selector follows wins (`HasVSFallbackPriority`).
       const nextCp = i + len < end ? text.codePointAt(i + len)! : 0;
-      if (nextCp !== 0xFE0E && nextCp !== 0xFE0F) out.push({ index: i, base: cp, selector: 0xFE0F });
+      if (nextCp !== 0xFE0E && nextCp !== 0xFE0F) {
+        const selector = fve === "text" || (fve === "unicode" && !isEmojiPresentationCp(cp))
+          ? 0xFE0E : 0xFE0F;
+        out.push({ index: i, base: cp, selector });
+      }
     }
     prevIndex = i;
     prevCp = cp;
@@ -384,7 +388,7 @@ function collectVsSequences(
 
 /** Does (base, selector) read as UNMATCHED in this face — Blink's
  *  `kUnmatchedVSGlyphId` condition? */
-function vsUnmatchedInFace(face: HbFace, fontKey: string, seq: VsSequence): boolean {
+function vsUnmatchedInFace(face: HbFace, font: FontInstance, fontKey: string, seq: VsSequence): boolean {
   const q = harfbuzzGlyphQuery(face.path, face.faceIndex);
   if (q == null) return false;
   if (q.variationGlyph(seq.base, seq.selector) !== 0) return false; // cmap-14 has it
@@ -392,7 +396,7 @@ function vsUnmatchedInFace(face: HbFace, fontKey: string, seq: VsSequence): bool
   if (seq.selector === 0xFE0E || seq.selector === 0xFE0F) {
     // Presentation rule (`harfbuzz_face.cc:189-206`): unmatched only when the
     // face's presentation contradicts the request.
-    const color = isColorEmojiFontKey(fontKey);
+    const color = fontHasSupportedColorTable(font, fontKey);
     return (color && seq.selector === 0xFE0E) || (!color && seq.selector === 0xFE0F);
   }
   return true; // non-emoji VS: base-only coverage is an unmatched sequence
@@ -474,14 +478,12 @@ function pinnedDottedCircleSpans(
 // the line. (The embedded pipeline has no overlay and deliberately lets the
 // resolver place emoji on the color font — hence the mode split.)
 //
-// A variation selector immediately following a pinned base is pinned with the
-// legacy per-codepoint decision (the shared resolver's answer when covered,
-// else the primary terminal): with its base carved out of the requeue queue,
-// the cluster-level `kUnmatchedVSGlyphId` machinery can no longer see the
-// sequence, and a stranded one-selector range would otherwise commit to
-// whichever candidate shapes it first (measured: the live CoreText resolver
-// answers `sysfb:.AppleColorEmojiUI` for a lone U+FE0F, which is what the
-// legacy walk emits — the requeue loop's last-resort stage would emit Times).
+// A VALID variation sequence is never pinned: its base and selector remain in
+// the shaped retry loop so `kUnmatchedVSGlyphId` selects one Chromium-equivalent
+// face for the whole cluster. An invalid/default-ignorable selector after a
+// pinned emoji stays on the same advance donor; asking the resolver for that
+// selector independently would split a character Blink never treats as a
+// standalone fallback request.
 //
 // Not a Blink behavior — Blink has no raster overlay. This is a Domotion
 // calibration the glyph-path emitter is built around; parity for these
@@ -493,13 +495,8 @@ function pinnedEmojiTerminalSpans(
   weight: number,
   fontSize: number,
   slant: number,
-  variationSettings: Record<string, number> | undefined,
   lang: string | undefined,
-  fontKeyChain: string[],
-  systemUiPrimary: boolean,
-  stretch: number,
   fontVariantEmoji: FontVariantEmojiOverride | undefined,
-  fontFamily: string | undefined,
 ): Assignment[] {
   const spans: Assignment[] = [];
   let prevPinnedEmoji = false;
@@ -512,7 +509,8 @@ function pinnedEmojiTerminalSpans(
     // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27) —
     // the same guard the legacy walk applies before its terminal test.
     const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    if (glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text") {
+    if (glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text"
+      && !_isBlinkVariationSequenceForTest(cp, nextCp)) {
       const chain = fallbackFontChain(cp, primaryFontKey, lang);
       const key = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
       const font = key === primaryFontKey ? primaryFont : getFontInstance(key, weight, fontSize, slant);
@@ -520,26 +518,16 @@ function pinnedEmojiTerminalSpans(
       spans.push({ start: i, end: i + len, key, font, isPrimary: key === primaryFontKey && font === primaryFont });
       prevPinnedEmoji = true;
     } else if (prevPinnedEmoji && isVariationSelectorCp(cp)) {
-      const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
-      let key = primaryFontKey;
-      let font: FontInstance | null = primaryFont;
-      let decomposed = false;
-      let emitText: string | undefined;
-      if (res.covered) {
-        key = res.key;
-        font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
-        decomposed = res.decomposed;
-        if (res.emitCh !== text.slice(i, i + len)) emitText = res.emitCh;
-      }
-      if (font == null) throw new DeclineError();
+      // An invalid/default-ignorable selector following a pinned raster emoji
+      // is advance-less and belongs to the same terminal run. Valid sequences
+      // never reach this branch: the base stays in the shaped VS retry loop.
+      const previous = spans[spans.length - 1];
       spans.push({
-        start: i, end: i + len, key, font,
-        isPrimary: key === primaryFontKey && font === primaryFont,
-        ...(emitText != null ? { emitText } : {}),
-        ...(decomposed ? { decomposed: true } : {}),
+        start: i, end: i + len, key: previous.key, font: previous.font,
+        isPrimary: previous.isPrimary,
       });
-      // Leave `prevPinnedEmoji` set: a multi-selector tail (rare but legal)
-      // takes the same legacy decision per selector.
+      // Leave `prevPinnedEmoji` set: a multi-selector tail stays on the same
+      // advance donor.
     } else {
       prevPinnedEmoji = false;
     }
@@ -646,7 +634,9 @@ function splitShapedInner(
     // an explicit ◌, and an emoji base is neither (a variation selector IS
     // category Mn, but it only pins here when the preceding emoji base — a
     // non-mark — just closed any dotted-circle cluster).
-    pinned.push(...pinnedEmojiTerminalSpans(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily));
+    pinned.push(...pinnedEmojiTerminalSpans(
+      text, primaryFont, primaryFontKey, weight, fontSize, slant, lang, fontVariantEmoji,
+    ));
     pinned.sort((a, b) => a.start - b.start);
   }
 
@@ -982,7 +972,15 @@ function splitShapedInner(
           if (ok && current.clampRanges != null) {
             for (let i = abs.start; i < abs.end;) {
               const cp = text.codePointAt(i)!;
-              if (!unicodeRangeCovers(current.clampRanges, cp)) { ok = false; break; }
+              const selectorBelongsToPreviousBase = rangeVs.some((seq) =>
+                seq.index + String.fromCodePoint(seq.base).length === i && seq.selector === cp);
+              // HarfBuzz's variation-glyph callback receives (base, selector)
+              // together and Blink applies unicode-range to `unicode` (the
+              // base), not independently to `variation_selector`.
+              if (!selectorBelongsToPreviousBase && !unicodeRangeCovers(current.clampRanges, cp)) {
+                ok = false;
+                break;
+              }
               i += cp > 0xffff ? 2 : 1;
             }
           }
@@ -990,7 +988,7 @@ function splitShapedInner(
           if (ok && rangeVs.length > 0) {
             for (const seq of rangeVs) {
               if (seq.index < abs.start || seq.index >= abs.end) continue;
-              if (vsUnmatchedInFace(current.face, current.key, seq)) {
+              if (vsUnmatchedInFace(current.face, current.font, current.key, seq)) {
                 ok = false;
                 vsSeen = true;
                 _vsRequeued++;

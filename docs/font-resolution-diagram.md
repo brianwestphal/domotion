@@ -63,7 +63,7 @@ flowchart TD
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
     B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>→ harfbuzzShapedRunOverride() per assembled run (HARFBUZZ_SHAPED_RANGES,<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
-    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>+ raster-emoji terminal pinned prepass (chain-tail .notdef;<br/>trailing VS keeps the legacy resolver decision)<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>+ bare raster-emoji terminal pinned prepass (chain-tail .notdef);<br/>valid base+VS stays whole in shaped retry;<br/>invalid selector tail shares the pinned advance donor<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
@@ -107,8 +107,9 @@ in Blink's `ShapeRange(buffer, font_features, ...)`. The paths entry (`splitText
 `mode: "paths"`, which adds the emitter's two contracts: the **raster-emoji
 terminal** (an uncovered emoji pins the last chain entry's stable `.notdef`
 advance so the raster overlay stays aligned — the resolver's color-font answer
-is never taken there; a trailing variation selector keeps the legacy resolver
-decision) and per-run **`decomposed` flags** (no merge across a flag boundary,
+is never taken there; valid variation sequences bypass the pin and remain one
+cluster in the shaped retry, while an invalid/default-ignorable selector tail
+shares the pinned base's advance donor) and per-run **`decomposed` flags** (no merge across a flag boundary,
 so the emitter's per-char vs run-text branch choice survives). The
 **uncovered terminal for non-emoji** is the FIRST candidate's `.notdef` in
 both (`kFirstCandidateForNotdefGlyph`). `resetGeneration()` clears both generation-scoped

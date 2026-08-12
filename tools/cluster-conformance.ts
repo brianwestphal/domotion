@@ -106,6 +106,8 @@ interface Cell {
   fontFamily: string;
   text: string;
   note: string;
+  /** Computed CSS font-variant-emoji for this cell. */
+  fontVariantEmoji?: "text" | "emoji" | "unicode";
   /** Built at runtime for the partial-webfont conjunct case. */
   webfont?: WebfontBuild;
   /** A measured parity gap tracked outside this instrument. Kept visible in
@@ -176,6 +178,50 @@ function buildCells(): Cell[] {
       fontFamily: "Helvetica",
       text: "ก่้x", // ก + mai ek + mai tho + x
       note: "docs/113 §2 mixed line: Chrome paints Thonburi ×1 (the 3-codepoint Thai cluster) + Helvetica ×1. A two-face cell whose partition both mechanisms should get right at the cluster boundary.",
+    },
+    {
+      id: "vs-standardized-short-zero",
+      fontFamily: "sans-serif",
+      text: "0\uFE00",
+      note: "standardized variation sequence: a base-only face must be skipped or reached again only by the one-shot ignore-VS retry.",
+    },
+    {
+      id: "vs-explicit-text-lightning",
+      fontFamily: "sans-serif",
+      text: "⚡︎",
+      note: "explicit VS15: the sequence must select text presentation as one cluster.",
+    },
+    {
+      id: "vs-explicit-emoji-heart",
+      fontFamily: "sans-serif",
+      text: "❤️",
+      note: "explicit VS16: the sequence must select color-emoji presentation as one cluster.",
+    },
+    {
+      id: "vs-orphan-selector",
+      fontFamily: "sans-serif",
+      text: "\uFE0F ",
+      note: "orphan VS16 plus a control space: HarfBuzz hides the default-ignorable; it is not an independent fallback request.",
+    },
+    {
+      id: "vs-invalid-pair",
+      fontFamily: "sans-serif",
+      text: "a\uFE00",
+      note: "invalid base+selector pair: Character::IsVariationSequence rejects it, so no sequence retry occurs.",
+    },
+    {
+      id: "fve-text-no-mono-terminal",
+      fontFamily: "sans-serif",
+      text: "😀 ",
+      fontVariantEmoji: "text",
+      note: "font-variant-emoji:text synthesizes VS15; when no monochrome face exists, the walk retries once ignoring VS and preserves the terminal donor.",
+    },
+    {
+      id: "fve-emoji-text-default-heart",
+      fontFamily: "sans-serif",
+      text: "❤ ",
+      fontVariantEmoji: "emoji",
+      note: "font-variant-emoji:emoji synthesizes VS16 and routes a text-default emoji through the color-priority path.",
     },
   ];
 
@@ -271,7 +317,7 @@ function ourRunsForCell(cell: Cell): OurRun[] {
     chain,
     stackPrimaryIsSystemUi(cell.fontFamily),
     100,
-    undefined,
+    cell.fontVariantEmoji,
     cell.fontFamily,
   );
   return runs.map((r) => ({
@@ -295,7 +341,7 @@ function probePageHtml(cell: Cell, subset: Buffer | null): string {
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>`
     + `body{margin:0}${face}`
     + `#w{display:flex;flex-wrap:wrap;font-family:${cell.fontFamily};font-size:${SIZE}px;`
-    + `font-weight:${WEIGHT};font-style:normal}`
+    + `font-weight:${WEIGHT};font-style:normal;${cell.fontVariantEmoji != null ? `font-variant-emoji:${cell.fontVariantEmoji};` : ""}}`
     // One inline-block cell holding the WHOLE multi-codepoint text — its own
     // block formatting context, so shaping stays inside the cell. `white-space:pre`
     // so a space separator is not collapsed away (see docs/107).
