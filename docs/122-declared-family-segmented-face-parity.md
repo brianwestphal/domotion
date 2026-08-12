@@ -77,3 +77,14 @@ and records a failed `WebfontRegisterReport` row with the HTTP, decompression,
 or parse error when none works. The family then behaves as unavailable and the
 walk continues. Pending network-load timing is not reproduced after capture:
 capture waits for `document.fonts.ready` and transcribes the settled result.
+
+## Adjacent priority stage
+
+After declared families are exhausted, `cluster-fallback.ts` enters the explicit
+one-shot `kFallbackPriorityFonts` stage only for Blink's non-text emoji
+priorities. It advances to `kSystemFonts` *before* asking for one platform
+priority face, so a missing or duplicate answer cannot try a second priority
+candidate or restart declared families. VS15/VS16 and `font-variant-emoji` feed
+the same classification. Pinned Chromium defines no symbol or math priority;
+ordinary symbols, math, lone regional indicators, and bare keycap bases stay on
+normal fallback unless an explicit emoji property/selector promotes them.

@@ -555,6 +555,21 @@ function pinnedEmojiTerminalSpans(
 
 type Stage = "family" | "priority" | "system" | "lastResort" | "firstCandidate" | "outOfLuck";
 
+/** Blink's `IsNonTextFallbackPriority` input classification. The pinned enum
+ * has emoji-text / emoji-emoji (with and without VS), but no symbol or math
+ * priority. Exported only as a discriminating test seam. */
+export function _hasNonTextFallbackPriorityForTest(
+  hint: number,
+  next: number,
+  fontVariantEmoji: FontVariantEmojiOverride | undefined,
+): boolean {
+  if (next === 0xFE0F) return true;
+  if (next === 0xFE0E) return false;
+  if (fontVariantEmoji === "emoji") return isEmojiCharCp(hint);
+  if (fontVariantEmoji === "text") return false;
+  return isEmojiPresentationCp(hint); // normal and unicode
+}
+
 interface Candidate {
   key: string;
   font: FontInstance;
@@ -749,12 +764,7 @@ function splitShapedInner(
       const len = String.fromCodePoint(hint).length;
       const next = pos >= 0 && pos + len < logicalText.length
         ? logicalText.codePointAt(pos + len)! : 0;
-      if (next === 0xFE0F) return true;
-      if (next === 0xFE0E) return false;
-      if (fontVariantEmoji === "emoji") return isEmojiCharCp(hint);
-      if (fontVariantEmoji === "text") return false;
-      if (fontVariantEmoji === "unicode") return isEmojiPresentationCp(hint);
-      return isEmojiPresentationCp(hint);
+      return _hasNonTextFallbackPriorityForTest(hint, next, fontVariantEmoji);
     };
 
     const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, vs?: Record<string, number>): Candidate => {

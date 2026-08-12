@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import {
   chooseHintIndex, collectHintChars, clusterFallbackEnabled,
   splitTextIntoFontRunsShaped, _clusterFallbackCounters, _isBlinkVariationSequenceForTest,
+  _hasNonTextFallbackPriorityForTest,
 } from "./cluster-fallback.js";
 import {
   resolveFont, resolveFontKey, resolveFontKeyChain, registerWebfont, clearWebfonts,
@@ -83,6 +84,28 @@ describe("Character::IsVariationSequence transcription", () => {
     expect(_isBlinkVariationSequenceForTest(0x0061, 0xfe0f)).toBe(false); // non-Emoji + VS16
     expect(_isBlinkVariationSequenceForTest(0x0061, 0xfe00)).toBe(false); // pair absent from standardized table
     expect(_isBlinkVariationSequenceForTest(0xfa10, 0xe0100)).toBe(false); // compatibility-decomposable ideograph
+  });
+});
+
+describe("FontFallbackPriority classification", () => {
+  const p = _hasNonTextFallbackPriorityForTest;
+
+  it("covers emoji defaults, explicit selectors, and every font-variant-emoji mode", () => {
+    expect(p(0x1F600, 0, undefined)).toBe(true); // emoji-default
+    expect(p(0x2764, 0, undefined)).toBe(false); // text-default
+    expect(p(0x2764, 0xFE0F, undefined)).toBe(true);
+    expect(p(0x1F600, 0xFE0E, undefined)).toBe(false);
+    expect(p(0x2764, 0, "emoji")).toBe(true);
+    expect(p(0x1F600, 0, "text")).toBe(false);
+    expect(p(0x1F600, 0, "unicode")).toBe(true);
+  });
+
+  it("does not invent symbol/math/RI/keycap priority categories", () => {
+    expect(p(0x2211, 0, undefined)).toBe(false); // math sum
+    expect(p(0x2192, 0, undefined)).toBe(false); // ordinary symbol
+    expect(p(0x1F1FA, 0, undefined)).toBe(false); // lone regional indicator
+    expect(p(0x23, 0, undefined)).toBe(false); // bare keycap base
+    expect(p(0x23, 0, "emoji")).toBe(true); // property explicitly promotes it
   });
 });
 

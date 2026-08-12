@@ -274,6 +274,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msps0mbvf9rczh5a",
+          "message": {
+            "text": "The priority classifier deliberately exposes only Blink’s four non-text emoji priorities. The pinned FontFallbackPriority enum has no symbol or math member; ordinary symbols, math, lone regional indicators, and bare keycap bases remain in normal fallback unless VS16 or font-variant-emoji explicitly promotes an Emoji-property character. The iterator still advances to system before its single priority ask.",
+            "markdown": "The priority classifier deliberately exposes only Blink’s four non-text emoji priorities. The pinned FontFallbackPriority enum has no symbol or math member; ordinary symbols, math, lone regional indicators, and bare keycap bases remain in normal fallback unless VS16 or font-variant-emoji explicitly promotes an Emoji-property character. The iterator still advances to system before its single priority ask."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 558,
+                  "endLine": 574,
+                  "snippet": {
+                    "text": "/** Blink's `IsNonTextFallbackPriority` input classification. The pinned enum\n * has emoji-text / emoji-emoji (with and without VS), but no symbol or math\n * priority. Exported only as a discriminating test seam. */\nexport function _hasNonTextFallbackPriorityForTest(\n  hint: number,\n  next: number,\n  fontVariantEmoji: FontVariantEmojiOverride | undefined,\n): boolean {\n  if (next === 0xFE0F) return true;\n  if (next === 0xFE0E) return false;\n  if (fontVariantEmoji === \"emoji\") return isEmojiCharCp(hint);\n  if (fontVariantEmoji === \"text\") return false;\n  return isEmojiPresentationCp(hint); // normal and unicode\n}\n\ninterface Candidate {\n  key: string;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2089"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "715ebadd78d1f30bc9a157eecbffdb20"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bc843afdaa6d3de1f2bb279ccd50f3a366e0f760",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
