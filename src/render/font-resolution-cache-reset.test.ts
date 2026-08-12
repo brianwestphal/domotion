@@ -6,6 +6,8 @@ import {
   clearFontResolutionCaches,
   clearWebfonts,
   getFontInstance,
+  invalidateFontEnvironmentCaches,
+  registerLocalFontAlias,
   registerWebfont,
   resolveFontForCodepoint,
   resolveFontKey,
@@ -110,6 +112,22 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
 
     expect(resolveFontKey("dm1860-probe-family")).toBe(registeredKey);
     expect(getFontInstance(registeredKey, 400, 16, 0)).not.toBeNull();
+  });
+
+  it("environment invalidation preserves downloaded webfonts but expires local() answers", () => {
+    registerLocalFontAlias("dm-env-local", KEY);
+    expect(resolveFontKey("dm-env-local")).toBe("localalias:dm-env-local");
+
+    // Reuse a real face when available; the webfont half is conditional only
+    // because this repository deliberately carries no large system-font test
+    // fixture in source control.
+    const path = "/System/Library/Fonts/Helvetica.ttc";
+    if (fs.existsSync(path)) registerWebfont("dm-env-web", 400, "normal", fs.readFileSync(path));
+
+    invalidateFontEnvironmentCaches();
+
+    expect(resolveFontKey("dm-env-local")).not.toBe("localalias:dm-env-local");
+    if (fs.existsSync(path)) expect(resolveFontKey("dm-env-web")).toBe("webfont:dm-env-web");
   });
 
   it("survives repeated clear/resolve cycles without drifting", () => {

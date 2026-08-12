@@ -22,14 +22,14 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, type LinuxFamilyMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, clearGlyphHelperCache, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import {
   firstAvailableOrFirst,
   localeToScriptCodeForFontSelection,
   perScriptGenericFamily,
 } from "./generic-script-families.js";
-import { faceHasTrakAndStat, hbShapingBaseOf, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource } from "./harfbuzz-shaper.js";
+import { faceHasTrakAndStat, hbShapingBaseOf, installHarfbuzzShaping, makeHarfbuzzShapeFallback, makeHarfbuzzShapingInstance, registerHbBufferSource, _clearHbFontCache, _clearTrakStatCache } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, restoreEmbeddedFonts, snapshotEmbeddedFonts, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 // Speculative-composition rollback (see `snapshotGeneration` below): re-exported
@@ -8978,6 +8978,31 @@ export function clearFontResolutionCaches(): void {
   // point trades memory for.
   coverageBitsets.clear();
   clearGlyphHelperCodepointMemos();
+}
+
+/**
+ * Invalidate answers derived from the host font environment.
+ *
+ * This is the Domotion analogue of Blink `FontCache::Invalidate()`: use it
+ * after an installed-font/fontconfig/preferences generation change. Unlike
+ * `clearFontResolutionCaches()`, which is a correctness-neutral memory trim,
+ * this also drops native-helper availability, installed-family/style/trait,
+ * and platform-fallback answers so the next lookup observes the new host.
+ * Downloaded webfont buffers remain intact. `local()` aliases are discarded:
+ * their selected installed face is itself an environment-derived answer and
+ * must be rediscovered by the capture session after invalidation.
+ */
+export function invalidateFontEnvironmentCaches(): void {
+  clearFontResolutionCaches();
+  clearGlyphHelperCache();
+  _clearHbFontCache();
+  _clearTrakStatCache();
+  dynamicSystemFontPaths.clear();
+  declaredFamilyForKey.clear();
+  win32SuffixDeclaredForKey.clear();
+  localFontAliasRegistry.clear();
+  darwinSystemUiPlatformCacheWarm = false;
+  sessionGenericFamilyOverrides = null;
 }
 
 /** Test-only sizes for the three platform primary-cut memos. */

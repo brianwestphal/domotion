@@ -1020,6 +1020,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspo1cvkz5c56c37",
+          "message": {
+            "text": "Memory trimming and host-font invalidation are different lifecycle events. Blink invalidation clears platform/font-data caches and notifies clients; Domotion now exposes a stronger environment invalidation that also clears helper-derived installed/style/fallback answers and local() bindings, while preserving downloaded webfont bytes. The ordinary sweep trim stays answer-neutral.",
+            "markdown": "Memory trimming and host-font invalidation are different lifecycle events. Blink invalidation clears platform/font-data caches and notifies clients; Domotion now exposes a stronger environment invalidation that also clears helper-derived installed/style/fallback answers and local() bindings, while preserving downloaded webfont bytes. The ordinary sweep trim stays answer-neutral."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8985,
+                  "endLine": 9008,
+                  "snippet": {
+                    "text": " *\n * This is the Domotion analogue of Blink `FontCache::Invalidate()`: use it\n * after an installed-font/fontconfig/preferences generation change. Unlike\n * `clearFontResolutionCaches()`, which is a correctness-neutral memory trim,\n * this also drops native-helper availability, installed-family/style/trait,\n * and platform-fallback answers so the next lookup observes the new host.\n * Downloaded webfont buffers remain intact. `local()` aliases are discarded:\n * their selected installed face is itself an environment-derived answer and\n * must be rediscovered by the capture session after invalidation.\n */\nexport function invalidateFontEnvironmentCaches(): void {\n  clearFontResolutionCaches();\n  clearGlyphHelperCache();\n  _clearHbFontCache();\n  _clearTrakStatCache();\n  dynamicSystemFontPaths.clear();\n  declaredFamilyForKey.clear();\n  win32SuffixDeclaredForKey.clear();\n  localFontAliasRegistry.clear();\n  darwinSystemUiPlatformCacheWarm = false;\n  sessionGenericFamilyOverrides = null;\n}\n\n/** Test-only sizes for the three platform primary-cut memos. */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.93
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/font-resolution-diagram.md"
+                },
+                "region": {
+                  "startLine": 117
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2092"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "76a9d262890c35cc699aef06da0ac74f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cf7d7ba035498f73de79c97670a5e7ec20c85bb8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

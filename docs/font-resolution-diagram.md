@@ -115,6 +115,20 @@ both (`kFirstCandidateForNotdefGlyph`). `resetGeneration()` clears both generati
 caches together (DM-1338 / DM-1435). The webfont + local-alias registries are
 **session-scoped** (survive across generations; cleared by `clearWebfonts`).
 
+### Cache lifecycle and invalidation
+
+`clearFontResolutionCaches()` is a correctness-neutral memory trim for long
+sweeps. It drops every macOS/Linux/Windows primary-cut memo plus instance,
+coverage, resolved-path, helper-outline, and per-codepoint query memos; caller
+registries and modeled document-order state survive.
+
+`invalidateFontEnvironmentCaches()` is the stronger host-generation boundary,
+mirroring Blink `FontCache::Invalidate()` (`font_cache.cc:265-275`). It also
+restarts native-helper discovery, clears installed-family/style/trait and
+HarfBuzz file caches, forgets dynamically discovered system faces and session
+generic preferences, and expires `local()` aliases so capture can rediscover
+them against the changed inventory. Downloaded webfont buffers remain valid.
+
 ---
 
 ## 2. Family stack → primary key (`resolveFontKey` / `matchFamilyNameToKey`)
