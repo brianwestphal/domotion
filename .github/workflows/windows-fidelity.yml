@@ -177,6 +177,8 @@ jobs:
       - name: Build the DirectWrite helper
         shell: pwsh
         run: ./tools/win32-glyph-extractor/build.ps1
+      - name: DM-2083 focused fallback discriminator
+        run: node tools/win32-fallback-probe.mjs
       - name: Smoke-test the helper (Arial H)
         shell: pwsh
         run: |
