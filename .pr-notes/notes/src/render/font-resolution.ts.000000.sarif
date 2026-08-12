@@ -1228,6 +1228,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msptkn4q1ptwk9ra",
+          "message": {
+            "text": "A Linux system-ui dynamic key must retain the browser-supplied sans nomination. Without it, the generic sysfb:* fast path treats Regular as final and skips per-run weight/style/stretch matching; the alternate DejaVu profile exposed 14,877 DejaVuSans-Bold → DejaVuSans mismatches. Retaining the nomination reduces the same 50,774-row slice to zero.",
+            "markdown": "A Linux system-ui dynamic key must retain the browser-supplied `sans` nomination. Without it, the generic `sysfb:*` fast path treats Regular as final and skips per-run weight/style/stretch matching; the alternate DejaVu profile exposed 14,877 DejaVuSans-Bold → DejaVuSans mismatches. Retaining the nomination reduces the same 50,774-row slice to zero."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8470,
+                  "endLine": 8485,
+                  "snippet": {
+                    "text": "          // dynamic key. Otherwise `linuxPrimaryCutKey` treats `sysfb:*` as an\n          // already-final fallback face and never re-asks for bold/italic/\n          // stretch cuts; alternate inventories then keep their regular UI\n          // face where Chromium selects (for example) DejaVuSans-Bold.\n          declaredFamilyForKey.set(key, \"sans\");\n          return key;\n        }\n      }\n      return \"sf-pro\";\n    }\n    if (name === \"system-ui\" && hostPlatform() === \"darwin\" && darwinSystemUiPlatformCacheWarm) {\n      return \"sf-pro\";\n    }\n    // `BlinkMacSystemFont` is rewritten to `system-ui` only on macOS — the\n    // rewrite in `StyleBuilderConverterBase::ConvertFontFamilyName` is\n    // `#if BUILDFLAG(IS_MAC)` (`core/css/resolver/style_builder_converter.cc:552-563`,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2087"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f2d1378117d04350823bd305778972a1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "becf3a981f9c1a5ea4294b5210dd05c9417bae4f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

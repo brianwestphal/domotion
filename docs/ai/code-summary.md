@@ -58,6 +58,9 @@ shortest possible map:
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags;
   `standardized-variation-sequences.generated.ts` mirrors Chromium's valid
   standardized base+selector pairs for the shaped fallback retry gate. The
+  alternate DejaVu Linux `system-ui` oracle is documented in doc 123 and run
+  by `.github/workflows/linux-system-ui-inventory.yml`; it stays separate from
+  the stock Noble baseline and proves host-dependent family/cut selection.
   former supplies the tag `hb_buffer_set_script` takes (derived from
   hb-script-list.h).
   `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows

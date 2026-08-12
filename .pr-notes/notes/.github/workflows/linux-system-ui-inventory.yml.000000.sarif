@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msptknbepd3q0tkq",
+          "message": {
+            "text": "This manual profile is intentionally separate from the required Noble baseline: fontconfig deterministically changes sans to DejaVu Sans, records the environment, tests fresh/warm family cuts, then grades a bounded same-machine corpus. The local equivalent completed 50,774 comparisons with zero mismatches.",
+            "markdown": "This manual profile is intentionally separate from the required Noble baseline: fontconfig deterministically changes `sans` to DejaVu Sans, records the environment, tests fresh/warm family cuts, then grades a bounded same-machine corpus. The local equivalent completed 50,774 comparisons with zero mismatches."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/linux-system-ui-inventory.yml"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "name: Linux alternate system-ui inventory\n\non:\n  workflow_dispatch:\n\nenv:\n  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble\n  FONTCONFIG_FILE: ${{ github.workspace }}/tests/fontconfig/alternate-system-ui.conf\n\njobs:\n  alternate-inventory:\n    runs-on: ubuntu-latest\n    container:\n      image: mcr.microsoft.com/playwright:v1.59.1-noble\n    steps:\n      - uses: actions/checkout@v4\n      - run: apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev fonts-dejavu-core\n      - run: npm ci\n      - run: bash tools/linux-glyph-extractor/build.sh\n      - name: Record distinct oracle environment\n        run: |\n          fc-cache -f\n          echo \"FONTCONFIG_FILE=$FONTCONFIG_FILE\"\n          fc-match -f 'system-ui source: %{family} | %{postscriptname} | %{file}\\n' sans\n          fc-list -f '%{file}\\n' | sort | sha256sum\n      - name: Compare Chromium and Domotion system-ui family and cuts\n        run: npx tsx tools/assert-linux-system-ui-profile.ts\n      - name: Bounded same-machine fallback conformance\n        run: npm run fonts:conformance -- --stack-filter system-ui --range 0020-007f,0600-06ff,4e00-4e7f --max-rows 2000 --reset-every 1 --out tests/output/font-conformance-system-ui-alternate\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2087"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "82c782b4fd06d2097bd8675d371c9592"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "becf3a981f9c1a5ea4294b5210dd05c9417bae4f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

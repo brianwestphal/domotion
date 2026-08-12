@@ -82,6 +82,8 @@ docker pull "${IMAGE}"
 # token, so the deliberately-unquoted expansion below splits correctly.
 TTY_FLAG=""
 [ -t 1 ] && TTY_FLAG="-it"
+FONTCONFIG_FLAG=""
+[ -n "${FONTCONFIG_FILE:-}" ] && FONTCONFIG_FLAG="-e FONTCONFIG_FILE=${FONTCONFIG_FILE}"
 
 # --ipc=host  : Chromium needs more than the default 64 MB of shared memory or
 #               pages crash (per Playwright's Docker docs).
@@ -98,7 +100,7 @@ TTY_FLAG=""
 # default. Export DOMOTION_OUTPUT_DIR yourself to override (e.g. point it at
 # `/work/tests/output` if you deliberately want the host's tree replaced).
 # shellcheck disable=SC2086  # $TTY_FLAG is intentionally word-split: empty or `-it`.
-docker run --rm $TTY_FLAG \
+docker run --rm $TTY_FLAG $FONTCONFIG_FLAG \
   --ipc=host \
   --init \
   -v "$(pwd):/work" \

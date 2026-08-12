@@ -1,0 +1,29 @@
+name: Linux alternate system-ui inventory
+
+on:
+  workflow_dispatch:
+
+env:
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
+  FONTCONFIG_FILE: ${{ github.workspace }}/tests/fontconfig/alternate-system-ui.conf
+
+jobs:
+  alternate-inventory:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev fonts-dejavu-core
+      - run: npm ci
+      - run: bash tools/linux-glyph-extractor/build.sh
+      - name: Record distinct oracle environment
+        run: |
+          fc-cache -f
+          echo "FONTCONFIG_FILE=$FONTCONFIG_FILE"
+          fc-match -f 'system-ui source: %{family} | %{postscriptname} | %{file}\n' sans
+          fc-list -f '%{file}\n' | sort | sha256sum
+      - name: Compare Chromium and Domotion system-ui family and cuts
+        run: npx tsx tools/assert-linux-system-ui-profile.ts
+      - name: Bounded same-machine fallback conformance
+        run: npm run fonts:conformance -- --stack-filter system-ui --range 0020-007f,0600-06ff,4e00-4e7f --max-rows 2000 --reset-every 1 --out tests/output/font-conformance-system-ui-alternate

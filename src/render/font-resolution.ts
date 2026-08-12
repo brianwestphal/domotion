@@ -8466,6 +8466,12 @@ function matchFamilyNameToKey(
           const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? "system-ui";
           const key = `sysfb:${psName}`;
           registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? psName, "fontkit");
+          // Preserve the browser-supplied fontconfig question beside the
+          // dynamic key. Otherwise `linuxPrimaryCutKey` treats `sysfb:*` as an
+          // already-final fallback face and never re-asks for bold/italic/
+          // stretch cuts; alternate inventories then keep their regular UI
+          // face where Chromium selects (for example) DejaVuSans-Bold.
+          declaredFamilyForKey.set(key, "sans");
           return key;
         }
       }
