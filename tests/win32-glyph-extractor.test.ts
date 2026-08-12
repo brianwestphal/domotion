@@ -329,6 +329,28 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
     }));
   });
 
+  it("reopens an italic MapCharacters nomination with Blink's converted style", () => {
+    // DirectWrite nominates real italic cuts for these two probes on the stock
+    // Windows runner. Blink's UpdateFromSkiaFontStyle treats Skia ITALIC (as
+    // opposed to OBLIQUE) as normal before reopening the family, so Chrome's
+    // final painted cuts are regular. Diagnostics retain the raw nomination to
+    // prove the test crosses that conversion rather than merely asking regular.
+    const calibri = fallback([0x1df00], {
+      baseFamilyName: "Segoe UI", cssWeight: 400, italic: true, cssSlant: 1,
+      diagnostics: true,
+    }).fonts[0];
+    const segoe = fallback([0xa700], {
+      baseFamilyName: "Calibri", cssWeight: 400, italic: true, cssSlant: 1,
+      diagnostics: true,
+    }).fonts[0];
+    expect(calibri).toEqual(expect.objectContaining({
+      found: true, postscriptName: "Calibri", diagnostics: expect.objectContaining({ mappedStyle: 2 }),
+    }));
+    expect(segoe).toEqual(expect.objectContaining({
+      found: true, postscriptName: "SegoeUI", diagnostics: expect.objectContaining({ mappedStyle: 2 }),
+    }));
+  });
+
   // Skia builds an IDWriteNumberSubstitution from the same bcp47 tag it reports
   // as the locale (method NONE, ignoreUserOverride TRUE) and returns it from the
   // analysis source; passing null asked DirectWrite a question Chrome never

@@ -3288,9 +3288,10 @@ function resolveSystemFallbackKeyForCp(
       // glyph helper. The helper speaks the same platform-agnostic "fallback"
       // protocol as the macOS CoreText helper, so `resolveSystemFallbackFonts`
       // drives it directly; register the substitute face as a `sysfb:` key with
-      // the native (helper) extractor, like darwin. The helper's HasCharacter
-      // coverage guard reports found:false for a non-covering pick, so a face only
-      // registers when it actually covers `cp`. Default-on (DM-1424); the flag
+      // the native (helper) extractor, like darwin. Before returning, the helper
+      // mirrors Blink's `UpdateFromSkiaFontStyle` + family reopen and applies its
+      // HasCharacter guard to that FINAL face, so a face only registers when it
+      // actually covers `cp`. Default-on (DM-1424); the flag
       // honors DOMOTION_SYSTEM_FALLBACK=0.
       //
       // DM-1864: the run's weight and slant travel with the query. Blink hands
@@ -3345,8 +3346,8 @@ function resolveSystemFallbackKeyForCp(
         // Same as the darwin branch above: the helper already decided coverage
         // while it held the face open, so the caller need not re-ask over IPC.
         // On Windows the field is exact rather than optimistic — the extractor
-        // only reports a face after `HasCharacter(cp)` succeeded, and nothing
-        // re-selects it afterwards (unlike CoreText's in-family re-selection).
+        // reports it only after Blink's post-MapCharacters family reopen and
+        // `HasCharacter(cp)` both succeed.
         if (resolved.covered !== undefined) _sysfbCoverage.set(`${key}|${cp}`, resolved.covered);
       }
     }

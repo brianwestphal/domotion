@@ -1166,6 +1166,41 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
         mappedStretch = static_cast<UINT32>(mappedFont->GetStretch());
         mappedStyle = static_cast<UINT32>(mappedFont->GetStyle());
         mappedSimulations = static_cast<UINT32>(mappedFont->GetSimulations());
+        familyName = fontFamilyDisplayName(mappedFont);
+
+        // Blink does not render the Skia/DirectWrite fallback typeface directly.
+        // It copies that face's SkFontStyle into a FontDescription, then opens
+        // the returned FAMILY again (`GetDWriteFallbackFamily`, Chromium rev
+        // 7d859f27). The conversion has an observable asymmetry: only Skia
+        // OBLIQUE becomes a non-normal Blink slope; Skia ITALIC becomes normal
+        // (`FontDescription::UpdateFromSkiaFontStyle`, font_description.cc:553).
+        // Re-run the same simulation-free family matcher used by the helper's
+        // `family` query with that converted style before testing coverage.
+        // This is what turns DirectWrite's Calibri-Italic / SegoeUI-Italic
+        // nominations for the DM-2083 probes into Chrome's regular cuts.
+        if (!familyName.empty()) {
+          std::wstring mappedFamilyW = toWide(familyName);
+          UINT32 familyIndex = 0;
+          BOOL familyExists = FALSE;
+          if (SUCCEEDED(systemFonts->FindFamilyName(mappedFamilyW.c_str(), &familyIndex,
+                                                     &familyExists)) && familyExists) {
+            IDWriteFontFamily* mappedFamily = nullptr;
+            if (SUCCEEDED(systemFonts->GetFontFamily(familyIndex, &mappedFamily)) && mappedFamily) {
+              IDWriteFont* reopened = nullptr;
+              const DWRITE_FONT_STYLE blinkSlant =
+                  mappedFont->GetStyle() == DWRITE_FONT_STYLE_OBLIQUE
+                    ? DWRITE_FONT_STYLE_OBLIQUE
+                    : DWRITE_FONT_STYLE_NORMAL;
+              if (SUCCEEDED(firstMatchingFontWithoutSimulations(
+                      mappedFamily, mappedFont->GetWeight(), mappedFont->GetStretch(),
+                      blinkSlant, &reopened)) && reopened) {
+                safeRelease(mappedFont);
+                mappedFont = reopened;
+              }
+              safeRelease(mappedFamily);
+            }
+          }
+        }
         BOOL covers = FALSE;
         // Coverage guard: only report a face that actually has the glyph.
         if (SUCCEEDED(mappedFont->HasCharacter(cp, &covers)) && covers) {

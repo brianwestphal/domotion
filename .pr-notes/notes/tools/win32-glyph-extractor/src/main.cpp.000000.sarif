@@ -157,6 +157,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspivhh6dsanwav2",
+          "message": {
+            "text": "Mirror Blink’s post-MapCharacters style conversion before returning the native fallback face. Chromium’s FontDescription::UpdateFromSkiaFontStyle preserves only Skia OBLIQUE and converts Skia ITALIC to normal; native diagnostics proved DirectWrite nominated style=2 italic for U+A700/U+1DF00 while Chrome painted the reopened regular Segoe UI/Calibri cuts. Coverage is intentionally checked after reopening because Blink rejects a reopened family cut that lacks the codepoint.",
+            "markdown": "Mirror Blink’s post-MapCharacters style conversion before returning the native fallback face. Chromium’s FontDescription::UpdateFromSkiaFontStyle preserves only Skia OBLIQUE and converts Skia ITALIC to normal; native diagnostics proved DirectWrite nominated style=2 italic for U+A700/U+1DF00 while Chrome painted the reopened regular Segoe UI/Calibri cuts. Coverage is intentionally checked after reopening because Blink rejects a reopened family cut that lacks the codepoint."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1178,
+                  "endLine": 1214,
+                  "snippet": {
+                    "text": "        // `family` query with that converted style before testing coverage.\n        // This is what turns DirectWrite's Calibri-Italic / SegoeUI-Italic\n        // nominations for the DM-2083 probes into Chrome's regular cuts.\n        if (!familyName.empty()) {\n          std::wstring mappedFamilyW = toWide(familyName);\n          UINT32 familyIndex = 0;\n          BOOL familyExists = FALSE;\n          if (SUCCEEDED(systemFonts->FindFamilyName(mappedFamilyW.c_str(), &familyIndex,\n                                                     &familyExists)) && familyExists) {\n            IDWriteFontFamily* mappedFamily = nullptr;\n            if (SUCCEEDED(systemFonts->GetFontFamily(familyIndex, &mappedFamily)) && mappedFamily) {\n              IDWriteFont* reopened = nullptr;\n              const DWRITE_FONT_STYLE blinkSlant =\n                  mappedFont->GetStyle() == DWRITE_FONT_STYLE_OBLIQUE\n                    ? DWRITE_FONT_STYLE_OBLIQUE\n                    : DWRITE_FONT_STYLE_NORMAL;\n              if (SUCCEEDED(firstMatchingFontWithoutSimulations(\n                      mappedFamily, mappedFont->GetWeight(), mappedFont->GetStretch(),\n                      blinkSlant, &reopened)) && reopened) {\n                safeRelease(mappedFont);\n                mappedFont = reopened;\n              }\n              safeRelease(mappedFamily);\n            }\n          }\n        }\n        BOOL covers = FALSE;\n        // Coverage guard: only report a face that actually has the glyph.\n        if (SUCCEEDED(mappedFont->HasCharacter(cp, &covers)) && covers) {\n          IDWriteFontFace* face = nullptr;\n          if (SUCCEEDED(mappedFont->CreateFontFace(&face)) && face) {\n            psName = facePostScriptName(face);\n            path = fontFacePath(face);\n            familyName = fontFamilyDisplayName(mappedFont);\n            axesJson = faceResolvedAxesJson(face);  // DM-1721: variable-instance axis pin\n            if (!psName.empty() && !path.empty()) found = true;\n            safeRelease(face);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "63ccc99cfb436fdf347af037bd84f3b9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "088f05f3509b47824c01d23c66064dcf6fecab82",
+          "branch": "validation/dm-2083"
+        }
+      ]
     }
   ]
 }
