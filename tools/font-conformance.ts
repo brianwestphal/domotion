@@ -159,6 +159,7 @@ import { pathToFileURL } from "node:url";
 import {
   ITALIC_SLNT,
   beginCharacterFallbackDocument,
+  selectCharacterFallbackRendererScope,
   clearFontResolutionCaches,
   endCharacterFallbackDocument,
   type FontInstance,
@@ -1502,6 +1503,7 @@ async function main(): Promise<number> {
 
     for (const [stackIndex, spec] of stacks.entries()) {
       const oracle = await oracleFor(spec);
+      if (process.platform === "linux") selectCharacterFallbackRendererScope(spec.lang ?? opts.lang);
       let rs = prepareStack(spec, opts.lang);
       if (rs == null) {
         skippedStacks++;

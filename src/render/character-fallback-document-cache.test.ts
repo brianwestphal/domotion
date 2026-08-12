@@ -25,8 +25,9 @@ import {
   getFontInstance,
   resolveFontKey,
   resolveFontSpec,
+  selectCharacterFallbackRendererScope,
 } from "./font-resolution.js";
-import { isGlyphHelperAvailable } from "./glyph-helper.js";
+import { __fcFallbackRendererCacheForTest, isGlyphHelperAvailable } from "./glyph-helper.js";
 import { isIdeographicCp } from "./unicode-classification.js";
 
 const onDarwin = process.platform === "darwin" && isGlyphHelperAvailable();
@@ -101,6 +102,27 @@ describe("document scope lifecycle", () => {
     beginCharacterFallbackDocument();
     expect(__characterFallbackDocumentCacheForTest()!.size).toBe(0);
     endCharacterFallbackDocument();
+  });
+});
+
+describe("Linux renderer fallback cache lifecycle", () => {
+  it("is codepoint-only, survives memory trim, and isolates oracle renderer scopes", () => {
+    beginCharacterFallbackDocument();
+    selectCharacterFallbackRendererScope("en");
+    const en = __fcFallbackRendererCacheForTest()!;
+    en.set(0x4e00, null);
+    // Locale is deliberately absent from this map's identity: within one
+    // renderer, the first locale to ask owns this codepoint's answer.
+    expect([...en.keys()]).toEqual([0x4e00]);
+    clearFontResolutionCaches();
+    expect(__fcFallbackRendererCacheForTest()!.has(0x4e00)).toBe(true);
+
+    selectCharacterFallbackRendererScope("ja");
+    expect(__fcFallbackRendererCacheForTest()!.has(0x4e00)).toBe(false);
+    selectCharacterFallbackRendererScope("en");
+    expect(__fcFallbackRendererCacheForTest()!.has(0x4e00)).toBe(true);
+    endCharacterFallbackDocument();
+    expect(__fcFallbackRendererCacheForTest()).toBeNull();
   });
 });
 

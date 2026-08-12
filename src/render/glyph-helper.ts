@@ -1409,21 +1409,50 @@ export interface FcFallbackFont {
  * `fcfallback` comment in `tools/linux-glyph-extractor/src/main.cpp`.
  */
 const _fcFallbackCache = new Map<string, FcFallbackFont | null>();
+let _fcFallbackRendererDepth = 0;
+let _fcFallbackRendererKey = "default";
+const _fcFallbackRendererCaches = new Map<string, Map<number, FcFallbackFont | null>>();
+
+export function beginFcFallbackRendererScope(key: string = "default"): void {
+  if (_fcFallbackRendererDepth === 0) _fcFallbackRendererCaches.clear();
+  _fcFallbackRendererDepth++;
+  _fcFallbackRendererKey = key;
+  if (!_fcFallbackRendererCaches.has(key)) _fcFallbackRendererCaches.set(key, new Map());
+}
+
+export function selectFcFallbackRendererScope(key: string): void {
+  if (_fcFallbackRendererDepth === 0) return;
+  _fcFallbackRendererKey = key;
+  if (!_fcFallbackRendererCaches.has(key)) _fcFallbackRendererCaches.set(key, new Map());
+}
+
+export function endFcFallbackRendererScope(): void {
+  if (_fcFallbackRendererDepth > 0) _fcFallbackRendererDepth--;
+  if (_fcFallbackRendererDepth === 0) _fcFallbackRendererCaches.clear();
+}
+
+/** Test-only view of the active codepoint-only Linux renderer cache. */
+export function __fcFallbackRendererCacheForTest(): Map<number, FcFallbackFont | null> | null {
+  if (_fcFallbackRendererDepth === 0) return null;
+  return _fcFallbackRendererCaches.get(_fcFallbackRendererKey) ?? null;
+}
 
 export function resolveFcFallbackFonts(
   cps: number[], lang: string = "en",
 ): Map<number, FcFallbackFont | null> {
   const out = new Map<number, FcFallbackFont | null>();
   if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return out;
-  // DM-1889: memoize per (lang, cp), and ask only about what is not already
-  // known. Without this a batch warm would query and discard, leaving the
-  // per-codepoint caller to re-ask for every one — the warm would look like it
-  // worked while buying nothing. Keyed on lang too because the sorted set the
-  // answer comes from is a function of the locale.
+  // Chromium's renderer sandbox cache is codepoint-only and first-query-wins;
+  // locale affects only the miss that populates it. Outside an explicit
+  // renderer scope retain the legacy (lang, cp) memo for low-level callers.
+  const rendererCache = _fcFallbackRendererDepth > 0
+    ? _fcFallbackRendererCaches.get(_fcFallbackRendererKey)!
+    : null;
   const need: number[] = [];
   for (const cp of cps) {
     const k = `${lang}\u0000${cp}`;
-    if (_fcFallbackCache.has(k)) out.set(cp, _fcFallbackCache.get(k)!);
+    if (rendererCache?.has(cp)) out.set(cp, rendererCache.get(cp)!);
+    else if (rendererCache == null && _fcFallbackCache.has(k)) out.set(cp, _fcFallbackCache.get(k)!);
     else need.push(cp);
   }
   if (need.length === 0) return out;
@@ -1446,7 +1475,8 @@ export function resolveFcFallbackFonts(
           }
         : null;
       out.set(e.cp, resolved);
-      _fcFallbackCache.set(`${lang}\u0000${e.cp}`, resolved);
+      if (rendererCache != null) rendererCache.set(e.cp, resolved);
+      else _fcFallbackCache.set(`${lang}\u0000${e.cp}`, resolved);
     }
   } catch {
     return new Map();
@@ -2139,7 +2169,9 @@ export function clearGlyphHelperCodepointMemos(): void {
  * this grew unbounded with a clear function already sitting in the file.
  */
 export function glyphHelperCodepointMemoSize(): number {
-  return _systemFallbackCache.size + _fcFallbackCache.size;
+  let scoped = 0;
+  for (const cache of _fcFallbackRendererCaches.values()) scoped += cache.size;
+  return _systemFallbackCache.size + _fcFallbackCache.size + scoped;
 }
 
 export function clearGlyphHelperCache(): void {

@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, clearGlyphHelperCache, type LinuxFamilyMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, clearGlyphHelperCache, beginFcFallbackRendererScope, selectFcFallbackRendererScope, endFcFallbackRendererScope, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import {
   firstAvailableOrFirst,
@@ -2929,14 +2929,25 @@ let _charFallbackDocDepth = 0;
 /** Open a document scope for the ideograph fallback cache (nested calls share
  *  the outermost scope). Pair with `endCharacterFallbackDocument` in `finally`. */
 export function beginCharacterFallbackDocument(): void {
-  if (_charFallbackDocDepth === 0) _charFallbackDocCache = new Map();
+  if (_charFallbackDocDepth === 0) {
+    _charFallbackDocCache = new Map();
+    beginFcFallbackRendererScope();
+  }
   _charFallbackDocDepth++;
 }
 
 /** Close the current document scope; the outermost close drops the state. */
 export function endCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth > 0) _charFallbackDocDepth--;
-  if (_charFallbackDocDepth === 0) _charFallbackDocCache = null;
+  if (_charFallbackDocDepth === 0) {
+    _charFallbackDocCache = null;
+    endFcFallbackRendererScope();
+  }
+}
+
+/** Oracle seam: select the renderer cache corresponding to an isolated context. */
+export function selectCharacterFallbackRendererScope(key: string): void {
+  selectFcFallbackRendererScope(key);
 }
 
 /** Test-only window into the active document cache (null when none is open). */

@@ -129,6 +129,15 @@ HarfBuzz file caches, forgets dynamically discovered system faces and session
 generic preferences, and expires `local()` aliases so capture can rediscover
 them against the changed inventory. Downloaded webfont buffers remain valid.
 
+Linux has one intentionally non-pure exception inside the document/renderer
+scope: Chromium `WebSandboxSupportLinux::unicode_font_families_` is keyed only
+by codepoint and populated with `emplace`, so the first locale asking for a
+character wins for that renderer's lifetime. Domotion mirrors that state inside
+`beginCharacterFallbackDocument()` / `endCharacterFallbackDocument()` and does
+not erase it during memory trims. The conformance oracle selects a distinct
+scope namespace per locale, matching its distinct Chromium renderer contexts;
+production uses one namespace and therefore preserves mixed-language order.
+
 ---
 
 ## 2. Family stack → primary key (`resolveFontKey` / `matchFamilyNameToKey`)

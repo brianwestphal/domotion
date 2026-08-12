@@ -1,24 +1,145 @@
 {
   "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
   "version": "2.1.0",
-  "runs": [{
-    "tool": { "driver": { "name": "Hot Sheet", "rules": [{
-      "id": "review-note", "name": "ReviewNote",
-      "shortDescription": { "text": "AI-authored, line-anchored review note." }
-    }] } },
-    "results": [{
-      "ruleId": "review-note", "ruleIndex": 0, "kind": "informational", "level": "none",
-      "message": {
-        "text": "The in-memory bytes are the cascade base, not merely another way to extract glyphs. This mirrors Blink handing CTFontCreateForString the current webfont-backed run face. The cluster oracle passes 9/9 with no skips; DOMOTION_WEBFONT_FALLBACK_BASE=0 restores the Times stand-in and changes the partial-webfont cell to the prior Kohinoor-versus-ITF mismatch.",
-        "markdown": "The in-memory bytes are the cascade base, not merely another way to extract glyphs. This mirrors Blink handing `CTFontCreateForString` the current webfont-backed run face. The cluster oracle passes 9/9 with no skips; `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the Times stand-in and changes the partial-webfont cell to the prior Kohinoor-versus-ITF mismatch."
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
       },
-      "locations": [{ "physicalLocation": {
-        "artifactLocation": { "uri": "src/render/glyph-helper.ts" },
-        "region": { "startLine": 1325 }
-      } }],
-      "properties": { "tags": ["test-evidence"], "ext-ai-tool-confidence": 1 },
-      "rank": 95,
-      "workItemUris": ["DM-2059"]
-    }]
-  }]
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "message": {
+            "text": "The in-memory bytes are the cascade base, not merely another way to extract glyphs. This mirrors Blink handing CTFontCreateForString the current webfont-backed run face. The cluster oracle passes 9/9 with no skips; DOMOTION_WEBFONT_FALLBACK_BASE=0 restores the Times stand-in and changes the partial-webfont cell to the prior Kohinoor-versus-ITF mismatch.",
+            "markdown": "The in-memory bytes are the cascade base, not merely another way to extract glyphs. This mirrors Blink handing `CTFontCreateForString` the current webfont-backed run face. The cluster oracle passes 9/9 with no skips; `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the Times stand-in and changes the partial-webfont cell to the prior Kohinoor-versus-ITF mismatch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 1325
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2059"
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspo48h67fnhaybv",
+          "message": {
+            "text": "Pinned Chromium WebSandboxSupportLinux stores fallback in std::map<int32_t, FallbackFontData> and populates with emplace: the cache identity is codepoint-only and the first locale miss wins. Domotion now models that cache inside renderer/document scope; memory trim preserves it, while the oracle selects one namespace per isolated Chromium locale context.",
+            "markdown": "Pinned Chromium `WebSandboxSupportLinux` stores fallback in `std::map<int32_t, FallbackFontData>` and populates with `emplace`: the cache identity is codepoint-only and the first locale miss wins. Domotion now models that cache inside renderer/document scope; memory trim preserves it, while the oracle selects one namespace per isolated Chromium locale context."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 1411,
+                  "endLine": 1475,
+                  "snippet": {
+                    "text": "const _fcFallbackCache = new Map<string, FcFallbackFont | null>();\nlet _fcFallbackRendererDepth = 0;\nlet _fcFallbackRendererKey = \"default\";\nconst _fcFallbackRendererCaches = new Map<string, Map<number, FcFallbackFont | null>>();\n\nexport function beginFcFallbackRendererScope(key: string = \"default\"): void {\n  if (_fcFallbackRendererDepth === 0) _fcFallbackRendererCaches.clear();\n  _fcFallbackRendererDepth++;\n  _fcFallbackRendererKey = key;\n  if (!_fcFallbackRendererCaches.has(key)) _fcFallbackRendererCaches.set(key, new Map());\n}\n\nexport function selectFcFallbackRendererScope(key: string): void {\n  if (_fcFallbackRendererDepth === 0) return;\n  _fcFallbackRendererKey = key;\n  if (!_fcFallbackRendererCaches.has(key)) _fcFallbackRendererCaches.set(key, new Map());\n}\n\nexport function endFcFallbackRendererScope(): void {\n  if (_fcFallbackRendererDepth > 0) _fcFallbackRendererDepth--;\n  if (_fcFallbackRendererDepth === 0) _fcFallbackRendererCaches.clear();\n}\n\n/** Test-only view of the active codepoint-only Linux renderer cache. */\nexport function __fcFallbackRendererCacheForTest(): Map<number, FcFallbackFont | null> | null {\n  if (_fcFallbackRendererDepth === 0) return null;\n  return _fcFallbackRendererCaches.get(_fcFallbackRendererKey) ?? null;\n}\n\nexport function resolveFcFallbackFonts(\n  cps: number[], lang: string = \"en\",\n): Map<number, FcFallbackFont | null> {\n  const out = new Map<number, FcFallbackFont | null>();\n  if (hostPlatform() !== \"linux\" || !isGlyphHelperAvailable() || cps.length === 0) return out;\n  // Chromium's renderer sandbox cache is codepoint-only and first-query-wins;\n  // locale affects only the miss that populates it. Outside an explicit\n  // renderer scope retain the legacy (lang, cp) memo for low-level callers.\n  const rendererCache = _fcFallbackRendererDepth > 0\n    ? _fcFallbackRendererCaches.get(_fcFallbackRendererKey)!\n    : null;\n  const need: number[] = [];\n  for (const cp of cps) {\n    const k = `${lang}\\u0000${cp}`;\n    if (rendererCache?.has(cp)) out.set(cp, rendererCache.get(cp)!);\n    else if (rendererCache == null && _fcFallbackCache.has(k)) out.set(cp, _fcFallbackCache.get(k)!);\n    else need.push(cp);\n  }\n  if (need.length === 0) return out;\n  try {\n    const resp = callHelper({ fonts: [], queries: [{ type: \"fcfallback\", lang, cps: need }] });\n    const r: any = resp.results[0];\n    // An older helper answers `{error:\"unknown query type\"}`; treat that as \"no\n    // helper for this question\" rather than as \"no font\", so the caller falls\n    // back instead of tofuing every codepoint.\n    if (r == null || r.type !== \"fcfallback\" || !Array.isArray(r.fonts)) return out;\n    for (const e of r.fonts) {\n      if (e == null || typeof e.cp !== \"number\") continue;\n      const resolved = e.found === true && typeof e.path === \"string\" && e.path !== \"\"\n        ? {\n            path: e.path,\n            index: typeof e.index === \"number\" ? e.index : 0,\n            isBold: e.isBold === true,\n            isItalic: e.isItalic === true,\n            family: typeof e.family === \"string\" ? e.family : undefined,\n          }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/content/child/child_process_sandbox_support_impl_linux.cc"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/character-fallback-document-cache.test.ts"
+                },
+                "region": {
+                  "startLine": 107
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2092"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cd091333578e5a2b4224fc3b3774e77a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c9a89161a3cf6d97cf3633d74c7e4d616f78aa79",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
 }
