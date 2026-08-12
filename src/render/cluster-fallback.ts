@@ -441,14 +441,19 @@ function pinnedDottedCircleSpans(
     const cp = text.codePointAt(i)!;
     const ch = String.fromCodePoint(cp);
     const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
-    const chIsMark = RE_MARK.test(ch);
+    // Variation selectors and the other HarfBuzz default-ignorables may have
+    // General_Category=Mark, but they never request Blink's synthetic dotted
+    // circle. Let the ordinary shaped-cluster path hide them on the current
+    // face instead of pinning them to a mark fallback font.
+    const chIsMark = RE_MARK.test(ch) && !isHarfbuzzDefaultIgnorable(cp);
     let clusterRun: { key: string; font: FontInstance } | null = null;
     if (hbRun != null) {
       if (chIsMark) clusterRun = hbRun;
       else hbRun = null;
     }
     if (clusterRun == null) {
-      const markForCluster = (cp === 0x25CC && nextCp !== 0 && RE_MARK.test(String.fromCodePoint(nextCp)))
+      const markForCluster = (cp === 0x25CC && nextCp !== 0
+        && RE_MARK.test(String.fromCodePoint(nextCp)) && !isHarfbuzzDefaultIgnorable(nextCp))
         ? nextCp
         : (chIsMark && !clusterHasBase) ? cp
         : 0;
