@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspkb7h9dvmxhh1v",
+          "message": {
+            "text": "Literal NUL source bytes made the paired oracle's imported shaping module platform-parser-dependent. The escaped backslash-zero spelling preserves the composite-key separator at runtime while keeping the TypeScript source portable; the fixture unit test now rejects any recurrence before native Windows CI.",
+            "markdown": "Literal NUL source bytes made the paired oracle's imported shaping module platform-parser-dependent. The escaped backslash-zero spelling preserves the composite-key separator at runtime while keeping the TypeScript source portable; the fixture unit test now rejects any recurrence before native Windows CI."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-conformance.ts"
+                },
+                "region": {
+                  "startLine": 689,
+                  "endLine": 715,
+                  "snippet": {
+                    "text": "    const allow: Set<string> = existsSync(opts.allowlistFile)\n      ? new Set((JSON.parse(readFileSync(opts.allowlistFile, \"utf-8\")) as Array<{ text: string; fontFamily: string }>)\n        .map((e) => `${e.text}\\0${e.fontFamily}`))\n      : new Set();\n\n    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });\n    const page = await ctx.newPage();\n\n    const counts: Record<Verdict, number> = {\n      \"agree-exact\": 0, \"agree-count\": 0, \"agree-count-clustered\": 0,\n      \"mismatch-count\": 0, \"mismatch-unrendered\": 0,\n    };\n    const rows: MismatchRow[] = [];\n    const routes = new Map<string, number>();\n    let allowlisted = 0;\n    const posDeltas: number[] = [];\n    const t0 = Date.now();\n\n    for (let i = 0; i < runs.length; i += opts.batch) {\n      const batch = runs.slice(i, i + opts.batch);\n      const chrome = await chromeShaping(page, batch);\n      for (let j = 0; j < batch.length; j++) {\n        const spec = batch[j];\n        const ours = ourShaping(spec);\n        const { verdict, maxDelta } = compareShaping(chrome[j], ours, opts.tolerance);\n        if (verdict.startsWith(\"mismatch\") && allow.has(`${spec.text}\\0${spec.fontFamily}`)) {\n          allowlisted++;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/variable-axis-fixture.test.ts"
+                },
+                "region": {
+                  "startLine": 40
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2099"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "41be5c95de91da4a256f36a95ef59400"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "0ccad24d052117b263021f5afc3b8c1d5823a7e5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

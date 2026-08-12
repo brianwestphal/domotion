@@ -688,7 +688,7 @@ async function main(): Promise<number> {
 
     const allow: Set<string> = existsSync(opts.allowlistFile)
       ? new Set((JSON.parse(readFileSync(opts.allowlistFile, "utf-8")) as Array<{ text: string; fontFamily: string }>)
-        .map((e) => `${e.text} ${e.fontFamily}`))
+        .map((e) => `${e.text}\0${e.fontFamily}`))
       : new Set();
 
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -711,7 +711,7 @@ async function main(): Promise<number> {
         const spec = batch[j];
         const ours = ourShaping(spec);
         const { verdict, maxDelta } = compareShaping(chrome[j], ours, opts.tolerance);
-        if (verdict.startsWith("mismatch") && allow.has(`${spec.text} ${spec.fontFamily}`)) {
+        if (verdict.startsWith("mismatch") && allow.has(`${spec.text}\0${spec.fontFamily}`)) {
           allowlisted++;
           continue;
         }

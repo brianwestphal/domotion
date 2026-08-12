@@ -39,6 +39,14 @@ const html = existsSync(DEFAULT_FIXTURE) ? readFileSync(DEFAULT_FIXTURE, "utf-8"
 const TEXT = "Hamburgefonstiv";
 
 describe("the fixture", () => {
+  it("keeps the paired oracle's import graph free of literal NUL bytes", () => {
+    // Oxc accepted the NUL embedded in shaping-conformance.ts on macOS/Linux,
+    // but rejected that module during Vitest import on Windows before any test
+    // was collected. `\\0` produces the same runtime separator portably.
+    const shapingSource = readFileSync("tools/shaping-conformance.ts");
+    expect(shapingSource.includes(0)).toBe(false);
+  });
+
   it("exists and is self-contained", () => {
     expect(existsSync(DEFAULT_FIXTURE)).toBe(true);
     // A data URI rather than a sibling file, deliberately: Chrome treats a
