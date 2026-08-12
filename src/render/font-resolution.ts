@@ -7979,7 +7979,12 @@ function fcPostConfigFamily(name: string): string | null {
 }
 
 function authorFamilyAvailable(name: string): boolean {
-  const cached = _famAvailCache.get(name);
+  // Availability is an answer from a platform font environment, not a
+  // property of the spelling alone. Tests and oracle replays can switch the
+  // modeled host in-process; sharing a bare-name entry across those contexts
+  // made the first platform queried win for every later platform.
+  const cacheKey = `${hostPlatform()}\u0000${name}`;
+  const cached = _famAvailCache.get(cacheKey);
   if (cached != null) return cached;
   let avail: boolean;
   if (resolveInstalledFont(name) != null) {
@@ -7991,8 +7996,13 @@ function authorFamilyAvailable(name: string): boolean {
   } else {
     avail = false;
   }
-  _famAvailCache.set(name, avail);
+  _famAvailCache.set(cacheKey, avail);
   return avail;
+}
+
+/** Test-only view: availability memo identities, without exposing answers. */
+export function __familyAvailabilityCacheKeysForTest(): string[] {
+  return [..._famAvailCache.keys()].sort();
 }
 
 /** Materialize the concrete face Chromium reported for a session setting.

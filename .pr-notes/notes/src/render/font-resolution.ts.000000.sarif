@@ -1098,6 +1098,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspohx66a8708hu7",
+          "message": {
+            "text": "Availability is environment-derived, so the memo identity includes the modeled host platform. A bare family-name key made cross-platform oracle/test replays first-query-wins across OS boundaries; the regression now proves Darwin and Linux create distinct entries regardless of query order.",
+            "markdown": "Availability is environment-derived, so the memo identity includes the modeled host platform. A bare family-name key made cross-platform oracle/test replays first-query-wins across OS boundaries; the regression now proves Darwin and Linux create distinct entries regardless of query order."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7981,
+                  "endLine": 8001,
+                  "snippet": {
+                    "text": "function authorFamilyAvailable(name: string): boolean {\n  // Availability is an answer from a platform font environment, not a\n  // property of the spelling alone. Tests and oracle replays can switch the\n  // modeled host in-process; sharing a bare-name entry across those contexts\n  // made the first platform queried win for every later platform.\n  const cacheKey = `${hostPlatform()}\\u0000${name}`;\n  const cached = _famAvailCache.get(cacheKey);\n  if (cached != null) return cached;\n  let avail: boolean;\n  if (resolveInstalledFont(name) != null) {\n    avail = true; // native helper (macOS/Windows) found the exact family\n  } else if (hostPlatform() === \"linux\") {\n    const fams = fcMatchFamilies(name);\n    avail = fams != null\n      && skiaFamilyMatchAcceptable(name, fcPostConfigFamily(name) ?? name, fams);\n  } else {\n    avail = false;\n  }\n  _famAvailCache.set(cacheKey, avail);\n  return avail;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2092"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "888ac1f5911531c27858a778fbef489d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bd776650613b6ba5aed7dcc09491a6261ab7401d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

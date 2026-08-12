@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   __primaryCutCacheSizesForTest,
+  __familyAvailabilityCacheKeysForTest,
   __seedPrimaryCutCachesForTest,
   clearFontResolutionCaches,
   clearWebfonts,
@@ -13,6 +14,7 @@ import {
   resolveFontKey,
   resolveFontSpec,
 } from "./font-resolution.js";
+import { withHostPlatform } from "./host-platform.js";
 
 /**
  * `clearFontResolutionCaches()` exists so a long sweep over a large codepoint
@@ -92,6 +94,16 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
     expect(__primaryCutCacheSizesForTest()).toEqual({ darwin: 1, linux: 1, win32: 1 });
     clearFontResolutionCaches();
     expect(__primaryCutCacheSizesForTest()).toEqual({ darwin: 0, linux: 0, win32: 0 });
+  });
+
+  it("keys installed-family availability by platform, not query order", () => {
+    clearFontResolutionCaches();
+    withHostPlatform("darwin", () => resolveFontKey("Menlo, Georgia"));
+    withHostPlatform("linux", () => resolveFontKey("Menlo, Georgia"));
+    expect(__familyAvailabilityCacheKeysForTest()).toEqual([
+      "darwin\u0000Menlo",
+      "linux\u0000Menlo",
+    ]);
   });
 
   it("does NOT drop the webfont registry — that is caller state, not a memo", () => {
