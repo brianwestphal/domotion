@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspo5tbpgne817zz",
+          "message": {
+            "text": "This inventory is the acceptance checklist for DM-2092: it distinguishes pure memory memos, modeled order-dependent renderer state, caller registries, generation output state, and host-environment answers. That distinction drives which reset may clear each entry and prevents future cache fixes from flattening Chromium’s intentional order dependence.",
+            "markdown": "This inventory is the acceptance checklist for DM-2092: it distinguishes pure memory memos, modeled order-dependent renderer state, caller registries, generation output state, and host-environment answers. That distinction drives which reset may clear each entry and prevents future cache fixes from flattening Chromium’s intentional order dependence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/121-font-cache-parity.md"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 44,
+                  "snippet": {
+                    "text": "# 121 — Font cache identity and lifetime parity\n\nThis is the cache inventory for the same-machine text contract in doc 120.\n“Trim” means `clearFontResolutionCaches()`; “invalidate” means\n`invalidateFontEnvironmentCaches()`. Registries are state, not recomputable\nmemos, and therefore have their own explicit lifecycle.\n\n| Domotion state | Identity | Lifetime / reset | Chromium analogue |\n| --- | --- | --- | --- |\n| `fontInstanceCache` | effective face, weight, size, slope, sorted axes, system-ui/declaration provenance, effective width | process memo; trim + invalidate | `FontPlatformDataCache`, keyed by `FontDescription::CacheKey` plus family |\n| `resolvedSpecCache` | platform + logical/dynamic key | process memo; trim + invalidate | platform font manager/typeface lookup caches |\n| `coverageBitsets` | file + physical collection member | process memo; trim + invalidate | DirectWrite `HasCharacter` / fontconfig charset; deliberately unused for CoreText |\n| `fallbackBaseCache` | primary key + CSS description | process memo; trim + invalidate | base `FontPlatformData` passed into platform fallback |\n| `systemFallbackKeyCache` | platform, codepoint, base, CSS description, locale, presentation | process query memo; trim + invalidate | platform fallback result, except modeled order-dependent caches below |\n| helper `_systemFallbackCache` | base face, codepoint, complete platform request | process query memo; trim + invalidate | CoreText/DirectWrite fallback call result |\n| helper `_fcFallbackCache` | locale + codepoint outside renderer scope | low-level query memo; trim + invalidate | browser-side locale-sensitive miss computation |\n| scoped Linux renderer fallback | codepoint only | renderer/document scope; first writer wins; survives trim | `WebSandboxSupportLinux::unicode_font_families_` |\n| macOS character fallback | base face, weight, italic bit, size; value is first successful ideograph face | renderer/document scope; first writer wins; survives trim | `FontCache::character_fallback_cache_` / `CharacterFallbackCache` |\n| `fallbackFamilyCutCache` | candidate face, codepoint, CSS description | process memo; trim + invalidate | macOS alternate-family in-family reselection |\n| `_sysfbCoverage` | resolved face + codepoint | process query memo; trim + invalidate | coverage returned by the platform nomination |\n| Darwin/Linux/Windows primary-cut caches | logical/declared key + full weight/style/stretch request | process memo; trim + invalidate | `BestStyleMatchForFamilyNS` / fontconfig matcher / DirectWrite family-style match |\n| `win32FamilyKeyCache` | normalized family + optional complete style | process memo; trim + invalidate | DirectWrite `FindFamilyName` / `matchFamilyStyle` |\n| `_famAvailCache` | normalized declared family | process memo; trim + invalidate | Blink unavailable-family/platform-data caches |\n| helper installed/family/style/trait caches | normalized OS query + complete style where applicable | helper lifetime; invalidate (not memory trim) | CoreText, fontconfig, and DirectWrite font-manager caches |\n| `fileFaceInfoCache` | file + requested PostScript/name instance | process memo; trim + invalidate | `SkTypeface::openStream` collection index and variation position |\n| `darwinHandleAxesMap` | resolved key + weight + size + slope | process side-band memo; trim + invalidate | substituted CoreText handle’s current axes |\n| HarfBuzz `hbFontCache` | source id/path + physical face index | process memo; environment invalidate | Blink `HarfBuzzFace` / `HbFaceFromSkTypeface` |\n| HarfBuzz proxy cache | base object identity + face, size, axes/features | weak lifetime of base font instance | Blink font-data/shaping object ownership |\n| cluster `verdictCache` | face/member, size, axes, direction, script, language, features, item + bounded context | capped process optimization; explicit clear | `ShapeCache`-class optimization; answer-neutral |\n| `webfontRegistry` | CSS family; ordered variants carry descriptors, unicode-range, and bytes | capture/session registry; `clearWebfonts`; survives trim/invalidate | `CSSFontSelector` / segmented `FontFace` state |\n| `localFontAliasRegistry` | CSS family + ordered weight/style variants | capture/session registry; clear on `clearWebfonts` and environment invalidate | `local()` source resolution in `CSSFontSelector` |\n| `dynamicSystemFontPaths` | resolved PostScript face key | process discovered registry; survives trim, clears on environment invalidate | concrete platform typeface retained by font data |\n| `sessionGenericFamilyOverrides` | common or script-specific generic keyword | launched-browser session; clears on environment invalidate | `GenericFontFamilySettings` / Playwright `Page.setFontFamilies` |\n| embedded-font/glyph-def registries | resolved source/instance/glyph identity | output generation; `resetGeneration` | no selection analogue; SVG output state |\n\n## Required transition properties\n\n- Reordering identical asks within one macOS or Linux renderer may change later\n  answers only where Chromium is itself first-query-wins.\n- A fresh renderer/document scope starts without prior order state.\n- Memory trim reproduces the same answer and preserves modeled renderer state.\n- Environment invalidation re-asks installed-family, style, coverage, fallback,\n  file/member, and generic-preference questions; downloaded webfont bytes stay.\n- Webfont/local registries never leak between capture sessions, and a reloaded"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2092"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "22b5b48a21ba861ed4a9ee86952b3b7c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e36cefbe5270d47252f3546e03ecd9b23ae7bcdf",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
