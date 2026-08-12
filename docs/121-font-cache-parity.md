@@ -30,7 +30,7 @@ memos, and therefore have their own explicit lifecycle.
 | `webfontRegistry` | CSS family; ordered variants carry descriptors, unicode-range, and bytes | capture/session registry; `clearWebfonts`; survives trim/invalidate | `CSSFontSelector` / segmented `FontFace` state |
 | `localFontAliasRegistry` | CSS family + ordered weight/style variants | capture/session registry; clear on `clearWebfonts` and environment invalidate | `local()` source resolution in `CSSFontSelector` |
 | `dynamicSystemFontPaths` | resolved PostScript face key | process discovered registry; survives trim, clears on environment invalidate | concrete platform typeface retained by font data |
-| `sessionGenericFamilyOverrides` | common or script-specific generic keyword | launched-browser session; clears on environment invalidate | `GenericFontFamilySettings` / Playwright `Page.setFontFamilies` |
+| `sessionGenericFamilyOverrides` | common or script-specific generic keyword | launched-browser session; replaced explicitly, survives font-cache invalidation | `GenericFontFamilySettings` / Playwright `Page.setFontFamilies` |
 | embedded-font/glyph-def registries | resolved source/instance/glyph identity | output generation; `resetGeneration` | no selection analogue; SVG output state |
 
 ## Required transition properties

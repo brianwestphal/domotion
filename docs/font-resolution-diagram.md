@@ -125,9 +125,12 @@ registries and modeled document-order state survive.
 `invalidateFontEnvironmentCaches()` is the stronger host-generation boundary,
 mirroring Blink `FontCache::Invalidate()` (`font_cache.cc:265-275`). It also
 restarts native-helper discovery, clears installed-family/style/trait and
-HarfBuzz file caches, forgets dynamically discovered system faces and session
-generic preferences, and expires `local()` aliases so capture can rediscover
+HarfBuzz file caches, forgets dynamically discovered system faces, and expires
+`local()` aliases so capture can rediscover
 them against the changed inventory. Downloaded webfont buffers remain valid.
+Launched-browser generic preferences live above Blink's font cache and remain
+installed; an actual preference/session change replaces them explicitly with
+`setSessionGenericFamilyOverrides()`.
 
 Linux has one intentionally non-pure exception inside the document/renderer
 scope: Chromium `WebSandboxSupportLinux::unicode_font_families_` is keyed only

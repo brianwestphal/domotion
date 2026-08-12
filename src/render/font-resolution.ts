@@ -9013,7 +9013,6 @@ export function invalidateFontEnvironmentCaches(): void {
   win32SuffixDeclaredForKey.clear();
   localFontAliasRegistry.clear();
   darwinSystemUiPlatformCacheWarm = false;
-  sessionGenericFamilyOverrides = null;
 }
 
 /** Test-only sizes for the three platform primary-cut memos. */
