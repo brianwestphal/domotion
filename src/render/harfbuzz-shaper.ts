@@ -37,12 +37,14 @@ interface ShapedGlyph {
   codePoints?: number[];
 }
 
-interface ShapeResult {
+export interface ShapeResult {
   glyphs: ShapedGlyph[];
   positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
   /** UTF-16 source-cluster index per glyph — lets the embedded-font emit loop
    *  anchor each cluster at its captured xOffset (the DM-1028 cluster path). */
   clusters: number[];
+  /** Raw `hb_glyph_flags_t` per glyph. Bit 0 is UNSAFE_TO_BREAK. */
+  glyphFlags: number[];
 }
 
 // One HarfBuzz font per (file path × PostScript name), with a per-glyph outline
@@ -283,7 +285,7 @@ export function harfbuzzShapeRun(
    * the defect this parameter closes. Omitted means "infer", which stays
    * correct for every run whose direction the content already implies.
    */
-  direction?: "ltr" | "rtl",
+  direction?: "ltr" | "rtl" | "ttb" | "btt",
   /**
    * The run's CSS pixel size, which is what HarfBuzz uses to look up the AAT
    * `trak` tracking amount. Blink sets it on every shaped run
@@ -381,6 +383,10 @@ export function harfbuzzShapeRun(
     script?: string;
     /** BCP-47 language for `hb_buffer_set_language` (same Blink cite). */
     language?: string;
+    /** Raw `hb_buffer_flags_t`, used by the exact oracle and BOT/EOT runs. */
+    bufferFlags?: number;
+    /** Raw `hb_buffer_cluster_level_t`; Blink uses monotone characters. */
+    clusterLevel?: number;
     /**
      * Skip outline extraction — the cluster-granularity splitter only needs
      * glyph ids and clusters for its shaped/notdef verdict, and `glyphToPath`
@@ -424,9 +430,16 @@ export function harfbuzzShapeRun(
   // after the guess for the same override-ordering reason as direction.
   if (opts?.script != null) buf.setScript(opts.script);
   if (opts?.language != null) buf.setLanguage(opts.language);
+  if (opts?.bufferFlags != null) buf.setFlags(opts.bufferFlags);
+  if (opts?.clusterLevel != null) buf.setClusterLevel(opts.clusterLevel as hb.ClusterLevel);
   // harfbuzzjs takes HarfBuzz's numeric hb_direction_t, not a string:
   // HB_DIRECTION_LTR = 4, HB_DIRECTION_RTL = 5 (`hb.Direction`).
-  if (direction != null) buf.setDirection(direction === "rtl" ? hb.Direction.RTL : hb.Direction.LTR);
+  if (direction != null) {
+    const hbDirection = direction === "rtl" ? hb.Direction.RTL
+      : direction === "ttb" ? hb.Direction.TTB
+        : direction === "btt" ? hb.Direction.BTT : hb.Direction.LTR;
+    buf.setDirection(hbDirection);
+  }
   // Feature strings parse through HarfBuzz's own `hb_feature_from_string`
   // (`hb.Feature.fromString`), so the grammar here IS the library's, not a
   // re-implementation; an entry it rejects is dropped rather than guessed at.
@@ -443,6 +456,7 @@ export function harfbuzzShapeRun(
   const glyphs: ShapedGlyph[] = [];
   const positions: ShapeResult["positions"] = [];
   const clusters: number[] = [];
+  const glyphFlags: number[] = [];
   const clusterSource = ctx != null ? ctx.fullText : text;
   for (const g of infos) {
     const gid = g.codepoint;
@@ -472,8 +486,9 @@ export function harfbuzzShapeRun(
       yOffset: g.yOffset ?? 0,
     });
     clusters.push(g.cluster);
+    glyphFlags.push(g.flags ?? 0);
   }
-  return { glyphs, positions, clusters };
+  return { glyphs, positions, clusters, glyphFlags };
 }
 
 /**

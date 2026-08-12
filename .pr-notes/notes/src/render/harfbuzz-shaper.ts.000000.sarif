@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspugv4x1c49vo9m",
+          "message": {
+            "text": "The shared shaping primitive now exposes raw HarfBuzz glyph flags and accepts explicit buffer flags/cluster level, letting the oracle inspect unsafe-to-break and prove Blink buffer construction rather than reconstructing it from geometry. Existing callers retain the same defaults.",
+            "markdown": "The shared shaping primitive now exposes raw HarfBuzz glyph flags and accepts explicit buffer flags/cluster level, letting the oracle inspect unsafe-to-break and prove Blink buffer construction rather than reconstructing it from geometry. Existing callers retain the same defaults."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/harfbuzz-shaper.ts"
+                },
+                "region": {
+                  "startLine": 410,
+                  "endLine": 491,
+                  "snippet": {
+                    "text": "  // caller with no location — must see, rather than the previous run's.\n  const varList = axes == null ? [] : Object.entries(axes).map(([tag, v]) => new hb.Variation(tag, v));\n  (font as unknown as { setVariations(v: hb.Variation[]): void }).setVariations(varList);\n  // harfbuzzjs frees the buffer's WASM memory automatically via a\n  // FinalizationRegistry (no manual destroy/free); this only fires for the rare\n  // divergent codepoints, so the per-call allocation is negligible.\n  const buf = new hb.Buffer();\n  // With a context, fill the WHOLE text and clamp the shaped item to its\n  // bounds — `hb_buffer_add_utf16`'s item_offset/item_length, the same call\n  // Blink's buffer filler makes. Cluster values are then absolute indices\n  // into `fullText`.\n  const ctx = opts?.context;\n  if (ctx != null) buf.addText(ctx.fullText, ctx.itemOffset, ctx.itemLength);\n  else buf.addText(text);\n  // Infer script + language from content, as Blink does via ICU, then override\n  // the direction when the caller knows it. Order matters: guessing also sets a\n  // direction, so the explicit set has to come second or it is overwritten.\n  buf.guessSegmentProperties();\n  // Explicit script/language when the caller (the run segmenter) resolved\n  // them — Blink's hb_buffer_set_script / hb_buffer_set_language, applied\n  // after the guess for the same override-ordering reason as direction.\n  if (opts?.script != null) buf.setScript(opts.script);\n  if (opts?.language != null) buf.setLanguage(opts.language);\n  if (opts?.bufferFlags != null) buf.setFlags(opts.bufferFlags);\n  if (opts?.clusterLevel != null) buf.setClusterLevel(opts.clusterLevel as hb.ClusterLevel);\n  // harfbuzzjs takes HarfBuzz's numeric hb_direction_t, not a string:\n  // HB_DIRECTION_LTR = 4, HB_DIRECTION_RTL = 5 (`hb.Direction`).\n  if (direction != null) {\n    const hbDirection = direction === \"rtl\" ? hb.Direction.RTL\n      : direction === \"ttb\" ? hb.Direction.TTB\n        : direction === \"btt\" ? hb.Direction.BTT : hb.Direction.LTR;\n    buf.setDirection(hbDirection);\n  }\n  // Feature strings parse through HarfBuzz's own `hb_feature_from_string`\n  // (`hb.Feature.fromString`), so the grammar here IS the library's, not a\n  // re-implementation; an entry it rejects is dropped rather than guessed at.\n  let hbFeatures: hb.Feature[] | undefined;\n  if (features != null && features.length > 0) {\n    hbFeatures = [];\n    for (const f of features) {\n      const parsed = hb.Feature.fromString(f);\n      if (parsed != null) hbFeatures.push(parsed);\n    }\n  }\n  hb.shape(font as unknown as hb.Font, buf, hbFeatures);\n  const infos = buf.getGlyphInfosAndPositions();\n  const glyphs: ShapedGlyph[] = [];\n  const positions: ShapeResult[\"positions\"] = [];\n  const clusters: number[] = [];\n  const glyphFlags: number[] = [];\n  const clusterSource = ctx != null ? ctx.fullText : text;\n  for (const g of infos) {\n    const gid = g.codepoint;\n    let cmds: PathCommand[];\n    if (opts?.verdictOnly === true) {\n      cmds = [];\n    } else {\n      const cached = pathCache.get(gid);\n      if (cached == null) {\n        cmds = parseSvgPath(font.glyphToPath(gid));\n        pathCache.set(gid, cmds);\n      } else {\n        cmds = cached;\n      }\n    }\n    const srcCp = clusterSource.codePointAt(g.cluster);\n    glyphs.push({\n      id: gid,\n      path: { commands: cmds },\n      advanceWidth: g.xAdvance ?? 0,\n      codePoints: srcCp != null ? [srcCp] : [],\n    });\n    positions.push({\n      xAdvance: g.xAdvance ?? 0,\n      yAdvance: g.yAdvance ?? 0,\n      xOffset: g.xOffset ?? 0,\n      yOffset: g.yOffset ?? 0,\n    });\n    clusters.push(g.cluster);\n    glyphFlags.push(g.flags ?? 0);\n  }\n  return { glyphs, positions, clusters, glyphFlags };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2096"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "08bc07b911599d95bfbe3f63f267c5cd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "93ee7ec278dc7158f5226d27662b8f734a887f34",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

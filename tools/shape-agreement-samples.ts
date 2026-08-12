@@ -78,4 +78,12 @@ export const SHAPE_SAMPLES: ShapeSample[] = [
   // place the mark from its own outline?
   { script: "combining", text: "é ä ô", note: "decomposed accents — compose or GPOS-place" },
   { script: "combining", text: "é ä ô", note: "precomposed accents — the same word, other spelling" },
+
+  // --- Coverage dimensions required by the exact oracle -----------------
+  { script: "emoji", text: "👩🏽‍💻", note: "ZWJ sequence plus skin-tone modifier" },
+  { script: "emoji", text: "✈︎ ✈️", note: "VS15/VS16 presentation distinction" },
+  { script: "bidi", text: "A⁧אב⁩B", note: "RTL isolate with UTF-16 source ownership" },
+  { script: "bidi", text: "A‮12‬B", note: "explicit RTL override and PDF control" },
+  { script: "cjk", text: "（縦書き）", note: "vertical-form substitutions when shaped TTB" },
+  { script: "variable", text: "Hamburgefonts", note: "variation-axis advances and substitutions" },
 ];

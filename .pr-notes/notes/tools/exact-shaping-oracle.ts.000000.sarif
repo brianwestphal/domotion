@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspuguyq63g49v8x",
+          "message": {
+            "text": "CDP cannot expose glyph IDs, so this gate uses the ticket-approved source-equivalent boundary: the Chromium-configured vendored HarfBuzz over the exact resolved file/member/axes. It records every pre-raster logical field and fails if deliberately wrong face, axis, ptem, feature, direction, or cluster-level controls never change any answer.",
+            "markdown": "CDP cannot expose glyph IDs, so this gate uses the ticket-approved source-equivalent boundary: the Chromium-configured vendored HarfBuzz over the exact resolved file/member/axes. It records every pre-raster logical field and fails if deliberately wrong face, axis, ptem, feature, direction, or cluster-level controls never change any answer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/exact-shaping-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 165,
+                  "snippet": {
+                    "text": "/**\n * Exact pre-raster shaping oracle (DM-2096).\n *\n * Chromium does not expose glyph ids through CDP. This therefore asks the\n * source-equivalent question allowed by the parity contract: shape the same\n * concrete face with Domotion's Chromium-configured vendored HarfBuzz, record\n * every logical output field, and prove the comparison is sensitive with\n * deliberately wrong controls. See docs/114-exact-shaping-oracle.md.\n */\nimport { existsSync, writeFileSync } from \"node:fs\";\nimport { versionString, BufferFlag, ClusterLevel } from \"../vendor/harfbuzzjs/dist/index.mjs\";\nimport { harfbuzzShapeRun, harfbuzzGlyphQuery, type ShapeResult } from \"../src/render/harfbuzz-shaper.js\";\nimport { platformFontKeys, shapingFaceFor } from \"../src/render/font-resolution.js\";\nimport { SHAPE_SAMPLES } from \"./shape-agreement-samples.js\";\n\ninterface OracleGlyph {\n  id: number; cluster: number; sourceSpan: [number, number];\n  xAdvance: number; yAdvance: number; xOffset: number; yOffset: number;\n  flags: number; unsafeToBreak: boolean;\n}\n\nconst argv = process.argv.slice(2);\nconst value = (flag: string): string | undefined => {\n  const i = argv.indexOf(flag);\n  return i >= 0 ? argv[i + 1] : undefined;\n};\nconst mode = argv.includes(\"--exhaustive\") ? \"exhaustive\" : argv.includes(\"--rotating\") ? \"rotating\" : \"representative\";\nconst output = value(\"--json\");\nconst faceFilter = value(\"--face\")?.toLowerCase();\nconst sizePx = Number(value(\"--size\") ?? \"16\");\nconst zoom = Number(value(\"--zoom\") ?? \"1\");\nconst deviceScaleFactor = Number(value(\"--device-scale\") ?? \"1\");\n\nfunction sourceEnd(text: string, cluster: number, clusters: number[]): number {\n  const later = clusters.filter((c) => c > cluster);\n  return later.length > 0 ? Math.min(...later) : text.length;\n}\n\nfunction logical(result: ShapeResult, text: string): OracleGlyph[] {\n  return result.glyphs.map((g, i) => ({\n    id: g.id,\n    cluster: result.clusters[i],\n    sourceSpan: [result.clusters[i], sourceEnd(text, result.clusters[i], result.clusters)],\n    xAdvance: result.positions[i].xAdvance,\n    yAdvance: result.positions[i].yAdvance,\n    xOffset: result.positions[i].xOffset,\n    yOffset: result.positions[i].yOffset,\n    flags: result.glyphFlags[i],\n    unsafeToBreak: (result.glyphFlags[i] & 1) !== 0,\n  }));\n}\n\nfunction signature(r: ShapeResult | null): string {\n  if (r == null) return \"declined\";\n  return JSON.stringify(r.glyphs.map((g, i) => [g.id, r.clusters[i], r.positions[i], r.glyphFlags[i]]));\n}\n\nconst samples = mode === \"representative\" ? SHAPE_SAMPLES.slice(0, 28) : SHAPE_SAMPLES;\nconst keys = platformFontKeys().filter((k) => faceFilter == null || k.toLowerCase().includes(faceFilter));\nconst records: unknown[] = [];\nconst controlHits = { face: 0, axes: 0, ptem: 0, features: 0, direction: 0, clusterLevel: 0 };\nlet pairs = 0;\n\nfor (const key of keys) {\n  const face = shapingFaceFor(key, 400, sizePx, 0);\n  if (face == null || face.faceIndex == null || !existsSync(face.path)) continue;\n  const query = harfbuzzGlyphQuery(face.path, face.faceIndex);\n  if (query == null) continue;\n  for (const sample of samples) {\n    if ([...sample.text].some((ch) => query.nominalGlyph(ch.codePointAt(0)!) === 0)) continue;\n    const direction = sample.note.includes(\"vertical-form\") ? \"ttb\" as const\n      : /^(arabic|hebrew|myanmar)$/.test(sample.script) ? \"rtl\" as const : \"ltr\" as const;\n    const script = sample.script === \"cjk\" ? \"Hani\" : sample.script;\n    const opts = {\n      script,\n      language: \"und\",\n      bufferFlags: BufferFlag.BOT | BufferFlag.EOT,\n      clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,\n    };\n    const baseline = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, opts);\n    if (baseline == null) continue;\n    pairs++;\n    const baseSig = signature(baseline);\n    const controls = {\n      axes: face.axes == null ? null : harfbuzzShapeRun(\n        face.path, face.faceIndex, sample.text, direction, sizePx,\n        Object.fromEntries(Object.entries(face.axes).map(([tag, coordinate], i) => [tag, coordinate + (i === 0 ? 1 : 0)])),\n        undefined, opts,\n      ),\n      ptem: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx * 2, face.axes, undefined, opts),\n      features: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, [\"-liga\", \"-kern\"], opts),\n      direction: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction === \"rtl\" ? \"ltr\" : \"rtl\", sizePx, face.axes, undefined, opts),\n      clusterLevel: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, { ...opts, clusterLevel: ClusterLevel.CHARACTERS }),\n    };\n    for (const name of Object.keys(controls) as Array<keyof typeof controls>) {\n      if (name === \"axes\" && face.axes == null) continue;\n      if (signature(controls[name]) !== baseSig) controlHits[name]++;\n    }\n    records.push({\n      environment: {\n        platform: process.platform, arch: process.arch, node: process.version,\n        chromium: `Playwright ${process.env.PLAYWRIGHT_CHROMIUM_VERSION ?? \"package-pinned\"}`,\n        harfbuzz: versionString(), icu: process.versions.icu,\n        zoom, deviceScaleFactor,\n      },\n      face: { key, path: face.path, member: face.faceIndex, namedInstance: null, axes: face.axes },\n      input: {\n        text: sample.text, utf16Span: [0, sample.text.length], direction,\n        script, language: \"und\", features: [],\n        bufferFlags: opts.bufferFlags, clusterLevel: opts.clusterLevel,\n      },\n      fallbackRuns: [{ utf16Span: [0, sample.text.length], face: `${face.path}#${face.faceIndex}` }],\n      glyphs: logical(baseline, sample.text),\n      rasterization: \"out-of-scope\",\n    });\n  }\n}\n\n// A distinct covering face is an additional mandatory negative control.\nif (records.length > 0) {\n  const first = records[0] as { face: { path: string; member: number }; input: { text: string; direction: \"ltr\" | \"rtl\" | \"ttb\" | \"btt\" }; glyphs: OracleGlyph[] };\n  for (const key of keys) {\n    const alt = shapingFaceFor(key, 400, sizePx, 0);\n    if (alt == null || alt.faceIndex == null || `${alt.path}#${alt.faceIndex}` === `${first.face.path}#${first.face.member}`) continue;\n    const q = harfbuzzGlyphQuery(alt.path, alt.faceIndex);\n    if (q == null || [...first.input.text].some((ch) => q.nominalGlyph(ch.codePointAt(0)!) === 0)) continue;\n    const r = harfbuzzShapeRun(alt.path, alt.faceIndex, first.input.text, first.input.direction, sizePx, alt.axes);\n    if (signature(r) !== JSON.stringify(first.glyphs.map((g) => [g.id, g.cluster, { xAdvance: g.xAdvance, yAdvance: g.yAdvance, xOffset: g.xOffset, yOffset: g.yOffset }, g.flags]))) controlHits.face++;\n    break;\n  }\n}\n\nconst required = mode === \"representative\" ? [\"face\", \"features\", \"direction\"] as const : [\"face\", \"axes\", \"ptem\", \"features\", \"direction\", \"clusterLevel\"] as const;\nconst missed = required.filter((k) => controlHits[k] === 0);\nconst report = { schemaVersion: 1, mode, pairs, controlHits, missedControls: missed, records };\nif (output != null) writeFileSync(output, JSON.stringify(report, null, 2));\nconsole.log(`Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}`);\nif (output != null) console.log(`wrote ${output}`);\nif (pairs === 0 || missed.length > 0) {\n  console.error(`Oracle sensitivity failure: ${pairs === 0 ? \"no comparable pairs\" : `no delta for ${missed.join(\", \")}`}`);\n  process.exitCode = 1;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2096"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4b33f84f774ec6f454b44b1573f422e8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "93ee7ec278dc7158f5226d27662b8f734a887f34",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

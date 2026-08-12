@@ -72,6 +72,7 @@
     "fonts:shaping": "tsx tools/shaping-conformance.ts",
     "fonts:shaping:runs": "tsx tools/shaping-conformance.ts --extract-runs",
     "fonts:shaper-ab": "tsx tools/shape-agreement.ts",
+    "fonts:shaping:exact": "tsx tools/exact-shaping-oracle.ts",
     "fonts:family-match": "tsx tools/family-match-conformance.ts",
     "fonts:family-match:linux": "tsx tools/family-match-conformance-linux.ts",
     "fonts:family-match:win32": "tsx tools/family-match-conformance-win32.ts",
