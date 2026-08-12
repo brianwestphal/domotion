@@ -1220,9 +1220,10 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
  * Materialize a segmented webfont family's faces in Blink's iteration order.
  * `CSSSegmentedFontFace::GetFontData` appends every valid declaration via
  * `ForEachReverse`; `FontFallbackIterator` subsequently filters those faces
- * against the CURRENT hint list. Do not score or collapse overlaps here: a
- * later declaration that shares both bytes and unicode-range with an earlier
- * one is still a distinct segmented face.
+ * against the CURRENT hint list. FontFaceCache first selects one exact
+ * FontSelectionCapabilities group; score only to choose that group, then do
+ * not collapse overlaps within it: a later declaration that shares both bytes
+ * and unicode-range with an earlier one is still a distinct segmented face.
  */
 export function webfontVariantsInDeclarationOrder(
   family: string,
@@ -1233,9 +1234,38 @@ export function webfontVariantsInDeclarationOrder(
   stretch: number = 100,
 ): FontInstance[] {
   const variants = webfontRegistry.get(family.toLowerCase()) ?? [];
+  if (variants.length === 0) return [];
+  // FontFaceCache first chooses ONE FontSelectionCapabilities key for the
+  // request. CSSSegmentedFontFace then contains only the declarations stored
+  // under that exact key; unicode-range iteration must never spill into a
+  // different weight/style/stretch group after a segment miss.
+  const wantItalic = slant !== 0;
+  const stretchBounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
+  let selected = variants[0];
+  let selectedScore = Infinity;
+  for (const variant of variants) {
+    const score = webfontStretchDistance(variantStretchCaps(variant), stretch, stretchBounds) * WEBFONT_STRETCH_SCALE
+      + (variant.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH)
+      + webfontWeightDistance(variantWeightCaps(variant), weight, weightBounds);
+    if (score < selectedScore) {
+      selected = variant;
+      selectedScore = score;
+    }
+  }
+  const sameRange = (a: readonly [number, number], b: readonly [number, number]): boolean =>
+    a[0] === b[0] && a[1] === b[1];
+  const selectedStretch = variantStretchCaps(selected);
+  const selectedWeight = variantWeightCaps(selected);
+  const styleCaps = (variant: WebfontVariant): readonly [number, number] =>
+    variant.synthesisFace?.declaredStyleCaps ?? [BLINK_NORMAL_SLOPE, BLINK_NORMAL_SLOPE];
+  const selectedStyle = styleCaps(selected);
   const out: FontInstance[] = [];
   for (let i = variants.length - 1; i >= 0; i--) {
     const variant = variants[i];
+    if (!sameRange(styleCaps(variant), selectedStyle)
+      || !sameRange(variantStretchCaps(variant), selectedStretch)
+      || !sameRange(variantWeightCaps(variant), selectedWeight)) continue;
     const instance = tagWebfontInstance(applyVariationAxes(
       variant.font,
       weight,

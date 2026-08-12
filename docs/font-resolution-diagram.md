@@ -789,6 +789,8 @@ flowchart TD
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
     P1 --> P2["score by (stretch distance, italic,<br/>weight distance vs caps) → best"]
     P2 --> W3
+    S0["webfontVariantsInDeclarationOrder(request)"] --> S1["FontFaceCache step: select ONE exact<br/>stretch/style/weight capability group"]
+    S1 --> S2["CSSSegmentedFontFace step: keep only that group's<br/>declarations, reverse source order;<br/>do not collapse overlapping unicode-ranges"]
   end
   subgraph LA["localFontAliasRegistry — @font-face src: local()"]
     LA0["pickLocalFontAliasVariant(family, weight, italic)"] --> LA1["score declared variants →<br/>baseKey (e.g. 'georgia') + declared weight/italic<br/>(preserves Chrome's 'no bold-italic declared →<br/>use italic 400 + synthesize' behavior)"]
@@ -810,12 +812,19 @@ flowchart TD
   (auto-caps) variants, where it routes the CSS-less resource-discovery path's
   faces by their OS/2 weight; declared descriptors score by Blink's
   WeightDistance alone.
+- **Shaped segmented fallback** does not iterate every registered variant.
+  `webfontVariantsInDeclarationOrder` first selects one exact
+  weight/style/stretch capability group, matching `FontFaceCache`, and only
+  that group's reverse-declared range partitions enter `kSegmentedFace`. A
+  range miss therefore cannot escape into a bold, italic, condensed, or other
+  variable cut that Blink did not select.
 - **Local aliases** (`registerLocalFontAlias`) map an author `@font-face` family
   whose `src` is all `local()` to a known system key, tracking each declared
   `(weight, italic)` variant (DM-360 / DM-303 / DM-1597).
 
 **Source of truth:** `registerWebfont` / `pickWebfontVariant` /
-`pickWebfontVariantForCodepoint` / `unicodeRangeCovers` / `registerLocalFontAlias` /
+`pickWebfontVariantForCodepoint` / `webfontVariantsInDeclarationOrder` /
+`unicodeRangeCovers` / `registerLocalFontAlias` /
 `pickLocalFontAliasVariant` in `src/render/font-resolution.ts`.
 
 ---

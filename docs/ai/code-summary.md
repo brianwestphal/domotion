@@ -52,6 +52,9 @@ shortest possible map:
   glyph-path emitter, preserving the raster-emoji terminal pin + per-run
   `decomposed` flags; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
   per-codepoint walk in both) — see `docs/113-cluster-granularity-fallback.md`.
+  Declared-family ordering and segmented `@font-face` capability-group/range
+  construction are source-mapped in
+  `docs/122-declared-family-segmented-face-parity.md`.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags;
   `standardized-variation-sequences.generated.ts` mirrors Chromium's valid
   standardized base+selector pairs for the shaped fallback retry gate. The

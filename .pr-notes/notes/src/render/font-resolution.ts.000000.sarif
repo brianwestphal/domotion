@@ -1163,6 +1163,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msprn6qoxmjpceo6",
+          "message": {
+            "text": "Segmented webfont iteration is bounded by FontFaceCache’s selected capability group. Blink selects one exact stretch/slope/weight capabilities key before CSSSegmentedFontFace walks unicode-range partitions; allowing a range miss to reach another cut can select glyphs from a face Chromium never considered. Focused tests cover weight, style, stretch, variable ranges, reverse declaration order, and overlapping identical resources.",
+            "markdown": "Segmented webfont iteration is bounded by FontFaceCache’s selected capability group. Blink selects one exact stretch/slope/weight capabilities key before CSSSegmentedFontFace walks unicode-range partitions; allowing a range miss to reach another cut can select glyphs from a face Chromium never considered. Focused tests cover weight, style, stretch, variable ranges, reverse declaration order, and overlapping identical resources."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 1235,
+                  "endLine": 1265,
+                  "snippet": {
+                    "text": "): FontInstance[] {\n  const variants = webfontRegistry.get(family.toLowerCase()) ?? [];\n  if (variants.length === 0) return [];\n  // FontFaceCache first chooses ONE FontSelectionCapabilities key for the\n  // request. CSSSegmentedFontFace then contains only the declarations stored\n  // under that exact key; unicode-range iteration must never spill into a\n  // different weight/style/stretch group after a segment miss.\n  const wantItalic = slant !== 0;\n  const stretchBounds = webfontStretchBounds(variants);\n  const weightBounds = webfontWeightBounds(variants);\n  let selected = variants[0];\n  let selectedScore = Infinity;\n  for (const variant of variants) {\n    const score = webfontStretchDistance(variantStretchCaps(variant), stretch, stretchBounds) * WEBFONT_STRETCH_SCALE\n      + (variant.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH)\n      + webfontWeightDistance(variantWeightCaps(variant), weight, weightBounds);\n    if (score < selectedScore) {\n      selected = variant;\n      selectedScore = score;\n    }\n  }\n  const sameRange = (a: readonly [number, number], b: readonly [number, number]): boolean =>\n    a[0] === b[0] && a[1] === b[1];\n  const selectedStretch = variantStretchCaps(selected);\n  const selectedWeight = variantWeightCaps(selected);\n  const out: FontInstance[] = [];\n  for (let i = variants.length - 1; i >= 0; i--) {\n    const variant = variants[i];\n    if (variant.italic !== selected.italic\n      || !sameRange(variantStretchCaps(variant), selectedStretch)\n      || !sameRange(variantWeightCaps(variant), selectedWeight)) continue;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2090"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "120723c3fd9f9692d3a017f8573c6e57"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "faf3395ee0f59f0003c5f1123b8d870a03a6e2b9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

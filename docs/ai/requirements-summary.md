@@ -78,7 +78,8 @@ they describe (see `CLAUDE.md` "Documentation"):
   `src/render/cluster-fallback.ts` ports that mechanism (script itemization
   first, full-text buffer context, explicit script/direction/language,
   last-resort stage, U+3000 rule, unmatched-variation-sequence recycling,
-  webfont primaries + unicode-range partitions, shape-verdict cache) and
+  webfont primaries + unicode-range partitions, exact `@font-face`
+  weight/style/stretch capability-group selection, shape-verdict cache) and
   replaces `splitTextIntoFontRuns`' per-codepoint cmap walk; the glyph-path
   emitter (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`) invokes the same
   splitter in its "paths" mode, which preserves the raster-emoji terminal pin

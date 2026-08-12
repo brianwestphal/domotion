@@ -54,8 +54,8 @@ Two per-platform details of these procedures, both now transcribed:
 | Blink stage | Ours | Matches by construction? |
 |---|---|---|
 | `kFallbackPriorityFonts` | emoji handling is spread across `isEmojiCp` in `fallbackFontChain` + the raster-overlay path | **No** — not modelled as a distinct one-shot stage |
-| `kFontGroupFonts` | `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` | **No** — probe-calibrated against Chrome-macOS, not transcribed |
-| `kSegmentedFace` | `webfontRegistry` + unicode-range partitioning (docs/30) | Plausibly; **unaudited** |
+| `kFontGroupFonts` | `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` | **Yes** — ordered lookup, generic/literal semantics, local/unique-name resolution, unavailable-family skipping, and first-candidate bookkeeping are source-mapped in [doc 122](122-declared-family-segmented-face-parity.md) |
+| `kSegmentedFace` | `webfontRegistry` + capability-group selection + unicode-range iteration | **Yes for settled loaded faces** — source-mapped in [doc 122](122-declared-family-segmented-face-parity.md); pending-load timing and unsupported formats are explicit exclusions |
 | — | **`fallbackFontChain`** — static per-block chains + the generated `unicode-font-routing.*.generated.ts` tables | **No Blink counterpart at all** — but no longer interposed; demoted to the net BELOW `kSystemFonts`, see §4 |
 | `FallbackFontForCharacter`'s PUA / noncharacter guard | `isPrivateUseCodepoint(cp) \|\| isNonCharacterCodepoint(cp)` gating both fallback stages in `resolveFontForCodepoint` | **Yes** — transcribed from `font_cache.cc:242-244`, predicates from `character.cc:290-296` |
 | `kSystemFonts` | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`) | **Yes on macOS** — same API, and since DM-1852 the same argument (the run's own primary as cascade base) |

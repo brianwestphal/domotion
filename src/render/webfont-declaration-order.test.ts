@@ -69,6 +69,32 @@ describeWithFont("segmented fallback walks declarations instead of re-scoring a 
     registerWebfont("same-resource", 400, "normal", fontBuf!, MARK_LAST, undefined, "400");
     expect(webfontVariantsInDeclarationOrder("same-resource", 400, 16, 0)).toHaveLength(2);
   });
+
+  it("iterates only the weight capability group selected by FontFaceCache", () => {
+    registerWebfont("weight-groups", 400, "normal", fontBuf!, MARK_FIRST, undefined, "400");
+    registerWebfont("weight-groups", 700, "normal", fontBuf!, MARK_LAST, undefined, "700");
+    expect(webfontVariantsInDeclarationOrder("weight-groups", 400, 16, 0)
+      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_FIRST]);
+    expect(webfontVariantsInDeclarationOrder("weight-groups", 700, 16, 0)
+      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_LAST]);
+  });
+
+  it("iterates only the selected style and stretch capability group", () => {
+    registerWebfont("axis-groups", 400, "normal", fontBuf!, MARK_FIRST, "75%", "400", "normal");
+    registerWebfont("axis-groups", 400, "italic", fontBuf!, MARK_LAST, "100%", "400", "italic");
+    expect(webfontVariantsInDeclarationOrder("axis-groups", 400, 16, 0, undefined, 75)
+      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_FIRST]);
+    expect(webfontVariantsInDeclarationOrder("axis-groups", 400, 16, 14, undefined, 100)
+      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_LAST]);
+  });
+
+  it("keeps every unicode-range partition inside the selected capability group", () => {
+    registerWebfont("partitioned-cut", 400, "normal", fontBuf!, MARK_FIRST, "100%", "100 900", "normal");
+    registerWebfont("partitioned-cut", 400, "normal", fontBuf!, MARK_LAST, "100%", "100 900", "normal");
+    registerWebfont("partitioned-cut", 400, "italic", fontBuf!, undefined, "100%", "100 900", "italic");
+    const faces = webfontVariantsInDeclarationOrder("partitioned-cut", 650, 16, 0);
+    expect(faces.map((face) => face.webfontUnicodeRange)).toEqual([MARK_LAST, MARK_FIRST]);
+  });
 });
 
 describeWithFont("the scalar tie-break is confined to descriptor-less (resource-discovered) faces", () => {
