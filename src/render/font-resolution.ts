@@ -8955,6 +8955,8 @@ export function clearFontResolutionCaches(): void {
   fallbackFamilyCutCache.clear();
   fallbackBaseCache.clear();
   darwinPrimaryCutCache.clear();
+  linuxPrimaryCutCache.clear();
+  win32PrimaryCutCache.clear();
   helperFontCache.clear();
   helperOutlineCache.clear();
   fileFaceInfoCache.clear();
@@ -8976,6 +8978,24 @@ export function clearFontResolutionCaches(): void {
   // point trades memory for.
   coverageBitsets.clear();
   clearGlyphHelperCodepointMemos();
+}
+
+/** Test-only sizes for the three platform primary-cut memos. */
+export function __primaryCutCacheSizesForTest(): {
+  darwin: number; linux: number; win32: number;
+} {
+  return {
+    darwin: darwinPrimaryCutCache.size,
+    linux: linuxPrimaryCutCache.size,
+    win32: win32PrimaryCutCache.size,
+  };
+}
+
+/** Test-only: populate all platform cut memos without requiring three hosts. */
+export function __seedPrimaryCutCachesForTest(): void {
+  darwinPrimaryCutCache.set("test", null);
+  linuxPrimaryCutCache.set("test", null);
+  win32PrimaryCutCache.set("test", null);
 }
 
 /**

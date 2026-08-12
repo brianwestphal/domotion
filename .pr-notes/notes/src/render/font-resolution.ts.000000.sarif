@@ -942,6 +942,84 @@
           "branch": "validate/dm2083-windows-fallback"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspny7w104m11a85",
+          "message": {
+            "text": "The reset claimed to drop every process-global font-resolution memo but only cleared the macOS primary-cut cache. Linux and Windows keep equivalent style-sensitive matcher answers, so leaving them warm makes reset behavior platform-asymmetric and can retain stale fontconfig/DirectWrite cuts. The test seeds all three maps on one host and proves the complete zero-size postcondition.",
+            "markdown": "The reset claimed to drop every process-global font-resolution memo but only cleared the macOS primary-cut cache. Linux and Windows keep equivalent style-sensitive matcher answers, so leaving them warm makes reset behavior platform-asymmetric and can retain stale fontconfig/DirectWrite cuts. The test seeds all three maps on one host and proves the complete zero-size postcondition."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8951,
+                  "endLine": 8970,
+                  "snippet": {
+                    "text": "export function clearFontResolutionCaches(): void {\n  fontInstanceCache.clear();\n  resolvedSpecCache.clear();\n  systemFallbackKeyCache.clear();\n  fallbackFamilyCutCache.clear();\n  fallbackBaseCache.clear();\n  darwinPrimaryCutCache.clear();\n  linuxPrimaryCutCache.clear();\n  win32PrimaryCutCache.clear();\n  helperFontCache.clear();\n  helperOutlineCache.clear();\n  fileFaceInfoCache.clear();\n  _famAvailCache.clear();\n  win32FamilyKeyCache.clear();\n  darwinHandleAxesMap.clear();\n  // `systemFallbackKeyCache` above is this module's per-codepoint memo; the\n  // answers it memoizes come from `glyph-helper.ts`, which keeps its OWN\n  // per-codepoint memo one layer down. Trimming only the upper one bounded the\n  // cheap half of the growth and left the expensive half — a full-corpus sweep\n  // still exhausted the heap, because the helper memo had no caller outside the"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution-cache-reset.test.ts"
+                },
+                "region": {
+                  "startLine": 82
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2092"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fa3b8e381aa7a745a394f17132187308"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d318467233a8e1a3fcb2c098b97055fd2e1dfa4a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

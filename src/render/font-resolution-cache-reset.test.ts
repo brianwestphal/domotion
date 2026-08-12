@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  __primaryCutCacheSizesForTest,
+  __seedPrimaryCutCachesForTest,
   clearFontResolutionCaches,
   clearWebfonts,
   getFontInstance,
@@ -77,6 +79,17 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
     }).not.toThrow();
     // Still functional afterwards.
     expect(getFontInstance(KEY, 400, 16, 0)).not.toBeNull();
+  });
+
+  it("drops every platform's primary-cut memo symmetrically", () => {
+    // A host naturally warms only its own platform arm. The assertion is on
+    // the complete postcondition so adding a new platform memo to the reset
+    // cannot silently leave one of the other first-class platforms stale.
+    clearFontResolutionCaches();
+    __seedPrimaryCutCachesForTest();
+    expect(__primaryCutCacheSizesForTest()).toEqual({ darwin: 1, linux: 1, win32: 1 });
+    clearFontResolutionCaches();
+    expect(__primaryCutCacheSizesForTest()).toEqual({ darwin: 0, linux: 0, win32: 0 });
   });
 
   it("does NOT drop the webfont registry — that is caller state, not a memo", () => {
