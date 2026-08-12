@@ -6,6 +6,23 @@ docs rather than duplicating them.
 
 ## The contract surface
 
+**Doc 120 (`docs/120-same-machine-text-parity-contract.md`) is normative.**
+Chromium and Domotion must produce identical logical font selection, shaping,
+and text layout in the same environment. Gates distinguish exact logical
+agreement, accepted rasterization-only differences after logical proof, and
+detected actionable unsupported input. Cross-machine face equality is not
+required when inventories differ. Comparable reports fingerprint the browser,
+host/fonts/preferences, helper/source versions, layout context, resources, and
+oracle isolation, and require disable-and-require-movement controls.
+
+**Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
+deterministic modulo-256 low-byte bucket and complementary coverage focus from
+the workflow ordinal, records both beside the tested revision in shard/merged metadata, and runs the 351-stack
+single-axis matrix on macOS, Linux, and Windows. The first shard also gates
+cluster/webfont fallback with a required disabled-path movement arm and the
+variable-axis paired oracle. Explicit byte, range, stack-filter, and exhaustive
+inputs provide targeted and confidence/release reruns.
+
 Domotion's contract with consumers is "the SVG renders pixel-faithful to
 Chromium-on-this-platform at 1×, embeds without external assets, and scales
 crisply at any size." That's enforced by the visual-regression suites

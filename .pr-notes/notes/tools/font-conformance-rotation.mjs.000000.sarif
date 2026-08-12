@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msphg6q0bnqfi0p9",
+          "message": {
+            "text": "The routine selector uses the workflow ordinal modulo 256, so every consecutive 256 runs cover every disjoint low-byte bucket exactly once while reruns remain stable. The paired test enumerates all 256 ordinals and proves the mapping is bijective.",
+            "markdown": "The routine selector uses the workflow ordinal modulo 256, so every consecutive 256 runs cover every disjoint low-byte bucket exactly once while reruns remain stable. The paired test enumerates all 256 ordinals and proves the mapping is bijective."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-conformance-rotation.mjs"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "export function rotationForRevision(revision, ordinal) {\n  const normalized = String(revision ?? \"\").trim().toLowerCase();\n  if (!/^[0-9a-f]{8,64}$/.test(normalized)) {\n    throw new Error(\"revision must be an 8-64 character hexadecimal git object id\");\n  }\n  const run = Number(ordinal);\n  if (!Number.isSafeInteger(run) || run < 0) {\n    throw new Error(\"rotation ordinal must be a non-negative integer\");\n  }\n  const byte = run % 256;\n  const stackIndex = run % 8;\n  const stackBuckets = [\n    \"generic-initial\", \"weight-style\", \"stretch-variable\", \"named-missing-first\",\n    \"webfont-unicode-range\", \"emoji-presentation\", \"cjk-locales\", \"rtl-combining\",\n  ];\n  return {\n    sampleByte: byte.toString(16).toUpperCase().padStart(2, \"0\"),\n    stackBucket: stackBuckets[stackIndex],\n    stackBucketIndex: stackIndex,\n    stackBucketTotal: stackBuckets.length,\n    revision: normalized,\n    ordinal: run,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/font-conformance-synthetic.yml"
+                },
+                "region": {
+                  "startLine": 109
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2094"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ba7a21596e17b1a3a73926c4d74acd17"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2541438068d0365370ddff7b03ab2619db8c592c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

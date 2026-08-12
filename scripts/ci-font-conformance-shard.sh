@@ -38,6 +38,7 @@ if [ -n "${CP_TOTAL:-}" ] && [ "${CP_TOTAL}" != "1" ]; then
   args+=(--shard "${CP_SHARD}/${CP_TOTAL}")
 fi
 [ -n "${STACKS:-}" ] && args+=(--stacks "$STACKS")
+[ -n "${STACK_FILTER:-}" ] && args+=(--stack-filter "$STACK_FILTER")
 [ -n "${RANGE:-}" ] && args+=(--range "$RANGE")
 case "${SAMPLE_BYTE:-}" in
   ""|all|ALL) ;;

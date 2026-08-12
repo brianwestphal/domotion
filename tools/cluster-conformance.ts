@@ -504,6 +504,9 @@ async function main(): Promise<number> {
   mkdirSync(opts.outDir, { recursive: true });
   const report = {
     meta: {
+      contract: "docs/120-same-machine-text-parity-contract.md",
+      verdictStage: "shaping-face-boundaries",
+      verdict: mismatched === 0 ? "exact-logical-agreement" : "logical-mismatch",
       generatedAt: new Date().toISOString(),
       platform: process.platform,
       arch: process.arch,

@@ -131,6 +131,84 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msphg6w61thh2173",
+          "message": {
+            "text": "The routine face-selection sample is composed with the existing cluster/webfont and variable-axis logical oracles on each OS. The disabled cluster arm must fail, turning helper-path movement into a gate condition instead of a diagnostic suggestion; locally the default arm passed 9/9, the disabled arm moved four cells, and the variable-axis pair passed 8/8.",
+            "markdown": "The routine face-selection sample is composed with the existing cluster/webfont and variable-axis logical oracles on each OS. The disabled cluster arm must fail, turning helper-path movement into a gate condition instead of a diagnostic suggestion; locally the default arm passed 9/9, the disabled arm moved four cells, and the variable-axis pair passed 8/8."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/font-conformance-synthetic.yml"
+                },
+                "region": {
+                  "startLine": 213,
+                  "endLine": 221,
+                  "snippet": {
+                    "text": "          CP_TOTAL: ${{ inputs.cp_total }}\n      - name: Secondary logical parity matrix (clusters, webfonts, variable axes)\n        if: matrix.shard == 1\n        run: |\n          npm run fonts:cluster-conformance\n          if DOMOTION_CLUSTER_FALLBACK=0 npm run fonts:cluster-conformance; then\n            echo \"::error::cluster fallback negative control did not move\"\n            exit 1\n          fi"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/107-font-conformance-oracle.md"
+                },
+                "region": {
+                  "startLine": 120
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2094"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "623ff0b40bc4826414ad0d32b391c2e3"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2541438068d0365370ddff7b03ab2619db8c592c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

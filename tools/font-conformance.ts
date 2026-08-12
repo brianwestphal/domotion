@@ -40,6 +40,7 @@
  *   --shard i/N          stride shard over codepoints
  *   --stack-shard i/N    stride shard over stacks (preferred for CI — warmer caches)
  *   --max-stacks n       cap the corpus to the n most-used stacks
+ *   --stack-filter text  retain stacks whose full CSS signature contains text
  *   --batch n            codepoints per probe page (8000)
  *   --concurrency n      pipelined CDP calls in flight (128)
  *   --max-rows n         example mismatch rows kept in the report (20000)
@@ -56,7 +57,7 @@
  * ---------------------------------------------------------------------------
  */
 import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
-import { hostname, cpus } from "node:os";
+import { hostname, cpus, release } from "node:os";
 import { inventoryDocument } from "./font-inventory.mjs";
 
 /**
@@ -86,6 +87,47 @@ function shardFontInventory(): { digest: string; count: number; source: string }
   } catch {
     return null; // diagnostic metadata must never fail a sweep
   }
+}
+
+function helperBinaryDigest(): string | null {
+  const relative = process.platform === "darwin"
+    ? "tools/macos-glyph-extractor/domotion-glyph-paths"
+    : process.platform === "linux"
+      ? "tools/linux-glyph-extractor/domotion-glyph-paths"
+      : "tools/win32-glyph-extractor/domotion-glyph-paths.exe";
+  try {
+    return createHash("sha256").update(readFileSync(relative)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/** Inputs that define whether two same-machine oracle measurements are comparable. */
+function parityEnvironment(chromiumVersion: string): Record<string, unknown> {
+  return {
+    contract: "docs/120-same-machine-text-parity-contract.md",
+    chromium: { version: chromiumVersion, launchFlags: [] },
+    os: { platform: process.platform, arch: process.arch, release: release(), image: process.env.ImageOS ?? null },
+    locale: {
+      default: Intl.DateTimeFormat().resolvedOptions().locale,
+      language: process.env.LANG ?? null,
+      languagePreferences: process.env.LANGUAGE ?? null,
+    },
+    genericFamilySettings: "probed-from-oracle-session",
+    helper: {
+      disabled: process.env.DOMOTION_DISABLE_HELPER === "1",
+      systemFallbackEnabled: process.env.DOMOTION_SYSTEM_FALLBACK !== "0",
+      version: process.env.DOMOTION_HELPER_VERSION ?? helperBinaryDigest(),
+    },
+    sources: {
+      unicode: process.versions.unicode,
+      icu: process.versions.icu,
+      harfbuzz: process.env.DOMOTION_HARFBUZZ_REVISION ?? null,
+      chromiumCheckout: process.env.DOMOTION_CHROMIUM_REVISION ?? null,
+      skiaPinned: process.env.DOMOTION_SKIA_REVISION ?? null,
+    },
+    layout: { deviceScaleFactor: 1, zoom: 1, writingMode: "horizontal-tb", direction: "ltr" },
+  };
 }
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -1155,6 +1197,7 @@ export interface Options {
   allowlistFile: string;
   strictAlias: boolean;
   maxStacks: number | null;
+  stackFilter: string | null;
   maxRows: number;
   lang: string;
   resetEvery: number;
@@ -1178,6 +1221,7 @@ export function parseArgs(argv: string[]): Options {
     allowlistFile: "tools/font-conformance-allowlist.json",
     strictAlias: false,
     maxStacks: null,
+    stackFilter: null,
     maxRows: 20_000,
     lang: "en",
     resetEvery: 1,
@@ -1231,6 +1275,7 @@ export function parseArgs(argv: string[]): Options {
       case "--allowlist": o.allowlistFile = next(); break;
       case "--strict-alias": o.strictAlias = true; break;
       case "--max-stacks": o.maxStacks = parseInt(next(), 10); break;
+      case "--stack-filter": o.stackFilter = next(); break;
       case "--max-rows": o.maxRows = parseInt(next(), 10); break;
       case "--reset-every": o.resetEvery = parseInt(next(), 10); break;
       case "--allow-foreign-corpus": o.allowForeignCorpus = true; break;
@@ -1302,6 +1347,11 @@ async function main(): Promise<number> {
       process.stderr.write(`WARNING: sweeping a ${what} corpus on ${process.platform} (--allow-foreign-corpus)\n`);
     }
     let stacks = corpus.stacks;
+    if (opts.stackFilter != null) {
+      const needle = opts.stackFilter.toLocaleLowerCase("en-US");
+      stacks = stacks.filter((s) => JSON.stringify(s).toLocaleLowerCase("en-US").includes(needle));
+      if (stacks.length === 0) throw new Error(`--stack-filter matched no stacks: ${opts.stackFilter}`);
+    }
     if (opts.maxStacks != null) stacks = stacks.slice(0, opts.maxStacks);
     // Two independent stride shards. `--stack-shard` splits the corpus across
     // CI runners (the cheap axis: each runner reuses one warm resolver cache
@@ -1597,9 +1647,14 @@ async function main(): Promise<number> {
         // revision directory: the Windows VM launches a 148 build out of a
         // folder named `chromium-1217`, which is where the confusion started.
         chromium: browser.version(),
+        parityEnvironment: parityEnvironment(browser.version()),
+        rotationRevision: process.env.FONT_CONFORMANCE_REVISION ?? null,
+        rotationOrdinal: process.env.FONT_CONFORMANCE_ROTATION_ORDINAL ?? null,
+        rotationStackBucket: process.env.FONT_CONFORMANCE_STACK_BUCKET ?? null,
         stacksFile: opts.stacksFile,
         stackCorpusGeneratedAt: corpus.generatedAt,
         stackCorpusPlatform: corpus.platform ?? null,
+        stackFilter: opts.stackFilter,
         allowForeignCorpus: opts.allowForeignCorpus,
         codepoints: universe.length,
         stacks: stacks.length - skippedStacks,
@@ -1634,6 +1689,7 @@ async function main(): Promise<number> {
         comparisonsPerSecond: Math.round((comparisons / wallMs) * 1000),
       },
       summary: {
+        verdictStage: "face-selection",
         comparisons,
         ...counts,
         allowlisted: allowlistedCount,
@@ -1647,6 +1703,7 @@ async function main(): Promise<number> {
          * how many decisions are actually wrong.
          */
         distinctMismatchPairs: pairCounts.size,
+        verdict: mismatchTotal === 0 ? "exact-logical-agreement" : "logical-mismatch",
       },
       rowsRetained: mismatches.length,
       rowsTruncated: mismatchRowsSeen - mismatches.length,

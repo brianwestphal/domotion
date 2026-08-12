@@ -52,12 +52,15 @@ on:
       max_stacks:
         description: 'Cap on synthetic stacks (ordered by distance from the CSS initial/default state). 13 = one per generic; 351 = +every single-axis departure; empty = all 50,544.'
         default: '351'
+      stack_filter:
+        description: 'Targeted rerun: case-insensitive substring of the full stack signature. Empty sweeps the selected matrix.'
+        default: ''
       range:
         description: 'Expert override: contiguous codepoint range. Set sample_byte=all when using this.'
         default: ''
       sample_byte:
-        description: 'Routine rotating sample: 00..FF selects assigned codepoints with that low byte across Unicode; all runs the full universe.'
-        default: '00'
+        description: 'Routine rotating sample: auto derives a deterministic bucket from the revision; 00..FF reruns one bucket; all runs the full universe.'
+        default: 'auto'
       cp_shard:
         description: 'Codepoint stride index i, applied INSIDE every stack shard (used with cp_total). The stack axis is the expensive one here, so a stride keeps a wide stack slice affordable.'
         default: '1'
@@ -76,6 +79,9 @@ on:
 env:
   NODE_VERSION: '22.21.0'
   STACKS_FILE: 'tools/font-conformance-stacks.synthetic.json'
+  DOMOTION_CHROMIUM_REVISION: '7d859f27'
+  DOMOTION_HARFBUZZ_REVISION: '4de187d'
+  DOMOTION_SKIA_REVISION: '62efacd3'
 
 concurrency:
   group: font-conformance-synthetic-${{ github.ref_name }}-${{ inputs.os }}
@@ -92,12 +98,24 @@ jobs:
       macos_on: ${{ steps.m.outputs.macos_on }}
       linux_on: ${{ steps.m.outputs.linux_on }}
       windows_on: ${{ steps.m.outputs.windows_on }}
+      sample_byte: ${{ steps.m.outputs.sample_byte }}
+      stack_bucket: ${{ steps.m.outputs.stack_bucket }}
     steps:
+      - uses: actions/checkout@v4
       - id: m
         run: |
           requested="${{ inputs.shards }}"
+          sample="${{ inputs.sample_byte }}"
+          if [ "$sample" = auto ]; then
+            rotation=$(node tools/font-conformance-rotation.mjs "$GITHUB_SHA" "$GITHUB_RUN_NUMBER")
+            sample=$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.sampleByte)' "$rotation")
+            stack_bucket=$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.stackBucket)' "$rotation")
+          else
+            stack_bucket=explicit
+          fi
+          echo "sample_byte=$sample" >> "$GITHUB_OUTPUT"
+          echo "stack_bucket=$stack_bucket" >> "$GITHUB_OUTPUT"
           if [ "$requested" = auto ]; then
-            sample="${{ inputs.sample_byte }}"
             if [ "$sample" = all ] || [ "$sample" = ALL ]; then
               macos_n=8
               linux_n=6
@@ -118,9 +136,8 @@ jobs:
             echo "::error::shards must be 'auto' or a positive integer (got '$requested')"
             exit 2
           fi
-          sample="${{ inputs.sample_byte }}"
           if [[ ! "$sample" =~ ^([0-9A-Fa-f]{2}|all|ALL)$ ]]; then
-            echo "::error::sample_byte must be 00..FF or all (got '$sample')"
+            echo "::error::sample_byte must be auto, 00..FF, or all (got '$sample')"
             exit 2
           fi
           if [ -n "${{ inputs.range }}" ] && [ "$sample" != all ] && [ "$sample" != ALL ]; then
@@ -185,11 +202,24 @@ jobs:
           TOTAL: ${{ matrix.total }}
           STACKS: ${{ env.STACKS_FILE }}
           RANGE: ${{ inputs.range }}
-          SAMPLE_BYTE: ${{ inputs.sample_byte }}
+          SAMPLE_BYTE: ${{ needs.setup.outputs.sample_byte }}
+          FONT_CONFORMANCE_REVISION: ${{ github.sha }}
+          FONT_CONFORMANCE_ROTATION_ORDINAL: ${{ github.run_number }}
+          FONT_CONFORMANCE_STACK_BUCKET: ${{ needs.setup.outputs.stack_bucket }}
           MAX_STACKS: ${{ inputs.max_stacks }}
+          STACK_FILTER: ${{ inputs.stack_filter }}
           NO_PUA: ${{ inputs.no_pua }}
           CP_SHARD: ${{ inputs.cp_shard }}
           CP_TOTAL: ${{ inputs.cp_total }}
+      - name: Secondary logical parity matrix (clusters, webfonts, variable axes)
+        if: matrix.shard == 1
+        run: |
+          npm run fonts:cluster-conformance
+          if DOMOTION_CLUSTER_FALLBACK=0 npm run fonts:cluster-conformance; then
+            echo "::error::cluster fallback negative control did not move"
+            exit 1
+          fi
+          npm run test:e2e -- tests/variable-axis-oracle-pair.e2e.test.ts
       - uses: actions/upload-artifact@v4
         with:
           name: font-conformance-synthetic-macos-shard-${{ matrix.shard }}
@@ -228,11 +258,24 @@ jobs:
           TOTAL: ${{ matrix.total }}
           STACKS: ${{ env.STACKS_FILE }}
           RANGE: ${{ inputs.range }}
-          SAMPLE_BYTE: ${{ inputs.sample_byte }}
+          SAMPLE_BYTE: ${{ needs.setup.outputs.sample_byte }}
+          FONT_CONFORMANCE_REVISION: ${{ github.sha }}
+          FONT_CONFORMANCE_ROTATION_ORDINAL: ${{ github.run_number }}
+          FONT_CONFORMANCE_STACK_BUCKET: ${{ needs.setup.outputs.stack_bucket }}
           MAX_STACKS: ${{ inputs.max_stacks }}
+          STACK_FILTER: ${{ inputs.stack_filter }}
           NO_PUA: ${{ inputs.no_pua }}
           CP_SHARD: ${{ inputs.cp_shard }}
           CP_TOTAL: ${{ inputs.cp_total }}
+      - name: Secondary logical parity matrix (clusters, webfonts, variable axes)
+        if: matrix.shard == 1
+        run: |
+          npm run fonts:cluster-conformance
+          if DOMOTION_CLUSTER_FALLBACK=0 npm run fonts:cluster-conformance; then
+            echo "::error::cluster fallback negative control did not move"
+            exit 1
+          fi
+          npm run test:e2e -- tests/variable-axis-oracle-pair.e2e.test.ts
       - uses: actions/upload-artifact@v4
         with:
           name: font-conformance-synthetic-linux-shard-${{ matrix.shard }}
@@ -265,11 +308,25 @@ jobs:
           TOTAL: ${{ matrix.total }}
           STACKS: ${{ env.STACKS_FILE }}
           RANGE: ${{ inputs.range }}
-          SAMPLE_BYTE: ${{ inputs.sample_byte }}
+          SAMPLE_BYTE: ${{ needs.setup.outputs.sample_byte }}
+          FONT_CONFORMANCE_REVISION: ${{ github.sha }}
+          FONT_CONFORMANCE_ROTATION_ORDINAL: ${{ github.run_number }}
+          FONT_CONFORMANCE_STACK_BUCKET: ${{ needs.setup.outputs.stack_bucket }}
           MAX_STACKS: ${{ inputs.max_stacks }}
+          STACK_FILTER: ${{ inputs.stack_filter }}
           NO_PUA: ${{ inputs.no_pua }}
           CP_SHARD: ${{ inputs.cp_shard }}
           CP_TOTAL: ${{ inputs.cp_total }}
+      - name: Secondary logical parity matrix (clusters, webfonts, variable axes)
+        if: matrix.shard == 1
+        shell: bash
+        run: |
+          npm run fonts:cluster-conformance
+          if DOMOTION_CLUSTER_FALLBACK=0 npm run fonts:cluster-conformance; then
+            echo "::error::cluster fallback negative control did not move"
+            exit 1
+          fi
+          npm run test:e2e -- tests/variable-axis-oracle-pair.e2e.test.ts
       - uses: actions/upload-artifact@v4
         with:
           name: font-conformance-synthetic-windows-shard-${{ matrix.shard }}
@@ -306,7 +363,7 @@ jobs:
       - name: Gate vs the synthetic baseline for this platform
         shell: bash
         run: |
-          sample="${{ inputs.sample_byte }}"
+          sample="${{ needs.setup.outputs.sample_byte }}"
           range="${{ inputs.range }}"
           if [ -n "$range" ]; then
             # A diagnostic range is its own slice too. Hash the spelling into

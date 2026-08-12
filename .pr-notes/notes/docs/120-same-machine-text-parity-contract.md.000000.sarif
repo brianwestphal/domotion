@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msph0qb4pp5llysz",
+          "message": {
+            "text": "Logical parity is deliberately evaluated before pixels and scoped to one environment. A lucky raster match cannot validate a wrong face, while requiring identical faces across different font inventories would reject correct host-native Chromium behavior.",
+            "markdown": "Logical parity is deliberately evaluated before pixels and scoped to one environment. A lucky raster match cannot validate a wrong face, while requiring identical faces across different font inventories would reject correct host-native Chromium behavior."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/120-same-machine-text-parity-contract.md"
+                },
+                "region": {
+                  "startLine": 17,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "A different face or glyph sequence is a conformance failure even when its pixels\nhappen to score better. Pixel equality is not the logical oracle: after logical\nequality is established, minor differences caused solely by rasterization,\nhinting, or antialiasing are accepted and must be labeled as such.\n\nThis is a **same-machine** contract. Two hosts with different font inventories\nor preferences may legitimately choose different faces. Each host must agree\nwith Chromium running in that exact environment; cross-machine face equality is\nnot required."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/diff-font-conformance-baseline.mjs"
+                },
+                "region": {
+                  "startLine": 79
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2088"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cd77e7744a4d6f48c860fa69d58bfc3c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2541438068d0365370ddff7b03ab2619db8c592c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

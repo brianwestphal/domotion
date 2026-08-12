@@ -76,9 +76,14 @@ export function comparability(runMeta, baseMeta) {
   cmp("Unicode version", runMeta?.unicode, baseMeta?.unicode);
   cmp("stack corpus generatedAt", runMeta?.corpus?.generatedAt, baseMeta?.corpus?.generatedAt);
   cmp("font inventory digest", runMeta?.fontInventory?.digest, baseMeta?.fontInventory?.digest);
+  if (runMeta?.parityEnvironment == null || baseMeta?.parityEnvironment == null) {
+    reasons.push("parity environment: complete fingerprint required on both run and baseline");
+  } else {
+    cmp("parity environment", JSON.stringify(runMeta.parityEnvironment), JSON.stringify(baseMeta.parityEnvironment));
+  }
   for (const k of [
     "codepoints", "stacks", "includePua", "ranges", "sampleByte",
-    "stackShardTotal", "codepointShardTotal", "strictAlias", "lang", "oracleIsolation",
+    "stackShardTotal", "codepointShardTotal", "strictAlias", "lang", "oracleIsolation", "stackFilter",
   ]) {
     cmp(`slice.${k}`, runMeta?.slice?.[k], baseMeta?.slice?.[k]);
   }

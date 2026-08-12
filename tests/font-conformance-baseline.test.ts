@@ -23,6 +23,7 @@ const report = (over: Record<string, unknown> = {}): Record<string, unknown> => 
     stacksFile: "tools/font-conformance-stacks.linux.json",
     stackCorpusGeneratedAt: "2026-07-29T23:19:22.108Z",
     stackCorpusPlatform: "linux",
+    parityEnvironment: { contract: "docs/120-same-machine-text-parity-contract.md", layout: { deviceScaleFactor: 1, zoom: 1 } },
     codepoints: 292466, stacks: 1, includePua: true, ranges: null, sampleByte: null, strictAlias: false, lang: "en",
   },
   summary: { comparisons: 100, mismatchTotal: 10, "agree-exact": 90 },
@@ -156,6 +157,7 @@ describe("sliceOf", () => {
         codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], sampleByte: null,
         stackShardTotal: 1, codepointShardTotal: 1, strictAlias: true, lang: "ja",
         oracleIsolation: "renderer-per-locale",
+        stackFilter: null,
       });
   });
 });
@@ -167,10 +169,12 @@ describe("comparability", () => {
     unicode: "16.0",
     corpus: { generatedAt: "2026-07-29T23:19:22.108Z" },
     fontInventory: { digest: "abc123" },
+    parityEnvironment: { contract: "docs/120-same-machine-text-parity-contract.md", layout: { deviceScaleFactor: 1, zoom: 1 } },
     slice: {
       codepoints: 292466, stacks: 6, includePua: true, ranges: null, sampleByte: null,
       stackShardTotal: 1, codepointShardTotal: 1, strictAlias: false, lang: "en",
-      oracleIsolation: "renderer-per-locale",
+        oracleIsolation: "renderer-per-locale",
+        stackFilter: null,
     },
   };
 
@@ -211,6 +215,17 @@ describe("comparability", () => {
 
   it("refuses a run whose installed fonts changed", () => {
     expect(comparability({ ...meta, fontInventory: { digest: "def456" } }, meta)[0]).toMatch(/font inventory/);
+  });
+
+  it("refuses a run whose parity environment changes", () => {
+    const a = { ...meta, parityEnvironment: { layout: { deviceScaleFactor: 1, zoom: 1 } } };
+    const b = { ...meta, parityEnvironment: { layout: { deviceScaleFactor: 2, zoom: 1 } } };
+    expect(comparability(a, b)[0]).toMatch(/parity environment/);
+  });
+
+  it("refuses legacy results without the complete parity fingerprint", () => {
+    const legacy = { ...meta, parityEnvironment: undefined };
+    expect(comparability(legacy, meta)[0]).toMatch(/complete fingerprint required/);
   });
 
   it("refuses a run that swept a different slice", () => {

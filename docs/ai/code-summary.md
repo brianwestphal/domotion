@@ -205,7 +205,9 @@ shortest possible map:
   `tests/conventions.test.ts` (dep allow-list + no-shell-exec + manifest
   integrity/drift, in the `npm test` gate), and `tools/check-feature-coverage.ts`
   (`npm run check:features` — the standalone report). See `docs/83-feature-coverage.md`.
-- **Font parity** — `tools/font-conformance.ts` (`npm run fonts:conformance`) is
+- **Font parity** — the normative same-machine logical contract and staged
+  verdicts are defined in `docs/120-same-machine-text-parity-contract.md`.
+  `tools/font-conformance.ts` (`npm run fonts:conformance`) is
   the conformance oracle: Chrome's `CSS.getPlatformFontsForNode` vs
   `resolveFontForCodepoint`, over every assigned Unicode codepoint × every font
   stack in the fixture corpus, non-zero exit on any mismatch. Runs on **all
@@ -218,6 +220,10 @@ shortest possible map:
   `scripts/ci-font-conformance-shard.sh` →
   `scripts/merge-font-conformance-shards.mjs` →
   `scripts/diff-font-conformance-baseline.mjs` (regression-relative gate).
+  Routine synthetic dispatches use `tools/font-conformance-rotation.mjs` to
+  derive a complete modulo-256 low-byte schedule and complementary coverage
+  focus, recorded beside the tested revision; explicit byte/range/
+  `--stack-filter` reruns remain available.
   `tools/cluster-conformance.ts` (`npm run fonts:cluster-conformance`) covers
   the complementary multi-codepoint unit: Chrome's painted face set vs the
   production glyph-path run split for partially covered shaped clusters. Its

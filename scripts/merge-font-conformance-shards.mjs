@@ -59,6 +59,7 @@ const ENV_FIELDS = [
   ["Unicode version", (s) => s.report?.meta?.unicode],
   ["ICU version", (s) => s.report?.meta?.icu],
   ["stack corpus generatedAt", (s) => s.report?.meta?.stackCorpusGeneratedAt],
+  ["stack filter", (s) => s.report?.meta?.stackFilter ?? null],
   ["oracle isolation", (s) => s.report?.meta?.oracleIsolation],
   // Sampling is part of the question, not merely bookkeeping. A malformed
   // matrix that mixed buckets would otherwise present the first shard's byte
@@ -69,6 +70,10 @@ const ENV_FIELDS = [
   ["codepoint-shard total", (s) => s.report?.meta?.shard?.[1] ?? 1],
   ["runner image", (s) => s.env?.image],
   ["font inventory digest", (s) => s.env?.fontInventory?.digest],
+  ["parity environment", (s) => JSON.stringify(s.report?.meta?.parityEnvironment ?? null)],
+  ["rotation revision", (s) => s.report?.meta?.rotationRevision],
+  ["rotation ordinal", (s) => s.report?.meta?.rotationOrdinal],
+  ["rotation stack bucket", (s) => s.report?.meta?.rotationStackBucket],
 ];
 
 /**
@@ -194,6 +199,10 @@ export function mergeShards(shards, opts = {}) {
         codepoints: sum(cpsByCpShard.values()),
       },
       fontInventory: opts.fontInventory ?? null,
+      parityEnvironment: meta?.parityEnvironment ?? null,
+      rotationRevision: meta?.rotationRevision ?? null,
+      rotationOrdinal: meta?.rotationOrdinal ?? null,
+      rotationStackBucket: meta?.rotationStackBucket ?? null,
       shardsExpected: expected,
       shardsMerged: shards.length - missingShards.length,
       missingShards,
@@ -236,6 +245,7 @@ export function sliceOf(meta) {
     stackShardTotal: meta?.stackShard?.[1] ?? 1,
     codepointShardTotal: meta?.shard?.[1] ?? 1,
     strictAlias: meta?.strictAlias ?? null,
+    stackFilter: meta?.stackFilter ?? null,
     lang: meta?.lang ?? null,
     oracleIsolation: meta?.oracleIsolation ?? "shared-renderer",
   };

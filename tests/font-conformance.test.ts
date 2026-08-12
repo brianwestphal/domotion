@@ -314,6 +314,9 @@ describe("allowlist", () => {
 });
 
 describe("parseArgs", () => {
+  it("accepts a targeted stack-signature filter", () => {
+    expect(parseArgs(["--stack-filter", "lang=ja"]).stackFilter).toBe("lang=ja");
+  });
   it("defaults to the whole universe and THIS PLATFORM's committed corpus", () => {
     const o = parseArgs([]);
     expect(o.ranges).toBe(null);

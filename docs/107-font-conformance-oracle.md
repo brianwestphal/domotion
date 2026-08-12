@@ -1,5 +1,10 @@
 # 107 — Font-resolution conformance oracle
 
+This is the face-selection stage of the normative [same-machine Chromium text
+parity contract](120-same-machine-text-parity-contract.md). It reports logical
+face agreement only. Shaping, layout, and raster verdicts are separate stages;
+a pixel score can never excuse a different face or glyph sequence.
+
 Domotion's font goal is guaranteed parity with Chromium's font-selection mechanism: for any codepoint, in any CSS font stack, we must resolve the face Chromium actually paints with. A visual-regression suite cannot establish that. Fixtures sample, and a wrong-font bug survives comfortably in the codepoints no fixture happens to cover — which is how several of them survived.
 
 `tools/font-conformance.ts` is the instrument that replaces sampling with enumeration. It asks Chrome and Domotion the same question about every assigned Unicode codepoint, crossed with every font stack the fixture corpus actually uses, and fails on any disagreement.
@@ -16,6 +21,7 @@ npx tsx tools/font-conformance.ts                          # full sweep, all cor
 npx tsx tools/font-conformance.ts --range 0000-2FFF        # one slice of Unicode
 npx tsx tools/font-conformance.ts --sample-byte 00         # every assigned U+…00 codepoint
 npx tsx tools/font-conformance.ts --max-stacks 12          # the most-used stacks only
+npx tsx tools/font-conformance.ts --stack-filter 'lang=ja' # targeted failing route
 npx tsx tools/font-conformance.ts --shard 2/8              # codepoint shard 2 of 8
 npx tsx tools/font-conformance.ts --stack-shard 3/16       # stack shard 3 of 16
 npx tsx tools/font-conformance.ts --extract-stacks         # re-derive the stack corpus
@@ -34,6 +40,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 | `--no-pua` | Drop `\p{Private_Use}` — 137k of the 292k codepoints. Makes the run a subset; the report records it. |
 | `--shard i/N` | Stride shard over codepoints. |
 | `--stack-shard i/N` | Stride shard over stacks. |
+| `--stack-filter text` | Retain stacks whose complete serialized signature contains the case-insensitive text. This targets a family/style/locale/variation route without changing the codepoint selector. |
 | `--batch n` | Codepoints per probe page (default 8000). |
 | `--concurrency n` | Pipelined CDP calls in flight (default 128). |
 | `--max-rows n` | Per-mismatch example rows retained in `report.json` (default 20000). Counts are always exact; only the detail is capped. |
@@ -103,6 +110,29 @@ npx tsx tools/font-conformance.ts \
 On CI it has its **own dispatch and its own baselines** — `.github/workflows/font-conformance-synthetic.yml`. Not an input to the default workflow: the cross product multiplies an already expensive sweep, and the two slices measure different questions, so they must not share a baseline. Both dispatches run the same `scripts/ci-font-conformance-shard.sh` so the flags, exit-code discipline and recorded environment cannot drift between them.
 
 Routine synthetic testing uses a **rotating low-byte sample**. The default bucket `00` retains every eligible assigned codepoint for which `cp & 0xFF === 0x00`: `U+0100`, `U+0200`, … through supplementary planes. This is not the contiguous Latin-1 page `U+0000–U+00FF`. A bucket therefore samples scripts, symbol ranges, CJK, emoji, and private-use planes throughout Unicode while reducing the codepoint axis to approximately 1/256. Buckets `00` through `FF` are disjoint and their union is the exhaustive universe, so advancing the focus from `00` to `01` and onward accumulates complete coverage without the probabilistic holes of a random sample.
+
+Routine workflow dispatches default to `sample_byte=auto`.
+`tools/font-conformance-rotation.mjs` derives the low-byte bucket and one of
+eight complementary stack-coverage focuses from the workflow run ordinal. The
+modulo schedule proves that 256 consecutive routine runs cover all 256 disjoint
+bytes exactly once; a rerun keeps its ordinal and bucket. The resolved byte,
+focus, and tested revision are stored in every shard and merged report,
+so the artifact records which bucket passed at that revision. Explicit
+`sample_byte=00..FF`, `range`, `max_stacks`, and `stack_filter` inputs remain the
+targeted reproduction controls. `sample_byte=all` is the exhaustive
+confidence/release mode. The stack focus names the matrix area whose secondary
+oracle coverage should be reviewed at that revision; the routine 351-stack
+face-selection sweep still runs every generic initial state and every
+single-axis weight/style/stretch/spelling/locale departure on every dispatch.
+On the first shard for each OS, the routine job also runs the cluster oracle
+(including its required `DOMOTION_CLUSTER_FALLBACK=0` movement arm) and the
+variable-axis paired oracle. Together those cover installed named and
+missing-first families, partial `@font-face`/`unicode-range`, combining and RTL
+clusters, and concrete webfont axis instances before any visual comparison.
+The measured macOS secondary matrix adds about 31 seconds (9/9 default cluster
+cells, the disabled arm moving exactly four to mismatch, and 8/8 variable-axis
+tests), keeping the established per-OS sampled profile inside its 5–10 minute
+budget.
 
 Each bucket has its own baseline, `tests/baselines/font-conformance-synthetic-<os>-byte-<XX>.json`; unlike buckets are never compared. Baseline identity also includes stack- and codepoint-shard denominators. This is semantic, not operational bookkeeping: each shard owns an independent browser/document and both Chromium and Domotion retain document-scoped fallback state, so changing shard topology changes cache history even when the union of stacks and codepoints is identical. `sample_byte: all` explicitly selects the exhaustive universe and keeps the established unsuffixed synthetic baseline. A first run of a new bucket is dispatched with `update_baseline` and its artifact is reviewed and committed before that bucket becomes a gate. A contiguous `range` remains available for diagnosis, but requires `sample_byte: all` so two selectors cannot silently intersect; range baselines include a digest of the range spelling and therefore cannot overwrite the exhaustive baseline.
 
