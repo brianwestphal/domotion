@@ -9589,21 +9589,8 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
 }
 
 /**
- * Run-level form of `harfbuzzShapedScriptOverride`, for the shaped-cluster
- * splitter's family-stage runs.
- *
- * That override lives inside `resolveFontForCodepoint`, so it reaches every
- * font decision the legacy per-codepoint walk makes — but under the default
- * shaped splitter the PRIMARY and declared-family assignments never call the
- * resolver (`splitShapedInner` builds those candidates from `getFontInstance`
- * / the caller's primary directly; only the system stage resolves). Every
- * `HARFBUZZ_SHAPED_RANGES` routing was therefore inert exactly when the
- * primary or a declared family covered the script: an Arabic webfont, Arial's
- * own Arabic, a Bangla webfont all kept fontkit's shaping — meaning, e.g., no
- * HarfBuzz vowel-constraint dotted circle for a broken Bengali cluster
- * (`_hb_preprocess_text_vowel_constraints`,
- * `hb-ot-shaper-vowel-constraints.cc:58-446`, rev 4de187d), which is the very
- * divergence Bengali was routed for.
+ * Production run shaper, applied after the shaped-cluster splitter selects a
+ * concrete face and fallback boundary.
  *
  * Same construction as the per-codepoint form: HarfBuzz supplies ids,
  * positions and clusters; the base instance keeps the outlines
@@ -9611,9 +9598,9 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
  * face is resolved the way `fontFeatureValueShapingOverride` resolves it —
  * the instance's own source file first, so shaper and outlines agree by
  * construction; the key's base spec next; the retained `@font-face` bytes
- * last, so webfont runs route too. Declines (returns `base` unchanged) when
- * no face is openable, when no codepoint in the run is routed, or when the
- * instance already shapes through HarfBuzz.
+ * last, so webfont runs route too. Every supported run uses this path;
+ * native/fontkit instances remain outline and metric providers. It declines
+ * only when no concrete face is openable.
  */
 export function harfbuzzShapedRunOverride(
   base: FontInstance,
@@ -9623,19 +9610,19 @@ export function harfbuzzShapedRunOverride(
   slant: number,
   variationSettings: Record<string, number> | undefined,
   runText: string,
+  features?: string[],
 ): FontInstance {
-  if (base.shapesWithHarfbuzz === true) return base;
-  let routed = false;
-  for (const ch of runText) {
-    if (resolvedFaceNeedsHarfbuzzShaping(ch.codePointAt(0)!, fontKey)) { routed = true; break; }
+  if (base.shapesWithHarfbuzz === true) {
+    if (features == null || features.length === 0) return base;
+    base = hbShapingBaseOf(base);
   }
-  if (!routed) return base;
+  void runText;
   const src = getFontSourceInfo(base);
   const hbFace = src != null && src.nameMatched && src.faceIndex != null
     ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
     : shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings) ?? webfontShapingFace(base);
   if (hbFace == null || hbFace.faceIndex == null) return base;
-  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true });
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
   if (hbInst === base) return base; // HarfBuzz declined the file
   carryFontInstanceMetadata(hbInst, base);
   return hbInst;

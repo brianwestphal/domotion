@@ -75,6 +75,7 @@ import {
   pickWebfontVariantForCodepoint,
   r2,
   glyphIdForCp,
+  harfbuzzShapedRunOverride,
   resolveDottedCircleHbRun,
   resolveFont,
   resolveFontForCodepoint,
@@ -353,6 +354,10 @@ export function splitTextIntoGlyphPathRuns(
     const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
     const finalKey = curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey);
     runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey, decomposed: curDecomposed });
+  }
+  for (const run of runs) {
+    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant,
+      run.isPrimary ? variationSettings : undefined, run.text, features);
   }
   return runs;
 }
@@ -1698,6 +1703,10 @@ function splitTextIntoFontRuns(
     // optical-cut opsz; see above).
     const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
     runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey });
+  }
+  for (const run of runs) {
+    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant,
+      run.isPrimary ? variationSettings : undefined, run.text, features);
   }
   return runs;
 }

@@ -1004,19 +1004,14 @@ function splitShapedInner(
       runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, ...(aDecomposed ? { decomposed: true } : {}) });
     }
   }
-  // Run-level HarfBuzz script reroute — the shaped splitter's counterpart of
-  // the per-codepoint `harfbuzzShapedScriptOverride` inside
-  // `resolveFontForCodepoint`. The system stage above already returns hb
-  // proxies through the resolver, but the primary and declared-family stages
-  // never call it, so a `HARFBUZZ_SHAPED_RANGES` script covered by the primary
-  // or a declared family kept the base engine's shaping while the legacy walk
-  // rerouted it. Applied AFTER merging so the wrap sees whole runs; the proxy
+  // Production shaping is consolidated on the Chromium-configured HarfBuzz
+  // build after face selection and fallback assignment. Applied AFTER merging
+  // so the wrap sees whole runs; the proxy
   // is memoized per (base instance, args), so identical bases keep a stable
-  // identity — the renderer's run-grouping invariant. A run with no routed
-  // codepoint, or whose font already shapes via hb (system-stage proxies,
-  // pinned dotted-circle runs), comes back unchanged.
+  // identity — the renderer's run-grouping invariant. Native/fontkit objects
+  // remain outline and metric providers only; they no longer decide glyphs.
   for (const run of runs) {
-    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant, run.isPrimary ? variationSettings : undefined, run.text);
+    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant, run.isPrimary ? variationSettings : undefined, run.text, opts?.features);
   }
   return runs;
 }

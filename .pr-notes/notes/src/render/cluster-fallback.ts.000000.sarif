@@ -469,6 +469,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspurfotvowcxcy5",
+          "message": {
+            "text": "The post-selection run boundary is the consolidation point shared by paths and embedded-font modes: fallback has already selected the exact face and UTF-16 span, then every supported run receives the same Chromium-configured HarfBuzz proxy. This keeps native/fontkit APIs as outline/metric providers without letting them choose glyphs.",
+            "markdown": "The post-selection run boundary is the consolidation point shared by paths and embedded-font modes: fallback has already selected the exact face and UTF-16 span, then every supported run receives the same Chromium-configured HarfBuzz proxy. This keeps native/fontkit APIs as outline/metric providers without letting them choose glyphs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 1002,
+                  "endLine": 1016,
+                  "snippet": {
+                    "text": "      if (aDecomposed) last.decomposed = true;\n    } else {\n      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, ...(aDecomposed ? { decomposed: true } : {}) });\n    }\n  }\n  // Production shaping is consolidated on the Chromium-configured HarfBuzz\n  // build after face selection and fallback assignment. Applied AFTER merging\n  // so the wrap sees whole runs; the proxy\n  // is memoized per (base instance, args), so identical bases keep a stable\n  // identity — the renderer's run-grouping invariant. Native/fontkit objects\n  // remain outline and metric providers only; they no longer decide glyphs.\n  for (const run of runs) {\n    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant, run.isPrimary ? variationSettings : undefined, run.text, opts?.features);\n  }\n  return runs;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2095"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6232ca1d28adcfe8086e80bd4da600af"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5c41c2ce9ad385f024abd8c884a87afbf3b16e5d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

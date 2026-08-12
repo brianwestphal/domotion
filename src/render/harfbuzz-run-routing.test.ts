@@ -1,13 +1,10 @@
-// Run-level HarfBuzz script routing + the RTL mirror domain.
+// Consolidated run-level HarfBuzz shaping + the RTL mirror domain.
 //
 // Two defects, pinned together because the second gates the first:
 //
-// 1. `harfbuzzShapedScriptOverride` wraps only `resolveFontForCodepoint`, and
-//    under the default shaped splitter the primary and declared-family stages
-//    never call the resolver — so every `HARFBUZZ_SHAPED_RANGES` routing was
-//    inert whenever the primary (or a declared family, or a webfont) covered
-//    the script. `harfbuzzShapedRunOverride` closes that at run level; the
-//    tests here assert the reroute is IN THE LOOP for a covering primary, with
+// 1. `harfbuzzShapedRunOverride` is the single post-selection production
+//    shaper. These tests assert it is IN THE LOOP for ordinary Latin and a
+//    covering complex-script primary, with
 //    the same paired invariants the per-codepoint pin file
 //    (`harfbuzz-script-routing.test.ts`) established: HarfBuzz's ids, the BASE
 //    engine's outlines, stable proxy identity, carried metadata.
@@ -109,11 +106,12 @@ describeMac("run-level reroute — a covering primary's runs shape through HarfB
     expect(run.font.unitsPerEm).toBe(primary.unitsPerEm);
   });
 
-  it("leaves a non-routed run on its base engine, and never double-wraps an hb font", () => {
+  it("routes ordinary Latin too, and never double-wraps an hb font", () => {
     const key = resolveFontKey("Arial Unicode MS");
     const primary = getFontInstance(key, 400, 16, 0)!;
     const latin = splitArabic("hello");
-    expect(latin[0].font === primary).toBe(true);
+    expect(latin[0].font === primary).toBe(false);
+    expect(latin[0].font.shapesWithHarfbuzz).toBe(true);
     // A font already shaping through HarfBuzz (here: the feature-list proxy)
     // must come back unchanged — a proxy-over-proxy has no `getGlyph` and
     // would silently swap the outline engine.

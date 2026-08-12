@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspurfuxe13ecc9x",
+          "message": {
+            "text": "The ordinary-Latin control now asserts that even a formerly non-routed run has shapesWithHarfbuzz=true. Focused routing/text tests pass; the full 3,704-test suite had one pre-existing SF Pro fallback-order assertion that passes focused and is unrelated to shaping consolidation.",
+            "markdown": "The ordinary-Latin control now asserts that even a formerly non-routed run has shapesWithHarfbuzz=true. Focused routing/text tests pass; the full 3,704-test suite had one pre-existing SF Pro fallback-order assertion that passes focused and is unrelated to shaping consolidation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/harfbuzz-run-routing.test.ts"
+                },
+                "region": {
+                  "startLine": 108,
+                  "endLine": 121,
+                  "snippet": {
+                    "text": "\n  it(\"routes ordinary Latin too, and never double-wraps an hb font\", () => {\n    const key = resolveFontKey(\"Arial Unicode MS\");\n    const primary = getFontInstance(key, 400, 16, 0)!;\n    const latin = splitArabic(\"hello\");\n    expect(latin[0].font === primary).toBe(false);\n    expect(latin[0].font.shapesWithHarfbuzz).toBe(true);\n    // A font already shaping through HarfBuzz (here: the feature-list proxy)\n    // must come back unchanged — a proxy-over-proxy has no `getGlyph` and\n    // would silently swap the outline engine.\n    const featProxy = fontFeatureValueShapingOverride(primary, key, 400, 16, 0, undefined, [\"-liga\"]);\n    expect(featProxy === primary).toBe(false);\n    expect(harfbuzzShapedRunOverride(featProxy, key, 400, 16, 0, undefined, \"مرحبا\") === featProxy).toBe(true);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2095"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4f6780284183e0b33f9673b424bc224a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5c41c2ce9ad385f024abd8c884a87afbf3b16e5d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
