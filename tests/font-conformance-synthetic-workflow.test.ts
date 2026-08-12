@@ -145,13 +145,14 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     expect(jobs["setup"]).toContain("shards must be 'auto' or a positive integer");
   });
 
-  it("defaults to low-byte 00 across Unicode, with no extra codepoint stride", () => {
+  it("defaults to a revision-derived rotating low-byte, with no extra codepoint stride", () => {
     // The shard script omits `--shard` entirely when CP_TOTAL is 1, which the
     // merge relies on to key its codepoint accounting off `meta.shard` being null.
     expect(yaml).toMatch(/cp_total:[\s\S]{0,400}?default: '1'/);
-    expect(yaml).toMatch(/sample_byte:[\s\S]{0,400}?default: '00'/);
+    expect(yaml).toMatch(/sample_byte:[\s\S]{0,400}?default: 'auto'/);
+    expect(jobs["setup"]).toContain("font-conformance-rotation.mjs");
     for (const os of PLATFORMS) {
-      expect(jobs[`sweep-${os}`]).toMatch(/SAMPLE_BYTE: \$\{\{ inputs\.sample_byte \}\}/);
+      expect(jobs[`sweep-${os}`]).toMatch(/SAMPLE_BYTE: \$\{\{ needs\.setup\.outputs\.sample_byte \}\}/);
     }
   });
 
