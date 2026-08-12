@@ -6,7 +6,7 @@ import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
-import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { _builderInstanceKeys, _builderRegistrySize, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { resolveInstalledFont } from "./glyph-helper.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 
@@ -2995,6 +2995,32 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(3);
+    expect(_builderInstanceKeys()).toEqual(expect.arrayContaining([
+      expect.stringContaining("|wght=540"),
+      expect.stringContaining("|wght=100"),
+    ]));
+  });
+
+  it("clearEmbeddedFonts removes every prior axis instance before the next generation", () => {
+    if (fontBuf == null) return;
+    registerWebfont("CustomFontReset", 400, "normal", fontBuf);
+    renderTextAsPath("AB", 0, 0, {
+      fontSize: 24, fontFamily: "CustomFontReset", fontWeight: "400", fill: "#000",
+      variationSettings: { wght: 540 },
+    });
+    expect(_builderRegistrySize()).toBe(1);
+
+    clearEmbeddedFonts();
+    expect(_builderRegistrySize()).toBe(0);
+    expect(getEmbeddedFontFaceCss()).toBe("");
+
+    renderTextAsPath("CD", 0, 0, {
+      fontSize: 24, fontFamily: "CustomFontReset", fontWeight: "400", fill: "#000",
+      variationSettings: { wght: 100 },
+    });
+    expect(_builderRegistrySize()).toBe(1);
+    expect(_builderInstanceKeys()[0]).toContain("|wght=100");
+    expect(_builderInstanceKeys()[0]).not.toContain("|wght=540");
   });
 
   it("the same (font, axes) combo across calls shares one @font-face entry", async () => {

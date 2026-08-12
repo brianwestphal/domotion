@@ -404,6 +404,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspu5pa3ypq01v3n",
+          "message": {
+            "text": "A segmented webfont face remains part of the author-selected primary family even when it is not the exact pre-instanced Font object. Blink walks all contributing CSSSegmentedFontFace declarations; keeping family-primary identity separate from object reuse preserves author variation/features on every partition and prevents embedded instances at distinct axes from collapsing.",
+            "markdown": "A segmented webfont face remains part of the author-selected primary family even when it is not the exact pre-instanced Font object. Blink walks all contributing CSSSegmentedFontFace declarations; keeping family-primary identity separate from object reuse preserves author variation/features on every partition and prevents embedded instances at distinct axes from collapsing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 720,
+                  "endLine": 735,
+                  "snippet": {
+                    "text": "                const isPrimaryInstance = entry.key === primaryFontKey\n                  && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;\n                if (isPrimaryInstance) v = primaryFont;\n                const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);\n                if (face == null || face.faceIndex == null) throw new DeclineError();\n                const identity = `${face.path}#${face.faceIndex}`;\n                const subsetted = v.webfontUnicodeRange != null;\n                if (!subsetted) {\n                  if (returnedFaces.has(identity)) continue;\n                  returnedFaces.add(identity);\n                }\n                // Every contributing partition of the declared webfont family\n                // remains primary for CSS axis/feature application. The\n                // concrete-instance check above is narrower: it only decides\n                // when the caller's already-instanced Font object can be reused.\n                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, clampRanges: ranges ?? null };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2101"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "43be57482a187caf06dfa4674b705587"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b5dd24fb3eebc2fb57f179029d99c727d0bf3eb9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

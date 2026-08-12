@@ -336,7 +336,7 @@ export function splitTextIntoGlyphPathRuns(
       // that `resolveFont` injected from the family name (it's keyed on the
       // family, not the collapsed font key), re-emitting at the wrong cut.
       const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey && curFontOverride == null, decomposed: curDecomposed });
+      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey, decomposed: curDecomposed });
       curText = "";
       curStart = i;
     }
@@ -352,7 +352,7 @@ export function splitTextIntoGlyphPathRuns(
     // optical-cut opsz (injected by resolveFont from the family name) survives.
     const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
     const finalKey = curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey);
-    runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey && curFontOverride == null, decomposed: curDecomposed });
+    runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey, decomposed: curDecomposed });
   }
   return runs;
 }
@@ -1683,7 +1683,7 @@ function splitTextIntoFontRuns(
       // the optical-cut opsz (injected by resolveFont from the family name)
       // survives — re-resolving via the collapsed key would lose it.
       const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey && curFontOverride == null });
+      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey });
       curText = "";
       curStart = i;
     }
@@ -1697,7 +1697,7 @@ function splitTextIntoFontRuns(
     // DM-1103: prefer the resolved `primaryFont` for the primary key (keeps the
     // optical-cut opsz; see above).
     const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
-    runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey && curFontOverride == null });
+    runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey });
   }
   return runs;
 }

@@ -717,9 +717,9 @@ function splitShapedInner(
                 let v = state.faces[state.index++];
                 const ranges = v.webfontUnicodeRange;
                 if (ranges != null && !hints.some((cp) => unicodeRangeCovers(ranges, cp))) continue;
-                const isPrimary = entry.key === primaryFontKey
+                const isPrimaryInstance = entry.key === primaryFontKey
                   && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
-                if (isPrimary) v = primaryFont;
+                if (isPrimaryInstance) v = primaryFont;
                 const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);
                 if (face == null || face.faceIndex == null) throw new DeclineError();
                 const identity = `${face.path}#${face.faceIndex}`;
@@ -728,7 +728,11 @@ function splitShapedInner(
                   if (returnedFaces.has(identity)) continue;
                   returnedFaces.add(identity);
                 }
-                const cand: Candidate = { key: entry.key, font: v, face, isPrimary, clampRanges: ranges ?? null };
+                // Every contributing partition of the declared webfont family
+                // remains primary for CSS axis/feature application. The
+                // concrete-instance check above is narrower: it only decides
+                // when the caller's already-instanced Font object can be reused.
+                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, clampRanges: ranges ?? null };
                 if (firstCandidate == null) firstCandidate = cand;
                 return cand;
               }

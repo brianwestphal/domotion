@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspu5phv6bq97dkf",
+          "message": {
+            "text": "The regression test now proves both halves independently: distinct wght requests create distinct builder identities, while clearEmbeddedFonts empties the registry before a later axis instance. Focused Vitest passes both cases.",
+            "markdown": "The regression test now proves both halves independently: distinct wght requests create distinct builder identities, while clearEmbeddedFonts empties the registry before a later axis instance. Focused Vitest passes both cases."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 2982,
+                  "endLine": 3023,
+                  "snippet": {
+                    "text": "    registerWebfont(\"CustomFontC\", 400, \"normal\", fontBuf);\n    // Same family, no axes → one entry.\n    renderTextAsPath(\"AB\", 0, 0, { fontSize: 24, fontFamily: \"CustomFontC\", fontWeight: \"400\", fill: \"#000\" });\n    // Same family, distinct axes tuple → second entry.\n    renderTextAsPath(\"CD\", 0, 0, {\n      fontSize: 24, fontFamily: \"CustomFontC\", fontWeight: \"400\", fill: \"#000\",\n      variationSettings: { wght: 540 },\n    });\n    // Same family, third distinct axes tuple → third entry.\n    renderTextAsPath(\"EF\", 0, 0, {\n      fontSize: 24, fontFamily: \"CustomFontC\", fontWeight: \"400\", fill: \"#000\",\n      variationSettings: { wght: 100 },\n    });\n    const css = getEmbeddedFontFaceCss();\n    const faceCount = (css.match(/@font-face/g) ?? []).length;\n    expect(faceCount).toBe(3);\n    expect(_builderInstanceKeys()).toEqual(expect.arrayContaining([\n      expect.stringContaining(\"|wght=540\"),\n      expect.stringContaining(\"|wght=100\"),\n    ]));\n  });\n\n  it(\"clearEmbeddedFonts removes every prior axis instance before the next generation\", () => {\n    if (fontBuf == null) return;\n    registerWebfont(\"CustomFontReset\", 400, \"normal\", fontBuf);\n    renderTextAsPath(\"AB\", 0, 0, {\n      fontSize: 24, fontFamily: \"CustomFontReset\", fontWeight: \"400\", fill: \"#000\",\n      variationSettings: { wght: 540 },\n    });\n    expect(_builderRegistrySize()).toBe(1);\n\n    clearEmbeddedFonts();\n    expect(_builderRegistrySize()).toBe(0);\n    expect(getEmbeddedFontFaceCss()).toBe(\"\");\n\n    renderTextAsPath(\"CD\", 0, 0, {\n      fontSize: 24, fontFamily: \"CustomFontReset\", fontWeight: \"400\", fill: \"#000\",\n      variationSettings: { wght: 100 },\n    });\n    expect(_builderRegistrySize()).toBe(1);\n    expect(_builderInstanceKeys()[0]).toContain(\"|wght=100\");\n    expect(_builderInstanceKeys()[0]).not.toContain(\"|wght=540\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2101"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dca8fa22eb958911c457c0705e4dc4f2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b5dd24fb3eebc2fb57f179029d99c727d0bf3eb9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
