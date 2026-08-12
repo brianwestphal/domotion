@@ -1672,10 +1672,11 @@ flowchart TD
   SRD -->|"no"| SRDN["keep the nominated face"]
   SR2 -->|"linux (default-on, DM-1416)"| SRL["resolveLinuxSystemFallbackKeyForCp:<br/>helper 'fcfallback' query FIRST (DM-1886) —<br/>FcFontSort over an FC_LANG pattern + walk until covered,<br/>which is what gfx::GetFallbackFontForChar does<br/>· fall through to fc-match ':charset=&lt;hex&gt;' only<br/>when no helper (documented APPROXIMATION)"]
   SR2 -->|"win32 (default-on, DM-1424;<br/>actually reaching DirectWrite only since DM-1889)"| SRW["DirectWrite IDWriteFontFallback::MapCharacters<br/>via win32 glyph helper (resolveSystemFallbackFonts)<br/>envelope declares NO base font — DirectWrite takes none,<br/>and declaring an unopenable one was FATAL one-shot<br/>· args: style triple + baseFamilyName (run primary)<br/>+ locale = blinkWinFallbackLocale(cp, lang)"]
+  SRW --> SRWR["mirror Blink UpdateFromSkiaFontStyle:<br/>copy mapped weight/stretch; only OBLIQUE stays non-normal<br/>→ reopen the mapped FAMILY with simulation-free<br/>GetFirstMatchingFont (Chromium 7d859f27)<br/>→ require the FINAL reopened face to cover cp"]
   SRD1 --> SRG{"resolved & path ≠ ''?"}
   SRDN --> SRG
   SRL --> SRLG{"coverage guard:<br/>fontFileCoversCodepoint(path, ps, cp)?<br/>(fc-match returns a default even when nothing covers)"}
-  SRW --> SRG
+  SRWR --> SRG
   SRG -->|"yes"| SRR["registerDynamicSystemFont('sysfb:'+ps, path, ps)<br/>→ return key"]
   SRG -->|"no"| SRNull["null → keep last-resort tofu"]
   SRLG -->|"covers"| SRR

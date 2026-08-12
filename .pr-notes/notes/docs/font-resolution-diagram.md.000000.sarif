@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspjwxxytsvo8muu",
+          "message": {
+            "text": "The Windows resolver diagram now includes Blink's post-MapCharacters family reopen because the returned DirectWrite face is only an intermediate nomination; parity and coverage must be judged on the simulation-free reopened family cut.",
+            "markdown": "The Windows resolver diagram now includes Blink's post-MapCharacters family reopen because the returned DirectWrite face is only an intermediate nomination; parity and coverage must be judged on the simulation-free reopened family cut."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/font-resolution-diagram.md"
+                },
+                "region": {
+                  "startLine": 1680,
+                  "endLine": 1684,
+                  "snippet": {
+                    "text": "  SRG -->|\"yes\"| SRR[\"registerDynamicSystemFont('sysfb:'+ps, path, ps)<br/>→ return key\"]\n  SRG -->|\"no\"| SRNull[\"null → keep last-resort tofu\"]\n  SRLG -->|\"covers\"| SRR\n  SRLG -->|\"doesn't cover\"| SRNull\n  SRR --> SRcache[\"cache & return\"]"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "16eb1704d6c8b7bd7efd46bff5500a3d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1f3ed2a274be7f48fd5fdd7bdb7cb58fcad8cf61",
+          "branch": "validation/dm-2083"
+        }
+      ]
+    }
+  ]
+}
