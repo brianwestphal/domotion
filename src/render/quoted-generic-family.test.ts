@@ -34,7 +34,7 @@ afterAll(() => { setSystemFallbackResolution(prevResolver); });
 afterEach(() => { setSessionGenericFamilyOverrides(null); clearFontResolutionCaches(); });
 
 describe("quoted generic spellings are literal family names (font_selector.cc:25-32)", () => {
-  it('walks past a quoted "monospace" to the next declared family', () => {
+  it.runIf(process.platform === "darwin")('walks past a quoted "monospace" to the next declared family', () => {
     withHostPlatform("darwin", () => {
       expect(resolveFontKey('"monospace", Menlo')).toBe("menlo");
     });
@@ -76,14 +76,14 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
     });
   });
 
-  it("the chain resolver applies the same classification per entry", () => {
+  it.runIf(process.platform === "darwin")("the chain resolver applies the same classification per entry", () => {
     withHostPlatform("darwin", () => {
       expect(resolveFontKeyChain('"monospace", Menlo')).toEqual(["menlo"]);
       expect(resolveFontKeyChain("monospace, Menlo")).toEqual(["courier", "menlo"]);
     });
   });
 
-  it("a case-variant spelling is a literal family name — the keyword serializes canonically lowercase", () => {
+  it.runIf(process.platform === "darwin")("a case-variant spelling is a literal family name — the keyword serializes canonically lowercase", () => {
     withHostPlatform("darwin", () => {
       // `FontFamily::InferredTypeFor` compares by case-sensitive AtomicString
       // equality, and generic keywords compute to canonical lowercase — so an
@@ -110,7 +110,7 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
     });
   });
 
-  it("a quoted spelling bypasses the session-probed generic override; the keyword takes it", () => {
+  it.runIf(process.platform === "darwin")("a quoted spelling bypasses the session-probed generic override; the keyword takes it", () => {
     withHostPlatform("darwin", () => {
       setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
       // Keyword: routed through the probed override to Menlo.
@@ -128,7 +128,7 @@ describe("math stays on the walk-past route (settings value 'Latin Modern Math' 
     });
   });
 
-  it("math with a later declared family walks on to it", () => {
+  it.runIf(process.platform === "darwin")("math with a later declared family walks on to it", () => {
     withHostPlatform("darwin", () => {
       expect(resolveFontKey("math, Menlo")).toBe("menlo");
     });

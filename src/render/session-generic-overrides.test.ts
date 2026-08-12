@@ -15,6 +15,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   getSessionGenericFamilyOverrides,
+  __resolveFontSpecForTest,
   resolveFontKey,
   setSessionGenericFamilyOverrides,
 } from "./font-resolution.js";
@@ -23,6 +24,16 @@ import { hostPlatform } from "./host-platform.js";
 afterEach(() => setSessionGenericFamilyOverrides(null));
 
 describe("setSessionGenericFamilyOverrides", () => {
+  const installedTestFamily = hostPlatform() === "darwin"
+    ? "Menlo"
+    : hostPlatform() === "win32" ? "Arial" : "Liberation Serif";
+
+  const installedTestPath = (): string | undefined => {
+    const key = resolveFontKey(installedTestFamily);
+    expect(key).not.toBeNull();
+    return __resolveFontSpecForTest(key!)?.path;
+  };
+
   it("defaults to null and round-trips through the accessor", () => {
     expect(getSessionGenericFamilyOverrides()).toBeNull();
     const overrides = { common: new Map([["monospace", "Menlo"]]), byScript: new Map() };
@@ -36,21 +47,23 @@ describe("setSessionGenericFamilyOverrides", () => {
     // On the darwin static route `monospace` → courier; a session that
     // painted Menlo must win. (Key names are platform-independent here — the
     // probed name goes back through the ordinary family matcher.)
-    setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
-    expect(resolveFontKey("monospace")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+    const expected = installedTestPath();
+    setSessionGenericFamilyOverrides({ common: new Map([["monospace", installedTestFamily]]), byScript: new Map() });
+    expect(__resolveFontSpecForTest(resolveFontKey("monospace")!)?.path).toBe(expected);
   });
 
   it("routes the implicit standard-family terminal from the session", () => {
-    setSessionGenericFamilyOverrides({ common: new Map([["standard", "Menlo"]]), byScript: new Map() });
-    expect(resolveFontKey("DoesNotExist")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+    const expected = installedTestPath();
+    setSessionGenericFamilyOverrides({ common: new Map([["standard", installedTestFamily]]), byScript: new Map() });
+    expect(__resolveFontSpecForTest(resolveFontKey("DoesNotExist")!)?.path).toBe(expected);
   });
 
   it("routes a script-specific standard-family terminal from the session", () => {
     setSessionGenericFamilyOverrides({
       common: new Map([["standard", "Times"]]),
-      byScript: new Map([["ARABIC", new Map([["standard", "Menlo"]])]]),
+      byScript: new Map([["ARABIC", new Map([["standard", installedTestFamily]])]]),
     });
-    expect(resolveFontKey("DoesNotExist", "ar")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+    expect(__resolveFontSpecForTest(resolveFontKey("DoesNotExist", "ar")!)?.path).toBe(installedTestPath());
   });
 
   it("falls back to the static route when the probed family is unrecognized", () => {

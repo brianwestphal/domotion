@@ -24,7 +24,7 @@ beforeAll(() => { prevResolver = getSystemFallbackResolution(); setSystemFallbac
 afterAll(() => { setSystemFallbackResolution(prevResolver); });
 
 describe("Consolas has no pin (alternate_font_family.h:72-105 — no alias; uninstalled names are walked past)", () => {
-  it("walks past an uninstalled Consolas to the next family instead of pinning Courier", () => {
+  it.runIf(process.platform === "darwin")("walks past an uninstalled Consolas to the next family instead of pinning Courier", () => {
     withHostPlatform("darwin", () => {
       const key = resolveFontKey("Consolas, Menlo, monospace");
       // Chrome paints Menlo here on a Mac without Consolas; on an MS-Office

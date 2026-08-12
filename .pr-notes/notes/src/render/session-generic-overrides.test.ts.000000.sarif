@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspsk7g6bkh27f8o",
+          "message": {
+            "text": "Session-override tests now nominate a family installed on the real test host and compare the resolved font file. This preserves the routing assertion while avoiding simulated-platform cache state and key-shape differences between curated and live resolver answers.",
+            "markdown": "Session-override tests now nominate a family installed on the real test host and compare the resolved font file. This preserves the routing assertion while avoiding simulated-platform cache state and key-shape differences between curated and live resolver answers."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/session-generic-overrides.test.ts"
+                },
+                "region": {
+                  "startLine": 27,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "  const installedTestFamily = hostPlatform() === \"darwin\"\n    ? \"Menlo\"\n    : hostPlatform() === \"win32\" ? \"Arial\" : \"Liberation Serif\";\n\n  const installedTestPath = (): string | undefined => {\n    const key = resolveFontKey(installedTestFamily);\n    expect(key).not.toBeNull();\n    return __resolveFontSpecForTest(key!)?.path;\n  };\n\n  it(\"defaults to null and round-trips through the accessor\", () => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2100"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "45c5954abf2013faacda961d466ed81c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "754cb05bac565b983520449782da4c86f343c92f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

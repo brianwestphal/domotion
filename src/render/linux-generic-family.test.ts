@@ -50,12 +50,14 @@ describeLinux("CSS generic keywords resolve where Chrome resolves them (Linux)",
     // On Linux `Snell Roundhand` does NOT reach the `snell` key's fontconfig
     // substitute at all: the transcribed nomination walk (doc 110) asks the
     // matcher, gets a rejection because the family is not installed, walks past
-    // it and lands on the last-resort chain — the same `times` key. So the
+    // it and lands on the host's last-resort serif face. So the
     // `snell` entry's `fcMatch: "cursive"` is dormant on this platform.
     //
     // Recorded because it is the reason the generics could not be "fixed" by
     // pointing `snell` somewhere too: that key is not in the path.
-    expect(resolveFontKey("Snell Roundhand")).toBe("times");
+    const key = resolveFontKey("Snell Roundhand");
+    expect(key).not.toBeNull();
+    expect(__resolveFontSpecForTest(key!)?.path).toBe(serifPath());
   });
 
   it("keeps the other generics where they already agreed with Chrome", () => {

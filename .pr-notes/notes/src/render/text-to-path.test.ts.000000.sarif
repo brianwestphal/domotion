@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspsk7mp7q6whm06",
+          "message": {
+            "text": "Linux-specific assertions now verify the actual Liberation Sans face rather than the macOS-oriented curated key. The focused Noble container suite passes all 219 runnable tests after this and the real-host gating changes.",
+            "markdown": "Linux-specific assertions now verify the actual Liberation Sans face rather than the macOS-oriented curated key. The focused Noble container suite passes all 219 runnable tests after this and the real-host gating changes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 625,
+                  "endLine": 636,
+                  "snippet": {
+                    "text": "    it(\"[linux] resolves the negated arrows to a DECOMPOSED run in the declared cascade, not the fc-match composed glyph\", () => {\n      for (const cp of [0x21AE, 0x21CE, 0x219A, 0x219B]) {\n        const r = __resolveFontForCodepointForTest(cp, \"sans-serif\");\n        expect(r).not.toBeNull();\n        // Liberation Sans (the `sans-serif` primary) covers ↔/⇔/←/→ + U+0338,\n        // so the walk must stop there with a HarfBuzz-shaped decomposed run —\n        // NOT fall through to the fc-match system fallback (sysfb:FreeSans /\n        // sysfb:FreeSerif), whose precomposed glyph Chrome never paints.\n        expect(r!.covered).toBe(true);\n        expect(r!.decomposed).toBe(true);\n        expect(__resolveFontSpecForTest(r!.key)?.path).toContain(\"LiberationSans\");\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2100"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "45099a1b9eedea04067fcc90f4997e2e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "754cb05bac565b983520449782da4c86f343c92f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

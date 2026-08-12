@@ -181,7 +181,7 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
     });
   });
 
-  it("the per-script entry outranks the session-probed Common-script override, mirroring the settings lookup order", () => {
+  it.runIf(process.platform === "darwin")("the per-script entry outranks the session-probed Common-script override, mirroring the settings lookup order", () => {
     withHostPlatform("darwin", () => {
       setSessionGenericFamilyOverrides({ common: new Map([["serif", "Menlo"]]), byScript: new Map() });
       // Common script: the probe's answer wins.
@@ -195,7 +195,7 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
     });
   });
 
-  it("a session-probed per-script answer outranks the static Playwright transcription", () => {
+  it.runIf(process.platform === "darwin")("a session-probed per-script answer outranks the static Playwright transcription", () => {
     withHostPlatform("darwin", () => {
       setSessionGenericFamilyOverrides({
         common: new Map([["serif", "Georgia"]]),

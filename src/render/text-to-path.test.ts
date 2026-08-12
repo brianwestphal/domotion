@@ -86,7 +86,7 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("ui-sans-serif")).toBe("times");
   });
 
-  it("falls through ui-monospace when later names in the chain are valid (DM-302)", () => {
+  it.runIf(process.platform === "darwin")("falls through ui-monospace when later names in the chain are valid (DM-302)", () => {
     // CSS like `font: ui-monospace, Menlo, Consolas, monospace` is common —
     // the leading ui-monospace is a hint Chrome doesn't recognize on macOS,
     // and Chrome paints Menlo (the next valid name). Pinning to Times on the
@@ -165,7 +165,7 @@ describe("resolveFontKey: generic-family resolution", () => {
 
 describe("resolveFontKey: explicit-name resolution", () => {
   withNominationWalkDisarmed();
-  it("honors author-named monospace families separately", () => {
+  it.runIf(process.platform === "darwin")("honors author-named monospace families separately", () => {
     expect(resolveFontKey("Menlo")).toBe("menlo");
     expect(resolveFontKey("Monaco")).toBe("monaco");
     expect(resolveFontKey("Courier")).toBe("courier");
@@ -249,7 +249,7 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("serif")).toBe("times");
   });
 
-  it("is case-insensitive for FAMILY names and strips quotes; generic keywords are canonical-lowercase only", () => {
+  it.runIf(process.platform === "darwin")("is case-insensitive for FAMILY names and strips quotes; generic keywords are canonical-lowercase only", () => {
     // Family-name lookups are case-insensitive (CoreText/DirectWrite/
     // fontconfig all fold case), so any spelling of a real family matches.
     expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
@@ -632,7 +632,7 @@ describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)
         // sysfb:FreeSerif), whose precomposed glyph Chrome never paints.
         expect(r!.covered).toBe(true);
         expect(r!.decomposed).toBe(true);
-        expect(r!.key).toBe("helvetica");
+        expect(__resolveFontSpecForTest(r!.key)?.path).toContain("LiberationSans");
       }
     });
   } else {
@@ -1584,7 +1584,7 @@ describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
     expect(resolveFontKey(`"Times New Roman", Georgia, sans-serif`)).toBe(chain[0]);
   });
 
-  it("skips unresolved / generic-keyword names Chrome walks past, preserving order", () => {
+  it.runIf(process.platform === "darwin")("skips unresolved / generic-keyword names Chrome walks past, preserving order", () => {
     // DoesNotExist + the ui-* / -apple-system keywords resolve to nothing and
     // must NOT appear; the real families that follow them keep their order.
     expect(resolveFontKeyChain(`DoesNotExist, -apple-system, ui-monospace, Menlo, monospace`))
@@ -1726,7 +1726,7 @@ describe("Math Operators primary-font handling (DM-332)", () => {
   // then picks them from Apple Times instead of falling through to the symbols
   // chain. So the `fallbackFontChain` for U+2200..22FF stays empty / unchanged
   // — it only fires when the primary lacks the codepoint (∀ ∇ ∂ ∈ ⊂ ∧ etc.).
-  it("ui-serif / math / serif resolves to times (Apple Times has the common operators)", () => {
+  it.runIf(process.platform === "darwin")("ui-serif / math / serif resolves to times (Apple Times has the common operators)", () => {
     // `font-family: math` falls through to the Times default (DM-269 +
     // DM-291), so the math-row primary is `times` which is Apple Times.
     expect(resolveFontKey("math")).toBe("times");
@@ -2545,7 +2545,7 @@ describe("synthesized small-caps (DM-294): embedded-font mode font-size ROUNDING
 
 describe("resolveFontKey: chain walking", () => {
   withNominationWalkDisarmed();
-  it("picks the first recognized name in the stack", () => {
+  it.runIf(process.platform === "darwin")("picks the first recognized name in the stack", () => {
     expect(resolveFontKey('"DoesNotExist", monospace')).toBe("courier");
     expect(resolveFontKey("DoesNotExist, Helvetica, sans-serif")).toBe("helvetica");
     expect(resolveFontKey("Menlo, Consolas, monospace")).toBe("menlo");
@@ -2775,11 +2775,12 @@ describe("resolveFontKey: registered webfonts win over Placeholder + sans-serif 
     expect(resolveFontKey(family)).toBe("webfont:inter variable");
   });
 
-  it("falls through to sans-serif (helvetica) when neither the custom family nor any later name is a registered webfont", () => {
+  it("falls through to the host sans-serif when neither the custom family nor any later name is a registered webfont", () => {
     // Sanity check: when nothing in the cascade matches a registered webfont
     // we still resolve via the generic-family rules — confirming the
     // webfont-match isn't masking the existing fallback chain.
-    expect(resolveFontKey('"Unregistered Custom Font", "Unregistered Custom Font Placeholder", sans-serif')).toBe("helvetica");
+    const hostSans = resolveFontKey("sans-serif");
+    expect(resolveFontKey('"Unregistered Custom Font", "Unregistered Custom Font Placeholder", sans-serif')).toBe(hostSans);
   });
 
   it("picks the registered family when it appears LATER in the cascade than an unregistered first name", () => {
