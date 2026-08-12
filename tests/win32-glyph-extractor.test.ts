@@ -384,16 +384,16 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
     }
   });
 
-  // `onMatchFamilyStyleCharacter` passes `kDefaultSimulations`, whose mask
-  // allows bold and oblique. U+2758 at weight 700 discriminates this from the
-  // family matcher's simulation-stripping rule: DirectWrite returns the Light
-  // base plus bold simulation, and Chromium keeps it.
-  it("keeps the fallback simulation allowed by Skia's kDefaultSimulations", () => {
+  // `onMatchFamilyStyleCharacter` allows the simulated Light nomination, but
+  // Blink does not render that raw typeface: it copies its style and reopens
+  // Segoe UI through the simulation-free family matcher. The resulting regular
+  // cut lacks U+2758, so GetDWriteFallbackFamily returns null. This pins both
+  // halves of the pipeline; returning SegoeUI-Light here stops one stage early.
+  it("rejects a simulated nomination whose Blink-reopened cut lacks the glyph", () => {
     const light = family("Segoe UI", { cssWeight: 300 });
     if (!light.found || !/Light/i.test(light.postscriptName)) return;
     const r = fallback([0x2758], { locale: "en-us", cssWeight: 700 }).fonts[0];
-    expect(r.found).toBe(true);
-    expect(r.postscriptName).toBe("SegoeUI-Light");
+    expect(r.found).toBe(false);
   });
 
   // The family query runs the same loop (Skia's FirstMatchingFontWithoutSimulations,
