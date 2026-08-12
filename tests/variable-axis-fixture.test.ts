@@ -56,6 +56,19 @@ describe("the fixture", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("keeps importable oracle modules free of CLI hashbangs", () => {
+    // These files are both command entry points and libraries imported by the
+    // paired-oracle Vitest suite. On a Windows CRLF checkout, Oxc can leave the
+    // hashbang's carriage return behind as an unexpected token during import.
+    for (const path of [
+      "tools/font-conformance.ts",
+      "tools/shaping-conformance.ts",
+      "tools/variable-axis-oracle-pair.ts",
+    ]) {
+      expect(readFileSync(path, "utf-8").startsWith("#!")).toBe(false);
+    }
+  });
+
   it("exists and is self-contained", () => {
     expect(existsSync(DEFAULT_FIXTURE)).toBe(true);
     // A data URI rather than a sibling file, deliberately: Chrome treats a

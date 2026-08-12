@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspm989dzgg4h0d0",
+          "message": {
+            "text": "The paired oracle imports three CLI-oriented TypeScript modules as libraries. Their hashbangs are unnecessary under npm/tsx and can leave an unexpected carriage-return token in the Windows Oxc transform path, so this guard keeps those imports hashbang-free.",
+            "markdown": "The paired oracle imports three CLI-oriented TypeScript modules as libraries. Their hashbangs are unnecessary under npm/tsx and can leave an unexpected carriage-return token in the Windows Oxc transform path, so this guard keeps those imports hashbang-free."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/variable-axis-fixture.test.ts"
+                },
+                "region": {
+                  "startLine": 47,
+                  "endLine": 59,
+                  "snippet": {
+                    "text": "    const walk = (dir: string): void => {\n      for (const name of readdirSync(dir)) {\n        const path = `${dir}/${name}`;\n        if (statSync(path).isDirectory()) { walk(path); continue; }\n        if (/\\.tsx?$/.test(name) && readFileSync(path).includes(0)) offenders.push(path);\n      }\n    };\n    walk(\"src\");\n    walk(\"tools\");\n    expect(offenders).toEqual([]);\n  });\n\n  it(\"keeps importable oracle modules free of CLI hashbangs\", () => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.8
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2099"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "afa4d73d635930fff30d45cb655b3e9a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e84373523a27b6b94ba49288ccd5844dcb3e8c26",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

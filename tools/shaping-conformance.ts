@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * SHAPING conformance oracle — the sibling of `tools/font-conformance.ts`.
  *

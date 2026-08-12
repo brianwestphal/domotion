@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * PAIRED-ORACLE demonstration: what a variable axis does to each instrument.
  *

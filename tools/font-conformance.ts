@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Font-resolution CONFORMANCE ORACLE.
  *
