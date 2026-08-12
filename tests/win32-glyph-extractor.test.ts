@@ -351,21 +351,16 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
     }
   });
 
-  // Chrome never receives a face carrying a Windows simulation: Skia re-asks
-  // with the offending style axis reset, so Blink applies its own synthetic
-  // bold. The stripping is normally invisible to a PostScript-name comparison —
-  // it lands on the same base file — which is exactly why it needs a pin rather
-  // than a score. U+2758 at weight 700 is the one row on a stock Win11 font set
-  // where the two answers differ: without the loop DirectWrite hands back the
-  // Light cut plus a bold simulation, with it the Semilight cut and no
-  // simulation. Gated on that cut being installed so a trimmed font set skips
-  // rather than fails.
-  it("re-asks MapCharacters without the simulation Chrome would never take", () => {
-    const semilight = family("Segoe UI", { cssWeight: 350 });
-    if (!semilight.found || !/Semilight/i.test(semilight.postscriptName)) return;
+  // `onMatchFamilyStyleCharacter` passes `kDefaultSimulations`, whose mask
+  // allows bold and oblique. U+2758 at weight 700 discriminates this from the
+  // family matcher's simulation-stripping rule: DirectWrite returns the Light
+  // base plus bold simulation, and Chromium keeps it.
+  it("keeps the fallback simulation allowed by Skia's kDefaultSimulations", () => {
+    const light = family("Segoe UI", { cssWeight: 300 });
+    if (!light.found || !/Light/i.test(light.postscriptName)) return;
     const r = fallback([0x2758], { locale: "en-us", cssWeight: 700 }).fonts[0];
     expect(r.found).toBe(true);
-    expect(r.postscriptName).toBe("SegoeUI-Semilight");
+    expect(r.postscriptName).toBe("SegoeUI-Light");
   });
 
   // The family query runs the same loop (Skia's FirstMatchingFontWithoutSimulations,

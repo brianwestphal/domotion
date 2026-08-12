@@ -1046,12 +1046,12 @@ static DWRITE_FONT_STYLE dwriteSlantFromCss(double cssSlant, bool italic) {
 // means. The query additionally reports `"numberSubstitution":"failed"` so a
 // rejected tag is visible instead of looking like universal non-coverage.
 //
-// DM-1956: and the SIMULATION-STRIPPING LOOP around MapCharacters
-// (`SkFontMgr_win_dw.cpp:645-687`, Skia rev fd139e79). Same mechanism as the
-// family query's `firstMatchingFontWithoutSimulations`, but the pinned revision
-// writes it out separately here with a narrower termination clause — no
-// regular/upright early-out, only "no simulations at all, or the face has
-// bitmap strikes". Transcribed with that difference intact.
+// `onMatchFamilyStyleCharacter` calls `fallback(..., kDefaultSimulations)`;
+// that mask explicitly ALLOWS DirectWrite's bold and oblique simulations
+// (`SkFontMgr_win_dw.cpp:149-150,648`, Skia rev fd139e79). This differs from
+// the family-style matcher, whose caller can prohibit simulations. The
+// fallback loop therefore accepts either simulation here and Blink receives
+// the base face plus its simulation bits.
 //
 // DM-1721: when the mapped face is a variable-font instance, each found entry
 // additionally carries `"axes":{...}` — the axis location DirectWrite resolved
@@ -1118,10 +1118,15 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
       IDWriteFont* mappedFont = nullptr;
       FLOAT scale = 1.0f;
       HRESULT hr = E_FAIL;
-      // DM-1956: the style triple is per-codepoint MUTABLE, because the
-      // simulation-stripping loop resets one of its axes and re-asks.
+      // Keep Skia's loop shape, including its mutable style triple. With
+      // `kDefaultSimulations`, both DirectWrite simulation bits are allowed,
+      // so the first mapped face terminates it; spelling the predicate keeps
+      // this transcription honest if the allowed mask ever narrows.
       DWRITE_FONT_WEIGHT mapWeight = dwWeight;
       DWRITE_FONT_STYLE mapSlant = dwSlant;
+      constexpr DWRITE_FONT_SIMULATIONS allowedSimulations =
+          static_cast<DWRITE_FONT_SIMULATIONS>(
+              DWRITE_FONT_SIMULATIONS_BOLD | DWRITE_FONT_SIMULATIONS_OBLIQUE);
       for (int pass = 0; pass < kMaxSimulationStrips; pass++) {
         safeRelease(mappedFont);
         // DM-1871: Blink passes the RUN'S PRIMARY FAMILY as `baseFamilyName`.
@@ -1141,7 +1146,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
             &mappedLength, &mappedFont, &scale);
         if (FAILED(hr) || !mappedFont) break;
         DWRITE_FONT_SIMULATIONS simulations = mappedFont->GetSimulations();
-        if (simulations == DWRITE_FONT_SIMULATIONS_NONE ||
+        if ((simulations & ~allowedSimulations) == 0 ||
             faceHasBitmapStrikes(mappedFont)) {
           break;
         }

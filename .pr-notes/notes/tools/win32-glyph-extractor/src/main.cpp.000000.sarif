@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspbzfuzoxqvmowk",
+          "message": {
+            "text": "Fallback simulation policy is not the family matcher's policy. Pinned Skia calls fallback with kDefaultSimulations (bold|oblique), so the MapCharacters loop accepts those bits; the prior helper stripped them and re-asked a question Chromium does not ask. This is the source-backed discriminator for DM-2083's 25 regular-versus-italic rows.",
+            "markdown": "Fallback simulation policy is not the family matcher's policy. Pinned Skia calls fallback with kDefaultSimulations (bold|oblique), so the MapCharacters loop accepts those bits; the prior helper stripped them and re-asked a question Chromium does not ask. This is the source-backed discriminator for DM-2083's 25 regular-versus-italic rows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1048,
+                  "endLine": 1160,
+                  "snippet": {
+                    "text": "//\n// `onMatchFamilyStyleCharacter` calls `fallback(..., kDefaultSimulations)`;\n// that mask explicitly ALLOWS DirectWrite's bold and oblique simulations\n// (`SkFontMgr_win_dw.cpp:149-150,648`, Skia rev fd139e79). This differs from\n// the family-style matcher, whose caller can prohibit simulations. The\n// fallback loop therefore accepts either simulation here and Blink receives\n// the base face plus its simulation bits.\n//\n// DM-1721: when the mapped face is a variable-font instance, each found entry\n// additionally carries `\"axes\":{...}` — the axis location DirectWrite resolved\n// the face to (see faceResolvedAxesJson). Node uses it to pin the\n// hinting-preserving embedded subset at the SAME instance DirectWrite renders,\n// instead of deriving opsz from the font size (wrong for named optical\n// subfamilies, which DirectWrite pins at a fixed opsz at every size).\nstatic std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* factory) {\n  std::ostringstream out;\n  out << \"{\\\"type\\\":\\\"fallback\\\",\\\"fonts\\\":[\";\n\n  IDWriteFactory2* factory2 = nullptr;\n  IDWriteFontFallback* fallback = nullptr;\n  IDWriteFontCollection* systemFonts = nullptr;\n  if (factory) {\n    factory->QueryInterface(__uuidof(IDWriteFactory2), reinterpret_cast<void**>(&factory2));\n    if (factory2) factory2->GetSystemFontFallback(&fallback);\n    factory->GetSystemFontCollection(&systemFonts, FALSE);\n  }\n\n  // DM-1864: the run's real style, not NORMAL/NORMAL/NORMAL. Absent fields keep\n  // the previous defaults, so an older Node side (or a caller that has no style\n  // to offer) gets exactly the pre-existing behavior.\n  const DWRITE_FONT_WEIGHT dwWeight = dwriteWeightFromCss(query.at(\"cssWeight\").asNumber(400));\n  const DWRITE_FONT_STYLE dwSlant =\n      dwriteSlantFromCss(query.at(\"cssSlant\").asNumber(0), query.at(\"italic\").asBool(false));\n  const DWRITE_FONT_STRETCH dwStretch = dwriteStretchFromCss(query.at(\"cssStretch\").asNumber(100));\n\n  // DM-1871: the run's primary family, when the caller knows it.\n  const std::wstring baseFamilyW = toWide(query.at(\"baseFamilyName\").asString());\n\n  // DM-1896: the run's fallback locale, when the caller knows it. Empty keeps\n  // the pre-DM-1896 constant so an older Node side is unchanged rather than\n  // locale-less. Only the tag DirectWrite is given matters here — see\n  // `blinkWinFallbackLocale` on the Node side for how it is derived; this end\n  // does no reduction of its own, deliberately, so there is exactly one place\n  // the transcription lives.\n  const std::string localeUtf8 = query.at(\"locale\").asString();\n  const std::wstring localeW = localeUtf8.empty() ? L\"en-us\" : toWide(localeUtf8);\n\n  // DM-1931: built once per query — the tag is constant across it, and Skia\n  // builds one per match from that same tag. A failure here is a property of the\n  // tag, so it applies to every codepoint in the query, which is precisely how\n  // Skia would fail each of them one at a time.\n  HRESULT nsHr = S_OK;\n  IDWriteNumberSubstitution* numberSubstitution =\n      createSkiaNumberSubstitution(factory, localeW, &nsHr);\n  // A null factory is a different (and already fatal) condition; only a real\n  // DirectWrite rejection of the tag counts as the Skia-mirroring bail.\n  const bool numberSubstitutionFailed = factory != nullptr && FAILED(nsHr);\n\n  const JsonArray& cps = query.at(\"cps\").asArray();\n  for (size_t i = 0; i < cps.size(); i++) {\n    if (i > 0) out << \",\";\n    uint32_t cp = static_cast<uint32_t>(cps[i].asNumber());\n\n    bool found = false;\n    std::string psName, familyName, path, axesJson;\n    if (fallback && systemFonts && !numberSubstitutionFailed) {\n      std::wstring s = cpToUtf16(cp);\n      SingleStringAnalysisSource* source =\n          new SingleStringAnalysisSource(s, localeW, numberSubstitution);\n      UINT32 mappedLength = 0;\n      IDWriteFont* mappedFont = nullptr;\n      FLOAT scale = 1.0f;\n      HRESULT hr = E_FAIL;\n      // Keep Skia's loop shape, including its mutable style triple. With\n      // `kDefaultSimulations`, both DirectWrite simulation bits are allowed,\n      // so the first mapped face terminates it; spelling the predicate keeps\n      // this transcription honest if the allowed mask ever narrows.\n      DWRITE_FONT_WEIGHT mapWeight = dwWeight;\n      DWRITE_FONT_STYLE mapSlant = dwSlant;\n      constexpr DWRITE_FONT_SIMULATIONS allowedSimulations =\n          static_cast<DWRITE_FONT_SIMULATIONS>(\n              DWRITE_FONT_SIMULATIONS_BOLD | DWRITE_FONT_SIMULATIONS_OBLIQUE);\n      for (int pass = 0; pass < kMaxSimulationStrips; pass++) {\n        safeRelease(mappedFont);\n        // DM-1871: Blink passes the RUN'S PRIMARY FAMILY as `baseFamilyName`.\n        // `FontCache::GetDWriteFallbackFamily` takes\n        // `font_description.Family().FamilyName()` and Skia forwards it as this\n        // argument (`win/font_cache_skia_win.cc:234-240` →\n        // `SkFontMgr_win_dw.cpp:653-666`, Chromium rev 7d859f27).\n        //\n        // It is not cosmetic: the base family is what lets that family's own font\n        // linking participate in DirectWrite's answer, so passing null asks a\n        // different question than Chrome asks. Absent field keeps the previous\n        // nullptr behaviour, so an older Node side degrades rather than mismatches.\n        hr = fallback->MapCharacters(\n            source, 0, static_cast<UINT32>(s.size()), systemFonts,\n            baseFamilyW.empty() ? nullptr : baseFamilyW.c_str(),\n            mapWeight, mapSlant, dwStretch,\n            &mappedLength, &mappedFont, &scale);\n        if (FAILED(hr) || !mappedFont) break;\n        DWRITE_FONT_SIMULATIONS simulations = mappedFont->GetSimulations();\n        if ((simulations & ~allowedSimulations) == 0 ||\n            faceHasBitmapStrikes(mappedFont)) {\n          break;\n        }\n        if (simulations & DWRITE_FONT_SIMULATIONS_BOLD) {\n          mapWeight = DWRITE_FONT_WEIGHT_REGULAR;\n          continue;\n        }\n        if (simulations & DWRITE_FONT_SIMULATIONS_OBLIQUE) {\n          mapSlant = DWRITE_FONT_STYLE_NORMAL;\n          continue;\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/win32-glyph-extractor.test.ts"
+                },
+                "region": {
+                  "startLine": 350
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "67d419ad6d2a65fd2c64e63ad7043e0d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "934713a5197811a8a0c9d9cd54ce4f2f939d4f48",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
