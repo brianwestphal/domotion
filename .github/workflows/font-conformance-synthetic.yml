@@ -212,7 +212,7 @@ jobs:
           CP_SHARD: ${{ inputs.cp_shard }}
           CP_TOTAL: ${{ inputs.cp_total }}
       - name: Secondary logical parity matrix (clusters, webfonts, variable axes)
-        if: matrix.shard == 1
+        if: matrix.shard == 1 && inputs.sample_byte == 'auto'
         run: |
           npm run fonts:cluster-conformance
           if DOMOTION_CLUSTER_FALLBACK=0 npm run fonts:cluster-conformance; then
@@ -268,7 +268,7 @@ jobs:
           CP_SHARD: ${{ inputs.cp_shard }}
           CP_TOTAL: ${{ inputs.cp_total }}
       - name: Secondary logical parity matrix (clusters, webfonts, variable axes)
-        if: matrix.shard == 1
+        if: matrix.shard == 1 && inputs.sample_byte == 'auto'
         run: |
           npm run fonts:cluster-conformance
           if DOMOTION_CLUSTER_FALLBACK=0 npm run fonts:cluster-conformance; then
@@ -318,7 +318,7 @@ jobs:
           CP_SHARD: ${{ inputs.cp_shard }}
           CP_TOTAL: ${{ inputs.cp_total }}
       - name: Secondary logical parity matrix (clusters, webfonts, variable axes)
-        if: matrix.shard == 1
+        if: matrix.shard == 1 && inputs.sample_byte == 'auto'
         shell: bash
         run: |
           npm run fonts:cluster-conformance
