@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspszcrt8ce8ywnw",
+          "message": {
+            "text": "The regression matrix covers bare/BMP emoji, modifiers, ZWJ, VS15/VS16, mixed text, RTL surroundings, and a line boundary. The targeted text-font-variant-emoji visual fixture remains pixel exact (0 regions, 0.00%).",
+            "markdown": "The regression matrix covers bare/BMP emoji, modifiers, ZWJ, VS15/VS16, mixed text, RTL surroundings, and a line boundary. The targeted text-font-variant-emoji visual fixture remains pixel exact (0 regions, 0.00%)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-path-run-split.test.ts"
+                },
+                "region": {
+                  "startLine": 164,
+                  "endLine": 202,
+                  "snippet": {
+                    "text": "    [\"Helvetica\", \"a\\u{1F600}b\"],        // mixed text\n    [\"Helvetica\", \"x⭐y\"],                // BMP emoji\n    [\"Helvetica\", \"\\u{1F44D}\\u{1F3FB}\"], // modifier sequence\n    [\"Helvetica\", \"\\u{1F468}\\u200D\\u{1F469}\\u200D\\u{1F467}\"], // ZWJ sequence\n    [\"Helvetica\", \"❤️\"],                 // VS16\n    [\"Helvetica\", \"♥︎\"],                 // VS15\n    [\"Helvetica\", \"אב\\u{1F600}גד\"],      // RTL surroundings\n    [\"Helvetica\", \"\\u{1F600}\\na\"],      // line boundary\n  ];\n\n  it(\"keeps emoji cases on the shaped Chromium face without a chain-tail terminal\", () => {\n    for (const [fam, text] of emojiTexts) {\n      delete process.env.DOMOTION_CLUSTER_FALLBACK;\n      const shaped = splitFull(fam, text);\n      expect(shaped.some((run) => run.key === \"last-resort\"), `${fam} ${text}`).toBe(false);\n    }\n  });\n\n  it(\"keeps an explicit emoji variation sequence together on Chromium's selected face\", () => {\n    delete process.env.DOMOTION_CLUSTER_FALLBACK;\n    expect(split(\"Helvetica\", \"a❤️b\")).toEqual([\n      { text: \"a\", key: \"helvetica\" },\n      { text: \"❤️\", key: \"sysfb:AppleColorEmoji\" },\n      { text: \"b\", key: \"helvetica\" },\n    ]);\n  });\n\n  it(\"routes an emoji through Chromium's selected color face\", () => {\n    delete process.env.DOMOTION_CLUSTER_FALLBACK;\n    expect(split(\"Helvetica\", \"a\\u{1F600}b\")).toEqual([\n      { text: \"a\", key: \"helvetica\" },\n      { text: \"\\u{1F600}\", key: \"sysfb:AppleColorEmoji\" },\n      { text: \"b\", key: \"helvetica\" },\n    ]);\n  });\n});\n\n(MACOS_FONTS ? describe : describe.skip)(\"decomposed flags survive the port\", () => {\n  it(\"marks a dotted-circle cluster run decomposed (run-text branch)\", () => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2093"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "21dfd6f204b4bf33543604ba32ea00d4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c4a875e30736442442d8c86647c49c40d2b6c781",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

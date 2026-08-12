@@ -193,9 +193,7 @@ export function synthSmallCapsCharScale(
  * Default: Blink's shape-then-requeue mechanism at shaped-cluster granularity
  * (`splitTextIntoFontRunsShaped`, docs/113 — `ExtractShapeResults`,
  * `platform/fonts/shaping/harfbuzz_shaper.cc:627-787`, rev 7d859f27), invoked
- * in its "paths" mode so the emitter's two extra concerns survive the port:
- * the raster-emoji terminal (an uncovered emoji pins the static chain's last
- * entry so the PNG overlay's advance alignment holds) and per-run `decomposed`
+ * in its "paths" mode so the emitter's per-run `decomposed`
  * flags (which pick the emitter's run-text branch). This makes the glyph-path
  * and embedded pipelines assign the SAME fonts to the same partially-covered
  * clusters — previously this walk decided per codepoint from cmap coverage
@@ -289,51 +287,18 @@ export function splitTextIntoGlyphPathRuns(
     // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
     const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
     const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
-    // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
-    // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
-    // placing one on a system color font here would split it out of the
-    // surrounding text run and break the overlay's advance pinning (the
-    // embedded path, which has no overlay, does let the resolver place them).
-    // Under `font-variant-emoji: text` the terminal must NOT capture the
-    // codepoint: Chrome's forced-VS15 cascade finds a monochrome face where
-    // one exists (measured: U+26A1 → Apple Symbols, U+2B50 → STIX Two Math),
-    // so the resolver — with the same suppression threaded — decides.
-    const emojiToTerminal = glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text";
     if (clusterRun != null) {
       emitCh = ch;
       useKey = clusterRun.key;
       useFontOverride = clusterRun.font;
       useDecomposed = true;
-    } else if (res!.covered && !emojiToTerminal) {
+    } else if (res!.covered) {
       emitCh = res!.emitCh;
       useKey = res!.key;
       useFontOverride = res!.fontOverride;
       useDecomposed = res!.decomposed;
     } else {
-      // Glyph-path terminal: nothing covers `cp` (an exotic emoji even Apple
-      // Symbols lacks), or `cp` is an emoji kept off the resolver per above.
-      // Pin to the LAST chain entry's stable `.notdef` advance so a captured
-      // rasterGlyph PNG overlay stays aligned — switching to primary's
-      // `.notdef` would shift glyph positions and drift the rest of the line.
-      // (For the empty emoji chain the last entry is the primary font, grouping
-      // the suppressed-tofu emoji with the surrounding run.) This is the one
-      // place the glyph-path terminal differs from the embedded path's
-      // primary-`.notdef`; the system-fallback + NFD steps the resolver added
-      // are the DM-1068 fidelity fix the glyph-path lacked.
-      // ...EXCEPT for private-use / noncharacter codepoints, where Blink's
-      // terminal is the first candidate's `.notdef` and nothing else: it runs
-      // no system fallback for them at all (`platform/fonts/font_cache.cc:242-244`,
-      // rev 7d859f27), so the iterator falls through kSystemFonts to
-      // `kFirstCandidateForNotdefGlyph` (`font_fallback_iterator.cc:159-164`).
-      // Pinning those to the chain tail painted LastResort's glyph — a rounded
-      // box with a `?`, 35.20px wide at 32px against Helvetica's 20.28px
-      // `.notdef` — so the ink ran over the following character while the
-      // ADVANCE (from the capture) stayed Chrome's. The rasterGlyph rationale
-      // above doesn't reach here: an overlay is only pinned for emoji, and a
-      // PUA or noncharacter codepoint is neither.
-      //
-      // GENERALISED: the terminal is the primary for EVERY uncovered
-      // codepoint, not only the private-use ones. Blink's iterator ends at
+      // Glyph-path terminal: nothing covers `cp`. Blink's iterator ends at
       // `kFirstCandidateForNotdefGlyph` and re-returns the first candidate so
       // that font's `.notdef` paints; the stage before it asks
       // `GetLastResortFallbackFont`, which on macOS is **Times** (Lucida
@@ -349,18 +314,8 @@ export function splitTextIntoGlyphPathRuns(
       // Helvetica's `.notdef` (1298/2048 em). LastResort's glyph would be
       // 35.2031px.
       //
-      // The emoji case above still reaches this branch and still wants the
-      // chain tail: `emojiToTerminal` routes an uncovered emoji here on
-      // purpose so the captured rasterGlyph PNG overlay keeps its advance
-      // pinning, which is the rationale the original comment gives. That is
-      // the one caller for which the pin was ever the point.
       emitCh = ch;
-      if (emojiToTerminal) {
-        const chain = fallbackFontChain(cp, primaryFontKey, lang);
-        useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
-      } else {
-        useKey = primaryFontKey;
-      }
+      useKey = primaryFontKey;
       useFontOverride = null;
       useDecomposed = false;
     }

@@ -339,6 +339,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspszckswigrwyau",
+          "message": {
+            "text": "Paths mode no longer pre-pins raster emoji before Blink-equivalent fallback. The captured image rectangle owns visual paint, while the shared shaped fallback owns face selection, clusters, and advances; this removes the only kFirstCandidateForNotdefGlyph exception between render modes.",
+            "markdown": "Paths mode no longer pre-pins raster emoji before Blink-equivalent fallback. The captured image rectangle owns visual paint, while the shared shaped fallback owns face selection, clusters, and advances; this removes the only kFirstCandidateForNotdefGlyph exception between render modes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 648,
+                  "endLine": 666,
+                  "snippet": {
+                    "text": "    }\n    let familyIndex = 0;\n    /** `unique_font_data_for_range_sets_returned_` — face identity of every\n     *  entire-range candidate the iterator returned (`UniqueOrNext`); range-\n     *  subsetted webfont faces are exempt (\"We don't want to skip subsetted\n     *  ranges because HarfBuzzShaper's behavior depends on the subsetting\"). */\n    const returnedFaces = new Set<string>();\n    /** `previously_asked_for_hint_` — each hint char asked of the system once. */\n    const previouslyAskedHints = new Set<number>();\n    /** Per-family segmented-face arrays and cursors. Blink builds the array in\n     * reverse declaration order, then advances it once while filtering each\n     * face against the current hint list. */\n    const segmentedWebfonts = new Map<string, { faces: FontInstance[]; index: number }>();\n    // Wrapped in an object so TypeScript does not narrow the union across the\n    // closure mutations in `nextFont` (the loop below reads it after each call).\n    const iter = { stage: \"family\" as Stage };\n    let firstCandidate: Candidate | null = null;\n    /** kIntermediateWithVS: an unmatched variation sequence was seen. */\n    let vsSeen = false;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2093"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0702ca2e22b0051ad7726d286a5e708b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c4a875e30736442442d8c86647c49c40d2b6c781",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

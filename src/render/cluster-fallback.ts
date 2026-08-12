@@ -1,8 +1,8 @@
 // Font fallback at SHAPED-CLUSTER granularity — the default run splitter for
 // BOTH render modes: the embedded-font pipeline (`splitTextIntoFontRuns`) and,
 // via `ShapedSplitOptions.mode: "paths"`, the glyph-path emitter
-// (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`). Paths mode adds the
-// emitter's raster-emoji terminal pin and per-run `decomposed` flags — see the
+// (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`). Paths mode adds
+// per-run `decomposed` flags — see the
 // option's doc below and docs/113-cluster-granularity-fallback.md.
 //
 // Blink does not decide fallback per codepoint. It shapes the whole segment
@@ -62,7 +62,7 @@ import {
   resolveColorEmojiKeyForCp, isEmojiCharCp, isEmojiPresentationCp,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
   isEmojiCodepoint, fontHasSupportedColorTable,
-  glyphIdForCp, fallbackFontChain, harfbuzzShapedRunOverride,
+  glyphIdForCp, harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
   registerFontEnvironmentInvalidator,
 } from "./font-resolution.js";
@@ -122,10 +122,6 @@ interface Assignment {
 /** Which emitter the split feeds. The default ("embedded") is the contract the
  *  embedded-font pipeline shipped with. "paths" is the glyph-path emitter
  *  (`textToPathMarkup`), which adds two concerns of its own:
- *  - the raster-emoji terminal pin (`pinnedEmojiTerminalSpans` below) — emoji
- *    are painted by a captured raster overlay there, so an uncovered emoji must
- *    keep the calibrated per-codepoint terminal instead of the resolver's
- *    system answer;
  *  - per-run `decomposed` flags, and no merging across a flag boundary — the
  *    emitter picks its per-char vs run-text branch per run from the flag. */
 export interface ShapedSplitOptions {
@@ -479,78 +475,6 @@ function pinnedDottedCircleSpans(
   return spans;
 }
 
-// ── Glyph-path raster-emoji terminal (pinned prepass, "paths" mode only) ────
-//
-// The glyph-path emitter paints emoji through a captured raster `<image>`
-// overlay and suppresses their path emission, so the underlying run exists only
-// to hold the ADVANCE the overlay was aligned against. Its calibrated contract
-// (transplanted from `textToPathMarkup`'s per-codepoint walk): an emoji the
-// primary's cmap lacks is pinned to the LAST entry of the static fallback chain
-// — that entry's stable `.notdef` advance keeps the overlay aligned — or to the
-// primary itself when the chain is empty, grouping the suppressed tofu with the
-// surrounding run. The resolver's system stage must never place it on a color
-// font: that would split it out of the surrounding run and drift the rest of
-// the line. (The embedded pipeline has no overlay and deliberately lets the
-// resolver place emoji on the color font — hence the mode split.)
-//
-// A VALID variation sequence is never pinned: its base and selector remain in
-// the shaped retry loop so `kUnmatchedVSGlyphId` selects one Chromium-equivalent
-// face for the whole cluster. An invalid/default-ignorable selector after a
-// pinned emoji stays on the same advance donor; asking the resolver for that
-// selector independently would split a character Blink never treats as a
-// standalone fallback request.
-//
-// Not a Blink behavior — Blink has no raster overlay. This is a Domotion
-// calibration the glyph-path emitter is built around; parity for these
-// codepoints is carried by the overlay itself, not by the run split.
-function pinnedEmojiTerminalSpans(
-  text: string,
-  primaryFont: FontInstance,
-  primaryFontKey: string,
-  weight: number,
-  fontSize: number,
-  slant: number,
-  lang: string | undefined,
-  fontVariantEmoji: FontVariantEmojiOverride | undefined,
-): Assignment[] {
-  const spans: Assignment[] = [];
-  let prevPinnedEmoji = false;
-  let i = 0;
-  while (i < text.length) {
-    const cp = text.codePointAt(i)!;
-    const len = cp > 0xffff ? 2 : 1;
-    const nextCp = i + len < text.length ? text.codePointAt(i + len)! : 0;
-    // An explicit VS15/VS16 after the codepoint wins over the property
-    // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27) —
-    // the same guard the legacy walk applies before its terminal test.
-    const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    if (glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp) && effFve !== "text"
-      && !_isBlinkVariationSequenceForTest(cp, nextCp)) {
-      const chain = fallbackFontChain(cp, primaryFontKey, lang);
-      const key = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
-      const font = key === primaryFontKey ? primaryFont : getFontInstance(key, weight, fontSize, slant);
-      if (font == null) throw new DeclineError();
-      spans.push({ start: i, end: i + len, key, font, isPrimary: key === primaryFontKey && font === primaryFont });
-      prevPinnedEmoji = true;
-    } else if (prevPinnedEmoji && isVariationSelectorCp(cp)) {
-      // An invalid/default-ignorable selector following a pinned raster emoji
-      // is advance-less and belongs to the same terminal run. Valid sequences
-      // never reach this branch: the base stays in the shaped VS retry loop.
-      const previous = spans[spans.length - 1];
-      spans.push({
-        start: i, end: i + len, key: previous.key, font: previous.font,
-        isPrimary: previous.isPrimary,
-      });
-      // Leave `prevPinnedEmoji` set: a multi-selector tail stays on the same
-      // advance donor.
-    } else {
-      prevPinnedEmoji = false;
-    }
-    i += len;
-  }
-  return spans;
-}
-
 // ── The FontFallbackIterator port ───────────────────────────────────────────
 
 type Stage = "family" | "priority" | "system" | "lastResort" | "firstCandidate" | "outOfLuck";
@@ -658,17 +582,6 @@ function splitShapedInner(
 
   // DM-1215 dotted-circle cluster runs, pinned before the requeue loop.
   const pinned = pinnedDottedCircleSpans(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
-  if (pathsMode) {
-    // The glyph-path emitter's raster-emoji terminal, pinned the same way. No
-    // overlap with the dotted-circle spans is possible: those cover marks and
-    // an explicit ◌, and an emoji base is neither (a variation selector IS
-    // category Mn, but it only pins here when the preceding emoji base — a
-    // non-mark — just closed any dotted-circle cluster).
-    pinned.push(...pinnedEmojiTerminalSpans(
-      text, primaryFont, primaryFontKey, weight, fontSize, slant, lang, fontVariantEmoji,
-    ));
-    pinned.sort((a, b) => a.start - b.start);
-  }
 
   // Script itemization FIRST — Blink's RunSegmenter runs before any shaping,
   // so a Thai-script mark (U+0E48, Script=Thai, not Inherited) never joins a

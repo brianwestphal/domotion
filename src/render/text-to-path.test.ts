@@ -2441,14 +2441,15 @@ describe("Emoji codepoints suppress .notdef tofu emission (DM-334)", () => {
     expect(out).toBeNull();
   });
   it.skipIf(!MACOS_FONTS)("emits text-but-no-emoji-tofu in mixed runs (Smile 😀)", () => {
-    // Mixed text: "Smile 😀" — the "Smile " chars emit Times glyphs, the
-    // 😀 codepoint suppresses its tofu. Without the suppression we'd see
-    // 7 <use>s (S, m, i, l, e, space, tofu); with it we see 6 (no tofu).
+    // Mixed text: "Smile 😀" — the five inked letters emit Times glyphs;
+    // space is contourless and the emoji's color-face glyph is suppressed for
+    // the raster overlay. Neither contributes a `<use>` or shifts the captured
+    // positions of the preceding letters.
     const out = renderTextAsPath("Smile 😀", 0, 0,
       { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 9, 18, 22, 26, 30, 34, 34] });
     expect(out).not.toBeNull();
     const useCount = (out!.match(/<use href="#g\d+"/g) ?? []).length;
-    expect(useCount).toBe(6);
+    expect(useCount).toBe(5);
   });
 });
 

@@ -2,15 +2,10 @@
 // shaped-cluster granularity — the "paths" render mode's port of the
 // shape-then-requeue mechanism (docs/113). The embedded splitter's tests live
 // in `cluster-fallback.test.ts`; these assert the SAME Chrome ground truth
-// through the glyph-path entry point, plus the two contracts that are specific
-// to this emitter and absent from the shared splitter's embedded mode:
+// through the glyph-path entry point, plus the one contract specific to this
+// emitter and absent from the shared splitter's embedded mode:
 //
-//   1. the raster-emoji terminal — emoji are painted by a captured raster
-//      overlay, so an uncovered emoji must keep the calibrated per-codepoint
-//      pin (static-chain tail, or the primary when the chain is empty; a
-//      trailing variation selector keeps the legacy resolver decision) instead
-//      of the resolver's color-font answer;
-//   2. per-run `decomposed` flags — the emitter picks its per-char vs run-text
+//   1. per-run `decomposed` flags — the emitter picks its per-char vs run-text
 //      branch per run from the flag, so a dotted-circle cluster must still
 //      carry it after the port.
 //
@@ -162,25 +157,25 @@ function splitFull(fam: string, text: string): Array<{ text: string; key: string
   });
 });
 
-(MACOS_FONTS ? describe : describe.skip)("raster-emoji terminal preserved (paths-mode pin)", () => {
-  // The pin is a Domotion overlay calibration, not a Blink behavior: Chrome
-  // paints these from Apple Color Emoji; the glyph-path emitter covers them
-  // with a captured raster and needs the underlying run's advance stable. The
-  // Bare emoji keep that legacy pin. Explicit variation sequences are the
-  // exception: they stay in Blink's sequence-aware walk as one cluster.
+(MACOS_FONTS ? describe : describe.skip)("raster emoji uses Chromium's ordinary fallback terminal", () => {
+  // The raster overlay owns paint only. Font selection and logical advances
+  // remain the same shape-then-requeue question used by embedded mode.
   const emojiTexts: Array<[string, string]> = [
-    ["Helvetica", "a\u{1F600}b"],   // empty chain → grouped with the primary run
-    ["Helvetica", "x⭐y"],           // chain tail (last-resort)
+    ["Helvetica", "a\u{1F600}b"],        // mixed text
+    ["Helvetica", "x⭐y"],                // BMP emoji
     ["Helvetica", "\u{1F44D}\u{1F3FB}"], // modifier sequence
+    ["Helvetica", "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}"], // ZWJ sequence
+    ["Helvetica", "❤️"],                 // VS16
+    ["Helvetica", "♥︎"],                 // VS15
+    ["Helvetica", "אב\u{1F600}גד"],      // RTL surroundings
+    ["Helvetica", "\u{1F600}\na"],      // line boundary
   ];
 
-  it("splits emoji text exactly as the legacy walk does", () => {
+  it("keeps emoji cases on the shaped Chromium face without a chain-tail terminal", () => {
     for (const [fam, text] of emojiTexts) {
       delete process.env.DOMOTION_CLUSTER_FALLBACK;
       const shaped = splitFull(fam, text);
-      process.env.DOMOTION_CLUSTER_FALLBACK = "0";
-      const legacy = splitFull(fam, text);
-      expect(shaped, `${fam} ${text}`).toEqual(legacy);
+      expect(shaped.some((run) => run.key === "last-resort"), `${fam} ${text}`).toBe(false);
     }
   });
 
@@ -193,11 +188,13 @@ function splitFull(fam: string, text: string): Array<{ text: string; key: string
     ]);
   });
 
-  it("keeps an uncovered empty-chain emoji grouped with the surrounding primary run", () => {
+  it("routes an emoji through Chromium's selected color face", () => {
     delete process.env.DOMOTION_CLUSTER_FALLBACK;
-    // A resolver-placed color font would split this into three runs and break
-    // the overlay's advance pinning.
-    expect(split("Helvetica", "a\u{1F600}b")).toEqual([{ text: "a\u{1F600}b", key: "helvetica" }]);
+    expect(split("Helvetica", "a\u{1F600}b")).toEqual([
+      { text: "a", key: "helvetica" },
+      { text: "\u{1F600}", key: "sysfb:AppleColorEmoji" },
+      { text: "b", key: "helvetica" },
+    ]);
   });
 });
 

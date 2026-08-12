@@ -63,7 +63,7 @@ flowchart TD
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
     B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>→ harfbuzzShapedRunOverride() per assembled run (HARFBUZZ_SHAPED_RANGES,<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
-    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>+ bare raster-emoji terminal pinned prepass (chain-tail .notdef);<br/>valid base+VS stays whole in shaped retry;<br/>invalid selector tail shares the pinned advance donor<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
@@ -104,15 +104,12 @@ into that verdict-shaping call, so disables and explicit feature values can
 change `.notdef` coverage before a fallback face is assigned, just as they do
 in Blink's `ShapeRange(buffer, font_features, ...)`. The paths entry (`splitTextIntoGlyphPathRuns`,
 `src/render/text-to-path.ts`) invokes the shared splitter with
-`mode: "paths"`, which adds the emitter's two contracts: the **raster-emoji
-terminal** (an uncovered emoji pins the last chain entry's stable `.notdef`
-advance so the raster overlay stays aligned — the resolver's color-font answer
-is never taken there; valid variation sequences bypass the pin and remain one
-cluster in the shaped retry, while an invalid/default-ignorable selector tail
-shares the pinned base's advance donor) and per-run **`decomposed` flags** (no merge across a flag boundary,
+`mode: "paths"`, which adds the emitter's per-run **`decomposed` flags** (no merge across a flag boundary,
 so the emitter's per-char vs run-text branch choice survives). The
-**uncovered terminal for non-emoji** is the FIRST candidate's `.notdef` in
-both (`kFirstCandidateForNotdefGlyph`). `resetGeneration()` clears both generation-scoped
+**uncovered terminal for every cluster, including raster-painted emoji**, is
+the FIRST candidate's `.notdef` in both modes (`kFirstCandidateForNotdefGlyph`).
+The raster overlay owns paint and its captured rectangle, never face selection
+or logical metrics. `resetGeneration()` clears both generation-scoped
 caches together (DM-1338 / DM-1435). The webfont + local-alias registries are
 **session-scoped** (survive across generations; cleared by `clearWebfonts`).
 
@@ -994,7 +991,7 @@ flowchart TD
   F3C -->|"unchanged / non-darwin"| F3H["cover(candidate)"]
   F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
-  F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(both modes: primary .notdef · paths keeps ONE deliberate<br/>exception — an uncovered EMOJI pins the chain tail so the<br/>raster-overlay advance stays aligned)"]
+  F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(both modes: first candidate's .notdef;<br/>a raster emoji overlay changes paint only)"]
   FCH & F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>resolvedFaceNeedsHarfbuzzShaping(cp, res.key)?<br/>(script-wide ranges + measured Linux Unifont face/script pairs)"}
   FHB -->|"no (every other codepoint)"| FHB0["resolution unchanged"]
   FHB -->|"yes"| FHB1["shapingFaceFor(res.key, weight, size, slant, fvs) →<br/>makeHarfbuzzShapingInstance(base, path, faceIndex, size, axes,<br/>{ outlinesFromBase: true })<br/>HarfBuzz supplies ids / positions / clusters ·<br/>base engine still draws (base.getGlyph(id))<br/>+ carryFontInstanceMetadata(proxy, base)"]
@@ -1296,8 +1293,8 @@ Notes:
   fallback answer, which is why it is gated rather than deleted. A codepoint
   the OS *declines* on a live host now falls to the uncovered terminal,
   Chrome's own answer. The chain FUNCTION (`fallbackFontChain`) stays ungated
-  for its non-resolver consumers: the uncovered-emoji terminal's advance pin,
-  the dotted-circle U+25CC advance candidates, and the batch glyph-warm.
+  for its non-resolver consumers: the dotted-circle U+25CC advance candidates
+  and the batch glyph-warm.
   `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
   A/B.
 - **Windows keeps 2b before 2a, and that is not an oversight.** `kSystemFonts`

@@ -26,22 +26,15 @@ CoreText cascade base, matching the current run Blink passes to
 `CTFontCreateForString`. `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the old
 Times stand-in for a live A/B; the partial-webfont cell must then move red.
 
-The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the two concerns
+The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the one concern
 the glyph-path emitter has and the embedded pipeline does not:
 
-- **The raster-emoji terminal.** Emoji are painted by a captured raster
-  `<image>` overlay with path emission suppressed, so an uncovered emoji must
-  keep the calibrated per-codepoint pin — the static chain's LAST entry's
-  stable `.notdef` advance (or the primary when the chain is empty, grouping
-  the suppressed tofu with the surrounding run) — instead of the resolver's
-  color-font answer, which would split it out of the surrounding run and drift
-  the overlay alignment for bare emoji. A valid base+selector sequence is not
-  pinned: it remains whole in the shaped VS retry loop and lands on the face
-  Chromium selects. Invalid/default-ignorable selector tails share the pinned
-  base's advance donor rather than becoming independent fallback requests.
-  These spans are pinned before the requeue loop like the dotted-circle runs.
-  Not a Blink behavior — parity for these glyphs is carried by the
-  overlay, not the run split.
+- **Raster emoji do not alter resolution.** The captured `<image>` overlay owns
+  paint only. Its rectangle and neighboring glyph positions are captured from
+  Chromium, so the logical run remains on the ordinary shape-then-requeue path,
+  including Chromium's first-candidate `.notdef` terminal when no face covers
+  the cluster. Paths and embedded modes therefore select the same face and
+  metrics; the overlay cannot change wrapping or adjacent advances.
 - **Per-run `decomposed` flags.** `FontRun.decomposed` marks runs whose `text`
   is not the source slice (Math-Alphanumeric base substitutions, dotted-circle
   hb clusters); the emitter picks its per-char vs run-text branch per run from

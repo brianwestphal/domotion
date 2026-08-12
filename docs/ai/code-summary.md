@@ -49,8 +49,8 @@ shortest possible map:
   current font, requeue only the `.notdef` clusters — and is the DEFAULT run
   splitter for BOTH render modes (`splitTextIntoFontRuns` for the embedded-font
   pipeline; `splitTextIntoGlyphPathRuns` invokes it in "paths" mode for the
-  glyph-path emitter, preserving the raster-emoji terminal pin + per-run
-  `decomposed` flags; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
+  glyph-path emitter, preserving per-run `decomposed` flags while raster emoji
+  use the same Chromium terminal as embedded mode; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
   per-codepoint walk in both) — see `docs/113-cluster-granularity-fallback.md`.
   Declared-family ordering and segmented `@font-face` capability-group/range
   construction are source-mapped in

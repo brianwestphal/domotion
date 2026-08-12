@@ -82,8 +82,8 @@ they describe (see `CLAUDE.md` "Documentation"):
   weight/style/stretch capability-group selection, shape-verdict cache) and
   replaces `splitTextIntoFontRuns`' per-codepoint cmap walk; the glyph-path
   emitter (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`) invokes the same
-  splitter in its "paths" mode, which preserves the raster-emoji terminal pin
-  and per-run `decomposed` flags (`DOMOTION_CLUSTER_FALLBACK=0` restores the
+  splitter in its "paths" mode, which preserves per-run `decomposed` flags and
+  leaves raster emoji on the shared Chromium terminal (`DOMOTION_CLUSTER_FALLBACK=0` restores the
   legacy walk in both). Both entry points score 10/10 on the Chrome CDP probe
   corpus where the legacy walk scores 6/10. Also carries the static-chain
   retirement measurement: over the
