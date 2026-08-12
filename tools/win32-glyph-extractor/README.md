@@ -81,6 +81,13 @@ degrades to the previous behavior rather than mismatching:
 | `cssWeight` / `italic` / `cssSlant` / `cssStretch` | the style triple | `NORMAL` / `NORMAL` / `NORMAL` |
 | `baseFamilyName` | the run's primary family | `nullptr` (pure system fallback) |
 | `locale` | the analysis source's locale name | `en-us` |
+| `diagnostics` | response-only raw mapped weight/stretch/style/simulation tuple | omitted |
+
+`diagnostics:true` does not change selection. It adds the raw `IDWriteFont`
+style tuple needed to compare `MapCharacters` with Blink's subsequent
+`UpdateFromSkiaFontStyle` family reopen. Run
+`node tools/win32-fallback-probe.mjs` for the bounded U+2100/U+2E00 and
+U+A700/U+1DF00 discriminator set.
 
 `locale` is a BCP-47 tag and is the whole Han-unification signal — the caller
 derives it the way Blink does (`blinkWinFallbackLocale` on the Node side) rather

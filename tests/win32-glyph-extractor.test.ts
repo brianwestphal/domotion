@@ -318,6 +318,17 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
     return callHelper({ fonts: [], queries: [{ type: "family", name, ...extra }] }).results[0];
   }
 
+  it("exposes the raw DirectWrite style and simulation tuple only when requested", () => {
+    const plain = fallback([0x41]).fonts[0];
+    expect(plain.diagnostics).toBeUndefined();
+    const traced = fallback([0x41], { diagnostics: true }).fonts[0];
+    if (!traced.found) return;
+    expect(traced.diagnostics).toEqual(expect.objectContaining({
+      mappedWeight: expect.any(Number), mappedStretch: expect.any(Number),
+      mappedStyle: expect.any(Number), mappedSimulations: expect.any(Number),
+    }));
+  });
+
   // Skia builds an IDWriteNumberSubstitution from the same bcp47 tag it reports
   // as the locale (method NONE, ignoreUserOverride TRUE) and returns it from the
   // analysis source; passing null asked DirectWrite a question Chrome never

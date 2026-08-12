@@ -1110,6 +1110,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 
     bool found = false;
     std::string psName, familyName, path, axesJson;
+    UINT32 mappedWeight = 0, mappedStretch = 0, mappedStyle = 0, mappedSimulations = 0;
     if (fallback && systemFonts && !numberSubstitutionFailed) {
       std::wstring s = cpToUtf16(cp);
       SingleStringAnalysisSource* source =
@@ -1161,6 +1162,10 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
         break;  // unreachable: a non-NONE mask is one of the two flags above.
       }
       if (SUCCEEDED(hr) && mappedFont && mappedLength > 0) {
+        mappedWeight = static_cast<UINT32>(mappedFont->GetWeight());
+        mappedStretch = static_cast<UINT32>(mappedFont->GetStretch());
+        mappedStyle = static_cast<UINT32>(mappedFont->GetStyle());
+        mappedSimulations = static_cast<UINT32>(mappedFont->GetSimulations());
         BOOL covers = FALSE;
         // Coverage guard: only report a face that actually has the glyph.
         if (SUCCEEDED(mappedFont->HasCharacter(cp, &covers)) && covers) {
@@ -1185,6 +1190,12 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
           << ",\"familyName\":\"" << jsonEscape(familyName) << "\""
           << ",\"path\":\"" << jsonEscape(path) << "\"";
       if (!axesJson.empty()) out << ",\"axes\":" << axesJson;  // DM-1721
+      if (query.at("diagnostics").asBool(false)) {
+        out << ",\"diagnostics\":{\"mappedWeight\":" << mappedWeight
+            << ",\"mappedStretch\":" << mappedStretch
+            << ",\"mappedStyle\":" << mappedStyle
+            << ",\"mappedSimulations\":" << mappedSimulations << "}";
+      }
       // Coverage, reported alongside the nomination so the caller does not ask
       // again over IPC. Unconditionally true here, and that is exact rather than
       // optimistic: `found` is only set above after `HasCharacter(cp)` succeeded

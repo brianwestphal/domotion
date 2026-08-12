@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msphm7h9k0gamwl5",
+          "message": {
+            "text": "These diagnostics preserve the normal fallback protocol while exposing the exact DirectWrite style and simulation tuple that Skia converts into Blink’s reopened family description. The four bounded DM-2083 probes can now distinguish a MapCharacters cut-selection defect from a later UpdateFromSkiaFontStyle reopen defect.",
+            "markdown": "These diagnostics preserve the normal fallback protocol while exposing the exact DirectWrite style and simulation tuple that Skia converts into Blink’s reopened family description. The four bounded DM-2083 probes can now distinguish a MapCharacters cut-selection defect from a later UpdateFromSkiaFontStyle reopen defect."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1110,
+                  "endLine": 1195,
+                  "snippet": {
+                    "text": "\n    bool found = false;\n    std::string psName, familyName, path, axesJson;\n    UINT32 mappedWeight = 0, mappedStretch = 0, mappedStyle = 0, mappedSimulations = 0;\n    if (fallback && systemFonts && !numberSubstitutionFailed) {\n      std::wstring s = cpToUtf16(cp);\n      SingleStringAnalysisSource* source =\n          new SingleStringAnalysisSource(s, localeW, numberSubstitution);\n      UINT32 mappedLength = 0;\n      IDWriteFont* mappedFont = nullptr;\n      FLOAT scale = 1.0f;\n      HRESULT hr = E_FAIL;\n      // Keep Skia's loop shape, including its mutable style triple. With\n      // `kDefaultSimulations`, both DirectWrite simulation bits are allowed,\n      // so the first mapped face terminates it; spelling the predicate keeps\n      // this transcription honest if the allowed mask ever narrows.\n      DWRITE_FONT_WEIGHT mapWeight = dwWeight;\n      DWRITE_FONT_STYLE mapSlant = dwSlant;\n      constexpr DWRITE_FONT_SIMULATIONS allowedSimulations =\n          static_cast<DWRITE_FONT_SIMULATIONS>(\n              DWRITE_FONT_SIMULATIONS_BOLD | DWRITE_FONT_SIMULATIONS_OBLIQUE);\n      for (int pass = 0; pass < kMaxSimulationStrips; pass++) {\n        safeRelease(mappedFont);\n        // DM-1871: Blink passes the RUN'S PRIMARY FAMILY as `baseFamilyName`.\n        // `FontCache::GetDWriteFallbackFamily` takes\n        // `font_description.Family().FamilyName()` and Skia forwards it as this\n        // argument (`win/font_cache_skia_win.cc:234-240` →\n        // `SkFontMgr_win_dw.cpp:653-666`, Chromium rev 7d859f27).\n        //\n        // It is not cosmetic: the base family is what lets that family's own font\n        // linking participate in DirectWrite's answer, so passing null asks a\n        // different question than Chrome asks. Absent field keeps the previous\n        // nullptr behaviour, so an older Node side degrades rather than mismatches.\n        hr = fallback->MapCharacters(\n            source, 0, static_cast<UINT32>(s.size()), systemFonts,\n            baseFamilyW.empty() ? nullptr : baseFamilyW.c_str(),\n            mapWeight, mapSlant, dwStretch,\n            &mappedLength, &mappedFont, &scale);\n        if (FAILED(hr) || !mappedFont) break;\n        DWRITE_FONT_SIMULATIONS simulations = mappedFont->GetSimulations();\n        if ((simulations & ~allowedSimulations) == 0 ||\n            faceHasBitmapStrikes(mappedFont)) {\n          break;\n        }\n        if (simulations & DWRITE_FONT_SIMULATIONS_BOLD) {\n          mapWeight = DWRITE_FONT_WEIGHT_REGULAR;\n          continue;\n        }\n        if (simulations & DWRITE_FONT_SIMULATIONS_OBLIQUE) {\n          mapSlant = DWRITE_FONT_STYLE_NORMAL;\n          continue;\n        }\n        break;  // unreachable: a non-NONE mask is one of the two flags above.\n      }\n      if (SUCCEEDED(hr) && mappedFont && mappedLength > 0) {\n        mappedWeight = static_cast<UINT32>(mappedFont->GetWeight());\n        mappedStretch = static_cast<UINT32>(mappedFont->GetStretch());\n        mappedStyle = static_cast<UINT32>(mappedFont->GetStyle());\n        mappedSimulations = static_cast<UINT32>(mappedFont->GetSimulations());\n        BOOL covers = FALSE;\n        // Coverage guard: only report a face that actually has the glyph.\n        if (SUCCEEDED(mappedFont->HasCharacter(cp, &covers)) && covers) {\n          IDWriteFontFace* face = nullptr;\n          if (SUCCEEDED(mappedFont->CreateFontFace(&face)) && face) {\n            psName = facePostScriptName(face);\n            path = fontFacePath(face);\n            familyName = fontFamilyDisplayName(mappedFont);\n            axesJson = faceResolvedAxesJson(face);  // DM-1721: variable-instance axis pin\n            if (!psName.empty() && !path.empty()) found = true;\n            safeRelease(face);\n          }\n        }\n      }\n      safeRelease(mappedFont);\n      source->Release();\n    }\n\n    if (found) {\n      out << \"{\\\"cp\\\":\" << static_cast<int>(cp) << \",\\\"found\\\":true\"\n          << \",\\\"postscriptName\\\":\\\"\" << jsonEscape(psName) << \"\\\"\"\n          << \",\\\"familyName\\\":\\\"\" << jsonEscape(familyName) << \"\\\"\"\n          << \",\\\"path\\\":\\\"\" << jsonEscape(path) << \"\\\"\";\n      if (!axesJson.empty()) out << \",\\\"axes\\\":\" << axesJson;  // DM-1721\n      if (query.at(\"diagnostics\").asBool(false)) {\n        out << \",\\\"diagnostics\\\":{\\\"mappedWeight\\\":\" << mappedWeight\n            << \",\\\"mappedStretch\\\":\" << mappedStretch"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-fallback-probe.mjs"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2083"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f42879e3984fd5e406ddf18f6794f833"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "13a09f79e2dd44ed3e44b35123bd32788804f1c0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
