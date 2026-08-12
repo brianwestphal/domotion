@@ -12,6 +12,7 @@ import { versionString, BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/di
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import { platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
+import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
 
 interface OracleGlyph {
   id: number; cluster: number; sourceSpan: [number, number];
@@ -30,6 +31,7 @@ const faceFilter = value("--face")?.toLowerCase();
 const sizePx = Number(value("--size") ?? "16");
 const zoom = Number(value("--zoom") ?? "1");
 const deviceScaleFactor = Number(value("--device-scale") ?? "1");
+const skipNegativeControl = argv.includes("--skip-negative-control");
 
 function sourceEnd(text: string, cluster: number, clusters: number[]): number {
   const later = clusters.filter((c) => c > cluster);
@@ -97,12 +99,11 @@ for (const key of keys) {
       if (signature(controls[name]) !== baseSig) controlHits[name]++;
     }
     records.push({
-      environment: {
-        platform: process.platform, arch: process.arch, node: process.version,
-        chromium: `Playwright ${process.env.PLAYWRIGHT_CHROMIUM_VERSION ?? "package-pinned"}`,
-        harfbuzz: versionString(), icu: process.versions.icu,
-        zoom, deviceScaleFactor,
-      },
+      environment: parityEnvironment({
+        chromium: `Playwright package-pinned; HarfBuzz ${versionString()}`, launchFlags: [], deviceScaleFactor, zoom,
+        writingMode: direction === "ttb" ? "vertical-rl" : "horizontal-tb", direction,
+        corpusIdentity: `shape-samples-v2:${SHAPE_SAMPLES.length}`, sampleIdentity: `${key}:${sample.note}`,
+      }),
       face: { key, path: face.path, member: face.faceIndex, namedInstance: null, axes: face.axes },
       input: {
         text: sample.text, utf16Span: [0, sample.text.length], direction,
@@ -132,11 +133,15 @@ if (records.length > 0) {
 
 const required = mode === "representative" ? ["face", "features", "direction"] as const : ["face", "axes", "ptem", "features", "direction", "clusterLevel"] as const;
 const missed = required.filter((k) => controlHits[k] === 0);
-const report = { schemaVersion: 1, mode, pairs, controlHits, missedControls: missed, records };
+const completeEnvironment = records.every((r) => fingerprintComplete((r as { environment: unknown }).environment));
+const movementProven = !skipNegativeControl && missed.length === 0;
+const verdict = !completeEnvironment || !movementProven ? "verdict-withheld"
+  : pairs > 0 ? "exact-logical-agreement" : "logical-mismatch";
+const report = { schemaVersion: 2, stage: "shaping", mode, verdict, completeEnvironment, movementProven, pairs, controlHits, missedControls: missed, records };
 if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
 console.log(`Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}`);
 if (output != null) console.log(`wrote ${output}`);
-if (pairs === 0 || missed.length > 0) {
+if (pairs === 0 || !completeEnvironment || !movementProven) {
   console.error(`Oracle sensitivity failure: ${pairs === 0 ? "no comparable pairs" : `no delta for ${missed.join(", ")}`}`);
   process.exitCode = 1;
 }

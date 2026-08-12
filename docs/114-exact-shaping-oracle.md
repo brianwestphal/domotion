@@ -14,6 +14,8 @@ Each JSON record contains:
 
 No numeric tolerance is applied. The oracle compares logical integers emitted by the same HarfBuzz ABI Chromium uses; representation-only normalization is limited to deriving a UTF-16 source span from equal cluster indices. Pixel thresholds cannot turn a logical mismatch into a pass.
 
+Schema v2 emits `exact-logical-agreement`, `logical-mismatch`, or `verdict-withheld` independently of pixels. Every record carries the complete parity fingerprint from doc 120: Chromium/flags, OS/architecture, font-inventory digest, locale/preferences, helper route/build recipe, Node/ICU/Unicode and source revisions, viewport inputs, and corpus/sample/cache identity. `--skip-negative-control` is a test seam that must produce `verdict-withheld` and a failing exit status.
+
 ## Profiles
 
 ```sh

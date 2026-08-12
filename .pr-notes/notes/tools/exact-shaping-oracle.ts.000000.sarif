@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspv0ps7nyyvsh20",
+          "message": {
+            "text": "The report withholds its verdict unless both the environment fingerprint and required movement controls are complete. Running with --skip-negative-control produced verdict-withheld, movementProven=false, and a failing exit status as required.",
+            "markdown": "The report withholds its verdict unless both the environment fingerprint and required movement controls are complete. Running with --skip-negative-control produced verdict-withheld, movementProven=false, and a failing exit status as required."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/exact-shaping-oracle.ts"
+                },
+                "region": {
+                  "startLine": 145,
+                  "endLine": 160,
+                  "snippet": {
+                    "text": "  console.error(`Oracle sensitivity failure: ${pairs === 0 ? \"no comparable pairs\" : `no delta for ${missed.join(\", \")}`}`);\n  process.exitCode = 1;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2098"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "408bb159308d0799ff29a0473c187c20"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8c050b572e63b058f430ccdcc924bbd51bbad50f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

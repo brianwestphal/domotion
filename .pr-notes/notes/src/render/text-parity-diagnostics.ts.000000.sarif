@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspv0plyckppe4xy",
+          "message": {
+            "text": "Explicit unsupported is an enumerated detection result, never a catch-all for mismatches. Each recognized feature names the input and provides remediation plus raster fallback; unknown inputs remain supported-or-mismatch and cannot be relabeled.",
+            "markdown": "Explicit unsupported is an enumerated detection result, never a catch-all for mismatches. Each recognized feature names the input and provides remediation plus raster fallback; unknown inputs remain supported-or-mismatch and cannot be relabeled."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-parity-diagnostics.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "export interface UnsupportedTextDiagnostic {\n  verdict: \"explicit-unsupported\";\n  feature: string;\n  message: string;\n  remediation: string;\n  fallback: \"rasterize-text\";\n}\n\n/** Enumerated, detectable text/layout inputs that cannot claim logical parity. */\nexport function unsupportedTextParityDiagnostic(style: {\n  textOrientation?: string; textCombineUpright?: string; textWrapMode?: string;\n}): UnsupportedTextDiagnostic | null {\n  if (style.textOrientation === \"sideways\") return {\n    verdict: \"explicit-unsupported\", feature: \"text-orientation: sideways\",\n    message: \"Sideways vertical glyph orientation is not represented by the logical SVG text pipeline.\",\n    remediation: \"Remove `text-orientation: sideways` or enable raster text fallback for this element.\", fallback: \"rasterize-text\",\n  };\n  if (style.textCombineUpright != null && style.textCombineUpright !== \"none\") return {\n    verdict: \"explicit-unsupported\", feature: `text-combine-upright: ${style.textCombineUpright}`,\n    message: \"Multi-character tate-chu-yoko layout cannot be reconstructed from independent glyph origins.\",\n    remediation: \"Use `text-combine-upright: none` or enable raster text fallback for this element.\", fallback: \"rasterize-text\",\n  };\n  if (style.textWrapMode === \"nowrap\") return null; // captured line geometry is exact\n  return null;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2098"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1a6f6feabfc24a339cdc7d99dd4d7461"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8c050b572e63b058f430ccdcc924bbd51bbad50f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

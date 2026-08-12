@@ -1,9 +1,11 @@
 /** Stage-separated Chromium/Domotion text-layout oracle (DM-2097). */
 import { writeFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
 
 const output = (() => { const i = process.argv.indexOf("--json"); return i >= 0 ? process.argv[i + 1] : undefined; })();
 const tolerance = Number((() => { const i = process.argv.indexOf("--tolerance"); return i >= 0 ? process.argv[i + 1] : "0.001"; })());
+const skipControl = process.argv.includes("--skip-negative-control");
 
 const fixtures = [
   { id: "latin", css: "font: 20px/1.4 Arial; width: 210px", text: "office AVATAR soft\u00adhyphen words" },
@@ -24,6 +26,7 @@ const chromiumVersion = browser.version();
 
 const records = [];
 let mismatches = 0;
+let movementCount = 0;
 for (const fixture of fixtures) {
   const handle = await page.locator(`#${fixture.id}`).elementHandle();
   if (handle == null) continue;
@@ -71,8 +74,19 @@ for (const fixture of fixtures) {
     })),
   );
   if (delta > tolerance) mismatches++;
+  // Disable the captured-origin route: collapse every character to the box
+  // origin and require at least one declared discriminator to move.
+  const disabledOrigins = geometry.chars.flatMap((c) => c.rects).map(() => ({ x: geometry.box.x, y: geometry.box.y }));
+  const originalOrigins = geometry.chars.flatMap((c) => c.rects).map((r) => ({ x: r.x, y: r.y }));
+  if (originalOrigins.some((r, i) => r.x !== disabledOrigins[i].x || r.y !== disabledOrigins[i].y)) movementCount++;
+  const environment = parityEnvironment({
+    chromium: chromiumVersion, launchFlags: [], deviceScaleFactor: geometry.zoom, zoom: Number(geometry.style.zoom) || 1,
+    writingMode: geometry.style.writingMode, direction: geometry.style.direction,
+    corpusIdentity: `layout-stage-v1:${fixtures.length}`, sampleIdentity: fixture.id,
+  });
   records.push({
     id: fixture.id,
+    environment,
     stages: {
       selection: { platformFonts: fonts },
       shaping: { oracle: "fonts:shaping:exact", status: "separate-exact-gate" },
@@ -80,11 +94,16 @@ for (const fixture of fixtures) {
       rasterization: { status: "out-of-scope", reason: "Skia versus consumer SVG rasterizer" },
     },
     renderModes: { paths: "same logical origins", embeddedFont: "same logical origins" },
+    negativeControl: { route: "captured-character-origins", disabled: true, moved: movementCount > 0 },
   });
 }
 await browser.close();
-const report = { schemaVersion: 1, chromium: chromiumVersion, toleranceCssPx: tolerance, mismatches, records };
+const completeEnvironment = records.every((r) => fingerprintComplete(r.environment));
+const movementProven = !skipControl && movementCount > 0;
+const verdict = !completeEnvironment || !movementProven ? "verdict-withheld"
+  : mismatches === 0 ? "exact-logical-agreement" : "logical-mismatch";
+const report = { schemaVersion: 2, stage: "layout", verdict, completeEnvironment, movementProven, chromium: chromiumVersion, toleranceCssPx: tolerance, mismatches, records };
 if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
 console.log(`Layout stage oracle: ${records.length} fixtures, ${mismatches} logical mismatches, tolerance ${tolerance} CSS px`);
 if (output != null) console.log(`wrote ${output}`);
-if (mismatches > 0) process.exitCode = 1;
+if (mismatches > 0 || !completeEnvironment || !movementProven) process.exitCode = 1;

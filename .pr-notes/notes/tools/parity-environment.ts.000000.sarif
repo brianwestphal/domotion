@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mspv0pf2q0ir0nao",
+          "message": {
+            "text": "One shared fingerprint prevents shaping and layout gates from drifting into different comparability definitions. Required doc-120 fields include source revisions and a concrete host font-inventory digest; unavailable/unknown values make fingerprintComplete false and withhold the verdict.",
+            "markdown": "One shared fingerprint prevents shaping and layout gates from drifting into different comparability definitions. Required doc-120 fields include source revisions and a concrete host font-inventory digest; unavailable/unknown values make fingerprintComplete false and withhold the verdict."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/parity-environment.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 45,
+                  "snippet": {
+                    "text": "import { createHash } from \"node:crypto\";\nimport { execFileSync } from \"node:child_process\";\nimport { platform, release, arch } from \"node:os\";\nimport { platformFontKeys, shapingFaceFor } from \"../src/render/font-resolution.js\";\n\nfunction revision(repo: string, ref = \"HEAD\"): string {\n  try { return execFileSync(\"git\", [\"-C\", repo, \"rev-parse\", \"--short=12\", ref], { encoding: \"utf8\" }).trim(); }\n  catch { return \"unavailable\"; }\n}\n\nfunction fontInventoryDigest(): string {\n  const rows = platformFontKeys().map((key) => {\n    const f = shapingFaceFor(key, 400, 16, 0);\n    return f == null ? `${key}:missing` : `${key}:${f.path}#${f.faceIndex}:${JSON.stringify(f.axes)}`;\n  }).sort();\n  return createHash(\"sha256\").update(rows.join(\"\\n\")).digest(\"hex\");\n}\n\nexport function parityEnvironment(input: {\n  chromium: string; launchFlags: string[]; deviceScaleFactor: number; zoom: number;\n  writingMode: string; direction: string; corpusIdentity: string; sampleIdentity: string;\n}): Record<string, unknown> {\n  return {\n    chromium: { version: input.chromium, launchFlags: input.launchFlags },\n    host: { os: platform(), release: release(), architecture: arch() },\n    fonts: { inventoryDigest: fontInventoryDigest(), genericPreferences: \"platform-session-resolver\" },\n    locale: { process: Intl.DateTimeFormat().resolvedOptions().locale, languages: process.env.LANG ?? \"unset\" },\n    helper: { implementation: `${process.platform}-glyph-helper`, buildRecipe: \"repository-native-helper\", disabled: process.env.DOMOTION_DISABLE_HELPER === \"1\" },\n    runtimes: {\n      node: process.version, icu: process.versions.icu, unicode: process.versions.unicode,\n      chromiumSource: revision(\"external/chromium\"), harfbuzzSource: revision(\"external/harfbuzz\"),\n      skiaPinned: revision(\"external/skia\", \"62efacd3\"),\n    },\n    viewport: { deviceScaleFactor: input.deviceScaleFactor, zoom: input.zoom, writingMode: input.writingMode, direction: input.direction },\n    corpus: { identity: input.corpusIdentity, sample: input.sampleIdentity, cacheIsolation: \"new-process/new-document\", resources: \"inline-or-host-inventory\" },\n  };\n}\n\nexport function fingerprintComplete(value: unknown): boolean {\n  if (value == null) return false;\n  if (typeof value === \"string\") return value !== \"\" && value !== \"unknown\" && value !== \"unavailable\";\n  if (Array.isArray(value)) return value.every(fingerprintComplete);\n  if (typeof value === \"object\") return Object.values(value as Record<string, unknown>).every(fingerprintComplete);\n  return true;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2098"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fd2c382db8b59ff7f02593cdff9b94db"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8c050b572e63b058f430ccdcc924bbd51bbad50f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
