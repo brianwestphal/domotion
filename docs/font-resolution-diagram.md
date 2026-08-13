@@ -404,7 +404,9 @@ systemUiPrimary)`,
 computed string). After the effective cut is selected, `fontInstanceCacheKey`
 canonicalizes variation-axis tag order and includes declared-vs-system-UI
 provenance plus the resolved `wdth` request; this is the cache-identity boundary
-shown at G4. `stretch` reaches the declared-family style matcher, and the cut it
+shown at G4. Registry-backed `webfont:` and `localalias:` keys are handled first
+by `resolveRegisteredFontInstance`; only ordinary logical keys continue into
+platform cut selection and file discovery. `stretch` reaches the declared-family style matcher, and the cut it
 selects is what `effectiveKey` ends up naming. `systemUiPrimary` is the route
 provenance from `stackPrimaryIsSystemUi`: it distinguishes Blink's
 `MatchSystemUIFont` path from explicitly named SF families that share the same

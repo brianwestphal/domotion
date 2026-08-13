@@ -1488,6 +1488,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqz63g92m8q9zm1",
+          "message": {
+            "text": "Registry-backed font keys now resolve in a dedicated pre-platform stage. The discriminated result distinguishes an unhandled ordinary key from a handled alias whose lookup legitimately returned null, so platform discovery cannot accidentally run after a failed declared alias.",
+            "markdown": "Registry-backed font keys now resolve in a dedicated pre-platform stage. The discriminated result distinguishes an unhandled ordinary key from a handled alias whose lookup legitimately returned null, so platform discovery cannot accidentally run after a failed declared alias."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 6182,
+                  "endLine": 6217,
+                  "snippet": {
+                    "text": "  weight: number,\n  fontSize: number,\n  slant: number,\n  variationSettings: Record<string, number> | undefined,\n  stretch: number,\n): RegisteredFontResolution {\n  if (key.startsWith(\"webfont:\")) {\n    return {\n      handled: true,\n      instance: pickWebfontVariant(\n        key.slice(\"webfont:\".length), weight, fontSize, slant,\n        variationSettings, stretch,\n      ),\n    };\n  }\n  if (key.startsWith(\"localalias:\")) {\n    const family = key.slice(\"localalias:\".length);\n    const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);\n    return {\n      handled: true,\n      instance: variant == null ? null : getFontInstance(\n        variant.baseKey, variant.weight, fontSize,\n        variant.italic ? slant : 0, variationSettings, stretch, false,\n      ),\n    };\n  }\n  return { handled: false };\n}\n\n/**\n * @param stretch CSS `font-stretch` as a percentage, 100 = `normal`. Reaches the\n *   macOS declared-family style matcher, where Blink turns it into the condensed\n *   / expanded symbolic trait it scores candidates on — and, for the `system-ui`\n *   face and variable webfonts, the variable `wdth` axis (see\n *   `darwinSystemUiWdth` / `applyVariationAxes`).\n */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2133"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d7080f94b50568bdf10265d840a5c3f7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2286218a4dbd4df55d9e2d9afa5415a7d13bef13",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

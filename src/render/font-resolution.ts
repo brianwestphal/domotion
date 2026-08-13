@@ -6172,6 +6172,42 @@ export function fontInstanceCacheKey(
   return `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}-${familyRoute}${widthRoute}`;
 }
 
+type RegisteredFontResolution =
+  | { handled: false }
+  | { handled: true; instance: FontInstance | null };
+
+/** Resolve registry-backed keys before platform file discovery. */
+function resolveRegisteredFontInstance(
+  key: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  stretch: number,
+): RegisteredFontResolution {
+  if (key.startsWith("webfont:")) {
+    return {
+      handled: true,
+      instance: pickWebfontVariant(
+        key.slice("webfont:".length), weight, fontSize, slant,
+        variationSettings, stretch,
+      ),
+    };
+  }
+  if (key.startsWith("localalias:")) {
+    const family = key.slice("localalias:".length);
+    const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
+    return {
+      handled: true,
+      instance: variant == null ? null : getFontInstance(
+        variant.baseKey, variant.weight, fontSize,
+        variant.italic ? slant : 0, variationSettings, stretch, false,
+      ),
+    };
+  }
+  return { handled: false };
+}
+
 /**
  * @param stretch CSS `font-stretch` as a percentage, 100 = `normal`. Reaches the
  *   macOS declared-family style matcher, where Blink turns it into the condensed
@@ -6190,9 +6226,10 @@ function instantiateResolvedFont(
 ): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
-  if (key.startsWith("webfont:")) {
-    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings, stretch);
-  }
+  const registered = resolveRegisteredFontInstance(
+    key, weight, fontSize, slant, variationSettings, stretch,
+  );
+  if (registered.handled) return registered.instance;
   // `localalias:<family>` — the family was declared via @font-face local() and
   // we tracked one or more declared (weight, italic) variants pointing at base
   // FONT_PATHS keys. Pick the closest declared variant and use ITS weight /
@@ -6200,12 +6237,6 @@ function instantiateResolvedFont(
   // weight/italic — so Chrome's "no bold-italic declared → use italic 400"
   // behavior is preserved instead of silently substituting the on-disk
   // bold-italic sibling. DM-360.
-  if (key.startsWith("localalias:")) {
-    const family = key.slice("localalias:".length);
-    const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
-    if (variant == null) return null;
-    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0, variationSettings, stretch, false);
-  }
   const cut = resolveEffectiveCutKey(key, weight, slant, stretch, systemUiPrimary, declaredFamily);
   const effectiveKey = cut.key;
   const routedItalicCut = cut.routedItalicCut;
@@ -8124,6 +8155,13 @@ export function getSessionGenericFamilyOverrides(): SessionGenericFamilyOverride
   return sessionGenericFamilyOverrides;
 }
 
+/** Blink aliases both legacy WebKit standard-family spellings to one setting. */
+export function genericSettingsFamilyName(name: string): string {
+  return name === "-webkit-standard" || name === "-webkit-body"
+    ? "standard"
+    : name;
+}
+
 /**
  * `generic`: whether this occurrence of `name` is a CSS `<generic-family>`
  * KEYWORD (unquoted, canonical lowercase — see `splitFontFamilyNames`) rather
@@ -8145,9 +8183,7 @@ function matchFamilyCandidateToKey(
   lookupName: string = name,
 ): string | null {
   if (name === "" || name === "doesnotexist") return null;
-  const settingsName = name === "-webkit-standard" || name === "-webkit-body"
-    ? "standard"
-    : name;
+  const settingsName = genericSettingsFamilyName(name);
   // ── Per-script generic-family settings (Playwright forScripts, mac/win) ──
   // Blink keys every settings-mapped generic on the run's content script:
   // `FamilyNameFromSettings` consults `settings.<Generic>(script)` with
@@ -9865,6 +9901,16 @@ export function resolveFontForCodepoint(
   );
 }
 
+/** Construct the common successful result emitted by every fallback stage. */
+export function coveredFontResolution(
+  key: string,
+  fontOverride: FontInstance | null,
+  emitCh: string,
+  decomposed: boolean = false,
+): FontResolution {
+  return { key, fontOverride, emitCh, decomposed, covered: true };
+}
+
 function walkFontFallbackStages(
   cp: number,
   primaryFont: FontInstance,
@@ -9886,7 +9932,7 @@ function walkFontFallbackStages(
   _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
-    ({ key, fontOverride, emitCh, decomposed, covered: true });
+    coveredFontResolution(key, fontOverride, emitCh, decomposed);
 
   // `font-variant-emoji: emoji` (and `unicode`, for emoji-default codepoints)
   // forces VS16 in every glyph lookup, so a candidate WITHOUT color presentation
