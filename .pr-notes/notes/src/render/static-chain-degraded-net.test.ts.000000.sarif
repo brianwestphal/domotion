@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msraoaiqk1opb1h8",
+          "message": {
+            "text": "DM-2139: Gate this host-inventory test on actual U+0E01 coverage, not merely successful materialization of the static-chain key. Generic Ubuntu can substitute a face for the Thai key that does not contain the asserted glyph, so instance existence alone does not establish the test precondition.",
+            "markdown": "DM-2139: Gate this host-inventory test on actual U+0E01 coverage, not merely successful materialization of the static-chain key. Generic Ubuntu can substitute a face for the Thai key that does not contain the asserted glyph, so instance existence alone does not establish the test precondition."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/static-chain-degraded-net.test.ts"
+                },
+                "region": {
+                  "startLine": 60,
+                  "endLine": 60,
+                  "snippet": {
+                    "text": "  it.skipIf(thaiFace == null || glyphIdForCp(thaiFace, THAI_KO_KAI) === 0)(\"still answers from the static chain when the live resolver is out of the loop (the degraded net)\", () => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2139"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "133f331efe12f45b9ecd5ff47c11c669"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "41862dea13eabcc07b8ef44e6e65cf6d4e8dc134",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

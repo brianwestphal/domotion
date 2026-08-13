@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msraoavimxb9a7um",
+          "message": {
+            "text": "DM-2138: Compare the explicit Text cut with the same runner's system-ui Display cut directionally. Absolute ring bounds and a fixed pixel gap vary with the installed SFNS revision; Text > Display is the stable invariant that catches collapse of the explicit family to the default optical master.",
+            "markdown": "DM-2138: Compare the explicit Text cut with the same runner's system-ui Display cut directionally. Absolute ring bounds and a fixed pixel gap vary with the installed SFNS revision; Text > Display is the stable invariant that catches collapse of the explicit family to the default optical master."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/sf-pro-text-optical-size.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 61,
+                  "endLine": 69,
+                  "snippet": {
+                    "text": "  it('renders \"SF Pro Text\" diacritics at the Text optical size, not the default master', async () => {\n    // Single-quoted names so the inner quotes don't terminate the double-quoted\n    // `style=\"…\"` attribute (which would silently fall back to Times).\n    const textMaxY = await embeddedRingMaxY(env!.browser, `'SF Pro Text','Arial Unicode MS',sans-serif`);\n    const displayMaxY = await embeddedRingMaxY(env!.browser, `system-ui,sans-serif`);\n    // Compare the two cuts from the SAME installed SFNS build. Absolute glyph\n    // coordinates and even the size of the gap vary by macOS's bundled SFNS\n    // revision (observed gaps: 156 units locally, 16 on the CI runner). The\n    // load-bearing invariant is directional: the explicit Text cut's ring is"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2138"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0816da7c20c5dc44ac7dc4c758311390"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "41862dea13eabcc07b8ef44e6e65cf6d4e8dc134",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
