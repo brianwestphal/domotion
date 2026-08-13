@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqzbmi7ln1o4y9u",
+          "message": {
+            "text": "UAX #50 mixed-orientation classification is now a browser-serializable pure stage rather than factory-local state. Moving the immutable range table out of each handler construction also avoids rebuilding it per capture; focused boundary tests and a real Chromium capture E2E remain green.",
+            "markdown": "UAX #50 mixed-orientation classification is now a browser-serializable pure stage rather than factory-local state. Moving the immutable range table out of each handler construction also avoids rebuilding it per capture; focused boundary tests and a real Chromium capture E2E remain green."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 180,
+                  "endLine": 205,
+                  "snippet": {
+                    "text": "// Unicode 16 UAX #50 ranges whose mixed vertical orientation is upright.\nconst UPRIGHT_RANGES = [\n  [0x1100, 0x11FF], [0x2E80, 0x2EFF], [0x2F00, 0x2FDF], [0x2FF0, 0x2FFF],\n  [0x3000, 0x303E], [0x3041, 0x309F], [0x30A0, 0x30FF], [0x3100, 0x312F],\n  [0x3130, 0x318F], [0x3190, 0x319F], [0x31A0, 0x31BF], [0x31C0, 0x31EF],\n  [0x31F0, 0x31FF], [0x3200, 0x32FF], [0x3300, 0x33FF], [0x3400, 0x4DBF],\n  [0x4E00, 0x9FFF], [0xA000, 0xA48F], [0xA490, 0xA4CF], [0xA960, 0xA97F],\n  [0xAC00, 0xD7AF], [0xD7B0, 0xD7FF], [0xF900, 0xFAFF], [0xFE30, 0xFE4F],\n  [0xFF00, 0xFFEF], [0x1B000, 0x1B0FF], [0x1B100, 0x1B12F],\n  [0x1B130, 0x1B16F], [0x1F200, 0x1F2FF], [0x20000, 0x2FFFF],\n];\n\nexport const isMixedVerticalUpright = (cp) => {\n  if (cp == null) return false;\n  return UPRIGHT_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);\n};\n\nexport const resolveCharOrientation = (ch, textOrientation) => {\n  if (textOrientation === 'upright') return 'upright';\n  if (textOrientation === 'sideways') return 'rotated';\n  return isMixedVerticalUpright(ch.codePointAt(0)) ? 'upright' : 'rotated';\n};\n\nconst buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {\n  // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for\n  // `text-orientation: mixed`. Hardcoded table covering the codepoint"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2131"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ccd7a9ef96b1eeee6428b6392b8d45b1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "62aed1563d3acc99c99d64364a1eee1df8393620",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

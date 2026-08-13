@@ -40,7 +40,7 @@ import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
-import { resolveElementCursor, extractCssUrl, sideWidths } from "./utils.js";
+import { resolveElementCursor, extractCssUrl, sideWidths, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
 
 const captureDocumentTree =
@@ -117,7 +117,7 @@ const captureDocumentTree =
     // capture the element as a transparent container (no own paint, but walk
     // children) so the in-viewport descendants are reached. _fixedAncestors
     // is precomputed in the pre-pass below.
-    const outsideViewport = rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;
+    const outsideViewport = isOutsideCaptureViewport(rect, vp);
     if (outsideViewport && !_fixedAncestors.has(el) && !_transformInfluenced.has(el) && !_animInfluenced.has(el)) return null;
 
     // visibility: collapse on table-row/column/group collapses that section

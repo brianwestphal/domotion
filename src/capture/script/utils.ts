@@ -113,3 +113,6 @@ export const resolveElementCursor = (el, cs) => {
   }
   return 'default';
 };
+export const isOutsideCaptureViewport = (rect, vp) =>
+  rect.right < vp.x || rect.bottom < vp.y
+  || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;

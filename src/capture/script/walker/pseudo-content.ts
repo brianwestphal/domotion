@@ -57,6 +57,10 @@
 
 import { hasCssValue, sideWidths } from "../utils.js";
 
+export const pseudoCanvasFont = (pcs) =>
+  (pcs.fontStyle || 'normal') + ' ' + (pcs.fontWeight || 'normal') + ' '
+  + (pcs.fontSize || '16px') + ' ' + (pcs.fontFamily || 'sans-serif');
+
 const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle, composeEffectiveTransform }) => {
   // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
   // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
@@ -70,7 +74,7 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
       _emojiAdvCv = document.createElement('canvas');
       _emojiAdvCtx = _emojiAdvCv.getContext('2d');
     }
-    _emojiAdvCtx.font = (pcs.fontStyle || 'normal') + ' ' + (pcs.fontWeight || 'normal') + ' ' + (pcs.fontSize || '16px') + ' ' + (pcs.fontFamily || 'sans-serif');
+    _emojiAdvCtx.font = pseudoCanvasFont(pcs);
     return _emojiAdvCtx.measureText(s).width;
   };
   // DM-785: Chrome's HarfBuzz-shaped layout width differs from
