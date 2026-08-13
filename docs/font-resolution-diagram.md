@@ -401,7 +401,10 @@ systemUiPrimary)`,
 `getFontInstance` returns a cached, weight/slant/width-correct, variation-driven
 `FontInstance`, or `null` (caller walks to the next candidate). `stretch` is CSS
 `font-stretch` as a percentage (100 = `normal`, `stretchPercent` parses the
-computed string); it reaches the declared-family style matcher, and the cut it
+computed string). After the effective cut is selected, `fontInstanceCacheKey`
+canonicalizes variation-axis tag order and includes declared-vs-system-UI
+provenance plus the resolved `wdth` request; this is the cache-identity boundary
+shown at G4. `stretch` reaches the declared-family style matcher, and the cut it
 selects is what `effectiveKey` ends up naming. `systemUiPrimary` is the route
 provenance from `stackPrimaryIsSystemUi`: it distinguishes Blink's
 `MatchSystemUIFont` path from explicitly named SF families that share the same

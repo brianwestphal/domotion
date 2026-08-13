@@ -1423,6 +1423,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqywwe26kile3fb",
+          "message": {
+            "text": "Font-instance cache identity is now a pure, directly characterized stage. Sorting variation tags preserves order independence, while declared/system-UI provenance and resolved width remain distinct because those routes can share an effective font key but produce different instances.",
+            "markdown": "Font-instance cache identity is now a pure, directly characterized stage. Sorting variation tags preserves order independence, while declared/system-UI provenance and resolved width remain distinct because those routes can share an effective font key but produce different instances."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 6159,
+                  "endLine": 6180,
+                  "snippet": {
+                    "text": "  weight: number,\n  fontSize: number,\n  slant: number,\n  variationSettings: Record<string, number> | undefined,\n  systemUiPrimary: boolean,\n  declaredFamily: string | undefined,\n  wdthStretch: number,\n): string {\n  const fvsKey = variationSettings != null\n    ? Object.keys(variationSettings).sort().map((tag) => `${tag}=${variationSettings[tag]}`).join(\",\")\n    : \"\";\n  const familyRoute = systemUiPrimary ? \"system-ui\" : `declared:${declaredFamily ?? \"\"}`;\n  const widthRoute = wdthStretch !== 100 ? `-wdth${wdthStretch}` : \"\";\n  return `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}-${familyRoute}${widthRoute}`;\n}\n\n/**\n * @param stretch CSS `font-stretch` as a percentage, 100 = `normal`. Reaches the\n *   macOS declared-family style matcher, where Blink turns it into the condensed\n *   / expanded symbolic trait it scores candidates on — and, for the `system-ui`\n *   face and variable webfonts, the variable `wdth` axis (see\n *   `darwinSystemUiWdth` / `applyVariationAxes`)."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2133"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1f0791c9ae337883c0e384072fecb341"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d6d78c5146e97318f630b643ed572da8225e9fef",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

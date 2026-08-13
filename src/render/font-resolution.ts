@@ -6153,6 +6153,25 @@ export function __darwinSystemUiWdthForTest(
   return darwinSystemUiWdth(effectiveKey, stretch, systemUiPrimary);
 }
 
+/** Stable cache identity for one fully resolved font instance request. */
+export function fontInstanceCacheKey(
+  effectiveKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  systemUiPrimary: boolean,
+  declaredFamily: string | undefined,
+  wdthStretch: number,
+): string {
+  const fvsKey = variationSettings != null
+    ? Object.keys(variationSettings).sort().map((tag) => `${tag}=${variationSettings[tag]}`).join(",")
+    : "";
+  const familyRoute = systemUiPrimary ? "system-ui" : `declared:${declaredFamily ?? ""}`;
+  const widthRoute = wdthStretch !== 100 ? `-wdth${wdthStretch}` : "";
+  return `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}-${familyRoute}${widthRoute}`;
+}
+
 /**
  * @param stretch CSS `font-stretch` as a percentage, 100 = `normal`. Reaches the
  *   macOS declared-family style matcher, where Blink turns it into the condensed
@@ -6194,16 +6213,16 @@ function instantiateResolvedFont(
   // DM-578: include author-set variation settings in the cache key so two
   // elements requesting the same (key, weight, size, slant) but with different
   // axis overrides don't share a single cached instance.
-  const fvsKey = variationSettings != null
-    ? Object.keys(variationSettings).sort().map((t) => `${t}=${variationSettings[t]}`).join(",")
-    : "";
   // On the DECLARED-family path `effectiveKey` carries the whole stretch
   // decision (it IS the resolved cut). On the macOS `system-ui` face the
   // stretch ALSO drives the variable `wdth` axis (see `darwinSystemUiWdth`), so
   // two stretches on the same key are two different instances and the width
   // needs its own slot.
   const wdthStretch = darwinSystemUiWdth(effectiveKey, stretch, systemUiPrimary);
-  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}-${systemUiPrimary ? "system-ui" : `declared:${declaredFamily ?? ""}`}${wdthStretch !== 100 ? `-wdth${wdthStretch}` : ""}`;
+  const cacheKey = fontInstanceCacheKey(
+    effectiveKey, weight, fontSize, slant, variationSettings,
+    systemUiPrimary, declaredFamily, wdthStretch,
+  );
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
   // Platform-aware path discovery (DM-258): darwin → FONT_PATHS, linux →
