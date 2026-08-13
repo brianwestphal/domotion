@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqvej4u137li35p",
+          "message": {
+            "text": "The release copy names the bounded transition families instead of advertising arbitrary animation code. This keeps the headline compelling while preserving the security/viewer contract: custom recipes lower only to opacity, transform, clip-path, and the existing shine overlay, with explicit reduced-motion and loop policies.",
+            "markdown": "The release copy names the bounded transition families instead of advertising arbitrary animation code. This keeps the headline compelling while preserving the security/viewer contract: custom recipes lower only to opacity, transform, clip-path, and the existing shine overlay, with explicit reduced-motion and loop policies."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "README.md"
+                },
+                "region": {
+                  "startLine": 92,
+                  "endLine": 98,
+                  "snippet": {
+                    "text": "Transitions are not limited to fixed presets. Parameterized `push`, `reveal`,\n`zoom`, and `shine` forms control direction/angle, distance, origin, radius, and\nhighlight styling. A strict `custom` recipe can safely combine incoming/outgoing\nopacity, translate, scale, reveal clip, and shine channels—plus explicit reduced-\nmotion and loop behavior—without accepting raw CSS or script.\n\n### Templates — animated SVGs from a few flags"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "site/src/content/docs/usage/animate.md"
+                },
+                "region": {
+                  "startLine": 87
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "llms.txt"
+                },
+                "region": {
+                  "startLine": 60
+                }
+              }
+            }
+          ],
+          "rank": 75,
+          "workItemUris": [
+            "DM-2115"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "af8dd57d0348fc6c293365bfce0818cb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f671ca27efb9b87670b12767e1e660a50226bb7d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

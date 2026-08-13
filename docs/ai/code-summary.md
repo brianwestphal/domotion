@@ -55,7 +55,9 @@ shortest possible map:
   Declared-family ordering and segmented `@font-face` capability-group/range
   construction are source-mapped in
   `docs/122-declared-family-segmented-face-parity.md`.
-  `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags;
+  `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
+  passed to `hb_buffer_set_script` (derived from HarfBuzz's
+  `hb-script-list.h`);
   `standardized-variation-sequences.generated.ts` mirrors Chromium's valid
   standardized base+selector pairs for the shaped fallback retry gate. The
   alternate DejaVu Linux `system-ui` oracle is documented in doc 123 and run
@@ -64,8 +66,6 @@ shortest possible map:
   The Linux helper's diagnostics-only `fcdiagnostic` query exposes effective
   Fontconfig patterns, inventory fingerprints, and covering sorted candidates;
   `tools/probe-linux-fallback-diagnostics.ts` pairs them with CDP paint results.
-  former supplies the tag `hb_buffer_set_script` takes (derived from
-  hb-script-list.h).
   `win-font-fallback.ts` is the transcription of Blink's **hardcoded Windows
   per-script fallback stage** — the 74-row `InitializeScriptFontMap` table,
   `GetFontBasedOnUnicodeBlock`, the emoji/math font lists, the Han locale

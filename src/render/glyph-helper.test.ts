@@ -6,12 +6,31 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import {
   __helperBinaryForPlatform,
+  buildGlyphHelperFontProbeEnvelope,
   clearGlyphHelperCache,
   createGlyphHelperFont,
   isGlyphHelperAvailable,
   measureOutlineOffsetY,
   OFFSET_PROBE_GLYPHS,
   resolveSystemFallbackFonts, __helperMetaForTest } from "./glyph-helper.js";
+
+describe("glyph-helper font-open envelope", () => {
+  it("never asks CoreText to reopen a dot-prefixed Apple face by name", () => {
+    const hidden = buildGlyphHelperFontProbeEnvelope({
+      postscriptName: ".SFNS-Regular",
+      fontPath: "/System/Library/Fonts/SFNS.ttf",
+    });
+    expect(hidden.fonts.map((font) => font.ref)).toEqual(["f"]);
+    expect(hidden.queries.map((query) => "fontRef" in query ? query.fontRef : undefined)).toEqual(["f"]);
+
+    const ordinary = buildGlyphHelperFontProbeEnvelope({
+      postscriptName: "AppleColorEmoji",
+      fontPath: "/System/Library/Fonts/Apple Color Emoji.ttc",
+    });
+    expect(ordinary.fonts.map((font) => font.ref)).toEqual(["f", "n"]);
+    expect(ordinary.queries.map((query) => "fontRef" in query ? query.fontRef : undefined)).toEqual(["f", "n", "n"]);
+  });
+});
 
 // DM-385 / DM-387: validates the Swift CoreText helper.
 // Tests are skipped automatically when:
@@ -649,16 +668,14 @@ describeHelper("font-resolution reporting", () => {
     expect(new Set(seen.values()).size).toBe(names.length);
   });
 
-  it("does not read a face-wide baseline correction off a substituted font", () => {
+  it("refuses a name-only protected system face instead of opening a substituted font", () => {
     // `createGlyphHelperFont` opens a SECOND, by-NAME handle purely to measure a
     // baseline correction CoreText only reports through the system-registered
-    // font. With no file to fall back on, CoreText substitutes Times New Roman
-    // for any dot-prefixed Apple system name, so that handle can be a completely
-    // different face — and its geometry must not be applied to the real one.
+    // font. CoreText would substitute Times New Roman for any dot-prefixed Apple
+    // system name, so the helper now declines that impossible request outright.
     const m = metaFor({ postscriptName: ".SFDevanagari-Regular" });
-    expect(m.nameMatched).toBe(false);
-    expect(m.resolution).toBe("byNameUnverified");
-    expect(m.postscriptName).toBe("TimesNewRomanPSMT");
+    expect(m.error).toBeTruthy();
+    expect(m.nameMatched).toBeUndefined();
 
     // The by-PATH handle for the same face is unaffected and correct, so the
     // outlines a caller renders from still come from .SF Devanagari.

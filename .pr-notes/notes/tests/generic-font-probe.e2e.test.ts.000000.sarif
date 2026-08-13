@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqu3kck8weq0x2y",
+          "message": {
+            "text": "The seven-key expectation mirrors Blink settings, not only CSS-authored generic keywords. standard is the script-keyed implicit terminal in FontFallbackList, and the live probe deliberately measures it alongside serif/sans/fixed/cursive/fantasy/math for every script.",
+            "markdown": "The seven-key expectation mirrors Blink settings, not only CSS-authored generic keywords. `standard` is the script-keyed implicit terminal in `FontFallbackList`, and the live probe deliberately measures it alongside serif/sans/fixed/cursive/fantasy/math for every script."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-font-probe.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 21,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "    expect(result).not.toBeNull();\n    expect([...result!.common.keys()]).toEqual([\n      \"standard\", \"serif\", \"sans-serif\", \"monospace\", \"cursive\", \"fantasy\", \"math\",\n    ]);\n    for (const script of [\n      \"KATAKANA_OR_HIRAGANA\", \"HANGUL\", \"SIMPLIFIED_HAN\", \"TRADITIONAL_HAN\",\n    ]) {\n      expect([...result!.byScript.get(script)!.keys()])\n        .toEqual([\"standard\", \"serif\", \"sans-serif\", \"monospace\", \"cursive\", \"fantasy\", \"math\"]);\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2118"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "02fa13b9465237f914f91ff3fb887251"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f671ca27efb9b87670b12767e1e660a50226bb7d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

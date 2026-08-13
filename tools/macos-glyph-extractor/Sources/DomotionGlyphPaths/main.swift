@@ -297,7 +297,13 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     // glyphs we'd otherwise miss when our recorded font path points at the
     // /System stub but the caller asked for a regular-weight face that only
     // exists in /Library.
-    if !pickedNameMatch, let name = postscriptName {
+    // Apple's protected dot-prefixed system faces cannot be reopened by name:
+    // CoreText substitutes Times New Roman, logs a diagnostic, and the exact-
+    // name guard below necessarily rejects it. Skip only that impossible retry.
+    // A name-only request still reaches the explicit unverified branch below;
+    // ordinary file-backed names retain this recovery path (notably when a
+    // richer duplicate installation carries the requested cut).
+    if !pickedNameMatch, let name = postscriptName, !name.hasPrefix(".") {
         let byName = CTFontCreateWithNameAndOptions(name as CFString, CGFloat(size), nil, .preventAutoActivation)
         // Verify the by-name lookup found a face whose postscript name actually
         // matches what we asked for — CTFontCreateWithName falls back to the
@@ -343,6 +349,15 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     }
 
     if baseFont == nil, let name = postscriptName {
+        // A name-only protected system-face request is the same impossible
+        // operation as the second-chance retry above. Fail honestly instead of
+        // asking CoreText to substitute Times New Roman under the hidden name.
+        if name.hasPrefix(".") {
+            throw NSError(domain: "domotion", code: 5, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "protected system PostScript name \"\(name)\" cannot be reopened by name",
+            ])
+        }
         // No file was supplied (or it yielded no descriptors) — a name-only
         // request, where CoreText's substitution is all there is. Recorded as
         // unverified so the caller knows the face is not guaranteed.

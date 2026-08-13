@@ -76,12 +76,31 @@ demo:
 
 ## Transitions
 
-`crossfade`, `cut`, `push-left`, `scroll`, `magic-move`, `wipe`, `iris`,
-`wipe-clock`, `zoom-in`, `zoom-out`, `shine`. Every transition takes an `easing`
+Compatibility presets include `crossfade`, `cut`, `push-left`, `scroll`,
+`magic-move`, `wipe`, `iris`, `wipe-clock`, `zoom-in`, `zoom-out`, and `shine`.
+Every transition takes an `easing`
 (including `cubic-bezier(...)`), and they **compose** when chained: a frame enters
 the way the previous transition handed off to it (fades in after a crossfade,
 slides in after a push/scroll, reveals after a wipe/iris, dollies after a zoom)
 and exits its own way — so you can mix types freely across a sequence.
+
+Use the canonical parameterized families when the preset defaults are too
+coarse. Angles are degrees; distances and origins are viewport-relative:
+
+```json
+{ "type": "push", "duration": 320, "push": { "angle": 35, "distance": 0.8 } }
+{ "type": "reveal", "duration": 360, "reveal": { "shape": "clock", "origin": { "x": 0.4, "y": 0.6 }, "startAngle": 90, "direction": "counterclockwise" } }
+{ "type": "zoom", "duration": 300, "zoom": { "fromScale": 1.2, "origin": { "x": 0.5, "y": 0.35 } } }
+{ "type": "shine", "duration": 300, "shine": { "angle": 20, "bandWidth": 0.25, "color": "#fff", "opacity": 0.5 } }
+```
+
+For a branded handoff, `custom` safely composes incoming and outgoing opacity,
+translate, scale, an incoming linear/radial/clock reveal, and an optional shine
+overlay. The schema is strict: it accepts no raw CSS, JavaScript, filters, masks,
+SMIL, or arbitrary SVG. Every recipe declares `reducedMotion` (`crossfade` or
+`cut`) and loop behavior (`hold-last` or `crossfade-to-first`). See the generated
+[Animate config reference](/domotion/developer/reference/animate-config-reference/)
+for the complete bounded shape.
 
 ## Beyond static frames
 

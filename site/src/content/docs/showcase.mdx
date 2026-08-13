@@ -36,9 +36,19 @@ transition types, and they **compose** — chain different ones in a row and eac
 scene enters the way the previous transition handed off to it, then exits its own
 way:
 
+The familiar names below remain compatible presets. Canonical `push`, `reveal`,
+`zoom`, and `shine` families add bounded direction, angle, distance, origin,
+radius, and styling controls; strict `custom` recipes combine safe motion
+primitives without embedding raw CSS or script.
+
 <figure>
   <img src="/domotion/demos/transition-tour.svg" alt="Four scenes chained with different transitions: scene one crossfades into scene two, which pushes left to scene three, which scrolls up to scene four, which crossfades back — each scene's entrance composed from the previous transition" style="width:100%;height:auto" loading="lazy" />
   <figcaption>One SVG, four scenes, four transition types in a row — crossfade → push-left → scroll → crossfade.</figcaption>
+</figure>
+
+<figure>
+  <img src="/domotion/demos/transition-mixed.svg" alt="Five scenes demonstrating an origin-aware zoom, an off-center clock reveal, an angled push, and a custom transition recipe with a shine overlay" style="width:100%;height:auto" loading="lazy" />
+  <figcaption>Parameterized families and a bounded custom recipe, composed in one self-contained SVG.</figcaption>
 </figure>
 
 Each type on its own:

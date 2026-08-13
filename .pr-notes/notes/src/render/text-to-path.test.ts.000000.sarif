@@ -131,6 +131,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqu8lvra1cdxdeh",
+          "message": {
+            "text": "This test must distinguish CoreText platform-face coverage from the raw SFNS file cmap. Chromium paints U+2469 and U+24EB as SF Pro Text even though fontkit reports U+2469 absent from /System/Library/Fonts/SFNS.ttf; keeping that raw-cmap precondition makes the native-coverage assertion non-vacuous and prevents reintroducing file-based routing.",
+            "markdown": "This test must distinguish CoreText platform-face coverage from the raw SFNS file cmap. Chromium paints U+2469 and U+24EB as SF Pro Text even though fontkit reports U+2469 absent from `/System/Library/Fonts/SFNS.ttf`; keeping that raw-cmap precondition makes the native-coverage assertion non-vacuous and prevents reintroducing file-based routing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 187,
+                  "endLine": 231,
+                  "snippet": {
+                    "text": "\n  it(\"resolves named SF Pro Text / Display through the system SF platform face rather than inferring coverage from the raw SFNS cmap (DM-1659, DM-1688)\", () => {\n    // DM-1659: Chrome→CoreText paints \"SF Pro Text\" / \"SF Pro Display\" from the\n    // SYSTEM font SFNS.ttf, NOT the standalone /Library/Fonts/SF-Pro-*.otf. The two\n    // files share Text-cut METRICS (identical advances) but differ in glyph DESIGN:\n    // e.g. the '!' dot is a squat rectangle in SFNS (what Chrome shows) vs a round\n    // circle in the OTF; accent and terminal shapes differ across the board.\n    // Verified via CDP getPlatformFontsForNode + native CoreText rasterization of\n    // both files. So the family resolves to the \"sf-pro\" (SFNS) key for shape\n    // fidelity — reversing DM-1127, which preferred the OTF wholesale on the FALSE\n    // assumption it's \"the same font Chrome uses\".\n    //\n    // The mapping holds ONLY where the named family actually resolves on THIS\n    // host. Everywhere else — a macOS install without Apple's SF Pro download,\n    // and every Linux/Windows host — Chrome cannot resolve the name and falls\n    // THROUGH the stack: a bare \"SF Pro Text\" lands on the standard-font\n    // default (verified on the Playwright noble image via\n    // getPlatformFontsForNode: Liberation Serif, our `times` key) and a stacked\n    // one lands on the next family (same probe: Liberation Sans for\n    // `\"SF Pro Text\", sans-serif`, our `helvetica` key).\n    if (resolveInstalledFont(\"SF Pro Text\") != null) {\n      expect(resolveFontKey(\"SF Pro Text\")).toBe(\"sf-pro\");\n      expect(resolveFontKey(\"SF Pro Display\")).toBe(\"sf-pro\");\n    } else {\n      expect(resolveFontKey(\"SF Pro Text\")).toBe(\"times\");\n      expect(resolveFontKey('\"SF Pro Text\", sans-serif')).toBe(\"helvetica\");\n    }\n\n    if (process.platform !== \"darwin\" || resolveInstalledFont(\"SF Pro Text\") == null) return;\n    // The system SFNS reroute exists only when the author-named downloadable\n    // family resolves. A stock macOS host without that optional font follows\n    // the same standard-family path asserted above.\n    // Per-codepoint: trust the matched platform face's native coverage, not the\n    // raw SFNS.ttf cmap. CDP reports SF Pro Text for both the ordinary glyphs and\n    // enclosed alphanumerics below, including the two-digit forms absent from the\n    // file's literal cmap (DM-1688).\n    expect(__resolveFontForCodepointForTest(0x21, \"SF Pro Text\")?.key).toBe(\"sf-pro\");   // '!'\n    expect(__resolveFontForCodepointForTest(0x2460, \"SF Pro Text\")?.key).toBe(\"sf-pro\"); // ① single-circled\n    expect(__resolveFontForCodepointForTest(0x2469, \"SF Pro Text\")?.key).toBe(\"sf-pro\"); // ⑩ two-digit\n    expect(__resolveFontForCodepointForTest(0x24EB, \"SF Pro Text\")?.key).toBe(\"sf-pro\"); // ⑪ negative-circled two-digit\n\n    // Discriminating precondition: the raw file really does lack U+2469. If this\n    // flips, the assertions above no longer prove that platform-face coverage —\n    // rather than file cmap inference — controls the routing decision.\n    const sfns = fontkit.openSync(\"/System/Library/Fonts/SFNS.ttf\") as unknown as { glyphForCodePoint(cp: number): { id: number } };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2117"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e8038a247c09b0db7f682b96d76d9954"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f671ca27efb9b87670b12767e1e660a50226bb7d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

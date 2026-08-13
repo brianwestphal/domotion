@@ -138,6 +138,71 @@
           "branch": "validate/dm2063-live-session-fonts"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqw6fvqtcddcaz0",
+          "message": {
+            "text": "Protected Apple PostScript names must bypass both by-name entry points. CoreText cannot reopen a dot-prefixed system face by name: it substitutes Times New Roman, after which the existing exact-name guard rejects the result. Skipping the calls preserves the same honest-failure routing while eliminating misleading diagnostics; ordinary names retain the duplicate-installation recovery path.",
+            "markdown": "Protected Apple PostScript names must bypass both by-name entry points. CoreText cannot reopen a dot-prefixed system face by name: it substitutes Times New Roman, after which the existing exact-name guard rejects the result. Skipping the calls preserves the same honest-failure routing while eliminating misleading diagnostics; ordinary names retain the duplicate-installation recovery path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                },
+                "region": {
+                  "startLine": 300,
+                  "endLine": 309,
+                  "snippet": {
+                    "text": "    // Apple's protected dot-prefixed system faces cannot be reopened by name:\n    // CoreText substitutes Times New Roman, logs a diagnostic, and the exact-\n    // name guard below necessarily rejects it. Skip only that impossible retry.\n    // A name-only request still reaches the explicit unverified branch below;\n    // ordinary file-backed names retain this recovery path (notably when a\n    // richer duplicate installation carries the requested cut).\n    if !pickedNameMatch, let name = postscriptName, !name.hasPrefix(\".\") {\n        let byName = CTFontCreateWithNameAndOptions(name as CFString, CGFloat(size), nil, .preventAutoActivation)\n        // Verify the by-name lookup found a face whose postscript name actually\n        // matches what we asked for — CTFontCreateWithName falls back to the"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2124"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cd28bfce6f0174902fbfd2aed88c04d2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f671ca27efb9b87670b12767e1e660a50226bb7d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

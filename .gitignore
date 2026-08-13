@@ -52,4 +52,4 @@ tools/font-conformance-stacks.synthetic.json
 /.hotsheet/*
 !/.hotsheet/settings.json
 /.glassbox/*
-!/.glassbox/settings.jsonexternal/harfbuzz/
+!/.glassbox/settings.json

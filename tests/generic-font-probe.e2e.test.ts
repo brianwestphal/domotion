@@ -20,13 +20,13 @@ describe("the live session generic-family probe", () => {
     const result = await probeSessionGenericFamilies(context!);
     expect(result).not.toBeNull();
     expect([...result!.common.keys()]).toEqual([
-      "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
+      "standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
     ]);
     for (const script of [
       "KATAKANA_OR_HIRAGANA", "HANGUL", "SIMPLIFIED_HAN", "TRADITIONAL_HAN",
     ]) {
       expect([...result!.byScript.get(script)!.keys()])
-        .toEqual(["serif", "sans-serif", "monospace"]);
+        .toEqual(["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"]);
     }
   });
 });

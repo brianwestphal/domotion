@@ -140,6 +140,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqucvcoai025dz3",
+          "message": {
+            "text": "Dot-prefixed Apple faces are excluded before constructing the optional name-only outline-offset handle because CoreText cannot reopen them by name and always substitutes Times. The primary file-backed handle remains unchanged, and ordinary names retain both the response identity guard and the Apple Color Emoji offset probe.",
+            "markdown": "Dot-prefixed Apple faces are excluded before constructing the optional name-only outline-offset handle because CoreText cannot reopen them by name and always substitutes Times. The primary file-backed handle remains unchanged, and ordinary names retain both the response identity guard and the Apple Color Emoji offset probe."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 742,
+                  "endLine": 775,
+                  "snippet": {
+                    "text": "/** Initial metadata + outline-offset probe sent when opening a helper font. */\nexport function buildGlyphHelperFontProbeEnvelope(spec: {\n  postscriptName?: string;\n  fontPath?: string;\n  variations?: Record<string, number>;\n}): HelperRequest {\n  // Dot-prefixed Apple system faces cannot be reopened by name: CoreText logs\n  // a warning and substitutes Times New Roman. The existing response guard\n  // rejects that geometry, so avoid asking the known-impossible question.\n  const probeByName = spec.postscriptName != null\n    && spec.variations == null\n    && !spec.postscriptName.startsWith(\".\");\n  return {\n    fonts: [\n      { ref: \"f\", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 },\n      ...(probeByName ? [{ ref: \"n\", postscriptName: spec.postscriptName, size: 1000 }] : []),\n    ],\n    queries: [\n      { type: \"meta\" as const, fontRef: \"f\" },\n      ...(probeByName\n        ? [\n          { type: \"meta\" as const, fontRef: \"n\" },\n          { type: \"glyphs\" as const, fontRef: \"n\", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) },\n        ]\n        : []),\n    ],\n  };\n}\n\nexport function createGlyphHelperFont(spec: {\n  postscriptName?: string;\n  fontPath?: string;\n  /** DM-1721: axis location to open a VARIABLE file at. DirectWrite opening a\n   *  variable file by path yields the DEFAULT fvar instance (it does not apply"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.test.ts"
+                },
+                "region": {
+                  "startLine": 16
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2122"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9f75efd29efc1ad5ac9484a56dce05a6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f671ca27efb9b87670b12767e1e660a50226bb7d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -17,3 +17,16 @@ describe("macOS helper request-scoped font contract", () => {
     expect(helperSource).toContain("CTFontManagerCreateFontDescriptorsFromData");
   });
 });
+
+describe("macOS helper protected-name contract", () => {
+  it("does not send a dot-prefixed file miss through the doomed by-name rescue", () => {
+    expect(helperSource).toContain(
+      'if !pickedNameMatch, let name = postscriptName, !name.hasPrefix(".")',
+    );
+  });
+
+  it("rejects a name-only protected face before CoreText can substitute", () => {
+    expect(helperSource).toContain('if name.hasPrefix(".")');
+    expect(helperSource).toContain("protected system PostScript name");
+  });
+});

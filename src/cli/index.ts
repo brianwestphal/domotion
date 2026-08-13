@@ -193,7 +193,8 @@ animate config (JSON):
         --width/--height <n> Override the config canvas on one/both axes.
         --optimize | --no-optimize | --quiet
 
-  Transitions: "crossfade" | "push-left" | "scroll" | "cut" ("cut" = instant).
+  Transitions: compatibility presets plus parameterized "push", "reveal", "zoom",
+    "shine", and strict "custom" recipes ("cut" = instant). See the animate guide.
   Continuous session: frame 0 must load an "input"; a later frame that omits
     "input" (or sets "continue": true) captures the live page after its own
     actions instead of reloading — for multi-step interaction demos.

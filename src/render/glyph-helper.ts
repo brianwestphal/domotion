@@ -739,6 +739,35 @@ export interface ShapedRunFallback {
   clusters: number[];
 }
 
+/** Initial metadata + outline-offset probe sent when opening a helper font. */
+export function buildGlyphHelperFontProbeEnvelope(spec: {
+  postscriptName?: string;
+  fontPath?: string;
+  variations?: Record<string, number>;
+}): HelperRequest {
+  // Dot-prefixed Apple system faces cannot be reopened by name: CoreText logs
+  // a warning and substitutes Times New Roman. The existing response guard
+  // rejects that geometry, so avoid asking the known-impossible question.
+  const probeByName = spec.postscriptName != null
+    && spec.variations == null
+    && !spec.postscriptName.startsWith(".");
+  return {
+    fonts: [
+      { ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 },
+      ...(probeByName ? [{ ref: "n", postscriptName: spec.postscriptName, size: 1000 }] : []),
+    ],
+    queries: [
+      { type: "meta" as const, fontRef: "f" },
+      ...(probeByName
+        ? [
+          { type: "meta" as const, fontRef: "n" },
+          { type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) },
+        ]
+        : []),
+    ],
+  };
+}
+
 export function createGlyphHelperFont(spec: {
   postscriptName?: string;
   fontPath?: string;
@@ -805,29 +834,7 @@ export function createGlyphHelperFont(spec: {
   let metaResp: MetaResponse;
   let offsetProbe: GlyphResponse[] = [];
   try {
-    const probe = callHelper({
-      fonts: [
-        { ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 },
-        // DM-1831: a SECOND handle on the same face, opened by system NAME
-        // rather than by file. See `outlineOffsetY` — CoreText only reports the
-        // Apple Color Emoji baseline adjustment through the system-registered
-        // font, so the by-path handle above can never observe it.
-        ...(spec.postscriptName != null && spec.variations == null
-          ? [{ ref: "n", postscriptName: spec.postscriptName, size: 1000 }]
-          : [])
-      ],
-      queries: [
-        { type: "meta" as const, fontRef: "f" },
-        ...(spec.postscriptName != null && spec.variations == null
-          ? [
-            // Ask what the by-NAME handle actually resolved to before trusting
-            // its geometry — see the guard below.
-            { type: "meta" as const, fontRef: "n" },
-            { type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) },
-          ]
-          : [])
-      ]
-    });
+    const probe = callHelper(buildGlyphHelperFontProbeEnvelope(spec));
     const r = probe.results[0];
     if (r.type !== "meta") throw new Error("unexpected response shape");
     metaResp = r;

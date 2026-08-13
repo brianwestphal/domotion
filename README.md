@@ -14,7 +14,7 @@
 
 **Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. Text is emitted as real glyph paths, so it looks identical across browsers; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
-Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with transitions, overlays, and simulated interaction, **scene storyboarding** (sequence distinct scenes end-to-end), **brand kits** and **social-format presets** (reel / square / portrait / landscape), **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
+Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with parameterized and custom transitions, overlays, and simulated interaction, **scene storyboarding** (sequence distinct scenes end-to-end), **brand kits** and **social-format presets** (reel / square / portrait / landscape), **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
 
 <p align="center">
   <img src="examples/output/hero-product-demo.svg" alt="An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG" width="760">
@@ -88,6 +88,12 @@ domotion animate ./demo.json
 ```
 
 The config describes each frame (input, duration, transition) plus a declarative surface for interaction demos: continuous-session frames that carry client-side state across steps (omit `input` / set `"continue": true`), DOM-mutation and interaction actions, richer readiness waits (`waitForText` / `waitForGone` / `waitForCount`), typing / tap / svg / blink / shine / interact overlays that can anchor to an element's box (typing supports per-keystroke reveal, `kern`, caret shapes, and a high-fidelity `typeResample` mode), real interaction-state capture (`forceState` / `hoverReveal` / `hoverDetect` / `jsReveal`), an on-screen `cursor` (explicit or `"auto"`), `vars` + `${}` interpolation, and a small `evaluate` escape hatch. See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
+
+Transitions are not limited to fixed presets. Parameterized `push`, `reveal`,
+`zoom`, and `shine` forms control direction/angle, distance, origin, radius, and
+highlight styling. A strict `custom` recipe can safely combine incoming/outgoing
+opacity, translate, scale, reveal clip, and shine channels—plus explicit reduced-
+motion and loop behavior—without accepting raw CSS or script.
 
 ### Templates — animated SVGs from a few flags
 

@@ -185,7 +185,7 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("Arial")).toBe("arial");
   });
 
-  it("resolves named SF Pro Text / Display to the system SFNS cut for shape fidelity, with the standalone OTF as a per-codepoint coverage fallback (DM-1659, reversing DM-1127)", () => {
+  it("resolves named SF Pro Text / Display through the system SF platform face rather than inferring coverage from the raw SFNS cmap (DM-1659, DM-1688)", () => {
     // DM-1659: Chrome→CoreText paints "SF Pro Text" / "SF Pro Display" from the
     // SYSTEM font SFNS.ttf, NOT the standalone /Library/Fonts/SF-Pro-*.otf. The two
     // files share Text-cut METRICS (identical advances) but differ in glyph DESIGN:
@@ -216,23 +216,18 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // The system SFNS reroute exists only when the author-named downloadable
     // family resolves. A stock macOS host without that optional font follows
     // the same standard-family path asserted above.
-    // Per-codepoint: SFNS-covered glyphs stay on SFNS (correct SHAPE) — the '!' and
-    // the single-digit circled numbers SFNS.ttf carries.
+    // Per-codepoint: trust the matched platform face's native coverage, not the
+    // raw SFNS.ttf cmap. CDP reports SF Pro Text for both the ordinary glyphs and
+    // enclosed alphanumerics below, including the two-digit forms absent from the
+    // file's literal cmap (DM-1688).
     expect(__resolveFontForCodepointForTest(0x21, "SF Pro Text")?.key).toBe("sf-pro");   // '!'
     expect(__resolveFontForCodepointForTest(0x2460, "SF Pro Text")?.key).toBe("sf-pro"); // ① single-circled
-    // ... but SFNS-gap glyphs fall to the standalone OTF (correct COVERAGE), because
-    // Chrome's CoreText cascades there for them (still reporting "SF Pro Text").
-    const otf = resolveInstalledFont("SF Pro Text");
-    if (otf != null) {
-      const otfKey = `sysfb:${otf.postscriptName}`;
-      expect(__resolveFontForCodepointForTest(0x2469, "SF Pro Text")?.key).toBe(otfKey); // ⑩ two-digit
-      expect(__resolveFontForCodepointForTest(0x24EB, "SF Pro Text")?.key).toBe(otfKey); // ⑪ negative-circled two-digit
-      const font = fontkit.openSync(__resolveFontSpecForTest(otfKey)!.path) as unknown as { glyphForCodePoint(cp: number): { id: number } };
-      expect(font.glyphForCodePoint(0x2469).id).not.toBe(0); // the OTF genuinely covers it
-    }
-    // Precondition (guards against "fixing" this by repointing routing at another
-    // file): SFNS.ttf genuinely has the single-digit circled numbers but not the
-    // two-digit ones.
+    expect(__resolveFontForCodepointForTest(0x2469, "SF Pro Text")?.key).toBe("sf-pro"); // ⑩ two-digit
+    expect(__resolveFontForCodepointForTest(0x24EB, "SF Pro Text")?.key).toBe("sf-pro"); // ⑪ negative-circled two-digit
+
+    // Discriminating precondition: the raw file really does lack U+2469. If this
+    // flips, the assertions above no longer prove that platform-face coverage —
+    // rather than file cmap inference — controls the routing decision.
     const sfns = fontkit.openSync("/System/Library/Fonts/SFNS.ttf") as unknown as { glyphForCodePoint(cp: number): { id: number } };
     expect(sfns.glyphForCodePoint(0x2460).id).not.toBe(0); // single-digit present
     expect(sfns.glyphForCodePoint(0x2469).id).toBe(0);     // two-digit absent
