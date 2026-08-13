@@ -11,14 +11,7 @@
     @keyframes fv-0 {
       0.00%, 100% { opacity: 1; }
     }
-    @keyframes fd-0 {
-      0% { visibility: hidden; }
-      0.000% { visibility: hidden; }
-      0.000% { visibility: visible; }
-      100.000% { visibility: visible; }
-      100.000% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fd-0 { 0% { visibility: visible; } 100% { visibility: hidden; } }
     .f-0 { animation: fv-0 1.90s infinite, fd-0 1.90s infinite step-end; }
     @keyframes f0-f0a0-0 {
       0% { transform: none; }

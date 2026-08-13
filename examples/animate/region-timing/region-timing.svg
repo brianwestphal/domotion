@@ -10,22 +10,8 @@
     :root { --scene-dur: 1.94s; }
     .f { opacity: 0; visibility: hidden; }
     
-    @keyframes fv-0 {
-      0% { opacity: 0; }
-      0.000% { opacity: 0; }
-      0.000% { opacity: 1; }
-      100.000% { opacity: 1; }
-      100.000% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-0 {
-      0% { visibility: hidden; }
-      0.000% { visibility: hidden; }
-      0.000% { visibility: visible; }
-      100.000% { visibility: visible; }
-      100.000% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fv-0 { 0% { opacity: 1; } 99.999% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes fd-0 { 0% { visibility: visible; } 100% { visibility: hidden; } }
     .f-0 { animation: fv-0 1.94s step-end infinite, fd-0 1.94s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">

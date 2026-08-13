@@ -11,40 +11,12 @@
     :root { --scene-dur: 3.20s; }
     .f { opacity: 0; visibility: hidden; }
     
-    @keyframes fv-0 {
-      0% { opacity: 0; }
-      0.000% { opacity: 0; }
-      0.000% { opacity: 1; }
-      43.750% { opacity: 1; }
-      43.751% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-0 {
-      0% { visibility: hidden; }
-      0.000% { visibility: hidden; }
-      0.000% { visibility: visible; }
-      48.438% { visibility: visible; }
-      48.438% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fv-0 { 0% { opacity: 1; } 43.749% { opacity: 1; } 43.75% { opacity: 0; } 100% { opacity: 0; } }
+    @keyframes fd-0 { 0% { visibility: visible; } 48.438% { visibility: hidden; } 100% { visibility: hidden; } }
     .f-0 { animation: fv-0 3.20s step-end infinite, fd-0 3.20s step-end infinite; }
 
-    @keyframes fv-1 {
-      0% { opacity: 0; }
-      43.749% { opacity: 0; }
-      43.750% { opacity: 1; }
-      100.000% { opacity: 1; }
-      100.000% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-1 {
-      0% { visibility: hidden; }
-      39.062% { visibility: hidden; }
-      39.063% { visibility: visible; }
-      100.000% { visibility: visible; }
-      100.000% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fv-1 { 0% { opacity: 0; } 43.749% { opacity: 0; } 43.75% { opacity: 1; } 99.999% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes fd-1 { 0% { visibility: hidden; } 39.062% { visibility: hidden; } 39.063% { visibility: visible; } 100% { visibility: hidden; } }
     .f-1 { animation: fv-1 3.20s step-end infinite, fd-1 3.20s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">

@@ -11,14 +11,7 @@
     @keyframes fv-0 {
       0.00%, 100% { opacity: 1; }
     }
-    @keyframes fd-0 {
-      0% { visibility: hidden; }
-      0.000% { visibility: hidden; }
-      0.000% { visibility: visible; }
-      100.000% { visibility: visible; }
-      100.000% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fd-0 { 0% { visibility: visible; } 100% { visibility: hidden; } }
     .f-0 { animation: fv-0 2.30s infinite, fd-0 2.30s infinite step-end; }
   </style>
   <g clip-path="url(#viewport-clip)">
@@ -31,8 +24,8 @@
     :root { --scene-dur-jr0_: 0.90s; }
     .jr0_f { opacity: 0; visibility: hidden; }
     
-    @keyframes jr0_fv-0 { 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 1; } 39.1304% { opacity: 1; } 39.1304% { opacity: 0; } 39.1304% { opacity: 0; } 100% { opacity: 1; } }
-    @keyframes jr0_fd-0 { 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: visible; } 39.1304% { visibility: visible; } 39.1304% { visibility: hidden; } 39.1304% { visibility: hidden; } 100% { visibility: visible; } }
+    @keyframes jr0_fv-0 { 0% { opacity: 1; } 0% { opacity: 1; } 39.13% { opacity: 1; } 39.1304% { opacity: 0; } 100% { opacity: 0; } }
+    @keyframes jr0_fd-0 { 0% { visibility: visible; } 0% { visibility: visible; } 39.1304% { visibility: hidden; } 100% { visibility: hidden; } }
     .jr0_f-0 { animation:jr0_fv-0 2.3s step-end infinite,jr0_fd-0 2.3s step-end infinite; }
     @keyframes jr0_f0-jr0-0 { 0% { transform: none; } 0% { transform: none; } 0% { transform: none; } 16.5217% { transform: matrix(1.1, 0, 0, 1.1, 0, -11); } 39.1304% { transform: matrix(1.1, 0, 0, 1.1, 0, -11); } 100% { transform: matrix(1.1, 0, 0, 1.1, 0, -11); } }
     .jr0_anim-jr0 { animation:jr0_f0-jr0-0 2.3s ease-out infinite; transform-box: fill-box; transform-origin: center; }

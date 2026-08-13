@@ -16,20 +16,8 @@
       33.33% { transform: translateX(-640px); }
       33.43%, 100% { transform: translateX(-640px); }
     }
-    @keyframes fv-0 {
-      0%, 0.00% { opacity: 0; }
-      0.00% { opacity: 1; }
-      33.33% { opacity: 1; }
-      33.43%, 100% { opacity: 0; }
-    }
-    @keyframes fd-0 {
-      0% { visibility: hidden; }
-      0.000% { visibility: hidden; }
-      0.000% { visibility: visible; }
-      35.894% { visibility: visible; }
-      35.895% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fv-0 { 0% { opacity: 1; } 33.33% { opacity: 1; } 33.43% { opacity: 0; } 100% { opacity: 0; } }
+    @keyframes fd-0 { 0% { visibility: visible; } 35.894% { visibility: visible; } 35.895% { visibility: hidden; } 100% { visibility: hidden; } }
     .f-0 { animation: fv-0 5.85s infinite, fd-0 5.85s infinite step-end; }
     .fp-0 { animation: fp-0 5.85s infinite; }
 
@@ -67,14 +55,7 @@
       58.97% { opacity: 1; }
       100% { opacity: 1; }
     }
-    @keyframes fd-2 {
-      0% { visibility: hidden; }
-      56.405% { visibility: hidden; }
-      56.406% { visibility: visible; }
-      100.000% { visibility: visible; }
-      100.000% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fd-2 { 0% { visibility: hidden; } 56.405% { visibility: hidden; } 56.406% { visibility: visible; } 100% { visibility: hidden; } }
     .f-2 { animation: fv-2 5.85s infinite, fd-2 5.85s infinite step-end; }
     .fp-2 { animation: fp-2 5.85s infinite; }
   </style>
@@ -93,12 +74,12 @@
   <g class="f f-1"><clipPath id="fc-1"><rect width="640" height="360" /></clipPath><g clip-path="url(#fc-1)" class="fp fp-1">
   <defs><linearGradient id="f1-bg0" gradientUnits="userSpaceOnUse" x1="70" y1="-70" x2="570" y2="430"><stop offset="0" stop-color="rgb(91,33,182)" /><stop offset="1" stop-color="rgb(124,58,237)" /></linearGradient><clipPath id="f1-ct1"><rect x="174.1" y="202.5" width="291.8" height="35" /></clipPath><clipPath id="f1-ct2"><rect x="266.6" y="100.5" width="106.8" height="96" /></clipPath><clipPath id="f1-ct3"><rect x="166.1" y="241.5" width="307.7" height="18" /></clipPath></defs>
   <rect x="0" y="0" width="640" height="360" rx="0" fill="url(#f1-bg0)" />
-  <g role="img" aria-label="Trace to glyph paths"><title>Trace to glyph paths</title><text x="174.13 191.63 202.48 219.16 235.84 260.86 270.86 297.52 315.84 324.17 340.86 359.19 385.84 404.17 420.86 430.84 449.17" y="230.5" font-family="dmf0" font-size="30" font-weight="600" fill="rgb(255,255,255)"></text></g>
+  <g role="img" aria-label="Trace to glyph paths"><title>Trace to glyph paths</title><text x="174.13 190.8 202.48 219.16 235.84 260.86 270.86 297.52 315.84 324.17 340.86 359.19 385.84 404.17 420.86 430.84 449.17" y="230.5" font-family="dmf0" font-size="30" font-weight="600" fill="rgb(255,255,255)"></text></g>
   <g opacity="0.3" style="isolation:isolate">
   <g role="img" aria-label="02"><title>02</title><text x="266.61 320" y="181.5" font-family="dmf0" font-size="96" font-weight="800" fill="rgb(255,255,255)"></text></g>
   </g>
   <g opacity="0.8" style="isolation:isolate">
-  <g role="img" aria-label="Text becomes crisp, resolution-free outlines"><title>Text becomes crisp, resolution-free outlines</title><text x="166.14 175.02 183.03 191.03 199.92 208.83 217.72 225.72 234.63 247.95 256.84 269.3 277.3 282.63 286.17 294.17 303.08 311.97 317.3 326.19 334.19 343.09 346.64 355.55 359.98 363.55 372.44 381.34 386.67 391.11 396.44 405.34 418.69 427.58 436.48 440.92 444.48 448.03 456.94 465.83" y="255.5" font-family="dmf1" font-size="16" fill="rgb(255,255,255)"></text></g>
+  <g role="img" aria-label="Text becomes crisp, resolution-free outlines"><title>Text becomes crisp, resolution-free outlines</title><text x="166.14 174.13 183.03 191.03 199.92 208.83 217.72 225.72 234.63 247.95 256.84 269.3 277.3 282.63 286.17 294.17 303.08 311.97 317.3 326.19 334.19 343.09 346.64 355.55 359.98 363.55 372.44 381.34 386.67 391.11 396.44 405.34 418.69 427.58 436.48 440.92 444.48 448.03 456.94 465.83" y="255.5" font-family="dmf1" font-size="16" fill="rgb(255,255,255)"></text></g>
   </g>
   </g></g>
   <g class="f f-2"><clipPath id="fc-2"><rect width="640" height="360" /></clipPath><g clip-path="url(#fc-2)" class="fp fp-2">

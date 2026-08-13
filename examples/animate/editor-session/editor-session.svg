@@ -9,22 +9,8 @@
     :root { --scene-dur: 17.24s; }
     .f { opacity: 0; visibility: hidden; }
     
-    @keyframes fv-0 {
-      0% { opacity: 0; }
-      0.000% { opacity: 0; }
-      0.000% { opacity: 1; }
-      43.500% { opacity: 1; }
-      43.501% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-0 {
-      0% { visibility: hidden; }
-      0.000% { visibility: hidden; }
-      0.000% { visibility: visible; }
-      44.370% { visibility: visible; }
-      44.371% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fv-0 { 0% { opacity: 1; } 43.499% { opacity: 1; } 43.5% { opacity: 0; } 100% { opacity: 0; } }
+    @keyframes fd-0 { 0% { visibility: visible; } 44.37% { visibility: visible; } 44.371% { visibility: hidden; } 100% { visibility: hidden; } }
     .f-0 { animation: fv-0 17.24s step-end infinite, fd-0 17.24s step-end infinite; }
 
     @keyframes t0-rev0 { 0.00% { width: 0.01px; } 1.88% { width: 0.01px; } 1.89% { width: 8.53px; } 2.02% { width: 16.05px; } 2.17% { width: 23.58px; } 2.32% { width: 31.10px; } 2.47% { width: 38.63px; } 2.61% { width: 46.15px; } 2.76% { width: 53.68px; } 2.89% { width: 61.21px; } 3.04% { width: 68.73px; } 3.17% { width: 76.26px; } 3.30% { width: 83.78px; } 3.45% { width: 91.31px; } 3.59% { width: 98.83px; } 3.72% { width: 106.36px; } 3.85% { width: 113.88px; } 3.98% { width: 121.41px; } 4.13% { width: 128.94px; } 4.28% { width: 136.46px; } 4.42% { width: 143.99px; } 4.56% { width: 151.51px; } 4.70% { width: 159.04px; } 4.84% { width: 166.56px; } 4.97% { width: 174.09px; } 5.10% { width: 181.62px; } 5.24% { width: 189.14px; } 5.40% { width: 196.67px; } 5.53% { width: 204.19px; } 5.68% { width: 211.72px; } 5.80% { width: 219.24px; } 5.94% { width: 226.77px; } 6.07% { width: 234.29px; } 6.20% { width: 241.82px; } 6.35% { width: 249.35px; } 6.48% { width: 256.87px; } 6.61% { width: 264.40px; } 6.74% { width: 271.92px; } 6.89% { width: 279.45px; } 7.02% { width: 286.97px; } 7.17% { width: 294.50px; } 9.28% { width: 294.499755859375px; } 9.29%, 100% { width: 0.01px; } }
@@ -71,8 +57,8 @@
       0% { opacity: 0; }
       43.499% { opacity: 0; }
       43.500% { opacity: 1; }
-      56.840% { opacity: 1; }
-      56.841% { opacity: 0; }
+      56.839% { opacity: 1; }
+      56.840% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-1 {
@@ -89,8 +75,8 @@
       0% { opacity: 0; }
       56.839% { opacity: 0; }
       56.840% { opacity: 1; }
-      69.900% { opacity: 1; }
-      69.901% { opacity: 0; }
+      69.899% { opacity: 1; }
+      69.900% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-2 {
@@ -115,8 +101,8 @@
       0% { opacity: 0; }
       69.899% { opacity: 0; }
       69.900% { opacity: 1; }
-      83.820% { opacity: 1; }
-      83.821% { opacity: 0; }
+      83.819% { opacity: 1; }
+      83.820% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-3 {
@@ -133,8 +119,8 @@
       0% { opacity: 0; }
       83.819% { opacity: 0; }
       83.820% { opacity: 1; }
-      93.040% { opacity: 1; }
-      93.041% { opacity: 0; }
+      93.039% { opacity: 1; }
+      93.040% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-4 {
@@ -147,22 +133,8 @@
     }
     .f-4 { animation: fv-4 17.24s step-end infinite, fd-4 17.24s step-end infinite; }
 
-    @keyframes fv-5 {
-      0% { opacity: 0; }
-      93.039% { opacity: 0; }
-      93.040% { opacity: 1; }
-      100.000% { opacity: 1; }
-      100.000% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-5 {
-      0% { visibility: hidden; }
-      92.169% { visibility: hidden; }
-      92.170% { visibility: visible; }
-      100.000% { visibility: visible; }
-      100.000% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
+    @keyframes fv-5 { 0% { opacity: 0; } 93.039% { opacity: 0; } 93.04% { opacity: 1; } 99.999% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes fd-5 { 0% { visibility: hidden; } 92.169% { visibility: hidden; } 92.17% { visibility: visible; } 100% { visibility: hidden; } }
     .f-5 { animation: fv-5 17.24s step-end infinite, fd-5 17.24s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
