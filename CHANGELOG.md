@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.22.1] - 2026-08-13
+
+
+_(No user-facing changes in this release — all changes are test-only environment fixes.)_
+
 ## [0.22.0] - 2026-08-13
 
 
