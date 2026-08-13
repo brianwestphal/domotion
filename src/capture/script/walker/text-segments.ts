@@ -177,7 +177,7 @@ export const capitalizeCss = (s) => {
 export const isTamilJoinerBrokenPrefix = (cp, nextCp, clusterHasBase) =>
   !clusterHasBase && cp === 0x200D && nextCp === 0x0BC6;
 
-export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {
+const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
   // ranges that paint upright in vertical text: CJK ideographs, CJK
@@ -1090,3 +1090,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
 
   return { captureTextSegments };
 };
+
+/** Construct the text walker while keeping its captured dependencies explicit. */
+export const createTextSegmentsHandler = (dependencies) =>
+  buildTextSegmentsHandler(dependencies);

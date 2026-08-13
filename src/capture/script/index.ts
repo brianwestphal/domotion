@@ -43,7 +43,7 @@ import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 import { resolveElementCursor, extractCssUrl, sideWidths } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
 
-export const captureScript =
+const captureDocumentTree =
 (args) => {
   const sel = args.sel;
   const vp = args.vp;
@@ -1543,3 +1543,6 @@ export const captureScript =
   return { tree: result, warnings: _warnings };
 }
 ;
+
+/** Serializable in-page capture entry point; orchestration lives above. */
+export const captureScript = (args) => captureDocumentTree(args);

@@ -64,6 +64,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqxfc4dfppsih2l",
+          "message": {
+            "text": "The public comparator now owns only file orchestration and the byte-equality shortcut; the browser stage accepts already-distinct bytes and owns decoding, pixel classification, connected components, metrics, and diff emission. This boundary preserves the existing page-evaluate algorithm byte-for-byte while making its two execution paths independently understandable and characterizable.",
+            "markdown": "The public comparator now owns only file orchestration and the byte-equality shortcut; the browser stage accepts already-distinct bytes and owns decoding, pixel classification, connected components, metrics, and diff emission. This boundary preserves the existing page-evaluate algorithm byte-for-byte while making its two execution paths independently understandable and characterizable."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 216,
+                  "endLine": 260,
+                  "snippet": {
+                    "text": "function cleanCompareResult(): CompareResult {\n  return {\n    nonAaPixels: 0,\n    nonAaPixelPct: 0,\n    diffPct: 0,\n    sigPixelPct: 0,\n    worstTilePct: 0,\n    worstTileSignificantPct: 0,\n    worstTileRect: { x: 0, y: 0, w: 0, h: 0 },\n    regionCount: 0,\n    totalChangedArea: 0,\n    maxRegionSeverity: 0,\n    scatteredPixels: 0,\n    shiftedPixels: 0,\n    shiftyRegionCount: 0,\n    shiftyRegionArea: 0,\n    strictRegionCount: 0,\n    strictRegionArea: 0,\n    strictMaxRegionArea: 0,\n    coveragePct: 0,\n    verdict: \"clean\",\n    regions: [],\n  };\n}\n\n/** Browser-owned pixel analysis for inputs already proven byte-distinct. */\nasync function compareDifferentPngs(\n  comparePage: Page,\n  expectedBytes: Buffer,\n  actualBytes: Buffer,\n  diffPath: string,\n  tilePx: number = TILE_PX,\n  significantDist: number = SIGNIFICANT_PIXEL_DIST,\n): Promise<CompareResult> {\n  const expectedB64 = expectedBytes.toString(\"base64\");\n  const actualB64 = actualBytes.toString(\"base64\");\n\n  const result = (await comparePage.evaluate(\n    `(async () => {\n      const loadImg = (src) => new Promise((resolve, reject) => {\n        const img = new Image();\n        img.onload = () => resolve(img);\n        img.onerror = reject;\n        img.src = src;\n      });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2128"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "81b9ef13d3bb9e719365acf58ea919c1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "be0a71439e543fda9124715bf1f3a78b0b848b61",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

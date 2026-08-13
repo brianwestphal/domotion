@@ -106,6 +106,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqy30b0rkrxw8aw",
+          "message": {
+            "text": "The public path renderer and embedded-mode coordinator are now thin API stages; the mature shaped-run implementations remain intact behind renderTextPathRuns and renderEmbeddedGlyphRuns. Keeping the positional contracts unchanged avoids a high-risk parameter-object migration while making mode dispatch and the heavy emission stages separately identifiable for subsequent extraction.",
+            "markdown": "The public path renderer and embedded-mode coordinator are now thin API stages; the mature shaped-run implementations remain intact behind `renderTextPathRuns` and `renderEmbeddedGlyphRuns`. Keeping the positional contracts unchanged avoids a high-risk parameter-object migration while making mode dispatch and the heavy emission stages separately identifiable for subsequent extraction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 930,
+                  "endLine": 970,
+                  "snippet": {
+                    "text": "\n/** Public path-mode entry point; run routing/emission lives in the stage above. */\nexport function textToPathMarkup(\n  text: string,\n  fontSize: number,\n  fontFamily: string,\n  fontWeight: string,\n  targetWidth?: number,\n  xOffsets?: number[],\n  fontStyle?: string,\n  features?: string[],\n  lang?: string,\n  variationSettings?: Record<string, number>,\n  bidiOverride?: { direction: \"ltr\" | \"rtl\"; unicodeBidi: string },\n  fontStretch?: string,\n  fontVariantEmoji?: FontVariantEmojiOverride,\n  fontSynthesis?: FontSynthesisAllowance,\n  fauxBold?: { fill: string },\n): TextPathResult | null {\n  return renderTextPathRuns(\n    text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle,\n    features, lang, variationSettings, bidiOverride, fontStretch,\n    fontVariantEmoji, fontSynthesis, fauxBold,\n  );\n}\n\n/** Original single-font path (unchanged behavior — preserves xOffsets / targetWidth). */\n// DM-1184: CSS `text-spacing-trim` collapses the built-in half-width side-\n// bearing that CJK fullwidth punctuation (（「」）。、 …) carries, so adjacent\n// trimmed punctuation packs ~0.5em apart instead of the full ~1em advance.\n// Chrome's already-trimmed pen positions ARE captured (and we anchor each glyph\n// at them), but the glyph OUTLINE is still the full-width one, whose ink sits in\n// only one half of the em box. For OPENING punctuation (（「) the ink is in the\n// RIGHT half, so drawing the full glyph at the trimmed (leftward) pen pushes the\n// ink ~0.5em too far right — it overlaps the next glyph (the visible \"「 lands on\n// 」\" bug). The font's `halt` (alternate half widths) feature is pure GPOS: it\n// halves the advance AND repositions the ink to fit (xOffset −0.5em for opening\n// punctuation, 0 for closing — closing ink is already left-aligned). We borrow\n// only its xOffset to nudge the ink at the already-trimmed anchor; the advance\n// is irrelevant because placement uses the captured pen, not a re-shaped one.\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 78,
+          "workItemUris": [
+            "DM-2126"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e9c527a618f99ecece23ae0c11c4bcf6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "be0a71439e543fda9124715bf1f3a78b0b848b61",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

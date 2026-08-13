@@ -6160,7 +6160,7 @@ export function __darwinSystemUiWdthForTest(
  *   face and variable webfonts, the variable `wdth` axis (see
  *   `darwinSystemUiWdth` / `applyVariationAxes`).
  */
-export function getFontInstance(
+function instantiateResolvedFont(
   key: string, weight: number, fontSize: number, slant: number = 0,
   variationSettings?: Record<string, number>, stretch: number = 100,
   /** True only when the winning CSS family entered Blink through
@@ -6726,6 +6726,19 @@ export function getFontInstance(
   });
   fontInstanceCache.set(cacheKey, instance);
   return instance;
+}
+
+/** Public key-to-instance coordinator; platform dispatch lives in the stage above. */
+export function getFontInstance(
+  key: string, weight: number, fontSize: number, slant: number = 0,
+  variationSettings?: Record<string, number>, stretch: number = 100,
+  systemUiPrimary: boolean = false,
+  declaredFamily?: string,
+): FontInstance | null {
+  return instantiateResolvedFont(
+    key, weight, fontSize, slant, variationSettings, stretch,
+    systemUiPrimary, declaredFamily,
+  );
 }
 
 /** DM-1714/DM-1716: the on-disk file + collection index a font instance was
@@ -8105,7 +8118,7 @@ export function getSessionGenericFamilyOverrides(): SessionGenericFamilyOverride
  * The default classifies a bare lower-case spelling as the keyword, matching
  * the pre-existing single-name callers (probes, tests, head-name comparisons).
  */
-function matchFamilyNameToKey(
+function matchFamilyCandidateToKey(
   name: string,
   generic: boolean = BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
   lang?: string,
@@ -8718,6 +8731,19 @@ function matchFamilyNameToKey(
       }
     }
   return null;
+}
+
+/** One family-stack candidate to its logical platform key. */
+function matchFamilyNameToKey(
+  name: string,
+  generic: boolean = BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
+  lang?: string,
+  canonicalSystemUiName: boolean = name === "system-ui",
+  lookupName: string = name,
+): string | null {
+  return matchFamilyCandidateToKey(
+    name, generic, lang, canonicalSystemUiName, lookupName,
+  );
 }
 
 export function resolveFontKey(fontFamily: string, lang?: string): string {
@@ -9820,7 +9846,7 @@ export function resolveFontForCodepoint(
   );
 }
 
-function resolveFontForCodepointInner(
+function walkFontFallbackStages(
   cp: number,
   primaryFont: FontInstance,
   primaryFontKey: string,
@@ -10331,6 +10357,29 @@ function resolveFontForCodepointInner(
   // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.
   _stageStats.uncovered++;
   return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
+}
+
+/** Per-codepoint fallback coordinator; ordered Blink stages live above. */
+function resolveFontForCodepointInner(
+  cp: number,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+  fontKeyChain: string[],
+  systemUiPrimary: boolean = false,
+  stretch: number = 100,
+  fontVariantEmoji?: FontVariantEmojiOverride,
+  declaredFamily?: string,
+): FontResolution {
+  return walkFontFallbackStages(
+    cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+    variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
+    fontVariantEmoji, declaredFamily,
+  );
 }
 
 /**

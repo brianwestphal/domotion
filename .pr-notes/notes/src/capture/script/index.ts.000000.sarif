@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqya0fqep9j0nys",
+          "message": {
+            "text": "The serialized capture entry point remains a plain arrow function while delegating to a named orchestration stage. That shape preserves the browser-context bundler contract; the generated capture script rebuilt successfully and focused walker characterization tests pass 18/18.",
+            "markdown": "The serialized capture entry point remains a plain arrow function while delegating to a named orchestration stage. That shape preserves the browser-context bundler contract; the generated capture script rebuilt successfully and focused walker characterization tests pass 18/18."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1547,
+                  "endLine": 1548,
+                  "snippet": {
+                    "text": "/** Serializable in-page capture entry point; orchestration lives above. */\nexport const captureScript = (args) => captureDocumentTree(args);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2125"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1755f744cb19c4841e2a581f1d53c5f4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "be0a71439e543fda9124715bf1f3a78b0b848b61",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

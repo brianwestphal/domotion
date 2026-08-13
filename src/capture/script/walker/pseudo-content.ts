@@ -57,7 +57,7 @@
 
 import { hasCssValue, sideWidths } from "../utils.js";
 
-export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle, composeEffectiveTransform }) => {
+const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle, composeEffectiveTransform }) => {
   // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
   // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
   // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
@@ -897,3 +897,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
 
   return { capturePseudoContent };
 };
+
+/** Construct pseudo-content capture with its browser-only dependencies explicit. */
+export const createPseudoContentHandler = (dependencies) =>
+  buildPseudoContentHandler(dependencies);

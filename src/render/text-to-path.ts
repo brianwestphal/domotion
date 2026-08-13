@@ -368,7 +368,7 @@ export function splitTextIntoGlyphPathRuns(
   return runs;
 }
 
-export function textToPathMarkup(
+function renderTextPathRuns(
   text: string,
   fontSize: number,
   fontFamily: string,
@@ -926,6 +926,31 @@ export function textToPathMarkup(
     markup: groups.length > 0 ? groups.join("") : "",
     width: xCss,
   };
+}
+
+/** Public path-mode entry point; run routing/emission lives in the stage above. */
+export function textToPathMarkup(
+  text: string,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string,
+  targetWidth?: number,
+  xOffsets?: number[],
+  fontStyle?: string,
+  features?: string[],
+  lang?: string,
+  variationSettings?: Record<string, number>,
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  fontStretch?: string,
+  fontVariantEmoji?: FontVariantEmojiOverride,
+  fontSynthesis?: FontSynthesisAllowance,
+  fauxBold?: { fill: string },
+): TextPathResult | null {
+  return renderTextPathRuns(
+    text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle,
+    features, lang, variationSettings, bidiOverride, fontStretch,
+    fontVariantEmoji, fontSynthesis, fauxBold,
+  );
 }
 
 /** Original single-font path (unchanged behavior — preserves xOffsets / targetWidth). */
@@ -1761,7 +1786,7 @@ function isFullyTransparentColor(fill: string): boolean {
  * outline is missing, or the PUA-A block ran out). The caller falls
  * through to paths-mode emission in that case.
  */
-function renderTextAsEmbedded(
+function renderEmbeddedGlyphRuns(
   text: string,
   x: number,
   y: number,
@@ -2463,6 +2488,38 @@ function renderTextAsEmbedded(
   // glyph stream is PUA codepoints, which AT would otherwise read as
   // garbage. The aria-label / <title> carry the human-readable form.
   return `<g role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${segments.join("")}</g>`;
+}
+
+/** Embedded-mode coordinator; shaping/subsetting/emission lives above. */
+function renderTextAsEmbedded(
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string,
+  fill: string,
+  xOffsets: number[] | undefined,
+  fontStyle: string | undefined,
+  ascentOverride: number | undefined,
+  features: string[] | undefined,
+  lang: string | undefined,
+  variationSettings: Record<string, number> | undefined,
+  textStrokeWidth?: number,
+  textStrokeColor?: string,
+  paintOrder?: string,
+  targetWidth?: number,
+  fontStretch?: string,
+  fontVariantEmoji?: FontVariantEmojiOverride,
+  fontSynthesis?: FontSynthesisAllowance,
+  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+): string | null {
+  return renderEmbeddedGlyphRuns(
+    text, x, y, fontSize, fontFamily, fontWeight, fill, xOffsets, fontStyle,
+    ascentOverride, features, lang, variationSettings, textStrokeWidth,
+    textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
+    fontSynthesis, bidiOverride,
+  );
 }
 
 /**

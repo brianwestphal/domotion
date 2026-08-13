@@ -213,55 +213,40 @@ interface EvalDiffResult extends Omit<CompareResult, "verdict"> {
  * support canvas. Callers typically dedicate a separate page so the run page
  * can keep its viewport / state.
  */
-export async function comparePngs(
+function cleanCompareResult(): CompareResult {
+  return {
+    nonAaPixels: 0,
+    nonAaPixelPct: 0,
+    diffPct: 0,
+    sigPixelPct: 0,
+    worstTilePct: 0,
+    worstTileSignificantPct: 0,
+    worstTileRect: { x: 0, y: 0, w: 0, h: 0 },
+    regionCount: 0,
+    totalChangedArea: 0,
+    maxRegionSeverity: 0,
+    scatteredPixels: 0,
+    shiftedPixels: 0,
+    shiftyRegionCount: 0,
+    shiftyRegionArea: 0,
+    strictRegionCount: 0,
+    strictRegionArea: 0,
+    strictMaxRegionArea: 0,
+    coveragePct: 0,
+    verdict: "clean",
+    regions: [],
+  };
+}
+
+/** Browser-owned pixel analysis for inputs already proven byte-distinct. */
+async function compareDifferentPngs(
   comparePage: Page,
-  expectedPath: string,
-  actualPath: string,
+  expectedBytes: Buffer,
+  actualBytes: Buffer,
   diffPath: string,
   tilePx: number = TILE_PX,
   significantDist: number = SIGNIFICANT_PIXEL_DIST,
 ): Promise<CompareResult> {
-  const expectedBytes = readFileSync(expectedPath);
-  const actualBytes = readFileSync(actualPath);
-  // DM-1003: byte-equality fast path. When the two PNGs are byte-identical
-  // skip the per-tile Yee + region-detection walk entirely (the walk loads
-  // both images into Chromium canvases, iterates every pixel for the diff
-  // mask, runs connected-components — ~1–3 s on the bigger fixtures).
-  // Buffer length compare + Buffer.equals is O(n) but C-speed and shares
-  // the same file reads we'd do anyway for base64. Empirically rare in
-  // our renderer (clean fixtures still have sub-pixel render differences
-  // between expected/actual) but compounds with DM-1002 where the
-  // cached expected.png is reused unchanged across runs.
-  if (expectedBytes.length === actualBytes.length && expectedBytes.equals(actualBytes)) {
-    copyFileSync(expectedPath, diffPath);
-    // Byte-identical inputs: the two sides are the same image, so one digest
-    // describes both. Left EMPTY rather than faked — computing it here would
-    // mean decoding the PNG on the Node side purely to fill a field, and an
-    // absent digest already reads as "cannot attribute", which is the honest
-    // answer for a fixture that did not move at all.
-    return {
-      nonAaPixels: 0,
-      nonAaPixelPct: 0,
-      diffPct: 0,
-      sigPixelPct: 0,
-      worstTilePct: 0,
-      worstTileSignificantPct: 0,
-      worstTileRect: { x: 0, y: 0, w: 0, h: 0 },
-      regionCount: 0,
-      totalChangedArea: 0,
-      maxRegionSeverity: 0,
-      scatteredPixels: 0,
-      shiftedPixels: 0,
-      shiftyRegionCount: 0,
-      shiftyRegionArea: 0,
-      strictRegionCount: 0,
-      strictRegionArea: 0,
-      strictMaxRegionArea: 0,
-      coveragePct: 0,
-      verdict: "clean",
-      regions: [],
-    };
-  }
   const expectedB64 = expectedBytes.toString("base64");
   const actualB64 = actualBytes.toString("base64");
 
@@ -681,6 +666,27 @@ export async function comparePngs(
   const { diffDataUrl, ...metrics } = result;
   writeFileSync(diffPath, Buffer.from(diffDataUrl.split(",")[1], "base64"));
   return { ...metrics, verdict: classifyDiff(result.regionCount, result.coveragePct) };
+}
+
+export async function comparePngs(
+  comparePage: Page,
+  expectedPath: string,
+  actualPath: string,
+  diffPath: string,
+  tilePx: number = TILE_PX,
+  significantDist: number = SIGNIFICANT_PIXEL_DIST,
+): Promise<CompareResult> {
+  const expectedBytes = readFileSync(expectedPath);
+  const actualBytes = readFileSync(actualPath);
+  // Byte equality is a Node orchestration decision: avoid decoding and walking
+  // millions of pixels in Chromium when the encoded inputs are identical.
+  if (expectedBytes.length === actualBytes.length && expectedBytes.equals(actualBytes)) {
+    copyFileSync(expectedPath, diffPath);
+    return cleanCompareResult();
+  }
+  return compareDifferentPngs(
+    comparePage, expectedBytes, actualBytes, diffPath, tilePx, significantDist,
+  );
 }
 
 /** DM-715: pre-region pass criterion (every differing pixel must be classified

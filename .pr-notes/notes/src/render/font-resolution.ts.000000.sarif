@@ -1358,6 +1358,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqy9pxru99h08ll",
+          "message": {
+            "text": "The exported font-instantiation entry point is now a narrow coordinator over the existing platform-aware implementation stage. This deliberately preserves the positional API and cache/platform dispatch behavior while making the boundary explicit; focused family/cache characterization tests pass 37/37.",
+            "markdown": "The exported font-instantiation entry point is now a narrow coordinator over the existing platform-aware implementation stage. This deliberately preserves the positional API and cache/platform dispatch behavior while making the boundary explicit; focused family/cache characterization tests pass 37/37."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 6731,
+                  "endLine": 6743,
+                  "snippet": {
+                    "text": "/** Public key-to-instance coordinator; platform dispatch lives in the stage above. */\nexport function getFontInstance(\n  key: string, weight: number, fontSize: number, slant: number = 0,\n  variationSettings?: Record<string, number>, stretch: number = 100,\n  systemUiPrimary: boolean = false,\n  declaredFamily?: string,\n): FontInstance | null {\n  return instantiateResolvedFont(\n    key, weight, fontSize, slant, variationSettings, stretch,\n    systemUiPrimary, declaredFamily,\n  );\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2127"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5a57e791491c2c84e5c913f451aac9e6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "be0a71439e543fda9124715bf1f3a78b0b848b61",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
