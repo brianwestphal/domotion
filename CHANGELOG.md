@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.22.2] - 2026-08-13
+
+
+<!-- No user-facing changes in this range: both commits only stabilize test assertions across CI font inventories. Template requires omitting empty sections, leaving no output. -->
+
+There are no user-facing changes in `v0.22.1..HEAD` — both commits only stabilize font-fallback test assertions across CI runner font inventories (test-only changes, which the template excludes). Every section would be empty, so the release notes are intentionally blank.
+
 ## [0.22.1] - 2026-08-13
 
 
