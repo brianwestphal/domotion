@@ -255,19 +255,16 @@ function cleanCompareResult(): CompareResult {
 }
 
 /** Browser-owned pixel analysis for inputs already proven byte-distinct. */
-async function compareDifferentPngs(
-  comparePage: Page,
+export function buildBrowserComparisonSource(
   expectedBytes: Buffer,
   actualBytes: Buffer,
-  diffPath: string,
   tilePx: number = TILE_PX,
   significantDist: number = SIGNIFICANT_PIXEL_DIST,
-): Promise<CompareResult> {
+): string {
   const expectedB64 = expectedBytes.toString("base64");
   const actualB64 = actualBytes.toString("base64");
 
-  const result = (await comparePage.evaluate(
-    `(async () => {
+  return `(async () => {
       const loadImg = (src) => new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
@@ -674,8 +671,35 @@ async function compareDifferentPngs(
         regions: trimmedRegions,
         diffDataUrl: diffCanvas.toDataURL("image/png"),
       };
-    })()`,
-  )) as EvalDiffResult;
+    })()`;
+}
+
+/** Browser execution stage for inputs already proven byte-distinct. */
+async function analyzeDifferentPngs(
+  comparePage: Page,
+  expectedBytes: Buffer,
+  actualBytes: Buffer,
+  tilePx: number,
+  significantDist: number,
+): Promise<EvalDiffResult> {
+  const source = buildBrowserComparisonSource(
+    expectedBytes, actualBytes, tilePx, significantDist,
+  );
+  return (await comparePage.evaluate(source)) as EvalDiffResult;
+}
+
+/** Distinct-input coordinator: analyze in Chromium, then serialize in Node. */
+async function compareDifferentPngs(
+  comparePage: Page,
+  expectedBytes: Buffer,
+  actualBytes: Buffer,
+  diffPath: string,
+  tilePx: number = TILE_PX,
+  significantDist: number = SIGNIFICANT_PIXEL_DIST,
+): Promise<CompareResult> {
+  const result = await analyzeDifferentPngs(
+    comparePage, expectedBytes, actualBytes, tilePx, significantDist,
+  );
 
   // Drop the data URL (written to disk below); every remaining field IS a
   // CompareResult metric, so the spread can't drift from the interface.

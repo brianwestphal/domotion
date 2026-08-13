@@ -194,6 +194,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqyu6aixnij9u5u",
+          "message": {
+            "text": "The self-contained browser analysis program is now built by a pure source-construction stage, while Playwright execution and Node serialization are separate coordinators. This preserves the page.evaluate isolation constraint but makes threshold/input wiring directly testable; the existing Chromium comparator suite still passes 7/7.",
+            "markdown": "The self-contained browser analysis program is now built by a pure source-construction stage, while Playwright execution and Node serialization are separate coordinators. This preserves the page.evaluate isolation constraint but makes threshold/input wiring directly testable; the existing Chromium comparator suite still passes 7/7."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 242,
+                  "endLine": 250,
+                  "snippet": {
+                    "text": "    totalChangedArea: 0,\n    maxRegionSeverity: 0,\n    scatteredPixels: 0,\n    shiftedPixels: 0,\n    shiftyRegionCount: 0,\n    shiftyRegionArea: 0,\n    strictRegionCount: 0,\n    strictRegionArea: 0,\n    strictMaxRegionArea: 0,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2134"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f71997607598d74b112696194c4e1dd2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f4b0b523370c280ae25e10bb60f3f4087cedc7dc",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

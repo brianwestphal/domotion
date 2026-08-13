@@ -4,6 +4,7 @@ import {
   passesStrict,
   classifyDiff,
   finalizeEvalDiffResult,
+  buildBrowserComparisonSource,
   PASS_THRESHOLD_NON_AA_PIXELS,
   MIN_REGION_AREA,
   REGION_DILATE_PX,
@@ -37,6 +38,18 @@ describe("finalizeEvalDiffResult(): browser wire boundary", () => {
   it("rejects a malformed browser payload before writing a diff", () => {
     const raw = { diffDataUrl: "not-a-data-url" };
     expect(() => finalizeEvalDiffResult(raw as never)).toThrow("invalid data URL");
+  });
+});
+
+describe("buildBrowserComparisonSource(): analysis-stage boundary", () => {
+  it("embeds inputs and caller-selected thresholds in a self-contained program", () => {
+    const source = buildBrowserComparisonSource(Buffer.from("expected"), Buffer.from("actual"), 17, 23);
+    expect(source).toContain(Buffer.from("expected").toString("base64"));
+    expect(source).toContain(Buffer.from("actual").toString("base64"));
+    expect(source).toContain("const TILE = 17");
+    expect(source).toContain("const SIG = 23");
+    expect(source).toMatch(/^\(async \(\) => \{/);
+    expect(source).toMatch(/\}\)\(\)$/);
   });
 });
 
