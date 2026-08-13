@@ -171,6 +171,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqz87hj7842modf",
+          "message": {
+            "text": "Path and embedded render modes now share pure CSS-font request normalization, while embedded baseline placement and Blink's rounded synthesized-small-caps scale are explicit stages. These decisions were previously duplicated or buried inside emission loops; direct characterization pins their numeric contracts without requiring a system font.",
+            "markdown": "Path and embedded render modes now share pure CSS-font request normalization, while embedded baseline placement and Blink's rounded synthesized-small-caps scale are explicit stages. These decisions were previously duplicated or buried inside emission loops; direct characterization pins their numeric contracts without requiring a system font."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 371,
+                  "endLine": 401,
+                  "snippet": {
+                    "text": "export function textFontRequest(\n  fontWeight: string,\n  fontStyle: string | undefined,\n  fontStretch: string | undefined,\n): { weight: number; slant: number; stretch: number } {\n  return {\n    weight: parseInt(fontWeight) || 400,\n    slant: slantForStyle(fontStyle),\n    stretch: stretchPercent(fontStretch),\n  };\n}\n\nexport function embeddedBaselineY(\n  y: number,\n  fontSize: number,\n  unitsPerEm: number,\n  ascent: number,\n  ascentOverride: number | undefined,\n): number {\n  const baselineAscent = ascentOverride != null\n    ? ascentOverride\n    : Math.round(ascent * (fontSize / unitsPerEm));\n  return y + baselineAscent;\n}\n\nexport function synthesizedSmallCapsScale(fontSize: number): number {\n  return Math.round(fontSize * 0.7) / fontSize;\n}\n\nfunction renderTextPathRuns(\n  text: string,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2132"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a56a8dbd865b13cc4819d99ffe211fe4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "90f7a17670f01971d34e4c81fd6c98170ebe6927",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

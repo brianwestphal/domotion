@@ -368,6 +368,35 @@ export function splitTextIntoGlyphPathRuns(
   return runs;
 }
 
+export function textFontRequest(
+  fontWeight: string,
+  fontStyle: string | undefined,
+  fontStretch: string | undefined,
+): { weight: number; slant: number; stretch: number } {
+  return {
+    weight: parseInt(fontWeight) || 400,
+    slant: slantForStyle(fontStyle),
+    stretch: stretchPercent(fontStretch),
+  };
+}
+
+export function embeddedBaselineY(
+  y: number,
+  fontSize: number,
+  unitsPerEm: number,
+  ascent: number,
+  ascentOverride: number | undefined,
+): number {
+  const baselineAscent = ascentOverride != null
+    ? ascentOverride
+    : Math.round(ascent * (fontSize / unitsPerEm));
+  return y + baselineAscent;
+}
+
+export function synthesizedSmallCapsScale(fontSize: number): number {
+  return Math.round(fontSize * 0.7) / fontSize;
+}
+
 function renderTextPathRuns(
   text: string,
   fontSize: number,
@@ -428,9 +457,7 @@ function renderTextPathRuns(
    */
   fauxBold?: { fill: string },
 ): TextPathResult | null {
-  const weight = parseInt(fontWeight) || 400;
-  const slant = slantForStyle(fontStyle);
-  const stretch = stretchPercent(fontStretch);
+  const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
 
@@ -1823,9 +1850,7 @@ function renderEmbeddedGlyphRuns(
   /** CSS bidi override applied before Blink's script/run segmentation. */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): string | null {
-  const weight = parseInt(fontWeight) || 400;
-  const slant = slantForStyle(fontStyle);
-  const stretch = stretchPercent(fontStretch);
+  const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang);
@@ -1856,9 +1881,9 @@ function renderEmbeddedGlyphRuns(
   // captured Chrome `fontBoundingBoxAscent` when provided (matches what
   // Chrome's text engine measured on the original page); else fall back
   // to the primary font's HHEA ascent scaled to fontSize.
-  const scale = fontSize / primaryFont.unitsPerEm;
-  const baselineAscent = ascentOverride != null ? ascentOverride : Math.round(primaryFont.ascent * scale);
-  const baselineY = y + baselineAscent;
+  const baselineY = embeddedBaselineY(
+    y, fontSize, primaryFont.unitsPerEm, primaryFont.ascent, ascentOverride,
+  );
 
   const esc = escAttr;
   // void: silence "unused" when the helper isn't called below (path varies).
@@ -1905,7 +1930,7 @@ function renderEmbeddedGlyphRuns(
   // runScale`, so expressing the scale as the per-size RATIO
   // `roundedSize / fontSize` (rather than a flat 0.7) makes that product land
   // on Blink's rounded pixel size exactly.
-  const SMALL_CAP_SCALE = Math.round(fontSize * 0.7) / fontSize;
+  const SMALL_CAP_SCALE = synthesizedSmallCapsScale(fontSize);
   const featuresArr = features ?? [];
   const wantSmcp = featuresArr.includes("smcp");
   const wantC2sc = featuresArr.includes("c2sc");
