@@ -3,6 +3,7 @@ import {
   passes,
   passesStrict,
   classifyDiff,
+  finalizeEvalDiffResult,
   PASS_THRESHOLD_NON_AA_PIXELS,
   MIN_REGION_AREA,
   REGION_DILATE_PX,
@@ -13,6 +14,31 @@ import {
   strictCapsFor,
   type CompareResult,
 } from "./compare-pngs.js";
+
+describe("finalizeEvalDiffResult(): browser wire boundary", () => {
+  it("decodes the PNG payload and derives the verdict outside Chromium", () => {
+    const raw = {
+      nonAaPixels: 2, nonAaPixelPct: 2, diffPct: 1, sigPixelPct: 1,
+      worstTilePct: 1, worstTileSignificantPct: 1,
+      worstTileRect: { x: 0, y: 0, w: 1, h: 1 }, regionCount: 1,
+      totalChangedArea: 1, maxRegionSeverity: 100, scatteredPixels: 1,
+      shiftedPixels: 0, shiftyRegionCount: 0, shiftyRegionArea: 0,
+      strictRegionCount: 1, strictRegionArea: 1, strictMaxRegionArea: 1,
+      coveragePct: 0.01, regions: [],
+      diffDataUrl: `data:image/png;base64,${Buffer.from("png").toString("base64")}`,
+    };
+
+    const finalized = finalizeEvalDiffResult(raw);
+    expect(finalized.pngBytes.toString()).toBe("png");
+    expect(finalized.metrics.verdict).toBe("trivial");
+    expect(finalized.metrics).not.toHaveProperty("diffDataUrl");
+  });
+
+  it("rejects a malformed browser payload before writing a diff", () => {
+    const raw = { diffDataUrl: "not-a-data-url" };
+    expect(() => finalizeEvalDiffResult(raw as never)).toThrow("invalid data URL");
+  });
+});
 
 /** The calibrated caps, named once so the cases below read as behavior rather
  *  than arithmetic. Passed explicitly so these tests are host-independent. */

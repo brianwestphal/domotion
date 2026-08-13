@@ -129,6 +129,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msqyo8hswdfqf4vs",
+          "message": {
+            "text": "The browser-to-Node wire boundary now has one pure finalization stage. It validates and decodes the diff data URL and derives the qualitative verdict in Node, keeping file I/O out of the browser analyzer and making malformed evaluator output directly characterizable without Playwright.",
+            "markdown": "The browser-to-Node wire boundary now has one pure finalization stage. It validates and decodes the diff data URL and derives the qualitative verdict in Node, keeping file I/O out of the browser analyzer and making malformed evaluator output directly characterizable without Playwright."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 217,
+                  "endLine": 233,
+                  "snippet": {
+                    "text": "      ...rawMetrics,\n      verdict: classifyDiff(result.regionCount, result.coveragePct),\n    },\n  };\n}\n\n/**\n * Compare `expectedPath` vs `actualPath` and write a literal absolute-difference\n * diff PNG to `diffPath`. Returns the full metric set. DM-715 pass criterion:\n * `regionCount === 0`.\n *\n * `comparePage` is any Playwright Page — it just needs to be navigable and to\n * support canvas. Callers typically dedicate a separate page so the run page\n * can keep its viewport / state.\n */\nfunction cleanCompareResult(): CompareResult {\n  return {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2134"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "557d1802354db3cedfbf4eda605e575f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "101f12585bbbe699397ba61636866d0f3789dea3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

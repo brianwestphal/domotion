@@ -204,6 +204,22 @@ interface EvalDiffResult extends Omit<CompareResult, "verdict"> {
   diffDataUrl: string;
 }
 
+/** Node-side serialization stage for the browser analyzer's wire result. */
+export function finalizeEvalDiffResult(
+  result: EvalDiffResult,
+): { pngBytes: Buffer; metrics: CompareResult } {
+  const comma = result.diffDataUrl.indexOf(",");
+  if (comma < 0) throw new Error("PNG comparison returned an invalid data URL");
+  const { diffDataUrl: _diffDataUrl, ...rawMetrics } = result;
+  return {
+    pngBytes: Buffer.from(result.diffDataUrl.slice(comma + 1), "base64"),
+    metrics: {
+      ...rawMetrics,
+      verdict: classifyDiff(result.regionCount, result.coveragePct),
+    },
+  };
+}
+
 /**
  * Compare `expectedPath` vs `actualPath` and write a literal absolute-difference
  * diff PNG to `diffPath`. Returns the full metric set. DM-715 pass criterion:
@@ -663,9 +679,9 @@ async function compareDifferentPngs(
 
   // Drop the data URL (written to disk below); every remaining field IS a
   // CompareResult metric, so the spread can't drift from the interface.
-  const { diffDataUrl, ...metrics } = result;
-  writeFileSync(diffPath, Buffer.from(diffDataUrl.split(",")[1], "base64"));
-  return { ...metrics, verdict: classifyDiff(result.regionCount, result.coveragePct) };
+  const finalized = finalizeEvalDiffResult(result);
+  writeFileSync(diffPath, finalized.pngBytes);
+  return finalized.metrics;
 }
 
 export async function comparePngs(
