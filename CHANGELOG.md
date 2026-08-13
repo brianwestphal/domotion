@@ -2,6 +2,84 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.22.0] - 2026-08-13
+
+
+**🚀 Features**
+
+- **Frame-sequence compression for editing animations** — a run of consecutive editing states now composes into one self-contained animated SVG where shared content is emitted once and only per-keystroke deltas animate. Available declaratively via a `states` block (with auto-carets) and as `composeCompressedRun`. Automatic detection is now on by default; opt out with `"autoCompress": false` or `--no-auto-compress`, or opt in per-run with a `compress: true` marker. A size-regression guard guarantees compression never grows the output.
+- **Caret & selection tracks** (`textTracks`) — declarative carets and selections anchored to Chromium's own captured glyph positions, with logical-order addressing across RTL/bidi runs, vertical writing modes, and mixed inline content. Adds a block-caret `invert` option (repaints the covered glyph) and behind-glyph (true editor z-order) selection.
+- **Parameterized & custom transitions** — built-in transitions now take parameters, plus a normalized transition schema and support for safe custom transition recipes and angled linear wipes.
+- **Per-region animation timing** — declare regions by selector (`regions`) and tag each state with what it `advances`, so independently-updating panes run on their own schedules.
+- **Richer typing overlays** — `anchor.baseline: true` lands overlay text on an element's real text baseline, and `holdToFrameEnd: true` holds a typed line through the frame for a seamless handoff to captured page text. Overlays gain an explicit `endAt` window and support per-state overlays inside a compressed run.
+- **WOFF2 font compression** — the CLI `--optimize` pass now recompresses embedded fonts to WOFF2 (new `compressEmbeddedFontsToWoff2` export), cutting font bytes ~40% in text-heavy output.
+- **Hinting-preserving embedded font subsets, on by default** — embedded subsets now retain the source font's TrueType hinting (variable fonts fully instanced at the resolved axis), sharply improving text fidelity on Linux and Windows. Set `DOMOTION_HINTED_SUBSET=0` to fall back.
+- **CSS font property support** — `font-variant-emoji`, `font-feature-settings` disables/values, `font-synthesis` (weight/style/small-caps vetoes), and `font-stretch` (width-axis instancing and cut selection) are now honored, shaped through HarfBuzz where needed.
+
+**🐛 Fixes**
+
+- **Text decoration** — decorations now propagate to in-flow descendants and accumulate down the ancestor chain (a bold or sub/sup child no longer drops the line); dashed/dotted dash geometry, skip-ink gaps, `text-underline-position: under`, and overall decoration geometry are transcribed from Chromium instead of fitted approximations.
+- **Complex-script shaping** — Arabic, Hebrew, Devanagari, Telugu, Hangul, Thai/Lao, Myanmar, Khmer and Bengali now shape through HarfBuzz for correct joining, clustering, reordering and dotted-circle behavior; bidi handling is fixed for `unicode-bidi: bidi-override` and for SMP right-to-left scripts.
+- **Cross-platform font selection** — large parity improvements to which face and cut Chrome actually paints on macOS, Linux and Windows (declared-family cut ladders, system-ui, generics per content script, weight/optical-size axes), plus synthetic bold and oblique now baked into embedded glyphs where the resolved face lacks the requested style.
+- **Color emoji** — sbix emoji overlays self-calibrate to Chrome's painted pixels, and emoji are no longer double-painted under their raster overlays; several emoji-presentation and variation-selector routing cases are corrected.
+- **Embedded fonts fill correctly** — subsets now emit `glyf` (not CFF) so overlapping contours union under nonzero fill, and legitimately-inkless codepoints no longer paint tofu boxes.
+- **Layout & paint** — stacking contexts paint floats between block boxes and inline content per CSS 2.1; text-bearing blocks no longer repaint their floats over the text; non-floated `initial-letter` raised caps are sized and positioned correctly; `<textarea>` line tops snap to whole pixels; counter-style fallbacks keep the original style's affixes.
+- **Animations** — intra-frame `opacity` animations can now brighten a partially-transparent element (and `opacity: 0` targets keep their markup to fade in); viewBox culling models translate+scale so scaled-in content isn't hidden; per-frame cull class names no longer collide across frames; the auto-cursor hit-tests glyphs in true paint order and click actions can aim off-center.
+- **`animate` self-containment** — remote `<img src>` bytes are now inlined (no dead hrefs in the output), and repeated raster payloads are serialized once instead of per frame.
+- **Robustness** — per-element fontkit exceptions and null glyph lookups are isolated so one bad glyph can no longer abort a whole render.
+
+## [0.22.0] - 2026-08-13
+
+
+**🚀 Features**
+
+- **Frame-sequence compression for editing animations** — a run of consecutive editing states now composes into one self-contained animated SVG where shared content is emitted once and only per-keystroke deltas animate. Available declaratively via a `states` block (with auto-carets) and as `composeCompressedRun`. Automatic detection is now on by default; opt out with `"autoCompress": false` or `--no-auto-compress`, or opt in per-run with a `compress: true` marker. A size-regression guard guarantees compression never grows the output.
+- **Caret & selection tracks** (`textTracks`) — declarative carets and selections anchored to Chromium's own captured glyph positions, with logical-order addressing across RTL/bidi runs, vertical writing modes, and mixed inline content. Adds a block-caret `invert` option (repaints the covered glyph) and behind-glyph (true editor z-order) selection.
+- **Parameterized & custom transitions** — built-in transitions now take parameters, plus a normalized transition schema and support for safe custom transition recipes and angled linear wipes.
+- **Per-region animation timing** — declare regions by selector (`regions`) and tag each state with what it `advances`, so independently-updating panes run on their own schedules.
+- **Richer typing overlays** — `anchor.baseline: true` lands overlay text on an element's real text baseline, and `holdToFrameEnd: true` holds a typed line through the frame for a seamless handoff to captured page text. Overlays gain an explicit `endAt` window and support per-state overlays inside a compressed run.
+- **WOFF2 font compression** — the CLI `--optimize` pass now recompresses embedded fonts to WOFF2 (new `compressEmbeddedFontsToWoff2` export), cutting font bytes ~40% in text-heavy output.
+- **Hinting-preserving embedded font subsets, on by default** — embedded subsets now retain the source font's TrueType hinting (variable fonts fully instanced at the resolved axis), sharply improving text fidelity on Linux and Windows. Set `DOMOTION_HINTED_SUBSET=0` to fall back.
+- **CSS font property support** — `font-variant-emoji`, `font-feature-settings` disables/values, `font-synthesis` (weight/style/small-caps vetoes), and `font-stretch` (width-axis instancing and cut selection) are now honored, shaped through HarfBuzz where needed.
+
+**🐛 Fixes**
+
+- **Text decoration** — decorations now propagate to in-flow descendants and accumulate down the ancestor chain (a bold or sub/sup child no longer drops the line); dashed/dotted dash geometry, skip-ink gaps, `text-underline-position: under`, and overall decoration geometry are transcribed from Chromium instead of fitted approximations.
+- **Complex-script shaping** — Arabic, Hebrew, Devanagari, Telugu, Hangul, Thai/Lao, Myanmar, Khmer and Bengali now shape through HarfBuzz for correct joining, clustering, reordering and dotted-circle behavior; bidi handling is fixed for `unicode-bidi: bidi-override` and for SMP right-to-left scripts.
+- **Cross-platform font selection** — large parity improvements to which face and cut Chrome actually paints on macOS, Linux and Windows (declared-family cut ladders, system-ui, generics per content script, weight/optical-size axes), plus synthetic bold and oblique now baked into embedded glyphs where the resolved face lacks the requested style.
+- **Color emoji** — sbix emoji overlays self-calibrate to Chrome's painted pixels, and emoji are no longer double-painted under their raster overlays; several emoji-presentation and variation-selector routing cases are corrected.
+- **Embedded fonts fill correctly** — subsets now emit `glyf` (not CFF) so overlapping contours union under nonzero fill, and legitimately-inkless codepoints no longer paint tofu boxes.
+- **Layout & paint** — stacking contexts paint floats between block boxes and inline content per CSS 2.1; text-bearing blocks no longer repaint their floats over the text; non-floated `initial-letter` raised caps are sized and positioned correctly; `<textarea>` line tops snap to whole pixels; counter-style fallbacks keep the original style's affixes.
+- **Animations** — intra-frame `opacity` animations can now brighten a partially-transparent element (and `opacity: 0` targets keep their markup to fade in); viewBox culling models translate+scale so scaled-in content isn't hidden; per-frame cull class names no longer collide across frames; the auto-cursor hit-tests glyphs in true paint order and click actions can aim off-center.
+- **`animate` self-containment** — remote `<img src>` bytes are now inlined (no dead hrefs in the output), and repeated raster payloads are serialized once instead of per frame.
+- **Robustness** — per-element fontkit exceptions and null glyph lookups are isolated so one bad glyph can no longer abort a whole render.
+
+## [0.22.0] - 2026-08-13
+
+
+**🚀 Features**
+
+- **Frame-sequence compression for editing animations** — a run of consecutive editing states now composes into one self-contained animated SVG where shared content is emitted once and only per-keystroke deltas animate. Available declaratively via a `states` block (with auto-carets) and as `composeCompressedRun`. Automatic detection is now on by default; opt out with `"autoCompress": false` or `--no-auto-compress`, or opt in per-run with a `compress: true` marker. A size-regression guard guarantees compression never grows the output.
+- **Caret & selection tracks** (`textTracks`) — declarative carets and selections anchored to Chromium's own captured glyph positions, with logical-order addressing across RTL/bidi runs, vertical writing modes, and mixed inline content. Adds a block-caret `invert` option (repaints the covered glyph) and behind-glyph (true editor z-order) selection.
+- **Parameterized & custom transitions** — built-in transitions now take parameters, plus a normalized transition schema and support for safe custom transition recipes and angled linear wipes.
+- **Per-region animation timing** — declare regions by selector (`regions`) and tag each state with what it `advances`, so independently-updating panes run on their own schedules.
+- **Richer typing overlays** — `anchor.baseline: true` lands overlay text on an element's real text baseline, and `holdToFrameEnd: true` holds a typed line through the frame for a seamless handoff to captured page text. Overlays gain an explicit `endAt` window and support per-state overlays inside a compressed run.
+- **WOFF2 font compression** — the CLI `--optimize` pass now recompresses embedded fonts to WOFF2 (new `compressEmbeddedFontsToWoff2` export), cutting font bytes ~40% in text-heavy output.
+- **Hinting-preserving embedded font subsets, on by default** — embedded subsets now retain the source font's TrueType hinting (variable fonts fully instanced at the resolved axis), sharply improving text fidelity on Linux and Windows. Set `DOMOTION_HINTED_SUBSET=0` to fall back.
+- **CSS font property support** — `font-variant-emoji`, `font-feature-settings` disables/values, `font-synthesis` (weight/style/small-caps vetoes), and `font-stretch` (width-axis instancing and cut selection) are now honored, shaped through HarfBuzz where needed.
+
+**🐛 Fixes**
+
+- **Text decoration** — decorations now propagate to in-flow descendants and accumulate down the ancestor chain (a bold or sub/sup child no longer drops the line); dashed/dotted dash geometry, skip-ink gaps, `text-underline-position: under`, and overall decoration geometry are transcribed from Chromium instead of fitted approximations.
+- **Complex-script shaping** — Arabic, Hebrew, Devanagari, Telugu, Hangul, Thai/Lao, Myanmar, Khmer and Bengali now shape through HarfBuzz for correct joining, clustering, reordering and dotted-circle behavior; bidi handling is fixed for `unicode-bidi: bidi-override` and for SMP right-to-left scripts.
+- **Cross-platform font selection** — large parity improvements to which face and cut Chrome actually paints on macOS, Linux and Windows (declared-family cut ladders, system-ui, generics per content script, weight/optical-size axes), plus synthetic bold and oblique now baked into embedded glyphs where the resolved face lacks the requested style.
+- **Color emoji** — sbix emoji overlays self-calibrate to Chrome's painted pixels, and emoji are no longer double-painted under their raster overlays; several emoji-presentation and variation-selector routing cases are corrected.
+- **Embedded fonts fill correctly** — subsets now emit `glyf` (not CFF) so overlapping contours union under nonzero fill, and legitimately-inkless codepoints no longer paint tofu boxes.
+- **Layout & paint** — stacking contexts paint floats between block boxes and inline content per CSS 2.1; text-bearing blocks no longer repaint their floats over the text; non-floated `initial-letter` raised caps are sized and positioned correctly; `<textarea>` line tops snap to whole pixels; counter-style fallbacks keep the original style's affixes.
+- **Animations** — intra-frame `opacity` animations can now brighten a partially-transparent element (and `opacity: 0` targets keep their markup to fade in); viewBox culling models translate+scale so scaled-in content isn't hidden; per-frame cull class names no longer collide across frames; the auto-cursor hit-tests glyphs in true paint order and click actions can aim off-center.
+- **`animate` self-containment** — remote `<img src>` bytes are now inlined (no dead hrefs in the output), and repeated raster payloads are serialized once instead of per frame.
+- **Robustness** — per-element fontkit exceptions and null glyph lookups are isolated so one bad glyph can no longer abort a whole render.
+
 ## [0.21.1] - 2026-07-04
 
 
