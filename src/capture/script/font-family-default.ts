@@ -44,11 +44,11 @@ const GENERIC_FAMILY_KEYWORDS = {
 };
 
 export const createFontFamilyDefault = () => {
-  // Precompute, once, the author-rule selectors that set `font-family` (via the
-  // longhand or the `font` shorthand — `rule.style.fontFamily` reflects both).
-  // Mirrors createPlaceholderShown's CORS-guarded stylesheet walk.
-  const familySelectors = [];
-  const collect = (cssRules) => {
+  // Cache author font selectors per Document. Iframe recursion walks elements
+  // from several documents in one capture; consulting only the top document's
+  // sheets makes an inherited iframe rule look like the UA default.
+  const selectorsByDocument = new WeakMap();
+  const collect = (cssRules, familySelectors) => {
     if (cssRules == null) return;
     for (let i = 0; i < cssRules.length; i++) {
       const rule = cssRules[i];
@@ -58,12 +58,19 @@ export const createFontFamilyDefault = () => {
         familySelectors.push(sel);
       }
       // Recurse into @media / @supports / grouping rules.
-      if (rule.cssRules != null && rule.cssRules.length > 0) collect(rule.cssRules);
+      if (rule.cssRules != null && rule.cssRules.length > 0) collect(rule.cssRules, familySelectors);
     }
   };
-  for (let i = 0; i < document.styleSheets.length; i++) {
-    try { collect(document.styleSheets[i].cssRules); } catch (e) { /* CORS — skip */ }
-  }
+  const selectorsFor = (doc) => {
+    const cached = selectorsByDocument.get(doc);
+    if (cached != null) return cached;
+    const familySelectors = [];
+    for (let i = 0; i < doc.styleSheets.length; i++) {
+      try { collect(doc.styleSheets[i].cssRules, familySelectors); } catch (e) { /* CORS — skip */ }
+    }
+    selectorsByDocument.set(doc, familySelectors);
+    return familySelectors;
+  };
 
   // Form controls carry a UA `font: -webkit-small-control` (a CONCRETE family,
   // "Arial" on every platform — `core/html/resources/html.css:427`,
@@ -75,7 +82,7 @@ export const createFontFamilyDefault = () => {
   // the generic-name test regardless, but is listed here for completeness.)
   const UA_CONCRETE_FAMILY_TAGS = { INPUT: 1, TEXTAREA: 1, SELECT: 1, BUTTON: 1, KEYGEN: 1 };
 
-  const nodeSetsNonStandardFamily = (n) => {
+  const nodeSetsNonStandardFamily = (n, familySelectors) => {
     // A UA system-control font (concrete, not kStandardFamily).
     if (UA_CONCRETE_FAMILY_TAGS[n.tagName] === 1) return true;
     // Inline style (reflects `font-family:` AND the `font` shorthand).
@@ -95,6 +102,7 @@ export const createFontFamilyDefault = () => {
   // rather than an author-declared or UA-generic family.
   const familyIsUADefault = (el, computedFontFamily) => {
     if (typeof computedFontFamily !== "string" || computedFontFamily === "") return false;
+    const familySelectors = selectorsFor(el.ownerDocument || document);
     // (1) concrete-name test on the first family.
     let first = computedFontFamily.split(",")[0].trim();
     if ((first.charCodeAt(0) === 34 || first.charCodeAt(0) === 39)) {
@@ -104,7 +112,7 @@ export const createFontFamilyDefault = () => {
     // (2) no author font-family on self or any ancestor (font-family inherits).
     let n = el;
     while (n != null && n.nodeType === 1) {
-      if (nodeSetsNonStandardFamily(n)) return false;
+      if (nodeSetsNonStandardFamily(n, familySelectors)) return false;
       n = n.parentElement;
     }
     return true;

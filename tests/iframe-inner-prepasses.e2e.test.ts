@@ -35,7 +35,7 @@ function findText(el: CapturedElement, needle: string): CapturedElement | null {
 }
 
 const INNER = `<!doctype html><html><head><style>
-  body{margin:0;font-family:sans-serif;color:#fff;background:#123}
+  body{margin:0;font-family:Arial,sans-serif;color:#fff;background:#123}
   .sec{counter-increment:sec}
   .sec::before{content:counter(sec) '. '}
 </style></head><body>
@@ -45,6 +45,7 @@ const INNER = `<!doctype html><html><head><style>
     <h3 class="sec">Third</h3>
   </div>
   <div id="scaled" style="transform:scale(2);transform-origin:0 0;font-size:10px;">Scaled</div>
+  <div id="family">Frame family</div>
 </body></html>`;
 
 const env = await (async () => {
@@ -88,6 +89,12 @@ describeBrowser("recursed iframe inner-document pre-passes (DM-1443)", () => {
       const fs = parseFloat(String(scaled!.styles?.fontSize));
       expect(fs).toBeGreaterThan(19);
       expect(fs).toBeLessThan(21);
+
+      // Computed styles must come from the iframe's Window. The top Window's
+      // getter can otherwise substitute its default serif family.
+      const family = findText(iframe!, "Frame family");
+      expect(family, "inner family element captured").not.toBeNull();
+      expect(family!.styles?.fontFamily).toMatch(/^Arial(?:,|$)/);
     } finally {
       await ctx.close();
     }

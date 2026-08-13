@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot-Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msr8tlclj4rbpqz3",
+          "message": {
+            "text": "Iframe recursion walks multiple Documents in one capture. The UA-default font detector must cache and query author font-family selectors per ownerDocument; using only the top document misclassifies inherited iframe fonts as -webkit-standard and renders them with the standard serif face.",
+            "markdown": "Iframe recursion walks multiple Documents in one capture. The UA-default font detector must cache and query author font-family selectors per ownerDocument; using only the top document misclassifies inherited iframe fonts as -webkit-standard and renders them with the standard serif face."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-family-default.ts"
+                },
+                "region": {
+                  "startLine": 46,
+                  "endLine": 73,
+                  "snippet": {
+                    "text": "export const createFontFamilyDefault = () => {\n  // Cache author font selectors per Document. Iframe recursion walks elements\n  // from several documents in one capture; consulting only the top document's\n  // sheets makes an inherited iframe rule look like the UA default.\n  const selectorsByDocument = new WeakMap();\n  const collect = (cssRules, familySelectors) => {\n    if (cssRules == null) return;\n    for (let i = 0; i < cssRules.length; i++) {\n      const rule = cssRules[i];\n      if (rule == null) continue;\n      const sel = rule.selectorText;\n      if (typeof sel === \"string\" && rule.style != null && rule.style.fontFamily !== \"\") {\n        familySelectors.push(sel);\n      }\n      // Recurse into @media / @supports / grouping rules.\n      if (rule.cssRules != null && rule.cssRules.length > 0) collect(rule.cssRules, familySelectors);\n    }\n  };\n  const selectorsFor = (doc) => {\n    const cached = selectorsByDocument.get(doc);\n    if (cached != null) return cached;\n    const familySelectors = [];\n    for (let i = 0; i < doc.styleSheets.length; i++) {\n      try { collect(doc.styleSheets[i].cssRules, familySelectors); } catch (e) { /* CORS — skip */ }\n    }\n    selectorsByDocument.set(doc, familySelectors);\n    return familySelectors;\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2136"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "71a250a90ab6f3dc703511926db19050"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c94a205f19955910b219421c3d9cf10d39719b09",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

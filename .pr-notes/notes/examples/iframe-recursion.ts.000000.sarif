@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot-Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msr8tllszr5f1ccl",
+          "message": {
+            "text": "The cross-origin example uses a routed HTTPS origin so it still exercises the real allowlisted cross-origin recursion path while keeping the captured page deterministic, offline-safe, and independent of live-site campaign or asset changes.",
+            "markdown": "The cross-origin example uses a routed HTTPS origin so it still exercises the real allowlisted cross-origin recursion path while keeping the captured page deterministic, offline-safe, and independent of live-site campaign or asset changes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/iframe-recursion.ts"
+                },
+                "region": {
+                  "startLine": 116,
+                  "endLine": 138,
+                  "snippet": {
+                    "text": "// ── Deterministic cross-origin fixture (Phase 2) ────────────────────────────\nasync function crossOrigin(): Promise<void> {\n  const W = 1000, H = 700;\n  // The iframe stays genuinely cross-origin (`frame.example` vs about:blank),\n  // but routing makes its bytes deterministic and offline-safe.\n  const browser = await chromium.launch({ args: crossOriginFramesLaunchArgs(\"*\") });\n  try {\n    const ctx = await browser.newContext({ viewport: { width: W, height: H } });\n    await ctx.route(\"https://frame.example/demo\", async (route) => {\n      await route.fulfill({ status: 200, contentType: \"text/html\", body: CROSS_ORIGIN_PAGE });\n    });\n    const pg = await ctx.newPage();\n    await pg.setContent(`<body style=\"margin:0;background:#070a12;font-family:Arial,sans-serif\">\n      <div style=\"padding:20px\">\n        <div style=\"color:#8a97b0;font-size:13px;font-weight:600;letter-spacing:.04em;margin-bottom:12px\">CROSS-ORIGIN — frame.example embedded &amp; recursed via --cross-origin-frames</div>\n        <div style=\"width:960px;height:600px;border-radius:14px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.55);border:1px solid #1d2740\">\n          <iframe src=\"https://frame.example/demo\" width=\"960\" height=\"600\" style=\"display:block;border:0\"></iframe>\n        </div>\n      </div></body>`);\n    await pg.waitForLoadState(\"networkidle\").catch(() => {});\n    const { tree } = await captureElementTreeWithWarnings(pg, \"body\", { x: 0, y: 0, width: W, height: H }, {\n      crossOriginFrames: \"frame.example\",\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2137"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "989e67fda71f4af6e325e3d042a3716c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c94a205f19955910b219421c3d9cf10d39719b09",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

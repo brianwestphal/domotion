@@ -102,7 +102,12 @@ const captureDocumentTree =
     // so getBoundingClientRect returns un-transformed coords; the renderer
     // re-applies the saved transform via an SVG group wrapper. See
     // walker/transforms.ts for the rationale.
-    const cs = window.getComputedStyle(el);
+    // A recursed iframe's element belongs to its own Window. Calling the top
+    // window's getter for a foreign-document element can return default UA
+    // values for inherited properties (notably Times for `font-family`) even
+    // though Chromium paints the frame's authored face.
+    const styleWindow = el.ownerDocument?.defaultView ?? window;
+    const cs = styleWindow.getComputedStyle(el);
     return wrapWithFrozenTransform(el, cs, captureInner);
   };
   const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
