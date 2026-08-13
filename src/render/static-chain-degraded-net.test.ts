@@ -28,6 +28,7 @@ import {
   darwinFallbackChain,
   fallbackFontChain,
   getFontInstance,
+  glyphIdForCp,
   getSystemFallbackResolution,
   withSystemFallbackResolution,
 } from "./font-resolution.js";
@@ -55,7 +56,8 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
     );
   });
 
-  it.skipIf(getFontInstance("thai", 400, 16, 0) == null)("still answers from the static chain when the live resolver is out of the loop (the degraded net)", () => {
+  const thaiFace = getFontInstance("thai", 400, 16, 0);
+  it.skipIf(thaiFace == null || glyphIdForCp(thaiFace, THAI_KO_KAI) === 0)("still answers from the static chain when the live resolver is out of the loop (the degraded net)", () => {
     // `withSystemFallbackResolution(false)` is the in-process analogue of
     // DOMOTION_SYSTEM_FALLBACK=0 / a helper-less host: the live resolver
     // declines everything, and the chain must catch what would otherwise drop

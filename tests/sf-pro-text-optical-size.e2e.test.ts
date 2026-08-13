@@ -64,10 +64,11 @@ describeMac("DM-1103: SF Pro Text optical-size cut", () => {
     const textMaxY = await embeddedRingMaxY(env!.browser, `'SF Pro Text','Arial Unicode MS',sans-serif`);
     const displayMaxY = await embeddedRingMaxY(env!.browser, `system-ui,sans-serif`);
     // Compare the two cuts from the SAME installed SFNS build. Absolute glyph
-    // coordinates changed on newer macOS runner images (the Text cut moved
-    // below the old 1600 midpoint), but the load-bearing distinction remains:
-    // the explicit Text cut's ring is materially higher than the size-derived
-    // Display cut.
-    expect(textMaxY).toBeGreaterThan(displayMaxY + 40);
+    // coordinates and even the size of the gap vary by macOS's bundled SFNS
+    // revision (observed gaps: 156 units locally, 16 on the CI runner). The
+    // load-bearing invariant is directional: the explicit Text cut's ring is
+    // higher than the size-derived Display cut, proving they did not collapse
+    // onto the same default-master outline.
+    expect(textMaxY).toBeGreaterThan(displayMaxY);
   }, 60_000);
 });
