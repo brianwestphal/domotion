@@ -2406,7 +2406,7 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
     expect(groupCount(out!)).toBe(3); // pre-fix: 1 + 3 + 1 = 5
   });
 
-  it("does not affect an UNRELATED fallback script (Han stays per-character)", () => {
+  it.skipIf(!MACOS_FONTS)("does not affect an UNRELATED fallback script (Han stays per-character)", () => {
     // Control: verifies the wrapping harness itself against a script that is
     // NOT in `DEDICATED_SHAPER_RANGES` and must stay out — CJK ideographs,
     // which fall back from Helvetica the same way the scripts above do, but

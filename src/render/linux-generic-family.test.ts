@@ -24,9 +24,13 @@
  */
 import { describe, expect, it } from "vitest";
 import { __resolveFontSpecForTest, resolveFontKey } from "./font-resolution.js";
+import { isGlyphHelperAvailable } from "./glyph-helper.js";
 import { hostPlatform } from "./host-platform.js";
 
-const describeLinux = hostPlatform() === "linux" ? describe : describe.skip;
+// These assertions pin Chromium's native fontconfig nominations on the
+// calibrated Linux image. A generic Ubuntu runner without the helper falls
+// back to host aliases (typically DejaVu), which is degraded-mode behavior.
+const describeLinux = hostPlatform() === "linux" && isGlyphHelperAvailable() ? describe : describe.skip;
 
 describeLinux("CSS generic keywords resolve where Chrome resolves them (Linux)", () => {
   /** The face `serif` lands on — Liberation Serif in the pinned noble image. */

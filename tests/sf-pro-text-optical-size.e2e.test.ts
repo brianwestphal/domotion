@@ -58,17 +58,16 @@ async function embeddedRingMaxY(browser: NonNullable<typeof env>["browser"], fam
 }
 
 describeMac("DM-1103: SF Pro Text optical-size cut", () => {
-  it('renders "SF Pro Text" diacritics at the Text optical size (opsz 17), not the default master', async () => {
+  it('renders "SF Pro Text" diacritics at the Text optical size, not the default master', async () => {
     // Single-quoted names so the inner quotes don't terminate the double-quoted
     // `style="…"` attribute (which would silently fall back to Times).
-    const maxY = await embeddedRingMaxY(env!.browser, `'SF Pro Text','Arial Unicode MS',sans-serif`);
-    // opsz 17 → ~1680; opsz 28 (the old bug) → 1524. Use a midpoint gate.
-    expect(maxY).toBeGreaterThan(1600);
-  }, 60_000);
-
-  it('leaves generic "SF Pro" / system-ui on the size-derived opsz (unchanged)', async () => {
-    const maxY = await embeddedRingMaxY(env!.browser, `system-ui,sans-serif`);
-    // At 32px the generic path is the Display master (~1524); must NOT become 1680.
-    expect(maxY).toBeLessThan(1600);
+    const textMaxY = await embeddedRingMaxY(env!.browser, `'SF Pro Text','Arial Unicode MS',sans-serif`);
+    const displayMaxY = await embeddedRingMaxY(env!.browser, `system-ui,sans-serif`);
+    // Compare the two cuts from the SAME installed SFNS build. Absolute glyph
+    // coordinates changed on newer macOS runner images (the Text cut moved
+    // below the old 1600 midpoint), but the load-bearing distinction remains:
+    // the explicit Text cut's ring is materially higher than the size-derived
+    // Display cut.
+    expect(textMaxY).toBeGreaterThan(displayMaxY + 40);
   }, 60_000);
 });
