@@ -105,7 +105,9 @@ function systemFallbackCallArgs(src: string): string[] {
  *  The coverage probe is deliberately NOT here anymore: it delegates to
  *  `resolveFontForCodepoint` and reaches the platform only through it. */
 const RUN_CONTEXT_ASKERS = [
-  "resolveFontForCodepointInner",
+  // `resolveFontForCodepointInner` is now deliberately a thin coordinator;
+  // the actual ordered walk (and therefore the live platform ask) lives here.
+  "walkFontFallbackStages",
   "__resolveSystemFallbackKeyForCpForTest",
 ] as const;
 
