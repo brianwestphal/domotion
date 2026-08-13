@@ -22,9 +22,15 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Existing release tag to resume after an infrastructure failure
+        required: true
+        type: string
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ inputs.release_ref || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -33,6 +39,7 @@ env:
   # crashes any `npm install -g` before it can replace itself. Bumping back
   # to a major-version range (`'22'`) is safe once 22.22.2 ages out.
   NODE_VERSION: '22.21.0'
+  RELEASE_REF: ${{ inputs.release_ref || github.ref_name }}
 
 jobs:
   # ─── Phase 1: validation (parallel) ─────────────────────────────────
@@ -41,6 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ env.RELEASE_REF }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
@@ -50,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ env.RELEASE_REF }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
@@ -59,6 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ env.RELEASE_REF }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
@@ -75,8 +85,12 @@ jobs:
     steps:
       - id: extract
         run: |
-          # GITHUB_REF_NAME = "v0.2.0" or "v0.2.0-beta.1" → strip leading "v"
-          VERSION="${GITHUB_REF_NAME#v}"
+          # RELEASE_REF = "v0.2.0" or "v0.2.0-beta.1" → strip leading "v"
+          if [[ ! "$RELEASE_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_REF" >&2
+            exit 1
+          fi
+          VERSION="${RELEASE_REF#v}"
           if [[ "$VERSION" == *-beta.* ]]; then
             IS_BETA=true
           else
@@ -93,6 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ env.RELEASE_REF }}' }
       - name: Extract release notes from CHANGELOG (stable)
         if: needs.detect.outputs.is_beta == 'false'
         run: |
@@ -118,13 +133,13 @@ jobs:
             echo
             echo "Full annotated tag message follows:"
             echo
-            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            git tag -l --format='%(contents)' "$RELEASE_REF"
           } > release-notes.md
       - name: Create GitHub Release (stable)
         if: needs.detect.outputs.is_beta == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_REF }}
           name: v${{ needs.detect.outputs.version }}
           body_path: release-notes.md
           prerelease: false
@@ -133,7 +148,7 @@ jobs:
         if: needs.detect.outputs.is_beta == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_REF }}
           name: v${{ needs.detect.outputs.version }}
           body_path: release-notes.md
           prerelease: true
@@ -147,12 +162,15 @@ jobs:
     environment: npm-publish
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ env.RELEASE_REF }}' }
       - uses: actions/setup-node@v4
         with:
           node-version: '${{ env.NODE_VERSION }}'
           cache: npm
           registry-url: 'https://registry.npmjs.org/'
-      - run: npm install -g npm@latest   # trusted publishing OIDC needs npm ≥ 11.5.1
+      # Trusted publishing needs npm >= 11.5.1. Pin a known-compatible version:
+      # npm@latest can cross an engine boundary independently of NODE_VERSION.
+      - run: npm install -g npm@11.6.2
       - run: npm ci
       - name: Bump package.json to beta version (ephemeral, not committed)
         if: needs.detect.outputs.is_beta == 'true'

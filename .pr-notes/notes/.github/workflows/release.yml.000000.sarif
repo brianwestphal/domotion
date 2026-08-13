@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msrdi02zweqvql6y",
+          "message": {
+            "text": "DM-2140: A manual dispatch accepts an existing, validated release tag so a publish-stage infrastructure failure can be resumed without moving the immutable tag or cutting a fake patch release. Every checkout is pinned to RELEASE_REF; the workflow definition itself may come from main while package contents come from the original tag.",
+            "markdown": "DM-2140: A manual dispatch accepts an existing, validated release tag so a publish-stage infrastructure failure can be resumed without moving the immutable tag or cutting a fake patch release. Every checkout is pinned to RELEASE_REF; the workflow definition itself may come from main while package contents come from the original tag."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/release.yml"
+                },
+                "region": {
+                  "startLine": 25,
+                  "endLine": 42,
+                  "snippet": {
+                    "text": "  workflow_dispatch:\n    inputs:\n      release_ref:\n        description: Existing release tag to resume after an infrastructure failure\n        required: true\n        type: string\n\nconcurrency:\n  group: release-${{ inputs.release_ref || github.ref_name }}\n  cancel-in-progress: false\n\nenv:\n  # Pinned to 22.21.0 — Node 22.22.2's setup-node toolcache ships a corrupt\n  # bundled npm (its `@npmcli/arborist` is missing `promise-retry`), which\n  # crashes any `npm install -g` before it can replace itself. Bumping back\n  # to a major-version range (`'22'`) is safe once 22.22.2 ages out.\n  NODE_VERSION: '22.21.0'\n  RELEASE_REF: ${{ inputs.release_ref || github.ref_name }}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2140"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6978f589f36caaa2301366386fb5eb0e"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msrdi0b8uoieqbyn",
+          "message": {
+            "text": "DM-2140: Pin npm 11.6.2 rather than npm@latest. Trusted publishing requires npm >=11.5.1, npm 11.6.2 supports the pinned Node 22.21.0, and a moving dist-tag can cross a Node engine boundary between otherwise identical release runs (npm 12.0.2 did exactly that).",
+            "markdown": "DM-2140: Pin npm 11.6.2 rather than npm@latest. Trusted publishing requires npm >=11.5.1, npm 11.6.2 supports the pinned Node 22.21.0, and a moving dist-tag can cross a Node engine boundary between otherwise identical release runs (npm 12.0.2 did exactly that)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/release.yml"
+                },
+                "region": {
+                  "startLine": 171,
+                  "endLine": 173,
+                  "snippet": {
+                    "text": "      # Trusted publishing needs npm >= 11.5.1. Pin a known-compatible version:\n      # npm@latest can cross an engine boundary independently of NODE_VERSION.\n      - run: npm install -g npm@11.6.2"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2140"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "101ef950be54ffefdafc0e33d1e3ad74"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "086b2183349cfb81fd5971c86129c9edeb3057ce",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
