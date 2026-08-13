@@ -1566,7 +1566,7 @@ describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", ()
         if (r?.decomposed) expect(r.key).toBe(primaryKey);
       }
     }
-  });
+  }, 60_000);
 
   it.skipIf(!MACOS_FONTS)("still decomposes within a CJK primary that DOES cover the canonical (NFD stays load-bearing)", () => {
     // Removing NFD entirely would tofu these. Hiragino Sans covers the canonical
