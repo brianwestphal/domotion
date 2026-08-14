@@ -1236,3 +1236,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   When one source span expands to multiple rendered codepoints and CSSOM cannot
   expose internal anchors, the rendered run is shaped normally rather than
   inventing duplicate per-character positions.
+
+<!-- DM-2157 -->
+- CSS counters use per-name scope stacks in layout-tree order. A counter
+  introduced by an element remains visible across following siblings while its
+  originating parent remains an ancestor; same-parent resets replace the
+  innermost peer scope. Directives run in Blink order (reset, increment, set),
+  with generated content processed as `::before`, descendants, `::after`, so
+  `counter()` and `counters()` observe the value at their actual pseudo-tree
+  position rather than one element-wide snapshot.

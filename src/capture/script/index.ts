@@ -1458,22 +1458,59 @@ const captureDocumentTree =
     }
     return out;
   }
-  // Active counter scope stack: each entry { name, value, owner }.
-  const _activeScopes = [];
-  function _findInnermost(name) {
-    for (let i = _activeScopes.length - 1; i >= 0; i--) {
-      if (_activeScopes[i].name === name) return _activeScopes[i];
+  // Blink keeps one stack per counter name. A counter introduced on an
+  // element remains visible to later siblings because its originating
+  // element's parent is still an ancestor of those siblings.
+  const _counterStacks = new Map();
+  const _isAncestorOrSelf = (ancestor, node) => ancestor === node || ancestor.contains(node);
+  function _stack(name) {
+    let stack = _counterStacks.get(name);
+    if (stack == null) { stack = []; _counterStacks.set(name, stack); }
+    return stack;
+  }
+  function _removeStale(name, el) {
+    const stack = _stack(name);
+    while (stack.length > 0) {
+      const parent = stack[stack.length - 1].scopeParent;
+      if (parent == null || _isAncestorOrSelf(parent, el)) break;
+      stack.pop();
     }
-    return null;
+  }
+  function _findInnermost(name) {
+    const stack = _stack(name);
+    return stack.length ? stack[stack.length - 1] : null;
+  }
+  function _snapshotCounters() {
+    const result = [];
+    for (const [name, stack] of _counterStacks) for (const entry of stack) result.push({ name, value: entry.value });
+    return result;
+  }
+  function _applyCounterStyle(owner, scopeParent, style) {
+    const touched = new Set();
+    const resets = _parseCounterDecl(style.counterReset, 0);
+    const increments = _parseCounterDecl(style.counterIncrement, 1);
+    const sets = _parseCounterDecl(style.counterSet, 0);
+    for (const item of [...resets, ...increments, ...sets]) touched.add(item.name);
+    for (const name of touched) _removeStale(name, owner);
+    for (const {name, value} of resets) {
+      const stack = _stack(name);
+      if (stack.length && stack[stack.length - 1].scopeParent === scopeParent) stack.pop();
+      stack.push({ name, value, owner, scopeParent });
+    }
+    for (const {name, value} of increments) {
+      const current = _findInnermost(name);
+      if (current) current.value += value;
+      else _stack(name).push({ name, value, owner, scopeParent });
+    }
+    for (const {name, value} of sets) {
+      const current = _findInnermost(name);
+      if (current) current.value = value;
+      else _stack(name).push({ name, value, owner, scopeParent });
+    }
+    return touched;
   }
   function _counterPreWalk(el) {
     const cs = window.getComputedStyle(el);
-    const owned = [];
-    _parseCounterDecl(cs.counterReset, 0).forEach(({name, value}) => {
-      const scope = { name, value, owner: el };
-      _activeScopes.push(scope);
-      owned.push(scope);
-    });
     // DM-705 / DM-706: CSS Lists 3 §2.3 ("Properties on a single element are
     // processed in the order reset, increment, set") — increment runs BEFORE
     // set. Our previous order (reset, set, increment) made
@@ -1481,25 +1518,23 @@ const captureDocumentTree =
     // section` paint as "100." instead of Chrome's "99." for the
     // `.restart` h2 in `24-counters.html`. Same off-by-one (always +1) in
     // `24-deep-counter-scope.html`.
-    _parseCounterDecl(cs.counterIncrement, 1).forEach(({name, value}) => {
-      const s = _findInnermost(name);
-      if (s) s.value += value;
-      else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
-    });
-    _parseCounterDecl(cs.counterSet, 0).forEach(({name, value}) => {
-      const s = _findInnermost(name);
-      if (s) s.value = value;
-      else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
-    });
-    // Snapshot the active scopes (shallow copy of name+value pairs).
-    _counterSnapshot.set(el, _activeScopes.map((s) => ({ name: s.name, value: s.value })));
+    const touched = _applyCounterStyle(el, el.parentElement, cs);
+    const beforeStyle = window.getComputedStyle(el, '::before');
+    for (const name of _applyCounterStyle(el, el, beforeStyle)) touched.add(name);
+    const snapshots = { element: _snapshotCounters(), '::before': _snapshotCounters(), '::after': null };
     for (const child of el.children) _counterPreWalk(child);
-    // Pop scopes owned by this element on exit (counter scope ends with the
-    // owner element's subtree).
-    while (_activeScopes.length > 0 && owned.length > 0
-      && _activeScopes[_activeScopes.length - 1] === owned[owned.length - 1]) {
-      _activeScopes.pop();
-      owned.pop();
+    const afterStyle = window.getComputedStyle(el, '::after');
+    for (const name of _applyCounterStyle(el, el, afterStyle)) touched.add(name);
+    snapshots['::after'] = _snapshotCounters();
+    _counterSnapshot.set(el, snapshots);
+    // Match CountersAttachmentContext::RemoveCounterIfAncestorExists: a
+    // descendant-origin counter cannot remain atop an ancestor counter after
+    // leaving its originating element.
+    for (const name of touched) {
+      const stack = _stack(name);
+      if (stack.length < 2 || stack[stack.length - 1].owner !== el) continue;
+      const previous = stack[stack.length - 2].owner;
+      if (previous instanceof Element && previous.contains(el)) stack.pop();
     }
   }
   _counterPreWalk(root);

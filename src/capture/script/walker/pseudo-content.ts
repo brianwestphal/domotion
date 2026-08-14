@@ -256,7 +256,7 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
   // open-quote / close-quote / no-*-quote keywords (DM-602). Closes over the
   // handler's pickQuoteChar / isCustomCounterStyle / resolveCounterValue.
   // Extracted from capturePseudoContent (DM-1088).
-  const parsePseudoContent = (content, el, counterSnapshot) => {
+  const parsePseudoContent = (content, el, counterSnapshot, pseudo) => {
     let text = '';
     let imageUrl = '';
     let i = 0;
@@ -313,7 +313,8 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
           const out = resolveCounterValue(styleArg, v);
           return out != null ? out : String(v);
         };
-        const snapshot = counterSnapshot.get(el) || [];
+        const captured = counterSnapshot.get(el);
+        const snapshot = captured?.[pseudo] ?? captured?.element ?? captured ?? [];
         const matches = snapshot.filter((s) => s.name === cname).map((s) => format(s.value));
         if (isCounters) {
           text += matches.length > 0 ? matches.join(sep) : format(0);
@@ -535,7 +536,7 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
       const opacityNum = parseFloat(pcs.opacity);
       if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
 
-      const { text, imageUrl } = parsePseudoContent(content, el, counterSnapshot);
+      const { text, imageUrl } = parsePseudoContent(content, el, counterSnapshot, pseudo);
       if (text === '' && imageUrl === '') {
         const box = captureEmptyContentBox(el, cs, pseudo, pcs, rect);
         if (box != null) pseudoBoxes.push(box);

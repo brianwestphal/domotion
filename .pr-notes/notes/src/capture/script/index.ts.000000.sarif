@@ -144,6 +144,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssee1a1e9oqbnb4",
+          "message": {
+            "text": "This follows Chromium CountersAttachmentContext rather than DOM recursion: RemoveStaleCounters retains a counter while its originating parent remains an ancestor, CreateCounter replaces an innermost same-parent peer, and directives execute reset/increment/set. Separate before/after snapshots preserve pseudo-tree order for generated counter content.",
+            "markdown": "This follows Chromium CountersAttachmentContext rather than DOM recursion: RemoveStaleCounters retains a counter while its originating parent remains an ancestor, CreateCounter replaces an innermost same-parent peer, and directives execute reset/increment/set. Separate before/after snapshots preserve pseudo-tree order for generated counter content."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1460,
+                  "endLine": 1530,
+                  "snippet": {
+                    "text": "  }\n  // Blink keeps one stack per counter name. A counter introduced on an\n  // element remains visible to later siblings because its originating\n  // element's parent is still an ancestor of those siblings.\n  const _counterStacks = new Map();\n  const _isAncestorOrSelf = (ancestor, node) => ancestor === node || ancestor.contains(node);\n  function _stack(name) {\n    let stack = _counterStacks.get(name);\n    if (stack == null) { stack = []; _counterStacks.set(name, stack); }\n    return stack;\n  }\n  function _removeStale(name, el) {\n    const stack = _stack(name);\n    while (stack.length > 0) {\n      const parent = stack[stack.length - 1].scopeParent;\n      if (parent == null || _isAncestorOrSelf(parent, el)) break;\n      stack.pop();\n    }\n  }\n  function _findInnermost(name) {\n    const stack = _stack(name);\n    return stack.length ? stack[stack.length - 1] : null;\n  }\n  function _snapshotCounters() {\n    const result = [];\n    for (const [name, stack] of _counterStacks) for (const entry of stack) result.push({ name, value: entry.value });\n    return result;\n  }\n  function _applyCounterStyle(owner, scopeParent, style) {\n    const touched = new Set();\n    const resets = _parseCounterDecl(style.counterReset, 0);\n    const increments = _parseCounterDecl(style.counterIncrement, 1);\n    const sets = _parseCounterDecl(style.counterSet, 0);\n    for (const item of [...resets, ...increments, ...sets]) touched.add(item.name);\n    for (const name of touched) _removeStale(name, owner);\n    for (const {name, value} of resets) {\n      const stack = _stack(name);\n      if (stack.length && stack[stack.length - 1].scopeParent === scopeParent) stack.pop();\n      stack.push({ name, value, owner, scopeParent });\n    }\n    for (const {name, value} of increments) {\n      const current = _findInnermost(name);\n      if (current) current.value += value;\n      else _stack(name).push({ name, value, owner, scopeParent });\n    }\n    for (const {name, value} of sets) {\n      const current = _findInnermost(name);\n      if (current) current.value = value;\n      else _stack(name).push({ name, value, owner, scopeParent });\n    }\n    return touched;\n  }\n  function _counterPreWalk(el) {\n    const cs = window.getComputedStyle(el);\n    // DM-705 / DM-706: CSS Lists 3 §2.3 (\"Properties on a single element are\n    // processed in the order reset, increment, set\") — increment runs BEFORE\n    // set. Our previous order (reset, set, increment) made\n    // `counter-set: section 99` followed by an implicit `counter-increment:\n    // section` paint as \"100.\" instead of Chrome's \"99.\" for the\n    // `.restart` h2 in `24-counters.html`. Same off-by-one (always +1) in\n    // `24-deep-counter-scope.html`.\n    const touched = _applyCounterStyle(el, el.parentElement, cs);\n    const beforeStyle = window.getComputedStyle(el, '::before');\n    for (const name of _applyCounterStyle(el, el, beforeStyle)) touched.add(name);\n    const snapshots = { element: _snapshotCounters(), '::before': _snapshotCounters(), '::after': null };\n    for (const child of el.children) _counterPreWalk(child);\n    const afterStyle = window.getComputedStyle(el, '::after');\n    for (const name of _applyCounterStyle(el, el, afterStyle)) touched.add(name);\n    snapshots['::after'] = _snapshotCounters();\n    _counterSnapshot.set(el, snapshots);\n    // Match CountersAttachmentContext::RemoveCounterIfAncestorExists: a"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/css/counters_attachment_context.cc"
+                },
+                "region": {
+                  "startLine": 486
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/css/counters_attachment_context.cc"
+                },
+                "region": {
+                  "startLine": 516
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2157"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6131903eedb567adbf428c5578098301"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2c3b32a145e2c2d9e542082449c8965e3dc8b817",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
