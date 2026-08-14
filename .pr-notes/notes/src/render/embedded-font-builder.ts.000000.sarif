@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mss84uzieeivjmtc",
+          "message": {
+            "text": "The diagnostic is captured from the finalized font bytes, so the reported builder and table tags describe the exact data URI emitted into the SVG. A focused 20-font-family harness run produced 10 entries; its first used hb-subset, retained cvt /fpgm/prep, and reported 17 unique glyphs across 30 occurrences.",
+            "markdown": "The diagnostic is captured from the finalized font bytes, so the reported builder and table tags describe the exact data URI emitted into the SVG. A focused `20-font-family` harness run produced 10 entries; its first used `hb-subset`, retained `cvt `/`fpgm`/`prep`, and reported 17 unique glyphs across 30 occurrences."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 640,
+                  "endLine": 673,
+                  "snippet": {
+                    "text": "  return {\n    cssFamily: entry.cssFamily,\n    sourcePath: entry.hintedSource?.path ?? null,\n    faceIndex: entry.hintedSource?.faceIndex ?? null,\n    variationAxes: entry.hintedSource?.variationAxes ?? null,\n    selectedBuilder,\n    hintedSourceDisqualifiedReasons: [...entry.hintedSourceDisqualificationReasons].sort(),\n    retainedTableTags,\n    affectedGlyphCount: entry.glyphs.size,\n    affectedGlyphOccurrenceCount: entry.glyphOccurrenceCount,\n    affectedRunCount: entry.runIds.size,\n  };\n}\n\n/** Diagnostics for the font faces emitted by the most recent CSS build. */\nexport function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[] {\n  return [...builderRegistry.values()].flatMap((entry) => entry.buildDiagnostic == null ? [] : [{\n    ...entry.buildDiagnostic,\n    variationAxes: entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },\n    hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],\n    retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],\n  }]);\n}\n\n/**\n * Serialise every tracked custom font as `@font-face` rules with embedded\n * TTF bytes. Returns the joined CSS ready to drop into the SVG's `<style>`\n * block. Empty string when no glyphs were registered.\n */\nexport function getBuiltEmbeddedFontFaceCss(): string {\n  if (builderRegistry.size === 0) return \"\";\n  const rules: string[] = [];\n  for (const entry of builderRegistry.values()) {\n    const ttfBytes = buildGlyfFontForEntry(entry);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/html-test-suite.tsx"
+                },
+                "region": {
+                  "startLine": 1570
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2175"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d8e2ed3b514fd3d1bfde76a40c1a0a8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "683f9ac3f8f8148dc204727cda9887f5a78dc1bb",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1196,6 +1196,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   primitive per layer, shared origins for combined entrance scale+clip, explicit
   reduced-motion (`crossfade`/`cut`) and loop (`hold-last`/`crossfade-to-first`).
 
+- **Doc 124 (`docs/124-embedded-font-build-diagnostics.md`) — Shipped.**
+  HTML/unicode visual artifacts record every embedded entry's source path,
+  physical face index, axes, selected builder, exact hinted-subset
+  disqualification reasons, retained sfnt table tags, and affected glyph/run
+  counts. CI artifacts can therefore separate propagation failures from
+  genuine native-font versus webfont rasterization differences.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

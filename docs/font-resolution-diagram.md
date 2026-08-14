@@ -2281,6 +2281,13 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
    **unnameable member index** (`FontSourceInfo.faceIndex === null`, below), or
    any hb-subset failure.
 
+The visual harness snapshots `getEmbeddedFontBuildDiagnostics()` immediately
+after this build and stores it as `embeddedFontBuilds` in each fixture result
+(doc [124](124-embedded-font-build-diagnostics.md)): source/face/axes, selected
+builder, exact disqualification reasons, retained table tags, and glyph/run
+counts travel with the pixel artifact instead of being recoverable only from an
+opt-in console warning.
+
 ### Which member of a container, and how honestly it is reported
 
 `FontSourceInfo` (`getFontSourceInfo`) answers "where did these outlines come

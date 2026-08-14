@@ -3,7 +3,7 @@ import * as fontkit from "fontkit";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, getEmbeddedFontBuildDiagnostics, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { buildStaticHintedFont, buildVariableHintedFont } from "./synth-test-fonts.js";
 
 // A small deterministic glyph outline (a triangle) to register.
@@ -186,6 +186,12 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     expect(g.id).toBe(1); // RETAIN_GIDS: still the source font's gid
     expect(g.bbox.maxX).toBe(550);
     expect(g.bbox.maxY).toBe(700);
+    expect(getEmbeddedFontBuildDiagnostics()).toEqual([expect.objectContaining({
+      sourcePath: staticPath, faceIndex: 0, variationAxes: null,
+      selectedBuilder: "hb-subset", hintedSourceDisqualifiedReasons: [],
+      affectedGlyphCount: 1, affectedGlyphOccurrenceCount: 1,
+      retainedTableTags: expect.arrayContaining(["cvt ", "fpgm", "glyf", "prep"]),
+    })]);
   });
 
   it("pins a variable source to the entry's axis location (DM-1716)", () => {
@@ -207,6 +213,12 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
       { italic: false, weight: 700, emboldenStrengthFU: 30, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("fpgm")).toBe(false); // svg2ttf output carries no hinting
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
+      selectedBuilder: "svg2ttf",
+      hintedSourceDisqualifiedReasons: ["synthetic"],
+      affectedGlyphCount: 1,
+      affectedGlyphOccurrenceCount: 1,
+    }));
   });
 
   it("disqualifies an entry whose glyphs disagree on the axis location", () => {

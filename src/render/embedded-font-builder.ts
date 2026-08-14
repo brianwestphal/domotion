@@ -150,6 +150,35 @@ export interface BuilderEntry {
   hintedSource: HintedSource | null;
   /** Set once any glyph disqualifies the entry from the hinted path (see above). */
   hintedSourceDisqualified: boolean;
+  /** Stable diagnostic reasons accumulated while glyphs/runs join this entry. */
+  hintedSourceDisqualificationReasons: Set<HintedSourceDisqualificationReason>;
+  /** Distinct shaped runs that contributed glyph occurrences to this entry. */
+  runIds: Set<object>;
+  /** Total shaped glyph occurrences, including repeated glyph ids. */
+  glyphOccurrenceCount: number;
+  /** Populated when the font bytes are built for emission. */
+  buildDiagnostic: EmbeddedFontBuildDiagnostic | null;
+}
+
+export type HintedSourceDisqualificationReason =
+  | "synthetic"
+  | "null-source"
+  | "null-face-index"
+  | "source-axis-disagreement"
+  | "cff-or-subset-failure"
+  | "disabled-by-environment";
+
+export interface EmbeddedFontBuildDiagnostic {
+  cssFamily: string;
+  sourcePath: string | null;
+  faceIndex: number | null;
+  variationAxes: Record<string, number> | null;
+  selectedBuilder: "hb-subset" | "svg2ttf";
+  hintedSourceDisqualifiedReasons: HintedSourceDisqualificationReason[];
+  retainedTableTags: string[];
+  affectedGlyphCount: number;
+  affectedGlyphOccurrenceCount: number;
+  affectedRunCount: number;
 }
 
 const builderRegistry = new Map<string, BuilderEntry>();
@@ -222,6 +251,14 @@ function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
     ...entry,
     glyphs: new Map(entry.glyphs),
     puaForGlyphId: new Map(entry.puaForGlyphId),
+    hintedSourceDisqualificationReasons: new Set(entry.hintedSourceDisqualificationReasons),
+    runIds: new Set(entry.runIds),
+    buildDiagnostic: entry.buildDiagnostic == null ? null : {
+      ...entry.buildDiagnostic,
+      variationAxes: entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
+      hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
+      retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
+    },
     hintedSource: entry.hintedSource == null
       ? null
       : {
@@ -290,7 +327,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number; shearFactor?: number; hintedSource?: HintedSource | null } = { italic: false, weight: 400 },
+  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number; shearFactor?: number; hintedSource?: HintedSource | null; runToken?: object } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -307,6 +344,10 @@ export function trackGlyphInEmbedFont(
       weightMax: variant.weight,
       hintedSource: variant.hintedSource ?? null,
       hintedSourceDisqualified: false,
+      hintedSourceDisqualificationReasons: new Set(),
+      runIds: new Set(),
+      glyphOccurrenceCount: 0,
+      buildDiagnostic: null,
     };
     builderRegistry.set(instanceKey, entry);
   }
@@ -324,12 +365,20 @@ export function trackGlyphInEmbedFont(
   // member of the file, so there is no index to subset by — hb_face_create would
   // silently take member zero, a face nobody asked for. Disqualify instead; the
   // svg2ttf path renders the outlines the helper actually extracted.
-  if (isSynthetic || glyphSource == null || entry.hintedSource == null
-      || glyphSource.faceIndex == null || entry.hintedSource.faceIndex == null
-      || glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex
-      || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes)) {
-    entry.hintedSourceDisqualified = true;
+  if (isSynthetic) entry.hintedSourceDisqualificationReasons.add("synthetic");
+  if (glyphSource == null || entry.hintedSource == null) entry.hintedSourceDisqualificationReasons.add("null-source");
+  if ((glyphSource != null && glyphSource.faceIndex == null)
+      || (entry.hintedSource != null && entry.hintedSource.faceIndex == null)) {
+    entry.hintedSourceDisqualificationReasons.add("null-face-index");
   }
+  if (glyphSource != null && entry.hintedSource != null
+      && (glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex
+        || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes))) {
+    entry.hintedSourceDisqualificationReasons.add("source-axis-disagreement");
+  }
+  entry.hintedSourceDisqualified = entry.hintedSourceDisqualificationReasons.size > 0;
+  entry.glyphOccurrenceCount++;
+  if (variant.runToken != null) entry.runIds.add(variant.runToken);
   if (variant.weight < entry.weightMin) entry.weightMin = variant.weight;
   if (variant.weight > entry.weightMax) entry.weightMax = variant.weight;
   const cached = entry.puaForGlyphId.get(glyphId);
@@ -475,6 +524,7 @@ export function __clearHintedOutlineGuardMemo(): void {
 }
 
 function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
+  entry.buildDiagnostic = null;
   // DM-1714/DM-1716: hinting-preserving path. When the whole entry came from one
   // openable sfnt with no synthetic glyphs, hb-subset the ORIGINAL file (keeps
   // `cvt`/`fpgm`/`prep` + per-glyph instructions) and swap in a PUA→gid cmap,
@@ -539,9 +589,12 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         if (process.env.DOMOTION_HINTED_DEBUG === "1") {
           console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${srcFaceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
         }
+        entry.buildDiagnostic = diagnosticFor(entry, "hb-subset", sfntTableTags(out));
         return out;
       }
     } catch (e) {
+      entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
+      entry.hintedSourceDisqualified = true;
       // A guard/subset failure silently falls back to the proven svg2ttf path —
       // a bad font never breaks a render. Opt-in visibility via the debug env.
       if (process.env.DOMOTION_HINTED_DEBUG === "1") {
@@ -549,6 +602,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       }
     }
   }
+  if (!hintedSubsetEnabled()) entry.hintedSourceDisqualificationReasons.add("disabled-by-environment");
   const glyphEls: string[] = [];
   for (const [glyphId, g] of entry.glyphs) {
     // PUA codepoints are pure hex digits; `d` carries only path grammar
@@ -565,7 +619,46 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
     `<missing-glyph horiz-adv-x="${Math.round(entry.unitsPerEm / 2)}"/>` +
     glyphEls.join("") +
     `</font></defs></svg>`;
-  return Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer);
+  const out = Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer);
+  entry.buildDiagnostic = diagnosticFor(entry, "svg2ttf", sfntTableTags(out));
+  return out;
+}
+
+function sfntTableTags(fontBytes: Buffer): string[] {
+  if (fontBytes.length < 12) return [];
+  const count = fontBytes.readUInt16BE(4);
+  const tags: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const offset = 12 + i * 16;
+    if (offset + 4 > fontBytes.length) break;
+    tags.push(fontBytes.toString("latin1", offset, offset + 4));
+  }
+  return tags.sort();
+}
+
+function diagnosticFor(entry: BuilderEntry, selectedBuilder: EmbeddedFontBuildDiagnostic["selectedBuilder"], retainedTableTags: string[]): EmbeddedFontBuildDiagnostic {
+  return {
+    cssFamily: entry.cssFamily,
+    sourcePath: entry.hintedSource?.path ?? null,
+    faceIndex: entry.hintedSource?.faceIndex ?? null,
+    variationAxes: entry.hintedSource?.variationAxes ?? null,
+    selectedBuilder,
+    hintedSourceDisqualifiedReasons: [...entry.hintedSourceDisqualificationReasons].sort(),
+    retainedTableTags,
+    affectedGlyphCount: entry.glyphs.size,
+    affectedGlyphOccurrenceCount: entry.glyphOccurrenceCount,
+    affectedRunCount: entry.runIds.size,
+  };
+}
+
+/** Diagnostics for the font faces emitted by the most recent CSS build. */
+export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[] {
+  return [...builderRegistry.values()].flatMap((entry) => entry.buildDiagnostic == null ? [] : [{
+    ...entry.buildDiagnostic,
+    variationAxes: entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
+    hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
+    retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
+  }]);
 }
 
 /**

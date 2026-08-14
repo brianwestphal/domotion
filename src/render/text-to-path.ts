@@ -2262,7 +2262,7 @@ function renderEmbeddedGlyphRuns(
         // `font-weight=N` attributes as an EXACT match — no faux-italic /
         // faux-bold synthesised on top of glyphs whose slant / weight is
         // already baked in.
-        { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource },
+        { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource, runToken: run },
       );
       if (placement == null) { glyphFailed = true; break; }
       if (runCssFamily == null) runCssFamily = placement.cssFamily;

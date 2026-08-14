@@ -38,6 +38,7 @@ import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImage
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { profReset, profSnapshot } from "../src/render/render-profile.js";
+import { getEmbeddedFontBuildDiagnostics, type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
 import { raw } from "kerfjs";
 import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
@@ -1204,6 +1205,8 @@ interface TestResult {
    *  probe cap — `chromeFaces` then covers a document-order prefix, not the
    *  whole page. */
   chromeFacesTruncated?: boolean;
+  /** Per-entry builder provenance for the embedded fonts in this exact SVG. */
+  embeddedFontBuilds?: EmbeddedFontBuildDiagnostic[];
   /** Worst tile's fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   worstTileSignificantPct: number;
   /** Rect of the worst tile (x, y, w, h) in the image. */
@@ -1331,6 +1334,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let expectedFromCache = false;
   let chromeFaces: string[] | undefined;
   let chromeFacesTruncated: boolean | undefined;
+  let embeddedFontBuilds: EmbeddedFontBuildDiagnostic[] | undefined;
   // Claim the worker-sequence slot up front so even error/skip results record
   // where in the worker's order they ran.
   const workerSeq = w.seq++;
@@ -1566,6 +1570,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // other worker interleaves between reset and snapshot.
     if (DEMO_TIMING) profReset();
     const svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);
+    embeddedFontBuilds = getEmbeddedFontBuildDiagnostics();
     const renderProf = DEMO_TIMING ? profSnapshot() : {};
     const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
@@ -1655,6 +1660,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     expectedFromCache,
     chromeFaces,
     chromeFacesTruncated,
+    embeddedFontBuilds,
     worker: w.id,
     workerSeq,
     worstTileSignificantPct,

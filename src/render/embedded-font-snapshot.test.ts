@@ -280,14 +280,18 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     trackGlyphInEmbedFont("fields|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
     expect(_builderEntryFieldNames("fields|w=400|s=0").sort()).toEqual([
       "ascender",
+      "buildDiagnostic",
       "cssFamily",
       "descender",
+      "glyphOccurrenceCount",
       "glyphs",
       "hintedSource",
+      "hintedSourceDisqualificationReasons",
       "hintedSourceDisqualified",
       "italic",
       "nextPua",
       "puaForGlyphId",
+      "runIds",
       "unitsPerEm",
       "weightMax",
       "weightMin",
