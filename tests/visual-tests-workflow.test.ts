@@ -47,6 +47,20 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["test-macos", "test-linux", "test-windows"]));
   });
 
+  // DM-2155: expressions may reference only direct `needs` dependencies.
+  // `aggregate` used setup's totals in `--expect` but depended only on the
+  // platform jobs, which themselves depended on setup. GitHub does not expose
+  // transitive outputs, so all three values evaluated to null and the merge's
+  // partial-shard defense was silently disabled.
+  it("the aggregate directly needs setup before consuming its shard totals", () => {
+    const job = jobs.aggregate;
+    expect(job, "aggregate job must exist").toBeDefined();
+    expect(job).toMatch(/^\s+needs: \[[^\]]*\bsetup\b[^\]]*\]/m);
+    expect(job).toContain("needs.setup.outputs.macos_total");
+    expect(job).toContain("needs.setup.outputs.linux_total");
+    expect(job).toContain("needs.setup.outputs.windows_total");
+  });
+
   it("the macOS sweep job builds the CoreText helper before running the suite", () => {
     const job = jobs["test-macos"];
     expect(job, "test-macos job must exist").toBeDefined();

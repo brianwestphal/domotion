@@ -9332,7 +9332,21 @@ export function resolveDottedCircleHbRun(
   const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
   if (markFont == null) return null;
   if (glyphIdForCp(markFont, 0x25CC) === 0) return null; // ◌ must come from the mark's font, like Chrome
-  const hbFace = shapingFaceFor(markKey, weight, fontSize, slant, variationSettings);
+  // The concrete instance is authoritative here, just as it is in the shaped
+  // fallback loop's `hbFaceFor`.  A declared family can be discovered at
+  // runtime by the platform helper without having a static FONT_PATHS entry
+  // (the Unicode fixtures' installed Mukta is the representative case on CI).
+  // Looking up only by `markKey` therefore found the glyph-bearing native
+  // instance above, then failed to reopen that very face for HarfBuzz and
+  // silently returned null.  Blink does not redo a family-name lookup between
+  // fallback selection and shaping: the selected `SimpleFontData` supplies the
+  // `HarfBuzzFace`.  Preserve that identity by preferring the instance source,
+  // including its TTC face and resolved variable axes, and use the key lookup
+  // only as the degraded fallback.
+  const src = getFontSourceInfo(markFont);
+  const hbFace = src != null && src.nameMatched && src.faceIndex != null
+    ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
+    : shapingFaceFor(markKey, weight, fontSize, slant, variationSettings);
   if (hbFace == null) return null;
   const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
   if (hbInst === markFont) return null; // HarfBuzz couldn't open the file

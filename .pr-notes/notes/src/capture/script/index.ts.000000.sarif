@@ -66,6 +66,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mss5ouw3dbwhkdnm",
+          "message": {
+            "text": "Native form controls must preserve Chromium's platform-theme paint instead of sharing one synthetic geometry table. Blink delegates appearance:auto chrome to OS-specific LayoutTheme/native shadow parts, so rasterizing only that host is the general cross-platform rule; appearance:none remains vector and author-controlled.",
+            "markdown": "Native form controls must preserve Chromium's platform-theme paint instead of sharing one synthetic geometry table. Blink delegates appearance:auto chrome to OS-specific LayoutTheme/native shadow parts, so rasterizing only that host is the general cross-platform rule; appearance:none remains vector and author-controlled."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 744,
+                  "endLine": 751,
+                  "snippet": {
+                    "text": "      nativeControlRaster: (function () {\n        const nativeTag = tag === 'input' || tag === 'select' || tag === 'textarea'\n          || tag === 'button' || tag === 'progress' || tag === 'meter';\n        if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;\n        return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height };\n      })(),\n      // DM-680: per-axis cumulative ancestor scale, exposed ONLY when\n      // anisotropic (sx ≠ sy within a small epsilon). The geometric mean is"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4371
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2149"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fed37423472c54c443b700f63eadd7fa"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "71b928afc8b3be3bc52ae1affa48f96c11ed1446",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -340,7 +340,10 @@ jobs:
           if-no-files-found: warn
 
   aggregate:
-    needs: [test-macos, test-linux, test-windows]
+    # The merge consumes setup's enabled-OS flags and matrix totals in
+    # `--expect` below. GitHub exposes outputs only from jobs named in `needs`;
+    # depending on the three sweep jobs transitively is not enough.
+    needs: [setup, test-macos, test-linux, test-windows]
     if: always()
     runs-on: ubuntu-latest
     steps:

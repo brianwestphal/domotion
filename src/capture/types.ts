@@ -1069,6 +1069,15 @@ export interface CapturedElement {
    */
   elementRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /**
+   * Viewport-relative bitmap fallback for an entire non-affine transform
+   * subtree. SVG has no projective/preserve-3d transform model, so Chromium's
+   * composited result is captured at the root of the 3D rendering context and
+   * stamped as one image instead of flattening every child to a 2D matrix.
+   */
+  transformSubtreeRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
+  /** Chromium-painted snapshot of an OS-native (`appearance` != `none`) form control. */
+  nativeControlRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
+  /**
    * DM-680: per-axis cumulative ancestor scale, present ONLY when the element
    * sits inside an anisotropically scaled subtree (e.g. `transform: scale(1.3,
    * 0.8)`). The geometric mean is already folded into fontSize / fontAscent /

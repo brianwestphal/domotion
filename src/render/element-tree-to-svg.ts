@@ -4354,6 +4354,25 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // animation's keyframes (holding `from`, typically the captured 0) keeping
   // it invisible at rest instead of a baked zero-opacity wrapper pinning it.
   if (opacity === 0 && !animationOwnsOpacity(el)) return;
+  // DM-2150: CSS preserve-3d/perspective is projective, while an SVG
+  // `transform` attribute is strictly affine. The capture pipeline therefore
+  // snapshots a complete 3D rendering context after Chromium composites it.
+  // Emit that bitmap once at the context root and suppress the flattened box,
+  // text, and descendants that would otherwise double-paint beneath it.
+  const transformRaster = el.transformSubtreeRaster;
+  if (transformRaster?.dataUri != null) {
+    svgParts.push(`${indent}<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`);
+    return;
+  }
+  // DM-2149: native form chrome comes from Blink's per-platform LayoutTheme,
+  // not from CSS boxes that can be reconstructed portably. Stamp Chromium's
+  // host snapshot for native appearance; `appearance:none` controls never
+  // receive this field and continue through the vector form-control renderer.
+  const nativeControlRaster = el.nativeControlRaster;
+  if (nativeControlRaster?.dataUri != null) {
+    svgParts.push(`${indent}<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`);
+    return;
+  }
   // empty-cells: hide — suppress bg + border on empty <td>/<th>.
   const suppressEmptyCell = el.styles.emptyCellsHidden === true;
   // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3

@@ -212,7 +212,7 @@ const captureDocumentTree =
     // them so the fidelity gaps are self-documenting.
     const sel = shortSelector(el);
     if (cs.transform && cs.transform.startsWith('matrix3d')) {
-      warn(sel, 'transform-3d', 'matrix3d/translate3d/rotate3d/perspective downgraded to 2D submatrix; z component + perspective dropped (SK-1135)');
+      warn(sel, 'transform-3d', 'non-affine 3D rendering context captured from Chromium as a bitmap snapshot');
     }
     if (cs.backdropFilter && cs.backdropFilter !== 'none') {
       warn(sel, 'backdrop-filter', 'approximated via a frosted-glass background fallback for the transparent-backdrop case (doc 19); no true backdrop blur');
@@ -707,6 +707,46 @@ const captureDocumentTree =
       // SK-1108 / SK-1128: textarea soft-wrap + writing-mode != horizontal-tb
       // content-box raster rect — see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),
+      // DM-2150: SVG transforms are affine and cannot reproduce CSS
+      // perspective or preserve-3d flattening. Capture the top-level 3D
+      // rendering context as Chromium composited it. Descendant matrix3d
+      // nodes remain part of this one bitmap rather than being stamped
+      // independently. Include overflowing faces by unioning live descendant
+      // client rects before the walker freezes any child transforms.
+      transformSubtreeRaster: (function () {
+        const is3dRoot = cs.transformStyle === 'preserve-3d'
+          || (cs.perspective != null && cs.perspective !== '' && cs.perspective !== 'none');
+        if (!is3dRoot) return undefined;
+        let p = el.parentElement;
+        while (p != null) {
+          const pcs = getComputedStyle(p);
+          if (pcs.transformStyle === 'preserve-3d'
+              || (pcs.perspective != null && pcs.perspective !== '' && pcs.perspective !== 'none')) return undefined;
+          p = p.parentElement;
+        }
+        let left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom;
+        const descendants = el.getElementsByTagName('*');
+        for (let i = 0; i < descendants.length; i++) {
+          const dr = descendants[i].getBoundingClientRect();
+          if (dr.width <= 0 || dr.height <= 0) continue;
+          left = Math.min(left, dr.left);
+          top = Math.min(top, dr.top);
+          right = Math.max(right, dr.right);
+          bottom = Math.max(bottom, dr.bottom);
+        }
+        return { x: left - vp.x, y: top - vp.y, width: right - left, height: bottom - top };
+      })(),
+      // DM-2149: `appearance:auto` controls are painted by Blink's platform
+      // LayoutTheme (including native shadow-DOM parts), so a single hardcoded
+      // SVG geometry/palette cannot match macOS, Windows, and Linux. Preserve
+      // author-owned `appearance:none` controls as vectors; snapshot only the
+      // native-themed host rectangle from the same Chromium doing capture.
+      nativeControlRaster: (function () {
+        const nativeTag = tag === 'input' || tag === 'select' || tag === 'textarea'
+          || tag === 'button' || tag === 'progress' || tag === 'meter';
+        if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
+        return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height };
+      })(),
       // DM-680: per-axis cumulative ancestor scale, exposed ONLY when
       // anisotropic (sx ≠ sy within a small epsilon). The geometric mean is
       // already folded into fontSize / fontAscent / fontDescent above, so
