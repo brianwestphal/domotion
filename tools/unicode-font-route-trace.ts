@@ -64,13 +64,40 @@ const cells = await page.evaluate<CellStyle[]>(() => [...document.querySelectorA
 const cdp = await page.context().newCDPSession(page);
 await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
 const { root } = await cdp.send("DOM.getDocument", { depth: 1 });
+let probeSerial = 0;
+
+async function probeChromeFamily(cell: CellStyle, family: string) {
+  const probeId = `dm2168-probe-${probeSerial++}`;
+  await page.evaluate(({ id, text, family, weight, size, italic, stretch, lang }) => {
+    const probe = document.createElement("span");
+    probe.id = id;
+    probe.textContent = text;
+    probe.lang = lang ?? "";
+    Object.assign(probe.style, {
+      position: "fixed", left: "0", top: "0", zIndex: "-1", opacity: "0.01", pointerEvents: "none", fontFamily: family,
+      fontWeight: String(weight), fontSize: `${size}px`, fontStyle: italic ? "italic" : "normal",
+      fontStretch: `${stretch}%`,
+    });
+    document.body.append(probe);
+  }, { id: probeId, text: cell.text, family, weight: cell.weight, size: cell.size, italic: cell.italic, stretch: cell.stretch, lang: cell.lang });
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+  const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${probeId}` });
+  const fonts = nodeId === 0 ? [] : (await cdp.send("CSS.getPlatformFontsForNode", { nodeId })).fonts;
+  const painted = fonts.find((f) => f.glyphCount > 0) ?? null;
+  await page.evaluate((id) => document.getElementById(id)?.remove(), probeId);
+  return painted == null ? null : {
+    familyName: painted.familyName,
+    postscriptName: painted.postScriptName,
+    glyphCount: painted.glyphCount,
+  };
+}
 
 const results = [];
 for (const cell of cells) {
   const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: cell.selector });
   const chromeFonts = nodeId === 0 ? [] : (await cdp.send("CSS.getPlatformFontsForNode", { nodeId })).fonts;
   const chrome = chromeFonts.find((f) => f.glyphCount > 0) ?? null;
-  const chromeInstalled = chrome == null ? null : resolveInstalledFont(chrome.postScriptName ?? chrome.familyName);
+  const chromeInstalled = chrome == null ? null : resolveInstalledFont(chrome.familyName);
   const chromeInstance = chromeInstalled == null ? null : createGlyphHelperFont({ fontPath: chromeInstalled.path, postscriptName: chromeInstalled.postscriptName });
 
   const declared = splitFamilies(cell.fontFamily).map((family, index) => {
@@ -79,32 +106,10 @@ for (const cell of cells) {
   });
   const declaredChrome = [];
   for (const entry of declared) {
-    const probeId = `dm2168-probe-${cell.cp.toString(16)}-${entry.index}`;
-    await page.evaluate(({ id, text, family, weight, size, italic, stretch, lang }) => {
-      const probe = document.createElement("span");
-      probe.id = id;
-      probe.textContent = text;
-      probe.lang = lang ?? "";
-      Object.assign(probe.style, {
-        position: "fixed", left: "0", top: "0", zIndex: "-1", opacity: "0.01", pointerEvents: "none", fontFamily: family,
-        fontWeight: String(weight), fontSize: `${size}px`, fontStyle: italic ? "italic" : "normal",
-        fontStretch: `${stretch}%`,
-      });
-      document.body.append(probe);
-    }, { id: probeId, text: cell.text, family: entry.family, weight: cell.weight, size: cell.size, italic: cell.italic, stretch: cell.stretch, lang: cell.lang });
-    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
-    const { nodeId: probeNodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${probeId}` });
-    const fonts = probeNodeId === 0 ? [] : (await cdp.send("CSS.getPlatformFontsForNode", { nodeId: probeNodeId })).fonts;
-    const painted = fonts.find((f) => f.glyphCount > 0) ?? null;
     declaredChrome.push({
       ...entry,
-      chrome: painted == null ? null : {
-        familyName: painted.familyName,
-        postscriptName: painted.postScriptName,
-        glyphCount: painted.glyphCount,
-      },
+      chrome: await probeChromeFamily(cell, entry.family),
     });
-    await page.evaluate((id) => document.getElementById(id)?.remove(), probeId);
   }
   const primaryKey = resolveFontKey(cell.fontFamily, cell.lang);
   const chain = resolveFontKeyChain(cell.fontFamily, cell.lang);
@@ -112,11 +117,12 @@ for (const cell of cells) {
   if (primary == null) continue;
   const priority = winFallbackPriorityForTextRun(cell.cp);
   const hardcodedFamilies = blinkWinHardcodedFamilies(cell.cp, { lang: cell.lang, priority }, (family) => resolveInstalledFont(family) != null);
-  const hardcoded = hardcodedFamilies.map((family) => {
+  const hardcoded = [];
+  for (const family of hardcodedFamilies) {
     const installed = resolveInstalledFont(family);
     const inst = installed == null ? null : createGlyphHelperFont({ fontPath: installed.path, postscriptName: installed.postscriptName });
-    return { family, installed: installed != null, postscriptName: installed?.postscriptName ?? null, glyphId: inst == null ? 0 : glyphIdForCp(inst, cell.cp) };
-  });
+    hardcoded.push({ family, installed: installed != null, postscriptName: installed?.postscriptName ?? null, glyphId: inst == null ? 0 : glyphIdForCp(inst, cell.cp), chrome: await probeChromeFamily(cell, family) });
+  }
   const baseFamilyName = declared[0]?.family;
   const locale = blinkWinFallbackLocale(cell.cp, cell.lang, priority);
   const directWrite = resolveSystemFallbackFonts([cell.cp], "Helvetica", {
