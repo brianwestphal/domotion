@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstlims7tfervzo5",
+          "message": {
+            "text": "The default gate is pinned immediately above the first measured maxima, not an arbitrary tolerance. The live 128-case run measured 0.551 CSS px worst edge error and 0.471 worst alpha-profile RMSE; it also selected CSS outer-edge rounding with 0.000 CSS px center MAE. This makes regressions fail now while giving later paint work explicit numbers to reduce and tighten.",
+            "markdown": "The default gate is pinned immediately above the first measured maxima, not an arbitrary tolerance. The live 128-case run measured 0.551 CSS px worst edge error and 0.471 worst alpha-profile RMSE; it also selected CSS outer-edge rounding with 0.000 CSS px center MAE. This makes regressions fail now while giving later paint work explicit numbers to reduce and tighten."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/border-phase-oracle.ts"
+                },
+                "region": {
+                  "startLine": 109,
+                  "endLine": 112,
+                  "snippet": {
+                    "text": "    const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${PAGE_WIDTH}\" height=\"${height}\" viewBox=\"0 0 ${PAGE_WIDTH} ${height}\">${inner}</svg>`;\n    const svgPage = await context.newPage();\n    await svgPage.setContent(`<style>html,body{margin:0;background:transparent}img{display:block;width:${PAGE_WIDTH}px;height:${height}px}</style><img>`, { waitUntil: \"load\" });\n    await svgPage.locator(\"img\").evaluate((img, src) => { (img as HTMLImageElement).src = `data:image/svg+xml;base64,${src}`; }, Buffer.from(svg).toString(\"base64\"));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2184"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e82ee9b6b7ac12db8f6e7e8362b7de86"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2f67cf3d2e3c0880960d4f538bfb94352238de29",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
