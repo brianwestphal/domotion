@@ -2,6 +2,28 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.23.0] - 2026-08-14
+
+
+**⚠️ Breaking Changes**
+
+- **Page navigation now waits for `load` instead of network-idle by default.** Real-world pages that keep analytics, long-polling, or streaming requests open no longer stall or time out before capture. If you relied on the old behavior for a controlled, finite request chain, pass `--network-idle` on the CLI (or `networkIdle: true` in a template config) to restore the stricter wait.
+
+**🚀 Features**
+
+- **Vertical writing modes now render as crisp, scalable glyphs.** `vertical-rl`, `vertical-lr`, and `sideways-*` text uses Blink-matched line-relative transforms instead of a rasterized element snapshot, so it stays selectable and sharp at any scale.
+- **`font-variant-alternates` with `@font-feature-values` is now honored.** `stylistic`, `styleset`, `character-variant`, `swash`, `ornaments`, `annotation`, and `historical-forms` resolve to their OpenType features, scoped to the declaring font family.
+- **CSS `url(#filter)` references to inline SVG filter graphs are preserved** and evaluated in the element's local coordinate space, so coordinate-sensitive `feTurbulence` / `feDisplacementMap` chains render as Chromium paints them.
+- **New `--network-idle` capture flag** to opt into waiting for 500 ms of network quiescence during navigation.
+
+**🐛 Fixes**
+
+- **Windows font selection** now tries the preferred standard face before the hardcoded/DirectWrite fallback, matching Chromium (e.g. U+2100 now paints Times New Roman rather than Lucida/Tahoma).
+- **Vertical-mode text-emphasis marks** now take their metrics and position from the correct fallback face instead of an em-fraction approximation.
+- **CSS counters** now follow document tree order across siblings and both `::before`/`::after` pseudo-elements.
+- **Non-affine 3D subtrees** (`preserve-3d` / `matrix3d`) and **OS-native form controls** (`appearance` other than `none`) are now captured as Chromium bitmap snapshots where SVG can't reproduce their projective or platform-themed paint.
+- **Dynamically discovered fonts** (e.g. runtime-installed Vedic faces) now shape correctly, keeping HarfBuzz's dotted-circle marks for leading combining characters.
+
 ## [0.22.2] - 2026-08-13
 
 
