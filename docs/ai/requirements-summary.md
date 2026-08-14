@@ -1144,8 +1144,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `"liga" 0` runs that discriminate (12 mismatch-count pre-fix →
   12 agree-exact). Two properties that *are* selection
   inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
-  cache key — remain unextracted by the oracle corpora (the RENDERER now
-  models `font-variant-emoji` end to end: captured, threaded into the
+  cache key — remain unextracted by the oracle corpora. The renderer now
+  models **both** end to end: `font-variant-alternates` captures the computed
+  functions plus family-scoped CSSOM `@font-feature-values` aliases and
+  resolves Blink's exact `salt`/`ssNN`/`cvNN`/`swsh`+`cswh`/`ornm`/`nalt`/
+  `hist` feature sequence before HarfBuzz fallback verdicts and final shaping;
+  `font-variant-emoji` is captured and threaded into the
   per-codepoint resolver with Blink's priority override + forced-VS
   semantics and the macOS monochrome-emoji replacement, and applied to the
   raster-emoji overlay routing — see doc 15). All three committed baselines await a

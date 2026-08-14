@@ -23,6 +23,7 @@ import { createDottedCircleDetect } from "./dotted-circle-detect.js";
 import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createFontFamilyDefault } from "./font-family-default.js";
+import { collectFontFeatureValues } from "./font-feature-values.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
 import { createCounterStyleResolver } from "./walker/counter-style-resolver.js";
@@ -62,6 +63,15 @@ const captureDocumentTree =
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { familyIsUADefault: _familyIsUADefault } = createFontFamilyDefault();
+  const _fontFeatureValuesByDocument = new WeakMap();
+  const _fontFeatureValuesFor = (doc) => {
+    let tables = _fontFeatureValuesByDocument.get(doc);
+    if (tables == null) {
+      tables = collectFontFeatureValues(doc);
+      _fontFeatureValuesByDocument.set(doc, tables);
+    }
+    return tables;
+  };
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   // DM-770: counter-style map is populated by the pre-walk below (which
@@ -609,6 +619,11 @@ const captureDocumentTree =
         fontStretch: cs.fontStretch,
         fontVariationSettings: cs.fontVariationSettings,
         fontFeatureSettings: cs.fontFeatureSettings,
+        fontVariantAlternates: cs.fontVariantAlternates,
+        // The alias table is document-global but only alternate-bearing nodes
+        // can consume it; omit it from the common element shape to avoid
+        // repeating author rule data throughout the serialized tree.
+        fontFeatureValues: cs.fontVariantAlternates && cs.fontVariantAlternates !== 'normal' ? _fontFeatureValuesFor(el.ownerDocument) : undefined,
         // CSS font-variant-caps. 'small-caps' / 'all-small-caps' route to
         // the OpenType smcp feature; renderer applies synthesized small-caps
         // when the active font lacks smcp (Helvetica, Times, etc.). DM-361.

@@ -1405,6 +1405,55 @@ export function parseFontFeatureSettings(css: string | undefined): string[] | un
   return out.length > 0 ? out : undefined;
 }
 
+type FeatureValueTable = NonNullable<CapturedElement["styles"]["fontFeatureValues"]>[string];
+
+/** Transcription of FontVariantAlternates::Resolve (Chromium 7d859f27). */
+export function resolveFontVariantAlternates(
+  css: string | undefined,
+  fontFamily: string,
+  tables: CapturedElement["styles"]["fontFeatureValues"],
+): string[] | undefined {
+  if (css == null || css === "" || css === "normal") return undefined;
+  const families = fontFamily.match(/(?:"[^"]*"|'[^']*'|[^,])+/g)?.map((name) =>
+    name.trim().replace(/^(['"])(.*)\1$/, "$2").toLowerCase(),
+  ) ?? [];
+  // Blink resolves once per family while walking the CSS stack. Choose the
+  // first family that owns an alias table; aliases declared for another family
+  // must never leak into this request.
+  const family = families.find((name) => tables?.[name] != null);
+  const table: FeatureValueTable | undefined = family == null ? undefined : tables?.[family];
+  const out: string[] = [];
+  const emitSingle = (fn: string, category: keyof FeatureValueTable, tags: string[]) => {
+    const m = new RegExp(`${fn}\\(\\s*([^\\s,)]+)\\s*\\)`, "i").exec(css);
+    const values = m == null ? undefined : table?.[category]?.[m[1]];
+    if (values?.length === 1) for (const tag of tags) out.push(`${tag}=${values[0]}`);
+  };
+  emitSingle("swash", "swash", ["swsh", "cswh"]);
+  emitSingle("ornaments", "ornaments", ["ornm"]);
+  emitSingle("annotation", "annotation", ["nalt"]);
+  emitSingle("stylistic", "stylistic", ["salt"]);
+  for (const m of css.matchAll(/styleset\(\s*([^)]*)\)/gi)) {
+    for (const alias of m[1].trim().split(/\s+/)) {
+      for (const value of table?.styleset?.[alias] ?? []) if (value <= 99) out.push(`ss${String(value).padStart(2, "0")}`);
+    }
+  }
+  for (const m of css.matchAll(/character-variant\(\s*([^)]*)\)/gi)) {
+    for (const alias of m[1].trim().split(/\s+/)) {
+      const values = table?.characterVariant?.[alias];
+      if (values != null && values.length >= 1 && values.length <= 2 && values[0] <= 99) {
+        out.push(`cv${String(values[0]).padStart(2, "0")}${values.length === 2 ? `=${values[1]}` : ""}`);
+      }
+    }
+  }
+  if (/\bhistorical-forms\b/i.test(css)) out.push("hist");
+  return out.length ? out : undefined;
+}
+
+function elementFontFeatures(el: CapturedElement, fontFamily = el.styles.fontFamily): string[] | undefined {
+  const alternates = resolveFontVariantAlternates(el.styles.fontVariantAlternates, fontFamily, el.styles.fontFeatureValues);
+  return mergeFeatureLists(alternates, parseFontFeatureSettings(el.styles.fontFeatureSettings));
+}
+
 // DM-578: parse `font-variation-settings` into the `{ axisTag: value }` shape
 // fontkit's `font.getVariation()` expects. Pages built with next/font or
 // hand-tuned variable-font setups (framer.com body P captures
@@ -1555,7 +1604,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // DM-822: pre-divide xOffsetsRel by cx when an anisotropic correction
   // wrap will multiply positions on emit. No-op for uniform-scale text.
   const xOffsetsRel = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
-  const ffsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
+  const ffsFeatures = elementFontFeatures(el, singleSeg?.fontFamily ?? fontFamily);
   const features = mergeFeatureLists(
     mergeFeatureLists(
       mergeFeatureLists(
@@ -1866,7 +1915,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // resolveCapsFeatures (module scope) for the full spec mapping. Merge with
     // author-set `font-feature-settings` (DM-564) — e.g. Inter's `cv11`
     // single-story `a` alternate is set by next/font marketing pages.
-    const segFfsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
+    const segFfsFeatures = elementFontFeatures(el, segFontFamily);
     const segFeatures = mergeFeatureLists(
       mergeFeatureLists(
         mergeFeatureLists(
@@ -1994,7 +2043,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   // where source HTML has internal `\n` whitespace that the browser collapses
   // (those land here with a single segment and a \n-bearing el.text — splitting
   // on `\n` would emit a phantom second line below the captured one).
-  const ffsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
+  const ffsFeatures = elementFontFeatures(el, fontFamily);
   const fvsAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
   if (el.textSegments != null && el.textSegments.length > 0) {
     const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
@@ -2077,7 +2126,7 @@ export function renderInputText(opts: RenderTextOpts): string {
   // fontkit native advances when the probe wasn't run.
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
-  const inputFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
+  const inputFeatures = elementFontFeatures(el, fontFamily);
   const inputAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
   // DM-991: textareas carry per-LINE textSegments captured via the wrap
   // probe in `walker/input-value.ts`. Iterate them so each visual line

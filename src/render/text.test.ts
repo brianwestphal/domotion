@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveChwsFeature, resolveFontVariantFeatures } from "./text.js";
+import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveChwsFeature, resolveFontVariantAlternates, resolveFontVariantFeatures } from "./text.js";
 import { featureListNeedsHbShaping } from "./font-features.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -261,6 +261,30 @@ describe("parseFontFeatureSettings (DM-564)", () => {
 
   it("ignores garbage tokens between valid feature declarations", () => {
     expect(parseFontFeatureSettings(', , "cv11", junk, "ss03"')).toEqual(["cv11", "ss03"]);
+  });
+});
+
+describe("resolveFontVariantAlternates (DM-2160)", () => {
+  const tables = {
+    "source serif pro": {
+      stylistic: { fancy: [2] },
+      styleset: { display: [1, 3, 100] },
+      characterVariant: { open: [4], closed: [7, 3] },
+      swash: { ornate: [5] },
+      ornaments: { fleurons: [6] },
+      annotation: { circled: [8] },
+    },
+  };
+
+  it("transcribes Blink's category-to-OpenType mapping and value rules", () => {
+    expect(resolveFontVariantAlternates(
+      "historical-forms stylistic(fancy) styleset(display) character-variant(open closed) swash(ornate) ornaments(fleurons) annotation(circled)",
+      "'Source Serif Pro', serif", tables,
+    )).toEqual(["swsh=5", "cswh=5", "ornm=6", "nalt=8", "salt=2", "ss01", "ss03", "cv04", "cv07=3", "hist"]);
+  });
+
+  it("scopes aliases to the requested family", () => {
+    expect(resolveFontVariantAlternates("stylistic(fancy)", "Garamond, serif", tables)).toBeUndefined();
   });
 });
 

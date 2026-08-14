@@ -713,6 +713,17 @@ export interface CapturedStyles {
   fontStretch: string;
   fontVariationSettings: string;
   fontFeatureSettings: string;
+  /** Computed font-variant-alternates syntax. */
+  fontVariantAlternates?: string;
+  /** Author @font-feature-values aliases, keyed by normalized family name. */
+  fontFeatureValues?: Record<string, {
+    annotation?: Record<string, number[]>;
+    ornaments?: Record<string, number[]>;
+    stylistic?: Record<string, number[]>;
+    swash?: Record<string, number[]>;
+    characterVariant?: Record<string, number[]>;
+    styleset?: Record<string, number[]>;
+  }>;
   /** CSS font-variant-caps — 'normal' | 'small-caps' | 'all-small-caps' |
    *  'petite-caps' | 'all-petite-caps' | 'unicase' | 'titling-caps'.
    *  Renderer applies the matching OpenType feature (smcp / c2sc / etc.).

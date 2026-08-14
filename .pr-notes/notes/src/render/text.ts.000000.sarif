@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssd4fhx8wpj8yck",
+          "message": {
+            "text": "This is a direct transcription of Blink FontVariantAlternates::Resolve at Chromium 7d859f27, including category order, swash's dual tags, the 99 tag bound, and historical-forms without an alias lookup. The resolved list is merged before explicit font-feature-settings so the same HarfBuzz feature list controls both fallback coverage verdicts and final shaping.",
+            "markdown": "This is a direct transcription of Blink FontVariantAlternates::Resolve at Chromium 7d859f27, including category order, swash's dual tags, the 99 tag bound, and historical-forms without an alias lookup. The resolved list is merged before explicit font-feature-settings so the same HarfBuzz feature list controls both fallback coverage verdicts and final shaping."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1410,
+                  "endLine": 1454,
+                  "snippet": {
+                    "text": "/** Transcription of FontVariantAlternates::Resolve (Chromium 7d859f27). */\nexport function resolveFontVariantAlternates(\n  css: string | undefined,\n  fontFamily: string,\n  tables: CapturedElement[\"styles\"][\"fontFeatureValues\"],\n): string[] | undefined {\n  if (css == null || css === \"\" || css === \"normal\") return undefined;\n  const families = fontFamily.match(/(?:\"[^\"]*\"|'[^']*'|[^,])+/g)?.map((name) =>\n    name.trim().replace(/^(['\"])(.*)\\1$/, \"$2\").toLowerCase(),\n  ) ?? [];\n  // Blink resolves once per family while walking the CSS stack. Choose the\n  // first family that owns an alias table; aliases declared for another family\n  // must never leak into this request.\n  const family = families.find((name) => tables?.[name] != null);\n  const table: FeatureValueTable | undefined = family == null ? undefined : tables?.[family];\n  const out: string[] = [];\n  const emitSingle = (fn: string, category: keyof FeatureValueTable, tags: string[]) => {\n    const m = new RegExp(`${fn}\\\\(\\\\s*([^\\\\s,)]+)\\\\s*\\\\)`, \"i\").exec(css);\n    const values = m == null ? undefined : table?.[category]?.[m[1]];\n    if (values?.length === 1) for (const tag of tags) out.push(`${tag}=${values[0]}`);\n  };\n  emitSingle(\"swash\", \"swash\", [\"swsh\", \"cswh\"]);\n  emitSingle(\"ornaments\", \"ornaments\", [\"ornm\"]);\n  emitSingle(\"annotation\", \"annotation\", [\"nalt\"]);\n  emitSingle(\"stylistic\", \"stylistic\", [\"salt\"]);\n  for (const m of css.matchAll(/styleset\\(\\s*([^)]*)\\)/gi)) {\n    for (const alias of m[1].trim().split(/\\s+/)) {\n      for (const value of table?.styleset?.[alias] ?? []) if (value <= 99) out.push(`ss${String(value).padStart(2, \"0\")}`);\n    }\n  }\n  for (const m of css.matchAll(/character-variant\\(\\s*([^)]*)\\)/gi)) {\n    for (const alias of m[1].trim().split(/\\s+/)) {\n      const values = table?.characterVariant?.[alias];\n      if (values != null && values.length >= 1 && values.length <= 2 && values[0] <= 99) {\n        out.push(`cv${String(values[0]).padStart(2, \"0\")}${values.length === 2 ? `=${values[1]}` : \"\"}`);\n      }\n    }\n  }\n  if (/\\bhistorical-forms\\b/i.test(css)) out.push(\"hist\");\n  return out.length ? out : undefined;\n}\n\nfunction elementFontFeatures(el: CapturedElement, fontFamily = el.styles.fontFamily): string[] | undefined {\n  const alternates = resolveFontVariantAlternates(el.styles.fontVariantAlternates, fontFamily, el.styles.fontFeatureValues);\n  return mergeFeatureLists(alternates, parseFontFeatureSettings(el.styles.fontFeatureSettings));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/platform/fonts/font_variant_alternates.cc"
+                },
+                "region": {
+                  "startLine": 101
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2160"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "771e976f866e51f35b5a8654756fadbd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8f1b6f780479207806aed95147be1fece5521125",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
