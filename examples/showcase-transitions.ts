@@ -135,6 +135,10 @@ const WP_A = scene({ bg: INDIGO, chip: "Wipe", accent: "#7c9cff", body:
 const WP_B = scene({ bg: PURPLE, chip: "Wipe", accent: "#c4a3ff", body:
   `<div class="h">After</div><div class="sub">Shipped copy</div>
    <div class="card" style="margin-top:18px">The redesigned hero — bold, specific, on-brand. Wiped in over the old.</div>` });
+// The clock showcase reuses the same before/after content, but labels the
+// transition accurately so it cannot be mistaken for the linear wipe beside it.
+const CLOCK_A = WP_A.replace(">Wipe</span>", ">Clock wipe</span>");
+const CLOCK_B = WP_B.replace(">Wipe</span>", ">Clock wipe</span>");
 
 // Iris — an expanding circle unveils the incoming page from the center.
 const IR_A = scene({ bg: TEAL, chip: "Iris", accent: "#5eead4", body:
@@ -208,7 +212,7 @@ async function main(): Promise<void> {
     await buildDemo(pg, "zoom", { html: ZM_A, p: "zma-" }, { html: ZM_B, p: "zmb-" }, "zoom-in", 700);
     await buildDemo(pg, "shine", { html: SH_A, p: "sha-" }, { html: SH_B, p: "shb-" }, "shine", 800);
     // DM-1547 angular "clock hand" sweep (reuses the wipe scenes).
-    await buildDemo(pg, "clock", { html: WP_A, p: "wca-" }, { html: WP_B, p: "wcb-" }, "wipe-clock", 1000);
+    await buildDemo(pg, "clock", { html: CLOCK_A, p: "wca-" }, { html: CLOCK_B, p: "wcb-" }, "wipe-clock", 1000);
     // DM-1542 motion effects: a spring intra-frame animation + a shine overlay.
     await buildEffects(pg);
   } finally {

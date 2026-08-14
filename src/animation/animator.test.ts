@@ -1713,6 +1713,13 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
     expect(svg).toContain("400.00px 0.00px, 400.00px 200.00px, 0.00px 200.00px, 0.00px 0.00px");
   });
 
+  it("anchors the legacy clock hand to the same exact viewport center as iris", () => {
+    const clock = twoFrame("wipe-clock");
+    const iris = twoFrame("iris");
+    expect(clock).toContain("polygon(200.00px 100.00px,");
+    expect(iris).toContain("circle(0px at 200px 100px)");
+  });
+
   it("neither radial nor clock wipe animates a CSS filter", () => {
     for (const type of ["wipe-radial", "wipe-clock"]) {
       const svg = twoFrame(type);
