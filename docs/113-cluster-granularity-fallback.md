@@ -184,6 +184,12 @@ capture text
   segment gets its own FontFallbackIterator, exactly as `ShapeSegment` is
   invoked per `RunSegmenterRange`. This is what closed the Geneva `e`+U+0E48
   probe miss.
+- **Neutral preferred scripts are preserved.** Blink keeps Common/Inherited
+  characters neutral for run merging, but a neutral with exactly one
+  `Script_Extensions` member records that member as `common_preferred_` and
+  uses it if no strong script supersedes it. This matters for lone Vedic
+  marks: the preferred Bengali/Devanagari tag selects HarfBuzz's syllabic
+  shaper, while a mark with several possible scripts stays Common.
 - **Context**: the buffer is filled with the *whole* text plus item
   offset/length. The design-time note that harfbuzzjs's `Buffer.addText` lacks
   offset/length parameters was **stale** — the vendored build's `addText(text,

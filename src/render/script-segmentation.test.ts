@@ -127,6 +127,32 @@ describe("shaping segmentation (DM-1894)", () => {
     });
   });
 
+  describe("leading Inherited Script_Extensions (DM-2182)", () => {
+    it("promotes a lone Vedic mark to Blink's preferred Indic script", () => {
+      expect(seg("\u1CD0")).toEqual([
+        { text: "\u1CD0", script: "Common", rtl: false },
+      ]);
+      expect(seg("\u1CD1")).toEqual([
+        { text: "\u1CD1", script: "Devanagari", rtl: false },
+      ]);
+    });
+
+    it("still inherits from an established base script", () => {
+      expect(seg("a\u0301")).toEqual([
+        { text: "a\u0301", script: "Latin", rtl: false },
+      ]);
+      expect(seg("क\u1CD1")).toEqual([
+        { text: "क\u1CD1", script: "Devanagari", rtl: false },
+      ]);
+    });
+
+    it("establishes the script after a leading neutral dotted circle", () => {
+      expect(seg("◌\u1CD1")).toEqual([
+        { text: "◌\u1CD1", script: "Devanagari", rtl: false },
+      ]);
+    });
+  });
+
   it("attaches leading neutrals to the script that follows them", () => {
     // A leading space has no script of its own; making it a segment would shape
     // it separately from the word it belongs to.

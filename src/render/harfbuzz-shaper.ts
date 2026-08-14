@@ -805,12 +805,12 @@ export function installHarfbuzzShaping(
   const nativeLayout = base.layout.bind(base);
   const getGlyph = base.getGlyph?.bind(base);
   base.shapesWithHarfbuzz = true;
-  base.layout = (text, _features, _script, _language, direction) => {
+  base.layout = (text, _features, script, language, direction) => {
     // Renderer-facing: paint-domain text — an RTL buffer takes the
     // mirror-domain map (see `rendererHbShapeArgs`); the native-layout decline
     // path keeps the ORIGINAL text, since that engine draws what it is given.
     const eff = rendererHbShapeArgs(text, direction);
-    const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes);
+    const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, undefined, { script, language });
     if (res == null) return nativeLayout(text);
     if (getGlyph == null) return res;
     return {
@@ -912,7 +912,7 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   if (memo != null) return memo as T;
   const proxy: ShapingFontView = {
     shapesWithHarfbuzz: true,
-    layout(text: string, _features?: string[], _script?: string, _language?: string, direction?: "ltr" | "rtl") {
+    layout(text: string, _features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl") {
       // The BOUND features, never the argument — see the `features` option
       // comment: the argument arrives pre-projected for fontkit, with the
       // disables this proxy exists to honor already stripped.
@@ -922,7 +922,7 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
       // `rendererHbShapeArgs`. The decline path hands the base engine the
       // ORIGINAL text, since that engine draws what it is given.
       const eff = rendererHbShapeArgs(text, direction);
-      const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, opts?.features);
+      const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, opts?.features, { script, language });
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       if (opts?.outlinesFromBase !== true || base.getGlyph == null) return res;
       const getGlyph = base.getGlyph.bind(base);

@@ -301,6 +301,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstl68tqi457jy1z",
+          "message": {
+            "text": "The selected-face HarfBuzz shape is the logical oracle when Linux Canvas reports an empty dottedCircleMarks array. With the preferred script applied, the focused Linux Vedic fixture moved from 0.47% / 14 regions to 0.00% / 0 regions; Phonetic Extensions and Latin Extended Additional remained at their prior 0.08% and 0.05% native-raster floors, confirming the change is isolated to shaping.",
+            "markdown": "The selected-face HarfBuzz shape is the logical oracle when Linux Canvas reports an empty dottedCircleMarks array. With the preferred script applied, the focused Linux Vedic fixture moved from 0.47% / 14 regions to 0.00% / 0 regions; Phonetic Extensions and Latin Extended Additional remained at their prior 0.08% and 0.05% native-raster floors, confirming the change is isolated to shaping."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1420,
+                  "endLine": 1437,
+                  "snippet": {
+                    "text": "    // Canvas cannot observe Linux's HarfBuzz insertion for zero-advance marks.\n    // Ask the selected shaping face the logical question instead: with Blink's\n    // resolved script, does shaping this orphan emit that face's U+25CC glyph?\n    const orphaned = !clusterHasBase;\n    const logicalHbRun = isMark && orphaned\n      ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,\n        variationSettings, lang, fontKeyChain)\n      : null;\n    const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;\n    const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;\n    const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;\n    const logicalLayout = logicalHbRun != null && logicalScriptTag != null\n      ? logicalHbRun.font.layout(ch, undefined, logicalScriptTag, lang, \"ltr\")\n      : null;\n    const logicallyFlagged = logicalCircleGid !== 0\n      && logicalLayout != null\n      && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);\n    const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i)) || logicallyFlagged;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2182"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "de80577f04443d222511736bac3eaac4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "090daee90727a2d923999a715f14cc372a9f3fcd",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

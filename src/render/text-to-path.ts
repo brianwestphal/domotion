@@ -38,7 +38,8 @@ import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
+import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
+import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
@@ -633,6 +634,11 @@ function renderTextPathRuns(
         || run.fontKey === "devanagari"
         || run.fontKey === "thai"
         || run.decomposed === true
+        // A face deliberately wrapped with the Chromium-configured HarfBuzz
+        // engine must shape as a run. Sending that wrapper one scalar at a
+        // time defeats the very syllable/cluster logic it was selected for,
+        // including broken-syllable dotted-circle insertion.
+        || run.font.shapesWithHarfbuzz === true
         || [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
 
       if (!isShapingRequired) {
@@ -768,20 +774,20 @@ function renderTextPathRuns(
         const runLevels = (bidiLevels != null && run.text.length === run.endIdx - run.startIdx)
           ? bidiLevels.subarray(run.startIdx, run.endIdx)
           : undefined;
-        const segments = needsSegmentation(run.text, runLevels)
-          ? segmentForShaping(run.text, runLevels)
-          // A run with no direction BOUNDARY still has a direction — its single
-          // embedding level. Hardcoding `rtl: false` here was latent: the value
-          // reached the shaper as an explicit `dir`, and the platform helper
-          // ignored it and inferred RTL correctly from the content, so a
-          // uniformly-RTL run came out right for the wrong reason. It stops
-          // being harmless the moment a shaper actually honours what it is told.
-          : [{
+        // Blink's 8-bit shortcut is the only case that may skip script
+        // itemization. A one-segment non-Latin run still needs its resolved
+        // script: HarfBuzz selects the syllabic shaper from that tag, so an
+        // Inherited Vedic mark itemized as Devanagari is observably different
+        // from the same buffer left as Common.
+        const isEightBit = [...run.text].every((ch) => ch.codePointAt(0)! <= 0xff);
+        const segments = isEightBit
+          ? [{
             start: 0,
             end: run.text.length,
-            script: "",
+            script: "Latin",
             rtl: runLevels != null && runLevels.length > 0 && (runLevels[0] & 1) === 1,
-          }];
+          }]
+          : segmentForShaping(run.text, runLevels);
 
         // A note on what an override run does NOT need: a different shaper.
         //
@@ -891,9 +897,10 @@ function renderTextPathRuns(
           // content implies rather than the paragraph's.
           const shapeDir = flipToNative ? (contentIsRtl ? "rtl" : "ltr") : dir;
           const shapeFont = run.font;
+          const scriptTag = SCRIPT_NAME_TO_ISO15924[seg.script];
           const layout = features != null && features.length > 0
-            ? shapeFont.layout(shapeText, fontkitFeatureList(features), undefined, undefined, shapeDir)
-            : shapeFont.layout(shapeText, undefined, undefined, undefined, shapeDir);
+            ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, lang, shapeDir)
+            : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
           const uses: string[] = [];
           let segFontUnits = 0;
           for (let gi = 0; gi < layout.glyphs.length; gi++) {
@@ -926,9 +933,17 @@ function renderTextPathRuns(
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
     const runDirection = shapingDirectionAt(text, run.startIdx);
+    // Even without captured per-character anchors, a uniform non-Latin run
+    // still needs Blink's explicit script tag. Keep the pre-existing whole-run
+    // layout for genuinely mixed segments; the font-run splitter normally
+    // separates those, while declining here avoids inventing placement rules.
+    const runSegments = segmentForShaping(run.text);
+    const runScript = runSegments.length === 1
+      ? SCRIPT_NAME_TO_ISO15924[runSegments[0].script]
+      : undefined;
     const layout = features != null && features.length > 0
-      ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
-      : run.font.layout(run.text, undefined, undefined, lang, runDirection);
+      ? run.font.layout(run.text, fontkitFeatureList(features), runScript, lang, runDirection)
+      : run.font.layout(run.text, undefined, runScript, lang, runDirection);
     const uses: string[] = [];
     let runX = 0;
     for (let i = 0; i < layout.glyphs.length; i++) {
@@ -1402,17 +1417,25 @@ export function insertSyntheticDottedCircles(
       i += chLen;
       continue;
     }
-    // DM-1126 / DM-1157 etc.: the capture layer probed Chrome's real shaper and
-    // recorded which orphaned codepoints it circles (`coveredCircleSet`). When
-    // that data is present it is the AUTHORITY — it both adds circles the static
-    // block table misses (no-table blocks: Sogdian, Miao, Garay, … and category-
-    // Lo cluster letters like Soyombo U+11A84) and VETOES ones it would wrongly
-    // add (e.g. Sinhala U+0D81, which Chrome leaves blank). The block-table
-    // heuristic (`usesComplexShaperDottedCircle`) is the fallback only for
-    // captures with no probe data (older trees / the programmatic API).
-    const probeFlagged = coveredCircleSet != null && coveredCircleSet.has(i);
+    // Canvas cannot observe Linux's HarfBuzz insertion for zero-advance marks.
+    // Ask the selected shaping face the logical question instead: with Blink's
+    // resolved script, does shaping this orphan emit that face's U+25CC glyph?
+    const orphaned = !clusterHasBase;
+    const logicalHbRun = isMark && orphaned
+      ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+        variationSettings, lang, fontKeyChain)
+      : null;
+    const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
+    const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;
+    const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;
+    const logicalLayout = logicalHbRun != null && logicalScriptTag != null
+      ? logicalHbRun.font.layout(ch, undefined, logicalScriptTag, lang, "ltr")
+      : null;
+    const logicallyFlagged = logicalCircleGid !== 0
+      && logicalLayout != null
+      && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);
+    const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i)) || logicallyFlagged;
     if (isMark || probeFlagged) {
-      const orphaned = !clusterHasBase;
       const wantUncoveredCircle = coveredCircleSet != null ? probeFlagged : usesComplexShaperDottedCircle(cp);
       // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED
       // FOR THE RUN has a glyph for U+25CC. Transcribed from
@@ -1478,10 +1501,20 @@ export function insertSyntheticDottedCircles(
       // (e.g. a wide Egyptian hieroglyph U+130C3) would otherwise get a spurious
       // centered ◌ stamped over it. Uncovered orphaned Lo cluster letters
       // (Soyombo) are handled by the notdef path above instead.
-      if (isMark && orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
-          && glyphIdForCp(primaryFont, cp) !== 0
-          && glyphIdForCp(primaryFont, 0x25CC) !== 0
-          && !fontAutoInsertsDottedCircle(primaryFont, ch)
+      const coveredMarkResolution = probeFlagged && logicalHbRun == null
+        ? resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+          variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)
+        : null;
+      const coveredMarkFont = logicalHbRun?.font
+        ?? (coveredMarkResolution?.covered === true
+          ? (coveredMarkResolution.fontOverride
+            ?? (coveredMarkResolution.key === primaryFontKey ? primaryFont : getFontInstance(coveredMarkResolution.key, weight, fontSize, slant)))
+          : null);
+      if (isMark && orphaned && probeFlagged
+          && coveredMarkFont != null
+          && glyphIdForCp(coveredMarkFont, cp) !== 0
+          && glyphIdForCp(coveredMarkFont, 0x25CC) !== 0
+          && (logicallyFlagged || !fontAutoInsertsDottedCircle(coveredMarkFont, ch))
           // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
           // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
           // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks
@@ -1517,7 +1550,7 @@ export function insertSyntheticDottedCircles(
         // re-centered HarfBuzz-style (Mukta's marks have negative-x ink + no
         // GPOS anchor, so the per-char emitter needs the centered x baked in).
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
-        const markCenteredX = markX + syntheticMarkCenteringOffsetPx(primaryFont, ch, fontSize);
+        const markCenteredX = markX + syntheticMarkCenteringOffsetPx(coveredMarkFont, ch, fontSize);
         outText += "◌";
         if (haveX) outX.push(markX);
         outText += ch;

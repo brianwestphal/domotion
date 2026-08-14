@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstl68t50rmfjtb9",
+          "message": {
+            "text": "Blink keeps a one-member ScriptExtensions value as a preferred script without turning the neutral into a run constraint. This mirrors commonpreferred_ in scriptruniterator.cc: a following strong script still wins, but a lone Vedic mark selects Bengali or Devanagari; multi-member extensions remain Common. That distinction predicts exactly the 14 Linux Vedic cells Chromium circles.",
+            "markdown": "Blink keeps a one-member Script_Extensions value as a preferred script without turning the neutral into a run constraint. This mirrors common_preferred_ in script_run_iterator.cc: a following strong script still wins, but a lone Vedic mark selects Bengali or Devanagari; multi-member extensions remain Common. That distinction predicts exactly the 14 Linux Vedic cells Chromium circles."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/script-segmentation.ts"
+                },
+                "region": {
+                  "startLine": 374,
+                  "endLine": 468,
+                  "snippet": {
+                    "text": "function preferredNeutralScript(cp: number, primary: string): string | undefined {\n  if (primary !== \"Common\" && primary !== \"Inherited\") return undefined;\n  const entry = scriptExtensionsEntry(cp);\n  return entry?.scripts.length === 1 ? entry.scripts[0] : undefined;\n}\n\n/**\n * Intersect the run's accumulated script constraint with a new character's\n * set, mirroring `ScriptRunIterator::MergeSets` (`script_run_iterator.cc:491-565`)\n * for the piece that decides run continuation. `next` must already be a real\n * (non-wildcard) set — callers check `charSet !== ANY_SCRIPT` first, since a\n * wildcard next character never touches `current` at all.\n *\n * Returns `null` when the sets are disjoint (a genuine script boundary), the\n * intersection otherwise. An `ANY_SCRIPT` current set has no constraint yet,\n * so it simply adopts `next` — the \"current is common/inherited, use next\n * set\" branch (`:512-516`).\n */\nfunction mergeScriptSets(current: ScriptSet, next: ReadonlySet<string>): ReadonlySet<string> | null {\n  if (current === ANY_SCRIPT) return next;\n  const intersection = new Set<string>();\n  for (const s of next) if (current.has(s)) intersection.add(s);\n  return intersection.size > 0 ? intersection : null;\n}\n\n/**\n * The label reported on an emitted `ShapingSegment`. It is converted to an ISO\n * 15924 tag at the shaping call site, matching Blink's explicit\n * `hb_buffer_set_script`; it is therefore part of the shaping decision.\n */\nfunction resolveSegmentScript(openSet: ScriptSet, preferred?: string): string {\n  if (openSet === ANY_SCRIPT) return preferred ?? \"Common\";\n  let best: string | undefined;\n  for (const s of openSet) if (best === undefined || s < best) best = s;\n  return best ?? \"Common\";\n}\n\n/**\n * Segment `text` for shaping.\n *\n * `levels` is the per-code-unit bidi embedding level array (bidi-js'\n * `getEmbeddingLevels().levels`), optional: without it every segment is treated\n * as left-to-right, which is the correct degradation for text the caller already\n * knows is unidirectional.\n *\n * Always returns at least one segment for non-empty text, so callers can shape\n * unconditionally rather than special-casing.\n */\nexport function segmentForShaping(text: string, levels?: ArrayLike<number>): ShapingSegment[] {\n  if (text.length === 0) return [];\n\n  const segments: ShapingSegment[] = [];\n  let segStart = 0;\n  // The run's accumulated script constraint — the wildcard sentinel while the\n  // segment has seen only neutrals (plain Common/Inherited, or a Common\n  // character with one preferred-script extension), which is how leading\n  // neutrals attach to the first real script that follows.\n  let openSet: ScriptSet = ANY_SCRIPT;\n  let preferred: string | undefined;\n  let segLevel = levels?.[0] ?? 0;\n\n  for (let i = 0; i < text.length;) {\n    const cp = text.codePointAt(i)!;\n    const width = cp > 0xffff ? 2 : 1;\n    const level = levels?.[i] ?? 0;\n    const primary = getScript(cp);\n    const charSet = scriptSetFor(cp, primary);\n    if (openSet === ANY_SCRIPT) preferred ??= preferredNeutralScript(cp, primary);\n\n    // A level change is a bidi-run boundary and always splits, even mid-script:\n    // Blink shapes each bidi run with its own direction, so a script spanning\n    // two levels is two shaping calls.\n    const levelChanged = level !== segLevel;\n    // A wildcard character never conflicts — it extends whatever is open. A\n    // real constraint set conflicts only when it fails to intersect the run's\n    // accumulated set, which is the Script_Extensions-aware replacement for\n    // the old \"any non-neutral script differs from segScript\" check — see the\n    // module docstring for why a plain Script-equality test was wrong.\n    const merged: ScriptSet | null = charSet === ANY_SCRIPT ? openSet : mergeScriptSets(openSet, charSet);\n    const scriptChanged = charSet !== ANY_SCRIPT && merged === null;\n\n    if (i > segStart && (levelChanged || scriptChanged)) {\n      segments.push({ start: segStart, end: i, script: resolveSegmentScript(openSet, preferred), rtl: (segLevel & 1) === 1 });\n      segStart = i;\n      openSet = charSet;\n      preferred = preferredNeutralScript(cp, primary);\n      segLevel = level;\n    } else {\n      openSet = merged ?? charSet;\n    }\n\n    i += width;\n  }\n\n  segments.push({ start: segStart, end: text.length, script: resolveSegmentScript(openSet, preferred), rtl: (segLevel & 1) === 1 });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2182"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f900c9e3918725e1629f445b4757d7c6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "090daee90727a2d923999a715f14cc372a9f3fcd",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

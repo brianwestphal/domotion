@@ -371,6 +371,12 @@ function scriptSetFor(cp: number, primary: string): ScriptSet {
   return new Set(entry.scripts);
 }
 
+function preferredNeutralScript(cp: number, primary: string): string | undefined {
+  if (primary !== "Common" && primary !== "Inherited") return undefined;
+  const entry = scriptExtensionsEntry(cp);
+  return entry?.scripts.length === 1 ? entry.scripts[0] : undefined;
+}
+
 /**
  * Intersect the run's accumulated script constraint with a new character's
  * set, mirroring `ScriptRunIterator::MergeSets` (`script_run_iterator.cc:491-565`)
@@ -391,13 +397,12 @@ function mergeScriptSets(current: ScriptSet, next: ReadonlySet<string>): Readonl
 }
 
 /**
- * The label reported on an emitted `ShapingSegment`. Deterministic but
- * informational only: fontkit re-derives the actual shaping script from the
- * segment's own text at the call site (`text-to-path.ts`), so this doesn't
- * feed the shaper.
+ * The label reported on an emitted `ShapingSegment`. It is converted to an ISO
+ * 15924 tag at the shaping call site, matching Blink's explicit
+ * `hb_buffer_set_script`; it is therefore part of the shaping decision.
  */
-function resolveSegmentScript(openSet: ScriptSet): string {
-  if (openSet === ANY_SCRIPT) return "Common";
+function resolveSegmentScript(openSet: ScriptSet, preferred?: string): string {
+  if (openSet === ANY_SCRIPT) return preferred ?? "Common";
   let best: string | undefined;
   for (const s of openSet) if (best === undefined || s < best) best = s;
   return best ?? "Common";
@@ -424,13 +429,16 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
   // character with one preferred-script extension), which is how leading
   // neutrals attach to the first real script that follows.
   let openSet: ScriptSet = ANY_SCRIPT;
+  let preferred: string | undefined;
   let segLevel = levels?.[0] ?? 0;
 
   for (let i = 0; i < text.length;) {
     const cp = text.codePointAt(i)!;
     const width = cp > 0xffff ? 2 : 1;
     const level = levels?.[i] ?? 0;
-    const charSet = scriptSetFor(cp, getScript(cp));
+    const primary = getScript(cp);
+    const charSet = scriptSetFor(cp, primary);
+    if (openSet === ANY_SCRIPT) preferred ??= preferredNeutralScript(cp, primary);
 
     // A level change is a bidi-run boundary and always splits, even mid-script:
     // Blink shapes each bidi run with its own direction, so a script spanning
@@ -445,9 +453,10 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
     const scriptChanged = charSet !== ANY_SCRIPT && merged === null;
 
     if (i > segStart && (levelChanged || scriptChanged)) {
-      segments.push({ start: segStart, end: i, script: resolveSegmentScript(openSet), rtl: (segLevel & 1) === 1 });
+      segments.push({ start: segStart, end: i, script: resolveSegmentScript(openSet, preferred), rtl: (segLevel & 1) === 1 });
       segStart = i;
       openSet = charSet;
+      preferred = preferredNeutralScript(cp, primary);
       segLevel = level;
     } else {
       openSet = merged ?? charSet;
@@ -456,7 +465,7 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
     i += width;
   }
 
-  segments.push({ start: segStart, end: text.length, script: resolveSegmentScript(openSet), rtl: (segLevel & 1) === 1 });
+  segments.push({ start: segStart, end: text.length, script: resolveSegmentScript(openSet, preferred), rtl: (segLevel & 1) === 1 });
   return segments;
 }
 

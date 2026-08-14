@@ -1053,6 +1053,15 @@ Notes:
   broken-syllable members such as Kawi U+11F02: an explicit U+25CC followed by
   the source character made the later HarfBuzz pass insert a second circle.
 
+- **Covered orphan marks use a logical HarfBuzz oracle when capture cannot see
+  the decision.** Canvas 2D reports no dotted-circle ink for Linux zero-advance
+  Vedic marks even where Blink's text shaper inserts one. The renderer resolves
+  the mark's actual fallback face, applies RunSegmenter's script (including the
+  single-member `Script_Extensions` preferred-script rule), shapes the lone mark
+  with the Chromium-configured HarfBuzz build, and treats the face's U+25CC gid
+  in that result as the insertion decision. Capture positives remain additive;
+  a negative Canvas result no longer vetoes this deterministic shaper answer.
+
 - **Final glyph emission preserves Blink's bidi-run direction.** Font fallback
   already segmented and tested candidates with the UBA-resolved direction, but
   the embedded-font and multi-font path emitters later called `layout()` without

@@ -756,19 +756,32 @@ const MUKTA = "/Library/Fonts/Mukta-Regular.ttf";
 (fs.existsSync(MUKTA) ? describe : describe.skip)("runtime-discovered Vedic shaping face (DM-2146)", () => {
   beforeEach(() => { clearWebfonts(); clearEmbeddedFonts(); setRenderTextMode("paths"); });
 
-  it("keeps the selected Mukta face when shaping a capture-flagged standalone mark", () => {
+  it("infers Mukta's dotted circle when the capture oracle reports no ink", () => {
     const out = renderTextAsPath("\u1CD1", 0, 0, {
       fontSize: 32,
       fontFamily: '"Mukta", sans-serif',
       fontWeight: "400",
       fill: "#000",
-      dottedCircleMarks: [0],
+      dottedCircleMarks: [],
       xOffsets: [0],
     });
     expect(out).not.toBeNull();
     // One outline for U+25CC plus one for the Vedic mark.  Before the CI-only
     // face-reopen failure this collapsed to the bare mark.
     expect([...out!.matchAll(/<use\b/g)]).toHaveLength(2);
+  });
+
+  it("does not circle a multi-script Vedic mark that Blink leaves Common", () => {
+    const out = renderTextAsPath("\u1CD0", 0, 0, {
+      fontSize: 32,
+      fontFamily: '"Mukta", sans-serif',
+      fontWeight: "400",
+      fill: "#000",
+      dottedCircleMarks: [],
+      xOffsets: [0],
+    });
+    expect(out).not.toBeNull();
+    expect([...out!.matchAll(/<use\b/g)]).toHaveLength(1);
   });
 });
 
