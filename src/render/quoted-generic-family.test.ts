@@ -78,8 +78,8 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
 
   it.runIf(process.platform === "darwin")("the chain resolver applies the same classification per entry", () => {
     withHostPlatform("darwin", () => {
-      expect(resolveFontKeyChain('"monospace", Menlo')).toEqual(["menlo"]);
-      expect(resolveFontKeyChain("monospace, Menlo")).toEqual(["courier", "menlo"]);
+      expect(resolveFontKeyChain('"monospace", Menlo')).toEqual(["menlo", "times"]);
+      expect(resolveFontKeyChain("monospace, Menlo")).toEqual(["courier", "menlo", "times"]);
     });
   });
 

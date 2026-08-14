@@ -146,7 +146,7 @@ capture text
   → script itemization (segmentForShaping — Blink: RunSegmenter)   [MUST come first]
   → per segment: shape-then-requeue loop
        queue = [segment]
-       font cycle: primary → remaining declared families            (kFontGroupFonts)
+       font cycle: primary → remaining declared families → STANDARD (kFontGroupFonts)
                    → webfont unicode-range partitions               (kSegmentedFace)
                    → one system answer per hint char, asked once    (kSystemFonts)
                    → platform last-resort face (Times on macOS)

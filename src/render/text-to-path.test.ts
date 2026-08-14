@@ -1607,13 +1607,13 @@ describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", ()
 
 // DM-1083: the full-CSS-family-stack resolver. `resolveFontKey` collapses a
 // computed `font-family` to one key; `resolveFontKeyChain` keeps the whole
-// ordered list of resolvable keys — the set Chrome's FontFallbackIterator walks
-// at the kFontFamily stage.
+// ordered list of resolvable keys plus Blink's STANDARD terminal — the set
+// Chrome's FontFallbackIterator walks at the kFontFamily stage.
 describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
   withNominationWalkDisarmed();
   it("returns every resolvable family in CSS order, with resolveFontKey == chain[0]", () => {
     const chain = resolveFontKeyChain(`"Times New Roman", Georgia, sans-serif`);
-    expect(chain).toEqual(["times-new-roman", "georgia", "helvetica"]);
+    expect(chain).toEqual(["times-new-roman", "georgia", "helvetica", "times"]);
     expect(resolveFontKey(`"Times New Roman", Georgia, sans-serif`)).toBe(chain[0]);
   });
 
@@ -1621,7 +1621,7 @@ describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
     // DoesNotExist + the ui-* / -apple-system keywords resolve to nothing and
     // must NOT appear; the real families that follow them keep their order.
     expect(resolveFontKeyChain(`DoesNotExist, -apple-system, ui-monospace, Menlo, monospace`))
-      .toEqual(["menlo", "courier"]);
+      .toEqual(["menlo", "courier", "times"]);
   });
 
   it("dedupes families that collapse to the same key", () => {
@@ -1629,8 +1629,8 @@ describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
     expect(resolveFontKeyChain(`Times, serif`)).toEqual(["times"]);
   });
 
-  it("is empty when nothing in the stack resolves (caller appends its own terminal)", () => {
-    expect(resolveFontKeyChain(`-apple-system, ui-sans-serif`)).toEqual([]);
+  it("ends at STANDARD when nothing in the declared stack resolves", () => {
+    expect(resolveFontKeyChain(`-apple-system, ui-sans-serif`)).toEqual(["times"]);
     // …while the first-match resolver still falls back to the Times default.
     expect(resolveFontKey(`-apple-system, ui-sans-serif`)).toBe("times");
   });

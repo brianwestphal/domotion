@@ -24,7 +24,8 @@ For focused Windows Unicode runs, shard 1 writes `font-route-trace.json`. Every
   accepted candidate if any;
 - the exact `MapCharacters` base family, Blink-derived locale, and style tuple,
   plus DirectWrite's reopened final answer; and
-- Domotion's primary key, declared key chain, final route key, face/path, and
+- Domotion's primary key, declared key chain, legacy per-codepoint route, and
+  production shaped-cluster route, including each route's key, face/path, and
   glyph id.
 
 The trace is observational and Windows-only. It uses the production resolver
@@ -36,6 +37,9 @@ probe across every block.
 ## Upstream correspondence
 
 The stage boundary follows Chromium revision `7d859f27`:
+after the declared family list, `FontFallbackList::GetFallbackFontData` appends
+the preferred STANDARD face to the `kFontGroupFonts` stage. Only after that
+face is exhausted does `FontFallbackIterator` advance to `kSystemFonts`.
 `GetFallbackFamilyNameFromHardcodedChoices` runs first and only falls through
 to `GetDWriteFallbackFamily` when no candidate both loads and covers the
 character (`font_cache_skia_win.cc`). The hardcoded candidate ordering is the

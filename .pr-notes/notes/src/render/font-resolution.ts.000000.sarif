@@ -1553,6 +1553,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssb7wy8qwnqgoqi",
+          "message": {
+            "text": "Blink's preferred STANDARD face belongs to the family-list stage, so it must be tried before Windows hardcoded and DirectWrite fallback. Chromium revision 7d859f27 appends GetFallbackFontFamily() in FontFallbackList::GetFallbackFontData; Windows trace run 31762290694 then showed why U+2100 painted Times New Roman in Chromium while both Domotion routes incorrectly advanced to Lucida/Tahoma.",
+            "markdown": "Blink's preferred STANDARD face belongs to the family-list stage, so it must be tried before Windows hardcoded and DirectWrite fallback. Chromium revision 7d859f27 appends GetFallbackFontFamily() in FontFallbackList::GetFallbackFontData; Windows trace run 31762290694 then showed why U+2100 painted Times New Roman in Chromium while both Domotion routes incorrectly advanced to Lucida/Tahoma."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8854,
+                  "endLine": 8867,
+                  "snippet": {
+                    "text": "  // Blink's family list ends with the STANDARD family: a codepoint no\n  // declared family covers is asked of `GetFallbackFontFamily` →\n  // `settings.Standard(script)` BEFORE the per-codepoint system fallback\n  // (`font_fallback_iterator.cc:167-179` walks `FontFallbackList::FontDataAt`\n  // until it is exhausted, and that list's final entry is the standard\n  // family). `times` is that stage for the Common/default script, but when the\n  // content locale keys a per-script standard entry, the script-keyed face\n  // takes the position instead.\n  // Measured: lang=zh-Hant `monospace` paints Han from PingFang TC (the hant\n  // standard, first-available of \",PingFang TC,Heiti TC\") while Latin stays\n  // Courier — 253 of 253 oracle rows in the 4E00-4EFF slice moved on exactly\n  // this stage.\n  const std = matchFamilyNameToKey(\"-webkit-standard\", true, lang) ?? \"times\";\n  if (!out.includes(std)) out.push(std);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/platform/fonts/font_fallback_list.cc"
+                },
+                "region": {
+                  "startLine": 145
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2177"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dd98b95eeaec7ae9ab44c1daea3a3ca6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f28301cbc30dc6802a98a2e045e5f217faa7cacb",
+          "branch": "dm-2168-font-route-trace"
+        }
+      ]
     }
   ]
 }

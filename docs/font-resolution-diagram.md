@@ -148,7 +148,8 @@ commas, lowercases + strips quotes (`splitFontFamilyNames`), and walks the names
 in order, returning the FIRST that `matchFamilyNameToKey` resolves; if none match,
 the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
-(used by the per-codepoint resolver to reach later-declared families).
+and then Blink's preferred STANDARD family (used by the per-codepoint resolver
+to reach later-declared families before the platform system-fallback stage).
 
 > **The settings-mapped generics are SCRIPT-KEYED on mac/win.** Blink consults
 > `settings.<Generic>(script)` with `font_description.GetScript()`
@@ -972,11 +973,11 @@ flowchart TD
   F1 -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F0B
-  FSF -->|"no"| F0B{"fontKeyChain is EMPTY?<br/>(⟺ primary came from resolveFontKey's<br/>standard-font terminal, which<br/>resolveFontKeyChain excludes)"}
+  FSF -->|"no"| F0B{"caller supplied an EMPTY fontKeyChain?<br/>(compatibility path; normal resolveFontKeyChain<br/>always includes STANDARD)"}
   F0B -->|"yes"| F0BA["0b. PRIMARY decomposition — the checks<br/>step 1 would have given it:<br/>· canonical NFD singleton?<br/>· else base+mark NFD covered by primary?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
   F0BA -->|"hit"| F0BH["cover(primaryKey, decomposed)"]
   F0BA -->|"none"| F2
-  F0B -->|"no"| F2["1. kFontFamily: walk fontKeyChain (declared stack)"]
+  F0B -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)"]
   F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
   F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}

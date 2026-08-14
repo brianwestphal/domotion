@@ -1207,8 +1207,9 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   diagnostic.** Focused Windows Unicode CI runs attach a per-cell route trace:
   declared-family exhaustion, Blink hardcoded candidate/coverage, DirectWrite
   base/locale/style and reopened answer, Chromium painted/reopened face and gid,
-  and Domotion's final key/face/gid. It is observational and adds no routing
-  overrides.
+  and Domotion's legacy and production-shaped final key/face/gid. The declared
+  chain includes Blink's preferred STANDARD face before system fallback. The
+  trace is observational and adds no routing overrides.
 
 ## What this file is NOT
 

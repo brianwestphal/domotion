@@ -8838,8 +8838,10 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
  * the first family lacks can be drawn by a LATER declared family (e.g. the CJK
  * compatibility fixtures whose `"Hiragino Sans","Arial Unicode MS",…` stacks let
  * Chrome paint +90 cells from Arial Unicode MS that a primary-only resolver
- * misses — see the probe in `tools/probe-2f800-facewalk.mjs`). Never includes
- * the `times` last-resort — callers append their own terminal.
+ * misses — see the probe in `tools/probe-2f800-facewalk.mjs`). The final entry
+ * is Blink's preferred STANDARD family, which is still part of
+ * `kFontGroupFonts`; platform system fallback and the notdef last-resort come
+ * later.
  */
 export function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {
   const out: string[] = [];
@@ -8854,17 +8856,15 @@ export function resolveFontKeyChain(fontFamily: string, lang?: string): string[]
   // `settings.Standard(script)` BEFORE the per-codepoint system fallback
   // (`font_fallback_iterator.cc:167-179` walks `FontFallbackList::FontDataAt`
   // until it is exhausted, and that list's final entry is the standard
-  // family). Callers append their own `times` terminal, which IS that stage
-  // for the Common script — but when the content locale keys a per-script
-  // standard entry, the script-keyed face takes the position instead.
+  // family). `times` is that stage for the Common/default script, but when the
+  // content locale keys a per-script standard entry, the script-keyed face
+  // takes the position instead.
   // Measured: lang=zh-Hant `monospace` paints Han from PingFang TC (the hant
   // standard, first-available of ",PingFang TC,Heiti TC") while Latin stays
   // Courier — 253 of 253 oracle rows in the 4E00-4EFF slice moved on exactly
   // this stage.
-  if (lang != null) {
-    const std = matchFamilyNameToKey("-webkit-standard", true, lang);
-    if (std != null && !out.includes(std)) out.push(std);
-  }
+  const std = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
+  if (!out.includes(std)) out.push(std);
   return out;
 }
 
