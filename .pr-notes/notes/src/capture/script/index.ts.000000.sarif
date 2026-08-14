@@ -311,6 +311,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstlwlfh1ruu3dci",
+          "message": {
+            "text": "A one-CSS-pixel visual-overflow fringe is sufficient and shared: the focused 06-forms-style-text-inputs run moved from 3 regions / 0.1302% coverage to 0 regions / 0% coverage, with raw diff 0.1432% to 0.00475%. The existing native-only branch still excludes appearance:none controls, and the same expanded rect drives both crop and stamp, avoiding image rescaling.",
+            "markdown": "A one-CSS-pixel visual-overflow fringe is sufficient and shared: the focused 06-forms-style-text-inputs run moved from 3 regions / 0.1302% coverage to 0 regions / 0% coverage, with raw diff 0.1432% to 0.00475%. The existing native-only branch still excludes appearance:none controls, and the same expanded rect drives both crop and stamp, avoiding image rescaling."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 773,
+                  "endLine": 785,
+                  "snippet": {
+                    "text": "        // Skia AA coverage may extend one device-independent pixel past the\n        // layout border box (notably the lower edge of rounded author borders\n        // on otherwise native inputs). Preserve that visual-overflow fringe;\n        // the screenshot and emitted <image> use this same rect, so no scaling\n        // or fixture geometry is introduced.\n        const paintOverflow = 1;\n        const rasterExpand = expand + paintOverflow;\n        return {\n          x: rect.left - vp.x - rasterExpand,\n          y: rect.top - vp.y - rasterExpand,\n          width: rect.width + rasterExpand * 2,\n          height: rect.height + rasterExpand * 2,\n        };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2188"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "46a632f101bdb4a6895ee39339268e46"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "90a4b39b1cf4c94c1f84dc5eb8ade8adc2aa7fa9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

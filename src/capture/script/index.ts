@@ -770,11 +770,18 @@ const captureDocumentTree =
         const expand = cs.outlineStyle !== 'none' && cs.outlineStyle !== 'hidden'
           ? Math.max(0, outlineWidth + outlineOffset)
           : 0;
+        // Skia AA coverage may extend one device-independent pixel past the
+        // layout border box (notably the lower edge of rounded author borders
+        // on otherwise native inputs). Preserve that visual-overflow fringe;
+        // the screenshot and emitted <image> use this same rect, so no scaling
+        // or fixture geometry is introduced.
+        const paintOverflow = 1;
+        const rasterExpand = expand + paintOverflow;
         return {
-          x: rect.left - vp.x - expand,
-          y: rect.top - vp.y - expand,
-          width: rect.width + expand * 2,
-          height: rect.height + expand * 2,
+          x: rect.left - vp.x - rasterExpand,
+          y: rect.top - vp.y - rasterExpand,
+          width: rect.width + rasterExpand * 2,
+          height: rect.height + rasterExpand * 2,
         };
       })(),
       // DM-2171: backdrop-filter samples already-painted content behind this
