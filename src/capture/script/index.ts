@@ -760,7 +760,21 @@ const captureDocumentTree =
         const nativeTag = tag === 'input' || tag === 'select' || tag === 'textarea'
           || tag === 'button' || tag === 'progress' || tag === 'meter';
         if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
-        return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height };
+        // Author outlines and validation-state focus rings paint outside the
+        // host border box even though the themed control itself is native.
+        // Blink's outline visual overflow is width + positive offset; include
+        // that surface in the same snapshot instead of clipping it at `rect`.
+        const outlineWidth = parseFloat(cs.outlineWidth) || 0;
+        const outlineOffset = parseFloat(cs.outlineOffset) || 0;
+        const expand = cs.outlineStyle !== 'none' && cs.outlineStyle !== 'hidden'
+          ? Math.max(0, outlineWidth + outlineOffset)
+          : 0;
+        return {
+          x: rect.left - vp.x - expand,
+          y: rect.top - vp.y - expand,
+          width: rect.width + expand * 2,
+          height: rect.height + expand * 2,
+        };
       })(),
       // DM-2171: backdrop-filter samples already-painted content behind this
       // element through a distinct Blink effect node. An img-rendered SVG has

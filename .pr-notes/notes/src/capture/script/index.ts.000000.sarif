@@ -233,6 +233,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msti58ow5hlb8jq0",
+          "message": {
+            "text": "Native control snapshots must include author outline visual overflow, not just the host border box. The validation fixture uses :valid/:invalid outlines outside the themed input; expanding by outline width plus positive offset matches Blink's visual-overflow surface and makes 06-forms-validation-ui pixel-clean.",
+            "markdown": "Native control snapshots must include author outline visual overflow, not just the host border box. The validation fixture uses :valid/:invalid outlines outside the themed input; expanding by outline width plus positive offset matches Blink's visual-overflow surface and makes 06-forms-validation-ui pixel-clean."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 759,
+                  "endLine": 779,
+                  "snippet": {
+                    "text": "      nativeControlRaster: (function () {\n        const nativeTag = tag === 'input' || tag === 'select' || tag === 'textarea'\n          || tag === 'button' || tag === 'progress' || tag === 'meter';\n        if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;\n        // Author outlines and validation-state focus rings paint outside the\n        // host border box even though the themed control itself is native.\n        // Blink's outline visual overflow is width + positive offset; include\n        // that surface in the same snapshot instead of clipping it at `rect`.\n        const outlineWidth = parseFloat(cs.outlineWidth) || 0;\n        const outlineOffset = parseFloat(cs.outlineOffset) || 0;\n        const expand = cs.outlineStyle !== 'none' && cs.outlineStyle !== 'hidden'\n          ? Math.max(0, outlineWidth + outlineOffset)\n          : 0;\n        return {\n          x: rect.left - vp.x - expand,\n          y: rect.top - vp.y - expand,\n          width: rect.width + expand * 2,\n          height: rect.height + expand * 2,\n        };\n      })(),\n      // DM-2171: backdrop-filter samples already-painted content behind this"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 460
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2165"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9c1bbd36df6a2f053504bf179778867f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8685074564b8f652171d471e87cbe8dd60634119",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

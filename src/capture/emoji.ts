@@ -460,9 +460,10 @@ export async function rasterizeBitmapGlyphs(
       if (el.nativeControlRaster != null) {
         const nr = el.nativeControlRaster;
         candidates.push({
-          rect: { x: nr.x, y: nr.y, width: nr.width, height: nr.height },
+          rect: nr,
           key: `native-control|${el.tag}|${el.styles.inputType ?? ''}|${nr.x}|${nr.y}|${nr.width}x${nr.height}`,
           setDataUri: (uri) => { nr.dataUri = uri; },
+          snapRectToClip: true,
         });
       }
       if (el.backdropFilterRaster != null) {
