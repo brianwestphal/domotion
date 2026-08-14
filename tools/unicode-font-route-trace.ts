@@ -86,12 +86,13 @@ for (const cell of cells) {
       probe.textContent = text;
       probe.lang = lang ?? "";
       Object.assign(probe.style, {
-        position: "fixed", left: "-10000px", top: "0", fontFamily: family,
+        position: "fixed", left: "0", top: "0", zIndex: "-1", opacity: "0.01", pointerEvents: "none", fontFamily: family,
         fontWeight: String(weight), fontSize: `${size}px`, fontStyle: italic ? "italic" : "normal",
         fontStretch: `${stretch}%`,
       });
       document.body.append(probe);
     }, { id: probeId, text: cell.text, family: entry.family, weight: cell.weight, size: cell.size, italic: cell.italic, stretch: cell.stretch, lang: cell.lang });
+    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
     const { nodeId: probeNodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${probeId}` });
     const fonts = probeNodeId === 0 ? [] : (await cdp.send("CSS.getPlatformFontsForNode", { nodeId: probeNodeId })).fonts;
     const painted = fonts.find((f) => f.glyphCount > 0) ?? null;
