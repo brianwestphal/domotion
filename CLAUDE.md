@@ -67,14 +67,14 @@ the host process.
 
 **Rule: any time a validation needs to run more than ~50 visual fixtures (e.g. broad `demos:test:html` / `demos:test:unicode` re-validation after a render-pipeline change), run it on CI — do NOT wait ~40-60 min on a local sweep.** The local run blocks for the better part of an hour and only exercises the host's macOS calibration; CI shards across runners (parallel, ~minutes) and can also cross-check the Linux/Windows runners.
 
-CI runs a **pushed git ref**, not your local working tree (`tools/run-ci-visual-tests.mjs` refuses to dispatch unless `origin/<branch>` matches local HEAD). So even though the standing rule is "never commit unless asked," a CI sweep of an in-progress change requires a commit + push. The accepted workflow for that — it does NOT touch `main` and is self-contained:
+CI runs a **pushed git ref**, not your local working tree (`tools/run-ci-visual-tests.mjs` refuses to dispatch unless `origin/<branch>` matches local HEAD). A CI sweep of an in-progress change therefore requires a commit + push. The accepted workflow for that — it does NOT touch `main` and is self-contained:
 
 1. `git checkout -b <topic-branch>` (a throwaway validation branch, never `main`).
 2. Commit the working-tree changes to it.
 3. `git push -u origin <topic-branch>`.
 4. Dispatch the sharded run against that branch, **selecting just what you need** rather than the whole suite: `node tools/run-ci-visual-tests.mjs --suite unicode --only <filter>` (or `--suite html`; default OS macOS, `--os linux`/`windows` only for platform-specific debugging). The `--only` filter takes a fixture-name substring — narrow it to the blocks your change actually touches (e.g. the specific Unicode blocks a shaping change affects) so the run is minutes, not the full sweep.
 
-This is the only case where committing/pushing without an explicit "commit this" request is expected — it's a validation branch, not a merge. See the `tests/html-test-suite.tsx` bullet below and `docs/66-ci-visual-tests.md` for the sharding details; a single shard is reproducible locally with `HTML_TEST_SHARD=i/N`.
+This is the only case where **pushing** without a separate explicit "push this" request is expected — it's a throwaway validation branch, not `main`. Ordinary completed work is committed locally as described under Git, but never pushed. See the `tests/html-test-suite.tsx` bullet below and `docs/66-ci-visual-tests.md` for the sharding details; a single shard is reproducible locally with `HTML_TEST_SHARD=i/N`.
 
 ## Background Tasks
 
@@ -374,7 +374,7 @@ Before reverse-engineering a render-fidelity bug by reading source, reach for th
 
 ## Git
 
-- **Committing is fine; pushing is not.** You may `git add` / `git commit` as needed to land completed, validated work — no need to ask first. **Never `git push` without explicit permission**, and never run other remote-mutating git operations (force-push, branch deletes on the remote, tag pushes, etc.) without the user directly asking. Leave commits local for the user to review and push.
+- **Commit completed work as you go; pushing is not allowed by default.** Once a ticket or other logical unit is complete and its proportionate validation passes, stage and commit it locally without waiting for a separate request. Prefer one coherent commit per completed ticket/unit, and do not leave completed work uncommitted merely because the current session or Hot Sheet pass has ended. Never mix unfinished experiments into that commit; if the worktree contains unrelated user changes, stage only the completed unit's files/hunks. **Never `git push` without explicit permission**, and never run other remote-mutating git operations (force-push, branch deletes on the remote, tag pushes, etc.) without the user directly asking. Leave commits local for the user to review and push.
 
 ## Ticket-Driven Work
 
