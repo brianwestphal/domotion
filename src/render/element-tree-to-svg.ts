@@ -3580,7 +3580,7 @@ function computeGroupWrapperAttrs(
   opacity: number,
   filterCss: string,
   blendCss: string,
-): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; hasTransform: boolean } {
+): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; localizeReferenceFilter: boolean; hasTransform: boolean } {
   const transformAttr = svgTransformForElement(el);
   // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
   // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
@@ -3635,7 +3635,15 @@ function computeGroupWrapperAttrs(
   // clipped back to the box and never paints — the shadow vanishes. Hoist
   // `filter` onto an OUTER wrapper so it processes already-clipped
   // content; the unclipped ink area then renders.
-  const needsFilterOuter = filterCss !== "" && (clipPathUrlId != null || maskUrlId != null);
+  // Chromium builds CSS URL-reference filters on HTML elements against a
+  // reference box whose origin is local to the filtered element. An SVG <g>,
+  // however, exposes its root-space bbox to userSpaceOnUse primitives. That
+  // difference is visible with coordinate-sensitive primitives such as
+  // feTurbulence/feDisplacementMap. Put reference filters on a translated
+  // outer wrapper and counter-translate their content so the filter sees the
+  // same local coordinate space while the result stays at its page position.
+  const localizeReferenceFilter = /\burl\(\s*(?:["']?)#/i.test(filterCss);
+  const needsFilterOuter = filterCss !== "" && (localizeReferenceFilter || clipPathUrlId != null || maskUrlId != null);
   const styleParts: string[] = [];
   if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
   if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
@@ -3645,7 +3653,7 @@ function computeGroupWrapperAttrs(
   // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
   // produced `style="filter:url("#id")"` and broke the SVG parser.
   if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
-  return { needsGroup, groupAttrs, animClass, needsFilterOuter, hasTransform: transformAttr !== "" };
+  return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform: transformAttr !== "" };
 }
 
 
@@ -4403,10 +4411,14 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const { needsGroup, groupAttrs, animClass, needsFilterOuter, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
   const opened = needsGroup;
   const wrapperStart = svgParts.length;
-  if (needsFilterOuter) svgParts.push(`${indent}<g style="${esc(`filter:${filterCss}`)}">`);
+  if (needsFilterOuter) {
+    const localTransform = localizeReferenceFilter ? ` transform="translate(${r(el.x)} ${r(el.y)})"` : "";
+    svgParts.push(`${indent}<g${localTransform} style="${esc(`filter:${filterCss}`)}">`);
+    if (localizeReferenceFilter) svgParts.push(`${indent}<g transform="translate(${r(-el.x)} ${r(-el.y)})">`);
+  }
   if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
   // Everything painted until `closeWrappers()` (this element's own text AND its
   // whole subtree) is transformed content, where the baseline pixel-grid snap
@@ -4541,6 +4553,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     }
     if (animClass !== "") svgParts.push(`${indent}</g>`);
     if (opened) svgParts.push(`${indent}</g>`);
+    if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
     if (needsFilterOuter) svgParts.push(`${indent}</g>`);
   };
 

@@ -1088,6 +1088,37 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
   });
 });
 
+describe("DM-2172 CSS SVG reference-filter coordinate space", () => {
+  it("localizes the filtered group so userSpaceOnUse primitives see an HTML-style reference box", () => {
+    const tree = [makeElement({
+      x: 120,
+      y: 75,
+      width: 180,
+      height: 60,
+      styles: { ...makeElement().styles, filter: 'url("#distort")' },
+      filterDefs: [{
+        id: "distort",
+        outerHTML: '<filter id="distort"><feTurbulence baseFrequency="0.02"/></filter>',
+      }],
+    })];
+
+    const svg = elementTreeToSvgInner(tree, 400, 240);
+    expect(svg).toContain('<filter id="distort"><feTurbulence baseFrequency="0.02"/></filter>');
+    expect(svg).toContain('<g transform="translate(120 75)" style="filter:url(&quot;#distort&quot;)">');
+    expect(svg).toContain('<g transform="translate(-120 -75)">');
+  });
+
+  it("does not add coordinate wrappers to ordinary CSS filter functions", () => {
+    const svg = elementTreeToSvgInner([makeElement({
+      x: 120,
+      y: 75,
+      styles: { ...makeElement().styles, filter: "blur(4px)" },
+    })], 400, 240);
+
+    expect(svg).not.toContain('transform="translate(120 75)"');
+  });
+});
+
 describe("float paint order — floats paint above every block box and below every piece of inline content", () => {
   /**
    * CSS 2.1 Appendix E paints a stacking context in phases: every in-flow
