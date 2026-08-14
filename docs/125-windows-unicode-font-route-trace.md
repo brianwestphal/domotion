@@ -14,12 +14,14 @@ For focused Windows Unicode runs, shard 1 writes `font-route-trace.json`. Every
 
 - codepoint, literal computed `font-family`, style, weight, size, stretch, and
   language;
-- every declared family in order, whether DirectWrite can install it, and the
-  index at which the declared walk first becomes usable;
+- every declared family in order, whether it is a generic or DirectWrite can
+  install it, the index at which the declared walk first becomes usable, and
+  Chromium's painted face when that family is isolated;
 - Chromium's painted face from `CSS.getPlatformFontsForNode`, reopened through
   the native helper to obtain the final glyph id;
 - Blink's transcribed hardcoded Windows candidates, their installed/coverage
-  results, and the accepted candidate if any;
+  results, Chromium's painted face when each candidate is isolated, and the
+  accepted candidate if any;
 - the exact `MapCharacters` base family, Blink-derived locale, and style tuple,
   plus DirectWrite's reopened final answer; and
 - Domotion's primary key, declared key chain, final route key, face/path, and

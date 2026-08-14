@@ -46,6 +46,11 @@ function splitFamilies(css: string): string[] {
   return out;
 }
 
+const genericFamilies = new Set([
+  "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
+  "ui-serif", "ui-sans-serif", "ui-monospace", "ui-rounded", "math", "fangsong",
+]);
+
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 await page.goto(`file://${fixturePath}`);
@@ -102,7 +107,8 @@ for (const cell of cells) {
 
   const declared = splitFamilies(cell.fontFamily).map((family, index) => {
     const installed = resolveInstalledFont(family);
-    return { index, family, installed: installed != null, postscriptName: installed?.postscriptName ?? null, path: installed?.path ?? null };
+    const generic = genericFamilies.has(family.toLowerCase());
+    return { index, family, generic, usable: generic || installed != null, installed: installed != null, postscriptName: installed?.postscriptName ?? null, path: installed?.path ?? null };
   });
   const declaredChrome = [];
   for (const entry of declared) {
@@ -136,7 +142,7 @@ for (const cell of cells) {
   results.push({
     ...cell,
     declaredFamilies: declaredChrome,
-    exhaustedDeclaredFamilyIndex: declared.findIndex((d) => d.installed),
+    exhaustedDeclaredFamilyIndex: declared.findIndex((d) => d.usable),
     chrome: chrome == null ? null : { familyName: chrome.familyName, postscriptName: chrome.postScriptName, glyphCount: chrome.glyphCount, reopenedPath: chromeInstalled?.path ?? null, glyphId: chromeInstance == null ? null : glyphIdForCp(chromeInstance, cell.cp) },
     hardcoded: { priority, candidates: hardcoded, accepted: hardcoded.find((h) => h.glyphId !== 0) ?? null },
     directWrite: { baseFamilyName: baseFamilyName ?? null, locale, weight: cell.weight, italic: cell.italic, stretch: cell.stretch, answer: directWrite },
