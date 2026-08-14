@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssr1xp23qu6ujso",
+          "message": {
+            "text": "Backdrop-filter is emitted as a single Chromium-composited image boundary because SVG cannot sample the already-painted page backdrop from captured DOM geometry. Returning here is essential: the image already contains the element and descendants, so continuing the vector walk would double-paint the subtree. Focused fixtures measured 0.00% mismatch for 22-backdrop-filter and 0.01-0.04% for the two deep stacking cases.",
+            "markdown": "Backdrop-filter is emitted as a single Chromium-composited image boundary because SVG cannot sample the already-painted page backdrop from captured DOM geometry. Returning here is essential: the image already contains the element and descendants, so continuing the vector walk would double-paint the subtree. Focused fixtures measured 0.00% mismatch for 22-backdrop-filter and 0.01-0.04% for the two deep stacking cases."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4388,
+                  "endLine": 4391,
+                  "snippet": {
+                    "text": "  const backdropFilterRaster = el.backdropFilterRaster;\n  if (backdropFilterRaster?.dataUri != null) {\n    svgParts.push(`${indent}<image href=\"${backdropFilterRaster.dataUri}\" x=\"${r(backdropFilterRaster.x)}\" y=\"${r(backdropFilterRaster.y)}\" width=\"${r(backdropFilterRaster.width)}\" height=\"${r(backdropFilterRaster.height)}\" preserveAspectRatio=\"none\"/>`);\n    return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 468
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2171"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d1b6a4776e1faa01897326f168abf3e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1d2ede4dc85f020fd79918cbe2395285d452b625",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

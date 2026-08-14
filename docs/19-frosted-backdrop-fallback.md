@@ -1,5 +1,10 @@
 # 19 — Frosted-glass background fallback (`backdrop-filter` synthesis)
 
+> **Historical fallback.** DM-2171 now preserves true Chromium-composited
+> backdrop-filter pixels through the isolation snapshot described in
+> [doc 126](126-backdrop-filter-isolation.md). The solid fill below remains the
+> graceful fallback when a snapshot cannot be acquired.
+
 ## Context
 
 Modern marketing sites (Stripe, Apple, Resend) use a "frosted glass" pattern for fixed/sticky navigation:

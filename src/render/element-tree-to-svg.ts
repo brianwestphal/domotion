@@ -4381,6 +4381,15 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     svgParts.push(`${indent}<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`);
     return;
   }
+  // DM-2171: Blink evaluates backdrop-filter against a previously painted
+  // backdrop surface, then composites this element's isolated subtree above
+  // it. SVG has no way to address that prior surface, so stamp the Chromium
+  // snapshot once and suppress the duplicate vector subtree.
+  const backdropFilterRaster = el.backdropFilterRaster;
+  if (backdropFilterRaster?.dataUri != null) {
+    svgParts.push(`${indent}<image href="${backdropFilterRaster.dataUri}" x="${r(backdropFilterRaster.x)}" y="${r(backdropFilterRaster.y)}" width="${r(backdropFilterRaster.width)}" height="${r(backdropFilterRaster.height)}" preserveAspectRatio="none"/>`);
+    return;
+  }
   // empty-cells: hide — suppress bg + border on empty <td>/<th>.
   const suppressEmptyCell = el.styles.emptyCellsHidden === true;
   // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3

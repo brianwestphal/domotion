@@ -762,6 +762,15 @@ const captureDocumentTree =
         if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
         return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height };
       })(),
+      // DM-2171: backdrop-filter samples already-painted content behind this
+      // element through a distinct Blink effect node. An img-rendered SVG has
+      // no equivalent input surface, so preserve Chromium's composited pixels
+      // for the complete isolation subtree at its paint-order position.
+      backdropFilterRaster: (function () {
+        const value = cs.backdropFilter || cs.webkitBackdropFilter || '';
+        if (value === '' || value === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
+        return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height };
+      })(),
       // DM-680: per-axis cumulative ancestor scale, exposed ONLY when
       // anisotropic (sx ≠ sy within a small epsilon). The geometric mean is
       // already folded into fontSize / fontAscent / fontDescent above, so

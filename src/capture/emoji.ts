@@ -465,6 +465,14 @@ export async function rasterizeBitmapGlyphs(
           setDataUri: (uri) => { nr.dataUri = uri; },
         });
       }
+      if (el.backdropFilterRaster != null) {
+        const br = el.backdropFilterRaster;
+        candidates.push({
+          rect: { x: br.x, y: br.y, width: br.width, height: br.height },
+          key: `backdrop-filter|${el.styles.backdropFilter}|${br.x}|${br.y}|${br.width}x${br.height}`,
+          setDataUri: (uri) => { br.dataUri = uri; },
+        });
+      }
       // Element-level raster (SK-1108): textarea content region, too
       // involved to word-wrap in the path pipeline. Key on text+size+color so
       // identical textareas dedupe to one screenshot.

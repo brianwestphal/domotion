@@ -1009,7 +1009,6 @@ function formatDuration(ms: number): string {
  * against the pass/fail tally.
  */
 const SKIP_TESTS: Record<string, string> = {
-  "22-backdrop-filter": "SVG has no backdrop-filter equivalent in img-rendered SVG",
   "17-gradient-conic": "SVG 2 conic-gradient is not shipped in browsers",
   "17-gradient-repeating": "edge cases in repeating gradient stop spacing — low priority",
   "21-transform-3d": "CSS transforms deferred in SK-435 (layout-coord refactor needed)",

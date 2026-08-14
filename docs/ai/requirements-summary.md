@@ -61,6 +61,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 126 (`docs/126-backdrop-filter-isolation.md`, DM-2171) — Shipped.**
+  Elements with a non-`none` computed `backdrop-filter` become isolated
+  Chromium-composited raster boundaries. The captured image includes the sampled
+  backdrop and the element's own ordered filter surface, while SVG emission
+  suppresses the corresponding vector subtree so it is not painted twice.
 - **Doc 114 (`docs/114-angled-linear-wipe.md`, DM-2041) — Shipped.** The linear
   `wipe` transition accepts `wipeAngle`, clockwise from its byte-identical
   left-to-right default. Non-axis angles use analytically clipped, fixed-eight-
@@ -1219,6 +1224,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   and Domotion's legacy and production-shaped final key/face/gid. The declared
   chain includes Blink's preferred STANDARD face before system fallback. The
   trace is observational and adds no routing overrides.
+
+- **Doc 126 (`docs/126-backdrop-filter-isolation.md`) — Shipped.** A computed
+  backdrop filter is captured from Chromium as one isolated raster surface and
+  replaces that element's vector subtree. This preserves backdrop sampling and
+  the browser's backdrop-then-element-filter stacking semantics, which SVG
+  cannot reproduce from DOM geometry alone.
 
 ## What this file is NOT
 

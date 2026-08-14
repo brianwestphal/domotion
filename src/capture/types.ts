@@ -1090,6 +1090,8 @@ export interface CapturedElement {
   transformSubtreeRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /** Chromium-painted snapshot of an OS-native (`appearance` != `none`) form control. */
   nativeControlRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
+  /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */
+  backdropFilterRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /**
    * DM-680: per-axis cumulative ancestor scale, present ONLY when the element
    * sits inside an anisotropically scaled subtree (e.g. `transform: scale(1.3,
