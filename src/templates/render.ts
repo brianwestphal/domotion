@@ -44,7 +44,7 @@ async function captureToSvg(
     page.setDefaultTimeout(90_000);
     page.setDefaultNavigationTimeout(90_000);
     const tracker = attachWebfontTracker(page);
-    await loadInputIntoPage(page, p.input);
+    await loadInputIntoPage(page, p.input, { networkIdle: p.networkIdle });
     await applyReadyWaits(page, { wait: p.wait ?? 200, waitFor: p.waitFor, fontsReady: true });
     clearWebfonts();
     await discoverAndRegisterWebfonts(page, tracker.urls);

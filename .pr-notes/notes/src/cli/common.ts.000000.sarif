@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssmlo8y7868v065",
+          "message": {
+            "text": "Network quiescence is now opt-in rather than a prerequisite for navigation. The normal capture pipeline already waits for load, fonts, images, a paint, and user-configured readiness conditions; requiring Playwright's network-idle heuristic as well made analytics, long polling, and streaming traffic capable of delaying or timing out otherwise ready real-world pages. The network-idle flag preserves the stricter behavior for controlled finite request chains.",
+            "markdown": "Network quiescence is now opt-in rather than a prerequisite for navigation. The normal capture pipeline already waits for load, fonts, images, a paint, and user-configured readiness conditions; requiring Playwright's network-idle heuristic as well made analytics, long polling, and streaming traffic capable of delaying or timing out otherwise ready real-world pages. The network-idle flag preserves the stricter behavior for controlled finite request chains."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/common.ts"
+                },
+                "region": {
+                  "startLine": 183,
+                  "endLine": 199,
+                  "snippet": {
+                    "text": "/** Navigate without making network quiescence a prerequisite. Real-world pages\n * routinely keep analytics, long-poll, or streaming requests open; callers\n * that control the page and want Playwright's 500 ms idle heuristic can opt in. */\nexport async function loadInputIntoPage(page: Page, input: string, opts?: { networkIdle?: boolean }): Promise<void> {\n  if (input === \"-\") {\n    const html = readFileSync(0, \"utf8\"); // stdin\n    await page.setContent(html, { waitUntil: \"domcontentloaded\" });\n    return;\n  }\n  const waitUntil = opts?.networkIdle === true ? \"networkidle\" : \"load\";\n  if (/^https?:\\/\\//i.test(input)) {\n    await page.goto(input, { waitUntil });\n    return;\n  }\n  const path = resolve(input);\n  if (!existsSync(path)) throw new Error(`input file not found: ${path}`);\n  await page.goto(pathToFileURL(path).href, { waitUntil });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2b6a5761cdc5805f73c0ca24212954dd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e29a30bca39a444ccc01fb90acffa5ec244a3676",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

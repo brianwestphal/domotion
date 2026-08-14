@@ -273,9 +273,9 @@ export class DemoRecorder {
   }
 
   /** Navigate to a URL and capture the visible DOM as SVG. */
-  async captureUrl(path: string, waitMs = 800, idPrefix = ""): Promise<string> {
+  async captureUrl(path: string, waitMs = 800, idPrefix = "", opts?: { networkIdle?: boolean }): Promise<string> {
     if (this.page == null) throw new Error("Call init() first");
-    await this.page.goto(`${this.baseUrl}${path}`, { waitUntil: "networkidle" });
+    await this.page.goto(`${this.baseUrl}${path}`, { waitUntil: opts?.networkIdle === true ? "networkidle" : "load" });
     await this.page.waitForTimeout(waitMs);
     return this.captureCurrent(idPrefix);
   }

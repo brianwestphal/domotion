@@ -62,6 +62,7 @@ interface CaptureFlags {
   wait: number;
   waitFor?: string;
   fontsReady: boolean;
+  networkIdle: boolean;
   optimize: boolean;
   warnings: boolean;
   mobile: boolean;
@@ -160,6 +161,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       wait:          { type: "string" },
       "wait-for":    { type: "string" },
       "no-fonts-ready": { type: "boolean" },
+      "network-idle":   { type: "boolean" },
       optimize:           { type: "boolean" },
       "no-optimize":      { type: "boolean" },
       warnings:           { type: "boolean" },
@@ -219,6 +221,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     wait:        parseIntFlag(values.wait, "wait", 200),
     waitFor:     values["wait-for"],
     fontsReady:  values["no-fonts-ready"] !== true,
+    networkIdle: values["network-idle"] === true,
     optimize:    values.optimize === true || (svgz && values["no-optimize"] !== true),
     warnings:    values.warnings === true,
     mobile:      values.mobile === true,
@@ -284,10 +287,10 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         notFound: values["har-fallback"] === true ? "fallback" : "abort",
       });
       log(`Loading ${harUrl} from HAR ${input}…`);
-      await timed(log, "  loaded (HAR replay)", () => page.goto(harUrl, { waitUntil: "load" }));
+      await timed(log, "  loaded (HAR replay)", () => page.goto(harUrl, { waitUntil: flags.networkIdle ? "networkidle" : "load" }));
     } else {
       log(`Loading ${input}…`);
-      await timed(log, "  loaded", () => loadInputIntoPage(page, input));
+      await timed(log, "  loaded", () => loadInputIntoPage(page, input, { networkIdle: flags.networkIdle }));
     }
     await timed(log, "  page settled", () => applyReadyWaits(page, flags));
 

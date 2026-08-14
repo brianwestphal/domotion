@@ -180,19 +180,23 @@ export function inferHarPageUrl(harPath: string): string {
   return url;
 }
 
-export async function loadInputIntoPage(page: Page, input: string): Promise<void> {
+/** Navigate without making network quiescence a prerequisite. Real-world pages
+ * routinely keep analytics, long-poll, or streaming requests open; callers
+ * that control the page and want Playwright's 500 ms idle heuristic can opt in. */
+export async function loadInputIntoPage(page: Page, input: string, opts?: { networkIdle?: boolean }): Promise<void> {
   if (input === "-") {
     const html = readFileSync(0, "utf8"); // stdin
     await page.setContent(html, { waitUntil: "domcontentloaded" });
     return;
   }
+  const waitUntil = opts?.networkIdle === true ? "networkidle" : "load";
   if (/^https?:\/\//i.test(input)) {
-    await page.goto(input, { waitUntil: "networkidle" });
+    await page.goto(input, { waitUntil });
     return;
   }
   const path = resolve(input);
   if (!existsSync(path)) throw new Error(`input file not found: ${path}`);
-  await page.goto(pathToFileURL(path).href, { waitUntil: "networkidle" });
+  await page.goto(pathToFileURL(path).href, { waitUntil });
 }
 
 /**

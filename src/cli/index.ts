@@ -81,6 +81,9 @@ capture options:
       --wait <ms>          Sleep this long after the page settles (default 200).
       --wait-for <css>     Wait for this selector to appear before capturing.
       --no-fonts-ready     Skip the document.fonts.ready wait (default: wait).
+      --network-idle       Also wait for 500 ms without network activity before
+                           capture. Off by default; long polling and analytics
+                           can otherwise keep real-world pages loading forever.
       --optimize           Run output through SVGO.
       --no-optimize        Skip SVGO. Only meaningful when -o ends in
                            .svgz (where --optimize is implied by default).

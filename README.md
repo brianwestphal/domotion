@@ -79,6 +79,12 @@ cat demo.html | domotion capture - -o demo.svg
 domotion capture https://example.com --scroll "down:bottom/8s" -o scroll.svg
 ```
 
+Navigation waits for the page's `load` event, then Domotion applies its normal
+font/image/paint readiness checks. Pages with a finite request chain can opt
+into Playwright's stricter network-idle heuristic with `--network-idle`; it is
+off by default because analytics, long polling, and streaming requests may
+never become idle.
+
 Same-origin `<iframe>` content is recursed into the capture as native, selectable SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
 
 For a multi-frame animated SVG, write a small JSON config and run `domotion animate`:

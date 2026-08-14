@@ -83,6 +83,8 @@ export interface CaptureToSvgParams {
   wait?: number;
   /** Wait for this selector to be visible before capturing. */
   waitFor?: string;
+  /** Wait for network-idle during navigation. Off by default. */
+  networkIdle?: boolean;
 }
 
 /** What a template's `render()` returns: a finished SVG plus its dimensions. */

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { parsePort } from "./common.js";
+import type { Page } from "@playwright/test";
+import { describe, expect, it, vi } from "vitest";
+import { loadInputIntoPage, parsePort } from "./common.js";
 
 describe("parsePort", () => {
   it("returns undefined when the flag is absent", () => {
@@ -31,5 +32,19 @@ describe("parsePort", () => {
   it("rejects a port above the TCP range", () => {
     expect(() => parsePort("65536")).toThrow(/0\.\.65535/);
     expect(() => parsePort("70000")).toThrow(/0\.\.65535/);
+  });
+});
+
+describe("loadInputIntoPage navigation readiness", () => {
+  it("uses load by default so persistent requests cannot block capture", async () => {
+    const goto = vi.fn().mockResolvedValue(null);
+    await loadInputIntoPage({ goto } as unknown as Page, "https://example.test/");
+    expect(goto).toHaveBeenCalledWith("https://example.test/", { waitUntil: "load" });
+  });
+
+  it("supports an explicit network-idle wait", async () => {
+    const goto = vi.fn().mockResolvedValue(null);
+    await loadInputIntoPage({ goto } as unknown as Page, "https://example.test/", { networkIdle: true });
+    expect(goto).toHaveBeenCalledWith("https://example.test/", { waitUntil: "networkidle" });
   });
 });
