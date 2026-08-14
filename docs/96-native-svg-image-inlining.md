@@ -34,6 +34,15 @@ The native path fires when, and only when, the `<img>`'s source resolves to an S
 
 The result is emitted by `paintImage` in `src/render/element-tree-to-svg.ts`. A `border-radius` on the `<img>` wraps the nested `<svg>` in a `<g clip-path="url(#…)">` using the same rounded-content-box clip the raster path uses.
 
+The placement rectangle is captured layout output, not a size recomputed from
+the asset. This mirrors Chromium revision `7d859f27`: flex/grid layout first
+establishes the replaced element's used box, then `LayoutReplaced` computes
+`object-fit` and `object-position` within its `PhysicalContentBoxRect`
+(`layout_replaced.cc:422-497`), and `ImagePainter` paints the resulting
+`ReplacedContentRect` (`image_painter.cc:140`). Domotion therefore carries the
+captured used border box through to `paintImage` and consults intrinsic
+dimensions only for the object-fit calculation.
+
 `prefixSvgIds` is shared with the animator's SVG-overlay inliner (`namespaceSvgIds` in `src/cli/animate.ts`), so the namespacing regexes live in exactly one place.
 
 ## object-fit coverage
@@ -63,6 +72,9 @@ All `object-fit` values take the native path:
 
 - `src/render/svg-inline.test.ts` — `prefixSvgIds` namespacing (both quote styles, external-URL passthrough); `inlineImgSvg` (viewBox preservation, width/height synthesis, intrinsic fallback, no-coordinate-system → `null`, no-root → `null`, XML-decl stripping); and end-to-end through `elementTreeToSvgInner` (SVG `<img>` → native `<svg>`, raster `<img>` → `<image>`, border-radius clip wrapper).
 - `src/render/resolve-svg-source.test.ts` — `resolveSvgSource` decode (base64 + URL-encoded), raster → `null`, remote → `null`, empty/nullish → `null`.
+- `tests/replaced-used-size.e2e.test.ts` — captures stretched raster and SVG
+  images in flex/grid, then proves their browser-used boxes survive unchanged
+  into `<image>` and nested `<svg>` placement.
 - The `brand-mixed` demo golden exercises the full path (the `lower-third` brand logo is an `<img src="*.svg">`).
 
 ## Files

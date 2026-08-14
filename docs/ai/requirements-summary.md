@@ -516,6 +516,9 @@ they describe (see `CLAUDE.md` "Documentation"):
   SVGs). All three SVG-inlining paths share `prefixSvgClasses` (DM-1595): the
   `<img>` inliner (ids + classes), the DOM inline-`<svg>` path (classes only —
   ids stay for the `<use>` resolver), and the animator overlay inliner.
+  Flex/grid used sizing remains capture-owned: Blink's captured border box is
+  passed unchanged to raster and native-SVG paint, while intrinsic dimensions
+  participate only in `object-fit` inside its content box (DM-2162).
 
 - **Doc 08 motion presets (`docs/08-animation-model.md`, DM-1526)** — **Shipped.**
   A named motion + easing vocabulary on intra-frame animations so authors don't

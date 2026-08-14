@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssbsd45aqzw00ue",
+          "message": {
+            "text": "This regression deliberately asserts Blink's captured used boxes before inspecting output markup, proving Domotion preserves layout results instead of recomputing flex/grid sizing from intrinsic image ratios. The current 15-deep-flex-aspect-ratio fixture already emits its replaced images at 120×120 and 240×120; its sole remaining localized region is text at y=931, so no renderer sizing change is justified.",
+            "markdown": "This regression deliberately asserts Blink's captured used boxes before inspecting output markup, proving Domotion preserves layout results instead of recomputing flex/grid sizing from intrinsic image ratios. The current 15-deep-flex-aspect-ratio fixture already emits its replaced images at 120×120 and 240×120; its sole remaining localized region is text at y=931, so no renderer sizing change is justified."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-used-size.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 58,
+                  "endLine": 76,
+                  "snippet": {
+                    "text": "describeBrowser(\"DM-2162: replaced elements retain Blink's flex/grid used size\", () => {\n  it(\"passes the captured used boxes unchanged to raster and inline-SVG paint\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(HTML, { waitUntil: \"load\" });\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: W, height: H });\n      const captured = images(tree);\n\n      expect(captured).toHaveLength(3);\n      expect(captured.map(({ x, y, width, height }) => ({ x, y, width, height }))).toEqual([\n        { x: 0, y: 0, width: 120, height: 120 },\n        { x: 130, y: 0, width: 240, height: 120 },\n        { x: 0, y: 160, width: 220, height: 90 },\n      ]);\n\n      const output = elementTreeToSvgInner(tree, W, H);\n      expect(output).toMatch(/<image\\b[^>]*x=\"0\" y=\"0\" width=\"120\" height=\"120\"/);\n      expect(output).toMatch(/<image\\b[^>]*x=\"130\" y=\"0\" width=\"240\" height=\"120\"/);\n      expect(output).toMatch(/<svg\\b[^>]*x=\"0\" y=\"160\" width=\"220\" height=\"90\"/);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/layout_replaced.cc"
+                },
+                "region": {
+                  "startLine": 422
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/image_painter.cc"
+                },
+                "region": {
+                  "startLine": 140
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2162"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "122584cb925bb25b327fa04f4c907a4d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "20ac4b079233cf1b5a2b16bf475c980b8e927f4c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
