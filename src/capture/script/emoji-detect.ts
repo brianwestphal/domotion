@@ -314,6 +314,21 @@ export const createEmojiDetect = () => {
     // raster, monochrome → path) instead of unconditionally rastering a color
     // emoji over Chrome's text glyph.
     if (emojiPresentation26.has(cp)) return isColorGlyph(cp, font);
+    // DM-2167: Emoji_Presentation is not confined to the 2600 block or the
+    // supplementary emoji planes. Misc Technical contains default-emoji
+    // characters such as WATCH, HOURGLASS and the media-control buttons
+    // (U+231A/U+231B/U+23E9..U+23F3). Linux Chromium routes these through
+    // Noto Color Emoji, but the old hand-partitioned ranges left them on the
+    // outline path, where a CBDT-only face has no vector glyph and vanished.
+    // Keep this cascade-sensitive: a leading monochrome face must still win.
+    if (cp >= 0x2300 && cp <= 0x23FF
+        && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return isColorGlyph(cp, font);
+    // The Mahjong Tiles and Playing Cards blocks are another gap below the
+    // historical U+1F300 supplementary-plane floor. Chromium paints MAHJONG
+    // TILE RED DRAGON and PLAYING CARD BLACK JOKER from the color font when
+    // that is the resolved cascade face; keep text-font coverage authoritative.
+    if (cp >= 0x1F000 && cp <= 0x1F0FF
+        && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return isColorGlyph(cp, font);
     // U+FE0F (Variation Selector-16) after a base emoji codepoint requests
     // emoji presentation — Chrome paints the colorful glyph instead of the
     // text-mode path glyph. DM-278.
@@ -392,7 +407,11 @@ export const createEmojiDetect = () => {
     // ⭐, ⭕). Cascade-dependent — Chrome paints text when the stack reaches a
     // monochrome symbol/math font first (Apple Symbols / STIX Two Math), color
     // otherwise. See `emojiPresentation2B` above.
-    if (emojiPresentation2B.has(cp)) return isColorGlyph(cp, font);
+    // Some color-font glyphs in this set are intentionally achromatic (the
+    // black/white square pair). A saturation-only probe mistakes those bitmap
+    // glyphs for text. Color fonts ignore CSS fill while monochrome symbol
+    // fonts inherit it, so fill invariance supplies the missing discriminator.
+    if (emojiPresentation2B.has(cp)) return isColorGlyph(cp, font) || ignoresFillColor(cp, font);
     // DM-1167: the ONLY two codepoints in the Misc Symbols & Pictographs block
     // (U+1F300-1F5FF) that a macOS text font also covers monochrome are
     // 🌐 U+1F310 (GLOBE WITH MERIDIANS) and 🎤 U+1F3A4 (MICROPHONE) — Apple

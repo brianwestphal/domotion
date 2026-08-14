@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssxg4gyaxludk4e",
+          "message": {
+            "text": "Default emoji routing is property-driven across Unicode blocks, but remains cascade-sensitive. Chromium on Linux selected bitmap-only Noto Color Emoji for the Misc Technical, Mahjong and Playing Cards cells; the old hand-maintained ranges omitted these blocks and sent them to the vector path, where they vanished. The color and fill-invariance probes preserve a leading monochrome font while detecting achromatic color-font glyphs.",
+            "markdown": "Default emoji routing is property-driven across Unicode blocks, but remains cascade-sensitive. Chromium on Linux selected bitmap-only Noto Color Emoji for the Misc Technical, Mahjong and Playing Cards cells; the old hand-maintained ranges omitted these blocks and sent them to the vector path, where they vanished. The color and fill-invariance probes preserve a leading monochrome font while detecting achromatic color-font glyphs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/emoji-detect.ts"
+                },
+                "region": {
+                  "startLine": 318,
+                  "endLine": 335,
+                  "snippet": {
+                    "text": "    // supplementary emoji planes. Misc Technical contains default-emoji\n    // characters such as WATCH, HOURGLASS and the media-control buttons\n    // (U+231A/U+231B/U+23E9..U+23F3). Linux Chromium routes these through\n    // Noto Color Emoji, but the old hand-partitioned ranges left them on the\n    // outline path, where a CBDT-only face has no vector glyph and vanished.\n    // Keep this cascade-sensitive: a leading monochrome face must still win.\n    if (cp >= 0x2300 && cp <= 0x23FF\n        && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return isColorGlyph(cp, font);\n    // The Mahjong Tiles and Playing Cards blocks are another gap below the\n    // historical U+1F300 supplementary-plane floor. Chromium paints MAHJONG\n    // TILE RED DRAGON and PLAYING CARD BLACK JOKER from the color font when\n    // that is the resolved cascade face; keep text-font coverage authoritative.\n    if (cp >= 0x1F000 && cp <= 0x1F0FF\n        && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return isColorGlyph(cp, font);\n    // U+FE0F (Variation Selector-16) after a base emoji codepoint requests\n    // emoji presentation — Chrome paints the colorful glyph instead of the\n    // text-mode path glyph. DM-278.\n    if (nextCp === 0xFE0F && (emojiBaseCps.has(cp) || emojiPresentation26.has(cp))) return true;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2167"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a8547dbf39cafe6aace9f04912fa02a7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7866b857760215deb3bff905b14d77d5318c4a1e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

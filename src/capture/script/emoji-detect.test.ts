@@ -63,6 +63,23 @@ describe("emoji-detect needsRaster (unconditional branches)", () => {
     expect(needsRaster(0x1F600, 0, "x")).toBe(true); // 1F300–1FAFF main block
   });
 
+  it("routes default-emoji Misc Technical characters through the color-glyph probe", () => {
+    // With no font context the probe intentionally fails safe to raster. In
+    // Linux Chromium these resolve to bitmap-only Noto Color Emoji; leaving
+    // them on the path pipeline produces empty cells.
+    for (const cp of [0x231A, 0x231B, 0x23E9, 0x23EA, 0x23EB, 0x23EC, 0x23F0, 0x23F3]) {
+      expect(needsRaster(cp, 0, "")).toBe(true);
+    }
+    expect(needsRaster(0x231C, 0, "x")).toBe(false);
+  });
+
+  it("routes the default-emoji Mahjong and Playing Card cells below U+1F300", () => {
+    expect(needsRaster(0x1F004, 0, "")).toBe(true); // 🀄 red dragon
+    expect(needsRaster(0x1F0CF, 0, "")).toBe(true); // 🃏 black joker
+    expect(needsRaster(0x1F003, 0, "x")).toBe(false);
+    expect(needsRaster(0x1F0CE, 0, "x")).toBe(false);
+  });
+
   it("does NOT widen past the Alchemical block — neighbors still raster unconditionally (DM-1125)", () => {
     // The DM-1125 carve-out gates ONLY U+1F700-1F77F through the cascade probe.
     // The codepoints immediately outside it are genuine color emoji that NO text
