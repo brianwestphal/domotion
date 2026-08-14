@@ -314,7 +314,7 @@ jobs:
           DOMOTION_TRAK_HB_SHAPING: ${{ inputs.trak_hb_shaping }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record per-codepoint Windows font routes
-        if: ${{ inputs.suite == 'unicode' && matrix.shard == 1 && inputs.only != '' }}
+        if: ${{ always() && inputs.suite == 'unicode' && matrix.shard == 1 && inputs.only != '' }}
         shell: bash
         env:
           ONLY: ${{ inputs.only }}
