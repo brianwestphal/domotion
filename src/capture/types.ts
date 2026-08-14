@@ -557,6 +557,21 @@ export interface CapturedStyles {
     isOptgroupLabel?: boolean;
     /** Indented child of an optgroup. */
     isOptgroupChild?: boolean;
+    /** Browser-resolved option row geometry relative to the select border box. */
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    backgroundColor?: string;
+    color?: string;
+    paddingLeft?: number;
+    paddingTop?: number;
+    fontSize?: number;
+    fontFamily?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    /** Canvas FontMetrics ascent for the resolved option font. */
+    fontAscent?: number;
   }>;
   accentColor?: string;
   caretColor?: string;

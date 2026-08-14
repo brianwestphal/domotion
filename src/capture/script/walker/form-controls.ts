@@ -143,19 +143,50 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
       selectListboxOptions: tag === 'select' && (el.size > 1 || el.multiple)
         ? (function () {
             const list = [];
+            const hostRect = el.getBoundingClientRect();
+            const row = (o, extra) => {
+              const ocs = window.getComputedStyle(o);
+              const or = o.getBoundingClientRect();
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              let fontAscent;
+              if (ctx != null) {
+                ctx.font = `${ocs.fontStyle} ${ocs.fontWeight} ${ocs.fontSize} ${ocs.fontFamily}`;
+                fontAscent = ctx.measureText('Mxgp').fontBoundingBoxAscent;
+              }
+              return {
+                text: (o.textContent || '').trim(), selected: !!o.selected,
+                disabled: !!o.disabled, ...extra,
+                // Unlike closed-select shadow parts, listbox OPTION elements
+                // expose real layout rects and computed author paint. Capture
+                // those browser-resolved facts instead of rebuilding row
+                // height and :checked styling from host-font heuristics.
+                x: or.left - hostRect.left, y: or.top - hostRect.top,
+                width: or.width, height: or.height,
+                backgroundColor: normColor(ocs.backgroundColor),
+                color: normColor(ocs.color),
+                paddingLeft: parseFloat(ocs.paddingLeft) || 0,
+                paddingTop: parseFloat(ocs.paddingTop) || 0,
+                fontSize: parseFloat(ocs.fontSize) || undefined,
+                fontFamily: ocs.fontFamily || undefined,
+                fontWeight: ocs.fontWeight || undefined,
+                fontStyle: ocs.fontStyle || undefined,
+                fontAscent,
+              };
+            };
             const kids = el.children;
             for (let ki = 0; ki < kids.length; ki++) {
               const c = kids[ki];
               if (c.tagName === 'OPTGROUP') {
-                list.push({ text: c.label || '', selected: false, disabled: !!c.disabled, isOptgroupLabel: true });
+                list.push(row(c, { text: c.label || '', selected: false, isOptgroupLabel: true }));
                 const og = c.children;
                 for (let gi = 0; gi < og.length; gi++) {
                   const o = og[gi];
                   if (o.tagName !== 'OPTION') continue;
-                  list.push({ text: (o.textContent || '').trim(), selected: !!o.selected, disabled: !!o.disabled, isOptgroupChild: true });
+                  list.push(row(o, { isOptgroupChild: true }));
                 }
               } else if (c.tagName === 'OPTION') {
-                list.push({ text: (c.textContent || '').trim(), selected: !!c.selected, disabled: !!c.disabled });
+                list.push(row(c, {}));
               }
             }
             return list;

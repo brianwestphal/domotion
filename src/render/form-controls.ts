@@ -1309,18 +1309,32 @@ function renderListbox(el: CapturedElement, indent: string): string {
   const SELECTION_BG = "rgb(180, 215, 255)";
   for (let i = 0; i < opts.length; i++) {
     const o = opts[i];
-    const ry = innerY + i * rowH;
-    if (ry + rowH > el.y + el.height - 1) break;
+    const measured = o.x != null && o.y != null && o.width != null && o.height != null
+      && o.width > 0 && o.height > 0;
+    const rx = measured ? el.x + o.x! : innerX - 4;
+    const ry = measured ? el.y + o.y! : innerY + i * rowH;
+    const rw = measured ? o.width! : innerW + 4;
+    const rh = measured ? o.height! : rowH;
+    if (ry >= el.y + el.height - 0.01) break;
     if (o.selected && !o.disabled && !o.isOptgroupLabel) {
-      parts.push(`${indent}<rect x="${r(innerX - 4)}" y="${r(ry)}" width="${r(innerW + 4)}" height="${r(rowH)}" fill="${SELECTION_BG}" />`);
+      const selectedFill = o.backgroundColor != null && o.backgroundColor !== ""
+        && o.backgroundColor !== "transparent" && !/^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/.test(o.backgroundColor)
+        ? o.backgroundColor : SELECTION_BG;
+      const visibleHeight = Math.min(rh, el.y + el.height - ry);
+      parts.push(`${indent}<rect x="${r(rx)}" y="${r(ry)}" width="${r(rw)}" height="${r(visibleHeight)}" fill="${selectedFill}" />`);
     }
-    const tx = innerX + (o.isOptgroupChild ? 8 : 0);
-    const ty = ry + rowH * 0.78;
-    const fontStyleAttr = o.isOptgroupLabel ? ` font-style="italic"` : "";
-    const fontWeightAttr = o.isOptgroupLabel ? ` font-weight="bold"` : "";
+    const optionFontSize = o.fontSize ?? fontSize;
+    const tx = measured ? rx + (o.paddingLeft ?? 0) : innerX + (o.isOptgroupChild ? 8 : 0);
+    const ty = o.fontAscent != null
+      ? ry + (o.paddingTop ?? 0) + o.fontAscent
+      : ry + (o.paddingTop ?? 0) + (rh - (o.paddingTop ?? 0)) * 0.78;
+    const fontStyle = o.fontStyle ?? (o.isOptgroupLabel ? "italic" : "normal");
+    const fontWeight = o.fontWeight ?? (o.isOptgroupLabel ? "bold" : "normal");
+    const fontStyleAttr = fontStyle !== "normal" ? ` font-style="${fontStyle}"` : "";
+    const fontWeightAttr = fontWeight !== "normal" && fontWeight !== "400" ? ` font-weight="${fontWeight}"` : "";
     const opacityAttr = o.disabled ? ` opacity="0.5"` : "";
     const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(optionFontSize)}" font-family="${(o.fontFamily ?? fontFamily).replace(/"/g, "&quot;")}" fill="${o.color ?? color}"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);
   }
   return parts.join("\n");
 }

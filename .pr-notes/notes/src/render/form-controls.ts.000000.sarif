@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstluxq8upzvbh8f",
+          "message": {
+            "text": "The measured-row path makes 06-forms-style-select pixel-clean: the focused macOS run moved from 1 region / 0.0813% coverage to 0 regions / 0% coverage (diffPct 0.6518% to 0.0166%). The renderer still retains the legacy fallback for older captures that lack row geometry.",
+            "markdown": "The measured-row path makes 06-forms-style-select pixel-clean: the focused macOS run moved from 1 region / 0.0813% coverage to 0 regions / 0% coverage (diffPct 0.6518% to 0.0166%). The renderer still retains the legacy fallback for older captures that lack row geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 1300,
+                  "endLine": 1355,
+                  "snippet": {
+                    "text": "  // Chrome's listbox option row is line-height ≈ fontSize × 1.16. The first\n  // row is offset by 1px (border inset) plus a thin top padding.\n  const rowH = fontSize * 1.16;\n  const innerX = el.x + 5;\n  const innerY = el.y + 1;\n  const innerW = el.width - 6;\n  const parts: string[] = [];\n  // Selection-row highlight (Chrome-on-macOS). We overlay an opaque rect\n  // BEHIND the text. Disabled rows aren't highlighted even when selected.\n  const SELECTION_BG = \"rgb(180, 215, 255)\";\n  for (let i = 0; i < opts.length; i++) {\n    const o = opts[i];\n    const measured = o.x != null && o.y != null && o.width != null && o.height != null\n      && o.width > 0 && o.height > 0;\n    const rx = measured ? el.x + o.x! : innerX - 4;\n    const ry = measured ? el.y + o.y! : innerY + i * rowH;\n    const rw = measured ? o.width! : innerW + 4;\n    const rh = measured ? o.height! : rowH;\n    if (ry >= el.y + el.height - 0.01) break;\n    if (o.selected && !o.disabled && !o.isOptgroupLabel) {\n      const selectedFill = o.backgroundColor != null && o.backgroundColor !== \"\"\n        && o.backgroundColor !== \"transparent\" && !/^rgba?\\(\\s*0\\s*,\\s*0\\s*,\\s*0\\s*,\\s*0\\s*\\)$/.test(o.backgroundColor)\n        ? o.backgroundColor : SELECTION_BG;\n      const visibleHeight = Math.min(rh, el.y + el.height - ry);\n      parts.push(`${indent}<rect x=\"${r(rx)}\" y=\"${r(ry)}\" width=\"${r(rw)}\" height=\"${r(visibleHeight)}\" fill=\"${selectedFill}\" />`);\n    }\n    const optionFontSize = o.fontSize ?? fontSize;\n    const tx = measured ? rx + (o.paddingLeft ?? 0) : innerX + (o.isOptgroupChild ? 8 : 0);\n    const ty = o.fontAscent != null\n      ? ry + (o.paddingTop ?? 0) + o.fontAscent\n      : ry + (o.paddingTop ?? 0) + (rh - (o.paddingTop ?? 0)) * 0.78;\n    const fontStyle = o.fontStyle ?? (o.isOptgroupLabel ? \"italic\" : \"normal\");\n    const fontWeight = o.fontWeight ?? (o.isOptgroupLabel ? \"bold\" : \"normal\");\n    const fontStyleAttr = fontStyle !== \"normal\" ? ` font-style=\"${fontStyle}\"` : \"\";\n    const fontWeightAttr = fontWeight !== \"normal\" && fontWeight !== \"400\" ? ` font-weight=\"${fontWeight}\"` : \"\";\n    const opacityAttr = o.disabled ? ` opacity=\"0.5\"` : \"\";\n    const escaped = o.text.replace(/[&<>]/g, (c) => ({ \"&\": \"&amp;\", \"<\": \"&lt;\", \">\": \"&gt;\" }[c]!));\n    parts.push(`${indent}<text x=\"${r(tx)}\" y=\"${r(ty)}\" font-size=\"${r(optionFontSize)}\" font-family=\"${(o.fontFamily ?? fontFamily).replace(/\"/g, \"&quot;\")}\" fill=\"${o.color ?? color}\"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);\n  }\n  return parts.join(\"\\n\");\n}\n\nfunction renderSelectChevron(el: CapturedElement, indent: string, defCtx?: DefCtx): string {\n  // DM-553: scheme-aware chevron stroke.\n  const palette = stockPalette(defCtx?.colorScheme);\n  const parts: string[] = [];\n  // Selected-option text inside the closed dropdown's content rect (DM-246).\n  // Chrome paints `selectedOptions[0]?.textContent` here; option/optgroup\n  // children are otherwise textIsHiddenFallback and don't reach the renderer.\n  const display = el.styles.selectDisplayText;\n  if (display != null && display !== \"\") {\n    const fontSize = parseFloat(el.styles.fontSize ?? \"13\") || 13;\n    const fontFamily = el.styles.fontFamily ?? \"-apple-system, system-ui, sans-serif\";\n    const fontWeight = el.styles.fontWeight ?? \"400\";\n    const color = el.styles.color ?? \"rgb(0,0,0)\";\n    // Anchor the display text at the element's content-box left edge."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2190"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0ba60721195fa72560aa413b37f65c9c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a8f64aeafeb27a6033b361d01fa06f6cd8fbf858",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

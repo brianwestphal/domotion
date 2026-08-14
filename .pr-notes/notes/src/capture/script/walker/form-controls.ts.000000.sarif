@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstluxhs664q44r0",
+          "message": {
+            "text": "Listbox options expose real layout boxes and resolved author styles, so capture those facts instead of reconstructing native row metrics. Chromium reports 27.1875px authored rows and 20.1875px default rows in the same fixture; the former 1.16em constant cannot represent both. Canvas FontMetrics supplies the baseline input because Range geometry for OPTION text is empty in Chromium.",
+            "markdown": "Listbox options expose real layout boxes and resolved author styles, so capture those facts instead of reconstructing native row metrics. Chromium reports 27.1875px authored rows and 20.1875px default rows in the same fixture; the former 1.16em constant cannot represent both. Canvas FontMetrics supplies the baseline input because Range geometry for OPTION text is empty in Chromium."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 143,
+                  "endLine": 190,
+                  "snippet": {
+                    "text": "      selectListboxOptions: tag === 'select' && (el.size > 1 || el.multiple)\n        ? (function () {\n            const list = [];\n            const hostRect = el.getBoundingClientRect();\n            const row = (o, extra) => {\n              const ocs = window.getComputedStyle(o);\n              const or = o.getBoundingClientRect();\n              const canvas = document.createElement('canvas');\n              const ctx = canvas.getContext('2d');\n              let fontAscent;\n              if (ctx != null) {\n                ctx.font = `${ocs.fontStyle} ${ocs.fontWeight} ${ocs.fontSize} ${ocs.fontFamily}`;\n                fontAscent = ctx.measureText('Mxgp').fontBoundingBoxAscent;\n              }\n              return {\n                text: (o.textContent || '').trim(), selected: !!o.selected,\n                disabled: !!o.disabled, ...extra,\n                // Unlike closed-select shadow parts, listbox OPTION elements\n                // expose real layout rects and computed author paint. Capture\n                // those browser-resolved facts instead of rebuilding row\n                // height and :checked styling from host-font heuristics.\n                x: or.left - hostRect.left, y: or.top - hostRect.top,\n                width: or.width, height: or.height,\n                backgroundColor: normColor(ocs.backgroundColor),\n                color: normColor(ocs.color),\n                paddingLeft: parseFloat(ocs.paddingLeft) || 0,\n                paddingTop: parseFloat(ocs.paddingTop) || 0,\n                fontSize: parseFloat(ocs.fontSize) || undefined,\n                fontFamily: ocs.fontFamily || undefined,\n                fontWeight: ocs.fontWeight || undefined,\n                fontStyle: ocs.fontStyle || undefined,\n                fontAscent,\n              };\n            };\n            const kids = el.children;\n            for (let ki = 0; ki < kids.length; ki++) {\n              const c = kids[ki];\n              if (c.tagName === 'OPTGROUP') {\n                list.push(row(c, { text: c.label || '', selected: false, isOptgroupLabel: true }));\n                const og = c.children;\n                for (let gi = 0; gi < og.length; gi++) {\n                  const o = og[gi];\n                  if (o.tagName !== 'OPTION') continue;\n                  list.push(row(o, { isOptgroupChild: true }));\n                }\n              } else if (c.tagName === 'OPTION') {\n                list.push(row(c, {}));\n              }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2190"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "62b60a484459dea11b5dd7dfeb577b38"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a8f64aeafeb27a6033b361d01fa06f6cd8fbf858",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

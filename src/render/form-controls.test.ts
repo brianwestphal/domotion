@@ -9,6 +9,29 @@ import { describe, it, expect } from "vitest";
 import { renderFormControl, parseSpreadOnlyShadows, collectFormControlConicTiles } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
 
+describe("author-styled listbox option rows (DM-2190)", () => {
+  it("uses captured row geometry and :checked paint instead of native constants", () => {
+    const el = {
+      tag: "select", x: 250, y: 700, width: 540, height: 140, children: [],
+      styles: {
+        fontSize: "16px", fontFamily: "Arial", color: "rgb(0, 0, 0)",
+        selectListboxOptions: [{
+          text: "Red", selected: true, disabled: false,
+          x: 5, y: 6.5, width: 530, height: 27.1875,
+          backgroundColor: "rgb(238, 242, 255)", color: "rgb(49, 46, 129)",
+          paddingLeft: 8, paddingTop: 4, fontSize: 16, fontFamily: "Arial",
+          fontWeight: "400", fontStyle: "normal", fontAscent: 15,
+        }],
+      },
+    } as unknown as CapturedElement;
+    const svg = renderFormControl(el, "");
+    expect(svg).toContain('<rect x="255" y="706.5" width="530" height="27.2" fill="rgb(238, 242, 255)"');
+    expect(svg).toContain('<text x="263"');
+    expect(svg).toContain('fill="rgb(49, 46, 129)"');
+    expect(svg).not.toContain("rgb(180, 215, 255)");
+  });
+});
+
 describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)", () => {
   const rangeEl = (styles: Record<string, unknown>): CapturedElement =>
     ({ tag: "input", x: 20, y: 12, width: 200, height: 36, children: [], styles } as unknown as CapturedElement);
