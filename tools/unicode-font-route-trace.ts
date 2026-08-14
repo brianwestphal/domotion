@@ -77,6 +77,34 @@ for (const cell of cells) {
     const installed = resolveInstalledFont(family);
     return { index, family, installed: installed != null, postscriptName: installed?.postscriptName ?? null, path: installed?.path ?? null };
   });
+  const declaredChrome = [];
+  for (const entry of declared) {
+    const probeId = `dm2168-probe-${cell.cp.toString(16)}-${entry.index}`;
+    await page.evaluate(({ id, text, family, weight, size, italic, stretch, lang }) => {
+      const probe = document.createElement("span");
+      probe.id = id;
+      probe.textContent = text;
+      probe.lang = lang ?? "";
+      Object.assign(probe.style, {
+        position: "fixed", left: "-10000px", top: "0", fontFamily: family,
+        fontWeight: String(weight), fontSize: `${size}px`, fontStyle: italic ? "italic" : "normal",
+        fontStretch: `${stretch}%`,
+      });
+      document.body.append(probe);
+    }, { id: probeId, text: cell.text, family: entry.family, weight: cell.weight, size: cell.size, italic: cell.italic, stretch: cell.stretch, lang: cell.lang });
+    const { nodeId: probeNodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${probeId}` });
+    const fonts = probeNodeId === 0 ? [] : (await cdp.send("CSS.getPlatformFontsForNode", { nodeId: probeNodeId })).fonts;
+    const painted = fonts.find((f) => f.glyphCount > 0) ?? null;
+    declaredChrome.push({
+      ...entry,
+      chrome: painted == null ? null : {
+        familyName: painted.familyName,
+        postscriptName: painted.postScriptName,
+        glyphCount: painted.glyphCount,
+      },
+    });
+    await page.evaluate((id) => document.getElementById(id)?.remove(), probeId);
+  }
   const primaryKey = resolveFontKey(cell.fontFamily, cell.lang);
   const chain = resolveFontKeyChain(cell.fontFamily, cell.lang);
   const primary = getFontInstance(primaryKey, cell.weight, cell.size, cell.italic ? 1 : 0, undefined, cell.stretch, false, cell.fontFamily);
@@ -100,7 +128,7 @@ for (const cell of cells) {
   const source = getFontSourceInfo(finalInst);
   results.push({
     ...cell,
-    declaredFamilies: declared,
+    declaredFamilies: declaredChrome,
     exhaustedDeclaredFamilyIndex: declared.findIndex((d) => d.installed),
     chrome: chrome == null ? null : { familyName: chrome.familyName, postscriptName: chrome.postScriptName, glyphCount: chrome.glyphCount, reopenedPath: chromeInstalled?.path ?? null, glyphId: chromeInstance == null ? null : glyphIdForCp(chromeInstance, cell.cp) },
     hardcoded: { priority, candidates: hardcoded, accepted: hardcoded.find((h) => h.glyphId !== 0) ?? null },
