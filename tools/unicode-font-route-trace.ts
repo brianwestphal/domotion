@@ -18,6 +18,7 @@ import { createGlyphHelperFont, resolveInstalledFont, resolveSystemFallbackFonts
 import {
   blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun,
 } from "../src/render/win-font-fallback.js";
+import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.js";
 
 if (process.platform !== "win32") {
   process.stderr.write("unicode-font-route-trace requires a native Windows host\n");
@@ -139,6 +140,8 @@ for (const cell of cells) {
     cell.italic ? 1 : 0, undefined, cell.lang, chain, false, cell.stretch, undefined, cell.fontFamily);
   const finalInst = ours.fontOverride ?? (ours.key === primaryKey ? primary : getFontInstance(ours.key, cell.weight, cell.size, cell.italic ? 1 : 0));
   const source = getFontSourceInfo(finalInst);
+  const shapedRuns = splitTextIntoFontRunsShaped(cell.text, primary, primaryKey, cell.weight, cell.size,
+    cell.italic ? 1 : 0, undefined, cell.lang, chain, false, cell.stretch, undefined, cell.fontFamily, { mode: "paths" });
   results.push({
     ...cell,
     declaredFamilies: declaredChrome,
@@ -147,6 +150,12 @@ for (const cell of cells) {
     hardcoded: { priority, candidates: hardcoded, accepted: hardcoded.find((h) => h.glyphId !== 0) ?? null },
     directWrite: { baseFamilyName: baseFamilyName ?? null, locale, weight: cell.weight, italic: cell.italic, stretch: cell.stretch, answer: directWrite },
     domotion: { primaryKey, chain, routeKey: ours.key, covered: ours.covered, glyphId: finalInst == null ? 0 : glyphIdForCp(finalInst, cell.cp), postscriptName: finalInst?.postscriptName ?? source?.postscriptName ?? null, path: source?.path ?? null },
+    domotionShaped: shapedRuns?.map((run) => ({
+      text: run.text,
+      routeKey: run.fontKey,
+      postscriptName: run.font.postscriptName ?? null,
+      glyphId: glyphIdForCp(run.font, cell.cp),
+    })) ?? null,
   });
 }
 await cdp.detach(); await browser.close();
