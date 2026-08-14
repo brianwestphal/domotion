@@ -18,6 +18,11 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] position: static, relative, absolute
 - [~] position: fixed, sticky — paint order correct, but rendered as static snapshot at t=0 (no scroll-following animation)
 - [x] display: block, inline, inline-block, flex, grid, table
+- [x] multi-column physical flow — text retains Chromium's per-fragment
+  `Range.getClientRects()` coordinates across forced column breaks,
+  `break-inside: avoid`, and column groups split by `column-span: all`; the
+  renderer consumes those captured positions rather than reconstructing
+  LayoutNG fragmentation in Node (DM-2161).
 - [x] float + clear (text wraps correctly around floats via per-line capture)
 - [x] box-sizing, margin, padding, width/height, min/max
 - [x] overflow: hidden/scroll/auto/clip (children clipped to padding box)

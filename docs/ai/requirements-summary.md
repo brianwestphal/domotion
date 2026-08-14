@@ -36,7 +36,9 @@ documented per-feature in the numbered `docs/` set.
 2. **`FEATURES.md`** — per-feature support checklist with fixture links.
    Keep in sync when fixtures land.
 3. **Doc 01 (`docs/01-fidelity.md`)** — the overarching fidelity
-   contract. What's in scope, what isn't, what tolerance applies.
+   contract. What's in scope, what isn't, what tolerance applies. Multicol text
+   preserves Chromium's physical fragment coordinates through forced breaks,
+   break avoidance, and spanning-element column-group transitions (DM-2161).
 4. **`tests/feature-coverage.ts`** — the machine-checkable feature index
    (behavior → export/verb → asserting test), the orthogonal-to-line-coverage
    axis. `npm run check:features` (+ the `tests/conventions.test.ts` mirror in

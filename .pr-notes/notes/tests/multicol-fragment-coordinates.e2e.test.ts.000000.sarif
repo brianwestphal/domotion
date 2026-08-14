@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msscwovbp9v6gfbl",
+          "message": {
+            "text": "This regression uses Chromium's own Range.getClientRects() as the oracle for every multicol text fragment, then verifies the renderer's embedded x-lists start at the same physical column coordinates. Current main already preserves forced breaks, break-inside avoidance, and post-spanner flow; the focused 33-deep-columns-break visual fixture is clean locally, so no platform-specific coordinate correction or Node-side fragmentation approximation is warranted.",
+            "markdown": "This regression uses Chromium's own Range.getClientRects() as the oracle for every multicol text fragment, then verifies the renderer's embedded x-lists start at the same physical column coordinates. Current main already preserves forced breaks, break-inside avoidance, and post-spanner flow; the focused 33-deep-columns-break visual fixture is clean locally, so no platform-specific coordinate correction or Node-side fragmentation approximation is warranted."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/multicol-fragment-coordinates.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 69,
+                  "endLine": 105,
+                  "snippet": {
+                    "text": "        const rect = range.getClientRects()[0];\n        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];\n      })), ids) as Record<string, Rect>;\n\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: W, height: H });\n      const labels: Record<string, string> = {\n        first: \"first-column\", second: \"second-column\", third: \"third-column\",\n        kept: \"kept-fragment\", before: \"before-spanner\", after: \"after-spanner\",\n      };\n      for (const id of ids) {\n        const captured = findByText(tree, labels[id]);\n        expect(captured, id).not.toBeNull();\n        const actual = segmentRect(captured!);\n        expect(actual.x, `${id} x`).toBeCloseTo(chrome[id].x, 4);\n        expect(actual.y, `${id} y`).toBeCloseTo(chrome[id].y, 4);\n        expect(actual.width, `${id} width`).toBeCloseTo(chrome[id].width, 4);\n        expect(actual.height, `${id} height`).toBeCloseTo(chrome[id].height, 4);\n      }\n\n      expect(chrome.second.x).toBeGreaterThan(chrome.first.x + 150);\n      expect(chrome.third.x).toBeGreaterThan(chrome.second.x + 150);\n      expect(chrome.kept.x).toBeGreaterThan(250);\n      expect(chrome.after.x).toBe(chrome.before.x);\n      expect(chrome.after.y).toBeGreaterThan(chrome.before.y);\n\n      // The renderer consumes the captured physical x/y values directly. Its\n      // embedded text x-list must therefore begin in each LayoutNG column,\n      // rather than rebasing every fragment onto the union element origin.\n      const output = elementTreeToSvgInner(tree, W, H);\n      expect(output).toMatch(/aria-label=\"first-column\"[\\s\\S]*?<text x=\"0(?:\\s|\\\")/);\n      expect(output).toMatch(/aria-label=\"second-column\"[\\s\\S]*?<text x=\"210(?:\\s|\\\")/);\n      expect(output).toMatch(/aria-label=\"third-column\"[\\s\\S]*?<text x=\"420(?:\\s|\\\")/);\n      expect(output).toMatch(/aria-label=\"kept-fragment\"[\\s\\S]*?<text x=\"310(?:\\s|\\\")/);\n    } finally {\n      await page.close();\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/block_fragmentation_tutorial.md"
+                },
+                "region": {
+                  "startLine": 282
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2161"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "43e522f98e5e015c0832bc1275f1350b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "71f3ba350e769c64ccd9212f89f388960832aa8f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
