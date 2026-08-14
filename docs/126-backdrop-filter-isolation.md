@@ -1,6 +1,6 @@
 # 126 — Backdrop-filter isolation via Chromium snapshots
 
-**Status: shipped (DM-2171).**
+**Status: shipped.**
 
 ## Requirement
 
@@ -44,10 +44,19 @@ the visual contour without synthesizing a second SVG clip.
 
 The raster is emitted where the element subtree would have painted. This keeps
 normal sibling order, opacity ownership, and ancestor clipping around the
-replacement image. A later overlapping translucent sibling can still be
-present in the page screenshot used to build an individual raster; isolating
-that uncommon overlap without losing the sampled backdrop requires a dedicated
-paint-order-aware capture pass and is tracked separately.
+replacement image. Before taking each crop, Domotion captures a Chromium
+`DOMSnapshot` with layout bounds and paint order. Later-painted, overlapping
+subtrees are temporarily hidden while earlier paint—the backdrop input—remains
+visible. Descendants and ancestors of the target are never hidden, and a later
+ancestor is hidden only once rather than mutating every descendant. Nodes in
+the same global paint group use layout traversal order as the sibling-order
+tie-breaker.
+
+The mutation is reversible: prior inline `visibility` value and priority are
+restored after every screenshot, including error paths. If the snapshot, token
+mapping, or an individual CDP node resolution is unavailable, capture falls
+back conservatively to the ordinary page crop instead of failing the render.
+Temporary `data-domotion-backdrop-raster` tokens are removed after the pass.
 
 ## Validation
 
@@ -58,7 +67,11 @@ paint-order-aware capture pass and is tracked separately.
   residuals rather than missing backdrop effects.
 - `22-backdrop-filter` is no longer excluded from the HTML visual suite.
 - Unit coverage asserts that a populated backdrop raster replaces the complete
-  vector subtree.
+  vector subtree and that the isolation planner preserves earlier, unrelated,
+  and target-relative nodes while suppressing later overlap.
+- Playwright coverage captures a real blurred backdrop under a later
+  overlapping subtree, compares the raster with an isolated Chromium crop,
+  and verifies that the live page's visibility and temporary token are restored.
 
 The earlier solid body-color approximation remains documented in doc 19 for
 historical context and as a pre-raster fallback when no snapshot is available.

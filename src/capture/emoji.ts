@@ -17,12 +17,13 @@
  */
 
 import { existsSync } from "node:fs";
-import type { Page } from "@playwright/test";
+import type { CDPSession, Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
 import type { CapturedElement } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
+import { planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 let _aceFont: any = null;
@@ -435,11 +436,117 @@ async function calibrateSbixOverlays(
   }
 }
 
+async function rasterizeBackdropFilters(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  const targets: NonNullable<CapturedElement["backdropFilterRaster"]>[] = [];
+  forEachElement(tree, (el) => { if (el.backdropFilterRaster?.token != null) targets.push(el.backdropFilterRaster); });
+  if (targets.length === 0) return;
+
+  let cdp: CDPSession | undefined;
+  try {
+    cdp = await page.context().newCDPSession(page);
+    const snap = await cdp.send("DOMSnapshot.captureSnapshot", {
+      computedStyles: [], includePaintOrder: true, includeDOMRects: true,
+    }) as any;
+    const doc = snap.documents?.[0];
+    const strings: string[] = snap.strings ?? [];
+    const paintByNode = new Map<number, { bounds: [number, number, number, number]; paintOrder: number; layoutOrder: number }>();
+    for (let i = 0; i < (doc?.layout?.nodeIndex?.length ?? 0); i++) {
+      const nodeIndex = doc.layout.nodeIndex[i] as number;
+      const bounds = doc.layout.bounds[i] as [number, number, number, number];
+      const paintOrder = doc.layout.paintOrders?.[i] as number | undefined;
+      if (paintOrder != null && !paintByNode.has(nodeIndex)) paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });
+    }
+    const attributesByNode = new Map<number, number[]>();
+    const rareAttributes = doc?.nodes?.attributes;
+    if (Array.isArray(rareAttributes)) {
+      for (let i = 0; i < rareAttributes.length; i++) attributesByNode.set(i, rareAttributes[i]);
+    } else {
+      for (let i = 0; i < (rareAttributes?.index?.length ?? 0); i++) {
+        attributesByNode.set(rareAttributes.index[i], rareAttributes.value[i]);
+      }
+    }
+    const nodes: SnapshotNode[] = (doc?.nodes?.backendNodeId ?? []).map((backendNodeId: number, i: number) => {
+      const attrIndexes = attributesByNode.get(i) ?? [];
+      const attributes = attrIndexes.map((idx) => strings[idx]);
+      const layout = paintByNode.get(i);
+      return {
+        backendNodeId,
+        parentIndex: doc.nodes.parentIndex?.[i] ?? -1,
+        attributes,
+        bounds: layout?.bounds,
+        paintOrder: layout?.paintOrder,
+        layoutOrder: layout?.layoutOrder,
+      };
+    });
+
+    for (const target of targets) {
+      const plan = planBackdropIsolation(nodes, target.token!);
+      const restores: Array<{ objectId: string; value: string; priority: string }> = [];
+      try {
+        if (plan != null) {
+          for (const backendNodeId of plan.hideBackendNodeIds) {
+            try {
+              const resolved = await cdp.send("DOM.resolveNode", { backendNodeId }) as any;
+              const objectId = resolved.object?.objectId as string | undefined;
+              if (objectId == null) continue;
+              const changed = await cdp.send("Runtime.callFunctionOn", {
+                objectId,
+                functionDeclaration: "function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
+                returnByValue: true,
+              }) as any;
+              restores.push({ objectId, value: changed.result?.value?.v ?? "", priority: changed.result?.value?.p ?? "" });
+            } catch { /* conservative fallback: leave this node painted */ }
+          }
+        }
+        const clip = clipRectForScreenshot(target, viewport);
+        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+        target.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
+        target.x = clip.x - viewport.x;
+        target.y = clip.y - viewport.y;
+        target.width = clip.width;
+        target.height = clip.height;
+      } catch { /* retain vector fallback if screenshot itself fails */ }
+      finally {
+        for (let i = restores.length - 1; i >= 0; i--) {
+          const restore = restores[i];
+          try {
+            await cdp.send("Runtime.callFunctionOn", {
+              objectId: restore.objectId,
+              functionDeclaration: "function(v,p){if(v==='')this.style.removeProperty('visibility');else this.style.setProperty('visibility',v,p);}",
+              arguments: [{ value: restore.value }, { value: restore.priority }],
+            });
+          } catch { /* page teardown */ }
+        }
+      }
+    }
+  } catch {
+    // DOMSnapshot is Chromium-only and mapping can fail for pseudo/fragments.
+    // Fall back to the original full-page crop for every unresolved target.
+    for (const target of targets) {
+      try {
+        const clip = clipRectForScreenshot(target, viewport);
+        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+        target.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
+      } catch { /* leave dataUri absent */ }
+    }
+  } finally {
+    await cdp?.detach().catch(() => undefined);
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll("[data-domotion-backdrop-raster]")) el.removeAttribute("data-domotion-backdrop-raster");
+    }).catch(() => undefined);
+  }
+}
+
 export async function rasterizeBitmapGlyphs(
   page: Page,
   tree: CapturedElement[],
   viewport: { x: number; y: number; width: number; height: number },
 ): Promise<void> {
+  await rasterizeBackdropFilters(page, tree, viewport);
   // Two kinds of candidates share the pipeline:
   //  - Segment-level rasterRect (SK-1058): the whole pseudo text is a color-
   //    bitmap run; renderer emits one <image> and skips the text path.
@@ -464,14 +571,6 @@ export async function rasterizeBitmapGlyphs(
           key: `native-control|${el.tag}|${el.styles.inputType ?? ''}|${nr.x}|${nr.y}|${nr.width}x${nr.height}`,
           setDataUri: (uri) => { nr.dataUri = uri; },
           snapRectToClip: true,
-        });
-      }
-      if (el.backdropFilterRaster != null) {
-        const br = el.backdropFilterRaster;
-        candidates.push({
-          rect: { x: br.x, y: br.y, width: br.width, height: br.height },
-          key: `backdrop-filter|${el.styles.backdropFilter}|${br.x}|${br.y}|${br.width}x${br.height}`,
-          setDataUri: (uri) => { br.dataUri = uri; },
         });
       }
       // Element-level raster (SK-1108): textarea content region, too

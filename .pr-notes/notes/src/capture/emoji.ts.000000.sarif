@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstj4yj9gn3vrnzi",
+          "message": {
+            "text": "Paint-order isolation must preserve the sampled backdrop while removing only future paint. The CDP snapshot supplies bounds plus global paint order, with layout traversal breaking ties inside a paint group; every temporary visibility override records its prior inline value and priority and is restored in a finally block. The focused Playwright test proves the saved raster matches a crop with the later overlapping subtree hidden while the live page is restored.",
+            "markdown": "Paint-order isolation must preserve the sampled backdrop while removing only future paint. The CDP snapshot supplies bounds plus global paint order, with layout traversal breaking ties inside a paint group; every temporary visibility override records its prior inline value and priority and is restored in a finally block. The focused Playwright test proves the saved raster matches a crop with the later overlapping subtree hidden while the live page is restored."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 448,
+                  "endLine": 523,
+                  "snippet": {
+                    "text": "  const cdp = await page.context().newCDPSession(page);\n  try {\n    const snap = await cdp.send(\"DOMSnapshot.captureSnapshot\", {\n      computedStyles: [], includePaintOrder: true, includeDOMRects: true,\n    }) as any;\n    const doc = snap.documents?.[0];\n    const strings: string[] = snap.strings ?? [];\n    const paintByNode = new Map<number, { bounds: [number, number, number, number]; paintOrder: number; layoutOrder: number }>();\n    for (let i = 0; i < (doc?.layout?.nodeIndex?.length ?? 0); i++) {\n      const nodeIndex = doc.layout.nodeIndex[i] as number;\n      const bounds = doc.layout.bounds[i] as [number, number, number, number];\n      const paintOrder = doc.layout.paintOrders?.[i] as number | undefined;\n      if (paintOrder != null && !paintByNode.has(nodeIndex)) paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });\n    }\n    const attributesByNode = new Map<number, number[]>();\n    const rareAttributes = doc?.nodes?.attributes;\n    if (Array.isArray(rareAttributes)) {\n      for (let i = 0; i < rareAttributes.length; i++) attributesByNode.set(i, rareAttributes[i]);\n    } else {\n      for (let i = 0; i < (rareAttributes?.index?.length ?? 0); i++) {\n        attributesByNode.set(rareAttributes.index[i], rareAttributes.value[i]);\n      }\n    }\n    const nodes: SnapshotNode[] = (doc?.nodes?.backendNodeId ?? []).map((backendNodeId: number, i: number) => {\n      const attrIndexes = attributesByNode.get(i) ?? [];\n      const attributes = attrIndexes.map((idx) => strings[idx]);\n      const layout = paintByNode.get(i);\n      return {\n        backendNodeId,\n        parentIndex: doc.nodes.parentIndex?.[i] ?? -1,\n        attributes,\n        bounds: layout?.bounds,\n        paintOrder: layout?.paintOrder,\n        layoutOrder: layout?.layoutOrder,\n      };\n    });\n\n    for (const target of targets) {\n      const plan = planBackdropIsolation(nodes, target.token!);\n      const restores: Array<{ objectId: string; value: string; priority: string }> = [];\n      try {\n        if (plan != null) {\n          for (const backendNodeId of plan.hideBackendNodeIds) {\n            try {\n              const resolved = await cdp.send(\"DOM.resolveNode\", { backendNodeId }) as any;\n              const objectId = resolved.object?.objectId as string | undefined;\n              if (objectId == null) continue;\n              const changed = await cdp.send(\"Runtime.callFunctionOn\", {\n                objectId,\n                functionDeclaration: \"function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}\",\n                returnByValue: true,\n              }) as any;\n              restores.push({ objectId, value: changed.result?.value?.v ?? \"\", priority: changed.result?.value?.p ?? \"\" });\n            } catch { /* conservative fallback: leave this node painted */ }\n          }\n        }\n        const clip = clipRectForScreenshot(target, viewport);\n        const buf = await page.screenshot({ clip, omitBackground: true, type: \"png\" });\n        target.dataUri = `data:image/png;base64,${Buffer.from(buf).toString(\"base64\")}`;\n        target.x = clip.x - viewport.x;\n        target.y = clip.y - viewport.y;\n        target.width = clip.width;\n        target.height = clip.height;\n      } catch { /* retain vector fallback if screenshot itself fails */ }\n      finally {\n        for (let i = restores.length - 1; i >= 0; i--) {\n          const restore = restores[i];\n          try {\n            await cdp.send(\"Runtime.callFunctionOn\", {\n              objectId: restore.objectId,\n              functionDeclaration: \"function(v,p){if(v==='')this.style.removeProperty('visibility');else this.style.setProperty('visibility',v,p);}\",\n              arguments: [{ value: restore.value }, { value: restore.priority }],\n            });\n          } catch { /* page teardown */ }\n        }\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/backdrop-isolation.ts"
+                },
+                "region": {
+                  "startLine": 32
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/backdrop-isolation.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 25
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2181"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ae039fa7e9e0a88e9d41852b50988f88"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6ebec89320b4cfd77ab9b8d84842652ec9375523",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

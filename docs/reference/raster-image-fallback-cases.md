@@ -88,6 +88,28 @@ Tickets: SK-1108 (`<textarea>`) / SK-1128 (vertical text).
 
 ## CSS-feature fallbacks
 
+### C0. `backdrop-filter`
+
+Trigger: an element whose computed `backdrop-filter` (or prefixed equivalent)
+is neither empty nor `none`.
+
+Why: an SVG embedded through `<img>` cannot sample the page pixels already
+painted behind an internal group, while Blink's backdrop effect explicitly
+filters that earlier paint surface. Rebuilding the filter primitives in SVG
+would apply them to the wrong input.
+
+Capture: the DOM walk records a tokenized `backdropFilterRaster` border-box
+placeholder. `rasterizeBackdropFilters` in `src/capture/emoji.ts` uses a CDP
+DOM snapshot to hide only later-painted overlapping subtrees, screenshots the
+target while preserving its earlier backdrop and own descendants, restores the
+live DOM, and stores the PNG data URI. Snapshot or mapping failures fall back
+to the ordinary full-page crop.
+
+Emit: `src/render/element-tree-to-svg.ts` emits the raster `<image>` at the
+element's paint position and replaces the vector subtree.
+
+Doc: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md).
+
 ### C1. `conic-gradient(...)` / `repeating-conic-gradient(...)`
 
 Trigger: any background layer whose CSS value parses as a conic or repeating-conic gradient.
