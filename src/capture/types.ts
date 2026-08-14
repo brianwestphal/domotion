@@ -18,6 +18,8 @@
 
 export interface TextSegment {
   text: string;
+  /** Original DOM text covered by this segment before text-transform. */
+  sourceText?: string;
   x: number;
   y: number;
   width: number;

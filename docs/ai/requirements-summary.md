@@ -1228,3 +1228,11 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `docs/10-repeating-gradients.md`. When it touches fonts, open
   `docs/03-font-family-chain.md` / `docs/52-embedded-mode-glyph-fallback
   .md`. And so on.
+<!-- DM-2158 -->
+- Text capture preserves an explicit UTF-16 source span for every rendered
+  `text-transform` chunk. Length-changing casing (for example `ß` → `SS`),
+  locale-sensitive casing, supplementary codepoints, tabs, and `::first-line`
+  transformations must never use rendered indices as DOM `Range` offsets.
+  When one source span expands to multiple rendered codepoints and CSSOM cannot
+  expose internal anchors, the rendered run is shaped normally rather than
+  inventing duplicate per-character positions.

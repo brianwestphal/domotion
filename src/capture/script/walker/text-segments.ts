@@ -169,6 +169,40 @@ export const capitalizeCss = (s) => {
   return out;
 };
 
+/** Preserve the source span that produced every rendered text-transform chunk. */
+export const transformTextWithSourceSpans = (source, transform, lang) => {
+  const out = [];
+  let atWordStart = true;
+  for (let i = 0; i < source.length;) {
+    const cp = source.codePointAt(i);
+    const sourceText = String.fromCodePoint(cp);
+    let rendered = sourceText;
+    if (transform === 'uppercase') rendered = lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase();
+    else if (transform === 'lowercase') rendered = lang ? sourceText.toLocaleLowerCase(lang) : sourceText.toLowerCase();
+    else if (transform === 'capitalize' && atWordStart && _RE_LETTER.test(sourceText)) {
+      rendered = TITLECASE_DIGRAPHS[sourceText] || (lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase());
+    }
+    out.push({ sourceStart: i, sourceEnd: i + sourceText.length, sourceText, rendered });
+    atWordStart = !_RE_WORD_CHAR.test(sourceText) && _MIDWORD_CONNECTORS.indexOf(sourceText) < 0;
+    i += sourceText.length;
+  }
+  // Whole-string casing carries contextual rules such as Greek final sigma.
+  // When it preserves the per-span output lengths, substitute its characters
+  // without changing the source boundary map.
+  const joined = out.map((part) => part.rendered).join('');
+  const whole = transform === 'uppercase' ? (lang ? source.toLocaleUpperCase(lang) : source.toUpperCase())
+    : transform === 'lowercase' ? (lang ? source.toLocaleLowerCase(lang) : source.toLowerCase())
+    : transform === 'capitalize' ? capitalizeCss(source) : source;
+  if (whole.length === joined.length && whole !== joined) {
+    let offset = 0;
+    for (const part of out) {
+      part.rendered = whole.slice(offset, offset + part.rendered.length);
+      offset += part.rendered.length;
+    }
+  }
+  return out;
+};
+
 // HarfBuzz's Indic Ragel machine (`hb-ot-shaper-indic-machine.rl`, rev
 // 4de187d) accepts `z* M` as a matra group inside a broken cluster. The one
 // live gap established against Chromium is Tamil ZWJ + VOWEL SIGN E: the ZWJ
@@ -252,27 +286,22 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
     const allChars = []; // {ch, x, y, w, h, naturalW} viewport-page coords (NOT yet vp-adjusted)
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
-      let raw = node.textContent || '';
+      const sourceRaw = node.textContent || '';
       const tt = cs.textTransform;
-      if (tt === 'uppercase') raw = raw.toUpperCase();
-      else if (tt === 'lowercase') raw = raw.toLowerCase();
-      else if (tt === 'capitalize') raw = capitalizeCss(raw);
+      const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || '');
+      const raw = mapped.map((part) => part.rendered).join('');
       if (!raw.trim()) continue;
       text += raw.trim() + ' ';
-      for (let i = 0; i < raw.length; i++) {
-        const code = raw.charCodeAt(i);
-        const isHighSurrogate = code >= 0xD800 && code <= 0xDBFF && i + 1 < raw.length;
-        const step = isHighSurrogate ? 2 : 1;
+      for (const part of mapped) {
         const r = document.createRange();
-        r.setStart(node, i);
-        r.setEnd(node, i + step);
+        r.setStart(node, part.sourceStart);
+        r.setEnd(node, part.sourceEnd);
         const cr = r.getBoundingClientRect();
-        const ch = raw.slice(i, i + step);
-        const isWs = step === 1 && /\s/.test(raw[i]);
+        const ch = part.rendered;
+        const isWs = /^\s+$/.test(part.sourceText);
         // Skip whitespace with zero bbox (collapsed whitespace).
-        if (cr.height === 0 && (cr.width === 0 || isWs)) { i += step - 1; continue; }
+        if (cr.height === 0 && (cr.width === 0 || isWs)) continue;
         allChars.push({ ch, x: cr.left, y: cr.top, w: cr.width, h: cr.height, naturalW: measureNaturalWidth(ch) });
-        i += step - 1;
       }
     }
     if (allChars.length === 0) {
@@ -733,11 +762,10 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
       // text-transform — see header comment.
-      let raw = node.textContent || '';
+      const sourceRaw = node.textContent || '';
       const tt = cs.textTransform;
-      if (tt === 'uppercase') raw = raw.toUpperCase();
-      else if (tt === 'lowercase') raw = raw.toLowerCase();
-      else if (tt === 'capitalize') raw = capitalizeCss(raw);
+      const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || '');
+      const raw = mapped.map((part) => part.rendered).join('');
       if (!raw.trim()) continue;
       // DM-747: when `<mi>` math-italic substitution applies, the element's
       // aggregate `text` field should carry the substituted codepoint too —
@@ -750,17 +778,15 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
       // Group characters by their laid-out line (matching rect.top).
       const lines = [];
       let cur = null;
-      for (let i = 0; i < raw.length; i++) {
-        const code = raw.charCodeAt(i);
-        const isHighSurrogate = code >= 0xD800 && code <= 0xDBFF && i + 1 < raw.length;
-        const step = isHighSurrogate ? 2 : 1;
+      for (let sourcePartIndex = 0; sourcePartIndex < mapped.length; sourcePartIndex++) {
+        const part = mapped[sourcePartIndex];
         const r = document.createRange();
-        r.setStart(node, i);
-        r.setEnd(node, i + step);
+        r.setStart(node, part.sourceStart);
+        r.setEnd(node, part.sourceEnd);
         const cr = r.getBoundingClientRect();
-        const isWs = step === 1 && /\s/.test(raw[i]);
-        if (cr.width === 0 && (cr.height === 0 || isWs)) { i += step - 1; continue; }
-        let ch = raw.slice(i, i + step);
+        const isWs = /^\s+$/.test(part.sourceText);
+        if (cr.width === 0 && (cr.height === 0 || isWs)) continue;
+        let ch = part.rendered;
         // DM-747: see `mathItalicizeMi` block above — apply the mathvariant=
         // italic substitution AFTER the Range-based measurement so the Range
         // offsets stay valid against the original textContent (`a`, 1 code
@@ -788,11 +814,11 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
           const refH = (cur.bottom - cur.top) || 16;
           if (cr.height > refH * 1.5 && cr.bottom > cur.bottom + refH * 0.5) {
             // Peek ahead one char to get the actual line-2 top/x.
-            const peekI = i + step;
-            if (peekI < raw.length) {
+            const peekPart = mapped[sourcePartIndex + 1];
+            if (peekPart != null) {
               const pr = document.createRange();
-              pr.setStart(node, peekI);
-              pr.setEnd(node, peekI + 1);
+              pr.setStart(node, peekPart.sourceStart);
+              pr.setEnd(node, peekPart.sourceEnd);
               const pcr = pr.getBoundingClientRect();
               if (pcr.height > 0 && pcr.height < refH * 1.5) {
                 topForGroup = pcr.top;
@@ -813,7 +839,8 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
             }
           }
         }
-        const charRec = { ch, left: leftForGroup, top: topForGroup, right: rightForGroup, bottom: bottomForGroup };
+        const charRec = { ch, sourceText: part.sourceText, left: leftForGroup, top: topForGroup, right: rightForGroup, bottom: bottomForGroup,
+          transformedLengthChanged: ch.length !== part.sourceText.length };
         if (cur == null || Math.abs(topForGroup - cur.top) > 1) {
           if (cur != null) lines.push(cur);
           cur = { chars: [charRec], top: topForGroup, bottom: bottomForGroup, left: leftForGroup, right: rightForGroup };
@@ -823,7 +850,6 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
           cur.right = Math.max(cur.right, rightForGroup);
           cur.bottom = Math.max(cur.bottom, bottomForGroup);
         }
-        i += step - 1;
       }
       if (cur != null) lines.push(cur);
 
@@ -867,11 +893,14 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
       // Build text + xOffsets per line, preserving logical order.
       for (const ln of lines) {
         ln.text = ln.chars.map((c) => c.ch).join('');
-        const xo = [];
-        for (const c of ln.chars) {
-          for (let k = 0; k < c.ch.length; k++) xo.push(c.left);
+        ln.sourceText = ln.chars.map((c) => c.sourceText).join('');
+        if (!ln.chars.some((c) => c.transformedLengthChanged)) {
+          const xo = [];
+          for (const c of ln.chars) {
+            for (let k = 0; k < c.ch.length; k++) xo.push(c.left);
+          }
+          ln.xOffsets = xo;
         }
-        ln.xOffsets = xo;
       }
 
       for (const line of lines) {
@@ -986,11 +1015,16 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
         }
         textSegments.push({
           text: visualText,
+          sourceText: line.sourceText,
           x: line.left - vp.x,
           y: line.top - vp.y,
           width: line.right - line.left,
           height: line.bottom - line.top,
-          xOffsets: line.xOffsets.map((v) => v - vp.x),
+          // A length-changing transform (e.g. ß → SS) has one DOM Range for
+          // multiple rendered codepoints, so CSSOM exposes no internal glyph
+          // anchors. Let HarfBuzz shape that rendered run normally instead of
+          // inventing duplicate offsets from the source span.
+          xOffsets: line.xOffsets?.map((v) => v - vp.x),
           rasterGlyphs: rasterGlyphs.length > 0 ? rasterGlyphs : undefined,
           dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : (probeConsulted ? [] : undefined),
         });
@@ -1028,6 +1062,12 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
     if (textSegments.length > flLineTargetIdx) {
       const flLineStyle = window.getComputedStyle(el, '::first-line');
       const firstSeg = textSegments[flLineTargetIdx];
+      if (flLineStyle.textTransform !== cs.textTransform && firstSeg.sourceText != null) {
+        const firstLineMap = transformTextWithSourceSpans(firstSeg.sourceText, flLineStyle.textTransform,
+          flLineStyle.lang || cs.lang || el.lang || '');
+        firstSeg.text = firstLineMap.map((part) => part.rendered).join('').replace(/[\t\n\r]/g, ' ');
+        if (firstLineMap.some((part) => part.rendered.length !== part.sourceText.length)) firstSeg.xOffsets = undefined;
+      }
       if (flLineStyle.fontVariant !== '' && flLineStyle.fontVariant !== cs.fontVariant) {
         firstSeg.fontVariant = flLineStyle.fontVariant;
       }

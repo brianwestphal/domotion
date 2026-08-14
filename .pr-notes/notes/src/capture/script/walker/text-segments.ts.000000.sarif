@@ -66,6 +66,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msse8pen3oem2agl",
+          "message": {
+            "text": "The source-span map mirrors Blink's TransformedString/TextOffsetMap contract: DOM Range endpoints always use original UTF-16 offsets, while rendered chunks may expand or collapse. Whole-string casing is retained for contextual rules; per-codepoint chunks supply the length map. When an expansion exposes no internal CSSOM anchors, capture deliberately omits xOffsets and lets the existing HarfBuzz path shape the rendered run instead of fabricating positions.",
+            "markdown": "The source-span map mirrors Blink's TransformedString/TextOffsetMap contract: DOM Range endpoints always use original UTF-16 offsets, while rendered chunks may expand or collapse. Whole-string casing is retained for contextual rules; per-codepoint chunks supply the length map. When an expansion exposes no internal CSSOM anchors, capture deliberately omits xOffsets and lets the existing HarfBuzz path shape the rendered run instead of fabricating positions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 172,
+                  "endLine": 204,
+                  "snippet": {
+                    "text": "/** Preserve the source span that produced every rendered text-transform chunk. */\nexport const transformTextWithSourceSpans = (source, transform, lang) => {\n  const out = [];\n  let atWordStart = true;\n  for (let i = 0; i < source.length;) {\n    const cp = source.codePointAt(i);\n    const sourceText = String.fromCodePoint(cp);\n    let rendered = sourceText;\n    if (transform === 'uppercase') rendered = lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase();\n    else if (transform === 'lowercase') rendered = lang ? sourceText.toLocaleLowerCase(lang) : sourceText.toLowerCase();\n    else if (transform === 'capitalize' && atWordStart && _RE_LETTER.test(sourceText)) {\n      rendered = TITLECASE_DIGRAPHS[sourceText] || (lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase());\n    }\n    out.push({ sourceStart: i, sourceEnd: i + sourceText.length, sourceText, rendered });\n    atWordStart = !_RE_WORD_CHAR.test(sourceText) && _MIDWORD_CONNECTORS.indexOf(sourceText) < 0;\n    i += sourceText.length;\n  }\n  // Whole-string casing carries contextual rules such as Greek final sigma.\n  // When it preserves the per-span output lengths, substitute its characters\n  // without changing the source boundary map.\n  const joined = out.map((part) => part.rendered).join('');\n  const whole = transform === 'uppercase' ? (lang ? source.toLocaleUpperCase(lang) : source.toUpperCase())\n    : transform === 'lowercase' ? (lang ? source.toLocaleLowerCase(lang) : source.toLowerCase())\n    : transform === 'capitalize' ? capitalizeCss(source) : source;\n  if (whole.length === joined.length && whole !== joined) {\n    let offset = 0;\n    for (const part of out) {\n      part.rendered = whole.slice(offset, offset + part.rendered.length);\n      offset += part.rendered.length;\n    }\n  }\n  return out;\n};"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/inline/transformed_string.h"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2158"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8bd8d415d86bf7b0d54ef86e878ae473"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b3e2abd24f89df092186f025cf5db10e3e51d942",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
