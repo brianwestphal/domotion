@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mss9kt5qof6o8f1f",
+          "message": {
+            "text": "The trace asks each stage independently instead of inferring a route from the final face. That separation is load-bearing on Windows: a hardcoded candidate that is installed but uncovered must fall through to MapCharacters, whose base is still the literal first CSS family even when that family was absent from the declared-family walk.",
+            "markdown": "The trace asks each stage independently instead of inferring a route from the final face. That separation is load-bearing on Windows: a hardcoded candidate that is installed but uncovered must fall through to `MapCharacters`, whose base is still the literal first CSS family even when that family was absent from the declared-family walk."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/unicode-font-route-trace.ts"
+                },
+                "region": {
+                  "startLine": 70,
+                  "endLine": 119,
+                  "snippet": {
+                    "text": "  const { nodeId } = await cdp.send(\"DOM.querySelector\", { nodeId: root.nodeId, selector: cell.selector });\n  const chromeFonts = nodeId === 0 ? [] : (await cdp.send(\"CSS.getPlatformFontsForNode\", { nodeId })).fonts;\n  const chrome = chromeFonts.find((f) => f.glyphCount > 0) ?? null;\n  const chromeInstalled = chrome == null ? null : resolveInstalledFont(chrome.postScriptName ?? chrome.familyName);\n  const chromeInstance = chromeInstalled == null ? null : createGlyphHelperFont({ fontPath: chromeInstalled.path, postscriptName: chromeInstalled.postscriptName });\n\n  const declared = splitFamilies(cell.fontFamily).map((family, index) => {\n    const installed = resolveInstalledFont(family);\n    return { index, family, installed: installed != null, postscriptName: installed?.postscriptName ?? null, path: installed?.path ?? null };\n  });\n  const primaryKey = resolveFontKey(cell.fontFamily, cell.lang);\n  const chain = resolveFontKeyChain(cell.fontFamily, cell.lang);\n  const primary = getFontInstance(primaryKey, cell.weight, cell.size, cell.italic ? 1 : 0, undefined, cell.stretch, false, cell.fontFamily);\n  if (primary == null) continue;\n  const priority = winFallbackPriorityForTextRun(cell.cp);\n  const hardcodedFamilies = blinkWinHardcodedFamilies(cell.cp, { lang: cell.lang, priority }, (family) => resolveInstalledFont(family) != null);\n  const hardcoded = hardcodedFamilies.map((family) => {\n    const installed = resolveInstalledFont(family);\n    const inst = installed == null ? null : createGlyphHelperFont({ fontPath: installed.path, postscriptName: installed.postscriptName });\n    return { family, installed: installed != null, postscriptName: installed?.postscriptName ?? null, glyphId: inst == null ? 0 : glyphIdForCp(inst, cell.cp) };\n  });\n  const baseFamilyName = declared[0]?.family;\n  const locale = blinkWinFallbackLocale(cell.cp, cell.lang, priority);\n  const directWrite = resolveSystemFallbackFonts([cell.cp], \"Helvetica\", {\n    weight: cell.weight, italic: cell.italic, fontSize: cell.size,\n    ...(baseFamilyName != null ? { baseFamilyName } : {}), ...(locale !== \"\" ? { locale } : {}),\n  }).get(cell.cp) ?? null;\n  const ours = resolveFontForCodepoint(cell.cp, primary, primaryKey, cell.weight, cell.size,\n    cell.italic ? 1 : 0, undefined, cell.lang, chain, false, cell.stretch, undefined, cell.fontFamily);\n  const finalInst = ours.fontOverride ?? (ours.key === primaryKey ? primary : getFontInstance(ours.key, cell.weight, cell.size, cell.italic ? 1 : 0));\n  const source = getFontSourceInfo(finalInst);\n  results.push({\n    ...cell,\n    declaredFamilies: declared,\n    exhaustedDeclaredFamilyIndex: declared.findIndex((d) => d.installed),\n    chrome: chrome == null ? null : { familyName: chrome.familyName, postscriptName: chrome.postScriptName, glyphCount: chrome.glyphCount, reopenedPath: chromeInstalled?.path ?? null, glyphId: chromeInstance == null ? null : glyphIdForCp(chromeInstance, cell.cp) },\n    hardcoded: { priority, candidates: hardcoded, accepted: hardcoded.find((h) => h.glyphId !== 0) ?? null },\n    directWrite: { baseFamilyName: baseFamilyName ?? null, locale, weight: cell.weight, italic: cell.italic, stretch: cell.stretch, answer: directWrite },\n    domotion: { primaryKey, chain, routeKey: ours.key, covered: ours.covered, glyphId: finalInst == null ? 0 : glyphIdForCp(finalInst, cell.cp), postscriptName: finalInst?.postscriptName ?? source?.postscriptName ?? null, path: source?.path ?? null },\n  });\n}\nawait cdp.detach(); await browser.close();\nconst artifact = { schemaVersion: 1, generatedAt: new Date().toISOString(), platform: process.platform, fixture: fixturePath, cells: results };\nwriteFileSync(outPath, JSON.stringify(artifact, null, 2));\nprocess.stdout.write(`FONTROUTE wrote ${results.length} cells to ${outPath}\\n`);\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 3365
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/win-font-fallback.ts"
+                },
+                "region": {
+                  "startLine": 987
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2168"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b70ea08aa4fabc7ff52b9584ef81611f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cafafae82259ef9e0e091d3bc0caf1364cc225d5",
+          "branch": "dm-2168-font-route-trace"
+        }
+      ]
+    }
+  ]
+}

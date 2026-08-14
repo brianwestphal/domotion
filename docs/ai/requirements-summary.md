@@ -1203,6 +1203,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   counts. CI artifacts can therefore separate propagation failures from
   genuine native-font versus webfont rasterization differences.
 
+- **Doc 125 (`docs/125-windows-unicode-font-route-trace.md`) — Shipped
+  diagnostic.** Focused Windows Unicode CI runs attach a per-cell route trace:
+  declared-family exhaustion, Blink hardcoded candidate/coverage, DirectWrite
+  base/locale/style and reopened answer, Chromium painted/reopened face and gid,
+  and Domotion's final key/face/gid. It is observational and adds no routing
+  overrides.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

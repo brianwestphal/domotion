@@ -313,6 +313,15 @@ jobs:
           DOMOTION_SYSTEM_UI_BASE: ${{ inputs.system_ui_base }}
           DOMOTION_TRAK_HB_SHAPING: ${{ inputs.trak_hb_shaping }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Record per-codepoint Windows font routes
+        if: ${{ inputs.suite == 'unicode' && matrix.shard == 1 && inputs.only != '' }}
+        shell: bash
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          fixture=$(find external/html-test/unicode -type f -name "*${ONLY}*.html" | head -1)
+          test -n "$fixture"
+          npx tsx tools/unicode-font-route-trace.ts "$fixture" --out tests/output/html-test-unicode/font-route-trace.json
       - name: Record runner image
         if: always()
         shell: bash
