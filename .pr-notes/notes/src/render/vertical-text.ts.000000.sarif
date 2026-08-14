@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssky40e8lkclloa",
+          "message": {
+            "text": "The DOM Range box is a valid input to Blink's line-relative transform. Blink CreateFromLineBox deliberately reuses the physical top-left and only swaps dimensions; TextFragmentPainter then paints at physical_box.left/top plus the selected font ascent before concatenating this matrix. The focused macOS oracle now reports 20-writing-mode at 0 regions / 0.00%, replacing the previous center-rotation fit.",
+            "markdown": "The DOM Range box is a valid input to Blink's line-relative transform. Blink CreateFromLineBox deliberately reuses the physical top-left and only swaps dimensions; TextFragmentPainter then paints at physical_box.left/top plus the selected font ascent before concatenating this matrix. The focused macOS oracle now reports 20-writing-mode at 0 regions / 0.00%, replacing the previous center-rotation fit."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/vertical-text.ts"
+                },
+                "region": {
+                  "startLine": 84,
+                  "endLine": 103,
+                  "snippet": {
+                    "text": "/**\n * Blink `LineRelativeRect::ComputeRelativeToPhysicalTransform`, transcribed.\n *\n * `physicalWidth` is the line-relative block size and `physicalHeight` is the\n * inline size after `CreateFromLineBox` swaps the dimensions of a vertical\n * physical box. Blink deliberately reuses the physical top-left as the\n * line-relative origin; these are not inverse-mapped DOM coordinates.\n */\nexport function lineRelativeToPhysicalTransform(\n  x: number,\n  y: number,\n  physicalWidth: number,\n  physicalHeight: number,\n  writingMode: string,\n): string {\n  if (writingMode === \"sideways-lr\") {\n    return `matrix(0 -1 1 0 ${r(x - y)} ${r(x + y + physicalHeight)})`;\n  }\n  return `matrix(0 1 -1 0 ${r(x + y + physicalWidth)} ${r(y - x)})`;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2159"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fca70e84e3420105f1a41e3fe10796f1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "303012c3101e87c7492da8ccc423d91e17535744",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

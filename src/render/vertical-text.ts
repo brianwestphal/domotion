@@ -12,12 +12,11 @@
  *                  baseline at `charY + ascent` (so the glyph's top
  *                  aligns with Chrome's painted top of the char box).
  *                  Centered horizontally in the column.
- *   - rotated  → render the char at the origin (baseline at y=fontSize),
- *                  then transform `translate(tx, ty) rotate(90)` so the
- *                  rotated glyph lands at Chrome's painted Range rect.
- *                  `tx, ty` derived from font ascent/descent so post-
- *                  rotation the glyph's ink bbox matches the captured
- *                  per-char rect.
+ *   - rotated  → paint at Blink's line-relative text origin, then apply
+ *                  `LineRelativeRect::ComputeRelativeToPhysicalTransform`
+ *                  for the captured physical character box. The clockwise
+ *                  modes and counter-clockwise `sideways-lr` therefore use
+ *                  the same coordinate handoff as Blink's text painter.
  *
  * `Range.height` per char (captured as `verticalAdvances[i]`) is the
  * char's advance along the column axis. For upright CJK chars this is
@@ -27,8 +26,9 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
-import { renderTextAsPath } from "./text-to-path.js";
-import { parseTextEmphasisMark } from "./text.js";
+import { measureEmphasisMarkMetrics, renderTextAsPath } from "./text-to-path.js";
+import { emphasisGraphemeSpans, parseTextEmphasisMark } from "./text.js";
+import { esc } from "./format.js";
 
 /**
  * DM-1054: text-emphasis marks for vertical writing-mode. The horizontal
@@ -37,42 +37,57 @@ import { parseTextEmphasisMark } from "./text.js";
  * dispatches to `renderVerticalSegments`, so its emphasis marks were dropped
  * entirely. In vertical modes the marks sit in a column BESIDE the text: on the
  * right for the default `over right` (the "over" edge rotates to the right in
- * vertical-rl / vertical-lr / sideways-rl), on the left for `over left` /
- * `left`. Each mark is centered on its char's vertical extent and emitted as a
- * `<text>` at 0.5em, like the horizontal path.
+ * vertical-rl / vertical-lr / sideways-rl). Marks use the same line-relative
+ * font-metric offset and grapheme iteration as Blink, then the same writing-
+ * mode transform as their text fragment.
  */
 export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: string): string {
   const mark = parseTextEmphasisMark(el.styles.textEmphasisStyle);
   if (mark == null || el.textSegments == null) return "";
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.styles.fontFamily;
-  const fontWeight = el.styles.fontWeight;
   const color = (el.styles.textEmphasisColor != null && el.styles.textEmphasisColor !== ""
     && el.styles.textEmphasisColor !== "currentcolor")
     ? el.styles.textEmphasisColor
     : (el.styles.color ?? fillColor);
-  const onLeft = /\bleft\b/.test(el.styles.textEmphasisPosition ?? "over right");
-  const markFs = fontSize * 0.5;
   const out: string[] = [];
   for (const seg of el.textSegments) {
     if (seg.verticalWritingMode == null) continue;
     const yOffsets = seg.yOffsets;
     const advances = seg.verticalAdvances;
     if (yOffsets == null || advances == null) continue;
-    // Mark column just outside the line box on the "over" side.
-    const markX = onLeft ? seg.x - markFs * 0.5 : seg.x + seg.width + markFs * 0.5;
-    for (let i = 0; i < seg.text.length;) {
-      const code = seg.text.charCodeAt(i);
-      const step = code >= 0xD800 && code <= 0xDBFF && i + 1 < seg.text.length ? 2 : 1;
-      const ch = seg.text.slice(i, i + step);
-      if (/\s/.test(ch) && step === 1) { i += step; continue; }
-      const charY = yOffsets[i] ?? seg.y;
-      const charH = advances[i] ?? fontSize;
-      // `<text>` y is the baseline; drop ~0.35em below the char's vertical
-      // center so the mark glyph centers on the char.
-      const markBaselineY = charY + charH / 2 + markFs * 0.35;
-      out.push(`<text x="${r(markX)}" y="${r(markBaselineY)}" font-family="${fontFamily}" font-size="${r(markFs)}" font-weight="${fontWeight}" fill="${color}" text-anchor="middle">${mark}</text>`);
-      i += step;
+    const segFs = seg.fontSize ?? fontSize;
+    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * 0.8;
+    const segDescent = el.fontDescent ?? Math.max(0, segFs - segAscent);
+    const segFamily = seg.fontFamily ?? el.styles.fontFamily;
+    const segWeight = seg.fontWeight ?? el.styles.fontWeight;
+    const segStyle = seg.fontStyle ?? el.styles.fontStyle;
+    const metrics = measureEmphasisMarkMetrics(mark, {
+      fontSize: segFs, fontFamily: segFamily, fontWeight: segWeight,
+      fontStyle: segStyle, fontStretch: el.styles.fontStretch, lang: el.styles.lang,
+    });
+    if (metrics == null) continue;
+    const position = el.styles.textEmphasisPosition ?? "over right";
+    const ccw = seg.verticalWritingMode === "sideways-lr";
+    const under = /\bleft\b/.test(position) ? !ccw
+      : /\bright\b/.test(position) ? ccw
+        : /\bunder\b/.test(position);
+    const offset = under
+      ? Math.ceil(segDescent + metrics.ascent)
+      : Math.floor(-segAscent - metrics.descent);
+    const spans = emphasisGraphemeSpans(seg.text);
+    for (const span of spans) {
+      if (/^[\p{White_Space}\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(span.text)) continue;
+      const charY = yOffsets[span.start] ?? seg.y;
+      const charH = advances[span.start] ?? segFs;
+      const lineRelativeX = seg.x + charH / 2;
+      const lineRelativeBaseline = charY + segAscent + offset;
+      const styleAttr = segStyle != null && segStyle !== "normal"
+        ? ` font-style="${esc(segStyle)}"` : "";
+      const inner = `<text x="${r(lineRelativeX - metrics.inkCenterX)}" y="${r(lineRelativeBaseline)}" font-family="${esc(segFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`;
+      const transform = lineRelativeToPhysicalTransform(
+        seg.x, charY, seg.width, charH, seg.verticalWritingMode,
+      );
+      out.push(`<g transform="${transform}">${inner}</g>`);
     }
   }
   return out.join("");
@@ -80,6 +95,27 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
 
 function r(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2);
+}
+
+/**
+ * Blink `LineRelativeRect::ComputeRelativeToPhysicalTransform`, transcribed.
+ *
+ * `physicalWidth` is the line-relative block size and `physicalHeight` is the
+ * inline size after `CreateFromLineBox` swaps the dimensions of a vertical
+ * physical box. Blink deliberately reuses the physical top-left as the
+ * line-relative origin; these are not inverse-mapped DOM coordinates.
+ */
+export function lineRelativeToPhysicalTransform(
+  x: number,
+  y: number,
+  physicalWidth: number,
+  physicalHeight: number,
+  writingMode: string,
+): string {
+  if (writingMode === "sideways-lr") {
+    return `matrix(0 -1 1 0 ${r(x - y)} ${r(x + y + physicalHeight)})`;
+  }
+  return `matrix(0 1 -1 0 ${r(x + y + physicalWidth)} ${r(y - x)})`;
 }
 
 // DM-1122: CJK punctuation that the OpenType `vert` feature substitutes for a
@@ -179,12 +215,11 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
   const fontWeight = el.styles.fontWeight;
   const fontStyle = el.styles.fontStyle;
   // Element-level fontAscent (captured via canvas measureText
-  // fontBoundingBoxAscent in `walker/text-segments.ts`). Used for both
-  // upright baseline placement and rotated translation derivation.
+  // fontBoundingBoxAscent in `walker/text-segments.ts`). Used for the
+  // line-relative text origin of rotated glyphs.
   // Fall back to a 0.85em heuristic when undefined (e.g. early test
   // fixtures pre-DM-996; production capture always provides it).
   const elAscent = el.fontAscent ?? fontSize * 0.85;
-  const elDescent = fontSize * 1.137 - elAscent; // approximate line-box descent
   const out: string[] = [];
 
   for (const seg of el.textSegments) {
@@ -222,12 +257,6 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     if (decoMarkup !== "") out.push(decoMarkup);
     const colX = seg.x;
     const colW = seg.width;
-    // DM-996: `sideways-lr` rotates text 90° COUNTER-clockwise (text
-    // reads bottom-to-top, char tops point LEFT). The other three modes
-    // (`vertical-rl`, `vertical-lr`, `sideways-rl`) rotate 90° CW for
-    // rotated chars (text reads top-to-bottom, char tops point RIGHT).
-    const rotateAngle = seg.verticalWritingMode === "sideways-lr" ? -90 : 90;
-
     let i = 0;
     while (i < segText.length) {
       const code = segText.charCodeAt(i);
@@ -239,35 +268,20 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       const charY = yOffsets[i] ?? seg.y;
       const charH = advances[i] ?? fontSize;
       if (orientation === "rotated") {
-        // Rotated char: emit the glyph at origin (baseline at
-        // (0, fontSize)) then `translate(centerX, centerY) rotate(90)
-        // translate(-renderCx, -renderCy)` to land it in the column's
-        // captured Range rect. The compose-and-rotate-around-center
-        // formulation is empirically correct for the natural case
-        // where Chrome's painted Range width = column line-box (this
-        // is the common case — verified for the fixture's 18px vrl
-        // box where Range.w=21 matches the line-box at that font).
-        const charNaturalW = charH; // = char's pre-rotation advance
-        const renderedH = fontSize * 1.2; // approximate line-box height
-        const renderCx = charNaturalW / 2;
-        const renderCy = renderedH / 2;
-        const centerX = colX + colW / 2;
-        const centerY = charY + charH / 2;
-        // `renderTextAsPath` treats its `y` arg as the line-box TOP and
-        // adds the font ascent to derive the baseline. The rotation math
-        // above assumes the glyph baseline sits at exactly `fontSize`, so
-        // pin it there deterministically: pass `y = 0` with an explicit
-        // `ascentOverride = fontSize` → baselineY = 0 + fontSize. Without
-        // this the renderer added the font's own ascent on top (baseline
-        // ≈ 1.8em), and after the 90° rotation that vertical error became
-        // a ~14 px HORIZONTAL drift of every rotated glyph in the column.
-        const inner = renderTextAsPath(ch, 0, 0, {
+        // Blink paints vertical fragments in a line-relative coordinate space:
+        // +x is line-right and +y is line-under. The fragment's physical
+        // top-left is reused as the line-relative origin, width/height swap,
+        // and `ComputeRelativeToPhysicalTransform` supplies this exact affine
+        // transform. This removes the old 1.2em box and center-rotation fit.
+        const inner = renderTextAsPath(ch, colX, charY, {
           fontSize, fontFamily, fontWeight, fill: fillColor,
-          fontStyle, ascentOverride: fontSize,
+          fontStyle, ascentOverride: elAscent,
           fontStretch: el.styles.fontStretch,
         });
         if (inner == null) { i += step; continue; }
-        const transform = `translate(${r(centerX)}, ${r(centerY)}) rotate(${rotateAngle}) translate(${r(-renderCx)}, ${r(-renderCy)})`;
+        const transform = lineRelativeToPhysicalTransform(
+          colX, charY, colW, charH, seg.verticalWritingMode,
+        );
         out.push(`<g transform="${transform}">${inner}</g>`);
       } else {
         // Upright char (DM-996): baseline at charY + 0.85em (heuristic

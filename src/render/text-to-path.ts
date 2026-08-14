@@ -3145,6 +3145,48 @@ export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions):
   return rsbUnits * scale;
 }
 
+/** Blink emphasis-mark metrics for the fallback-selected face at 50% size. */
+export function measureEmphasisMarkMetrics(
+  mark: string,
+  fontOptions: TextFontOptions,
+): { fontSize: number; ascent: number; descent: number; inkCenterX: number; inkCenterY: number } | null {
+  const { fontFamily, fontSize, fontStyle, fontStretch, lang, variationSettings } = fontOptions;
+  const weight = cssWeightOf(fontOptions.fontWeight);
+  const slant = slantForStyle(fontStyle);
+  const stretch = stretchPercent(fontStretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  if (primaryFont == null) return null;
+  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const runs = splitTextIntoFontRuns(
+    mark, primaryFont, primaryFontKey, weight, fontSize, slant,
+    variationSettings, lang, resolveFontKeyChain(fontFamily, lang),
+    stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily,
+  );
+  const run = runs[0];
+  if (run == null) return null;
+  let glyph: { id: number; advanceWidth?: number; bbox?: { minX: number; maxX: number; minY: number; maxY: number } } | undefined;
+  try { glyph = run.font.layout(run.text).glyphs[0]; } catch { return null; }
+  if (glyph == null || glyph.id === 0) return null;
+  // Blink shapes with the main Font first, then calls EmphasisMarkFontData on
+  // that selected run. Scaling here (instead of resolving again at mark size)
+  // preserves the selected face and its optical cut.
+  const markFontSize = Math.round(fontSize * 0.5);
+  const scale = markFontSize / run.font.unitsPerEm;
+  const centerX = glyph.bbox != null
+    ? (glyph.bbox.minX + glyph.bbox.maxX) / 2
+    : (glyph.advanceWidth ?? run.font.unitsPerEm) / 2;
+  const centerY = glyph.bbox != null
+    ? -(glyph.bbox.minY + glyph.bbox.maxY) / 2
+    : 0;
+  return {
+    fontSize: markFontSize,
+    ascent: LU(run.font.ascent * scale),
+    descent: LU(-run.font.descent * scale),
+    inkCenterX: centerX * scale,
+    inkCenterY: centerY * scale,
+  };
+}
+
 /**
  * Measure the ink ascent / descent (px above / below the baseline) of `text`
  * shaped through the SAME per-codepoint font resolution `textToPathMarkup`

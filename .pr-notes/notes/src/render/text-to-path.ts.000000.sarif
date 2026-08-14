@@ -236,6 +236,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mssljd6w70c27ixb",
+          "message": {
+            "text": "Emphasis metrics must come from the mark's fallback-selected face, not the text primary or an em fraction. This follows Blink's GetOrCreateEmphasisMarkShape → EmphasisMarkGlyphData → EmphasisMarkFontData chain, including rounded half-size scaling. Native fallback proxies can expose an advance without an ink bbox; retaining those marks with advance-center fallback improved 20-deep-text-emphasis from 14 regions / 0.06% to 10 regions / 0.04%.",
+            "markdown": "Emphasis metrics must come from the mark's fallback-selected face, not the text primary or an em fraction. This follows Blink's GetOrCreateEmphasisMarkShape → EmphasisMarkGlyphData → EmphasisMarkFontData chain, including rounded half-size scaling. Native fallback proxies can expose an advance without an ink bbox; retaining those marks with advance-center fallback improved 20-deep-text-emphasis from 14 regions / 0.06% to 10 regions / 0.04%."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 3148,
+                  "endLine": 3187,
+                  "snippet": {
+                    "text": "/** Blink emphasis-mark metrics for the fallback-selected face at 50% size. */\nexport function measureEmphasisMarkMetrics(\n  mark: string,\n  fontOptions: TextFontOptions,\n): { fontSize: number; ascent: number; descent: number; inkCenterX: number; inkCenterY: number } | null {\n  const { fontFamily, fontSize, fontStyle, fontStretch, lang, variationSettings } = fontOptions;\n  const weight = cssWeightOf(fontOptions.fontWeight);\n  const slant = slantForStyle(fontStyle);\n  const stretch = stretchPercent(fontStretch);\n  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);\n  if (primaryFont == null) return null;\n  const primaryFontKey = resolveFontKey(fontFamily, lang);\n  const runs = splitTextIntoFontRuns(\n    mark, primaryFont, primaryFontKey, weight, fontSize, slant,\n    variationSettings, lang, resolveFontKeyChain(fontFamily, lang),\n    stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily,\n  );\n  const run = runs[0];\n  if (run == null) return null;\n  let glyph: { id: number; advanceWidth?: number; bbox?: { minX: number; maxX: number; minY: number; maxY: number } } | undefined;\n  try { glyph = run.font.layout(run.text).glyphs[0]; } catch { return null; }\n  if (glyph == null || glyph.id === 0) return null;\n  // Blink shapes with the main Font first, then calls EmphasisMarkFontData on\n  // that selected run. Scaling here (instead of resolving again at mark size)\n  // preserves the selected face and its optical cut.\n  const markFontSize = Math.round(fontSize * 0.5);\n  const scale = markFontSize / run.font.unitsPerEm;\n  const centerX = glyph.bbox != null\n    ? (glyph.bbox.minX + glyph.bbox.maxX) / 2\n    : (glyph.advanceWidth ?? run.font.unitsPerEm) / 2;\n  const centerY = glyph.bbox != null\n    ? -(glyph.bbox.minY + glyph.bbox.maxY) / 2\n    : 0;\n  return {\n    fontSize: markFontSize,\n    ascent: LU(run.font.ascent * scale),\n    descent: LU(-run.font.descent * scale),\n    inkCenterX: centerX * scale,\n    inkCenterY: centerY * scale,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2156"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fb23b7b5b639ff92bd6ff7d9036d5f2c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "303012c3101e87c7492da8ccc423d91e17535744",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

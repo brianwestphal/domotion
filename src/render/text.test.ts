@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveChwsFeature, resolveFontVariantAlternates, resolveFontVariantFeatures } from "./text.js";
+import { __bidiMirrorLinesForTest, emphasisGraphemeSpans, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveChwsFeature, resolveFontVariantAlternates, resolveFontVariantFeatures } from "./text.js";
 import { featureListNeedsHbShaping } from "./font-features.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -550,5 +550,13 @@ describe("parseTextEmphasisMark (DM-920)", () => {
   it("returns null when no shape keyword is present", () => {
     expect(parseTextEmphasisMark("filled")).toBeNull();
     expect(parseTextEmphasisMark("open")).toBeNull();
+  });
+});
+
+describe("emphasisGraphemeSpans (DM-2156)", () => {
+  it("keeps combining sequences, surrogate pairs, and ZWJ emoji atomic", () => {
+    const spans = emphasisGraphemeSpans("A\u0301😀👩‍💻");
+    expect(spans.map((span) => span.text)).toEqual(["A\u0301", "😀", "👩‍💻"]);
+    expect(spans.map((span) => [span.start, span.end])).toEqual([[0, 2], [2, 4], [4, 9]]);
   });
 });

@@ -29,10 +29,11 @@ To minimize disruption: keep the existing `xOffsets` field name but record the *
 
 ## Render changes
 
-`renderTextAsPath` and friends in `src/render/text-to-path.ts` currently emit `<g transform="translate(x, baselineY)" fill=... >` with glyphs flowing along the +x axis at scale (sc, -sc). For vertical writing-mode the wrapper becomes:
+`renderTextAsPath` and friends in `src/render/text-to-path.ts` emit glyphs in a horizontal, line-relative coordinate space. For vertical writing-mode the renderer follows Blink's `TextFragmentPainter` / `LineRelativeRect` handoff:
 
-- `vertical-rl` / `vertical-lr` with `text-orientation: mixed` (Asian-script default): `<g transform="translate(x, y) rotate(0)">` for upright glyphs, `<g transform="translate(x, y) rotate(90)">` for Latin runs within the column. Choose per-character based on Unicode block (CJK / kana / Hangul → upright; Latin / digits / punctuation → rotated). Per-char rotation introduces a per-glyph-group emission, which is fine because we already track per-char xOffsets.
-- `sideways-*`: a single `rotate(90)` (rl) or `rotate(-90)` (lr) around the text origin, no per-character branching.
+- `Range.getBoundingClientRect()` supplies the physical character box. As Blink's `CreateFromLineBox` does, the renderer reuses that box's physical top-left as the line-relative origin and swaps physical height/width into inline/block size.
+- `vertical-rl`, `vertical-lr`, and `sideways-rl` use Blink's clockwise affine matrix; `sideways-lr` uses its counter-clockwise matrix. The translation terms preserve the physical box's top-left after rotation.
+- Mixed-orientation upright glyphs use the lower-level equivalent of Blink's nested `CanvasRotationInVertical`: they remain physically upright, while Latin and other rotated glyphs inherit the outer line-relative transform.
 - Horizontal modes: unchanged.
 
 The existing per-char raster path (SK-1090) needs to copy the rotation transform into each `<image>` overlay so emoji rendered in a vertical column rotate to match Chrome.
@@ -42,9 +43,9 @@ The existing per-char raster path (SK-1090) needs to copy the rotation transform
 `renderTextAsPath` (and the embedded-font `renderTextAsEmbedded` it delegates to) interpret their `y` argument as the **line-box top** and add the font ascent to derive the painted baseline (`baselineY = y + ascent`). The vertical renderer therefore must NOT also pre-add an ascent, or every glyph picks up a second ascent (~0.85em at body sizes):
 
 - **Upright glyphs**: pass the intended baseline (`charY + 0.85em`) as `y` together with `ascentOverride = 0`, so the baseline is used verbatim.
-- **Rotated glyphs**: pass `y = 0` with `ascentOverride = fontSize`, pinning the pre-rotation baseline to exactly `fontSize` — the value the compose-and-rotate-around-center math assumes. A stray ascent here becomes a horizontal drift after the 90° rotation rather than a vertical one.
+- **Rotated glyphs**: pass the captured physical box's top-left as the line-relative text origin and `fontBoundingBoxAscent` as the ascent override, exactly matching Blink's `text_origin { physical_box.left, physical_box.top + font_metrics.Ascent() }`. Apply `LineRelativeRect::ComputeRelativeToPhysicalTransform` afterward. A baseline error becomes horizontal drift after the 90° rotation, so the ascent is part of the coordinate contract rather than a fitted center offset.
 
-`src/render/vertical-text.test.ts` locks both argument shapes in (font-independent, so it holds on Linux CI).
+`src/render/vertical-text.test.ts` locks both argument shapes and both upstream affine matrices in (font-independent, so it holds on Linux CI). The focused `20-writing-mode` visual fixture is pixel-clean on macOS after this handoff; `20-deep-text-emphasis` retains only emphasis-mark metric residuals tracked separately.
 
 ## tate-chu-yoko (`text-combine-upright`)
 
@@ -62,6 +63,26 @@ In a vertical writing mode Chrome enables the OpenType `vert` feature for every 
 
 - **Render** (`src/render/vertical-text.ts`): the per-char upright path passes `["vert"]` to `renderTextAsPath` only for the punctuation in `VERTICAL_FORM_PUNCTUATION`, so fontkit substitutes the vertical-form glyph. For those glyphs it also anchors the **full em box** to the column (`xLeft = colX + (colW − fontSize) / 2`) instead of ink-centering by the captured horizontal natural width — a corner-set glyph ink-centered by its narrow horizontal width would drift toward the column's middle and low, which is exactly the pre-fix symptom (the `。` painted bottom-center instead of top-right). Ideographs keep the natural-width ink-centering. Verified against Chrome on `20-deep-text-emphasis` (vertical frame): the `。` cells move from a two-circle diff to a clean match.
 
+## Text-emphasis geometry
+
+Emphasis marks follow Blink's font and paint pipeline rather than fitted `em`
+offsets. The mark is shaped through the text font's fallback list; that selected
+face is scaled to `round(font-size × 0.5)`, matching
+`SimpleFontData::EmphasisMarkFontData`. Its ascent/descent drive
+`TextPainter::SetEmphasisMark` exactly: over uses
+`floor(-ascent - markDescent)`, under uses
+`ceil(descent + markAscent)`. Marks are centered per Unicode grapheme, not per
+UTF-16 unit, following `ShapeResult::ForEachGraphemeClusters`.
+
+Horizontal marks paint on the resolved over/under side. Vertical marks are
+placed in the same line-relative space as the text and pass through the same
+clockwise/counter-clockwise writing-mode matrix; explicit left/right therefore
+resolve to the corresponding logical side for each rotation. The focused
+macOS checks score `02-text-emphasis` at 2 trivial regions / 0.01% and
+`20-deep-text-emphasis` at 10 regions / 0.04%; the placement algorithm and
+selected-face metrics are platform-independent while each supported platform
+retains its native font resolver.
+
 ## Edge cases / out of scope
 
 - Per-glyph rotation choice for ambiguous codepoints (Latin parens around CJK, ideographic punctuation in Latin runs) — start with the Unicode `Vertical_Orientation` property and refine if a real-world page misbehaves.
@@ -73,7 +94,7 @@ In a vertical writing mode Chrome enables the OpenType `vert` feature for every 
 
 ## Acceptance criteria
 
-`20-writing-mode.html` test diff drops below 1.5% avg, with the vertical Japanese paragraph rendering top-to-bottom right-to-left and Latin runs inside it sideways-90°. Existing horizontal tests do not regress.
+`20-writing-mode.html` is pixel-clean on the primary macOS capture platform, with the vertical Japanese paragraph rendering top-to-bottom right-to-left and Latin runs inside it sideways-90°. Linux and Windows must preserve the same logical placement and remain within their documented native-raster floors. Existing horizontal tests do not regress.
 
 ## Horizontal `text-spacing-trim` — CJK fullwidth-punctuation ink shift (DM-1184)
 

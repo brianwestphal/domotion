@@ -7,6 +7,9 @@ import type { CapturedElement } from "../capture/types.js";
 // the macOS FONT_PATHS glyph path isn't available).
 const calls: unknown[][] = [];
 vi.mock("./text-to-path.js", () => ({
+  measureEmphasisMarkMetrics: () => ({
+    fontSize: 9, ascent: 7, descent: 2, inkCenterX: 2, inkCenterY: -2,
+  }),
   renderTextAsPath: (...args: unknown[]) => {
     calls.push(args);
     // Return non-null so the vertical renderer emits its wrapper markup.
@@ -15,7 +18,11 @@ vi.mock("./text-to-path.js", () => ({
 }));
 
 // Imported AFTER the mock is registered (vi.mock is hoisted, so this is fine).
-const { renderVerticalSegments, renderVerticalEmphasisMarks } = await import("./vertical-text.js");
+const {
+  renderVerticalSegments,
+  renderVerticalEmphasisMarks,
+  lineRelativeToPhysicalTransform,
+} = await import("./vertical-text.js");
 
 // renderTextAsPath args under test: (text, x, y, options).
 const ARG_TEXT = 0;
@@ -60,19 +67,20 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     calls.length = 0;
   });
 
-  it("pins the rotated glyph baseline to fontSize (ascent not double-counted)", () => {
+  it("paints the rotated glyph at Blink's line-relative origin and ascent", () => {
     renderVerticalSegments(makeElement(), "rgb(0,0,0)");
     // First call is the rotated "E".
     const rotated = calls.find((c) => c[0] === "E");
     expect(rotated).toBeDefined();
-    // `renderTextAsPath` adds the ascent to its `y` arg to derive the
-    // baseline, so the rotated path must pass y=0 + an explicit
-    // ascentOverride=fontSize → baseline lands at exactly fontSize (18),
-    // which is what the rotation math assumes. Before DM-1024 it passed
-    // y=fontSize with no override, so the font ascent was added on top and
-    // the post-rotation glyph drifted ~14 px horizontally.
-    expect(rotated![ARG_Y]).toBe(0);
-    expect(optionsOf(rotated!).ascentOverride).toBe(18);
+    expect(rotated![ARG_X]).toBe(100);
+    expect(rotated![ARG_Y]).toBe(50);
+    expect(optionsOf(rotated!).ascentOverride).toBe(14);
+  });
+
+  it("uses Blink's clockwise line-relative transform for vertical-rl", () => {
+    const markup = renderVerticalSegments(makeElement(), "rgb(0,0,0)");
+    // e=x+y+physicalWidth=171; f=y-x=-50.
+    expect(markup).toContain('transform="matrix(0 1 -1 0 171 -50)"');
   });
 
   it("keeps the upright glyph baseline at charY + 0.85em (ascent not added again)", () => {
@@ -84,6 +92,30 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     // time (which dropped every upright glyph ~0.85em below its cell).
     expect(upright![ARG_Y]).toBeCloseTo(62 + 0.85 * 18, 5);
     expect(optionsOf(upright!).ascentOverride).toBe(0);
+  });
+});
+
+describe("lineRelativeToPhysicalTransform", () => {
+  it("maps vertical and sideways-rl boxes clockwise", () => {
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "vertical-rl"))
+      .toBe("matrix(0 1 -1 0 171 -50)");
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "vertical-lr"))
+      .toBe("matrix(0 1 -1 0 171 -50)");
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "sideways-rl"))
+      .toBe("matrix(0 1 -1 0 171 -50)");
+  });
+
+  it("maps sideways-lr boxes counter-clockwise", () => {
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "sideways-lr"))
+      .toBe("matrix(0 -1 1 0 50 162)");
+  });
+
+  it("uses physical width as block size and physical height as inline size", () => {
+    // These are the dimension swaps in Blink CreateFromLineBox(false).
+    expect(lineRelativeToPhysicalTransform(4, 7, 30, 80, "vertical-rl"))
+      .toBe("matrix(0 1 -1 0 41 3)");
+    expect(lineRelativeToPhysicalTransform(4, 7, 30, 80, "sideways-lr"))
+      .toBe("matrix(0 -1 1 0 -3 91)");
   });
 });
 
@@ -211,6 +243,8 @@ describe("renderVerticalSegments — vertical-form punctuation (DM-1122)", () =>
 });
 
 describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () => {
+  beforeEach(() => { calls.length = 0; });
+
   function makeEmphasisEl(style: string, position?: string): CapturedElement {
     return {
       tag: "em",
@@ -218,6 +252,8 @@ describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () 
         fontSize: "18px", fontFamily: "sans-serif", fontWeight: "400", color: "rgb(0,0,0)",
         textEmphasisStyle: style, ...(position != null ? { textEmphasisPosition: position } : {}),
       },
+      fontAscent: 14,
+      fontDescent: 4,
       textSegments: [{
         text: "右側", x: 100, y: 50, width: 18, height: 36,
         verticalWritingMode: "vertical-rl", yOffsets: [50, 68], verticalAdvances: [18, 18],
@@ -227,17 +263,29 @@ describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () 
 
   it("emits one mark per char in a column to the RIGHT for the default over-right", () => {
     const out = renderVerticalEmphasisMarks(makeEmphasisEl("open sesame"), "rgb(0,0,0)");
-    const marks = [...out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)];
-    expect(marks).toHaveLength(2); // one per CJK char
-    expect(marks[0][1]).toBe("﹆"); // open-sesame glyph ﹆
-    const x0 = Number(/x="([\d.]+)"/.exec(marks[0][0])![1]);
-    expect(x0).toBeGreaterThan(118); // right of the column (x 100 + width 18)
+    expect([...out.matchAll(/<text /g)]).toHaveLength(2); // one per CJK grapheme
+    expect(out).toContain(">﹆</text>");
+    // over offset = floor(-14 - 2) = -16; clockwise rotation maps the
+    // line-relative over side to physical right.
+    expect(out).toContain('y="48"');
+    expect(out).toContain('transform="matrix(0 1 -1 0 168 -50)"');
   });
 
   it("places marks on the LEFT for over-left", () => {
     const out = renderVerticalEmphasisMarks(makeEmphasisEl("filled dot", "over left"), "rgb(0,0,0)");
-    const x0 = Number(/x="([\d.]+)"/.exec(out)![1]);
-    expect(x0).toBeLessThan(100); // left of the column
+    // Explicit left resolves to line-under for clockwise vertical modes:
+    // ceil((18 - 14) + 7) = +11.
+    expect(out).toContain('y="75"');
+    expect(out).toContain('transform="matrix(0 1 -1 0 168 -50)"');
+  });
+
+  it("emits one mark for a combining grapheme rather than UTF-16 slots", () => {
+    const el = makeEmphasisEl("filled dot");
+    el.textSegments![0].text = "A\u0301";
+    el.textSegments![0].yOffsets = [50, 50];
+    el.textSegments![0].verticalAdvances = [18, 18];
+    expect([...renderVerticalEmphasisMarks(el, "rgb(0,0,0)").matchAll(/<text /g)])
+      .toHaveLength(1);
   });
 
   it("returns empty markup when the element has no text-emphasis", () => {

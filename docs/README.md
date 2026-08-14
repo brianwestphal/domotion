@@ -7,7 +7,7 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | Doc | Topic |
 |---|---|
 | [01-fidelity.md](01-fidelity.md) | Overall rendering-fidelity contract: what CSS features round-trip, what's partial, what isn't supported. The big-picture support matrix. |
-| [02-writing-mode.md](02-writing-mode.md) | CSS `writing-mode` (vertical-rl / vertical-lr / sideways-*). Currently uses element-raster fallback. |
+| [02-writing-mode.md](02-writing-mode.md) | CSS `writing-mode` (vertical-rl / vertical-lr / sideways-*), rendered as scalable glyphs with Blink-equivalent line-relative transforms. |
 | [03-font-family-chain.md](03-font-family-chain.md) | Honoring author-specified font-family chains (e.g. `"Helvetica Neue", "Times New Roman", monospace`). |
 | [04-input-pseudos.md](04-input-pseudos.md) | Author-styled `<input>` shadow-DOM pseudos (range track/thumb, checkbox/radio, color swatch, etc.). |
 | [05-progress-meter-pseudos.md](05-progress-meter-pseudos.md) | Author-styled `<progress>` and `<meter>` pseudos via the stylesheet walker. |
