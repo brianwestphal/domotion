@@ -90,7 +90,7 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Emit text as real glyph paths (single-line / multi-segment / multi-line / input), with bidi mirroring + decorations.",
     doc: "docs/03-font-family-chain.md",
     exports: [],
-    tests: ["src/render/text.test.ts", "src/render/text-to-path.test.ts", "src/render/vertical-text.test.ts"],
+    tests: ["src/render/text.test.ts", "src/render/text-to-path.test.ts", "src/render/vertical-text.test.ts", "tests/vertical-font-metrics.e2e.test.ts"],
   },
   {
     id: "render.optimize",

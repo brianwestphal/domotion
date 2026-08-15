@@ -40,9 +40,13 @@ The existing per-char raster path (SK-1090) needs to copy the rotation transform
 
 ### Baseline placement invariant
 
-`renderTextAsPath` (and the embedded-font `renderTextAsEmbedded` it delegates to) interpret their `y` argument as the **line-box top** and add the font ascent to derive the painted baseline (`baselineY = y + ascent`). The vertical renderer therefore must NOT also pre-add an ascent, or every glyph picks up a second ascent (~0.85em at body sizes):
+`renderTextAsPath` (and the embedded-font `renderTextAsEmbedded` it delegates to) interpret their `y` argument as the **line-box top** and add the font ascent to derive the painted baseline (`baselineY = y + ascent`). The vertical renderer therefore must NOT also pre-add an ascent, or every glyph picks up a second ascent:
 
-- **Upright glyphs**: pass the intended baseline (`charY + 0.85em`) as `y` together with `ascentOverride = 0`, so the baseline is used verbatim.
+- **Upright glyphs (DM-2193)**: capture stamps each vertical column segment
+  with the run's measured `fontBoundingBoxAscent`; render passes the intended
+  baseline (`charY + segment.fontAscent`) as `y` together with
+  `ascentOverride = 0`, so it is used verbatim. Older captured trees fall back
+  to the element ascent, then to `0.85em` only when neither metric exists.
 - **Rotated glyphs**: pass the captured physical box's top-left as the line-relative text origin and `fontBoundingBoxAscent` as the ascent override, exactly matching Blink's `text_origin { physical_box.left, physical_box.top + font_metrics.Ascent() }`. Apply `LineRelativeRect::ComputeRelativeToPhysicalTransform` afterward. A baseline error becomes horizontal drift after the 90° rotation, so the ascent is part of the coordinate contract rather than a fitted center offset.
 
 `src/render/vertical-text.test.ts` locks both argument shapes and both upstream affine matrices in (font-independent, so it holds on Linux CI). The focused `20-writing-mode` visual fixture is pixel-clean on macOS after this handoff; `20-deep-text-emphasis` retains only emphasis-mark metric residuals tracked separately.
@@ -54,7 +58,7 @@ The existing per-char raster path (SK-1090) needs to copy the rotation transform
 Captured as a dedicated combined segment rather than column-split:
 
 - **Capture** (`src/capture/script/walker/text-segments.ts`): a vertical element whose computed `text-combine-upright` is `all` — or `digits` when the run is entirely ASCII digits (the common authored case: a span wrapping just the digits) — emits ONE `verticalCombineUpright` segment carrying the whole combined text plus `verticalCombineXOffsets[]` (each glyph's captured x relative to the cell's leftmost glyph). Without this the column grouping (group chars by `x` ±1 px) splits "31" into two single-char columns and rotates each, scattering the digits.
-- **Render** (`src/render/vertical-text.ts`): the combined segment is emitted as a single `renderTextAsPath` call anchored at the captured cell left with each glyph at its captured `verticalCombineXOffsets[i]`, on the same upright baseline (`cell-top + 0.85em`, `ascentOverride = 0`) as the per-char upright path. Anchoring at Chrome's painted per-char positions reproduces the side-by-side layout — and any sub-1em condensing Chrome applied — without re-deriving the combine geometry. Verified pixel-clean against Chrome on the `20-deep-writing-mode-mixed` date line (the digit cells show zero diff; the residual fixture diff is CJK-ideograph sub-pixel font differences, unrelated).
+- **Render** (`src/render/vertical-text.ts`): the combined segment is emitted as a single `renderTextAsPath` call anchored at the captured cell left with each glyph at its captured `verticalCombineXOffsets[i]`, on the same captured-metric upright baseline (`cell-top + segment.fontAscent`, `ascentOverride = 0`) as the per-char upright path. Anchoring at Chrome's painted per-char positions reproduces the side-by-side layout — and any sub-1em condensing Chrome applied — without re-deriving the combine geometry. Verified pixel-clean against Chrome on the `20-deep-writing-mode-mixed` date line (the digit cells show zero diff; the residual fixture diff is CJK-ideograph sub-pixel font differences, unrelated).
 - **Known limit**: a `text-combine-upright: digits` run that mixes digits with non-digit chars falls through to normal column flow (no fixture exercises it). Heavy condensing (4+ digits squeezed well below 1em) anchors each glyph at the compressed x but does not horizontally scale the glyph *shapes*, so wide glyphs could touch; the date-style 1–2 digit runs that are the overwhelming real-world case render exactly.
 
 ## Vertical-form punctuation (`vert`)

@@ -144,6 +144,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstn2svxt9jueabu",
+          "message": {
+            "text": "Vertical baseline data is stamped on each run rather than inferred later from the element. Columns and text-combine cells are distinct inline runs in Blink; carrying the measured FontMetrics ascent on both segment shapes lets rendering remain correct if run styling diverges while preserving the element-level field for old captures.",
+            "markdown": "Vertical baseline data is stamped on each run rather than inferred later from the element. Columns and text-combine cells are distinct inline runs in Blink; carrying the measured FontMetrics ascent on both segment shapes lets rendering remain correct if run styling diverges while preserving the element-level field for old captures."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 339,
+                  "endLine": 348,
+                  "snippet": {
+                    "text": "      textSegments.push({\n        text: combinedText,\n        x: minX - vp.x,\n        y: cellTop - vp.y,\n        width: maxX - minX,\n        height: cellBot - cellTop,\n        verticalWritingMode: wm,\n        verticalCombineUpright: true,\n        verticalCombineXOffsets: xOffsets,\n        fontAscent: metricsC.ascent,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/vertical-text.ts"
+                },
+                "region": {
+                  "startLine": 219
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2193"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "96c7a60430d3793cf5087581eb6f6470"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "381df109ddf58bdee8fc0b49e6968653f58ed3c8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

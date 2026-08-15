@@ -345,6 +345,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
         verticalWritingMode: wm,
         verticalCombineUpright: true,
         verticalCombineXOffsets: xOffsets,
+        fontAscent: metricsC.ascent,
       });
       return {
         applied: true,
@@ -402,6 +403,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
         yOffsets,
         verticalAdvances,
         verticalNaturalWidths,
+        fontAscent: metrics.ascent,
       });
       minLeft = Math.min(minLeft, col.x);
       minTop = Math.min(minTop, colTop);

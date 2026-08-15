@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstn2t5ael2b2t7w",
+          "message": {
+            "text": "Baseline precedence is segment metric, legacy element metric, then 0.85em only when neither exists. Unit coverage discriminates all three paths for mixed rotated/upright text and text-combine; the Chromium capture gate proves both segment shapes now receive a positive run ascent.",
+            "markdown": "Baseline precedence is segment metric, legacy element metric, then 0.85em only when neither exists. Unit coverage discriminates all three paths for mixed rotated/upright text and text-combine; the Chromium capture gate proves both segment shapes now receive a positive run ascent."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/vertical-text.ts"
+                },
+                "region": {
+                  "startLine": 219,
+                  "endLine": 226,
+                  "snippet": {
+                    "text": "  for (const seg of el.textSegments) {\n    if (seg.verticalWritingMode == null) continue;\n    const segText = seg.text;\n    const segFontSize = seg.fontSize ?? fontSize;\n    // DM-2193: the baseline belongs to the captured vertical run. New captures\n    // carry it on every column/combine segment; the element metric supports\n    // older captures, and 0.85em remains only for legacy trees with neither.\n    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * 0.85;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/vertical-text.test.ts"
+                },
+                "region": {
+                  "startLine": 65
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/vertical-font-metrics.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 22
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2193"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e6c1ef1ab9b7a2e6b56b56b15e241d22"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "381df109ddf58bdee8fc0b49e6968653f58ed3c8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

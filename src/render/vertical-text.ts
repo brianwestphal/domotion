@@ -214,17 +214,16 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
   const fontFamily = el.styles.fontFamily;
   const fontWeight = el.styles.fontWeight;
   const fontStyle = el.styles.fontStyle;
-  // Element-level fontAscent (captured via canvas measureText
-  // fontBoundingBoxAscent in `walker/text-segments.ts`). Used for the
-  // line-relative text origin of rotated glyphs.
-  // Fall back to a 0.85em heuristic when undefined (e.g. early test
-  // fixtures pre-DM-996; production capture always provides it).
-  const elAscent = el.fontAscent ?? fontSize * 0.85;
   const out: string[] = [];
 
   for (const seg of el.textSegments) {
     if (seg.verticalWritingMode == null) continue;
     const segText = seg.text;
+    const segFontSize = seg.fontSize ?? fontSize;
+    // DM-2193: the baseline belongs to the captured vertical run. New captures
+    // carry it on every column/combine segment; the element metric supports
+    // older captures, and 0.85em remains only for legacy trees with neither.
+    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * 0.85;
     // DM-1032: tate-chu-yoko — one combined upright HORIZONTAL run in a single
     // ~1em column cell. Handled BEFORE the per-char column fields are required
     // (a combine segment carries none of `yOffsets`/`verticalOrientations`/
@@ -232,14 +231,14 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     // at the captured cell left (`seg.x`) and the upright baseline, with each
     // glyph placed at its captured per-char x (`verticalCombineXOffsets`) so the
     // side-by-side combined digits land exactly where Chrome painted them. Uses
-    // the same `ascentOverride = 0` + `charTop + 0.85em` baseline as the upright
+    // the same `ascentOverride = 0` + captured-run-ascent baseline as the upright
     // per-char path. Bypasses the per-char upright/rotated walk below.
     if (seg.verticalCombineUpright) {
       const decoMarkupC = renderVerticalDecoration(el, seg, fillColor);
       if (decoMarkupC !== "") out.push(decoMarkupC);
-      const baseline = seg.y + fontSize * 0.85;
+      const baseline = seg.y + segAscent;
       const inner = renderTextAsPath(segText, seg.x, baseline, {
-        fontSize, fontFamily, fontWeight, fill: fillColor,
+        fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
         xOffsets: seg.verticalCombineXOffsets, fontStyle, ascentOverride: 0,
         fontStretch: el.styles.fontStretch,
       });
@@ -266,7 +265,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       if (/\s/.test(ch) && step === 1) { i += step; continue; }
       const orientation = orientations[i] ?? "upright";
       const charY = yOffsets[i] ?? seg.y;
-      const charH = advances[i] ?? fontSize;
+      const charH = advances[i] ?? segFontSize;
       if (orientation === "rotated") {
         // Blink paints vertical fragments in a line-relative coordinate space:
         // +x is line-right and +y is line-under. The fragment's physical
@@ -274,8 +273,8 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         // and `ComputeRelativeToPhysicalTransform` supplies this exact affine
         // transform. This removes the old 1.2em box and center-rotation fit.
         const inner = renderTextAsPath(ch, colX, charY, {
-          fontSize, fontFamily, fontWeight, fill: fillColor,
-          fontStyle, ascentOverride: elAscent,
+          fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
+          fontStyle, ascentOverride: segAscent,
           fontStretch: el.styles.fontStretch,
         });
         if (inner == null) { i += step; continue; }
@@ -284,19 +283,17 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         );
         out.push(`<g transform="${transform}">${inner}</g>`);
       } else {
-        // Upright char (DM-996): baseline at charY + 0.85em (heuristic
-        // — tighter font-metric-driven baseline produced regressions in
-        // other fixtures since canvas-measured `fontAscent` reports
-        // horizontal-text metrics, not the vertical-text vhea ones).
+        // Upright char (DM-996 / DM-2193): baseline at the captured run's
+        // FontMetrics ascent from the physical character-box top.
         // Center the glyph horizontally in the column using the
         // canvas-probed natural width per char from capture.
         //
         // `renderTextAsPath` treats `y` as the line-box TOP and adds the
         // font ascent to get the baseline, so pass `ascentOverride = 0`
-        // to keep the baseline at exactly the `charY + 0.85em` we already
+        // to keep the baseline at exactly the `charY + segAscent` we already
         // resolved. Without the override the ascent was added a second
         // time and every upright glyph dropped ~0.85em below its cell.
-        const baseline = charY + fontSize * 0.85;
+        const baseline = charY + segAscent;
         // DM-1122: CJK punctuation (。 、 brackets …) substitutes a vertical-form
         // glyph under the `vert` feature, with its ink in the cell's top-right
         // corner. Anchor the FULL em box to the column (not the ink width) so the
@@ -305,10 +302,10 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         // no feature (a no-op `vert` would be harmless, but skipping it avoids a
         // needless re-shape per ideograph).
         const vertPunct = hasVerticalFormPunctuation(ch);
-        const naturalW = vertPunct ? fontSize : (naturalWidths?.[i] ?? fontSize);
+        const naturalW = vertPunct ? segFontSize : (naturalWidths?.[i] ?? segFontSize);
         const xLeft = colX + (colW - naturalW) / 2;
         const inner = renderTextAsPath(ch, xLeft, baseline, {
-          fontSize, fontFamily, fontWeight, fill: fillColor,
+          fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
           fontStyle, ascentOverride: 0,
           features: vertPunct ? ["vert"] : undefined,
           fontStretch: el.styles.fontStretch,

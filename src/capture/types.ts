@@ -57,7 +57,8 @@ export interface TextSegment {
   fontVariant?: string;
   /**
    * Override fontBoundingBoxAscent (px) when the segment uses a font/size
-   * different from the element (::before / ::after with custom font-size).
+   * different from the element (::before / ::after with custom font-size), or
+   * the captured per-run baseline ascent for vertical columns / text-combine.
    * Renderer falls back to the element's fontAscent when this is undefined.
    */
   fontAscent?: number;

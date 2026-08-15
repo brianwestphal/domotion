@@ -57,6 +57,7 @@ function makeElement(): CapturedElement {
         yOffsets: [50, 62],
         verticalAdvances: [12, 18],
         verticalNaturalWidths: [12, 18],
+        fontAscent: 13,
       },
     ],
   } as unknown as CapturedElement;
@@ -74,7 +75,7 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     expect(rotated).toBeDefined();
     expect(rotated![ARG_X]).toBe(100);
     expect(rotated![ARG_Y]).toBe(50);
-    expect(optionsOf(rotated!).ascentOverride).toBe(14);
+    expect(optionsOf(rotated!).ascentOverride).toBe(13);
   });
 
   it("uses Blink's clockwise line-relative transform for vertical-rl", () => {
@@ -83,15 +84,24 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     expect(markup).toContain('transform="matrix(0 1 -1 0 171 -50)"');
   });
 
-  it("keeps the upright glyph baseline at charY + 0.85em (ascent not added again)", () => {
+  it("uses the captured run ascent for the upright glyph baseline", () => {
     renderVerticalSegments(makeElement(), "rgb(0,0,0)");
     const upright = calls.find((c) => c[0] === "と");
     expect(upright).toBeDefined();
-    // Upright baseline = charY (62) + 0.85 * 18 = 77.3. The ascentOverride
+    // Upright baseline = charY (62) + captured run ascent (13). The override
     // must be 0 so renderTextAsPath doesn't add the font ascent a second
     // time (which dropped every upright glyph ~0.85em below its cell).
-    expect(upright![ARG_Y]).toBeCloseTo(62 + 0.85 * 18, 5);
+    expect(upright![ARG_Y]).toBe(75);
     expect(optionsOf(upright!).ascentOverride).toBe(0);
+  });
+
+  it("retains 0.85em only for legacy captures without run or element metrics", () => {
+    const legacy = makeElement();
+    delete legacy.fontAscent;
+    delete legacy.textSegments![0].fontAscent;
+    renderVerticalSegments(legacy, "rgb(0,0,0)");
+    const upright = calls.find((c) => c[0] === "と")!;
+    expect(upright[ARG_Y]).toBeCloseTo(62 + 0.85 * 18, 5);
   });
 });
 
@@ -145,6 +155,7 @@ function makeCombineElement(): CapturedElement {
         verticalWritingMode: "vertical-rl",
         verticalCombineUpright: true,
         verticalCombineXOffsets: [0, 9.89],
+        fontAscent: 12,
       },
     ],
   } as unknown as CapturedElement;
@@ -164,10 +175,10 @@ describe("renderVerticalSegments — tate-chu-yoko combine (DM-1032)", () => {
     expect(c[ARG_TEXT]).toBe("31");
     // Anchored at the captured cell left, NOT centered or column-split.
     expect(c[ARG_X]).toBeCloseTo(91.08, 5);
-    // Upright baseline = cell top (50) + 0.85em, with ascentOverride=0 so the
+    // Upright baseline = cell top (50) + captured run ascent, with ascentOverride=0 so the
     // font ascent isn't added a second time (same invariant as the per-char
     // upright path).
-    expect(c[ARG_Y]).toBeCloseTo(50 + 0.85 * 18, 5);
+    expect(c[ARG_Y]).toBe(62);
     expect(optionsOf(c).ascentOverride).toBe(0);
     // Each glyph placed at its captured per-char x (Chrome's painted layout).
     expect(optionsOf(c).xOffsets).toEqual([0, 9.89]);

@@ -61,6 +61,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Vertical text baselines (DM-2193, doc 02) — Shipped.** Vertical column and
+  text-combine segments carry the captured run's font ascent; upright glyphs,
+  rotated origins, and combined runs use that metric. Element ascent and then
+  `0.85em` remain compatibility fallbacks for older captured trees only.
+
 - **Gradient computed lengths (DM-2194, docs 07/10) — Shipped.** Chromium's
   computed-style serialization is the context-sensitive boundary: font/root/
   viewport-relative gradient lengths become px in the source element's real
