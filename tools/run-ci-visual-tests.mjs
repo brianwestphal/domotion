@@ -16,6 +16,7 @@ import { execFileSync, execFile } from "node:child_process";
 import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { waitForRunCompletion } from "./ci-run-wait.mjs";
 
 const WORKFLOW = "visual-tests.yml";
 
@@ -160,18 +161,29 @@ if (runIdOverride != null) {
     child.stderr?.pipe(process.stderr);
     child.on("close", () => resolve());
   });
+
+  // A failing matrix job can make `gh run watch --exit-status` return while the
+  // workflow's `if: always()` aggregate is still queued. Artifact retries at
+  // that point race runner capacity rather than artifact finalization and used
+  // to expire after six minutes on otherwise healthy all-platform sweeps.
+  process.stdout.write("\nConfirming the aggregate has finished…\n");
+  try {
+    await waitForRunCompletion(
+      () => JSON.parse(sh("gh", ["run", "view", String(runId), "--json", "status,conclusion"])),
+      {
+        onProgress: (state) => process.stdout.write(`  workflow ${state?.status ?? "unknown"}; aggregate/artifacts not final yet\n`),
+      },
+    );
+  } catch (error) {
+    die(`${error.message} (see ${url})`);
+  }
 }
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
 const downloadPattern = eager ? "results-*" : "visual-tests-meta";
 console.log(`\nDownloading ${eager ? "shard image artifacts" : "merged metadata (lazy — images fetched on demand in the review UI)"} to ${dir} …`);
-// Artifacts finalize AFTER `gh run watch` returns, and large multi-shard
-// uploads can take several minutes to become downloadable — `gh run download`
-// errors until then. Retry over a ~6-minute window (DM-1228: a 25 s window was
-// too short; a 3-min window then also gave up on an `--os all` run whose 116 MB
-// `visual-tests-merged` artifact was still uploading — re-stage that run with
-// `--run-id <id>` rather than re-dispatching). The run may also have genuinely
-// failed before any shard uploaded, in which case every attempt errors.
+// The workflow is terminal before this point, but Actions' artifact index can
+// lag finalization briefly. Keep a bounded retry for that publication race.
 let downloaded = false;
 const MAX_ATTEMPTS = 36, RETRY_MS = 10000;
 for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
@@ -188,7 +200,7 @@ for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
     downloaded = true;
   } catch { process.stdout.write(`  (artifacts not ready yet, retrying… ${attempt + 1}/${MAX_ATTEMPTS})\n`); }
 }
-if (!downloaded) die(`no artifacts to download after ~${Math.round(MAX_ATTEMPTS * RETRY_MS / 60000)} min of retries — the run may have failed before any shard finished (see ${url}).`);
+if (!downloaded) die(`run completed, but ${downloadPattern} was not downloadable after ~${Math.round(MAX_ATTEMPTS * RETRY_MS / 60000)} min (see ${url}).`);
 
 const here = new URL("..", import.meta.url).pathname;
 if (eager) {
