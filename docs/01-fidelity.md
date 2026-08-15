@@ -100,6 +100,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 - [x] `list-style-image: url(...)` on `<li>` — rendered as `<image>` at the marker slot
 - [x] `list-style-type`: disc/circle/square/decimal/lower-alpha/lower-roman/… — synthesized as shape or text marker
+- [x] Symbol marker geometry + disclosure directions — Blink font-metric integer geometry and physical pixel snapping (DM-2192)
 - [x] `::marker` styling (color / font-weight / font-size) — SK-1115
 
 ### Stacking

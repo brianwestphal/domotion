@@ -184,6 +184,12 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
   lower-armenian, georgian, hebrew (additive systems), and arabic-indic /
   cjk-decimal (positional digit substitution) — with the per-style suffix from
   `listMarkerSuffix` (`、` for the CJK styles, `.` otherwise) (DM-1114).
+  Symbol markers (`disc`, `circle`, `square`, `disclosure-open`, and
+  `disclosure-closed`) use Blink's `ListMarker::WidthOfSymbol` /
+  `RelativeSymbolMarkerRect` integer formulas with the captured `::marker`
+  primary-font ascent, followed by `ToPixelSnappedRect` edge snapping
+  (DM-2192). Disclosure triangles follow the physical inline/block direction
+  for horizontal, vertical, sideways, and RTL writing directions.
   *Custom* `@counter-style`-resolved markers still fall back to the UA decimal
   style on the render side (DM-770).
 - **`::placeholder`** — input placeholder text routes through the form-

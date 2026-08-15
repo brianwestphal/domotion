@@ -84,7 +84,7 @@ const captureDocumentTree =
   // against a recursed iframe's own document (`_runCounterStylePrewalk(doc)`).
   const _runCounterStylePrewalk = createCounterStylePrewalk({ counterStyles: _counterStyles });
   const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
-  const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle });
+  const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics: _measureFontMetrics });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
   const { discoverMasks, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });

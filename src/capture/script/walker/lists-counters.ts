@@ -14,7 +14,7 @@
 // outer-page environment exposes `document` / `window` / `Image` without the
 // project's tsconfig DOM lib applying.
 
-export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isCustomCounterStyle }) => {
+export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics }) => {
 
   const captureListsCounters = (el, cs, tag) => {
     // CSS treats any element with display:list-item as a list item — the tag
@@ -119,6 +119,7 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
       markerColor: markerCs ? normColor(markerCs.color) : undefined,
       markerFontWeight: markerCs ? markerCs.fontWeight : undefined,
       markerFontSize: markerCs ? markerCs.fontSize : undefined,
+      markerFontAscent: markerCs ? measureFontMetrics(markerCs).ascent : undefined,
       markerContent,
       markerFontFamily: markerCs ? markerCs.fontFamily : undefined,
       markerFirstLineDy,

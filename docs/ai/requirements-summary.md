@@ -61,6 +61,12 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Symbol list-marker geometry (DM-2192, docs 01/38) — Shipped.** Disc,
+  circle, square, and disclosure markers use Blink's captured-font-ascent
+  integer sizing/offset formulas and physical edge snapping; disclosure paths
+  follow the marker's writing direction. Ratio-based diameter/baseline guesses
+  remain only as old-capture metric fallback.
+
 - **Vertical text baselines (DM-2193, doc 02) — Shipped.** Vertical column and
   text-combine segments carry the captured run's font ascent; upright glyphs,
   rotated origins, and combined runs use that metric. Element ascent and then

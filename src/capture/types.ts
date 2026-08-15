@@ -1024,6 +1024,9 @@ export interface CapturedElement {
   markerColor?: string;
   markerFontWeight?: string;
   markerFontSize?: string;
+  /** Primary-font ascent of the computed ::marker font, captured from Blink's
+   * font metrics and used by its symbol-marker integer geometry. */
+  markerFontAscent?: number;
   /** Computed `::marker { content: ... }`. When non-default ("normal" or
    *  empty), Chrome paints this string in place of the list-style-type
    *  bullet/number. Captured as the raw computed value (may include

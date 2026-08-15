@@ -46,6 +46,7 @@ import { parseBoxShadow, type BoxShadow } from "./box-shadow.js";
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { convertLegacyWebkitGradient } from "./gradients.js";
+import { blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
 import type { CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import {
   _dataUriCache,
@@ -593,24 +594,10 @@ function paintSyntheticListMarker(
   const my = (el.textTop != null && el.fontAscent != null && el.fontAscent > 0)
     ? el.textTop + el.fontAscent
     : firstLineTop + firstLineH * 0.72;
-  const shapeY = firstLineTop + firstLineH / 2;
-  // Default gap between marker right edge and the li's content-left.
-  // Verified vs Chromium source `list_marker.cc::InlineMarginsForOutside`:
-  //   const int kCMarkerPaddingPx = 7;
-  //   margin_end = offset + kCMarkerPaddingPx + 1 - marker_inline_size;
-  //   offset = font_metrics.Ascent() * 2 / 3;
-  // So for 16 px Helvetica (Ascent ≈ 12.32, disc size ≈ 4.5):
-  //   margin_end = 12.32*2/3 + 8 - 4.5 = 11.7 ≈ 12
-  // Use the source formula directly — gives the right gap across
-  // font sizes (vs the previous constant 12 which was only tuned at
-  // 16 px). DM-403 (verified vs Chromium source).
-  // Marker inline size is approximated as the disc diameter
-  // (markerFontSize * 0.28 from the existing 0.14em-radius probe).
-  // Ascent estimated as 0.77 * fontSize (Helvetica HHEA ratio
-  // 1577/2048; close enough for the 8 px constant to dominate).
-  const ascentForGap = markerFontSize * 0.77;
-  const markerInlineSize = markerFontSize * 0.28;
-  const gap = (ascentForGap * 2 / 3) + 8 - markerInlineSize;
+  // Symbol geometry below consumes the ::marker primary font's captured
+  // ascent, matching ListMarker's FontMetrics input. Element ascent and the
+  // old ratio remain compatibility fallbacks for pre-DM-2192 trees only.
+  const markerAscent = el.markerFontAscent ?? el.fontAscent ?? markerFontSize * 0.77;
   const idx = el.listItemIndex ?? 1;
   // Custom `::marker { content: "..." }` (DM-447). When set, Chrome
   // replaces the list-style-type bullet/number with the content
@@ -675,24 +662,11 @@ function paintSyntheticListMarker(
     out.push(
       `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}" style="font-variant-numeric:tabular-nums"${xmlSpace}>${escLabel}</text>`,
     );
-  } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
-    // Chrome's `::marker` paints disc/circle/square at a hardcoded
-    // size that's LARGER than the bullet glyph U+2022's natural bbox
-    // in the inherited font: empirical pixel probe (DM-374) of `<ul
-    // style="font-family:Helvetica;font-size:16px"><li>` shows the
-    // painted disc diameter is ~4.5px (radius ~0.14em), while
-    // canvas.measureText("•") reports a 3.45px bbox (the smaller
-    // glyph the prior 0.11em multiplier was calibrated against). The
-    // marker doesn't actually use the bullet GLYPH — Chrome draws a
-    // separate filled circle at its own scale (Blink::LayoutListMarker).
-    // Same scaling applies to circle (stroked, same diameter) and
-    // square (rect, same side). Empirical at multiple sizes: 16px →
-    // ~4.5px, 32px → ~8px (linear in fontSize), so 0.14em is a clean
-    // single value that lands close to Chrome at every font size we
-    // care about. Apple Times / Times New Roman / SF Pro probe all
-    // produced indistinguishable disc paints at the same em-radius —
-    // Chrome's marker isn't font-family-aware (DM-340/350/358/371/etc.).
-    const r0 = markerFontSize * 0.165;
+  } else if (lsType === "disc" || lsType === "circle" || lsType === "square"
+      || lsType === "disclosure-open" || lsType === "disclosure-closed") {
+    // DM-2192: literal transcription of ListMarker::WidthOfSymbol /
+    // RelativeSymbolMarkerRect and TextFragmentPainter's edge snapping.
+    const geometry = blinkSymbolMarkerGeometry(markerAscent, markerFontSize, lsType as SymbolMarkerType);
     // Inside markers paint inside the principal block at the content
     // edge, not at the border-box edge. Per Chromium
     // `list_marker.cc::InlineMarginsForInside`, the marker box is
@@ -702,13 +676,26 @@ function paintSyntheticListMarker(
     const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
     const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
     const contentEdge = el.x + borderL + padL;
-    const mx = outside ? el.x - gap - r0 : contentEdge + r0;
+    const markerBoxX = outside
+      ? contentEdge - geometry.outsideEndMargin - geometry.markerInlineSize
+      : contentEdge + 1; // InlineMarginsForInside: margin_start = -1.
+    const snapped = pixelSnapRect(
+      markerBoxX + geometry.inlineOffset,
+      firstLineTop + geometry.blockOffset,
+      geometry.inlineSize,
+      geometry.blockSize,
+    );
+    const mx = snapped.x + snapped.width / 2;
+    const markerY = snapped.y + snapped.height / 2;
     if (lsType === "disc") {
-      out.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
+      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(snapped.width / 2)}" ry="${r(snapped.height / 2)}" fill="${markerColor}" />`);
     } else if (lsType === "circle") {
-      out.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
+      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(snapped.width / 2)}" ry="${r(snapped.height / 2)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
+    } else if (lsType === "square") {
+      out.push(`${indent}<rect x="${r(snapped.x)}" y="${r(snapped.y)}" width="${r(snapped.width)}" height="${r(snapped.height)}" fill="${markerColor}" />`);
     } else {
-      out.push(`${indent}<rect x="${r(mx - r0)}" y="${r(shapeY - r0)}" width="${r(r0 * 2)}" height="${r(r0 * 2)}" fill="${markerColor}" />`);
+      const points = disclosureTriangle(snapped, lsType, el.styles.writingMode ?? "horizontal-tb", el.styles.direction ?? "ltr");
+      out.push(`${indent}<polygon points="${points}" fill="${markerColor}" />`);
     }
   } else {
     // Text-based marker (decimal / lower-alpha / lower-roman / etc.).

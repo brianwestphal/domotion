@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstnfediz8vgxx74",
+          "message": {
+            "text": "Capturing the marker pseudo’s measured ascent makes the renderer consume the same font metric that Blink uses for symbol geometry. The browser gate asserts this field is present on real list items, so the legacy font-size estimate cannot silently mask a broken capture handoff.",
+            "markdown": "Capturing the marker pseudo’s measured ascent makes the renderer consume the same font metric that Blink uses for symbol geometry. The browser gate asserts this field is present on real list items, so the legacy font-size estimate cannot silently mask a broken capture handoff."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/lists-counters.ts"
+                },
+                "region": {
+                  "startLine": 116,
+                  "endLine": 123,
+                  "snippet": {
+                    "text": "    return {\n      listMarkerIntrinsic,\n      listItemIndex,\n      markerColor: markerCs ? normColor(markerCs.color) : undefined,\n      markerFontWeight: markerCs ? markerCs.fontWeight : undefined,\n      markerFontSize: markerCs ? markerCs.fontSize : undefined,\n      markerFontAscent: markerCs ? measureFontMetrics(markerCs).ascent : undefined,\n      markerContent,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/list-marker-first-line-box.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 82
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2192"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e79e841aa01ee4a7d15e742f9749535a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "67e7681ac6e81ff0056544d41b991d4d355a18a9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

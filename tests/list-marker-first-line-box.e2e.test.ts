@@ -26,7 +26,13 @@ const HTML =
   `<li>Plain text item</li>` +
   `</ul></body></html>`;
 
-interface LiNode { styles?: { display?: string }; markerFirstLineDy?: number; markerFirstLineHeight?: number; text?: string }
+interface LiNode {
+  styles?: { display?: string };
+  markerFirstLineDy?: number;
+  markerFirstLineHeight?: number;
+  markerFontAscent?: number;
+  text?: string;
+}
 function listItems(tree: CapturedElement[]): LiNode[] {
   const out: LiNode[] = [];
   const visit = (nodes: CapturedElement[]): void => {
@@ -91,6 +97,12 @@ describeBrowser("DM-1270: list marker aligns to the first text line, not the li 
 
       const [emojiLi, plainLi] = lis;
       const [emojiM, plainM] = measured;
+
+      // DM-2192: symbol-marker geometry consumes Blink's font ascent. Keep the
+      // capture-to-render handoff observable rather than allowing the renderer's
+      // legacy font-size estimate to silently take over.
+      expect(emojiLi.markerFontAscent).toBeGreaterThan(0);
+      expect(plainLi.markerFontAscent).toBeGreaterThan(0);
 
       // Both li's first line-box height matches Chromium's (~18px at font-size 16).
       expect(emojiLi.markerFirstLineHeight).toBeGreaterThan(14);
