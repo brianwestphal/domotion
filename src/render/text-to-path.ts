@@ -1310,9 +1310,11 @@ export function insertSyntheticDottedCircles(
   /** Computed CSS `font-stretch` (e.g. `"75%"`). */
   fontStretch?: string,
   /** Default shaped-cluster fallback feeds uncovered clusters through the same
-   *  HarfBuzz syllabic shaper as Chromium. In that mode HarfBuzz inserts its
-   *  own U+25CC, so preprocessing must not insert a second one. Kept false for
-   *  direct/legacy callers whose per-codepoint terminal never shapes .notdef. */
+   *  HarfBuzz syllabic shaper as Chromium. Retained for call-site compatibility;
+   *  qualifying orphan marks are now made explicit before that splitter because
+   *  its first-candidate `.notdef` run cannot reliably infer the source script.
+   *  An explicit U+25CC makes the syllable based, so HarfBuzz does not insert a
+   *  second circle. */
   shapeUncoveredOrphansNatively = false,
 ): { text: string; xOffsets: number[] | undefined } {
   // Fast path: nothing to do when the text has no combining marks AND the
@@ -1497,7 +1499,6 @@ export function insertSyntheticDottedCircles(
       // REMOVE a circle we would otherwise have drawn, never add one.
       const runFontHasDottedCircle = resolveDottedCircleRunFont() != null;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
-          && !shapeUncoveredOrphansNatively
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
             variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)) {
         const adv = resolveDottedCircleAdvance();

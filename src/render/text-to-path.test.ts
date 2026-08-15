@@ -832,7 +832,7 @@ describe("DM-2197: uncovered Vedic marks ignore an empty paint probe", () => {
       expect(common.text).toBe("\u1CD0");
       const laterFamily = insertSyntheticDottedCircles(
         "\u1CD1", [0], 'Helvetica, "Arial Unicode MS", sans-serif', 400, 32, 0,
-        undefined, undefined, [], undefined, false,
+        undefined, undefined, [], undefined, true,
       );
       expect(laterFamily.text).toBe("◌\u1CD1");
     },
