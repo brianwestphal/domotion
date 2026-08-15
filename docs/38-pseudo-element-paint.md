@@ -2,7 +2,8 @@
 
 `::before` and `::after` pseudo-elements are first-class paint surfaces in
 Domotion. The capture pass walks each host element's `::before` and `::after`
-computed styles, derives a box rect (or text segment) in viewport coordinates,
+computed styles, measures a generated-content layout probe in Chromium, and
+records its box rect (or text segment) in viewport coordinates,
 and routes it through the same render machinery that paints regular elements
 — with the per-pseudo overrides described below.
 
@@ -24,6 +25,14 @@ Each pseudo is one of four shapes, decided at capture time:
 4. **Raster pseudo** — text-content pseudo whose codepoints route through a
    color bitmap font (emoji, `U+2713`, PUA icon-font glyphs). Captured with a
    `rasterRect` for post-capture screenshot replacement.
+
+Chromium does not expose a DOM rect for a pseudo layout object. For text
+content, capture therefore materializes a non-painting real child, copies the
+entire resolved pseudo `CSSStyleDeclaration`, inserts the resolved generated
+text, and reads its text and border-box rects. This keeps variables, `calc()`,
+intrinsic sizing, logical properties, writing mode, and the complete pseudo
+font in Blink's own layout path. Arithmetic reconstruction remains only as a
+compatibility fallback for older captured trees.
 
 ## Per-surface paint coverage
 
@@ -209,8 +218,9 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
 ## Capture-side reference
 
 - `src/capture/script/walker/pseudo-content.ts` — reads computed styles for
-  `::before` / `::after`; branches into image / empty-content / text-content
-  / raster cases. Produces `pseudoSegments[]` and `pseudoBoxes[]`.
+  `::before` / `::after`, measures text pseudos with the generated-content
+  layout probe, then branches into image / empty-content / text-content /
+  raster cases. Produces `pseudoSegments[]` and `pseudoBoxes[]`.
 - `src/capture/script/walker/pseudo-inject.ts` — re-anchors each segment's
   `x` / `y` against the host's real text boundaries (capture-time positions
   were relative to the padding box), builds the `pseudoBox` sub-record for

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msto1wgs8wgrw1f3",
+          "message": {
+            "text": "The probe copies the complete resolved pseudo style because a selected-property surrogate cannot faithfully preserve logical properties, font features, variables/calc results, or intrinsic sizing. It remains in the real host context so Blink supplies the missing pseudo-layout observation; transforms are cleared because they alter paint bounds, not layout geometry.",
+            "markdown": "The probe copies the complete resolved pseudo style because a selected-property surrogate cannot faithfully preserve logical properties, font features, variables/calc results, or intrinsic sizing. It remains in the real host context so Blink supplies the missing pseudo-layout observation; transforms are cleared because they alter paint bounds, not layout geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/pseudo-content.ts"
+                },
+                "region": {
+                  "startLine": 80,
+                  "endLine": 115,
+                  "snippet": {
+                    "text": "  // DM-2191: DOM APIs expose a pseudo's computed style, but not its layout\n  // object or rect. Materialize that resolved style on a real child and let\n  // Blink lay out the generated content. Copying every computed property (not\n  // a hand-picked font/box subset) preserves the resolved cascade, variables,\n  // calc(), writing mode, font features, intrinsic sizing, and logical props.\n  const probeGeneratedPseudoLayout = (el, pseudo, text, pcs) => {\n    const span = document.createElement('span');\n    for (let i = 0; i < pcs.length; i++) {\n      const name = pcs.item(i);\n      span.style.setProperty(name, pcs.getPropertyValue(name));\n    }\n    // Generated `content` has no effect on a real element; materialize it as a\n    // text node. Visibility keeps the probe non-painting while retaining layout.\n    span.style.setProperty('content', 'normal');\n    span.style.setProperty('visibility', 'hidden');\n    span.style.setProperty('pointer-events', 'none');\n    // Transforms affect only paint and turn getBoundingClientRect into an AABB;\n    // renderer applies them later around the untransformed layout box.\n    span.style.setProperty('transform', 'none');\n    span.style.setProperty('translate', 'none');\n    span.style.setProperty('rotate', 'none');\n    span.style.setProperty('scale', 'none');\n    span.textContent = text;\n    if (pseudo === '::before') el.insertBefore(span, el.firstChild);\n    else el.appendChild(span);\n    const borderRect = span.getBoundingClientRect();\n    const range = document.createRange();\n    range.selectNodeContents(span);\n    const textRect = range.getBoundingClientRect();\n    const result = {\n      borderRect: { left: borderRect.left, top: borderRect.top, width: borderRect.width, height: borderRect.height },\n      textRect: { left: textRect.left, top: textRect.top, width: textRect.width, height: textRect.height },\n    };\n    span.remove();\n    return result;\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generated-pseudo-layout-probe.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2191"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b2b0eccba211c73e6992ee37149630f7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d8dac0ffd66f2c9975ae01f932b17aa45dae1da3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

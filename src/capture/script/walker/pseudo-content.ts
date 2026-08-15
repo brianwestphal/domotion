@@ -77,32 +77,41 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
     _emojiAdvCtx.font = pseudoCanvasFont(pcs);
     return _emojiAdvCtx.measureText(s).width;
   };
-  // DM-785: Chrome's HarfBuzz-shaped layout width differs from
-  // `canvas.measureText` by ~1-3px on bold uppercase short strings (the
-  // gradient-pill / MOST POPULAR / NEW badge pattern). Measuring via an
-  // off-screen <span> with the pseudo's resolved font properties and reading
-  // `getBoundingClientRect().width` matches the painted width exactly because
-  // it goes through the same shaping pipeline Chrome uses for layout. Only
-  // matters for `width: auto` absolute pseudos — the DM-507 numeric `pcs.width`
-  // path is still authoritative when present.
-  const probePseudoTextWidth = (text, pcs) => {
+  // DM-2191: DOM APIs expose a pseudo's computed style, but not its layout
+  // object or rect. Materialize that resolved style on a real child and let
+  // Blink lay out the generated content. Copying every computed property (not
+  // a hand-picked font/box subset) preserves the resolved cascade, variables,
+  // calc(), writing mode, font features, intrinsic sizing, and logical props.
+  const probeGeneratedPseudoLayout = (el, pseudo, text, pcs) => {
     const span = document.createElement('span');
-    span.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:-99999px;top:-99999px;white-space:pre;line-height:normal;margin:0;padding:0;border:0;text-indent:0';
-    span.style.fontFamily = pcs.fontFamily || '';
-    span.style.fontSize = pcs.fontSize || '';
-    span.style.fontWeight = pcs.fontWeight || '';
-    span.style.fontStyle = pcs.fontStyle || '';
-    span.style.fontStretch = pcs.fontStretch || '';
-    span.style.fontVariant = pcs.fontVariant || '';
-    span.style.fontFeatureSettings = pcs.fontFeatureSettings || '';
-    span.style.fontVariationSettings = pcs.fontVariationSettings || '';
-    span.style.letterSpacing = pcs.letterSpacing || '';
-    span.style.wordSpacing = pcs.wordSpacing || '';
+    for (let i = 0; i < pcs.length; i++) {
+      const name = pcs.item(i);
+      span.style.setProperty(name, pcs.getPropertyValue(name));
+    }
+    // Generated `content` has no effect on a real element; materialize it as a
+    // text node. Visibility keeps the probe non-painting while retaining layout.
+    span.style.setProperty('content', 'normal');
+    span.style.setProperty('visibility', 'hidden');
+    span.style.setProperty('pointer-events', 'none');
+    // Transforms affect only paint and turn getBoundingClientRect into an AABB;
+    // renderer applies them later around the untransformed layout box.
+    span.style.setProperty('transform', 'none');
+    span.style.setProperty('translate', 'none');
+    span.style.setProperty('rotate', 'none');
+    span.style.setProperty('scale', 'none');
     span.textContent = text;
-    document.body.appendChild(span);
-    const w = span.getBoundingClientRect().width;
-    document.body.removeChild(span);
-    return w;
+    if (pseudo === '::before') el.insertBefore(span, el.firstChild);
+    else el.appendChild(span);
+    const borderRect = span.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const textRect = range.getBoundingClientRect();
+    const result = {
+      borderRect: { left: borderRect.left, top: borderRect.top, width: borderRect.width, height: borderRect.height },
+      textRect: { left: textRect.left, top: textRect.top, width: textRect.width, height: textRect.height },
+    };
+    span.remove();
+    return result;
   };
 
   // DM-768: when a static-flow pseudo declares `display: inline-block` (or
@@ -595,16 +604,22 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
       }
       if (text === '') continue;
 
-      // DM-785: probe-span measurement matches Chrome's HarfBuzz-shaped
-      // layout width — canvas.measureText drifted ~1-3px on bold uppercase
-      // short strings (visible on rotated gradient pills as the text
-      // overflowing the badge). DM-507 numeric-pcs.width override still
-      // wins when the pseudo's box has an authored fixed width.
-      let pseudoWidth = probePseudoTextWidth(text, pcs);
-      if (pcs.position === 'absolute' || pcs.position === 'fixed') {
-        const pcsW = parseFloat(pcs.width);
-        if (!isNaN(pcsW) && pcsW > 0) pseudoWidth = pcsW;
-      }
+      const pseudoLayout = probeGeneratedPseudoLayout(el, pseudo, text, pcs);
+      // TextSegment dimensions are physical viewport dimensions. Range geometry
+      // therefore handles vertical text without pretending its inline advance is
+      // always an x-axis width. A zero range (e.g. whitespace-only content)
+      // falls back to the measured content box.
+      const pPadLMeasured = parseFloat(pcs.paddingLeft) || 0;
+      const pPadRMeasured = parseFloat(pcs.paddingRight) || 0;
+      const pBorLMeasured = parseFloat(pcs.borderLeftWidth) || 0;
+      const pBorRMeasured = parseFloat(pcs.borderRightWidth) || 0;
+      const measuredContentWidth = Math.max(0, pseudoLayout.borderRect.width
+        - pPadLMeasured - pPadRMeasured - pBorLMeasured - pBorRMeasured);
+      const hasUsedBoxWidth = pcs.width !== '' && pcs.width !== 'auto'
+        && (pcs.position === 'absolute' || pcs.position === 'fixed');
+      const pseudoWidth = hasUsedBoxWidth
+        ? measuredContentWidth
+        : (pseudoLayout.textRect.width > 0 ? pseudoLayout.textRect.width : measuredContentWidth);
 
       // Position: ::before sits at the START of the host's text/content.
       // ::after sits at the END. We fall back to (elLeft, elTop) here
@@ -790,6 +805,8 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
           // on the line box).
           lineH,
           fontSize: elFontSize,
+          measuredWidth: pseudoLayout.borderRect.width,
+          measuredHeight: pseudoLayout.borderRect.height,
           backgroundColor: pseudoBgColor !== '' ? pseudoBgColor : undefined,
           backgroundImage: hasPseudoBgImg ? pseudoBgImgRaw : undefined,
           borderRadius: pseudoBR > 0 ? pseudoBR : undefined,

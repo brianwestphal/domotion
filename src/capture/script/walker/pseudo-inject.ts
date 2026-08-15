@@ -310,8 +310,10 @@ export const createPseudoInjectHandler = () => {
         const lineCenter = p.seg.y + bs.fontSize / 2;
         const boxTop = lineCenter - bs.lineH / 2 - bs.padT - bs.borT;
         const bx = p.seg.x - bs.padL - bs.borL;
-        const bw = p.seg.width + bs.padL + bs.padR + bs.borL + bs.borR;
-        const bh = bs.lineH + bs.padT + bs.padB + bs.borT + bs.borB;
+        // DM-2191: prefer Blink's measured generated-content border box. The
+        // arithmetic fallback exists only for older captured trees.
+        const bw = bs.measuredWidth || (p.seg.width + bs.padL + bs.padR + bs.borL + bs.borR);
+        const bh = bs.measuredHeight || (bs.lineH + bs.padT + bs.padB + bs.borT + bs.borB);
         if (bw > 0 && bh > 0) {
           p.seg.pseudoBox = {
             x: bx, y: boxTop, width: bw, height: bh,

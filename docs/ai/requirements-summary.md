@@ -1283,3 +1283,11 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   with generated content processed as `::before`, descendants, `::after`, so
   `counter()` and `counters()` observe the value at their actual pseudo-tree
   position rather than one element-wide snapshot.
+
+<!-- DM-2191 -->
+- Text-bearing `::before` / `::after` boxes are observed through an isolated
+  real-element layout probe because the DOM exposes pseudo computed styles but
+  no pseudo layout rect. The probe copies the complete resolved style and lets
+  Blink resolve variables, `calc()`, intrinsic content, logical dimensions,
+  writing mode, and pseudo typography; raster fallback remains limited to
+  text that cannot be represented as font outlines.
