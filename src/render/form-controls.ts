@@ -14,6 +14,7 @@
 import type { CapturedElement } from "../capture/types.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { r } from "./format.js";
+import { renderTextAsPath } from "./text-to-path.js";
 
 /** Chrome's UA-default inset for the colored value bar inside a `<progress>` /
  *  `<meter>` groove: `floor(barHeight / 4)` on each edge (sampled from
@@ -993,9 +994,18 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
   // Baseline offset inside the button: ~0.35*fontSize below the vertical center
   // matches Helvetica/sans-serif baseline placement at small sizes.
   const baselineOffset = fontSize * 0.35;
-  parts.push(`${indent}<text x="${r(bx + btnW / 2)}" y="${r(by + btnH / 2 + baselineOffset)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}">${labelText}</text>`);
+  const ascent = btnH / 2 + baselineOffset;
+  const labelPath = renderTextAsPath(labelText, bx + (btnW - textW) / 2, by, {
+    fontSize, fontWeight, fontFamily, fontStyle: "normal", fill: color,
+    targetWidth: textW, ascentOverride: ascent,
+  });
+  parts.push(labelPath != null ? `${indent}${labelPath}` : `${indent}<text x="${r(bx + btnW / 2)}" y="${r(by + ascent)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}">${labelText}</text>`);
   const label = el.styles.inputFileName != null && el.styles.inputFileName !== "" ? el.styles.inputFileName : "No file chosen";
-  parts.push(`${indent}<text x="${r(bx + btnW + marginRight)}" y="${r(by + btnH / 2 + baselineOffset)}" font-size="${fontSize}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="rgb(0,0,0)">${label.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
+  const nameX = bx + btnW + marginRight;
+  const namePath = renderTextAsPath(label, nameX, by, {
+    fontSize, fontWeight: "400", fontFamily, fontStyle: "normal", fill: "rgb(0,0,0)", ascentOverride: ascent,
+  });
+  parts.push(namePath != null ? `${indent}${namePath}` : `${indent}<text x="${r(nameX)}" y="${r(by + ascent)}" font-size="${fontSize}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="rgb(0,0,0)">${label.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
   return parts.join("\n");
 }
 

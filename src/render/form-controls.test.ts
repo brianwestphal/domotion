@@ -32,6 +32,19 @@ describe("author-styled listbox option rows (DM-2190)", () => {
   });
 });
 
+describe("file-selector synthetic text (DM-2189)", () => {
+  it("uses the shared glyph-path renderer when the resolved font is available", () => {
+    const el = { tag: "input", x: 20, y: 20, width: 240, height: 36, children: [], styles: {
+      inputType: "file", fileButtonFontFamily: "Arial", fileButtonFontSize: "13.3333px",
+      fileButtonFontWeight: "400", fileButtonLabelWidth: 68, fileButtonPadding: "4px 8px",
+      fileButtonMarginRight: "4px", inputMultiple: false,
+    } } as unknown as CapturedElement;
+    const svg = renderFormControl(el, "");
+    expect(svg).toContain('role="img" aria-label="Choose File"');
+    expect(svg).not.toContain("No file chosen</text>");
+  });
+});
+
 describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)", () => {
   const rangeEl = (styles: Record<string, unknown>): CapturedElement =>
     ({ tag: "input", x: 20, y: 12, width: 200, height: 36, children: [], styles } as unknown as CapturedElement);

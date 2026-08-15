@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstm2y498awc4zwx",
+          "message": {
+            "text": "Synthetic file-control labels now enter renderTextAsPath, the same font resolution, glyph routing, shaping, and embedded-font/path funnel as document text. The fallback remains raw SVG text only when that shared renderer cannot resolve the run. The focused fixture reduced coverage from 0.1862% to 0.1787%; remaining regions are native-vs-vector raster AA and unrelated label/drop-zone edges, not a separate text implementation.",
+            "markdown": "Synthetic file-control labels now enter renderTextAsPath, the same font resolution, glyph routing, shaping, and embedded-font/path funnel as document text. The fallback remains raw SVG text only when that shared renderer cannot resolve the run. The focused fixture reduced coverage from 0.1862% to 0.1787%; remaining regions are native-vs-vector raster AA and unrelated label/drop-zone edges, not a separate text implementation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 998,
+                  "endLine": 1020,
+                  "snippet": {
+                    "text": "  const labelPath = renderTextAsPath(labelText, bx + (btnW - textW) / 2, by, {\n    fontSize, fontWeight, fontFamily, fontStyle: \"normal\", fill: color,\n    targetWidth: textW, ascentOverride: ascent,\n  });\n  parts.push(labelPath != null ? `${indent}${labelPath}` : `${indent}<text x=\"${r(bx + btnW / 2)}\" y=\"${r(by + ascent)}\" text-anchor=\"middle\" font-size=\"${fontSize}\" font-weight=\"${fontWeight}\" font-family=\"${fontFamily.replace(/\"/g, \"&quot;\")}\" fill=\"${color}\">${labelText}</text>`);\n  const label = el.styles.inputFileName != null && el.styles.inputFileName !== \"\" ? el.styles.inputFileName : \"No file chosen\";\n  const nameX = bx + btnW + marginRight;\n  const namePath = renderTextAsPath(label, nameX, by, {\n    fontSize, fontWeight: \"400\", fontFamily, fontStyle: \"normal\", fill: \"rgb(0,0,0)\", ascentOverride: ascent,\n  });\n  parts.push(namePath != null ? `${indent}${namePath}` : `${indent}<text x=\"${r(nameX)}\" y=\"${r(by + ascent)}\" font-size=\"${fontSize}\" font-family=\"${fontFamily.replace(/\"/g, \"&quot;\")}\" fill=\"rgb(0,0,0)\">${label.replace(/[&<>]/g, (c) => ({\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\"}[c]!))}</text>`);\n  return parts.join(\"\\n\");\n}\n\n/**\n * Date/time/datetime-local/month/week/color picker chrome: show the captured\n * value as text plus a small picker indicator on the right.\n */\nfunction renderDatePicker(el: CapturedElement, indent: string): string {\n  const parts: string[] = [];\n  const t = el.styles.inputType ?? \"date\";\n  const val = el.styles.inputValue ?? \"\";\n  // DM-723: Chrome's UA stylesheet sets date/time/month/week/datetime-local"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2189"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7084af99fbd27e4168e01b88b471c366"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ee00b01c04ab3f5605ca611b3fad0d7a463774ea",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
