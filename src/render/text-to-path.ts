@@ -1427,6 +1427,9 @@ export function insertSyntheticDottedCircles(
       : null;
     const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
     const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;
+    const shaperClassFlagged = logicalScript != null
+      && logicalScript !== "Common" && logicalScript !== "Inherited" && logicalScript !== "Unknown"
+      && usesComplexShaperDottedCircle(cp) && !usesDedicatedShaper(cp);
     const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;
     const logicalLayout = logicalHbRun != null && logicalScriptTag != null
       ? logicalHbRun.font.layout(ch, undefined, logicalScriptTag, lang, "ltr")
@@ -1442,7 +1445,7 @@ export function insertSyntheticDottedCircles(
     // resolveDottedCircleHbRun(), preserving the measured Sinhala/Thai/etc.
     // vetoes.
     const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i))
-      || logicallyFlagged || logicalHbRun != null;
+      || shaperClassFlagged;
     if (isMark || probeFlagged) {
       // The canvas probe is authoritative only for a glyph Chrome actually
       // painted. For an uncovered mark it observes the fallback face's bare
@@ -1451,7 +1454,7 @@ export function insertSyntheticDottedCircles(
       // Unicode's .notdef plus its real U+25CC). Let the static shaper-class
       // predicate answer the uncovered case; keep the probe veto below for
       // covered marks such as Sinhala U+0D81.
-      const wantUncoveredCircle = usesComplexShaperDottedCircle(cp);
+      const wantUncoveredCircle = shaperClassFlagged;
       // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED
       // FOR THE RUN has a glyph for U+25CC. Transcribed from
       // `hb_syllabic_insert_dotted_circles` (`external/harfbuzz/src/hb-ot-shaper-syllabic.cc:51-53`,
@@ -1529,7 +1532,7 @@ export function insertSyntheticDottedCircles(
           && coveredMarkFont != null
           && glyphIdForCp(coveredMarkFont, cp) !== 0
           && glyphIdForCp(coveredMarkFont, 0x25CC) !== 0
-          && (logicallyFlagged || !fontAutoInsertsDottedCircle(coveredMarkFont, ch))
+          && (shaperClassFlagged || logicallyFlagged || !fontAutoInsertsDottedCircle(coveredMarkFont, ch))
           // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
           // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
           // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks

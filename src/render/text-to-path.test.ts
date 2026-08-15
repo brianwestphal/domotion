@@ -825,6 +825,11 @@ describe("DM-2197: uncovered Vedic marks ignore an empty paint probe", () => {
       );
       expect(result.text).toBe("◌\u1CD1");
       expect(result.xOffsets).toHaveLength(2);
+      const common = insertSyntheticDottedCircles(
+        "\u1CD0", [0], '"Arial Unicode MS", sans-serif', 400, 32, 0,
+        undefined, undefined, [], undefined, false,
+      );
+      expect(common.text).toBe("\u1CD0");
     },
   );
 });
