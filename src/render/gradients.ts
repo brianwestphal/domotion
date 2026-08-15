@@ -608,7 +608,7 @@ function parseStopToken(tok: string): LinearStop[] {
   // calc(...) tokens that resolve to a length-percent are also positions
   // (DM-275: repeating gradients commonly use `calc(N% - Mpx)` for stripe
   // boundaries). Anything more complex falls through to color-text.
-  const posRe = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px|em|rem|pt|cm|mm|in|pc)?$/;
+  const posRe = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px|em|rem|pt|cm|mm|q|in|pc)?$/;
   const calcRe = /^calc\(.*\)$/;
   const isPos = (t: string) => posRe.test(t) || calcRe.test(t);
   // Walk from the end consuming positions.
@@ -623,21 +623,24 @@ function parseStopToken(tok: string): LinearStop[] {
   if (colorText === "") return [];
   if (positions.length === 0) return [{ color: colorText }];
   if (positions.length === 1) {
-    return [makeStop(colorText, positions[0])];
+    const stop = makeStop(colorText, positions[0]);
+    return stop == null ? [] : [stop];
   }
   // Double-position hard stop: emit two stops at p1, p2 sharing the color.
   if (positions.length === 2) {
-    return [makeStop(colorText, positions[0]), makeStop(colorText, positions[1])];
+    const first = makeStop(colorText, positions[0]);
+    const second = makeStop(colorText, positions[1]);
+    return first == null || second == null ? [] : [first, second];
   }
   return [];
 }
 
 /** Build a LinearStop from a color and one position token. */
-function makeStop(color: string, posTok: string): LinearStop {
+function makeStop(color: string, posTok: string): LinearStop | null {
   const calc = parseCalcPosition(posTok);
   if (calc != null) return { color, calcOffset: calc, rawPos: posTok };
   const parsed = parsePosition(posTok);
-  if (parsed == null) return { color, rawPos: posTok };
+  if (parsed == null) return null;
   if (parsed.kind === "frac") return { color, offset: parsed.value, rawPos: posTok };
   return { color, pxOffset: parsed.value, rawPos: posTok };
 }
@@ -678,13 +681,16 @@ function parseCalcPosition(tok: string): { pct: number; px: number } | null {
   let pct = 0;
   let px = 0;
   for (const t of terms) {
-    const pm = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px)?$/.exec(t.raw);
+    const pm = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px|pt|pc|in|cm|mm|q)?$/.exec(t.raw);
     if (pm == null) return null;
     const val = parseFloat(pm[1]) * t.sign;
     const unit = pm[2] ?? "px";
     if (unit === "%") pct += val;
-    else if (unit === "px") px += val;
-    else return null;
+    else {
+      const factor = absoluteLengthPxFactor(unit);
+      if (factor == null) return null;
+      px += val * factor;
+    }
   }
   return { pct, px };
 }
@@ -722,26 +728,32 @@ type ParsedPosition = { kind: "frac"; value: number } | { kind: "px"; value: num
  * pixel offset (resolved to a fraction once the painted rect's gradient
  * line length is known — SK-1226).
  *
- * Length units other than px are coerced to px via a coarse approximation
- * (1em = 16px, 1pt = 4/3 px, etc.) since real CSS context isn't available
- * at parse time. Authors using em/rem on gradient stops are rare in
- * practice; if the heuristic bites, the fallback is auto-distribution.
+ * Context-dependent units never reach this boundary in a captured tree:
+ * Blink's computed-style serializer resolves em/rem/etc. against the element
+ * and root font sizes while preserving percentages (including inside calc()).
+ * Reject them if a raw author string bypasses capture; guessing 16px here
+ * silently produces the wrong gradient.
  */
 function parsePosition(tok: string): ParsedPosition | null {
-  const m = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px|em|rem|pt|cm|mm|in|pc)?$/.exec(tok);
+  const m = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px|pt|cm|mm|q|in|pc)?$/.exec(tok);
   if (m == null) return null;
   const value = parseFloat(m[1]);
   const unit = m[2] ?? "";
   if (unit === "%") return { kind: "frac", value: value / 100 };
-  if (unit === "") return { kind: "frac", value: value / 100 }; // bare number → percent (lenient)
-  if (unit === "px") return { kind: "px", value };
-  // Coarse length conversions to px; rare on gradient stops.
-  if (unit === "em" || unit === "rem") return { kind: "px", value: value * 16 };
-  if (unit === "pt") return { kind: "px", value: value * (4 / 3) };
-  if (unit === "pc") return { kind: "px", value: value * 16 };
-  if (unit === "in") return { kind: "px", value: value * 96 };
-  if (unit === "cm") return { kind: "px", value: value * (96 / 2.54) };
-  if (unit === "mm") return { kind: "px", value: value * (96 / 25.4) };
+  if (unit === "") return value === 0 ? { kind: "px", value: 0 } : null;
+  const factor = absoluteLengthPxFactor(unit);
+  return factor == null ? null : { kind: "px", value: value * factor };
+}
+
+/** CSS's exact 96dpi absolute-length conversions. */
+function absoluteLengthPxFactor(unit: string): number | null {
+  if (unit === "px") return 1;
+  if (unit === "pt") return 96 / 72;
+  if (unit === "pc") return 16;
+  if (unit === "in") return 96;
+  if (unit === "cm") return 96 / 2.54;
+  if (unit === "mm") return 96 / 25.4;
+  if (unit === "q") return 96 / 101.6;
   return null;
 }
 
@@ -859,7 +871,7 @@ function looksLikeRadialPrefix(tok: string): boolean {
   // "50px 30px" alone would be unparseable as a stop (no color), so the
   // stop parser would fail to add it. To be safe, treat as prefix only if
   // the token contains an unambiguous shape/keyword/at marker.
-  return false;
+  return /^(?:(?:-?\d+(?:\.\d+)?|-?\.\d+)(?:px|pt|pc|in|cm|mm|q)\s*){1,2}$/i.test(lower.trim());
 }
 
 function parseRadialPrefix(tok: string): { shape: "circle" | "ellipse"; size: RadialSize; position: { x: PosValue; y: PosValue } } | null {
@@ -892,7 +904,6 @@ function parseShapeAndSize(text: string): { shape: "circle" | "ellipse"; size: R
     } else {
       const parsed = parsePosition(p);
       if (parsed != null && parsed.kind === "px") sizes.push(parsed.value);
-      else if (parsed != null && parsed.kind === "frac") sizes.push(parsed.value); // % treated as px-equivalent only loosely
       else if (p === "") {
         /* skip */
       } else return null;

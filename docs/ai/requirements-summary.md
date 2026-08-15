@@ -61,6 +61,14 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Gradient computed lengths (DM-2194, docs 07/10) — Shipped.** Chromium's
+  computed-style serialization is the context-sensitive boundary: font/root/
+  viewport-relative gradient lengths become px in the source element's real
+  style context, percentages remain relative through capture, and the renderer
+  resolves px/%/flat calc sums against the gradient line or radial reference
+  box. Raw unresolved context-dependent units are rejected rather than coerced
+  from their numeric prefix or against an assumed 16px font.
+
 - **Doc 119 (`docs/119-degraded-font-resolution.md`, DM-2195) — Adopted.**
   Helper-absent macOS/Linux rendering remains supported as a deterministic,
   functional best-effort mode: retain the static fallback chains, warn loudly

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
+import { buildLinearGradientDef as buildBackgroundLinearGradientDef } from "./gradient-defs.js";
 
 describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
   it("vertical top-to-bottom from()/to() form (slashdot mobile header)", () => {
@@ -89,6 +90,39 @@ describe("parseGradient: calc(N% ± Mpx) stop positions", () => {
   it("supports calc with reversed term order and pure %", () => {
     const g = parseLinearGradient("linear-gradient(0deg, red calc(2px + 10%), blue 50%)");
     expect(g!.stops[0].calcOffset).toEqual({ pct: 10, px: 2 });
+  });
+
+  it("uses exact CSS absolute-length conversions", () => {
+    const g = parseLinearGradient("linear-gradient(90deg, red 1in, blue calc(50% + 12pt))")!;
+    expect(g.stops[0].pxOffset).toBe(96);
+    expect(g.stops[1].calcOffset).toEqual({ pct: 50, px: 16 });
+  });
+
+  it("rejects context-dependent units instead of assuming a 16px font", () => {
+    expect(parseLinearGradient("linear-gradient(red 2em, blue 4em)")).toBeNull();
+    expect(parseLinearGradient("linear-gradient(red calc(50% + 1rem), blue)")).toBeNull();
+  });
+});
+
+describe("radial gradient length boundary (DM-2194)", () => {
+  it("accepts computed px radii and rejects unresolved font-relative radii", () => {
+    expect(parseRadialGradient("radial-gradient(circle 24px, red, blue)")?.size)
+      .toEqual({ kind: "px", r1: 24 });
+    expect(parseRadialGradient("radial-gradient(circle 2em, red, blue)")).toBeNull();
+  });
+});
+
+describe("background gradient computed-length boundary (DM-2194)", () => {
+  it("resolves preserved percentages and px inside calc against the gradient line", () => {
+    const svg = buildBackgroundLinearGradientDef(
+      "g", "90deg, red calc(25% + 10px), blue 100%", false, 200, 40,
+    );
+    expect(svg).toContain('offset="0.3"');
+  });
+
+  it("rejects unresolved context-dependent units instead of parseFloat coercion", () => {
+    expect(buildBackgroundLinearGradientDef("g", "90deg, red 2em, blue 4em", false, 200, 40)).toBe("");
+    expect(buildBackgroundLinearGradientDef("g", "90deg, red calc(25% + 1rem), blue", false, 200, 40)).toBe("");
   });
 });
 

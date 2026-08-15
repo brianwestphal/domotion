@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstmy5weg7npr2py",
+          "message": {
+            "text": "The shared background/mask gradient path now resolves flat computed length-percentage calc() terms against the actual gradient reference length and fails closed on unsupported units. The Chromium image oracle exercises the full capture-to-SVG path and passes; focused unit coverage also proves raw em/rem no longer become numeric-prefix pixels.",
+            "markdown": "The shared background/mask gradient path now resolves flat computed length-percentage calc() terms against the actual gradient reference length and fails closed on unsupported units. The Chromium image oracle exercises the full capture-to-SVG path and passes; focused unit coverage also proves raw em/rem no longer become numeric-prefix pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 397,
+                  "endLine": 433,
+                  "snippet": {
+                    "text": "/** Resolve the computed-value grammar Blink leaves at capture: px, %, exact\n * absolute units, or a flat calc() sum of those. Context-dependent units are\n * intentionally rejected because only Blink, in the source element's style\n * context, can resolve them correctly. */\nfunction parseResolvedLengthPercentage(token: string, basis: number): number | null {\n  const factor = (unit: string): number | null => {\n    if (unit === \"px\" || unit === \"\") return 1;\n    if (unit === \"pt\") return 96 / 72;\n    if (unit === \"pc\") return 16;\n    if (unit === \"in\") return 96;\n    if (unit === \"cm\") return 96 / 2.54;\n    if (unit === \"mm\") return 96 / 25.4;\n    if (unit === \"q\") return 96 / 101.6;\n    return null;\n  };\n  const resolveTerm = (raw: string): number | null => {\n    const m = /^([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))(%|px|pt|pc|in|cm|mm|q)?$/i.exec(raw.trim());\n    if (m == null) return null;\n    const value = Number(m[1]);\n    const unit = (m[2] ?? \"\").toLowerCase();\n    if (unit === \"%\") return basis > 0 ? value / 100 : null;\n    if (unit === \"\" && value !== 0) return null;\n    const f = factor(unit);\n    if (f == null || basis <= 0) return basis === 0 && f != null ? value * f : null;\n    return value * f / basis;\n  };\n  const calc = /^calc\\(\\s*(.*?)\\s*\\)$/i.exec(token);\n  if (calc == null) return resolveTerm(token);\n  const terms = calc[1].match(/[+-]?\\s*(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:%|px|pt|pc|in|cm|mm|q)?/gi);\n  if (terms == null || terms.join(\"\").replace(/\\s/g, \"\") !== calc[1].replace(/\\s/g, \"\")) return null;\n  let total = 0;\n  for (const term of terms) {\n    const value = resolveTerm(term.replace(/\\s/g, \"\"));\n    if (value == null) return null;\n    total += value;\n  }\n  return total;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/gradient-length-units.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradients.test.ts"
+                },
+                "region": {
+                  "startLine": 107
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2194"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9c0c6abf244c00f24801d04b551c24b1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4c7a7f0a2da48e7ceacf4ebc78ad135b392a0908",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -118,6 +118,14 @@ rest of the pipeline never sees the legacy form.
 ## Edge cases
 
 - **Radial gradients (SK-1225)**: shipped via `<radialGradient>`. Supports `circle`/`ellipse` shapes, the four extent keywords (`closest-side` / `closest-corner` / `farthest-side` / `farthest-corner`), explicit length sizing, and the `at <position>` clause (single keyword, two-token keyword/length pairs, percent positions). Ellipses use `gradientTransform="translate(cx, cy) scale(1, ry/rx) translate(-cx, -cy)"` to bend the natively-circular SVG radial into the desired aspect. For the corner keywords the ellipse keeps the matching side's aspect ratio and is scaled to pass through the corner — exactly `√2 ×` the side radii (DM-1243; verified against Chrome's painted ring).
+- **Length resolution (DM-2194)**: capture reads Chromium computed values, so
+  Blink resolves context-dependent units against the actual element/root style
+  (`em`, `rem`, viewport units, and font-relative units become `px`) while
+  preserving percentages, including the percentage term in `calc()`. The SVG
+  emitter resolves the remaining `% + px` expression against the gradient line
+  or radial reference box. Exact CSS absolute units use the mandated 96dpi
+  conversions. A raw context-dependent unit that bypasses capture is rejected;
+  the renderer never guesses a 16px font or treats a numeric prefix as pixels.
 - **Color hints (DM-1242)**: the bare `<percentage>` between two color stops (e.g. `linear-gradient(red, 20%, blue)`) shifts the 50% transition to that position via a power curve (`weight(t) = t^(ln0.5/lnH)`). SVG only interpolates linearly between stops, so `parseGradientStops` samples that curve at uniform mix-weight and emits a stop at each sample — clustering stops where the curve is steep and landing one exactly on the hint. Matches Chrome's paint within ~Δ4/channel (vs. the old single-mid-stop, which read too linear).
 - **Conic gradients**: shipped. `parseGradient()` routes `parseConicGradient` (`gradients.ts`), and because SVG has no native conic, `form-controls.ts` rasterizes each conic layer to a PNG `<pattern>` (`buildConicGradientDef`, fed by the async raster pre-pass) that the form-control pseudo paints as its background.
 - **Multi-layer backgrounds** (`background: red, linear-gradient(...)` or two gradients stacked): paint only the topmost layer. CSS `background` lists paint top-to-bottom in source order; we honor the first item that is a renderable gradient. Emit a warning if a layer is dropped.
@@ -146,7 +154,11 @@ The gradient pipeline lands in three slices, each tracked as a separate ticket:
 ## Status
 
 - **SK-1224 — Linear-gradient track + thumb**: shipped. parseLinearGradient + buildLinearGradientDef + DefCtx integration in form-controls.ts. 06-forms-style-range diff dropped from 1.85% to 1.54% avg.
-- **SK-1226 — Px-positioned color stops**: shipped. parser captures pxOffset; resolveStops converts to fractions at emit time using the rect's gradient line length. Em / pt / pc / in / cm / mm coerce to px via approximate conversions.
+- **SK-1226 / DM-2194 — Length-positioned color stops**: shipped. Capture lets
+  Blink context-resolve font/viewport-relative lengths; the parser preserves
+  px/%/calc components and the emitter resolves them using the actual gradient
+  reference geometry. Absolute units use exact CSS conversions; unresolved
+  context-dependent expressions fail explicitly.
 - **SK-1225 — Radial gradient support**: shipped. parseRadialGradient + buildRadialGradientDef.
 - **Conic gradient support**: shipped. parseConicGradient + buildConicGradientDef rasterize each conic layer into a PNG `<pattern>` (SVG has no native conic) via the async raster pre-pass.
 - **SK-1222 / SK-1223 hand-off**: progress / meter / color-swatch / inner-spin / search-cancel pickups happen automatically once those pseudos move to the stylesheet walker — gradientFillFor and DefCtx are already factored.

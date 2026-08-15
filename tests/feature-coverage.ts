@@ -83,7 +83,7 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Render a captured tree to a complete <svg> document (and body-only inner markup for composers).",
     doc: "docs/ai/code-summary.md",
     exports: ["elementTreeToSvg", "elementTreeToSvgInner", "wrapSvg"],
-    tests: ["src/render/borders.test.ts", "src/render/box-shadow.test.ts", "src/mask.test.ts", "src/render/gradients.test.ts", "src/render/list-markers.test.ts"],
+    tests: ["src/render/borders.test.ts", "src/render/box-shadow.test.ts", "src/mask.test.ts", "src/render/gradients.test.ts", "tests/gradient-length-units.e2e.test.ts", "src/render/list-markers.test.ts"],
   },
   {
     id: "render.text",

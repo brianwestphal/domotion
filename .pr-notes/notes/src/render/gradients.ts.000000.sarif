@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstmy5mazp4cn2n7",
+          "message": {
+            "text": "Blink computed style is the context-sensitive conversion boundary. A Chromium oracle with element font-size 12px and root font-size 20px serializes 2em as 24px and 1rem inside calc() as 20px while preserving the percentage term. The renderer therefore accepts computed px/% plus exact absolute units and rejects raw em/rem instead of inventing a 16px context.",
+            "markdown": "Blink computed style is the context-sensitive conversion boundary. A Chromium oracle with element font-size 12px and root font-size 20px serializes 2em as 24px and 1rem inside calc() as 20px while preserving the percentage term. The renderer therefore accepts computed px/% plus exact absolute units and rejects raw em/rem instead of inventing a 16px context."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradients.ts"
+                },
+                "region": {
+                  "startLine": 731,
+                  "endLine": 756,
+                  "snippet": {
+                    "text": " * Context-dependent units never reach this boundary in a captured tree:\n * Blink's computed-style serializer resolves em/rem/etc. against the element\n * and root font sizes while preserving percentages (including inside calc()).\n * Reject them if a raw author string bypasses capture; guessing 16px here\n * silently produces the wrong gradient.\n */\nfunction parsePosition(tok: string): ParsedPosition | null {\n  const m = /^(-?\\d+(?:\\.\\d+)?|-?\\.\\d+)(%|px|pt|cm|mm|q|in|pc)?$/.exec(tok);\n  if (m == null) return null;\n  const value = parseFloat(m[1]);\n  const unit = m[2] ?? \"\";\n  if (unit === \"%\") return { kind: \"frac\", value: value / 100 };\n  if (unit === \"\") return value === 0 ? { kind: \"px\", value: 0 } : null;\n  const factor = absoluteLengthPxFactor(unit);\n  return factor == null ? null : { kind: \"px\", value: value * factor };\n}\n\n/** CSS's exact 96dpi absolute-length conversions. */\nfunction absoluteLengthPxFactor(unit: string): number | null {\n  if (unit === \"px\") return 1;\n  if (unit === \"pt\") return 96 / 72;\n  if (unit === \"pc\") return 16;\n  if (unit === \"in\") return 96;\n  if (unit === \"cm\") return 96 / 2.54;\n  if (unit === \"mm\") return 96 / 25.4;\n  if (unit === \"q\") return 96 / 101.6;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/gradient-length-units.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2194"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3493dcbf0bcaf47be08cd9b8adcd4bad"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4c7a7f0a2da48e7ceacf4ebc78ad135b392a0908",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

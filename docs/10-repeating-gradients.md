@@ -30,7 +30,11 @@ After extraction, `_resolveOne(el, 'backgroundImage', gradientText)` round-trips
 - A new `parseCalcPosition` parses the limited Chrome-emitted form `calc(<pct>% ± <px>px)` (or just `<pct>%` / `<px>px`) into a `{pct, px}` pair stored on the stop as `calcOffset`.
 - `gradientCacheKey` includes the repeating flag and a serialized form of `calcOffset` so equivalent rects dedup correctly.
 
-The supported `calc` form is intentionally narrow — it covers what Chrome emits for `repeating-*-gradient` stops on stripe boundaries (and on common explicit single-term stops like `calc(50% + 10px)`). More elaborate calc expressions fall through to the un-positioned fallback, where auto-distribution fills in.
+The supported `calc` form is intentionally narrow — it covers the flat
+length-percentage sums Chrome emits for `repeating-*-gradient` stops on stripe
+boundaries (including exact absolute lengths). Context-dependent units have
+already become px in Chromium's computed value. An expression outside this
+computed-value grammar is rejected rather than silently auto-distributed.
 
 ## Render changes — `buildLinearGradientDef` / `buildRadialGradientDef`
 

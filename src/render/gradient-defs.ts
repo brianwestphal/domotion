@@ -235,27 +235,24 @@ export function buildRadialGradientDef(
       const posTokens = afterAt.split(/\s+/);
       const p1 = posTokens[0] ?? "center";
       const p2 = posTokens[1] ?? "center";
-      // Position can be keyword / % / px / plain number (treated as px in CSS).
-      // resolvePosFraction (the linear-gradient helper) only understands keywords
-      // + percent, so convert pixel values here against w/h.
-      const toFrac = (tok: string, axis: "h" | "v"): number => {
+      // Captured computed gradients contain px/%/calc(px,%). Font-relative
+      // units have already been resolved by Blink in the element's context.
+      const toFrac = (tok: string, axis: "h" | "v"): number | null => {
         const t = tok.trim();
         if (t === "center") return 0.5;
         if (axis === "h" && t === "left") return 0;
         if (axis === "h" && t === "right") return 1;
         if (axis === "v" && t === "top") return 0;
         if (axis === "v" && t === "bottom") return 1;
-        if (/%$/.test(t)) return parseFloat(t) / 100;
-        // Pixels (or bare numbers treated as pixels per CSS spec).
-        const px = parseFloat(t);
-        if (!isNaN(px)) {
-          const basis = axis === "h" ? w : h;
-          return basis > 0 ? px / basis : 0;
-        }
-        return 0.5;
+        const basis = axis === "h" ? w : h;
+        const length = parseResolvedLengthPercentage(t, basis);
+        return length == null ? null : length;
       };
-      cxFrac = toFrac(p1, "h");
-      cyFrac = toFrac(p2, "v");
+      const parsedX = toFrac(p1, "h");
+      const parsedY = toFrac(p2, "v");
+      if (parsedX == null || parsedY == null) return "";
+      cxFrac = parsedX;
+      cyFrac = parsedY;
     }
     // Parse shape / size keyword / explicit radii from beforeAt.
     const tokens = beforeAt.split(/\s+/).filter((t) => t !== "");
@@ -264,11 +261,15 @@ export function buildRadialGradientDef(
       else if (t === "ellipse") shape = "ellipse";
       else if (t === "closest-side" || t === "closest-corner" || t === "farthest-side" || t === "farthest-corner") {
         sizeKeyword = t;
-      } else if (/(px|%|em|rem)$/.test(t) || /^-?[\d.]+$/.test(t)) {
-        const val = /%$/.test(t) ? parseFloat(t) / 100 : parseFloat(t);
-        const isPct = /%$/.test(t);
-        if (explicitRx == null) explicitRx = isPct ? val * w : val;
-        else if (explicitRy == null) explicitRy = isPct ? val * h : val;
+      } else if (/^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[a-z%]+)?$/i.test(t) || /^calc\(/i.test(t)) {
+        // Percentages are invalid for radial-gradient explicit radii. Raw
+        // font-relative units mean capture normalization was bypassed; reject
+        // rather than reading their numeric prefix as pixels.
+        if (/%/.test(t)) return "";
+        const val = parseResolvedLengthPercentage(t, 0);
+        if (val == null) return "";
+        if (explicitRx == null) explicitRx = val;
+        else if (explicitRy == null) explicitRy = val;
       }
     }
     if (explicitRx != null && explicitRy == null) {
@@ -369,6 +370,69 @@ function resolvePosFraction(token: string, axis: "h" | "v"): number {
   return 0.5;
 }
 
+function splitGradientSpaces(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0, start = 0, active = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (depth === 0 && /\s/.test(ch)) {
+      if (active) out.push(text.slice(start, i));
+      active = false;
+    } else if (!active) {
+      start = i;
+      active = true;
+    }
+  }
+  if (active) out.push(text.slice(start));
+  return out;
+}
+
+function looksLikeGradientPosition(token: string): boolean {
+  return /^calc\(/i.test(token)
+    || /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|pt|pc|in|cm|mm|q|em|rem|vh|vw|vmin|vmax)?$/i.test(token);
+}
+
+/** Resolve the computed-value grammar Blink leaves at capture: px, %, exact
+ * absolute units, or a flat calc() sum of those. Context-dependent units are
+ * intentionally rejected because only Blink, in the source element's style
+ * context, can resolve them correctly. */
+function parseResolvedLengthPercentage(token: string, basis: number): number | null {
+  const factor = (unit: string): number | null => {
+    if (unit === "px" || unit === "") return 1;
+    if (unit === "pt") return 96 / 72;
+    if (unit === "pc") return 16;
+    if (unit === "in") return 96;
+    if (unit === "cm") return 96 / 2.54;
+    if (unit === "mm") return 96 / 25.4;
+    if (unit === "q") return 96 / 101.6;
+    return null;
+  };
+  const resolveTerm = (raw: string): number | null => {
+    const m = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(%|px|pt|pc|in|cm|mm|q)?$/i.exec(raw.trim());
+    if (m == null) return null;
+    const value = Number(m[1]);
+    const unit = (m[2] ?? "").toLowerCase();
+    if (unit === "%") return basis > 0 ? value / 100 : null;
+    if (unit === "" && value !== 0) return null;
+    const f = factor(unit);
+    if (f == null || basis <= 0) return basis === 0 && f != null ? value * f : null;
+    return value * f / basis;
+  };
+  const calc = /^calc\(\s*(.*?)\s*\)$/i.exec(token);
+  if (calc == null) return resolveTerm(token);
+  const terms = calc[1].match(/[+-]?\s*(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|pt|pc|in|cm|mm|q)?/gi);
+  if (terms == null || terms.join("").replace(/\s/g, "") !== calc[1].replace(/\s/g, "")) return null;
+  let total = 0;
+  for (const term of terms) {
+    const value = resolveTerm(term.replace(/\s/g, ""));
+    if (value == null) return null;
+    total += value;
+  }
+  return total;
+}
+
 export function parseGradientStops(tokens: string[], gradientLength: number = 0): GradientStop[] {
   // First pass: parse each token into {color, explicitPositions[]} OR {hint}.
   // A color-hint is a bare percentage between two color stops that shifts the
@@ -383,18 +447,18 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
       raw.push({ kind: "hint", pos: parseFloat(tok) / 100 });
       continue;
     }
-    const posMatch = tok.match(/(\s+-?[\d.]+(%|px)?\s*){1,2}$/);
-    let colorStr = tok;
+    const parts = splitGradientSpaces(tok);
+    let cut = parts.length;
     const positions: number[] = [];
-    if (posMatch != null) {
-      colorStr = tok.slice(0, posMatch.index).trim();
-      for (const pt of posMatch[0].trim().split(/\s+/)) {
-        if (/%$/.test(pt)) positions.push(parseFloat(pt) / 100);
-        else if (/px$/i.test(pt) && gradientLength > 0) positions.push(parseFloat(pt) / gradientLength);
-        else positions.push(parseFloat(pt));
-      }
+    while (cut > 0 && positions.length < 2 && looksLikeGradientPosition(parts[cut - 1])) {
+      const pos = parseResolvedLengthPercentage(parts[cut - 1], gradientLength);
+      if (pos == null) return [];
+      positions.unshift(pos);
+      cut--;
     }
-    const color = parseColor(colorStr) ?? { r: 0, g: 0, b: 0, a: 1 };
+    const colorText = parts.slice(0, cut).join(" ").trim();
+    const color = parseColor(colorText);
+    if (color == null) return [];
     raw.push({ kind: "color", color, positions });
   }
   // Filter hints out for the first-pass color expansion; we'll inject them after
