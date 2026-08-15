@@ -75,7 +75,8 @@ describe("acquisition failure / cache behavior (offline)", () => {
   it("describes helper acquisition failure as a fidelity degradation, not performance-only", () => {
     const here = path.dirname(fileURLToPath(import.meta.url));
     const source = readFileSync(path.join(here, "helper-acquire.ts"), "utf8");
-    expect(source).toContain("using degraded font resolution");
+    expect(source).toContain("WARNING: native glyph helper");
+    expect(source).toContain("continuing in best-effort degraded font mode");
     expect(source).toContain("may differ from Chromium on this host");
     expect(source).not.toContain("This is a performance-only fallback");
   });

@@ -61,6 +61,14 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 119 (`docs/119-degraded-font-resolution.md`, DM-2195) — Adopted.**
+  Helper-absent macOS/Linux rendering remains supported as a deterministic,
+  functional best-effort mode: retain the static fallback chains, warn loudly
+  when automatic helper acquisition fails, and explicitly relinquish Chromium
+  parity for installed-family selection, fallback faces, traits, axes, and
+  pixels. Helper-present routing remains live-before-static; Windows retains
+  its Chromium-derived hardcoded nomination stage.
+
 - **Doc 126 (`docs/126-backdrop-filter-isolation.md`, DM-2171) — Shipped.**
   Elements with a non-`none` computed `backdrop-filter` become isolated
   Chromium-composited raster boundaries. The captured image includes the sampled

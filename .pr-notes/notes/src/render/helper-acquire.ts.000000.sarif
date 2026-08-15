@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mstmnghv5otrfl9v",
+          "message": {
+            "text": "Helper acquisition failure remains non-fatal by product decision, but the warning now leads with an explicit native-helper warning and names best-effort mode so operators cannot mistake deterministic output for Chromium parity. The existing static-chain gate supplies the functional fallback; this change intentionally does not alter routing.",
+            "markdown": "Helper acquisition failure remains non-fatal by product decision, but the warning now leads with an explicit native-helper warning and names best-effort mode so operators cannot mistake deterministic output for Chromium parity. The existing static-chain gate supplies the functional fallback; this change intentionally does not alter routing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/helper-acquire.ts"
+                },
+                "region": {
+                  "startLine": 174,
+                  "endLine": 174,
+                  "snippet": {
+                    "text": "  warnOnce(`WARNING: native glyph helper (${target.asset}) is unavailable — continuing in best-effort degraded font mode. Output remains deterministic and functional, but installed-family selection, fallback faces, traits, axes, and pixels may differ from Chromium on this host. Set DOMOTION_HELPER_PATH to a matching helper or pre-warm with acquireGlyphHelper() to restore live platform resolution.`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/119-degraded-font-resolution.md"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "rank": 80,
+          "workItemUris": [
+            "DM-2195"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8e9fd0b87ead674d7e3910b663042b26"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a68b998aefc01d500039c1adfe7f1f86725f75b9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

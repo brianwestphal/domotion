@@ -6,8 +6,11 @@ CoreText, fontconfig/FreeType, or DirectWrite for installed-family matching,
 per-codepoint fallback, face traits, and variable-axis identity.
 
 If helper acquisition fails, `DOMOTION_DISABLE_HELPER=1` is set, or live system
-fallback is explicitly disabled, rendering continues in a bounded degraded
-mode. Degraded mode is a reliability fallback, not a second parity engine.
+fallback is explicitly disabled, rendering continues in a supported, bounded
+best-effort mode. Domotion retains the static fallback chains and emits a loud
+stderr warning when automatic helper acquisition fails. Degraded mode is a
+reliability fallback, not a second parity engine, and it does not carry the
+Chromium-parity guarantee.
 
 ## Guarantees that remain
 

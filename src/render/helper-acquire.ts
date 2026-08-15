@@ -171,7 +171,7 @@ export function acquireGlyphHelperSync(opts: AcquireOptions = {}): string | unde
   // Fontkit keeps rendering functional, but static tables/cut ladders are only
   // deterministic approximations and are not family- or pixel-exact. Do not
   // describe this as performance-only (the old warning hid a fidelity change).
-  warnOnce(`glyph helper (${target.asset}) unavailable — using degraded font resolution. Rendering remains deterministic and functional, but installed-family selection, fallback faces, traits, axes, and pixels may differ from Chromium on this host. Set DOMOTION_HELPER_PATH to a matching helper or pre-warm with acquireGlyphHelper() for live platform resolution.`);
+  warnOnce(`WARNING: native glyph helper (${target.asset}) is unavailable — continuing in best-effort degraded font mode. Output remains deterministic and functional, but installed-family selection, fallback faces, traits, axes, and pixels may differ from Chromium on this host. Set DOMOTION_HELPER_PATH to a matching helper or pre-warm with acquireGlyphHelper() to restore live platform resolution.`);
   return undefined;
 }
 
