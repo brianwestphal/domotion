@@ -1436,7 +1436,14 @@ export function insertSyntheticDottedCircles(
       && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);
     const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i)) || logicallyFlagged;
     if (isMark || probeFlagged) {
-      const wantUncoveredCircle = coveredCircleSet != null ? probeFlagged : usesComplexShaperDottedCircle(cp);
+      // The canvas probe is authoritative only for a glyph Chrome actually
+      // painted. For an uncovered mark it observes the fallback face's bare
+      // .notdef box, not HarfBuzz's broken-syllable decision, and therefore
+      // commonly returns an empty array (the macOS Vedic CI route is Arial
+      // Unicode's .notdef plus its real U+25CC). Let the static shaper-class
+      // predicate answer the uncovered case; keep the probe veto below for
+      // covered marks such as Sinhala U+0D81.
+      const wantUncoveredCircle = usesComplexShaperDottedCircle(cp);
       // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED
       // FOR THE RUN has a glyph for U+25CC. Transcribed from
       // `hb_syllabic_insert_dotted_circles` (`external/harfbuzz/src/hb-ot-shaper-syllabic.cc:51-53`,

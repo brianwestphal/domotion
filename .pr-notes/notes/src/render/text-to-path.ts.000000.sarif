@@ -366,6 +366,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msuypbp8vmkjsh2c",
+          "message": {
+            "text": "An empty capture probe cannot veto dotted-circle insertion for an uncovered mark: canvas sees only the fallback face's bare .notdef, while HarfBuzz independently classifies the source as a broken syllable and inserts U+25CC when that same run face covers the circle. The Arial Unicode Vedic regression test pins this exact split between mark coverage and circle coverage.",
+            "markdown": "An empty capture probe cannot veto dotted-circle insertion for an uncovered mark: canvas sees only the fallback face's bare .notdef, while HarfBuzz independently classifies the source as a broken syllable and inserts U+25CC when that same run face covers the circle. The Arial Unicode Vedic regression test pins this exact split between mark coverage and circle coverage."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1428,
+                  "endLine": 1475,
+                  "snippet": {
+                    "text": "    const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;\n    const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;\n    const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;\n    const logicalLayout = logicalHbRun != null && logicalScriptTag != null\n      ? logicalHbRun.font.layout(ch, undefined, logicalScriptTag, lang, \"ltr\")\n      : null;\n    const logicallyFlagged = logicalCircleGid !== 0\n      && logicalLayout != null\n      && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);\n    const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i)) || logicallyFlagged;\n    if (isMark || probeFlagged) {\n      // The canvas probe is authoritative only for a glyph Chrome actually\n      // painted. For an uncovered mark it observes the fallback face's bare\n      // .notdef box, not HarfBuzz's broken-syllable decision, and therefore\n      // commonly returns an empty array (the macOS Vedic CI route is Arial\n      // Unicode's .notdef plus its real U+25CC). Let the static shaper-class\n      // predicate answer the uncovered case; keep the probe veto below for\n      // covered marks such as Sinhala U+0D81.\n      const wantUncoveredCircle = usesComplexShaperDottedCircle(cp);\n      // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED\n      // FOR THE RUN has a glyph for U+25CC. Transcribed from\n      // `hb_syllabic_insert_dotted_circles` (`external/harfbuzz/src/hb-ot-shaper-syllabic.cc:51-53`,\n      // rev 4de187d):\n      //\n      //     hb_codepoint_t dottedcircle_glyph;\n      //     if (!font->get_nominal_glyph (0x25CCu, &dottedcircle_glyph))\n      //       return false;\n      //\n      // Blink shapes with HarfBuzz on every platform, so this is Chrome's rule\n      // rather than an approximation of it. Note what it is NOT about: the\n      // MARK's coverage. Whether Chrome circles depends on U+25CC's coverage in\n      // the face the run was shaped with, and the two come apart exactly where\n      // this went wrong before — a mark nothing covers still gets a circle if\n      // the run's font has one, and a covered mark gets none if it does not.\n      //\n      // The run's font here is the primary: an uncovered codepoint paints the\n      // primary's `.notdef` (Blink's `kFirstCandidateForNotdefGlyph`), which is\n      // the same face HarfBuzz would have been handed.\n      //\n      // ANDed with the existing conditions rather than replacing them. The probe\n      // stands in for HarfBuzz's other requirement — a broken (base-less)\n      // syllable — which we cannot read off the font. So this can only ever\n      // REMOVE a circle we would otherwise have drawn, never add one.\n      const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;\n      if (orphaned && wantUncoveredCircle && runFontHasDottedCircle\n          && !shapeUncoveredOrphansNatively\n          && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,\n            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)) {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2197"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1866f6e6a9412526ec77f00eaa5a47b2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "73ffed8b8ce0b140ee5dab475f72c449d01c87d1",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

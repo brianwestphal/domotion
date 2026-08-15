@@ -815,6 +815,20 @@ describe("insertSyntheticDottedCircles: Hangul tone marks stay bare for HarfBuzz
   });
 });
 
+describe("DM-2197: uncovered Vedic marks ignore an empty paint probe", () => {
+  it.skipIf(!fs.existsSync("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"))(
+    "uses the shaper class when Arial Unicode supplies U+25CC but not the mark",
+    () => {
+      const result = insertSyntheticDottedCircles(
+        "\u1CD1", [0], '"Arial Unicode MS", sans-serif', 400, 32, 0,
+        undefined, undefined, [], undefined, false,
+      );
+      expect(result.text).toBe("◌\u1CD1");
+      expect(result.xOffsets).toHaveLength(2);
+    },
+  );
+});
+
 // DM-1109: the pre-base (left) matra predicate. Unconditional set membership —
 // no DOM. The crux is the Vowel_Dependent filter: InPC=Left medial CONSONANTS
 // must NOT qualify (they don't pre-base-reorder), only left VOWEL signs do.
