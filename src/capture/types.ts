@@ -394,8 +394,9 @@ export interface CapturedStyles {
    * CSS `background-blend-mode` — per-layer blend mode (comma-separated to
    * match the layer count). Captured verbatim from `getComputedStyle`. The
    * renderer applies each layer's mode as `style="mix-blend-mode:<mode>"`
-   * on the layer's `<rect>`, wrapped in a `<g style="isolation:isolate">`
-   * so the blend doesn't escape the element's bg-layer stack.
+   * on the layer's `<rect>`. The image layers and background color share an
+   * isolated group so the color participates in blending without letting the
+   * blend escape the element's background stack.
    */
   backgroundBlendMode?: string;
   /**

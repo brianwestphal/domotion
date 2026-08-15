@@ -157,6 +157,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msuzles0v9sfdn7v",
+          "message": {
+            "text": "The isolation boundary deliberately begins before background-color. Blink's BoxPainterBase::PaintFillLayers opens one separate buffer around reverse FillLayer painting, and its bottom FillLayer owns both the color and image; grouping only SVG image rects therefore changes the backdrop for the bottom blend.",
+            "markdown": "The isolation boundary deliberately begins before background-color. Blink's BoxPainterBase::PaintFillLayers opens one separate buffer around reverse FillLayer painting, and its bottom FillLayer owns both the color and image; grouping only SVG image rects therefore changes the backdrop for the bottom blend."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4488,
+                  "endLine": 4502,
+                  "snippet": {
+                    "text": "    const backgroundImageStart = svgParts.length;\n    state.bgClipTextFills.set(el, paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport));\n    const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? \"normal\");\n    const hasNonNormalBlend = blendLayers.some((mode) => mode.trim() !== \"\" && mode.trim() !== \"normal\");\n    // Blink's BoxPainterBase opens its separate buffer around PaintFillLayers,\n    // whose bottom FillLayer paints both the background color and its image.\n    // Keep the same boundary here: isolating only image rects leaves the\n    // bottom blended layer with a transparent backdrop instead of the color.\n    if (hasNonNormalBlend && svgParts.length > backgroundImageStart) {\n      const stack = svgParts.slice(backgroundStackStart).join(\"\\n\");\n      svgParts.length = backgroundStackStart;\n      svgParts.push(`${indent}<g style=\"isolation:isolate\">\\n${stack}\\n${indent}</g>`);\n    }\n  }\n  const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = state.bgClipTextFills.get(el) ?? { fills: [], fragmentFills: [] };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/box_painter_base.cc"
+                },
+                "region": {
+                  "startLine": 59
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2200"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "281735d65300a14be31c5bbc442b98ff"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "853cfc396e81c0f12c62156163c7c882a0dc0a7c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

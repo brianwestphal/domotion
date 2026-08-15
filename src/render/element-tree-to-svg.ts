@@ -1864,7 +1864,9 @@ function paintPerSideBorder(
 // Background-image layer paint, extracted from renderElement (DM-1306, DM-1311).
 // Emits the comma-separated background-image layers (gradients + url() images)
 // as clipped rects, honoring per-layer size / position / repeat / clip / origin /
-// attachment and background-blend-mode isolation groups. Also collects the
+// attachment and per-layer background-blend-mode values. The caller owns the
+// isolation group because the background color must share that paint stack.
+// Also collects the
 // background-clip:text layer fills into textBgClipFills, which the caller threads
 // into paintText so the gradient paints inside the glyph shapes. Handles both the
 // box element (the !useInlineFragments loop) and the wrapped-inline element's own
@@ -1899,10 +1901,6 @@ function paintBackgroundImageLayers(
     // emit-time bg-layer indexing is reversed (later index = lower in
     // stack), so we look up by the ORIGINAL CSS layer index (`li`).
     const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal").map((s) => s.trim());
-    const hasNonNormalBlend = blendLayers.some((m) => m !== "normal" && m !== "");
-    const bgGroupOpen = hasNonNormalBlend ? `${indent}<g style="isolation:isolate">\n` : "";
-    const bgGroupClose = hasNonNormalBlend ? `\n${indent}</g>` : "";
-    const bgGroupStart = ctx.svgParts.length;
     // Per-side borders + padding for clip/origin math.
     const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
     const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -1978,22 +1976,15 @@ function paintBackgroundImageLayers(
       const innerCorners = layerClip === "border-box"
         ? corners
         : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
-      // DM-817: per-layer mix-blend-mode. Bottom layer (CSS layer
-      // layers.length-1) always paints normal; upper layers blend.
+      // CSS Compositing §6.1: every image layer uses its corresponding
+      // background-blend-mode, including the bottom image layer as it blends
+      // with the background color painted beneath it.
       const layerBlend = blendLayers[li] ?? blendLayers[0] ?? "normal";
       const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
         ? ` style="mix-blend-mode:${layerBlend}"` : "";
       ctx.svgParts.push(
         `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
       );
-    }
-    // DM-817: wrap the bg-layer rects we just emitted in an
-    // isolation-isolate group so the multiply / screen / etc. doesn't
-    // bleed into siblings painted above.
-    if (hasNonNormalBlend && ctx.svgParts.length > bgGroupStart) {
-      const wrapped = bgGroupOpen + ctx.svgParts.slice(bgGroupStart).join("\n") + bgGroupClose;
-      ctx.svgParts.length = bgGroupStart;
-      ctx.svgParts.push(wrapped);
     }
   }
 
@@ -4475,6 +4466,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // a comma-separated list of linear/radial gradients and url() images. The
   // first layer paints on top — we emit in reverse so the rect order matches
   // CSS layering. The background-color paints *under* all layers.
+  const backgroundStackStart = svgParts.length;
   if (paintBoxPhase) {
     svgParts.push(...paintBackgroundColor(el, corners, indent, bgColor, useInlineFragments, suppressEmptyCell));
   }
@@ -4493,7 +4485,19 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // paintText. The layers belong to the box phase but the fills are consumed
   // in the inline phase, so they are stashed for the second pass to pick up.
   if (paintBoxPhase) {
+    const backgroundImageStart = svgParts.length;
     state.bgClipTextFills.set(el, paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport));
+    const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
+    const hasNonNormalBlend = blendLayers.some((mode) => mode.trim() !== "" && mode.trim() !== "normal");
+    // Blink's BoxPainterBase opens its separate buffer around PaintFillLayers,
+    // whose bottom FillLayer paints both the background color and its image.
+    // Keep the same boundary here: isolating only image rects leaves the
+    // bottom blended layer with a transparent backdrop instead of the color.
+    if (hasNonNormalBlend && svgParts.length > backgroundImageStart) {
+      const stack = svgParts.slice(backgroundStackStart).join("\n");
+      svgParts.length = backgroundStackStart;
+      svgParts.push(`${indent}<g style="isolation:isolate">\n${stack}\n${indent}</g>`);
+    }
   }
   const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = state.bgClipTextFills.get(el) ?? { fills: [], fragmentFills: [] };
 

@@ -767,6 +767,16 @@ export const tests: FeatureTest[] = [
     width: 240,
     height: 120,
   },
+  // Background blending is a separate stack from descendant mix blending:
+  // the image must multiply against the element's own red background color.
+  {
+    name: "background-blend-color-stack",
+    html: `<div style="padding: 20px; background: #f8fafc;">
+      <div style="width: 180px; height: 80px; background-color: #ef4444; background-image: linear-gradient(#14b8a6, #14b8a6); background-blend-mode: multiply;"></div>
+    </div>`,
+    width: 220,
+    height: 120,
+  },
 
   // ── Regression: overflow:hidden clips children (SK-440) ──
   // The inner span is wider than the parent. With overflow:hidden the visible
