@@ -1434,7 +1434,15 @@ export function insertSyntheticDottedCircles(
     const logicallyFlagged = logicalCircleGid !== 0
       && logicalLayout != null
       && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);
-    const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i)) || logicallyFlagged;
+    // A successfully resolved non-dedicated HarfBuzz run is itself enough to
+    // establish the shaping route. Some platform fonts expose the mark and
+    // U+25CC but the JS shaping facade returns only the source glyph when asked
+    // to shape the mark in isolation; Chromium still enters the broken-
+    // syllable pass for the full run. Dedicated shapers remain excluded by
+    // resolveDottedCircleHbRun(), preserving the measured Sinhala/Thai/etc.
+    // vetoes.
+    const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i))
+      || logicallyFlagged || logicalHbRun != null;
     if (isMark || probeFlagged) {
       // The canvas probe is authoritative only for a glyph Chrome actually
       // painted. For an uncovered mark it observes the fallback face's bare
