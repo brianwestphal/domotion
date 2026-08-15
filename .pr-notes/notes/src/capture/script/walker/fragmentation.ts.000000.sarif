@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msufepr39oj5gl8v",
+          "message": {
+            "text": "Column rules must be captured as physical row segments because a column-span:all element splits one multicol container into multiple column rows. The union border box cannot reveal those gaps; this records intervals from the content box and each spanner's margin box so the renderer does not draw through spanning content.",
+            "markdown": "Column rules must be captured as physical row segments because a column-span:all element splits one multicol container into multiple column rows. The union border box cannot reveal those gaps; this records intervals from the content box and each spanner's margin box so the renderer does not draw through spanning content."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/fragmentation.ts"
+                },
+                "region": {
+                  "startLine": 11,
+                  "endLine": 64,
+                  "snippet": {
+                    "text": "      // CSS Multi-column Layout paints rules in each column row. A\n      // column-span:all child ends the current row and starts another, so a\n      // rule reconstructed from the container's union box would incorrectly\n      // cross the spanner. Capture the physical row intervals here while the\n      // DOM's computed margins and border/padding geometry are available.\n      var _ownCount = parseInt(cs.columnCount, 10);\n      var _ownColumnWidth = parseFloat(cs.columnWidth || '');\n      var _ownGap = parseFloat(cs.columnGap || '');\n      if (!Number.isFinite(_ownGap)) _ownGap = parseFloat(cs.fontSize || '16') || 16;\n      var _ruleWidth = parseFloat(cs.columnRuleWidth || '0') || 0;\n      var _ruleStyle = cs.columnRuleStyle || 'none';\n      if (_ruleWidth > 0 && _ruleStyle !== 'none' && _ruleStyle !== 'hidden') {\n        var _box = el.getBoundingClientRect();\n        var _contentLeft = _box.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);\n        var _contentRight = _box.right - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);\n        var _contentTop = _box.top + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);\n        var _contentBottom = _box.bottom - (parseFloat(cs.borderBottomWidth) || 0) - (parseFloat(cs.paddingBottom) || 0);\n        var _contentWidth = _contentRight - _contentLeft;\n        if (!(Number.isFinite(_ownCount) && _ownCount > 1) && Number.isFinite(_ownColumnWidth) && _ownColumnWidth > 0) {\n          _ownCount = Math.max(1, Math.floor((_contentWidth + _ownGap) / (_ownColumnWidth + _ownGap)));\n        }\n        if (Number.isFinite(_ownCount) && _ownCount > 1 && _contentWidth > 0 && _contentBottom > _contentTop) {\n          var _rows = [];\n          var _rowStart = _contentTop;\n          for (var _si = 0; _si < el.children.length; _si++) {\n            var _span = el.children[_si];\n            var _spanCs = window.getComputedStyle(_span);\n            if (_spanCs.columnSpan !== 'all') continue;\n            var _spanRect = _span.getBoundingClientRect();\n            var _spanTop = _spanRect.top - (parseFloat(_spanCs.marginTop) || 0);\n            var _spanBottom = _spanRect.bottom + (parseFloat(_spanCs.marginBottom) || 0);\n            if (_spanTop > _rowStart) _rows.push([_rowStart, Math.min(_spanTop, _contentBottom)]);\n            _rowStart = Math.max(_rowStart, _spanBottom);\n          }\n          if (_contentBottom > _rowStart) _rows.push([_rowStart, _contentBottom]);\n          var _columnWidth = (_contentWidth - _ownGap * (_ownCount - 1)) / _ownCount;\n          var _rules = [];\n          for (var _ri = 1; _ri < _ownCount; _ri++) {\n            var _ruleX = _contentLeft + _ri * _columnWidth + (_ri - 0.5) * _ownGap - vp.x;\n            for (var _rsi = 0; _rsi < _rows.length; _rsi++) {\n              if (_rows[_rsi][1] <= _rows[_rsi][0]) continue;\n              _rules.push({\n                x: _ruleX,\n                y1: _rows[_rsi][0] - vp.y,\n                y2: _rows[_rsi][1] - vp.y,\n                width: _ruleWidth,\n                color: cs.columnRuleColor,\n                style: _ruleStyle,\n              });\n            }\n          }\n          if (_rules.length > 0) captured.columnRules = _rules;\n        }\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.93
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2199"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cb2094bbcc3df1ee7067321358e36117"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f36304168ed2b63ac7607568b66791ac7d571231",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

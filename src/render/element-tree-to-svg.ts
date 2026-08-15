@@ -4520,6 +4520,28 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     paintBorder(paintCtx, el, indent, corners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
   }
 
+  // Column rules belong to the multicol container's box-paint phase and sit
+  // behind its contents. Capture supplies disjoint row segments so spanning
+  // elements leave the same gap Blink paints instead of receiving a rule
+  // through their middle.
+  if (paintBoxPhase && el.columnRules != null) {
+    for (const rule of el.columnRules) {
+      const ruleColor = colorStr(parseColor(rule.color) ?? { r: 0, g: 0, b: 0, a: 1 });
+      const dash = rule.style === "dashed"
+        ? ` stroke-dasharray="${r(rule.width * 3)},${r(rule.width * 3)}"`
+        : rule.style === "dotted"
+          ? ` stroke-dasharray="0,${r(rule.width * 2)}" stroke-linecap="round"`
+          : "";
+      if (rule.style === "double" && rule.width >= 3) {
+        const part = rule.width / 3;
+        svgParts.push(`${indent}<line x1="${r(rule.x - part)}" y1="${r(rule.y1)}" x2="${r(rule.x - part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
+        svgParts.push(`${indent}<line x1="${r(rule.x + part)}" y1="${r(rule.y1)}" x2="${r(rule.x + part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
+      } else {
+        svgParts.push(`${indent}<line x1="${r(rule.x)}" y1="${r(rule.y1)}" x2="${r(rule.x)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(rule.width)}"${dash} />`);
+      }
+    }
+  }
+
   // Outline (SK-1111): drawn outside the border-box and shifted further out
   // by outline-offset (which can be negative). Doesn't take layout space —
   // the captured rect is the border-box, so we inflate from that. Outline

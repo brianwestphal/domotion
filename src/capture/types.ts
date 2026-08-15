@@ -1004,6 +1004,20 @@ export interface CapturedElement {
    *  so we can't distinguish them geometrically at render time. Defaults to
    *  `"inline"` when undefined (backwards-compatible with pre-DM-754 captures). */
   fragmentAxis?: "inline" | "block";
+  /**
+   * Physical column-rule segments measured from a multi-column container.
+   * A spanning element creates a new column row, so one logical rule may
+   * have several disjoint vertical segments rather than covering the
+   * container's union box.
+   */
+  columnRules?: Array<{
+    x: number;
+    y1: number;
+    y2: number;
+    width: number;
+    color: string;
+    style: string;
+  }>;
   children: CapturedElement[];
   imageSrc?: string;
   /** Intrinsic pixel dimensions of <img>, used for object-fit: none. */

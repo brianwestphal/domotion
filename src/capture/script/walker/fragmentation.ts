@@ -8,6 +8,60 @@
 // the trigger conditions (DM-754 / DM-937).
 
 export const detectInlineFragments = (el, cs, vp, captured) => {
+      // CSS Multi-column Layout paints rules in each column row. A
+      // column-span:all child ends the current row and starts another, so a
+      // rule reconstructed from the container's union box would incorrectly
+      // cross the spanner. Capture the physical row intervals here while the
+      // DOM's computed margins and border/padding geometry are available.
+      var _ownCount = parseInt(cs.columnCount, 10);
+      var _ownColumnWidth = parseFloat(cs.columnWidth || '');
+      var _ownGap = parseFloat(cs.columnGap || '');
+      if (!Number.isFinite(_ownGap)) _ownGap = parseFloat(cs.fontSize || '16') || 16;
+      var _ruleWidth = parseFloat(cs.columnRuleWidth || '0') || 0;
+      var _ruleStyle = cs.columnRuleStyle || 'none';
+      if (_ruleWidth > 0 && _ruleStyle !== 'none' && _ruleStyle !== 'hidden') {
+        var _box = el.getBoundingClientRect();
+        var _contentLeft = _box.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);
+        var _contentRight = _box.right - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
+        var _contentTop = _box.top + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
+        var _contentBottom = _box.bottom - (parseFloat(cs.borderBottomWidth) || 0) - (parseFloat(cs.paddingBottom) || 0);
+        var _contentWidth = _contentRight - _contentLeft;
+        if (!(Number.isFinite(_ownCount) && _ownCount > 1) && Number.isFinite(_ownColumnWidth) && _ownColumnWidth > 0) {
+          _ownCount = Math.max(1, Math.floor((_contentWidth + _ownGap) / (_ownColumnWidth + _ownGap)));
+        }
+        if (Number.isFinite(_ownCount) && _ownCount > 1 && _contentWidth > 0 && _contentBottom > _contentTop) {
+          var _rows = [];
+          var _rowStart = _contentTop;
+          for (var _si = 0; _si < el.children.length; _si++) {
+            var _span = el.children[_si];
+            var _spanCs = window.getComputedStyle(_span);
+            if (_spanCs.columnSpan !== 'all') continue;
+            var _spanRect = _span.getBoundingClientRect();
+            var _spanTop = _spanRect.top - (parseFloat(_spanCs.marginTop) || 0);
+            var _spanBottom = _spanRect.bottom + (parseFloat(_spanCs.marginBottom) || 0);
+            if (_spanTop > _rowStart) _rows.push([_rowStart, Math.min(_spanTop, _contentBottom)]);
+            _rowStart = Math.max(_rowStart, _spanBottom);
+          }
+          if (_contentBottom > _rowStart) _rows.push([_rowStart, _contentBottom]);
+          var _columnWidth = (_contentWidth - _ownGap * (_ownCount - 1)) / _ownCount;
+          var _rules = [];
+          for (var _ri = 1; _ri < _ownCount; _ri++) {
+            var _ruleX = _contentLeft + _ri * _columnWidth + (_ri - 0.5) * _ownGap - vp.x;
+            for (var _rsi = 0; _rsi < _rows.length; _rsi++) {
+              if (_rows[_rsi][1] <= _rows[_rsi][0]) continue;
+              _rules.push({
+                x: _ruleX,
+                y1: _rows[_rsi][0] - vp.y,
+                y2: _rows[_rsi][1] - vp.y,
+                width: _ruleWidth,
+                color: cs.columnRuleColor,
+                style: _ruleStyle,
+              });
+            }
+          }
+          if (_rules.length > 0) captured.columnRules = _rules;
+        }
+      }
       var _bgC = captured.styles.backgroundColor;
       var _hasBg = _bgC != null && _bgC !== '' && _bgC !== 'transparent' && _bgC !== 'rgba(0, 0, 0, 0)';
       var _hasBgImage = captured.styles.backgroundImage != null

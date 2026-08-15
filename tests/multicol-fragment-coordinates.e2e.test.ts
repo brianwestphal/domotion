@@ -24,8 +24,8 @@ const HTML = `<!doctype html><style>
   #avoid { margin-top: 20px; width: 600px; height: 80px; columns: 2; column-gap: 20px; column-fill: auto }
   #avoid .lead { height: 60px }
   #avoid .keep { height: 40px; break-inside: avoid }
-  #spanned { margin-top: 20px; width: 600px; columns: 2; column-gap: 20px }
-  #spanned .span { column-span: all; height: 30px }
+  #spanned { margin-top: 20px; width: 600px; columns: 2; column-gap: 20px; column-rule: 2px solid rgb(12, 34, 56) }
+  #spanned .span { column-span: all; height: 30px; margin: 10px 0 12px }
 </style>
 <div id="forced"><p id="first">first-column</p><p id="second" class="break">second-column</p><p id="third" class="break">third-column</p></div>
 <div id="avoid"><p class="lead">lead-fragment</p><p id="kept" class="keep">kept-fragment</p></div>
@@ -99,6 +99,14 @@ describeBrowser("DM-2161: multicol text keeps LayoutNG physical fragment coordin
       expect(output).toMatch(/aria-label="second-column"[\s\S]*?<text x="210(?:\s|\")/);
       expect(output).toMatch(/aria-label="third-column"[\s\S]*?<text x="420(?:\s|\")/);
       expect(output).toMatch(/aria-label="kept-fragment"[\s\S]*?<text x="310(?:\s|\")/);
+
+      const spanned = tree.flatMap(function walk(node): CapturedElement[] {
+        return [node, ...node.children.flatMap(walk)];
+      }).find((node) => node.columnRules != null);
+      expect(spanned?.columnRules).toHaveLength(2);
+      expect(spanned!.columnRules![0].x).toBeCloseTo(300, 4);
+      expect(spanned!.columnRules![0].y2).toBeLessThan(spanned!.columnRules![1].y1);
+      expect(output.match(/stroke="rgb\(12,\s*34,\s*56\)"/g)).toHaveLength(2);
     } finally {
       await page.close();
     }
