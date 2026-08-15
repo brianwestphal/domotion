@@ -9346,7 +9346,13 @@ export function resolveDottedCircleHbRun(
   // including its TTC face and resolved variable axes, and use the key lookup
   // only as the degraded fallback.
   const src = getFontSourceInfo(markFont);
-  const hbFace = src != null && src.nameMatched && src.faceIndex != null
+  // This is the already-selected glyph-bearing instance, not a fresh request
+  // by family name. A fontkit-opened collection can legitimately report
+  // nameMatched=false after falling back to member zero while still recording
+  // the exact member that supplied these outlines. Requiring the requested
+  // alias to match discarded that authoritative face on CI's Arial Unicode
+  // Vedic route and made the dotted-circle handoff silently return null.
+  const hbFace = src != null && src.faceIndex != null
     ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
     : shapingFaceFor(markKey, weight, fontSize, slant, variationSettings);
   if (hbFace == null) return null;

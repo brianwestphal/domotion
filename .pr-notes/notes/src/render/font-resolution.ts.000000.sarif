@@ -1631,6 +1631,71 @@
           "branch": "dm-2168-font-route-trace"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msuychq00sitcnlk",
+          "message": {
+            "text": "The selected FontInstance's concrete path and face index are authoritative for dotted-circle shaping even when its requested alias did not match the opened collection member. CI's absent-Mukta Vedic stack falls to an Arial Unicode instance with valid outlines/source geometry; rejecting it by alias silently bypassed HarfBuzz and dropped U+25CC.",
+            "markdown": "The selected FontInstance's concrete path and face index are authoritative for dotted-circle shaping even when its requested alias did not match the opened collection member. CI's absent-Mukta Vedic stack falls to an Arial Unicode instance with valid outlines/source geometry; rejecting it by alias silently bypassed HarfBuzz and dropped U+25CC."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9343,
+                  "endLine": 9357,
+                  "snippet": {
+                    "text": "  // silently returned null.  Blink does not redo a family-name lookup between\n  // fallback selection and shaping: the selected `SimpleFontData` supplies the\n  // `HarfBuzzFace`.  Preserve that identity by preferring the instance source,\n  // including its TTC face and resolved variable axes, and use the key lookup\n  // only as the degraded fallback.\n  const src = getFontSourceInfo(markFont);\n  // This is the already-selected glyph-bearing instance, not a fresh request\n  // by family name. A fontkit-opened collection can legitimately report\n  // nameMatched=false after falling back to member zero while still recording\n  // the exact member that supplied these outlines. Requiring the requested\n  // alias to match discarded that authoritative face on CI's Arial Unicode\n  // Vedic route and made the dotted-circle handoff silently return null.\n  const hbFace = src != null && src.faceIndex != null\n    ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }\n    : shapingFaceFor(markKey, weight, fontSize, slant, variationSettings);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.9
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2197"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "abb7c8a002eccac1d548b6771e9458f5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4d48f74ad769e18d57d3563feac6b4caa323a2c0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

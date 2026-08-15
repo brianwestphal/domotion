@@ -1940,6 +1940,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       xOffsets: segXOffsets, fontStyle: segFontStyle, ascentOverride: segAscent,
       features: segFeatures, lang: el.styles.lang, variationSettings: elVariationSettings,
       textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+      dottedCircleMarks: seg.dottedCircleMarks,
       bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
       fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
     });
@@ -2048,6 +2049,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         xOffsets: segXOffsets, fontStyle: el.styles.fontStyle, ascentOverride: segAscent,
         features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+        dottedCircleMarks: seg.dottedCircleMarks,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
