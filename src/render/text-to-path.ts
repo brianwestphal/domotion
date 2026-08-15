@@ -1344,6 +1344,22 @@ export function insertSyntheticDottedCircles(
   // the chain would shift the tofu ~13px too far right. Falls back to the chain
   // only when the primary lacks ◌. Computed lazily — only if a mark qualifies.
   let dottedCircleAdvanceCss = -1;
+  let dottedCircleRunFont: FontInstance | null | undefined;
+  const resolveDottedCircleRunFont = (): FontInstance | null => {
+    if (dottedCircleRunFont !== undefined) return dottedCircleRunFont;
+    if (glyphIdForCp(primaryFont, 0x25CC) !== 0) return (dottedCircleRunFont = primaryFont);
+    // Blink's family stage can select a later declared face as the first
+    // candidate for .notdef. The macOS Vedic fixture is exactly that shape:
+    // Mukta is absent, Arial Unicode lacks U+1CD1 but supplies U+25CC, so the
+    // broken syllable is shaped on Arial rather than on the generic primary.
+    for (const key of fontKeyChain) {
+      const candidate = key === primaryFontKey ? primaryFont : getFontInstance(key, weight, fontSize, slant);
+      if (candidate != null && glyphIdForCp(candidate, 0x25CC) !== 0) {
+        return (dottedCircleRunFont = candidate);
+      }
+    }
+    return (dottedCircleRunFont = null);
+  };
   const resolveDottedCircleAdvance = (): number => {
     if (dottedCircleAdvanceCss >= 0) return dottedCircleAdvanceCss;
     dottedCircleAdvanceCss = 0;
@@ -1352,8 +1368,8 @@ export function insertSyntheticDottedCircles(
       if (cf != null && g != null && g.id !== 0) return (g.advanceWidth ?? 0) * (fontSize / cf.unitsPerEm);
       return null;
     };
-    const fromPrimary = advFrom(primaryFont);
-    if (fromPrimary != null) { dottedCircleAdvanceCss = fromPrimary; return dottedCircleAdvanceCss; }
+    const fromRunFont = advFrom(resolveDottedCircleRunFont());
+    if (fromRunFont != null) { dottedCircleAdvanceCss = fromRunFont; return dottedCircleAdvanceCss; }
     for (const cand of fallbackFontChain(0x25CC, primaryFontKey, lang)) {
       if (cand === "last-resort") continue;
       const a = advFrom(getFontInstance(cand, weight, fontSize, slant));
@@ -1479,7 +1495,7 @@ export function insertSyntheticDottedCircles(
       // stands in for HarfBuzz's other requirement — a broken (base-less)
       // syllable — which we cannot read off the font. So this can only ever
       // REMOVE a circle we would otherwise have drawn, never add one.
-      const runFontHasDottedCircle = glyphIdForCp(primaryFont, 0x25cc) !== 0;
+      const runFontHasDottedCircle = resolveDottedCircleRunFont() != null;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
           && !shapeUncoveredOrphansNatively
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
