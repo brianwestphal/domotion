@@ -376,6 +376,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msv47afx9yech00a",
+          "message": {
+            "text": "Computed appearance:auto is not proof that Blink owns a button’s full paint: author rules can replace its surface while retaining the initial appearance value. Matching author paint declarations is the semantic boundary that keeps those buttons vector without regressing truly native controls.",
+            "markdown": "Computed `appearance:auto` is not proof that Blink owns a button’s full paint: author rules can replace its surface while retaining the initial appearance value. Matching author paint declarations is the semantic boundary that keeps those buttons vector without regressing truly native controls."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 764,
+                  "endLine": 800,
+                  "snippet": {
+                    "text": "        // `appearance:auto` does not mean that LayoutTheme owns the complete\n        // surface. In particular, ordinary author CSS can replace a button's\n        // background/border/type while leaving appearance at its initial\n        // value. Detect that ownership from matching author declarations so\n        // interactive colors and text remain vector content. Inputs/selects\n        // still use their native shadow-DOM internals unless the author opts\n        // out with appearance:none; this narrower exception is for buttons,\n        // whose surface and label are normal author-styleable paint.\n        if (tag === 'button') {\n          const ownsButtonPaint = function () {\n            const paintProp = /^(appearance|background(?:-.+)?|border(?:-.+)?|box-shadow|color|font(?:-.+)?|padding(?:-.+)?|text-shadow)$/;\n            const hasPaintDecl = function (decl) {\n              if (!decl) return false;\n              for (let i = 0; i < decl.length; i++) if (paintProp.test(decl[i])) return true;\n              return false;\n            };\n            if (hasPaintDecl(el.style)) return true;\n            const visit = function (rules) {\n              if (!rules) return false;\n              for (let i = 0; i < rules.length; i++) {\n                const rule = rules[i];\n                if (rule.cssRules && visit(rule.cssRules)) return true;\n                if (!rule.selectorText || !hasPaintDecl(rule.style)) continue;\n                const selectors = rule.selectorText.split(',');\n                for (let j = 0; j < selectors.length; j++) {\n                  try { if (el.matches(selectors[j].trim())) return true; } catch (e) { /* unsupported selector */ }\n                }\n              }\n              return false;\n            };\n            const sheets = el.ownerDocument.styleSheets;\n            for (let i = 0; i < sheets.length; i++) {\n              try { if (visit(sheets[i].cssRules)) return true; } catch (e) { /* cross-origin stylesheet */ }\n            }\n            return false;\n          };\n          if (ownsButtonPaint()) return undefined;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2205"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "eb1d0f3cc1d6481be376cda9773922f2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e3681941848ecef8d405c72fe541771542e7667c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

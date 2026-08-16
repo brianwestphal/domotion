@@ -6,10 +6,10 @@
 
 An element with a non-initial `backdrop-filter` must preserve the pixels Blink
 produces after sampling the already-painted backdrop, applying the backdrop
-filter chain, compositing the element's own translucent background and
-descendants, and clipping the result to the element's border contour. The
-snapshot must occupy the element's normal paint-order position and replace—not
-supplement—the vector subtree.
+filter chain, compositing the element's own translucent background, and
+clipping the result to the element's border contour. The snapshot must occupy
+the element's normal paint-order position and replace the box surface while
+the element's text and descendants remain vector content above it.
 
 Ordinary `filter` remains vector. It filters the element's own render surface
 and is already represented by the renderer's group/filter pipeline.
@@ -27,10 +27,11 @@ one element, because those effects live on two ordered render surfaces.
 Reconstructing the filter primitives in SVG would therefore apply correct math
 to the wrong input. Domotion instead records a viewport-relative
 `backdropFilterRaster` placeholder during the DOM walk. The node-side raster
-pass screenshots those exact Chromium-composited pixels, and the renderer emits
-one `<image>` at the subtree root and returns before painting its vector box,
-text, or descendants. Nested backdrop-filter descendants naturally collapse
-into the nearest snapshotted ancestor.
+pass temporarily hides descendant subtrees, screenshots the filtered box
+surface, and the renderer emits one `<image>` at the subtree root before
+painting its vector text and descendants. Nested backdrop-filter descendants
+therefore keep their own isolation boundary rather than collapsing into an
+ancestor bitmap.
 
 ## Bounds and stacking contract
 
@@ -47,7 +48,8 @@ normal sibling order, opacity ownership, and ancestor clipping around the
 replacement image. Before taking each crop, Domotion captures a Chromium
 `DOMSnapshot` with layout bounds and paint order. Later-painted, overlapping
 subtrees are temporarily hidden while earlier paint—the backdrop input—remains
-visible. Descendants and ancestors of the target are never hidden, and a later
+visible. Top-level descendant subtrees are hidden so their pixels can be
+re-emitted as vectors; target ancestors remain visible. A later unrelated
 ancestor is hidden only once rather than mutating every descendant. Nodes in
 the same global paint group use layout traversal order as the sibling-order
 tie-breaker.
@@ -66,9 +68,9 @@ Temporary `data-domotion-backdrop-raster` tokens are removed after the pass.
   6 regions / 0.04%; the remaining regions are ordinary filter/border/text
   residuals rather than missing backdrop effects.
 - `22-backdrop-filter` is no longer excluded from the HTML visual suite.
-- Unit coverage asserts that a populated backdrop raster replaces the complete
-  vector subtree and that the isolation planner preserves earlier, unrelated,
-  and target-relative nodes while suppressing later overlap.
+- Unit coverage asserts that a populated backdrop raster replaces only the box
+  surface and that the isolation planner preserves earlier backdrop nodes while
+  suppressing vectorized descendants and later overlap.
 - Playwright coverage captures a real blurred backdrop under a later
   overlapping subtree, compares the raster with an isolated Chromium crop,
   and verifies that the live page's visibility and temporary token are restored.

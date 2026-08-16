@@ -5,7 +5,7 @@ const n = (backendNodeId: number, parentIndex: number, paintOrder: number, bound
   ({ backendNodeId, parentIndex, paintOrder, layoutOrder: backendNodeId, bounds, attributes });
 
 describe("planBackdropIsolation", () => {
-  it("hides only overlapping later paint and preserves target relatives and backdrop", () => {
+  it("hides vectorized descendants and overlapping later paint while preserving the backdrop", () => {
     const nodes = [
       n(1, -1, 0, [0, 0, 500, 500]),
       n(2, 0, 1, [0, 0, 200, 200]), // earlier backdrop
@@ -15,7 +15,7 @@ describe("planBackdropIsolation", () => {
       n(6, 4, 6, [60, 60, 10, 10]), // hidden by wrapper
       n(7, 0, 7, [300, 300, 20, 20]), // later non-overlap
     ];
-    expect(planBackdropIsolation(nodes, "bf0")).toEqual({ targetBackendNodeId: 3, hideBackendNodeIds: [5] });
+    expect(planBackdropIsolation(nodes, "bf0")).toEqual({ targetBackendNodeId: 3, hideBackendNodeIds: [4, 5] });
   });
 
   it("falls back when the target cannot be mapped to one painted layout node", () => {

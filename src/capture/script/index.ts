@@ -761,6 +761,44 @@ const captureDocumentTree =
         const nativeTag = tag === 'input' || tag === 'select' || tag === 'textarea'
           || tag === 'button' || tag === 'progress' || tag === 'meter';
         if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
+        // `appearance:auto` does not mean that LayoutTheme owns the complete
+        // surface. In particular, ordinary author CSS can replace a button's
+        // background/border/type while leaving appearance at its initial
+        // value. Detect that ownership from matching author declarations so
+        // interactive colors and text remain vector content. Inputs/selects
+        // still use their native shadow-DOM internals unless the author opts
+        // out with appearance:none; this narrower exception is for buttons,
+        // whose surface and label are normal author-styleable paint.
+        if (tag === 'button') {
+          const ownsButtonPaint = function () {
+            const paintProp = /^(appearance|background(?:-.+)?|border(?:-.+)?|box-shadow|color|font(?:-.+)?|padding(?:-.+)?|text-shadow)$/;
+            const hasPaintDecl = function (decl) {
+              if (!decl) return false;
+              for (let i = 0; i < decl.length; i++) if (paintProp.test(decl[i])) return true;
+              return false;
+            };
+            if (hasPaintDecl(el.style)) return true;
+            const visit = function (rules) {
+              if (!rules) return false;
+              for (let i = 0; i < rules.length; i++) {
+                const rule = rules[i];
+                if (rule.cssRules && visit(rule.cssRules)) return true;
+                if (!rule.selectorText || !hasPaintDecl(rule.style)) continue;
+                const selectors = rule.selectorText.split(',');
+                for (let j = 0; j < selectors.length; j++) {
+                  try { if (el.matches(selectors[j].trim())) return true; } catch (e) { /* unsupported selector */ }
+                }
+              }
+              return false;
+            };
+            const sheets = el.ownerDocument.styleSheets;
+            for (let i = 0; i < sheets.length; i++) {
+              try { if (visit(sheets[i].cssRules)) return true; } catch (e) { /* cross-origin stylesheet */ }
+            }
+            return false;
+          };
+          if (ownsButtonPaint()) return undefined;
+        }
         // Author outlines and validation-state focus rings paint outside the
         // host border box even though the themed control itself is native.
         // Blink's outline visual overflow is width + positive offset; include

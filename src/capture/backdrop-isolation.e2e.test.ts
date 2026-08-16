@@ -42,6 +42,7 @@ describeBrowser("backdrop-filter paint-order isolation", () => {
       const clip = { x: raster!.x, y: raster!.y, width: raster!.width, height: raster!.height };
       const withLaterPaint = await page.screenshot({ clip, omitBackground: true, type: "png" });
       await page.locator("#later").evaluate((el) => { (el as HTMLElement).style.visibility = "hidden"; });
+      await page.locator("#glass > span").evaluate((el) => { (el as HTMLElement).style.visibility = "hidden"; });
       const expected = await page.screenshot({ clip, omitBackground: true, type: "png" });
       const actual = Buffer.from(raster!.dataUri!.slice("data:image/png;base64,".length), "base64");
       const [actualRaw, expectedRaw, paintedRaw] = await Promise.all([

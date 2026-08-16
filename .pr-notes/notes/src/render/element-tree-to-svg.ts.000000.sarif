@@ -235,6 +235,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msv47aqsyfn3f7me",
+          "message": {
+            "text": "The backdrop PNG is an isolated replacement for the filtered box surface, not for author content. Descendant subtrees are hidden during capture and then emitted through the normal vector phases, preserving text/path output while retaining Chromium’s otherwise-unrepresentable backdrop sampling.",
+            "markdown": "The backdrop PNG is an isolated replacement for the filtered box surface, not for author content. Descendant subtrees are hidden during capture and then emitted through the normal vector phases, preserving text/path output while retaining Chromium’s otherwise-unrepresentable backdrop sampling."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4362,
+                  "endLine": 4374,
+                  "snippet": {
+                    "text": "  // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously\n  // painted backdrop surface. SVG has no way to address that prior surface,\n  // so stamp Chromium's isolated box snapshot before its vector descendants.\n  const backdropFilterRaster = el.backdropFilterRaster;\n  if (backdropFilterRaster?.dataUri != null) {\n    // rasterizeBackdropFilters hides this element's later-painted descendants\n    // while taking the snapshot. The image therefore replaces only this box's\n    // filtered backdrop surface; its text and children must still be emitted\n    // as vectors above it. In split paint, the box phase owns the snapshot.\n    if (paintBoxPhase) {\n      svgParts.push(`${indent}<image href=\"${backdropFilterRaster.dataUri}\" x=\"${r(backdropFilterRaster.x)}\" y=\"${r(backdropFilterRaster.y)}\" width=\"${r(backdropFilterRaster.width)}\" height=\"${r(backdropFilterRaster.height)}\" preserveAspectRatio=\"none\"/>`);\n    }\n    paintBoxPhase = false;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2206"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a67ab57e2438b8b7f6b31318d33710c9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e3681941848ecef8d405c72fe541771542e7667c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

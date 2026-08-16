@@ -88,6 +88,24 @@ Tickets: SK-1108 (`<textarea>`) / SK-1128 (vertical text).
 
 ## CSS-feature fallbacks
 
+### C-1. Native form-control host paint
+
+Trigger: an `input`, `select`, `textarea`, `button`, `progress`, or `meter`
+whose computed `appearance` is not `none`. A `button` is excluded when a
+matching author stylesheet or inline declaration owns its background, border,
+shadow, color, font, or padding; authored buttons remain native SVG even when
+their computed appearance stays `auto`.
+
+Why: Blink's platform LayoutTheme and native shadow DOM paint OS-specific
+control chrome that portable SVG geometry cannot reproduce exactly. Author
+button paint does not have that limitation and must remain vector so state
+changes, labels, and CSS surfaces are preserved structurally.
+
+Capture and emit: `src/capture/script/index.ts` records a
+`nativeControlRaster` host rectangle. `src/capture/emoji.ts` screenshots it,
+and `src/render/element-tree-to-svg.ts` emits the Chromium-owned `<image>` in
+place of that control host.
+
 ### C0. `backdrop-filter`
 
 Trigger: an element whose computed `backdrop-filter` (or prefixed equivalent)
@@ -101,12 +119,13 @@ would apply them to the wrong input.
 Capture: the DOM walk records a tokenized `backdropFilterRaster` border-box
 placeholder. `rasterizeBackdropFilters` in `src/capture/emoji.ts` uses a CDP
 DOM snapshot to hide only later-painted overlapping subtrees, screenshots the
-target while preserving its earlier backdrop and own descendants, restores the
-live DOM, and stores the PNG data URI. Snapshot or mapping failures fall back
+target while preserving its earlier backdrop and hiding descendant subtrees,
+restores the live DOM, and stores the PNG data URI. Snapshot or mapping failures fall back
 to the ordinary full-page crop.
 
 Emit: `src/render/element-tree-to-svg.ts` emits the raster `<image>` at the
-element's paint position and replaces the vector subtree.
+element's paint position as its filtered box surface, then emits text and
+descendants as vectors above it.
 
 Doc: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md).
 

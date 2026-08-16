@@ -36,6 +36,14 @@ export function planBackdropIsolation(nodes: SnapshotNode[], token: string): Iso
   const targetNode = nodes[target];
   if (targetNode.bounds == null || targetNode.paintOrder == null) return null;
   const hide: number[] = [];
+  // The renderer keeps descendants as vector content above the captured
+  // filtered surface. Hide each top-level descendant subtree while taking the
+  // crop so its pixels are not baked into the backdrop image as well.
+  for (let i = 0; i < nodes.length; i++) {
+    if (i === target || !isAncestor(nodes, target, i)) continue;
+    const parent = nodes[i]?.parentIndex ?? -1;
+    if (parent === target) hide.push(nodes[i].backendNodeId);
+  }
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
     if (i === target || node.bounds == null || node.paintOrder == null) continue;

@@ -4310,7 +4310,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // CSS 2.1 Appendix E splits an element's paint between two context-wide
   // passes: box decorations at step 3, inline content at step 5, with the
   // stacking context's floats (step 4) in between. See `PaintPhase`.
-  const paintBoxPhase = phase !== "inline";
+  let paintBoxPhase = phase !== "inline";
   const paintInlinePhase = phase !== "box";
   const indent = "  ".repeat(depth);
   const bgColor = parseColor(el.styles.backgroundColor);
@@ -4359,14 +4359,19 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     svgParts.push(`${indent}<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`);
     return;
   }
-  // DM-2171: Blink evaluates backdrop-filter against a previously painted
-  // backdrop surface, then composites this element's isolated subtree above
-  // it. SVG has no way to address that prior surface, so stamp the Chromium
-  // snapshot once and suppress the duplicate vector subtree.
+  // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously
+  // painted backdrop surface. SVG has no way to address that prior surface,
+  // so stamp Chromium's isolated box snapshot before its vector descendants.
   const backdropFilterRaster = el.backdropFilterRaster;
   if (backdropFilterRaster?.dataUri != null) {
-    svgParts.push(`${indent}<image href="${backdropFilterRaster.dataUri}" x="${r(backdropFilterRaster.x)}" y="${r(backdropFilterRaster.y)}" width="${r(backdropFilterRaster.width)}" height="${r(backdropFilterRaster.height)}" preserveAspectRatio="none"/>`);
-    return;
+    // rasterizeBackdropFilters hides this element's later-painted descendants
+    // while taking the snapshot. The image therefore replaces only this box's
+    // filtered backdrop surface; its text and children must still be emitted
+    // as vectors above it. In split paint, the box phase owns the snapshot.
+    if (paintBoxPhase) {
+      svgParts.push(`${indent}<image href="${backdropFilterRaster.dataUri}" x="${r(backdropFilterRaster.x)}" y="${r(backdropFilterRaster.y)}" width="${r(backdropFilterRaster.width)}" height="${r(backdropFilterRaster.height)}" preserveAspectRatio="none"/>`);
+    }
+    paintBoxPhase = false;
   }
   // empty-cells: hide — suppress bg + border on empty <td>/<th>.
   const suppressEmptyCell = el.styles.emptyCellsHidden === true;
