@@ -2,6 +2,66 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.24.0] - 2026-08-16
+
+
+**🚀 Features**
+
+- **`background-blend-mode` now supported** — each background image layer blends against the layers below it, including the element's own background color, inside an isolated group.
+- **True `backdrop-filter` rendering** — elements with a `backdrop-filter` now preserve Chromium's actual composited backdrop pixels via an isolated snapshot placed at the element's paint position, instead of the frosted-glass color approximation (which remains as a graceful fallback when a snapshot can't be captured).
+- **Multi-select listbox options render with real styling** — `<select multiple>` / `size > 1` options now paint from their captured layout and author styles (including `:checked` row backgrounds) rather than native defaults.
+
+**🐛 Fixes**
+
+- **Emoji that previously vanished now render** — default-emoji characters outside the main emoji planes (Watch, Hourglass, the media-control buttons, and the Mahjong Tiles / Playing Cards blocks) now route to the color-emoji path instead of disappearing on faces with no vector glyph.
+- **Dotted circles for orphaned combining marks** — standalone Indic/Vedic marks now get the same U+25CC dotted circle Chromium paints, using the resolved fallback face and script, fixing missing or duplicated circles in complex-script text.
+- **Gradient stop lengths resolve correctly** — font-relative and viewport-relative gradient lengths (`em`, `rem`, viewport units) and `calc()` sums now resolve in the element's real style context, fixing mispositioned gradient stops.
+- **Vertical text baselines** — vertical columns and text-combine (tate-chu-yoko) runs now place glyphs on each run's measured baseline, correcting upright and rotated glyph positioning.
+- **`::before` / `::after` box sizing** — generated-content pseudo-elements are now measured through a real Blink layout, so `calc()`, intrinsic sizing, logical properties, and writing mode produce accurate boxes.
+- **List markers match Chromium geometry** — disc, circle, square, and disclosure-triangle markers use Blink's exact size, offset, and edge-snapping rules.
+- **Multi-column rules respect spanners** — a `column-span: all` element no longer causes the column rule to draw through the spanning content; rules are captured as physical per-row segments.
+- **Native form controls keep their outline overflow** — control snapshots now include author outlines (e.g. `:valid` / `:invalid` rings) that extend beyond the themed border box.
+- **File-input button labels render as glyph paths**, matching the rest of the text pipeline for consistent typography.
+
+## [0.24.0] - 2026-08-16
+
+
+**🚀 Features**
+
+- **`background-blend-mode`** — each background image layer now blends against the layers below it, including the element's own background color, inside an isolated group.
+- **Real `backdrop-filter` rendering** — elements with a `backdrop-filter` now embed a Chromium-composited raster snapshot that preserves the actual blurred/filtered backdrop pixels, clipped to the element's border contour, instead of the approximate frosted-glass solid fill (which remains as a fallback).
+- **Multi-line `<select>` listboxes** — options in a `size`/`multiple` listbox now render with their real per-row layout, author background/text colors, and selected-row paint.
+
+**🐛 Fixes**
+
+- **Gradient length units** — font-relative (`em`, `rem`, viewport) and absolute (`in`, `pt`, `q`) length stops and radial positions now resolve to the correct pixel offsets, including the percentage term inside `calc()`.
+- **Default-emoji glyphs no longer vanish** — WATCH, HOURGLASS, the media-control buttons (U+231A–U+23F3), and the Mahjong Tiles / Playing Cards characters now route to the color emoji font instead of dropping out as empty cells.
+- **Dotted circles for orphaned combining marks** — standalone/uncovered marks (including lone Vedic marks) now correctly show the dotted-circle placeholder that Chromium paints, and no longer over-insert circles for marks Chromium leaves bare.
+- **Multi-column `column-rule`** — column rules are now drawn as per-row segments, so a `column-span: all` element no longer causes a rule to be painted straight through the spanning content.
+- **`::before` / `::after` sizing** — generated-content boxes are now measured through a real Blink layout, so `calc()`, CSS variables, intrinsic sizing, logical properties, and writing mode resolve to the correct box and text rects.
+- **List markers** — disc, circle, square, and disclosure markers now use Blink's exact ascent-based size/offset geometry and edge snapping, fixing subtle marker size and position drift.
+- **Vertical text baselines** — upright, rotated, and text-combine runs in vertical writing modes are placed using each run's captured font ascent, correcting baseline placement for mixed CJK/Latin columns.
+- **Native form-control overflow** — control snapshots now include author outlines (e.g. `:valid`/`:invalid` focus outlines) that paint outside the themed border box.
+- **File input button label** — the file-picker button label is now emitted as glyph paths for consistent text fidelity.
+
+## [0.24.0] - 2026-08-15
+
+
+**🚀 Features**
+
+- **`backdrop-filter` now renders faithfully.** Elements with a `backdrop-filter` preserve Chromium's true composited result — the page pixels sampled behind the element, the filter chain, translucent background, descendants, and border clipping — via an isolated raster snapshot, replacing the old solid frosted-glass fallback.
+
+**🐛 Fixes**
+
+- **More emoji render instead of vanishing.** Watch, hourglass, and media-control buttons (Misc Technical: U+231A–U+23F3) plus the Mahjong Tiles and Playing Cards blocks now paint from the color-emoji font on platforms where Chromium selects it, instead of dropping to an empty cell.
+- **List markers match Chromium geometry.** Disc, circle, square, and disclosure-triangle markers use Blink's font-metric integer sizing/offset and physical pixel snapping, so marker size, position, and disclosure direction are correct across font sizes.
+- **Vertical text sits on the right baseline.** Upright glyphs, rotated runs, and text-combine (tate-chu-yoko) cells now use each run's captured font ascent, fixing glyphs that dropped ~0.85em below their cell in mixed columns.
+- **Gradient lengths resolve correctly.** Font-relative and viewport-relative gradient stop/position units (`em`, `rem`, `vw`, …) and `calc()` expressions with percentage terms now resolve against the right context, and exact CSS absolute units (`in`, `pt`, `Q`, `cm`, `mm`, `pc`) convert at spec 96dpi.
+- **Listbox options paint with author styling.** Multi-row selects (`multiple` / `size > 1`) now use the browser-measured row geometry and resolved author styles — including selected-row background and text color — instead of reconstructing rows from native constants.
+- **Native controls keep author outline overflow.** Themed control snapshots now include author `outline` visual overflow (e.g. `:valid` / `:invalid` outlines) rather than clipping to the border box.
+- **File-input button labels render as glyph paths**, matching the rest of Domotion's text output.
+- **Orphan combining marks get their dotted circle.** Lone marks that Chromium circles (e.g. standalone Vedic marks) now have the dotted circle inferred from shaping, even when it can't be observed at capture time.
+
 ## [0.23.0] - 2026-08-14
 
 
