@@ -431,6 +431,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msv2mhywmu4u5wct",
+          "message": {
+            "text": "Synthesized small caps must override the general HarfBuzz run-grouping signal. Blink constructs a separately rounded-size font for synthesized caps; Domotion's per-character branch is where uppercase substitution and that rounded scale are applied, so grouping the run first silently restored full-size glyphs. The dedicated-script checks remain active, limiting this exception to ordinary caps synthesis.",
+            "markdown": "Synthesized small caps must override the general HarfBuzz run-grouping signal. Blink constructs a separately rounded-size font for synthesized caps; Domotion's per-character branch is where uppercase substitution and that rounded scale are applied, so grouping the run first silently restored full-size glyphs. The dedicated-script checks remain active, limiting this exception to ordinary caps synthesis."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 637,
+                  "endLine": 646,
+                  "snippet": {
+                    "text": "        // A face deliberately wrapped with the Chromium-configured HarfBuzz\n        // engine must shape as a run. Sending that wrapper one scalar at a\n        // time defeats the very syllable/cluster logic it was selected for,\n        // including broken-syllable dotted-circle insertion.\n        // Synthesized caps must still take the per-character branch below: it\n        // uppercases and applies Blink's rounded small-cap size independently\n        // to each source character. The HarfBuzz proxy remains the shaper for\n        // every ordinary run, but treating it as an unconditional run-shaping\n        // signal here would silently discard that synthesis.\n        || (run.font.shapesWithHarfbuzz === true && !synthSmallCaps)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2197"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2f0b32a260f92d7b6de7cd09f7ce0b3c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7683a58caf7af4b622b731e1a6764a70b9cf4985",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

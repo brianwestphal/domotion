@@ -638,7 +638,12 @@ function renderTextPathRuns(
         // engine must shape as a run. Sending that wrapper one scalar at a
         // time defeats the very syllable/cluster logic it was selected for,
         // including broken-syllable dotted-circle insertion.
-        || run.font.shapesWithHarfbuzz === true
+        // Synthesized caps must still take the per-character branch below: it
+        // uppercases and applies Blink's rounded small-cap size independently
+        // to each source character. The HarfBuzz proxy remains the shaper for
+        // every ordinary run, but treating it as an unconditional run-shaping
+        // signal here would silently discard that synthesis.
+        || (run.font.shapesWithHarfbuzz === true && !synthSmallCaps)
         || [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
 
       if (!isShapingRequired) {

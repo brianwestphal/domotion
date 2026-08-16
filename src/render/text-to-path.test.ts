@@ -900,21 +900,18 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     // 19.2px @32), NOT the fallback chain's full-width Hiragino ◌ (32px).
     expect(r.xOffsets![1] - 98.4).toBeCloseTo(19.2, 1);
   });
-  it("DM-1109: appends ◌ AFTER a lone left (pre-base) matra so it paints mark-then-circle", () => {
+  it("DM-2197: leaves a dedicated-shaper left matra bare for HarfBuzz to circle", () => {
     const r = run("\u{113C5}"); // Tulu-Tigalari VOWEL SIGN AI — uncovered, InPC=Left
-    expect(r.text).toBe("\u{113C5}◌"); // mark first, ◌ after (Chrome reorders the matra ahead of its base)
+    expect(r.text).toBe("\u{113C5}");
   });
-  it("DM-1109: positions the appended ◌ past the mark tofu's advance", () => {
+  it("DM-2197: preserves offsets when the dedicated shaper owns insertion", () => {
     const r = run("\u{113C5}", [40, 40]); // one xOffset per UTF-16 unit
-    expect(r.text).toBe("\u{113C5}◌");
-    expect(r.xOffsets!.length).toBe(3); // surrogate pair + ◌
-    expect(r.xOffsets![0]).toBeCloseTo(40, 3); // mark at the captured cell origin
-    expect(r.xOffsets![1]).toBeCloseTo(40, 3);
-    expect(r.xOffsets![2]).toBeGreaterThan(40); // ◌ shifted right past the tofu
+    expect(r.text).toBe("\u{113C5}");
+    expect(r.xOffsets).toEqual([40, 40]);
   });
-  it("DM-1109: still PREPENDS ◌ for a post-base (right) matra in the same block", () => {
+  it("DM-2197: also leaves a dedicated-shaper right matra bare", () => {
     const r = run("\u{113C9}"); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
-    expect(r.text).toBe("◌\u{113C9}");
+    expect(r.text).toBe("\u{113C9}");
   });
   it("leaves probe-flagged uncovered clusters bare when HarfBuzz will shape .notdef", () => {
     // Kawi U+11F02 is General_Category=Lo, but Blink's USE shaper classifies it
@@ -928,22 +925,17 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     expect(r.text).toBe(source);
     expect(r.xOffsets).toEqual([170.39, 170.39]);
   });
-  it("DM-1215: an orphaned RTL-SMP-script mark paints mark-then-circle (tofu LEFT, ◌ RIGHT)", () => {
-    // Sogdian COMBINING DOT BELOW U+10F46 — no font covers it. Chrome lays the
-    // cell out right-to-left, so the .notdef tofu sits LEFT and the synthetic ◌
-    // sits to its right. The capture probe flags index 0 (dottedCircleMarks).
+  it("DM-2197: leaves a dedicated-shaper RTL mark bare for HarfBuzz to circle", () => {
+    // Sogdian COMBINING DOT BELOW U+10F46 is a broken RTL syllable. The capture
+    // probe flags index 0, but preprocessing leaves it intact because the
+    // dedicated HarfBuzz run inserts and positions its own dotted circle.
     const r = insertSyntheticDottedCircles("\u{10F46}", undefined, fam, 400, 32, 0, undefined, undefined, [0]);
-    expect(r.text).toBe("\u{10F46}◌"); // mark FIRST, ◌ after — NOT "◌ mark"
+    expect(r.text).toBe("\u{10F46}");
   });
-  it("DM-1215: positions the appended ◌ past the RTL mark tofu's advance", () => {
+  it("DM-2197: preserves offsets for a dedicated-shaper RTL mark", () => {
     const r = insertSyntheticDottedCircles("\u{10F46}", [674.39, 674.39], fam, 400, 32, 0, undefined, undefined, [0]);
-    expect(r.text).toBe("\u{10F46}◌");
-    expect(r.xOffsets!.length).toBe(3); // surrogate pair + ◌
-    expect(r.xOffsets![0]).toBeCloseTo(674.39, 3); // mark at the captured cell origin
-    expect(r.xOffsets![1]).toBeCloseTo(674.39, 3);
-    // ◌ shifted right by the mark tofu's advance so it clears the box rather than
-    // overlapping it (the bug DM-1255/1261/1262/1265/1272/1273 reported).
-    expect(r.xOffsets![2]).toBeGreaterThan(674.39 + 16);
+    expect(r.text).toBe("\u{10F46}");
+    expect(r.xOffsets).toEqual([674.39, 674.39]);
   });
   it("does NOT insert ◌ for a generic Latin combining mark (covered + default shaper)", () => {
     const r = run("á"); // a + combining acute — covered, has a base
@@ -2469,18 +2461,15 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
     expect(groupCount(out!)).toBe(3); // pre-fix: 1 + 3 + 1 = 5
   });
 
-  it.skipIf(!MACOS_FONTS)("does not affect an UNRELATED fallback script (Han stays per-character)", () => {
-    // Control: verifies the wrapping harness itself against a script that is
-    // NOT in `DEDICATED_SHAPER_RANGES` and must stay out — CJK ideographs,
-    // which fall back from Helvetica the same way the scripts above do, but
-    // are not shaping-required (no contextual joining). Confirms the 3-vs-N
-    // difference above is really `isShapingRequired`, not an artifact of
-    // wrapping/fallback-routing itself.
+  it.skipIf(!MACOS_FONTS)("keeps an unrelated Han fallback in one HarfBuzz-shaped run", () => {
+    // Han is not in `DEDICATED_SHAPER_RANGES`, but DM-2095 deliberately moved
+    // every supported face to HarfBuzz shaping. This control pins that broader
+    // contract: the fallback remains one run even without contextual joining.
     const { text, xOffsets } = wrapped("中文字");
     const out = renderTextAsPath(text, 0, 0,
       { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
     expect(out).not.toBeNull();
-    expect(groupCount(out!)).toBe(5); // 1 (A) + 3 (per-char Han) + 1 (B)
+    expect(groupCount(out!)).toBe(3); // 1 (A) + 1 (Han run) + 1 (B)
   });
 });
 
