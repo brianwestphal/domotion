@@ -1507,7 +1507,7 @@ describe("block / inline paint phases", () => {
     }
   });
 
-  it("replaces a backdrop-filter subtree with its isolated Chromium raster", () => {
+  it("replaces a backdrop-filter box surface while retaining vector descendants", () => {
     const dataUri = "data:image/png;base64,aXNvbGF0ZWQ=";
     const tree = [makeElement({
       x: 12,
@@ -1517,7 +1517,7 @@ describe("block / inline paint phases", () => {
       backdropFilterRaster: { x: 12, y: 18, width: 160, height: 90, dataUri },
       styles: { ...makeElement().styles, backdropFilter: "blur(12px)" },
       children: [makeElement({
-        text: "must not be emitted twice",
+        text: "vector descendant",
         styles: { ...makeElement().styles, backgroundColor: "rgb(1,2,3)" },
       })],
     })];
@@ -1525,7 +1525,6 @@ describe("block / inline paint phases", () => {
     const svg = elementTreeToSvgInner(tree, 400, 300);
     expect(svg).toContain(`href="${dataUri}"`);
     expect(svg).toContain('x="12" y="18" width="160" height="90"');
-    expect(svg).not.toContain("must not be emitted twice");
-    expect(svg).not.toContain('fill="rgb(1,2,3)"');
+    expect(svg).toContain("vector descendant");
   });
 });
