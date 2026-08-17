@@ -21,7 +21,9 @@ $IcuRoot = Join-Path $BuildRoot "icu"
 Expand-Archive $ArchivePath $IcuRoot
 
 cmake -S "$Root\tools\icu-helper" -B "$BuildRoot\helper" -A $env:CMAKE_GENERATOR_PLATFORM -DDOMOTION_ICU_ROOT="$IcuRoot"
+if ($LASTEXITCODE -ne 0) { throw "helper configure failed" }
 cmake --build "$BuildRoot\helper" --config Release --parallel
+if ($LASTEXITCODE -ne 0) { throw "helper build failed" }
 Copy-Item "$BuildRoot\helper\Release\domotion-icu.exe" "$Root\tools\icu-helper\domotion-icu.exe"
 Copy-Item "$IcuRoot\$BinDir\icuuc78.dll" "$Root\tools\icu-helper\icuuc78.dll"
 Copy-Item "$IcuRoot\$BinDir\icudt78.dll" "$Root\tools\icu-helper\icudt78.dll"
