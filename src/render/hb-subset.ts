@@ -146,17 +146,8 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   }
 }
 
-/** True when the face carries TrueType `glyf` outlines — the only flavor the
- *  hinted-subset path accepts.
- *
- *  CFF/CFF2 (`OTTO`) faces are deliberately EXCLUDED even though hb-subset can
- *  nominally subset them: the harfbuzz-subset.wasm build bundled in harfbuzzjs
- *  silently DROPS the `CFF ` table (verified on macOS ITFDevanagari.ttc — the
- *  "subset" came back with no outline table at all, which Chrome's OTS rejects,
- *  tofu-boxing every glyph of the entry). CFF faces keep the svg2ttf path,
- *  which already converts their cubic outlines to quadratic `glyf` — also the
- *  flavor we want emitted (overlapping-contour CFF subsets rendered even-odd,
- *  holing glyphs).
+/** True when the face carries an outline table the bundled hb-subset build can
+ *  preserve (`glyf`, CFF, or CFF2).
  *
  *  Also false for outline-less files whose glyphs come from a platform-private
  *  table (e.g. Apple `hvgl` in PingFang). TTC-aware: `faceIndex` selects the
@@ -175,7 +166,8 @@ export function sfntHasSubsettableOutlines(fontBytes: Buffer, faceIndex = 0): bo
   for (let i = 0; i < numTables; i++) {
     const o = dirOff + 12 + i * 16;
     if (o + 4 > fontBytes.length) break;
-    if (fontBytes.toString("latin1", o, o + 4) === "glyf") return true;
+    const tag = fontBytes.toString("latin1", o, o + 4);
+    if (tag === "glyf" || tag === "CFF " || tag === "CFF2") return true;
   }
   return false;
 }
@@ -482,7 +474,8 @@ function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffe
  *  a RETAIN_GIDS-padded 52k-glyph id space). Keep outlines, metrics, hinting,
  *  and identity; drop the rest. */
 const EMBEDDED_KEEP_TABLES = new Set([
-  "head", "hhea", "hmtx", "maxp", "glyf", "loca",  // outlines + metrics
+  "head", "hhea", "hmtx", "maxp",                   // metrics
+  "glyf", "loca", "CFF ", "CFF2",                 // outlines
   "cvt ", "fpgm", "prep", "gasp",                  // the hinting program
   "OS/2", "post", "name",                          // identity + line metrics
 ]);

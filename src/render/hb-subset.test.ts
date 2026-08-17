@@ -4,6 +4,7 @@
 // the EXACT hinting bytecode and gvar deltas being preserved.
 import { describe, expect, it } from "vitest";
 import * as fkNs from "fontkit";
+import opentype from "opentype.js";
 import { appendGlyphCopy, compactGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
@@ -16,6 +17,18 @@ import {
 } from "./synth-test-fonts.js";
 
 const fontkit = (fkNs as { default?: typeof fkNs }).default ?? fkNs;
+
+function buildStaticCffFont(): Buffer {
+  const notdef = new opentype.Glyph({ name: ".notdef", advanceWidth: 500, path: new opentype.Path() });
+  const path = new opentype.Path();
+  path.moveTo(40, 0); path.lineTo(300, 700); path.lineTo(560, 0); path.close();
+  const glyph = new opentype.Glyph({ name: "A", unicode: 0x41, advanceWidth: 600, path });
+  const font = new opentype.Font({
+    familyName: "SynthCff", styleName: "Regular", unitsPerEm: 1000,
+    ascender: 800, descender: -200, glyphs: [notdef, glyph],
+  });
+  return Buffer.from(font.toArrayBuffer());
+}
 
 /** Table tags of a bare (non-TTC) sfnt. */
 function tableTags(buf: Buffer): string[] {
@@ -94,6 +107,19 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
     expect(narrow.getGlyph(1).bbox.maxX).toBe(550);
     expect(wide.getGlyph(1).bbox.maxX).toBe(900);
   });
+
+  it("DM-2247: retains CFF CharStrings and PUA-addressable browser ink", () => {
+    const source = buildStaticCffFont();
+    const subset = hbSubsetRetainGids(source, [1]);
+    expect(tableBytes(subset, "CFF ")?.length).toBeGreaterThan(0);
+
+    const mapped = injectPuaCmap(subset, new Map([[0xe000, 1]]));
+    const font = fontkit.create(mapped);
+    const glyph = font.glyphForCodePoint(0xe000);
+    expect(glyph.id).toBe(1);
+    expect(glyph.path.toSVG()).not.toBe("");
+    expect(glyph.bbox.maxY - glyph.bbox.minY).toBeGreaterThan(0);
+  });
 });
 
 describe("hbSubsetRetainGids variable-axis instancing (DM-1716)", () => {
@@ -161,7 +187,7 @@ describe("sfntHasSubsettableOutlines (DM-1714)", () => {
     expect(sfntHasSubsettableOutlines(buildStaticHintedFont())).toBe(true);
   });
 
-  it("rejects CFF-flavored (OTTO) faces — the bundled wasm silently drops CFF, so they must stay on svg2ttf", () => {
+  it("accepts CFF-flavored (OTTO) faces", () => {
     // minimal OTTO directory whose only outline table is `CFF `
     const dir = Buffer.alloc(12 + 16 + 4);
     dir.writeUInt32BE(0x4f54544f, 0); // 'OTTO'
@@ -169,7 +195,7 @@ describe("sfntHasSubsettableOutlines (DM-1714)", () => {
     dir.write("CFF ", 12, "latin1");
     dir.writeUInt32BE(28, 20);
     dir.writeUInt32BE(4, 24);
-    expect(sfntHasSubsettableOutlines(dir)).toBe(false);
+    expect(sfntHasSubsettableOutlines(dir)).toBe(true);
   });
 
   it("rejects an outline-less face (e.g. Apple-private hvgl outlines)", () => {

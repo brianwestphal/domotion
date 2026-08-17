@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswlzh6isx03v531",
+          "message": {
+            "text": "The subset override must clear HBNODRAW because HarfBuzz applies its HBTINY option closure after including this file; otherwise that closure recreates HBNOCFF and HBNOSUBSETCFF despite the direct undefs.",
+            "markdown": "The subset override must clear HB_NO_DRAW because HarfBuzz applies its HB_TINY option closure after including this file; otherwise that closure recreates HB_NO_CFF and HB_NO_SUBSET_CFF despite the direct undefs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vendor/harfbuzzjs/build/config-override-subset.h"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 10,
+                  "snippet": {
+                    "text": "// Keep the published harfbuzzjs subset profile small while restoring the\n// outline formats Domotion embeds.  hb-config.hh applies this override before\n// its option-closure pass.  Merely undefining HB_NO_SUBSET_CFF is insufficient:\n// HB_TINY + HB_NO_DRAW redefines HB_NO_CFF afterward, which in turn redefines\n// HB_NO_SUBSET_CFF.  Keep drawing enabled so the closure cannot discard the CFF\n// parser/subsetter again.\n#undef HB_NO_DRAW\n#undef HB_NO_CFF\n#undef HB_NO_OT_FONT_CFF\n#undef HB_NO_SUBSET_CFF"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2247"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "935c212469092c2072f76a33001b7393"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9cb97b0f21f092630503ceaea70a007c686d52b6",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

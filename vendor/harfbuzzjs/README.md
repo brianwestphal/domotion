@@ -5,8 +5,10 @@ This is [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) **v1.4.0**, with
 HarfBuzz build configuration **Chromium ships**, rather than the `-DHB_TINY`
 configuration the published package uses.
 
-`harfbuzz-subset.wasm` and `harfbuzz.d.ts` are the published v1.4.0 artifacts,
-unmodified. `index.mjs` and `index.d.mts` carry **one local addition**, marked
+`harfbuzz-subset.wasm` is rebuilt from v1.4.0 with CFF subsetting restored; the
+published `HB_TINY` option closure otherwise re-disables CFF after the override
+header runs. `harfbuzz.d.ts` remains the published artifact, unmodified.
+`index.mjs` and `index.d.mts` carry **one local addition**, marked
 inline as `LOCAL ADDITION`: a `Font.setPtem()` method. Preserve it across any
 re-vendor — the diff is four lines mirroring the adjacent `setScale`, and
 losing it silently disables AAT tracking rather than failing.
@@ -94,13 +96,14 @@ Two divergences from Chromium remain and are documented inline in
 ## Rebuilding
 
 ```sh
-git clone --recursive -b 1.4.0 https://github.com/harfbuzz/harfbuzzjs
+git clone --recursive -b v1.4.0 https://github.com/harfbuzz/harfbuzzjs
 cd harfbuzzjs
 cp <this-dir>/build/config-override.h .
 cp <this-dir>/build/Makefile .
 cp <this-dir>/build/harfbuzz.symbols .
-docker run --rm -v "$PWD":/src -w /src emscripten/emsdk:4.0.13 make harfbuzz
-cp dist/harfbuzz.js dist/harfbuzz.wasm <this-dir>/dist/
+cp <this-dir>/build/config-override-subset.h .
+docker run --rm -v "$PWD":/src -w /src emscripten/emsdk:4.0.13 make harfbuzz harfbuzz-subset
+cp dist/harfbuzz.js dist/harfbuzz.wasm dist/harfbuzz-subset.wasm <this-dir>/dist/
 # then re-apply the setPtem addition to dist/index.mjs and dist/index.d.mts
 ```
 

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswlzl0dgexbv28p",
+          "message": {
+            "text": "CFF outline tables must survive the post-subset PUA cmap rebuild too. The synthesized CFF regression test proves the rebuilt WASM retains CharStrings and the final mapped font resolves U+E000 to nonempty gid 1 ink.",
+            "markdown": "CFF outline tables must survive the post-subset PUA cmap rebuild too. The synthesized CFF regression test proves the rebuilt WASM retains CharStrings and the final mapped font resolves U+E000 to nonempty gid 1 ink."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/hb-subset.ts"
+                },
+                "region": {
+                  "startLine": 476,
+                  "endLine": 480,
+                  "snippet": {
+                    "text": "const EMBEDDED_KEEP_TABLES = new Set([\n  \"head\", \"hhea\", \"hmtx\", \"maxp\",                   // metrics\n  \"glyf\", \"loca\", \"CFF \", \"CFF2\",                 // outlines\n  \"cvt \", \"fpgm\", \"prep\", \"gasp\",                  // the hinting program\n  \"OS/2\", \"post\", \"name\",                          // identity + line metrics"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2247"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a4d1b88c2ec98253f271c52c81fbd801"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9cb97b0f21f092630503ceaea70a007c686d52b6",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
