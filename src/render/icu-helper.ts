@@ -35,6 +35,8 @@ interface IcuResponse {
 }
 
 const memo = new Map<number, IcuCodepointProperties>();
+const PAGE_SIZE = 256;
+const MAX_MEMO_ROWS = 65_536;
 let helperPath: string | undefined;
 let checked = false;
 
@@ -54,7 +56,21 @@ function resolveHelper(): string | undefined {
 }
 
 export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, IcuCodepointProperties> {
-  const missing = [...new Set(codepoints)].filter(cp => Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff && !memo.has(cp));
+  const requested = [...new Set(codepoints)].filter(cp => Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff);
+  const missingRequested = requested.filter(cp => !memo.has(cp));
+  // Classification is normally called one codepoint at a time from synchronous
+  // routing. Fetch its 256-codepoint page so a Unicode grid or ordinary text
+  // pays one process call per local region rather than one per character.
+  const pages = new Set(missingRequested.map(cp => Math.floor(cp / PAGE_SIZE)));
+  const missing = pages.size <= 16
+    ? [...pages].flatMap(page => {
+        const start = page * PAGE_SIZE;
+        const end = Math.min(start + PAGE_SIZE, 0x110000);
+        const out: number[] = [];
+        for (let cp = start; cp < end; ++cp) if (!memo.has(cp)) out.push(cp);
+        return out;
+      })
+    : missingRequested;
   const executable = missing.length > 0 ? resolveHelper() : undefined;
   if (missing.length > 0 && executable != null) {
     const proc = spawnSync(executable, [], {
@@ -70,12 +86,13 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
         const response = JSON.parse(proc.stdout) as IcuResponse;
         if (response.protocolVersion === "1" && response.icuVersion === "78.2") {
           for (const row of response.properties) memo.set(row.cp, row);
+          while (memo.size > MAX_MEMO_ROWS) memo.delete(memo.keys().next().value!);
         }
       } catch { /* helper-absent mode is deliberately non-fatal */ }
     }
   }
   const result = new Map<number, IcuCodepointProperties>();
-  for (const cp of codepoints) {
+  for (const cp of requested) {
     const row = memo.get(cp);
     if (row != null) result.set(cp, row);
   }
