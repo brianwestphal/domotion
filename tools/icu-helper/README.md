@@ -6,10 +6,12 @@ glyph helper: it has its own release cadence, acquisition cache and version
 handshake.
 
 The binary must be built against ICU 78.2, matching the Chromium revision
-pinned by Playwright. The release bundle contains the executable, its ICU
-runtime libraries where required, and Chromium's exact `icudtl.dat` data image.
-Official ICU 78.2 binary bundles are reused for Ubuntu 22.04 x64 and Windows;
-macOS and Linux ARM64 are built in the helper-release workflow.
+pinned by Playwright. Release assets contain the executable, its ICU runtime
+libraries where required, and Chromium's exact `icudtl.dat` data image. macOS
+and Linux link ICU statically from the pinned source. Windows links Unicode's
+official, SHA-512-pinned ICU 78.2 x64/ARM64 libraries and downloads the matching
+runtime DLLs beside the helper. The all-codepoint digest gate proves every
+target observes the same data and enum surface before release.
 
 Protocol:
 

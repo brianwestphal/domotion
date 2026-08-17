@@ -36,6 +36,8 @@ tools/unicode-fixtures/
 tools/icu-helper/domotion-icu
 tools/icu-helper/domotion-icu.exe
 tools/icu-helper/icudtl.dat
+tools/icu-helper/icuuc78.dll
+tools/icu-helper/icudt78.dll
 
 # Reusable-but-uncommitted scratch probes/tools (DM-1216 cleanup).
 # The underscore-prefixed one-off debug scripts live here so they persist

@@ -109,10 +109,14 @@ jobs:
         run: |
           set -euo pipefail
           cp tools/icu-helper/domotion-icu.exe "$RUNNER_TEMP/domotion-icu-$TARGET.exe"
+          cp tools/icu-helper/icuuc78.dll "$RUNNER_TEMP/domotion-icu-$TARGET.icuuc78.dll"
+          cp tools/icu-helper/icudt78.dll "$RUNNER_TEMP/domotion-icu-$TARGET.icudt78.dll"
           cp external/chromium/third_party/icu/common/icudtl.dat "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat"
           cd "$RUNNER_TEMP"
           sha256sum "domotion-icu-$TARGET.exe" > "domotion-icu-$TARGET.exe.sha256"
           sha256sum "domotion-icu-$TARGET.icudtl.dat" > "domotion-icu-$TARGET.icudtl.dat.sha256"
+          sha256sum "domotion-icu-$TARGET.icuuc78.dll" > "domotion-icu-$TARGET.icuuc78.dll.sha256"
+          sha256sum "domotion-icu-$TARGET.icudt78.dll" > "domotion-icu-$TARGET.icudt78.dll.sha256"
       - name: Create release and upload assets
         shell: bash
         env:
@@ -122,4 +126,4 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Domotion ICU companion $TAG" --notes "Chromium-pinned ICU companion assets."
-          gh release upload "$TAG" "$RUNNER_TEMP/domotion-icu-$TARGET.exe" "$RUNNER_TEMP/domotion-icu-$TARGET.exe.sha256" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat.sha256" --clobber
+          gh release upload "$TAG" "$RUNNER_TEMP/domotion-icu-$TARGET.exe" "$RUNNER_TEMP/domotion-icu-$TARGET.exe.sha256" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat.sha256" "$RUNNER_TEMP/domotion-icu-$TARGET.icuuc78.dll" "$RUNNER_TEMP/domotion-icu-$TARGET.icuuc78.dll.sha256" "$RUNNER_TEMP/domotion-icu-$TARGET.icudt78.dll" "$RUNNER_TEMP/domotion-icu-$TARGET.icudt78.dll.sha256" --clobber

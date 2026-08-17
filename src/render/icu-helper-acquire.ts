@@ -17,6 +17,7 @@ export interface IcuCompanionTarget {
   directory: string;
   executablePath: string;
   dataPath: string;
+  runtimeAssets: Array<{ asset: string; path: string }>;
 }
 
 export interface IcuAcquireOptions {
@@ -56,6 +57,10 @@ export function resolveIcuCompanionTarget(opts: IcuAcquireOptions = {}): IcuComp
     directory,
     executablePath: path.join(directory, platform === "win32" ? "domotion-icu.exe" : "domotion-icu"),
     dataPath: path.join(directory, "icudtl.dat"),
+    runtimeAssets: platform === "win32" ? ["icuuc78.dll", "icudt78.dll"].map(name => ({
+      asset: `${stem}.${name}`,
+      path: path.join(directory, name),
+    })) : [],
   };
 }
 
@@ -74,11 +79,12 @@ async function fetchVerified(asset: string): Promise<Buffer | null> {
 }
 
 export async function downloadIcuCompanion(target: IcuCompanionTarget): Promise<boolean> {
-  const [executable, data] = await Promise.all([
+  const [executable, data, ...runtime] = await Promise.all([
     fetchVerified(target.executableAsset),
     fetchVerified(target.dataAsset),
+    ...target.runtimeAssets.map(item => fetchVerified(item.asset)),
   ]);
-  if (executable == null || data == null) return false;
+  if (executable == null || data == null || runtime.some(bytes => bytes == null)) return false;
   mkdirSync(target.directory, { recursive: true });
   const nonce = `${process.pid}-${Date.now()}`;
   const executableTmp = `${target.executablePath}.tmp-${nonce}`;
@@ -89,6 +95,12 @@ export async function downloadIcuCompanion(target: IcuCompanionTarget): Promise<
   // Install data first. A concurrent process can never observe a new helper
   // without its matching data; rename is atomic within the cache directory.
   renameSync(dataTmp, target.dataPath);
+  for (let i = 0; i < target.runtimeAssets.length; ++i) {
+    const item = target.runtimeAssets[i];
+    const tmp = `${item.path}.tmp-${nonce}`;
+    writeFileSync(tmp, runtime[i]!);
+    renameSync(tmp, item.path);
+  }
   renameSync(executableTmp, target.executablePath);
   return true;
 }
@@ -99,13 +111,13 @@ export function acquireIcuCompanionSync(opts: IcuAcquireOptions = {}): string | 
   if (process.env.DOMOTION_DISABLE_ICU_HELPER === "1") return undefined;
   const target = resolveIcuCompanionTarget(opts);
   if (target == null) return undefined;
-  if (existsSync(target.executablePath) && existsSync(target.dataPath)) return target.executablePath;
+  if (existsSync(target.executablePath) && existsSync(target.dataPath) && target.runtimeAssets.every(item => existsSync(item.path))) return target.executablePath;
   if (failed) return undefined;
   const proc = spawnSync(process.execPath, [fileURLToPath(import.meta.url), JSON.stringify(target)], {
     timeout: DOWNLOAD_TIMEOUT_MS,
     encoding: "utf8",
   });
-  if (proc.status === 0 && existsSync(target.executablePath) && existsSync(target.dataPath)) {
+  if (proc.status === 0 && existsSync(target.executablePath) && existsSync(target.dataPath) && target.runtimeAssets.every(item => existsSync(item.path))) {
     return target.executablePath;
   }
   failed = true;
@@ -119,7 +131,7 @@ export async function acquireIcuCompanion(opts: IcuAcquireOptions = {}): Promise
   if (process.env.DOMOTION_ICU_HELPER_PATH) return process.env.DOMOTION_ICU_HELPER_PATH;
   const target = resolveIcuCompanionTarget(opts);
   if (target == null) return null;
-  if (existsSync(target.executablePath) && existsSync(target.dataPath)) return target.executablePath;
+  if (existsSync(target.executablePath) && existsSync(target.dataPath) && target.runtimeAssets.every(item => existsSync(item.path))) return target.executablePath;
   try {
     return await downloadIcuCompanion(target) ? target.executablePath : null;
   } catch {

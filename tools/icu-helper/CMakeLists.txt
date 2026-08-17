@@ -12,9 +12,9 @@ endif()
 add_executable(domotion-icu src/main.cpp)
 target_include_directories(domotion-icu PRIVATE "${DOMOTION_ICU_ROOT}/include")
 find_library(DOMOTION_ICU_UC NAMES icuuc libicuuc REQUIRED
-  PATHS "${DOMOTION_ICU_ROOT}/lib" NO_DEFAULT_PATH)
+  PATHS "${DOMOTION_ICU_ROOT}/lib" "${DOMOTION_ICU_ROOT}/lib64" "${DOMOTION_ICU_ROOT}/libARM64" NO_DEFAULT_PATH)
 find_library(DOMOTION_ICU_DATA NAMES icudata libicudata REQUIRED
-  PATHS "${DOMOTION_ICU_ROOT}/lib" "${DOMOTION_ICU_ROOT}/stubdata" NO_DEFAULT_PATH)
+  PATHS "${DOMOTION_ICU_ROOT}/lib" "${DOMOTION_ICU_ROOT}/lib64" "${DOMOTION_ICU_ROOT}/libARM64" "${DOMOTION_ICU_ROOT}/stubdata" NO_DEFAULT_PATH)
 target_link_libraries(domotion-icu PRIVATE "${DOMOTION_ICU_UC}" "${DOMOTION_ICU_DATA}")
 
 if(APPLE)

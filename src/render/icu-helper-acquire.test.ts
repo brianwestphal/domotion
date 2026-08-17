@@ -28,6 +28,10 @@ describe("ICU companion acquisition (DM-2254)", () => {
     const target = resolveIcuCompanionTarget({ platform: "win32", arch: "arm64", cacheDir: "C:\\cache" });
     expect(target?.executableAsset).toBe("domotion-icu-win32-arm64.exe");
     expect(target?.dataAsset).toBe("domotion-icu-win32-arm64.icudtl.dat");
+    expect(target?.runtimeAssets.map(item => item.asset)).toEqual([
+      "domotion-icu-win32-arm64.icuuc78.dll",
+      "domotion-icu-win32-arm64.icudt78.dll",
+    ]);
     expect(path.win32.basename(target!.executablePath)).toBe("domotion-icu.exe");
     expect(path.win32.basename(target!.dataPath)).toBe("icudtl.dat");
   });
