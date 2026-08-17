@@ -144,6 +144,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msxur7zztv5smnx6",
+          "message": {
+            "text": "An exact Linux Tamil A/B on run 32079382535 changed all three embedded entries from svg2ttf to retained-gid hb-subset and reduced the stable 26-region failure to zero coherent regions. The workflow and CLI already documented an empty input as inheriting a default-on renderer, but ba4144b3 had temporarily changed both implementation gates to opt-in. Later CFF and retained-gid fixes removed the correctness hazards behind that rollback, so restoring absent-or-1 as production behavior fixes the shared complex-script raster class without script or codepoint exceptions.",
+            "markdown": "An exact Linux Tamil A/B on run 32079382535 changed all three embedded entries from svg2ttf to retained-gid hb-subset and reduced the stable 26-region failure to zero coherent regions. The workflow and CLI already documented an empty input as inheriting a default-on renderer, but ba4144b3 had temporarily changed both implementation gates to opt-in. Later CFF and retained-gid fixes removed the correctness hazards behind that rollback, so restoring absent-or-1 as production behavior fixes the shared complex-script raster class without script or codepoint exceptions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 43,
+                  "endLine": 49,
+                  "snippet": {
+                    "text": "/** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the\n *  default. Set DOMOTION_HINTED_SUBSET=0 to use the svg2ttf-only control arm.\n *  The retained-gid builder keeps bytecode glyph references stable; entries\n *  that cannot safely preserve their source tables fall back independently. */\nfunction hintedSubsetEnabled(): boolean {\n  return process.env.DOMOTION_HINTED_SUBSET !== \"0\";\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2280"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7e380392026aceff77ba57c944ba727f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "df1d0cbde5afe8556392a17f446f3cb0035bd5fa",
+          "branch": "validate-dm-2280-icu"
+        }
+      ]
     }
   ]
 }

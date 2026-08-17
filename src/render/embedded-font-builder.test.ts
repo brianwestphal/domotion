@@ -194,6 +194,27 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     })]);
   });
 
+  it("uses the hinting-preserving path by default and reserves 0 for the control arm", () => {
+    delete process.env.DOMOTION_HINTED_SUBSET;
+    trackGlyphInEmbedFont("hinted-default|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    getBuiltEmbeddedFontFaceCss();
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
+      selectedBuilder: "hb-subset",
+      hintedSourceDisqualifiedReasons: [],
+    }));
+
+    clearEmbeddedFontBuilder();
+    process.env.DOMOTION_HINTED_SUBSET = "0";
+    trackGlyphInEmbedFont("hinted-control|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    getBuiltEmbeddedFontFaceCss();
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
+      selectedBuilder: "svg2ttf",
+      hintedSourceDisqualifiedReasons: ["disabled-by-environment"],
+    }));
+  });
+
   it("pins a variable source to the entry's axis location (DM-1716)", () => {
     trackGlyphInEmbedFont("hinted-var|w=900|s=0", 1000, 800, -200, 1, TRI, 700,
       { italic: false, weight: 900, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 900 } } });
@@ -258,8 +279,8 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     }
   });
 
-  it("stays on svg2ttf by default unless the experimental hinted path is enabled", () => {
-    delete process.env.DOMOTION_HINTED_SUBSET;
+  it("stays on svg2ttf when the hinted path is explicitly disabled", () => {
+    process.env.DOMOTION_HINTED_SUBSET = "0";
     trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
       { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
