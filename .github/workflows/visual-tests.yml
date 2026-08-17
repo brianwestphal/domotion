@@ -52,7 +52,7 @@ on:
         description: 'Capture device pixel ratio (default 1). dpr=2 renders expected+actual at 2× — a diagnostic for glyph-sheet-audit so ink clears the DM-1686 comparator''s ≥32px regime.'
         default: '1'
       hinted_subset:
-        description: 'DOMOTION_HINTED_SUBSET override. 1 = hb-subset embedded path; empty/0 = svg2ttf control.'
+        description: 'DOMOTION_HINTED_SUBSET override. Empty/1 = default hb-subset embedded path; 0 = svg2ttf control.'
         default: ''
       fallback_base:
         description: 'DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (ON — ask CoreText from the run''s own primary); 0 = force the old hardcoded Helvetica cascade base for A/B. Both arms of the A/B run from ONE ref so the only difference is the flag.'

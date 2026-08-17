@@ -194,6 +194,10 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       expect(linux).toMatch(/cp tests\/fixtures\/html-test-unicode\/cff-stix-math\.html external\/html-test\/unicode\//);
     });
 
+    it("labels the empty hinted-subset input as the default-on production arm", () => {
+      expect(yaml).toMatch(/hinted_subset:[\s\S]*?Empty\/1 = default hb-subset embedded path; 0 = svg2ttf control\.[\s\S]*?default: ''/);
+    });
+
     it("every renderer DOMOTION_ env the workflow passes is dispatch-controlled, not a hardcoded arm", () => {
       // Catches the inverse drift: a renderer flag pinned to a literal in the
       // workflow, which makes one arm permanently unreachable and every future

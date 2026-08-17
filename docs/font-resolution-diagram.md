@@ -2235,6 +2235,12 @@ leg). `glyf` fills nonzero, so the overlaps union correctly.
 **Two glyf builders (DM-1714/DM-1716, doc [99](99-hinted-embedded-subset.md)):**
 `buildGlyfFontForEntry` picks per entry:
 
+The hinted builder is the production default (`DOMOTION_HINTED_SUBSET` absent
+or `1`); `DOMOTION_HINTED_SUBSET=0` selects the svg2ttf control arm. This
+default also applies to an ordinary visual-workflow dispatch: its empty input
+means "inherit the renderer default", not "disable hinting". Individual faces
+still fall back to svg2ttf when the source cannot be subset safely.
+
 1. **Hinted hb-subset** (preferred): when every glyph in the entry came from ONE
    openable sfnt at ONE axis location with NO synthetic bake, the ORIGINAL file
    is subset via harfbuzz's hb-subset (`src/render/hb-subset.ts`) with

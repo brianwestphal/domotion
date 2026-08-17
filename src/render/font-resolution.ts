@@ -6865,11 +6865,11 @@ type FontkitGlyph = { id: number; path?: { commands: PathCommand[] }; codePoints
  *  in getFontInstance). Webfonts are absent → no fallback. */
 const fontSourceMap = new WeakMap<object, FontSourceInfo>();
 
-/** Keep source bookkeeping for the experimental hinted-subset path only when
- *  explicitly enabled. See embedded-font-builder: retained TrueType programs
- *  are not generally safe after glyph-set compaction/remapping. */
+/** Keep source bookkeeping for the default-on hinted-subset path. The explicit
+ *  `0` arm is the svg2ttf control/escape hatch; all unsafe individual entries
+ *  are rejected by embedded-font-builder and fall back there. */
 function hintedSubsetEnabled(): boolean {
-  return process.env.DOMOTION_HINTED_SUBSET === "1";
+  return process.env.DOMOTION_HINTED_SUBSET !== "0";
 }
 
 /** The collection-member index of `postscriptName` within a (possibly-TTC) sfnt
