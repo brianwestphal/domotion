@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswtu0vzk4838i4w",
+          "message": {
+            "text": "The ICU companion is versioned independently from Domotion's npm package. This lets a pinned Chromium ICU build be replaced or rebuilt without forcing an application release, while the cache key prevents incompatible helper/data pairs from mixing.",
+            "markdown": "The ICU companion is versioned independently from Domotion's npm package. This lets a pinned Chromium ICU build be replaced or rebuilt without forcing an application release, while the cache key prevents incompatible helper/data pairs from mixing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/icu-helper-acquire.ts"
+                },
+                "region": {
+                  "startLine": 10,
+                  "endLine": 11,
+                  "snippet": {
+                    "text": "export const ICU_COMPANION_VERSION = \"78.2-domotion.1\";\nconst RELEASE_BASE = `https://github.com/brianwestphal/domotion/releases/download/icu-v${ICU_COMPANION_VERSION}`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2254"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1577635f60d54ac8475933d2bb667196"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "19930b64b2e421f81b4a0f8a95e222f01d1b7bcc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

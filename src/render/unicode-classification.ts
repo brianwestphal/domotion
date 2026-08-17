@@ -9,6 +9,7 @@
 
 import { HARFBUZZ_DEFAULT_IGNORABLE_RANGES } from "./harfbuzz-default-ignorable-ranges.generated.js";
 import { USE_LEFT_MATRA_RANGES } from "./use-left-matra-ranges.generated.js";
+import { ICU_BINARY, icuCodepointProperties } from "./icu-helper.js";
 
 /** True when `cp` is in HarfBuzz's `is_default_ignorable` set — see
  *  `harfbuzz-default-ignorable-ranges.generated.ts` for the transcription +
@@ -164,6 +165,11 @@ export function mathAlphaToBase(cp: number): { base: number; bold: boolean; ital
 // (enumerated offline against `isHarfbuzzDefaultIgnorable`, not sampled).
 const INKLESS_CATEGORY_RE = /^[\p{Cc}\p{Zl}\p{Zp}\p{Zs}]$/u;
 export function isLegitimatelyInklessCodepoint(cp: number): boolean {
+  const icu = icuCodepointProperties(cp);
+  // U_CONTROL_CHAR, U_SPACE_SEPARATOR, U_LINE_SEPARATOR,
+  // U_PARAGRAPH_SEPARATOR from the Chromium-pinned ICU headers.
+  if (icu != null && (icu.generalCategory === 15 ||
+      (icu.generalCategory >= 12 && icu.generalCategory <= 14))) return true;
   let s: string;
   try { s = String.fromCodePoint(cp); } catch { return false; }
   if (INKLESS_CATEGORY_RE.test(s)) return true;
@@ -179,6 +185,8 @@ export function isLegitimatelyInklessCodepoint(cp: number): boolean {
 // [:Ideographic=Yes:] codepoints (mac/font_cache_mac.mm:335-347).
 const IDEOGRAPHIC_RE = /^\p{Ideographic}$/u;
 export function isIdeographicCp(cp: number): boolean {
+  const icu = icuCodepointProperties(cp);
+  if (icu != null) return (icu.binaryProperties & ICU_BINARY.IDEOGRAPHIC) !== 0;
   let s: string;
   try { s = String.fromCodePoint(cp); } catch { return false; }
   return IDEOGRAPHIC_RE.test(s);

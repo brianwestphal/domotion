@@ -1,0 +1,110 @@
+name: Release ICU companion
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Independent companion tag (for example icu-v78.2-domotion.1)
+        required: true
+        default: icu-v78.2-domotion.1
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            target: darwin-x64
+          - runner: macos-15
+            target: darwin-arm64
+          - runner: ubuntu-22.04
+            target: linux-x64
+          - runner: ubuntu-22.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Populate Chromium-pinned ICU
+        run: git submodule update --init external/chromium/third_party/icu
+      - name: Build statically linked companion
+        run: bash tools/icu-helper/build-unix.sh
+      - name: Verify pinned runtime and data
+        run: |
+          cp external/chromium/third_party/icu/common/icudtl.dat tools/icu-helper/icudtl.dat
+          test "$(tools/icu-helper/domotion-icu --version)" = "domotion-icu 1 ICU 78.2"
+          printf '{"cps":[65,19968]}' | tools/icu-helper/domotion-icu | grep -q '"icuVersion":"78.2"'
+      - name: Stage and checksum exact Chromium ICU data
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          cp tools/icu-helper/domotion-icu "$RUNNER_TEMP/domotion-icu-$TARGET"
+          cp external/chromium/third_party/icu/common/icudtl.dat "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat"
+          cd "$RUNNER_TEMP"
+          shasum -a 256 "domotion-icu-$TARGET" > "domotion-icu-$TARGET.sha256"
+          shasum -a 256 "domotion-icu-$TARGET.icudtl.dat" > "domotion-icu-$TARGET.icudtl.dat.sha256"
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Domotion ICU companion $TAG" --notes "Chromium-pinned ICU companion assets."
+          gh release upload "$TAG" "$RUNNER_TEMP/domotion-icu-$TARGET" "$RUNNER_TEMP/domotion-icu-$TARGET.sha256" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat.sha256" --clobber
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: win32-x64
+            cmake_arch: x64
+          - runner: windows-11-arm
+            target: win32-arm64
+            cmake_arch: ARM64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Populate Chromium-pinned ICU
+        shell: bash
+        run: git submodule update --init external/chromium/third_party/icu
+      - name: Configure MSVC environment and build
+        shell: pwsh
+        env:
+          CMAKE_GENERATOR_PLATFORM: ${{ matrix.cmake_arch }}
+        run: ./tools/icu-helper/build-windows.ps1
+      - name: Verify pinned runtime and data
+        shell: pwsh
+        run: |
+          Copy-Item external/chromium/third_party/icu/common/icudtl.dat tools/icu-helper/icudtl.dat
+          $version = & tools/icu-helper/domotion-icu.exe --version
+          if ($version -ne "domotion-icu 1 ICU 78.2") { throw "unexpected version: $version" }
+          '{"cps":[65,19968]}' | tools/icu-helper/domotion-icu.exe | Select-String '"icuVersion":"78.2"'
+      - name: Stage assets
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          cp tools/icu-helper/domotion-icu.exe "$RUNNER_TEMP/domotion-icu-$TARGET.exe"
+          cp external/chromium/third_party/icu/common/icudtl.dat "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat"
+          cd "$RUNNER_TEMP"
+          sha256sum "domotion-icu-$TARGET.exe" > "domotion-icu-$TARGET.exe.sha256"
+          sha256sum "domotion-icu-$TARGET.icudtl.dat" > "domotion-icu-$TARGET.icudtl.dat.sha256"
+      - name: Create release and upload assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Domotion ICU companion $TAG" --notes "Chromium-pinned ICU companion assets."
+          gh release upload "$TAG" "$RUNNER_TEMP/domotion-icu-$TARGET.exe" "$RUNNER_TEMP/domotion-icu-$TARGET.exe.sha256" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat" "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat.sha256" --clobber

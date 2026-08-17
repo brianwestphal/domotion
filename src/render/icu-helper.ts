@@ -1,0 +1,104 @@
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { acquireIcuCompanionSync } from "./icu-helper-acquire.js";
+
+export interface IcuCodepointProperties {
+  cp: number;
+  found: boolean;
+  generalCategory: number;
+  generalCategoryName: string;
+  combiningClass: number;
+  script: number;
+  scriptName: string;
+  scriptLongName: string;
+  block: number;
+  blockName: string;
+  bidiClass: number;
+  bidiPairedBracketType: number;
+  eastAsianWidth: number;
+  indicPositionalCategory: number;
+  indicSyllabicCategory: number;
+  lineBreak: number;
+  verticalOrientation: number;
+  binaryProperties: number;
+  scriptExtensions: number[];
+  scriptExtensionNames: string[];
+}
+
+interface IcuResponse {
+  protocolVersion: "1";
+  icuVersion: "78.2";
+  unicodeVersion: string;
+  properties: IcuCodepointProperties[];
+}
+
+const memo = new Map<number, IcuCodepointProperties>();
+let helperPath: string | undefined;
+let checked = false;
+
+function inTreeHelper(): string | undefined {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const name = process.platform === "win32" ? "domotion-icu.exe" : "domotion-icu";
+  const candidate = path.join(root, "tools", "icu-helper", name);
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+function resolveHelper(): string | undefined {
+  if (!checked) {
+    checked = true;
+    helperPath = process.env.DOMOTION_ICU_HELPER_PATH ?? inTreeHelper() ?? acquireIcuCompanionSync();
+  }
+  return helperPath;
+}
+
+export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, IcuCodepointProperties> {
+  const missing = [...new Set(codepoints)].filter(cp => Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff && !memo.has(cp));
+  const executable = missing.length > 0 ? resolveHelper() : undefined;
+  if (missing.length > 0 && executable != null) {
+    const proc = spawnSync(executable, [], {
+      input: JSON.stringify({ cps: missing }),
+      encoding: "utf8",
+      timeout: 10_000,
+      env: process.env.DOMOTION_ICU_DATA
+        ? process.env
+        : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
+    });
+    if (proc.status === 0) {
+      try {
+        const response = JSON.parse(proc.stdout) as IcuResponse;
+        if (response.protocolVersion === "1" && response.icuVersion === "78.2") {
+          for (const row of response.properties) memo.set(row.cp, row);
+        }
+      } catch { /* helper-absent mode is deliberately non-fatal */ }
+    }
+  }
+  const result = new Map<number, IcuCodepointProperties>();
+  for (const cp of codepoints) {
+    const row = memo.get(cp);
+    if (row != null) result.set(cp, row);
+  }
+  return result;
+}
+
+export function icuCodepointProperties(cp: number): IcuCodepointProperties | undefined {
+  return queryIcuCodepoints([cp]).get(cp);
+}
+
+export const ICU_BINARY = {
+  IDEOGRAPHIC: 1 << 0,
+  DEFAULT_IGNORABLE: 1 << 1,
+  GRAPHEME_EXTEND: 1 << 2,
+  EMOJI: 1 << 3,
+  EMOJI_PRESENTATION: 1 << 4,
+  EMOJI_MODIFIER_BASE: 1 << 5,
+  EMOJI_COMPONENT: 1 << 6,
+  EXTENDED_PICTOGRAPHIC: 1 << 7,
+} as const;
+
+export function __resetIcuHelperForTest(): void {
+  memo.clear();
+  checked = false;
+  helperPath = undefined;
+}

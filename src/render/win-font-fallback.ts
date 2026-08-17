@@ -76,6 +76,7 @@
  * reachable only through block inference or Han locale disambiguation, and carry
  * their ISO 15924 tags as keys here to keep that distinction visible.
  */
+import { icuCodepointProperties } from "./icu-helper.js";
 
 /** A script key: a UCD Script-property long name, or one of the four ICU
  *  composite codes Blink's table also uses (`Hrkt`/`Hans`/`Hant`/`Zsym`). */
@@ -152,6 +153,35 @@ const enum Block {
 
 /** `ublock_getCode(cp)`, narrowed to the blocks above. */
 function ublockGetCode(cp: number): Block {
+  const icuBlock = icuCodepointProperties(cp)?.blockName;
+  if (icuBlock != null) {
+    const exact: Readonly<Record<string, Block>> = {
+      Greek_And_Coptic: Block.Greek, Armenian: Block.Armenian,
+      Arabic: Block.Arabic, Devanagari: Block.Devanagari, Kannada: Block.Kannada,
+      Thai: Block.Thai, Georgian: Block.Georgian, Arrows: Block.Arrows,
+      Mathematical_Operators: Block.MathematicalOperators,
+      Miscellaneous_Technical: Block.MiscellaneousTechnical,
+      Geometric_Shapes: Block.GeometricShapes,
+      Miscellaneous_Symbols: Block.MiscellaneousSymbols, Dingbats: Block.Dingbats,
+      Miscellaneous_Mathematical_Symbols_A: Block.MiscellaneousMathematicalSymbolsA,
+      Supplemental_Arrows_A: Block.SupplementalArrowsA,
+      Supplemental_Arrows_B: Block.SupplementalArrowsB,
+      Miscellaneous_Mathematical_Symbols_B: Block.MiscellaneousMathematicalSymbolsB,
+      Supplemental_Mathematical_Operators: Block.SupplementalMathematicalOperators,
+      Miscellaneous_Symbols_And_Arrows: Block.MiscellaneousSymbolsAndArrows,
+      CJK_Symbols_And_Punctuation: Block.CjkSymbolsAndPunctuation,
+      Hiragana: Block.Hiragana, Katakana: Block.Katakana, Gothic: Block.Gothic,
+      Mathematical_Alphanumeric_Symbols: Block.MathematicalAlphanumericSymbols,
+      Arabic_Mathematical_Alphabetic_Symbols: Block.ArabicMathematicalAlphabeticSymbols,
+      Playing_Cards: Block.PlayingCards,
+      Enclosed_Alphanumeric_Supplement: Block.EnclosedAlphanumericSupplement,
+      Miscellaneous_Symbols_And_Pictographs: Block.MiscellaneousSymbolsAndPictographs,
+      Emoticons: Block.Emoticons, Transport_And_Map_Symbols: Block.TransportAndMapSymbols,
+      Alchemical_Symbols: Block.AlchemicalSymbols,
+      Geometric_Shapes_Extended: Block.GeometricShapesExtended,
+    };
+    return exact[icuBlock] ?? Block.None;
+  }
   // BMP first — every hot codepoint is here.
   if (cp < 0x10000) {
     if (cp >= 0x0370 && cp <= 0x03FF) return Block.Greek;
@@ -423,6 +453,14 @@ const _scriptCache = new Map<number, WinScript>();
 export function uscriptGetScript(cp: number): WinScript {
   const hit = _scriptCache.get(cp);
   if (hit !== undefined) return hit;
+  const icu = icuCodepointProperties(cp);
+  if (icu != null) {
+    const longName = icu.scriptLongName;
+    const out = longName === "Common" || longName === "Inherited" ||
+      REAL_SCRIPTS.includes(longName) ? longName : UNMAPPED_SCRIPT;
+    _scriptCache.set(cp, out);
+    return out;
+  }
   const ch = String.fromCodePoint(cp);
   let out: WinScript = UNMAPPED_SCRIPT;
   if (RE_COMMON.test(ch)) out = "Common";

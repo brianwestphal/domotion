@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswtu17tza55lfgg",
+          "message": {
+            "text": "Supported helper-backed classification now calls the same ICU operations Chromium calls. The existing JavaScript regexes remain only as the nonfatal degraded path; the focused text and Windows fallback suites pass with the pinned ICU 78.2 helper and Chromium icudtl.dat.",
+            "markdown": "Supported helper-backed classification now calls the same ICU operations Chromium calls. The existing JavaScript regexes remain only as the nonfatal degraded path; the focused text and Windows fallback suites pass with the pinned ICU 78.2 helper and Chromium icudtl.dat."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/unicode-classification.ts"
+                },
+                "region": {
+                  "startLine": 168,
+                  "endLine": 191,
+                  "snippet": {
+                    "text": "  const icu = icuCodepointProperties(cp);\n  // U_CONTROL_CHAR, U_SPACE_SEPARATOR, U_LINE_SEPARATOR,\n  // U_PARAGRAPH_SEPARATOR from the Chromium-pinned ICU headers.\n  if (icu != null && (icu.generalCategory === 15 ||\n      (icu.generalCategory >= 12 && icu.generalCategory <= 14))) return true;\n  let s: string;\n  try { s = String.fromCodePoint(cp); } catch { return false; }\n  if (INKLESS_CATEGORY_RE.test(s)) return true;\n  return isHarfbuzzDefaultIgnorable(cp);\n}\n\n// The Unicode `Ideographic` binary property, exactly as Blink consults it:\n// `Character::IsIdeographic` is `u_hasBinaryProperty(c, UCHAR_IDEOGRAPHIC)`\n// (external/chromium third_party/blink/renderer/platform/text/character.h:106-108,\n// rev 7d859f27; identical at shipping tag 147.0.7727.15). JS regex `\\p{Ideographic}`\n// is the same UCD property, so this is a transcription, not an approximation.\n// It gates Blink's macOS per-character fallback cache: caching happens ONLY for\n// [:Ideographic=Yes:] codepoints (mac/font_cache_mac.mm:335-347).\nconst IDEOGRAPHIC_RE = /^\\p{Ideographic}$/u;\nexport function isIdeographicCp(cp: number): boolean {\n  const icu = icuCodepointProperties(cp);\n  if (icu != null) return (icu.binaryProperties & ICU_BINARY.IDEOGRAPHIC) !== 0;\n  let s: string;\n  try { s = String.fromCodePoint(cp); } catch { return false; }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/icu-helper/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 110
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2254"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e919eaf35f127a4ee9a3cc65575bcc12"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "19930b64b2e421f81b4a0f8a95e222f01d1b7bcc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
