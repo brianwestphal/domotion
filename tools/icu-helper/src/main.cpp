@@ -182,6 +182,49 @@ std::string responseJson(const std::string& request) {
   return out.str();
 }
 
+void digestWord(uint64_t& hash, uint32_t value) {
+  for (int i = 0; i < 4; ++i) {
+    hash ^= static_cast<uint8_t>(value >> (i * 8));
+    hash *= UINT64_C(1099511628211);
+  }
+}
+
+std::string propertyDigestJson() {
+  uint64_t hash = UINT64_C(14695981039346656037);
+  uint64_t assigned = 0;
+  for (uint32_t rawCp = 0; rawCp <= 0x10ffff; ++rawCp) {
+    const UChar32 cp = static_cast<UChar32>(rawCp);
+    const auto category = static_cast<uint32_t>(u_charType(cp));
+    if (category != U_UNASSIGNED) ++assigned;
+    digestWord(hash, rawCp);
+    digestWord(hash, category);
+    digestWord(hash, static_cast<uint32_t>(u_getCombiningClass(cp)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_SCRIPT)));
+    digestWord(hash, static_cast<uint32_t>(ublock_getCode(cp)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_BIDI_CLASS)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_BIDI_PAIRED_BRACKET_TYPE)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_EAST_ASIAN_WIDTH)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_INDIC_POSITIONAL_CATEGORY)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_INDIC_SYLLABIC_CATEGORY)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_LINE_BREAK)));
+    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_VERTICAL_ORIENTATION)));
+    digestWord(hash, binaryProperties(cp));
+    UScriptCode scripts[32] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    int32_t count = uscript_getScriptExtensions(cp, scripts, 32, &status);
+    if (U_FAILURE(status) && status != U_BUFFER_OVERFLOW_ERROR) count = 0;
+    count = std::clamp(count, 0, 32);
+    digestWord(hash, static_cast<uint32_t>(count));
+    for (int32_t i = 0; i < count; ++i) digestWord(hash, static_cast<uint32_t>(scripts[i]));
+  }
+  std::ostringstream hex;
+  hex << std::hex << hash;
+  return "{\"protocolVersion\":\"" + std::string(kProtocolVersion) +
+      "\",\"icuVersion\":\"" + U_ICU_VERSION +
+      "\",\"codepoints\":1114112,\"assigned\":" + std::to_string(assigned) +
+      ",\"fnv1a64\":\"" + hex.str() + "\"}";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -195,6 +238,10 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (!installIcuData()) return 3;
+  if (argc > 1 && std::string(argv[1]) == "--digest") {
+    std::cout << propertyDigestJson() << '\n';
+    return 0;
+  }
   if (argc > 1 && std::string(argv[1]) == "--serve") {
     std::string line;
     while (std::getline(std::cin, line)) {

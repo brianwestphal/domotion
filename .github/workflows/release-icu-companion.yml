@@ -41,6 +41,7 @@ jobs:
           cp external/chromium/third_party/icu/common/icudtl.dat tools/icu-helper/icudtl.dat
           test "$(tools/icu-helper/domotion-icu --version)" = "domotion-icu 1 ICU 78.2"
           printf '{"cps":[65,19968]}' | tools/icu-helper/domotion-icu | grep -q '"icuVersion":"78.2"'
+          test "$(tools/icu-helper/domotion-icu --digest)" = '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}'
       - name: Stage and checksum exact Chromium ICU data
         env:
           TARGET: ${{ matrix.target }}
@@ -99,6 +100,8 @@ jobs:
           $version = & tools/icu-helper/domotion-icu.exe --version
           if ($version -ne "domotion-icu 1 ICU 78.2") { throw "unexpected version: $version" }
           '{"cps":[65,19968]}' | tools/icu-helper/domotion-icu.exe | Select-String '"icuVersion":"78.2"'
+          $digest = & tools/icu-helper/domotion-icu.exe --digest
+          if ($digest -ne '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}') { throw "unexpected digest: $digest" }
       - name: Stage assets
         shell: bash
         env:

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswu9vnwgk92ww49",
+          "message": {
+            "text": "The digest enumerates all 1,114,112 Unicode scalar positions and every property exposed by the companion. The Chromium-pinned macOS build produced 299,382 assigned positions and FNV-1a digest 6c5c14d607f8d945; release CI requires every target to reproduce both values, catching a mismatched library, data file, enum surface, or architecture-specific result.",
+            "markdown": "The digest enumerates all 1,114,112 Unicode scalar positions and every property exposed by the companion. The Chromium-pinned macOS build produced 299,382 assigned positions and FNV-1a digest 6c5c14d607f8d945; release CI requires every target to reproduce both values, catching a mismatched library, data file, enum surface, or architecture-specific result."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/icu-helper/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 192,
+                  "endLine": 225,
+                  "snippet": {
+                    "text": "std::string propertyDigestJson() {\n  uint64_t hash = UINT64_C(14695981039346656037);\n  uint64_t assigned = 0;\n  for (uint32_t rawCp = 0; rawCp <= 0x10ffff; ++rawCp) {\n    const UChar32 cp = static_cast<UChar32>(rawCp);\n    const auto category = static_cast<uint32_t>(u_charType(cp));\n    if (category != U_UNASSIGNED) ++assigned;\n    digestWord(hash, rawCp);\n    digestWord(hash, category);\n    digestWord(hash, static_cast<uint32_t>(u_getCombiningClass(cp)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_SCRIPT)));\n    digestWord(hash, static_cast<uint32_t>(ublock_getCode(cp)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_BIDI_CLASS)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_BIDI_PAIRED_BRACKET_TYPE)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_EAST_ASIAN_WIDTH)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_INDIC_POSITIONAL_CATEGORY)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_INDIC_SYLLABIC_CATEGORY)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_LINE_BREAK)));\n    digestWord(hash, static_cast<uint32_t>(u_getIntPropertyValue(cp, UCHAR_VERTICAL_ORIENTATION)));\n    digestWord(hash, binaryProperties(cp));\n    UScriptCode scripts[32] = {};\n    UErrorCode status = U_ZERO_ERROR;\n    int32_t count = uscript_getScriptExtensions(cp, scripts, 32, &status);\n    if (U_FAILURE(status) && status != U_BUFFER_OVERFLOW_ERROR) count = 0;\n    count = std::clamp(count, 0, 32);\n    digestWord(hash, static_cast<uint32_t>(count));\n    for (int32_t i = 0; i < count; ++i) digestWord(hash, static_cast<uint32_t>(scripts[i]));\n  }\n  std::ostringstream hex;\n  hex << std::hex << hash;\n  return \"{\\\"protocolVersion\\\":\\\"\" + std::string(kProtocolVersion) +\n      \"\\\",\\\"icuVersion\\\":\\\"\" + U_ICU_VERSION +\n      \"\\\",\\\"codepoints\\\":1114112,\\\"assigned\\\":\" + std::to_string(assigned) +\n      \",\\\"fnv1a64\\\":\\\"\" + hex.str() + \"\\\"}\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/icu-conformance.ts"
+                },
+                "region": {
+                  "startLine": 25
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2254"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1e5d7f126c874b7b6e991820da31c2ee"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5ca5ccb00ccdf74f54577aba0550c4e5cc49aa51",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
