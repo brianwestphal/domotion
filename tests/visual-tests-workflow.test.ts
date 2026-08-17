@@ -186,6 +186,13 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       });
     }
 
+    it("the Linux hb-subset arm supplies a real CFF face without changing normal baselines", () => {
+      const linux = jobs["test-linux"];
+      expect(linux).toContain("Install CFF validation face");
+      expect(linux).toMatch(/if: inputs\.hinted_subset == '1'/);
+      expect(linux).toMatch(/apt-get install[^\n]*fonts-stix/);
+    });
+
     it("every renderer DOMOTION_ env the workflow passes is dispatch-controlled, not a hardcoded arm", () => {
       // Catches the inverse drift: a renderer flag pinned to a literal in the
       // workflow, which makes one arm permanently unreachable and every future

@@ -52,7 +52,7 @@ on:
         description: 'Capture device pixel ratio (default 1). dpr=2 renders expected+actual at 2× — a diagnostic for glyph-sheet-audit so ink clears the DM-1686 comparator''s ≥32px regime.'
         default: '1'
       hinted_subset:
-        description: 'DOMOTION_HINTED_SUBSET override. Empty = renderer default (hinting-preserving hb-subset embedded path ON); 0 = force the svg2ttf-only arm for A/B measurement.'
+        description: 'DOMOTION_HINTED_SUBSET override. 1 = hb-subset embedded path; empty/0 = svg2ttf control.'
         default: ''
       fallback_base:
         description: 'DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (ON — ask CoreText from the run''s own primary); 0 = force the old hardcoded Helvetica cascade base for A/B. Both arms of the A/B run from ONE ref so the only difference is the flag.'
@@ -233,6 +233,14 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      # The base Playwright image has only TrueType-outline system faces. The
+      # explicit hb-subset diagnostic arm also installs STIX's OpenType/CFF
+      # faces so Unicode math fixtures exercise CFF subsetting and Chromium's
+      # OTS/webfont consumer. Ordinary baseline runs retain their pinned font
+      # inventory because adding STIX changes fallback selection.
+      - name: Install CFF validation face
+        if: inputs.hinted_subset == '1'
+        run: apt-get install -y --no-install-recommends fonts-stix
       - run: npm ci
       - name: Build the Linux glyph helper (fontconfig declared-family matcher)
         run: bash tools/linux-glyph-extractor/build.sh
