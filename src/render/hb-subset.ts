@@ -130,11 +130,9 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
     const dataPtr = w.hb_blob_get_data(outBlob, 0);
     const out = Buffer.from(heap().slice(dataPtr, dataPtr + len));
     w.hb_blob_destroy(outBlob);
-    // Defense in depth: this wasm build silently DROPS tables it can't subset
-    // (observed: `CFF ` on macOS OTTO faces). An outline-less "subset" parses in
-    // fontkit but fails the consumer browser's OTS sanitizer — every glyph of
-    // the @font-face tofu-boxes. Throw instead so the caller falls back to
-    // svg2ttf.
+    // Defense in depth: an outline-less subset can parse in fontkit but fails
+    // the consumer browser's OTS sanitizer. Throw so the caller can use its
+    // outline-rebuild fallback rather than emitting a tofu-only @font-face.
     if (!sfntHasOutlineTable(out)) throw new Error("subset output has no outline table (glyf/CFF dropped by hb-subset)");
     return out;
   } finally {
@@ -183,6 +181,16 @@ function sfntHasOutlineTable(fontBytes: Buffer): boolean {
     if (o + 4 > fontBytes.length) break;
     const tag = fontBytes.toString("latin1", o, o + 4);
     if (tag === "glyf" || tag === "CFF " || tag === "CFF2") return true;
+  }
+  return false;
+}
+
+function bareSfntHasTable(fontBytes: Buffer, wanted: string): boolean {
+  if (fontBytes.length < 12) return false;
+  const count = fontBytes.readUInt16BE(4);
+  for (let i = 0; i < count; i++) {
+    const offset = 12 + i * 16;
+    if (offset + 4 <= fontBytes.length && fontBytes.toString("latin1", offset, offset + 4) === wanted) return true;
   }
   return false;
 }
@@ -392,6 +400,19 @@ export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { byte
   maxp.writeUInt16BE(kept.length, 4);
 
   return { bytes: rebuildSfnt(fontBytes.readUInt32BE(0), tables), gidMap };
+}
+
+/** Compact retained TrueType glyph ids, but preserve CFF ids already emitted
+ * by HarfBuzz. Our compactor rewrites glyf/loca and cannot rewrite CFF
+ * CharStrings; RETAIN_GIDS makes an identity map correct for those fonts. */
+export function compactRetainedGlyphIds(fontBytes: Buffer, wantedGids: number[]): { bytes: Buffer; gidMap: Map<number, number> } {
+  if (bareSfntHasTable(fontBytes, "glyf")) return compactGlyphIds(fontBytes, wantedGids);
+  if (!bareSfntHasTable(fontBytes, "CFF ") && !bareSfntHasTable(fontBytes, "CFF2")) {
+    throw new Error("compactRetainedGlyphIds: subset has no supported outline table");
+  }
+  const gidMap = new Map<number, number>([[0, 0]]);
+  for (const gid of wantedGids) gidMap.set(gid, gid);
+  return { bytes: fontBytes, gidMap };
 }
 
 // ── sfnt cmap replacement ──

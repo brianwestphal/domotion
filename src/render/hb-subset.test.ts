@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
-import { appendGlyphCopy, compactGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -113,7 +113,10 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
     const subset = hbSubsetRetainGids(source, [1]);
     expect(tableBytes(subset, "CFF ")?.length).toBeGreaterThan(0);
 
-    const mapped = injectPuaCmap(subset, new Map([[0xe000, 1]]));
+    const compacted = compactRetainedGlyphIds(subset, [1]);
+    expect(compacted.bytes).toBe(subset);
+    expect(compacted.gidMap).toEqual(new Map([[0, 0], [1, 1]]));
+    const mapped = injectPuaCmap(compacted.bytes, new Map([[0xe000, compacted.gidMap.get(1)!]]));
     const font = fontkit.create(mapped);
     const glyph = font.glyphForCodePoint(0xe000);
     expect(glyph.id).toBe(1);

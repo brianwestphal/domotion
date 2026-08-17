@@ -38,7 +38,7 @@
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
-import { appendGlyphCopy, compactGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
 /** The hinting-preserving hb-subset path is experimental and opt-in. Retained
  *  bytecode can refer to glyph/CVT state that no longer survives subsetting;
@@ -540,10 +540,9 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const gids = [...entry.puaForGlyphId.keys()];
       const puaToGid = new Map<number, number>();
       for (const [gid, pua] of entry.puaForGlyphId) puaToGid.set(pua, gid);
-      // Guard non-glyf faces: CFF/CFF2 (the bundled wasm silently drops `CFF `,
-      // producing an outline-less font Chrome's OTS rejects → tofu) and
-      // outline-less files (PingFang's Apple-private hvgl). Those keep the
-      // svg2ttf path by design — a quiet skip, not a failure.
+      // Guard outline-less files (for example PingFang's Apple-private hvgl).
+      // Both glyf and CFF/CFF2 are subsettable; their post-subset glyph-id
+      // handling differs below because only glyf/loca can use our compactor.
       //
       // DM-1862: asked from a MEMO first, so a face already known to fail it
       // never re-reads the file. The verdict is a pure function of (path, face
@@ -568,7 +567,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         // DM-1718: compact the RETAIN_GIDS id space (padded to the source's max
         // gid — ~356 KB of loca+hmtx for a CJK font) down to the kept glyphs,
         // and translate the PUA map through the old→new gid mapping.
-        const { bytes: compacted, gidMap } = compactGlyphIds(retained, gids);
+        const { bytes: compacted, gidMap } = compactRetainedGlyphIds(retained, gids);
         let subset = compacted;
         for (const [pua, gid] of puaToGid) {
           const mapped = gidMap.get(gid);
