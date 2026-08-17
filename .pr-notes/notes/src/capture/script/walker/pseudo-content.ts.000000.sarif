@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswkptc9ovc14oam",
+          "message": {
+            "text": "Box-only generated content participates in flex layout exactly like text generated content. Anchoring the last empty ::after margin box to the content-right edge reuses the CSS flex invariant already applied to textual pseudos; centering uses the host content box so borders and padding are not double-counted. The affected visual fixture drops from 13 regions to 5 without any summary- or chevron-specific branch.",
+            "markdown": "Box-only generated content participates in flex layout exactly like text generated content. Anchoring the last empty ::after margin box to the content-right edge reuses the CSS flex invariant already applied to textual pseudos; centering uses the host content box so borders and padding are not double-counted. The affected visual fixture drops from 13 regions to 5 without any summary- or chevron-specific branch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/pseudo-content.ts"
+                },
+                "region": {
+                  "startLine": 416,
+                  "endLine": 433,
+                  "snippet": {
+                    "text": "            borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;\n            // An empty decorative pseudo is still a real flex item. When an\n            // `::after` is the last item and main-axis distribution pushes the\n            // ends apart, its margin box is flush with the content-right edge.\n            // Text pseudos already take this path below; box-only pseudos must\n            // use the same flex geometry instead of the static content-start.\n            const hostFlex = cs.display === 'flex' || cs.display === 'inline-flex';\n            const justify = cs.justifyContent || '';\n            const pushesEnd = justify.indexOf('space-between') >= 0 || justify.indexOf('flex-end') >= 0\n              || justify === 'end' || justify === 'right';\n            if (pseudo === '::after' && hostFlex && pushesEnd) {\n              const hostPadR = parseFloat(cs.paddingRight) || 0;\n              const pMarR = parseFloat(pcs.marginRight) || 0;\n              borderBoxX = rect.right - vp.x - hostBorR - hostPadR - pMarR - borderBoxW;\n              if (cs.alignItems === 'center') {\n                const hostBorB = parseFloat(cs.borderBottomWidth) || 0;\n                const hostPadB = parseFloat(cs.paddingBottom) || 0;\n                const contentH = rect.height - hostBorT - hostBorB - hostPadT - hostPadB;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2233"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5c90e53302447ad67ffd359d1bf5382f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ba4144b33f2bbaad5e9b188735cd1b37f2721e5b",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

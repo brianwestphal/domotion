@@ -19,6 +19,12 @@ const HTML =
   `summary::after{content:"+";font-size:20px;color:#475569}` +
   `</style></head><body><details><summary>Section title</summary><div>body</div></details></body></html>`;
 
+const BOX_HTML =
+  `<!doctype html><style>body{margin:0}.host{display:flex;align-items:center;justify-content:space-between;` +
+  `width:300px;height:48px;padding:0 18px;border:2px solid #ccc}.host::after{content:"";display:block;` +
+  `width:8px;height:8px;border-top:2px solid;border-right:2px solid;transform:rotate(45deg)}</style>` +
+  `<div class="host">Account</div>`;
+
 interface Seg { text?: string; x?: number; width?: number }
 interface El { tag?: string; x?: number; width?: number; styles?: { borderRightWidth?: string; paddingRight?: string }; textSegments?: Seg[] }
 function findSummaryAfter(tree: CapturedElement[]): { seg: Seg; el: El } | null {
@@ -62,6 +68,21 @@ describeBrowser("DM-1256: flex space-between ::after is anchored at the content-
       // The legacy heuristic overshot it past the content edge.
       const markerRight = (seg.x ?? 0) + (seg.width ?? 0);
       expect(markerRight).toBeCloseTo(contentRight, 0);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
+  it("places an empty border-box ::after at the same flex-end anchor", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(BOX_HTML, { waitUntil: "load" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const host = tree[0] as CapturedElement & { pseudoBoxes?: Array<{ pseudo?: string; x: number; y: number; width: number; height: number }> };
+      const box = host.pseudoBoxes?.find((p) => p.pseudo === "::after");
+      expect(box).toBeDefined();
+      expect(box!.x + box!.width).toBeCloseTo(320, 0); // 340 border-box right − 2 border − 18 padding
+      expect(box!.y).toBeCloseTo(21, 0); // centered 10px border-box in the 48px content box
     } finally {
       await page.close();
     }

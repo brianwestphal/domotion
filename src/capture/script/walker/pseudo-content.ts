@@ -414,6 +414,26 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
             const pMarT = parseFloat(pcs.marginTop) || 0;
             borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
             borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
+            // An empty decorative pseudo is still a real flex item. When an
+            // `::after` is the last item and main-axis distribution pushes the
+            // ends apart, its margin box is flush with the content-right edge.
+            // Text pseudos already take this path below; box-only pseudos must
+            // use the same flex geometry instead of the static content-start.
+            const hostFlex = cs.display === 'flex' || cs.display === 'inline-flex';
+            const justify = cs.justifyContent || '';
+            const pushesEnd = justify.indexOf('space-between') >= 0 || justify.indexOf('flex-end') >= 0
+              || justify === 'end' || justify === 'right';
+            if (pseudo === '::after' && hostFlex && pushesEnd) {
+              const hostPadR = parseFloat(cs.paddingRight) || 0;
+              const pMarR = parseFloat(pcs.marginRight) || 0;
+              borderBoxX = rect.right - vp.x - hostBorR - hostPadR - pMarR - borderBoxW;
+              if (cs.alignItems === 'center') {
+                const hostBorB = parseFloat(cs.borderBottomWidth) || 0;
+                const hostPadB = parseFloat(cs.paddingBottom) || 0;
+                const contentH = rect.height - hostBorT - hostBorB - hostPadT - hostPadB;
+                borderBoxY = rect.top - vp.y + hostBorT + hostPadT + (contentH - borderBoxH) / 2 + pMarT;
+              }
+            }
             // DM-768: static `display: inline-block` (and inline-flex / inline-grid /
             // inline-table) pseudos participate in Chrome's inline vertical-align
             // math — the formula above ignores `vertical-align` and pins the box to
