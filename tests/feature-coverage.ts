@@ -198,10 +198,10 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "fonts.glyph-helper",
-    behavior: "Acquire the platform glyph-extraction helper (CoreText / fontconfig / DirectWrite).",
+    behavior: "Acquire the platform glyph-extraction helper and Chromium-pinned ICU classification companion.",
     doc: "docs/80-cross-platform-system-fallback-resolver.md",
-    exports: ["acquireGlyphHelper"],
-    tests: ["src/render/helper-acquire.test.ts", "src/render/glyph-helper.test.ts"],
+    exports: ["acquireGlyphHelper", "acquireIcuCompanion"],
+    tests: ["src/render/helper-acquire.test.ts", "src/render/glyph-helper.test.ts", "src/render/icu-helper-acquire.test.ts", "src/render/icu-helper.test.ts"],
   },
 
   // ── Scroll (STATEFUL: pattern → executor state machine) ─────────────────

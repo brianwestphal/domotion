@@ -64,6 +64,7 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `clearEmbeddedFonts` | function | Reset the embedded-font subset builder (used by `"embedded"` mode) between independent captures. |
 | `getEmbeddedFontFaceCss` | function | Read the accumulated base64 `@font-face` CSS for the glyphs rendered in `"embedded"` mode — emit it once into the document's `<style>`. |
 | `acquireGlyphHelper` | function | Ensure the platform native glyph-extraction helper binary is present (downloads + caches it on first use). Returns its path, or `null` when unavailable. See docs 50 / 51. |
+| `acquireIcuCompanion` | function | Ensure the independently versioned Chromium-pinned ICU classification companion and exact `icudtl.dat` are present. Downloads, SHA-verifies, and caches the matching platform/architecture release assets; returns the executable path or `null`. |
 
 ## Animation
 

@@ -1,11 +1,15 @@
 # Degraded font-resolution contract
 
 Domotion's Chromium-parity font path requires the native helper for the running
-platform. The helper is not merely an outline accelerator: it is the bridge to
+platform, plus the independently downloaded Chromium-pinned ICU companion. The
+platform helper is not merely an outline accelerator: it is the bridge to
 CoreText, fontconfig/FreeType, or DirectWrite for installed-family matching,
-per-codepoint fallback, face traits, and variable-axis identity.
+per-codepoint fallback, face traits, and variable-axis identity. The ICU
+companion supplies the exact Unicode properties Blink consults; its executable
+and Chromium `icudtl.dat` are versioned together and SHA-verified before use.
 
-If helper acquisition fails, `DOMOTION_DISABLE_HELPER=1` is set, or live system
+If native/ICU helper acquisition fails, `DOMOTION_DISABLE_HELPER=1` or
+`DOMOTION_DISABLE_ICU_HELPER=1` is set, or live system
 fallback is explicitly disabled, rendering continues in a supported, bounded
 best-effort mode. Domotion retains the static fallback chains and emits a loud
 stderr warning when automatic helper acquisition fails. Degraded mode is a
@@ -28,6 +32,8 @@ Chromium-parity guarantee.
 
 - Exact installed family and style-cut nomination.
 - Exact per-codepoint system fallback and locale/script ordering.
+- Exact Chromium-version Unicode categories, scripts, blocks, and binary
+  properties; the JavaScript runtime's Unicode tables are used instead.
 - Native symbolic bold/italic traits and some variable-axis coordinates.
 - Family identity, glyph geometry, and pixel equality with Chromium.
 

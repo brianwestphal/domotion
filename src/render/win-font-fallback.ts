@@ -76,7 +76,7 @@
  * reachable only through block inference or Han locale disambiguation, and carry
  * their ISO 15924 tags as keys here to keep that distinction visible.
  */
-import { icuCodepointProperties } from "./icu-helper.js";
+import { ICU_BINARY, icuCodepointProperties } from "./icu-helper.js";
 
 /** A script key: a UCD Script-property long name, or one of the four ICU
  *  composite codes Blink's table also uses (`Hrkt`/`Hans`/`Hant`/`Zsym`). */
@@ -1054,6 +1054,8 @@ export function blinkWinHardcodedFamilies(
  * run hitting any `\p{Emoji}` codepoint asks for the MONO emoji font.
  */
 export function winFallbackPriorityForTextRun(cp: number): WinFallbackPriority {
+  const icu = icuCodepointProperties(cp);
+  if (icu != null) return (icu.binaryProperties & ICU_BINARY.EMOJI) !== 0 ? "emoji-text" : "text";
   return RE_EMOJI.test(String.fromCodePoint(cp)) ? "emoji-text" : "text";
 }
 
