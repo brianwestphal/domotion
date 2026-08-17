@@ -40,12 +40,15 @@ process.env.FONT_CASSETTE_MODE = "replay";
 
 type GlyphHelper = typeof import("./glyph-helper.js");
 type HostPlatformMod = typeof import("./host-platform.js");
+type FontResolution = typeof import("./font-resolution.js");
 let helper: GlyphHelper;
 let host: HostPlatformMod;
+let fonts: FontResolution;
 
 beforeAll(async () => {
   helper = await import("./glyph-helper.js");
   host = await import("./host-platform.js");
+  fonts = await import("./font-resolution.js");
 });
 
 /** The recorded answer for a declared family at a style. */
@@ -53,6 +56,13 @@ const face = (family: string, weight: number, italic = false): string | null =>
   helper.resolveInstalledFont(family, { weight, italic, stretch: 100 })?.postscriptName ?? null;
 
 describe("Windows declared-family cut selection, replayed on any host (DM-1980)", () => {
+  it("walks past an unavailable Helvetica Neue to the next declared family", () => {
+    host.withHostPlatform("win32", () => {
+      expect(fonts.resolveFontKey('"Helvetica Neue", sans-serif')).toBe("helvetica");
+      expect(fonts.resolveFontKeyChain('"Helvetica Neue", sans-serif')).toEqual(["helvetica", "times"]);
+    });
+  });
+
   it("walks Segoe UI's real weight ladder rather than collapsing to one cut", () => {
     // Segoe UI is the case worth pinning: it ships Light / Semibold / Bold as
     // separate faces, so a matcher that ignored the requested weight — or that

@@ -150,6 +150,10 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 and then Blink's preferred STANDARD family (used by the per-codepoint resolver
 to reach later-declared families before the platform system-fallback stage).
+An explicitly named platform family is a match only when that family is actually
+installed on the capture host. For example, `Helvetica Neue` is a distinct face
+on macOS but is skipped on stock Windows, allowing the next declared family to
+become primary just as Blink's family iterator does.
 
 > **The settings-mapped generics are SCRIPT-KEYED on mac/win.** Blink consults
 > `settings.<Generic>(script)` with `font_description.GetScript()`
