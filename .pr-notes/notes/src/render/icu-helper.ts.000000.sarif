@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswwf8zv8gsf6djo",
+          "message": {
+            "text": "The 16K page is a transport optimization, not a routing table: every returned value still comes from the pinned ICU helper. The exhaustive static-chain guard passed in 166.88s with this batching; 256-row pages exceeded its 180s ceiling because synchronous callers launched thousands of helper processes.",
+            "markdown": "The 16K page is a transport optimization, not a routing table: every returned value still comes from the pinned ICU helper. The exhaustive static-chain guard passed in 166.88s with this batching; 256-row pages exceeded its 180s ceiling because synchronous callers launched thousands of helper processes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/icu-helper.ts"
+                },
+                "region": {
+                  "startLine": 38,
+                  "endLine": 42,
+                  "snippet": {
+                    "text": "// Routing normally asks about adjacent Unicode cells. A full structural scan\n// must not turn that into one helper launch per tiny page: 4K rows keep the\n// synchronous API practical while remaining well below the explicit buffer.\nconst PAGE_SIZE = 16_384;\nconst MAX_MEMO_ROWS = 65_536;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2254"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "434fa25a85797357ea8a26e31fbdde90"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "871877875a7fca24912e78b160e29649178039f5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
