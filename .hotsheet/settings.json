@@ -159,7 +159,7 @@
         },
         {
           "name": "Review Demos",
-          "prompt": "npm run demos:review",
+          "prompt": "zsh -ic 'npm run demos:review'",
           "target": "shell",
           "icon": "square-check",
           "id": "ea151e62-4ec5-43be-83d1-a186f02cb046"
