@@ -35,7 +35,10 @@ interface IcuResponse {
 }
 
 const memo = new Map<number, IcuCodepointProperties>();
-const PAGE_SIZE = 256;
+// Routing normally asks about adjacent Unicode cells. A full structural scan
+// must not turn that into one helper launch per tiny page: 4K rows keep the
+// synchronous API practical while remaining well below the explicit buffer.
+const PAGE_SIZE = 16_384;
 const MAX_MEMO_ROWS = 65_536;
 let helperPath: string | undefined;
 let checked = false;
@@ -77,6 +80,7 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
       input: JSON.stringify({ cps: missing }),
       encoding: "utf8",
       timeout: 10_000,
+      maxBuffer: 64 * 1024 * 1024,
       env: process.env.DOMOTION_ICU_DATA
         ? process.env
         : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
