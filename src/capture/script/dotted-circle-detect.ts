@@ -13,9 +13,10 @@
 //
 // Detection: render `mark` and `"◌"+mark` to a canvas with the element's font.
 // When Chrome auto-inserts the circle for the bare mark, the two renderings are
-// the SAME cluster (◌+mark), so their ink matches in both pixel COUNT and WIDTH.
-// A spacing mark (own advance) that does NOT get a circle renders narrower bare
-// than combined, so the width check excludes it. Validated 43/43 against CDP
+// the SAME cluster (◌+mark), so their ink masks overlap. Count + width alone are
+// insufficient: an enclosing mark can have nearly the same area and bounds as
+// the explicit-circle cluster while painting different pixels. A spacing mark
+// (own advance) also renders narrower bare than combined. Validated 43/43 against CDP
 // `getPlatformFontsForNode` glyph counts on the 1CD0-1CFF Vedic fixture.
 //
 // Pre-filter `cp >= 0x0900`: scopes the probe to the Indic / Brahmic / SE-Asian
@@ -23,6 +24,17 @@
 // combining marks (all < 0x0900) are intentionally out of scope — they keep the
 // existing behavior, holding the blast radius tight. The caller additionally
 // gates on the mark being ORPHANED (no base in its cluster).
+
+export const dottedCircleInkMatches = (bare, comb) => {
+  const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;
+  let union = 0, xor = 0;
+  for (let i = 0; i < bare.mask.length; i++) {
+    if (bare.mask[i] || comb.mask[i]) union++;
+    if (bare.mask[i] !== comb.mask[i]) xor++;
+  }
+  const mismatch = union > 0 ? xor / union : 1;
+  return bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25 && mismatch < 0.12;
+};
 
 export const createDottedCircleDetect = () => {
   let _cv = null;
@@ -46,16 +58,18 @@ export const createDottedCircleDetect = () => {
     _ctx.fillText(s, 40, 32);
     const data = _ctx.getImageData(0, 0, 96, 64).data;
     let cnt = 0, minx = 1e9, maxx = -1;
+    const mask = new Uint8Array(96 * 64);
     for (let y = 0; y < 64; y++) {
       for (let x = 0; x < 96; x++) {
         if (data[(y * 96 + x) * 4 + 3] > 20) {
+          mask[y * 96 + x] = 1;
           cnt++;
           if (x < minx) minx = x;
           if (x > maxx) maxx = x;
         }
       }
     }
-    return { cnt, w: cnt > 0 ? (maxx - minx + 1) : 0 };
+    return { cnt, w: cnt > 0 ? (maxx - minx + 1) : 0, mask };
   };
 
   // Does Chrome auto-insert a U+25CC before this lone mark/cluster-letter in
@@ -78,10 +92,10 @@ export const createDottedCircleDetect = () => {
       const bare = inkStats(ch, font);
       const comb = inkStats('◌' + ch, font);
       // Auto-inserted ⟺ the bare-mark render ALREADY contains the circle, so
-      // bare ≈ comb in count and width. Spacing marks make `comb` markedly
-      // wider (the explicit ◌ adds its advance) → excluded by the width ratio.
-      const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;
-      res = bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25;
+      // bare ≈ comb in count, width, AND pixel location. The overlap check is
+      // what rejects enclosing marks whose similar-sized outlines fooled the
+      // old aggregate-only test.
+      res = dottedCircleInkMatches(bare, comb);
     } catch (e) {
       res = false;
     }

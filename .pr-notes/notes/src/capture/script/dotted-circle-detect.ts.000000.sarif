@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msxub4fxx0bnyz54",
+          "message": {
+            "text": "Dotted-circle detection must compare spatial ink, not just aggregate count and width. Windows U+20D8–U+20DA and U+20E2/U+20E3 are enclosing marks: their bare outlines resemble a circle in area and bounds, but the explicit U+25CC cluster paints different pixels. Mask overlap preserves the Chrome-measured oracle while rejecting that whole logical false-positive class without codepoint rules.",
+            "markdown": "Dotted-circle detection must compare spatial ink, not just aggregate count and width. Windows U+20D8–U+20DA and U+20E2/U+20E3 are enclosing marks: their bare outlines resemble a circle in area and bounds, but the explicit U+25CC cluster paints different pixels. Mask overlap preserves the Chrome-measured oracle while rejecting that whole logical false-positive class without codepoint rules."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/dotted-circle-detect.ts"
+                },
+                "region": {
+                  "startLine": 28,
+                  "endLine": 38,
+                  "snippet": {
+                    "text": "export const dottedCircleInkMatches = (bare, comb) => {\n  const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;\n  let union = 0, xor = 0;\n  for (let i = 0; i < bare.mask.length; i++) {\n    if (bare.mask[i] || comb.mask[i]) union++;\n    if (bare.mask[i] !== comb.mask[i]) xor++;\n  }\n  const mismatch = union > 0 ? xor / union : 1;\n  return bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25 && mismatch < 0.12;\n};\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2281"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c6d7107944f232bd6bcb6b86e8a77137"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "662e89dff6200ed8e6640e7dde97127ce4424853",
+          "branch": "validate-dm-2281-icu-acquire"
+        }
+      ]
+    }
+  ]
+}
