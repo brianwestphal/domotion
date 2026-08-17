@@ -258,8 +258,8 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     }
   });
 
-  it("stays on svg2ttf when the path is disabled (DOMOTION_HINTED_SUBSET=0)", () => {
-    process.env.DOMOTION_HINTED_SUBSET = "0";
+  it("stays on svg2ttf by default unless the experimental hinted path is enabled", () => {
+    delete process.env.DOMOTION_HINTED_SUBSET;
     trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
       { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());

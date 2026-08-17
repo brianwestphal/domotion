@@ -40,12 +40,12 @@ import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
 import { appendGlyphCopy, compactGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
-/** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
- *  DEFAULT; set DOMOTION_HINTED_SUBSET=0 to fall back to the svg2ttf-only
- *  builder (A/B measurement, escape hatch). Read per call (not at module load)
- *  so tests can toggle it. */
+/** The hinting-preserving hb-subset path is experimental and opt-in. Retained
+ *  bytecode can refer to glyph/CVT state that no longer survives subsetting;
+ *  when that happens Chromium may map a glyph successfully yet paint no ink at
+ *  particular ppem sizes. The outline-built path is the safe default. */
 function hintedSubsetEnabled(): boolean {
-  return process.env.DOMOTION_HINTED_SUBSET !== "0";
+  return process.env.DOMOTION_HINTED_SUBSET === "1";
 }
 
 /** A tracked glyph's outline (SVG path `d`, font units, y-up) + advance. */

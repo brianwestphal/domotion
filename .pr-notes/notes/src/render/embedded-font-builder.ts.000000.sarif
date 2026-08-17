@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswk9431gbecq6ku",
+          "message": {
+            "text": "The hinted subset path must be opt-in because preserving bytecode across glyph compaction is not generally safe. A mapped glyph can remain present in cmap/glyf yet execute retained instructions against subset state that no longer matches the source, yielding no ink at selected ppem sizes; the outline-built path avoids that invalid program while preserving vector output. Focused browser evidence: 34-mathml-layout 10→0 regions, 34-mathml-basic 13→4, 03-lists-style-types 18→2, and 03-lists-ul-ol 21→12.",
+            "markdown": "The hinted subset path must be opt-in because preserving bytecode across glyph compaction is not generally safe. A mapped glyph can remain present in cmap/glyf yet execute retained instructions against subset state that no longer matches the source, yielding no ink at selected ppem sizes; the outline-built path avoids that invalid program while preserving vector output. Focused browser evidence: 34-mathml-layout 10→0 regions, 34-mathml-basic 13→4, 03-lists-style-types 18→2, and 03-lists-ul-ol 21→12."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 43,
+                  "endLine": 49,
+                  "snippet": {
+                    "text": "/** The hinting-preserving hb-subset path is experimental and opt-in. Retained\n *  bytecode can refer to glyph/CVT state that no longer survives subsetting;\n *  when that happens Chromium may map a glyph successfully yet paint no ink at\n *  particular ppem sizes. The outline-built path is the safe default. */\nfunction hintedSubsetEnabled(): boolean {\n  return process.env.DOMOTION_HINTED_SUBSET === \"1\";\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2227"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "42467e031f68fd26ef81d7e85f4014ec"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bd57c90db388e47f1859526a0a445c736100da36",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
