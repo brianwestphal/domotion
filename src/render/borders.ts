@@ -99,8 +99,56 @@ function normalizeBorderImageRepeat(raw: string | undefined): BorderImageRepeat 
   return "stretch";
 }
 
-export function borderImageClipExtent(length: number): number {
-  return Math.max(0, length - 0.5);
+export interface NinePieceDestinationGrid {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** Mirror Blink's ToPixelSnappedRect + NinePieceImageGrid::SnapEdgeWidths. */
+export function snapNinePieceDestinationGrid(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+): NinePieceDestinationGrid {
+  const snappedX = Math.round(x);
+  const snappedY = Math.round(y);
+  // SnapSizeToPixel snaps the far edge relative to the snapped origin.
+  const snappedWidth = Math.round(x + width) - snappedX;
+  const snappedHeight = Math.round(y + height) - snappedY;
+  const snapEdges = (start: number, end: number, extent: number): [number, number] =>
+    extent - start - end <= 1 / 64
+      ? [Math.round(start), extent - Math.round(start)]
+      : [Math.floor(start), Math.floor(end)];
+  const [snappedLeft, snappedRight] = snapEdges(left, right, snappedWidth);
+  const [snappedTop, snappedBottom] = snapEdges(top, bottom, snappedHeight);
+  return {
+    x: snappedX,
+    y: snappedY,
+    width: snappedWidth,
+    height: snappedHeight,
+    left: snappedLeft,
+    right: snappedRight,
+    top: snappedTop,
+    bottom: snappedBottom,
+  };
+}
+
+export function borderImageSpaceTiling(destination: number, tile: number): { spacing: number; period: number } | null {
+  const count = Math.floor(destination / tile);
+  if (count <= 0) return null;
+  const spacing = (destination - tile * count) / (count + 1);
+  return { spacing, period: tile + spacing };
 }
 
 /** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
@@ -506,15 +554,21 @@ function renderBorderImageGradient(
 
   // Border-image-width per side; default = element's border-width. Same as URL path.
   const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
-  const wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
-  const wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
-  const wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
-  const wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
+  let wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
+  let wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
+  let wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
+  let wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
 
-  const boxX = el.x - ol;
-  const boxY = el.y - ot;
-  const boxW = el.width + ol + or_;
-  const boxH = el.height + ot + ob;
+  // Blink constructs NinePieceImageGrid from ToPixelSnappedRect(area), then
+  // SnapEdgeWidths floors non-abutting edge widths (or symmetrically assigns
+  // the final pixel when opposing edges abut). Build the same integer grid
+  // before deriving any of the nine destination rectangles.
+  const grid = snapNinePieceDestinationGrid(
+    el.x - ol, el.y - ot, el.width + ol + or_, el.height + ot + ob,
+    wl, wr, wt, wb,
+  );
+  const { x: boxX, y: boxY, width: boxW, height: boxH } = grid;
+  ({ left: wl, right: wr, top: wt, bottom: wb } = grid);
   if (boxW <= 0 || boxH <= 0) return { svg: "", usedIds: 0 };
 
   // Gradient sources have the size of the border-image-area.
@@ -584,11 +638,8 @@ function renderBorderImageGradient(
   };
 
   // Tiled edges: wrap the inner <svg> in a <pattern> sized to one tile, then
-  // fill the destination rect with that pattern. round / space tile-count
-  // logic mirrors the URL path's `emitTiledSliceEdge`. For `space`, the
-  // pattern cell is the slot/N and the inner <svg> is centered inside the
-  // cell so each end has a half-gap; transparent gap is automatic because
-  // the inner <svg> is smaller than the pattern cell.
+  // fill the destination rect with that pattern. Tile phase and spacing
+  // mirror NinePieceImagePainter::ComputeTileParameters.
   const emitTiledEdgeSlot = (
     dx: number, dy: number, dw: number, dh: number,
     sx: number, sy: number, sw: number, sh: number,
@@ -613,23 +664,26 @@ function renderBorderImageGradient(
     }
     let patternW = tileW, patternH = tileH;
     let tileOffX = 0, tileOffY = 0;
+    if (mode === "repeat") {
+      if (axis === "x") tileOffX = (dw - tileW) / 2;
+      else tileOffY = (dh - tileH) / 2;
+    }
     if (mode === "space") {
       if (axis === "x") {
-        const count = Math.floor(dw / tileW);
-        if (count <= 0) return;
-        patternW = dw / count;
-        tileOffX = (patternW - tileW) / 2;
+        const tiling = borderImageSpaceTiling(dw, tileW);
+        if (tiling == null) return;
+        patternW = tiling.period;
+        tileOffX = tiling.spacing;
       } else {
-        const count = Math.floor(dh / tileH);
-        if (count <= 0) return;
-        patternH = dh / count;
-        tileOffY = (patternH - tileH) / 2;
+        const tiling = borderImageSpaceTiling(dh, tileH);
+        if (tiling == null) return;
+        patternH = tiling.period;
+        tileOffY = tiling.spacing;
       }
     }
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
-    const inner = innerSvgForSlot(tileOffX, tileOffY, tileW, tileH, sx, sy, sw, sh);
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dx)}" y="${r(dy)}" width="${r(patternW)}" height="${r(patternH)}">${inner}</pattern>`);
+    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dx + tileOffX)}" y="${r(dy + tileOffY)}" width="${r(patternW)}" height="${r(patternH)}">${innerSvgForSlot(0, 0, tileW, tileH, sx, sy, sw, sh)}</pattern>`);
     parts.push(`${indent}<rect x="${r(dx)}" y="${r(dy)}" width="${r(dw)}" height="${r(dh)}" fill="url(#${patId})" />`);
   };
 
@@ -727,10 +781,10 @@ export function renderBorderImage(
   const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
   const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
   const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
-  const wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
-  const wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
-  const wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
-  const wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
+  let wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
+  let wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
+  let wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
+  let wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
 
   // Outsets: same parsing; default 0.
   const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
@@ -739,10 +793,12 @@ export function renderBorderImage(
   const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);
   const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
 
-  const boxX = el.x - ol;
-  const boxY = el.y - ot;
-  const boxW = el.width + ol + or_;
-  const boxH = el.height + ot + ob;
+  const grid = snapNinePieceDestinationGrid(
+    el.x - ol, el.y - ot, el.width + ol + or_, el.height + ot + ob,
+    wl, wr, wt, wb,
+  );
+  const { x: boxX, y: boxY, width: boxW, height: boxH } = grid;
+  ({ left: wl, right: wr, top: wt, bottom: wb } = grid);
 
   // Repeat policy per axis (tokens order: H V; fallback: single token applies to both).
   const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
@@ -781,16 +837,10 @@ export function renderBorderImage(
     sh: number,
   ): void => {
     if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
-    const clipId = `${idPrefix}bi${clipIdx + usedIds}`;
-    usedIds++;
-    defsParts.push(`<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(borderImageClipExtent(dwSlot))}" height="${r(borderImageClipExtent(dhSlot))}" /></clipPath>`);
-    const scaleX = dwSlot / sw;
-    const scaleY = dhSlot / sh;
-    const imgX = dxSlot - sx * scaleX;
-    const imgY = dySlot - sy * scaleY;
-    const imgW = natW * scaleX;
-    const imgH = natH * scaleY;
-    parts.push(`${indent}<image href="${esc(sourceHref)}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
+    const clipId = `${idPrefix}bi${clipIdx + usedIds++}`;
+    defsParts.push(`<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" /></clipPath>`);
+    const scaleX = dwSlot / sw, scaleY = dhSlot / sh;
+    parts.push(`${indent}<image href="${esc(sourceHref)}" x="${r(dxSlot - sx * scaleX)}" y="${r(dySlot - sy * scaleY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
   };
 
   // For edge slots with repeat/round/space, we tile along one axis. Simplest
@@ -826,47 +876,37 @@ export function renderBorderImage(
         tileH = dhSlot / count;
       }
     }
-    // DM-795: `space` tiles the source N whole times with equal gaps between
-    // tiles AND half-gaps at each end (CSS Images 3 §6.1.3). Compute N =
-    // floor(slot / tile); if N === 0 the tile is too big for the slot and
-    // the spec says no border is drawn for that side, so bail. Otherwise set
-    // `patternW = dwSlot / N` so cells span the slot evenly, and offset the
-    // pattern start by half a gap. The `<image>` inside the cell needs a
+    // Blink's CalculateSpaceNeeded distributes the remainder across N + 1
+    // gaps: one full gap at each end and one between each pair of tiles. If
+    // N === 0 no border is drawn for that side. The `<image>` inside the cell needs a
     // `<clipPath>` clipped to the slice region (0, 0, tileW, tileH) —
     // otherwise the image extends past the slice into the gap, painting
     // source pixels beyond the slice region instead of transparent gap.
     let patternW = tileW, patternH = tileH;
     let patternX = dxSlot, patternY = dySlot;
+    if (mode === "repeat") {
+      if (axis === "x") patternX += (dwSlot - tileW) / 2;
+      else patternY += (dhSlot - tileH) / 2;
+    }
     if (mode === "space") {
       if (axis === "x") {
-        const count = Math.floor(dwSlot / tileW);
-        if (count <= 0) return;
-        patternW = dwSlot / count;
-        // Per spec, half-gap at each end: shift pattern start by `(patternW − tileW) / 2`.
-        patternX = dxSlot + (patternW - tileW) / 2;
+        const tiling = borderImageSpaceTiling(dwSlot, tileW);
+        if (tiling == null) return;
+        patternW = tiling.period;
+        patternX = dxSlot + tiling.spacing;
       } else {
-        const count = Math.floor(dhSlot / tileH);
-        if (count <= 0) return;
-        patternH = dhSlot / count;
-        patternY = dySlot + (patternH - tileH) / 2;
+        const tiling = borderImageSpaceTiling(dhSlot, tileH);
+        if (tiling == null) return;
+        patternH = tiling.period;
+        patternY = dySlot + tiling.spacing;
       }
     }
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
-    const imgScaleX = tileW / sw;
-    const imgScaleY = tileH / sh;
-    const inImgX = -sx * imgScaleX;
-    const inImgY = -sy * imgScaleY;
-    const inImgW = natW * imgScaleX;
-    const inImgH = natH * imgScaleY;
-    const clipBgId = `${idPrefix}bic${clipIdx + usedIds}`;
-    usedIds++;
-    const clipDef = mode === "space"
-      ? `<clipPath id="${clipBgId}"><rect x="0" y="0" width="${r(borderImageClipExtent(tileW))}" height="${r(borderImageClipExtent(tileH))}" /></clipPath>`
-      : "";
-    const imgClip = mode === "space" ? ` clip-path="url(#${clipBgId})"` : "";
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
-    parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(borderImageClipExtent(dwSlot))}" height="${r(borderImageClipExtent(dhSlot))}" fill="url(#${patId})" />`);
+    const scaleX = tileW / sw, scaleY = tileH / sh;
+    const tileClip = `${idPrefix}bic${clipIdx + usedIds++}`;
+    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}"><clipPath id="${tileClip}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath><image href="${esc(sourceHref)}" x="${r(-sx * scaleX)}" y="${r(-sy * scaleY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none" clip-path="url(#${tileClip})" /></pattern>`);
+    parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
   };
 
   // Corners: always stretched (CSS spec).
@@ -918,15 +958,16 @@ export function renderBorderImage(
         tileW = dwCenter / count;
         patternW = tileW;
       } else if (rH === "space") {
-        const count = Math.floor(dwCenter / tileWNatural);
-        if (count <= 0) { tileW = 0; patternW = 0; } else {
+        const tiling = borderImageSpaceTiling(dwCenter, tileWNatural);
+        if (tiling == null) { tileW = 0; patternW = 0; } else {
           tileW = tileWNatural;
-          patternW = dwCenter / count;
-          tileOffX = (patternW - tileW) / 2;
+          patternW = tiling.period;
+          tileOffX = tiling.spacing;
         }
       } else { // "repeat"
         tileW = tileWNatural;
         patternW = tileWNatural;
+        tileOffX = (dwCenter - tileW) / 2;
       }
       // Vertical.
       if (rV === "stretch") {
@@ -937,36 +978,30 @@ export function renderBorderImage(
         tileH = dhCenter / count;
         patternH = tileH;
       } else if (rV === "space") {
-        const count = Math.floor(dhCenter / tileHNatural);
-        if (count <= 0) { tileH = 0; patternH = 0; } else {
+        const tiling = borderImageSpaceTiling(dhCenter, tileHNatural);
+        if (tiling == null) { tileH = 0; patternH = 0; } else {
           tileH = tileHNatural;
-          patternH = dhCenter / count;
-          tileOffY = (patternH - tileH) / 2;
+          patternH = tiling.period;
+          tileOffY = tiling.spacing;
         }
       } else {
         tileH = tileHNatural;
         patternH = tileHNatural;
+        tileOffY = (dhCenter - tileH) / 2;
       }
       if (tileW > 0 && tileH > 0 && patternW > 0 && patternH > 0) {
         const patId = `${idPrefix}bipc${clipIdx + usedIds}`;
         usedIds++;
-        const imgScaleX = tileW / sxW_C;
-        const imgScaleY = tileH / syH_C;
-        const inImgX = -sxC * imgScaleX + tileOffX;
-        const inImgY = -syC * imgScaleY + tileOffY;
-        const inImgW = natW * imgScaleX;
-        const inImgH = natH * imgScaleY;
+        const scaleX = tileW / sxW_C, scaleY = tileH / syH_C;
         const needsClip = rH === "space" || rV === "space";
-        let clipDef = "";
-        let imgClip = "";
+        let clipDef = "", imageClip = "";
         if (needsClip) {
-          const clipBgId = `${idPrefix}bicc${clipIdx + usedIds}`;
-          usedIds++;
-          clipDef = `<clipPath id="${clipBgId}"><rect x="${r(tileOffX)}" y="${r(tileOffY)}" width="${r(borderImageClipExtent(tileW))}" height="${r(borderImageClipExtent(tileH))}" /></clipPath>`;
-          imgClip = ` clip-path="url(#${clipBgId})"`;
+          const clipId = `${idPrefix}bicc${clipIdx + usedIds++}`;
+          clipDef = `<clipPath id="${clipId}"><rect x="${r(tileOffX)}" y="${r(tileOffY)}" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`;
+          imageClip = ` clip-path="url(#${clipId})"`;
         }
-        defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
-        parts.push(`${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(borderImageClipExtent(dwCenter))}" height="${r(borderImageClipExtent(dhCenter))}" fill="url(#${patId})" />`);
+        defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(-sxC * scaleX + tileOffX)}" y="${r(-syC * scaleY + tileOffY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none"${imageClip} /></pattern>`);
+        parts.push(`${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(dwCenter)}" height="${r(dhCenter)}" fill="url(#${patId})" />`);
       }
     }
   }

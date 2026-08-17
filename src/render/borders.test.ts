@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  borderImageClipExtent,
   computeWedgeApexes,
+  borderImageSpaceTiling,
   dashArrayForStyle,
   doubleBorderStripeGeometry,
+  snapNinePieceDestinationGrid,
   findOffGridCollapsedCells,
   injectSvgSize,
   insetCornerRadii,
@@ -15,6 +16,32 @@ import {
   selectBestDashGap,
   wedgePolygonPoints,
 } from "./borders.js";
+
+describe("snapNinePieceDestinationGrid (DM-2253)", () => {
+  it("snaps the far edge relative to the snapped origin", () => {
+    expect(snapNinePieceDestinationGrid(10.4, 20.6, 10.4, 20.6, 2.8, 3.8, 4.8, 5.8)).toEqual({
+      x: 10, y: 21, width: 11, height: 20,
+      left: 2, right: 3, top: 4, bottom: 5,
+    });
+  });
+
+  it("assigns an abutting remainder to the ending edge", () => {
+    expect(snapNinePieceDestinationGrid(0, 0, 9, 7, 4.5, 4.5, 3.5, 3.5)).toEqual({
+      x: 0, y: 0, width: 9, height: 7,
+      left: 5, right: 4, top: 4, bottom: 3,
+    });
+  });
+});
+
+describe("borderImageSpaceTiling (DM-2253)", () => {
+  it("uses N + 1 equal gaps, including full gaps at both ends", () => {
+    expect(borderImageSpaceTiling(100, 30)).toEqual({ spacing: 2.5, period: 32.5 });
+  });
+
+  it("draws nothing when no whole tile fits", () => {
+    expect(borderImageSpaceTiling(20, 30)).toBeNull();
+  });
+});
 
 describe("doubleBorderStripeGeometry (DM-2244)", () => {
   it("uses Blink's integer big-third partition", () => {
@@ -36,13 +63,6 @@ describe("selectBestDashGap (DM-2243)", () => {
     const gap = selectBestDashGap(100, 12, 6, false);
     const count = Math.round((100 + gap) / (12 + gap));
     expect(count * 12 + (count - 1) * gap).toBeCloseTo(100, 8);
-  });
-});
-
-describe("borderImageClipExtent (DM-2242)", () => {
-  it("uses max-exclusive slice paint bounds", () => {
-    expect(borderImageClipExtent(20)).toBe(19.5);
-    expect(borderImageClipExtent(0.25)).toBe(0);
   });
 });
 
