@@ -69,9 +69,11 @@ jobs:
           - runner: windows-latest
             target: win32-x64
             cmake_arch: x64
+            msvc_arch: x64
           - runner: windows-11-arm
             target: win32-arm64
             cmake_arch: ARM64
+            msvc_arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +83,10 @@ jobs:
           mkdir -p external/chromium/third_party
           git clone --filter=blob:none https://chromium.googlesource.com/chromium/deps/icu external/chromium/third_party/icu
           git -C external/chromium/third_party/icu checkout d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
+      - name: Configure MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
       - name: Configure MSVC environment and build
         shell: pwsh
         env:
