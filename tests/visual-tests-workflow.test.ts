@@ -191,6 +191,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       expect(linux).toContain("Install CFF validation face");
       expect(linux).toMatch(/if: inputs\.hinted_subset == '1'/);
       expect(linux).toMatch(/apt-get install[^\n]*fonts-stix/);
+      expect(linux).toMatch(/cp tests\/fixtures\/html-test-unicode\/cff-stix-math\.html external\/html-test\/unicode\//);
     });
 
     it("every renderer DOMOTION_ env the workflow passes is dispatch-controlled, not a hardcoded arm", () => {

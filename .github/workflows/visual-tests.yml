@@ -246,6 +246,9 @@ jobs:
         run: bash tools/linux-glyph-extractor/build.sh
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Add deterministic CFF Unicode fixture
+        if: inputs.hinted_subset == '1'
+        run: cp tests/fixtures/html-test-unicode/cff-stix-math.html external/html-test/unicode/
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
         shell: bash
         env:
