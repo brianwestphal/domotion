@@ -26,6 +26,12 @@ export interface IcuAcquireOptions {
   cacheDir?: string;
 }
 
+export function icuAcquireWorkerArgs(workerPath: string, target: IcuCompanionTarget): string[] {
+  return workerPath.endsWith(".ts")
+    ? ["--import", "tsx", workerPath, JSON.stringify(target)]
+    : [workerPath, JSON.stringify(target)];
+}
+
 export function icuAssetStem(platform: NodeJS.Platform, arch: string): string | null {
   if (platform === "darwin" && (arch === "arm64" || arch === "x64")) return `domotion-icu-darwin-${arch}`;
   if (platform === "linux" && (arch === "arm64" || arch === "x64")) return `domotion-icu-linux-${arch}`;
@@ -113,7 +119,14 @@ export function acquireIcuCompanionSync(opts: IcuAcquireOptions = {}): string | 
   if (target == null) return undefined;
   if (existsSync(target.executablePath) && existsSync(target.dataPath) && target.runtimeAssets.every(item => existsSync(item.path))) return target.executablePath;
   if (failed) return undefined;
-  const proc = spawnSync(process.execPath, [fileURLToPath(import.meta.url), JSON.stringify(target)], {
+  const workerPath = fileURLToPath(import.meta.url);
+  // Source-checkout commands run this module through tsx.  A child launched as
+  // plain `node icu-helper-acquire.ts` loses tsx's .js→.ts import remapping
+  // (`./host-platform.js` is still source-only), while the published dist file
+  // is ordinary JavaScript and needs no loader.  Preserve the parent execution
+  // mode only for the source form.
+  const workerArgs = icuAcquireWorkerArgs(workerPath, target);
+  const proc = spawnSync(process.execPath, workerArgs, {
     timeout: DOWNLOAD_TIMEOUT_MS,
     encoding: "utf8",
   });

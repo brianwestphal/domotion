@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msxt5okhxiaxtbx1",
+          "message": {
+            "text": "Source checkouts must preserve tsx when launching the synchronous download worker. The published path runs compiled JavaScript, but CI imports TypeScript with .js-to-.ts remapping; a plain child Node process could parse the file yet could not resolve its source-only imports, so every visual shard silently fell back to unsupported JavaScript Unicode classification.",
+            "markdown": "Source checkouts must preserve tsx when launching the synchronous download worker. The published path runs compiled JavaScript, but CI imports TypeScript with .js-to-.ts remapping; a plain child Node process could parse the file yet could not resolve its source-only imports, so every visual shard silently fell back to unsupported JavaScript Unicode classification."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/icu-helper-acquire.ts"
+                },
+                "region": {
+                  "startLine": 122,
+                  "endLine": 132,
+                  "snippet": {
+                    "text": "  const workerPath = fileURLToPath(import.meta.url);\n  // Source-checkout commands run this module through tsx.  A child launched as\n  // plain `node icu-helper-acquire.ts` loses tsx's .js→.ts import remapping\n  // (`./host-platform.js` is still source-only), while the published dist file\n  // is ordinary JavaScript and needs no loader.  Preserve the parent execution\n  // mode only for the source form.\n  const workerArgs = icuAcquireWorkerArgs(workerPath, target);\n  const proc = spawnSync(process.execPath, workerArgs, {\n    timeout: DOWNLOAD_TIMEOUT_MS,\n    encoding: \"utf8\",\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2281"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "425dbc76588d87818562712273040454"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6335995be8cc883366ff3f48fc4169c2297bdee3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

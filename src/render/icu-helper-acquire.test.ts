@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import path from "node:path";
 import {
   ICU_COMPANION_VERSION,
+  icuAcquireWorkerArgs,
   icuAssetStem,
   icuCacheDir,
   resolveIcuCompanionTarget,
@@ -34,5 +35,14 @@ describe("ICU companion acquisition (DM-2254)", () => {
     ]);
     expect(path.win32.basename(target!.executablePath)).toBe("domotion-icu.exe");
     expect(path.win32.basename(target!.dataPath)).toBe("icudtl.dat");
+  });
+
+  it("keeps the tsx loader when a source checkout launches the download worker", () => {
+    const target = resolveIcuCompanionTarget({ platform: "linux", arch: "x64", cacheDir: "/cache" })!;
+    expect(icuAcquireWorkerArgs("/repo/src/render/icu-helper-acquire.ts", target).slice(0, 3)).toEqual([
+      "--import", "tsx", "/repo/src/render/icu-helper-acquire.ts",
+    ]);
+    expect(icuAcquireWorkerArgs("/pkg/dist/render/icu-helper-acquire.js", target)[0])
+      .toBe("/pkg/dist/render/icu-helper-acquire.js");
   });
 });
