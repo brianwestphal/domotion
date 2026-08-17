@@ -12,7 +12,13 @@ $Bash = "C:\Program Files\Git\bin\bash.exe"
 $PosixSource = (& $Bash -lc "cygpath -u '$IcuSource'").Trim()
 $PosixInstall = (& $Bash -lc "cygpath -u '$InstallRoot'").Trim()
 $PosixBuild = (& $Bash -lc "cygpath -u '$BuildRoot\build'").Trim()
-& $Bash -lc "cd '$PosixBuild' && '$PosixSource/runConfigureICU' Cygwin/MSVC --prefix='$PosixInstall' --enable-static --disable-shared --disable-tests --disable-samples --disable-extras --disable-tools && make -j2 && make install"
+$HostArch = $env:VSCMD_ARG_HOST_ARCH.ToLower()
+$TargetArch = $env:VSCMD_ARG_TGT_ARCH.ToLower()
+$LinkDir = Join-Path $env:VCToolsInstallDir "bin\Host$HostArch\$TargetArch"
+$PosixLinkDir = (& $Bash -lc "cygpath -u '$LinkDir'").Trim()
+# Git for Windows ships GNU coreutils' `link.exe` in /usr/bin. ICU explicitly
+# rejects that binary, so keep MSVC's linker first inside the Bash process too.
+& $Bash -lc "export PATH='$PosixLinkDir':`$PATH; hash -r; cd '$PosixBuild' && '$PosixSource/runConfigureICU' Cygwin/MSVC --prefix='$PosixInstall' --enable-static --disable-shared --disable-tests --disable-samples --disable-extras --disable-tools && make -j2 && make install"
 if ($LASTEXITCODE -ne 0) { throw "ICU build failed" }
 
 cmake -S "$Root\tools\icu-helper" -B "$BuildRoot\helper" -A $env:CMAKE_GENERATOR_PLATFORM -DDOMOTION_ICU_ROOT="$InstallRoot"
