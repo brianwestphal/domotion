@@ -41,6 +41,7 @@
 //     image-source url().
 
 import { extractCssUrl } from "../utils.js";
+import { resolveCollapsedBorderWinner } from "./collapsed-border.js";
 
 export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
@@ -177,27 +178,12 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   // (no rowspan / colspan); complex tables fall back to `cellHiddenNeighbors`.
   // Blink EBorderStyle ordering (higher wins the `>` tiebreak): double > solid >
   // dashed > dotted > ridge > outset > groove > inset > none; `hidden` separate.
-  const COLLAPSE_STYLE_RANK = { none: 0, inset: 2, groove: 3, outset: 4, ridge: 5, dotted: 6, dashed: 7, solid: 8, double: 9 };
   const sideBorder = (element, side, order) => {
     if (element == null) return null;
     const c = getComputedStyle(element);
     return { w: parseFloat(c['border' + side + 'Width']) || 0, style: c['border' + side + 'Style'], color: c['border' + side + 'Color'], order };
   };
-  const resolveEdge = (cands) => {
-    let best = null;
-    for (const c of cands) {
-      if (c == null) continue;
-      if (c.style === 'hidden') return { hidden: true };
-      if (c.style === 'none' || c.w === 0) continue;
-      if (best == null) { best = c; continue; }
-      if (c.w > best.w) { best = c; continue; }
-      if (c.w < best.w) continue;
-      const cr = COLLAPSE_STYLE_RANK[c.style] || 0, br = COLLAPSE_STYLE_RANK[best.style] || 0;
-      if (cr > br) best = c;
-      else if (cr === br && c.order < best.order) best = c;
-    }
-    return best;
-  };
+  const resolveEdge = resolveCollapsedBorderWinner;
   // DM-2246: Blink tabulates cells into logical columns before merging border
   // edges (`ColspanCellTabulator` in table_borders.cc). Keep the winning unit
   // edges separate when a span meets several neighbours; a single CSS side
