@@ -30,7 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Populate Chromium-pinned ICU
-        run: git submodule update --init external/chromium/third_party/icu
+        run: |
+          mkdir -p external/chromium/third_party
+          git clone --filter=blob:none https://chromium.googlesource.com/chromium/deps/icu external/chromium/third_party/icu
+          git -C external/chromium/third_party/icu checkout d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
       - name: Build statically linked companion
         run: bash tools/icu-helper/build-unix.sh
       - name: Verify pinned runtime and data
@@ -74,7 +77,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Populate Chromium-pinned ICU
         shell: bash
-        run: git submodule update --init external/chromium/third_party/icu
+        run: |
+          mkdir -p external/chromium/third_party
+          git clone --filter=blob:none https://chromium.googlesource.com/chromium/deps/icu external/chromium/third_party/icu
+          git -C external/chromium/third_party/icu checkout d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
       - name: Configure MSVC environment and build
         shell: pwsh
         env:
