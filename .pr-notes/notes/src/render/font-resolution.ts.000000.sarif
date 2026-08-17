@@ -1696,6 +1696,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msxty9ddalbn0d0r",
+          "message": {
+            "text": "Windows must skip an unavailable explicitly named Helvetica Neue instead of materializing the logical macOS key. The per-codepoint trace for the combining-mark grid showed all 58 Helvetica Neue cells falling out of vector emission while the 54 SF Pro Text cells correctly cascaded to Arial; gating the named family restores Blink's ordinary CSS family-stack walk without any codepoint-specific rule.",
+            "markdown": "Windows must skip an unavailable explicitly named Helvetica Neue instead of materializing the logical macOS key. The per-codepoint trace for the combining-mark grid showed all 58 Helvetica Neue cells falling out of vector emission while the 54 SF Pro Text cells correctly cascaded to Arial; gating the named family restores Blink's ordinary CSS family-stack walk without any codepoint-specific rule."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8467,
+                  "endLine": 8469,
+                  "snippet": {
+                    "text": "    if (name === \"helvetica neue\" || name === \"helveticaneue\") {\n      return authorFamilyAvailable(\"Helvetica Neue\") ? \"helvetica-neue\" : null;\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2281"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "429a4b98f590d6d2fa618ac6eedc23ef"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f1ceb3536356177bf5f340febaef4c0e48821d9a",
+          "branch": "validate-dm-2281-icu-acquire"
+        }
+      ]
     }
   ]
 }

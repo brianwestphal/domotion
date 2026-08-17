@@ -8464,7 +8464,9 @@ function matchFamilyCandidateToKey(
     // while `sans-serif`/`Helvetica` paint from Helvetica (Helvetica.ttc). The two
     // differ (e.g. the bold U+212E ℮, the script U+2113 ℓ, archaic Latin/Cyrillic),
     // so collapsing them lost those glyphs. Map it to its own key.
-    if (name === "helvetica neue" || name === "helveticaneue") return "helvetica-neue";
+    if (name === "helvetica neue" || name === "helveticaneue") {
+      return authorFamilyAvailable("Helvetica Neue") ? "helvetica-neue" : null;
+    }
     // Chrome on macOS resolves the generic `sans-serif` keyword (and a literal
     // `Helvetica`) to Helvetica (Blink: font_cache_mac.mm + font_fallback_list.cc
     // — the generic is hardcoded to Helvetica on macOS, not SF Pro). Matching this
