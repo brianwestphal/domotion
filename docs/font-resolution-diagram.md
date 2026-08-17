@@ -1076,6 +1076,10 @@ Notes:
   with the Chromium-configured HarfBuzz build, and treats the face's U+25CC gid
   in that result as the insertion decision. Capture positives remain additive;
   a negative Canvas result no longer vetoes this deterministic shaper answer.
+  A Canvas positive requires the bare-mark and explicit-circle pixel masks to
+  overlap, not merely to have similar area and bounds; that distinction rejects
+  enclosing marks whose own ring has circle-like aggregate measurements but is
+  not Blink's inserted U+25CC.
 
 - **Final glyph emission preserves Blink's bidi-run direction.** Font fallback
   already segmented and tested candidates with the UBA-resolved direction, but
