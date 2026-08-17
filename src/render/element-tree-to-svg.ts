@@ -38,6 +38,7 @@ import {
   computeWedgeApexes,
   wedgePolygonPoints,
   findOffGridCollapsedCells,
+  doubleBorderStripeGeometry,
   type CornerRadii,
   type CornerRadiusPair,
   type BorderSide,
@@ -1328,9 +1329,9 @@ function paintUniformDoubleBorder(
   // collapsed-border rect on the grid line).
   const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const collapseShift = collapse ? bt.w / 2 : 0;
-  const strokeW = bt.w / 3;
-  const outerInset = bt.w / 6 - collapseShift;
-  const innerInset = bt.w * 5 / 6 - collapseShift;
+  const { stripe: strokeW, offset } = doubleBorderStripeGeometry(bt.w);
+  const outerInset = bt.w / 2 - offset - collapseShift;
+  const innerInset = bt.w / 2 + offset - collapseShift;
   const outerCorners = insetCornerRadii(corners, outerInset, outerInset, outerInset, outerInset);
   const innerCorners = insetCornerRadii(corners, innerInset, innerInset, innerInset, innerInset);
   ctx.svgParts.push(
@@ -1621,8 +1622,7 @@ function emitBorderSide(
     // offsets lands the outer stroke 1/3 of the way past the edge
     // and the inner stroke 1/3 of the way inside — matching Blink's
     // `CollapsedBorderPainter::PaintCollapsedDoubleBorder`.
-    const strokeW = side.w / 3;
-    const offset_ = side.w / 3;
+    const { stripe: strokeW, offset: offset_ } = doubleBorderStripeGeometry(side.w);
     const [oxN, oyN, ixN, iyN] = doubleSides[i];
     const ox = oxN * offset_, oy = oyN * offset_;
     const ix = ixN * offset_, iy = iyN * offset_;

@@ -3,6 +3,7 @@ import {
   borderImageClipExtent,
   computeWedgeApexes,
   dashArrayForStyle,
+  doubleBorderStripeGeometry,
   findOffGridCollapsedCells,
   injectSvgSize,
   insetCornerRadii,
@@ -13,6 +14,16 @@ import {
   roundedRectSvg,
   wedgePolygonPoints,
 } from "./borders.js";
+
+describe("doubleBorderStripeGeometry (DM-2244)", () => {
+  it("uses Blink's integer big-third partition", () => {
+    expect(doubleBorderStripeGeometry(3)).toEqual({ stripe: 1, offset: 1 });
+    expect(doubleBorderStripeGeometry(4)).toEqual({ stripe: 1, offset: 1.5 });
+    expect(doubleBorderStripeGeometry(5)).toEqual({ stripe: 2, offset: 1.5 });
+    expect(doubleBorderStripeGeometry(6)).toEqual({ stripe: 2, offset: 2 });
+    expect(doubleBorderStripeGeometry(7)).toEqual({ stripe: 2, offset: 2.5 });
+  });
+});
 
 describe("borderImageClipExtent (DM-2242)", () => {
   it("uses max-exclusive slice paint bounds", () => {

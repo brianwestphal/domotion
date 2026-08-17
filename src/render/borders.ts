@@ -10,6 +10,13 @@ import type { CapturedElement } from "../capture/types.js";
 import { embedOriginalDataUri } from "../capture/embed.js";
 import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
 
+/** Blink DrawDoubleBoxSide uses `(thickness + 1) / 3` integer division. */
+export function doubleBorderStripeGeometry(width: number): { stripe: number; offset: number } {
+  const snapped = Math.max(1, Math.round(width));
+  const stripe = Math.floor((snapped + 1) / 3);
+  return { stripe, offset: (snapped - stripe) / 2 };
+}
+
 /** Minimal rect for collapsed-cell grid analysis. */
 export interface CollapseCellRect {
   x: number;
