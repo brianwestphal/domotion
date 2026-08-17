@@ -87,6 +87,16 @@ function embedAsDataUri(url: string): string {
 }
 
 /**
+ * Return the embedded source image without consulting size-specific resize
+ * variants. Nine-slice border images reuse one source texture under several
+ * different transforms; substituting independently resized full-image variants
+ * makes filtering at shared slice coordinates disagree and exposes seams.
+ */
+export function embedOriginalDataUri(url: string): string {
+  return embedAsDataUri(url);
+}
+
+/**
  * DM-540 — active hiDPI multiplier used by `embedResizedDataUri` lookups
  * during a single `elementTreeToSvg` invocation. `elementTreeToSvgInner` sets it
  * (via `setActiveHiDPIFactor`) as the FIRST thing it does on EVERY call, so each

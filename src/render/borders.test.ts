@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  borderImageClipExtent,
   computeWedgeApexes,
   dashArrayForStyle,
   findOffGridCollapsedCells,
@@ -12,6 +13,13 @@ import {
   roundedRectSvg,
   wedgePolygonPoints,
 } from "./borders.js";
+
+describe("borderImageClipExtent (DM-2242)", () => {
+  it("uses max-exclusive slice paint bounds", () => {
+    expect(borderImageClipExtent(20)).toBe(19.5);
+    expect(borderImageClipExtent(0.25)).toBe(0);
+  });
+});
 
 describe("parseCornerRadii: shorthand and longhand", () => {
   it("treats four equal circular corners as uniform", () => {

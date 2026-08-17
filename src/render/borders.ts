@@ -7,7 +7,7 @@
 import { r, esc } from "./format.js";
 import { parseColor, type RGBA } from "./colors.js";
 import type { CapturedElement } from "../capture/types.js";
-import { embedResizedDataUri } from "../capture/embed.js";
+import { embedOriginalDataUri } from "../capture/embed.js";
 import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
 
 /** Minimal rect for collapsed-cell grid analysis. */
@@ -80,6 +80,10 @@ const BORDER_IMAGE_REPEATS = new Set<string>(["stretch", "repeat", "round", "spa
 function normalizeBorderImageRepeat(raw: string | undefined): BorderImageRepeat {
   if (raw != null && BORDER_IMAGE_REPEATS.has(raw)) return raw as BorderImageRepeat;
   return "stretch";
+}
+
+export function borderImageClipExtent(length: number): number {
+  return Math.max(0, length - 0.5);
 }
 
 /** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
@@ -672,6 +676,11 @@ export function renderBorderImage(
     return renderBorderImageGradient(el, indent, idPrefix, defsParts, clipIdx, src);
   }
   const url = urlMatch[1];
+  // DM-2242: every slice must sample the same source texture. A border image
+  // uses multiple scale transforms by design; asking the resize cache for each
+  // transform first creates multiple resampled full images whose bilinear edge
+  // pixels disagree at the shared slice coordinate.
+  const sourceHref = embedOriginalDataUri(url);
   const natW = el.styles.borderImageIntrinsicWidth ?? 0;
   const natH = el.styles.borderImageIntrinsicHeight ?? 0;
   if (natW <= 0 || natH <= 0) return { svg: "", usedIds: 0 };
@@ -757,15 +766,14 @@ export function renderBorderImage(
     if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
     const clipId = `${idPrefix}bi${clipIdx + usedIds}`;
     usedIds++;
-    // Clip to the slot, draw the whole image scaled so the source region (sx,sy,sw,sh) maps to (dxSlot,dySlot,dwSlot,dhSlot).
-    defsParts.push(`<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" /></clipPath>`);
+    defsParts.push(`<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(borderImageClipExtent(dwSlot))}" height="${r(borderImageClipExtent(dhSlot))}" /></clipPath>`);
     const scaleX = dwSlot / sw;
     const scaleY = dhSlot / sh;
     const imgX = dxSlot - sx * scaleX;
     const imgY = dySlot - sy * scaleY;
     const imgW = natW * scaleX;
     const imgH = natH * scaleY;
-    parts.push(`${indent}<image href="${esc(embedResizedDataUri(url, imgW, imgH))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
+    parts.push(`${indent}<image href="${esc(sourceHref)}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
   };
 
   // For edge slots with repeat/round/space, we tile along one axis. Simplest
@@ -828,25 +836,20 @@ export function renderBorderImage(
     }
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
-    // Pattern: single <image> showing just the slice, scaled to patternW x patternH.
     const imgScaleX = tileW / sw;
     const imgScaleY = tileH / sh;
     const inImgX = -sx * imgScaleX;
     const inImgY = -sy * imgScaleY;
     const inImgW = natW * imgScaleX;
     const inImgH = natH * imgScaleY;
-    // DM-795: clip the image to the slice region so `space` mode shows
-    // transparent gaps between tiles instead of bleeding adjacent source
-    // pixels into the gap. The clipPath is scoped to the pattern cell at
-    // (0, 0) - (tileW, tileH) and references the image inside the pattern.
     const clipBgId = `${idPrefix}bic${clipIdx + usedIds}`;
     usedIds++;
     const clipDef = mode === "space"
-      ? `<clipPath id="${clipBgId}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`
+      ? `<clipPath id="${clipBgId}"><rect x="0" y="0" width="${r(borderImageClipExtent(tileW))}" height="${r(borderImageClipExtent(tileH))}" /></clipPath>`
       : "";
     const imgClip = mode === "space" ? ` clip-path="url(#${clipBgId})"` : "";
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
-    parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
+    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
+    parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(borderImageClipExtent(dwSlot))}" height="${r(borderImageClipExtent(dhSlot))}" fill="url(#${patId})" />`);
   };
 
   // Corners: always stretched (CSS spec).
@@ -928,27 +931,25 @@ export function renderBorderImage(
         patternH = tileHNatural;
       }
       if (tileW > 0 && tileH > 0 && patternW > 0 && patternH > 0) {
+        const patId = `${idPrefix}bipc${clipIdx + usedIds}`;
+        usedIds++;
         const imgScaleX = tileW / sxW_C;
         const imgScaleY = tileH / syH_C;
         const inImgX = -sxC * imgScaleX + tileOffX;
         const inImgY = -syC * imgScaleY + tileOffY;
         const inImgW = natW * imgScaleX;
         const inImgH = natH * imgScaleY;
-        const patId = `${idPrefix}bipc${clipIdx + usedIds}`;
-        usedIds++;
-        // For `space` mode, clip the image to the visible tile region so
-        // gaps stay transparent (mirrors the edge-tile fix from DM-795).
         const needsClip = rH === "space" || rV === "space";
         let clipDef = "";
         let imgClip = "";
         if (needsClip) {
           const clipBgId = `${idPrefix}bicc${clipIdx + usedIds}`;
           usedIds++;
-          clipDef = `<clipPath id="${clipBgId}"><rect x="${r(tileOffX)}" y="${r(tileOffY)}" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`;
+          clipDef = `<clipPath id="${clipBgId}"><rect x="${r(tileOffX)}" y="${r(tileOffY)}" width="${r(borderImageClipExtent(tileW))}" height="${r(borderImageClipExtent(tileH))}" /></clipPath>`;
           imgClip = ` clip-path="url(#${clipBgId})"`;
         }
-        defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
-        parts.push(`${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(dwCenter)}" height="${r(dhCenter)}" fill="url(#${patId})" />`);
+        defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
+        parts.push(`${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(borderImageClipExtent(dwCenter))}" height="${r(borderImageClipExtent(dhCenter))}" fill="url(#${patId})" />`);
       }
     }
   }

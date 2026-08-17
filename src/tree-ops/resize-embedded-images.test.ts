@@ -14,6 +14,7 @@ import {
   _resizedDataUriCache,
   embedResizedDataUri,
 } from "../render/element-tree-to-svg.js";
+import { embedOriginalDataUri } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
 
@@ -55,6 +56,17 @@ afterEach(() => {
 });
 
 describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
+  it("DM-2242: lets nine-slice consumers bypass incompatible resized variants", async () => {
+    const url = "https://example.com/border-nine-slice.png";
+    const source = await makePngDataUri(90, 90);
+    const independentlyResampled = await makePngDataUri(270, 60);
+    _dataUriCache.set(url, source);
+    _resizedDataUriCache.set(url, new Map([["270x60", independentlyResampled]]));
+
+    expect(embedResizedDataUri(url, 135, 30, 2)).toBe(independentlyResampled);
+    expect(embedOriginalDataUri(url)).toBe(source);
+  });
+
   it("resizes when source is meaningfully larger than target × hiDPI", async () => {
     const url = "https://example.com/big.png";
     _dataUriCache.set(url, await makePngDataUri(1500, 1000));
