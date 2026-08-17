@@ -91,4 +91,34 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       expect(svg).toMatch(/stroke="rgb\(0,128,0\)" stroke-width="8"/);
     } finally { await page.close(); }
   }, 60_000);
+
+  it("uses physical unequal row-track boundaries for rowspan segments (DM-2252)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(`<style>table{border-collapse:collapse}td{width:60px;border:2px solid blue}.r{border-right:6px solid red}.a{height:20px}.b{height:70px;border-left:8px dashed green}</style><table><tr><td class="r" rowspan="2">R</td><td class="a">A</td></tr><tr><td class="b">B</td></tr></table>`, { waitUntil: "load" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const cell = find(tree, (n) => n.tag === "td" && n.text === "R")!;
+      const neighbor = find(tree, (n) => n.tag === "td" && n.text === "B")! as any;
+      const right = ((cell.styles as any).collapsedBorderSegments as Array<any>).filter((s) => s.side === "right");
+      const physicalSplit = (neighbor.y - (cell as any).y) / (cell as any).height;
+      expect(physicalSplit).not.toBeCloseTo(0.5, 2);
+      expect(right[0].end).toBeCloseTo(physicalSplit, 6);
+      expect(right[1].start).toBeCloseTo(physicalSplit, 6);
+    } finally { await page.close(); }
+  }, 60_000);
+
+  it("uses physical unequal column-track boundaries for colspan segments (DM-2252)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(`<style>table{border-collapse:collapse}td{height:30px;border:2px solid blue}.c{border-bottom:6px solid red}.a{width:25px}.b{width:95px;border-top:8px dashed green}</style><table><tr><td class="c" colspan="2">C</td></tr><tr><td class="a">A</td><td class="b">B</td></tr></table>`, { waitUntil: "load" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const cell = find(tree, (n) => n.tag === "td" && n.text === "C")! as any;
+      const neighbor = find(tree, (n) => n.tag === "td" && n.text === "B")! as any;
+      const bottom = ((cell.styles as any).collapsedBorderSegments as Array<any>).filter((s) => s.side === "bottom");
+      const physicalSplit = (neighbor.x - cell.x) / cell.width;
+      expect(physicalSplit).not.toBeCloseTo(0.5, 2);
+      expect(bottom[0].end).toBeCloseTo(physicalSplit, 6);
+      expect(bottom[1].start).toBeCloseTo(physicalSplit, 6);
+    } finally { await page.close(); }
+  }, 60_000);
 });

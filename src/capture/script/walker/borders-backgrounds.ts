@@ -210,12 +210,43 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     }
     if (!hasSpan) return null;
     const me = meta.get(el); if (me == null) return null;
+    // Recover the physical track lines from the boxes that start/end on each
+    // logical line. This is the layout result Chromium actually paints; equal
+    // logical fractions are wrong whenever rows or columns have unequal used
+    // sizes. Multiple boxes may report a shared line, so use their median to
+    // avoid choosing one side's collapsed-border half-pixel rounding.
+    const xSamples = Array.from({ length: C + 1 }, () => []);
+    const ySamples = Array.from({ length: rows.length + 1 }, () => []);
+    for (const m of meta.values()) {
+      const rect = m.cell.getBoundingClientRect();
+      xSamples[m.c].push(rect.left); xSamples[m.c + m.cs].push(rect.right);
+      ySamples[m.r].push(rect.top); ySamples[m.r + m.rs].push(rect.bottom);
+    }
+    const physicalLines = (samples) => {
+      const lines = samples.map((values) => {
+        if (values.length === 0) return null;
+        values.sort((a, b) => a - b);
+        const mid = Math.floor(values.length / 2);
+        return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+      });
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i] != null) continue;
+        let lo = i - 1, hi = i + 1;
+        while (lo >= 0 && lines[lo] == null) lo--;
+        while (hi < lines.length && lines[hi] == null) hi++;
+        if (lo >= 0 && hi < lines.length) lines[i] = lines[lo] + (lines[hi] - lines[lo]) * ((i - lo) / (hi - lo));
+      }
+      return lines;
+    };
+    const xLines = physicalLines(xSamples), yLines = physicalLines(ySamples);
+    const meRect = el.getBoundingClientRect();
+    const xRatio = (column) => Math.max(0, Math.min(1, (xLines[column] - meRect.left) / meRect.width));
+    const yRatio = (row) => Math.max(0, Math.min(1, (yLines[row] - meRect.top) / meRect.height));
     const candidate = (m, side) => m == null ? null : sideBorder(m.cell, side, m.order / 1000000);
     const same = (a, b) => a != null && b != null && !!a.hidden === !!b.hidden && a.w === b.w && a.style === b.style && a.color === b.color;
     const raw = [];
-    const add = (side, unit, count, winner) => {
+    const add = (side, start, end, winner) => {
       if (winner == null || winner.hidden) return;
-      const start = unit / count, end = (unit + 1) / count;
       const prev = raw[raw.length - 1];
       if (prev != null && prev.side === side && Math.abs(prev.end - start) < 1e-8 && same(prev._winner, winner)) prev.end = end;
       else raw.push({ side, start, end, width: winner.w, style: winner.style, color: normColor(winner.color), _winner: winner });
@@ -225,13 +256,15 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     // adjacent cells from double-painting the same centered edge.
     for (let i = 0; i < me.cs; i++) {
       const col = me.c + i;
-      if (me.r === 0) add('top', i, me.cs, resolveEdge([candidate(me, 'Top'), sideBorder(table, 'Top', 5)]));
-      add('bottom', i, me.cs, resolveEdge([candidate(me, 'Bottom'), candidate(occ[me.r + me.rs] && occ[me.r + me.rs][col], 'Top'), me.r + me.rs === rows.length ? sideBorder(table, 'Bottom', 5) : null]));
+      const start = xRatio(col), end = xRatio(col + 1);
+      if (me.r === 0) add('top', start, end, resolveEdge([candidate(me, 'Top'), sideBorder(table, 'Top', 5)]));
+      add('bottom', start, end, resolveEdge([candidate(me, 'Bottom'), candidate(occ[me.r + me.rs] && occ[me.r + me.rs][col], 'Top'), me.r + me.rs === rows.length ? sideBorder(table, 'Bottom', 5) : null]));
     }
     for (let i = 0; i < me.rs; i++) {
       const row = me.r + i;
-      if (me.c === 0) add('left', i, me.rs, resolveEdge([candidate(me, 'Left'), sideBorder(table, 'Left', 5)]));
-      add('right', i, me.rs, resolveEdge([candidate(me, 'Right'), candidate(occ[row] && occ[row][me.c + me.cs], 'Left'), me.c + me.cs === C ? sideBorder(table, 'Right', 5) : null]));
+      const start = yRatio(row), end = yRatio(row + 1);
+      if (me.c === 0) add('left', start, end, resolveEdge([candidate(me, 'Left'), sideBorder(table, 'Left', 5)]));
+      add('right', start, end, resolveEdge([candidate(me, 'Right'), candidate(occ[row] && occ[row][me.c + me.cs], 'Left'), me.c + me.cs === C ? sideBorder(table, 'Right', 5) : null]));
     }
     return raw.map(({ _winner, ...segment }) => segment);
   };
