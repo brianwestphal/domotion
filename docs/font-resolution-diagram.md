@@ -962,6 +962,17 @@ This is the heart of the system: for one codepoint `cp` in a run whose primary i
 `primaryFont`/`primaryFontKey` and whose declared stack is `fontKeyChain`, decide
 the exact font + glyph to paint. The order mirrors Blink's `FontFallbackIterator`.
 
+Unicode properties used by the supported helper-backed path come from the
+separately versioned `domotion-icu` companion (`src/render/icu-helper.ts`). Its
+ICU 78.2 source revision and complete `icudtl.dat` are pinned to Chromium; the
+platform executable and data are downloaded from the matching GitHub Release,
+checksum-verified, and cached independently of the npm package. In particular,
+Windows script/block nomination, ideographic classification, and inkless
+category checks consume these ICU answers. If the companion cannot be acquired,
+Domotion remains nonfatal and falls back to JavaScript/generated compatibility
+data, but that is explicitly a best-effort degraded path rather than the
+Chromium-fidelity contract. See [doc 128](128-chromium-unicode-decision-audit.md).
+
 ```mermaid
 flowchart TD
   F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain, …, fontVariantEmoji)"] --> FVE{"font-variant-emoji forces EMOJI<br/>presentation for cp?<br/>(emoji → any \p{Emoji} cp · unicode → Emoji_Presentation only;<br/>explicit VS15/VS16 in the text wins — caller passes undefined)"}
