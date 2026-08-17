@@ -1660,6 +1660,24 @@ function paintPerSideBorder(
   bl: ReturnType<typeof parseSide>,
   offGridCollapsedCells: Set<CapturedElement>,
 ): void {
+    const collapsedSegments = el.styles.collapsedBorderSegments;
+    if (collapsedSegments != null) {
+      for (const seg of collapsedSegments) {
+        const side = parseSide(`${seg.width}px`, seg.style, seg.color);
+        if (side == null || side.w <= 0 || side.style === "none" || side.style === "hidden") continue;
+        const horizontal = seg.side === "top" || seg.side === "bottom";
+        const x1 = horizontal ? el.x + el.width * seg.start : (seg.side === "left" ? el.x : el.x + el.width);
+        const y1 = horizontal ? (seg.side === "top" ? el.y : el.y + el.height) : el.y + el.height * seg.start;
+        const x2 = horizontal ? el.x + el.width * seg.end : x1;
+        const y2 = horizontal ? y1 : el.y + el.height * seg.end;
+        const len = horizontal ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
+        const { array, offset } = adjustedDashAttrs(side.style, side.w, len);
+        const dash = array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+        const cap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+        ctx.svgParts.push(`${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dash}${cap} />`);
+      }
+      return;
+    }
     // Per-side border: emit 4 separate lines along the element edges. Lines
     // are drawn at the centerline of each border so stroke spills equally
     // inward/outward — visually close enough for typical 1-10px borders.

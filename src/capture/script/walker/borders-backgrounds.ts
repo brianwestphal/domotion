@@ -198,6 +198,57 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     }
     return best;
   };
+  // DM-2246: Blink tabulates cells into logical columns before merging border
+  // edges (`ColspanCellTabulator` in table_borders.cc). Keep the winning unit
+  // edges separate when a span meets several neighbours; a single CSS side
+  // cannot represent those T-junctions.
+  const resolveCollapsedSpanSegments = (el, tag, cs) => {
+    if ((tag !== 'td' && tag !== 'th') || cs.borderCollapse !== 'collapse') return null;
+    const tr = el.parentElement;
+    let table = tr; while (table != null && table.tagName !== 'TABLE') table = table.parentElement;
+    if (tr == null || tr.tagName !== 'TR' || table == null) return null;
+    const rows = Array.from(table.querySelectorAll('tr')).filter((r) => r.closest('table') === table);
+    const occ = [], meta = new Map(); let hasSpan = false, order = 0, C = 0;
+    for (let r = 0; r < rows.length; r++) {
+      if (occ[r] == null) occ[r] = [];
+      let c = 0;
+      for (const cell of Array.from(rows[r].children).filter((x) => x.tagName === 'TD' || x.tagName === 'TH')) {
+        while (occ[r][c] != null) c++;
+        const rs = Math.max(1, cell.rowSpan || 1), csn = Math.max(1, cell.colSpan || 1);
+        hasSpan = hasSpan || rs > 1 || csn > 1;
+        const m = { cell, r, c, rs: Math.min(rs, rows.length - r), cs: csn, order: order++ };
+        meta.set(cell, m);
+        for (let rr = r; rr < r + m.rs; rr++) { if (occ[rr] == null) occ[rr] = []; for (let cc = c; cc < c + csn; cc++) occ[rr][cc] = m; }
+        c += csn; C = Math.max(C, c);
+      }
+    }
+    if (!hasSpan) return null;
+    const me = meta.get(el); if (me == null) return null;
+    const candidate = (m, side) => m == null ? null : sideBorder(m.cell, side, m.order / 1000000);
+    const same = (a, b) => a != null && b != null && !!a.hidden === !!b.hidden && a.w === b.w && a.style === b.style && a.color === b.color;
+    const raw = [];
+    const add = (side, unit, count, winner) => {
+      if (winner == null || winner.hidden) return;
+      const start = unit / count, end = (unit + 1) / count;
+      const prev = raw[raw.length - 1];
+      if (prev != null && prev.side === side && Math.abs(prev.end - start) < 1e-8 && same(prev._winner, winner)) prev.end = end;
+      else raw.push({ side, start, end, width: winner.w, style: winner.style, color: normColor(winner.color), _winner: winner });
+    };
+    // As in Blink, a cell contributes along every logical unit of its span.
+    // Ownership stays right/bottom plus the table's outer top/left, preventing
+    // adjacent cells from double-painting the same centered edge.
+    for (let i = 0; i < me.cs; i++) {
+      const col = me.c + i;
+      if (me.r === 0) add('top', i, me.cs, resolveEdge([candidate(me, 'Top'), sideBorder(table, 'Top', 5)]));
+      add('bottom', i, me.cs, resolveEdge([candidate(me, 'Bottom'), candidate(occ[me.r + me.rs] && occ[me.r + me.rs][col], 'Top'), me.r + me.rs === rows.length ? sideBorder(table, 'Bottom', 5) : null]));
+    }
+    for (let i = 0; i < me.rs; i++) {
+      const row = me.r + i;
+      if (me.c === 0) add('left', i, me.rs, resolveEdge([candidate(me, 'Left'), sideBorder(table, 'Left', 5)]));
+      add('right', i, me.rs, resolveEdge([candidate(me, 'Right'), candidate(occ[row] && occ[row][me.c + me.cs], 'Left'), me.c + me.cs === C ? sideBorder(table, 'Right', 5) : null]));
+    }
+    return raw.map(({ _winner, ...segment }) => segment);
+  };
   const resolveCollapsedCellBorders = (el, tag, cs) => {
     if ((tag !== 'td' && tag !== 'th') || cs.borderCollapse !== 'collapse') return null;
     const tr = el.parentElement;
@@ -358,6 +409,14 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
         };
       }
       const rb = resolveCollapsedCellBorders(el, tag, cs);
+      const spanSegments = resolveCollapsedSpanSegments(el, tag, cs);
+      if (spanSegments != null) {
+        return {
+          collapsedBorderSegments: spanSegments,
+          borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
+          borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
+        };
+      }
       if (rb == null) return {};
       const sideOut = (resolved, side) => {
         if (resolved == null) return { ['border' + side + 'Style']: 'none', ['border' + side + 'Width']: '0px' };

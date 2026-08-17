@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { launchChromium, captureElementTree, type CapturedElement } from "../src/index.js";
+import { launchChromium, captureElementTree, elementTreeToSvgInner, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-1260: CSS 2.1 §17.6.2.1 collapsed-border conflict resolution. Each grid edge
@@ -70,5 +70,25 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     } finally {
       await page.close();
     }
+  }, 60_000);
+
+  it("segments a rowspan edge at each neighbouring cell (DM-2246)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(`<style>table{border-collapse:collapse}td{width:60px;height:30px;border:2px solid blue}.r{border-right:6px solid red}.b{border-left:8px dashed green}</style><table><tr><td class="r" rowspan="2">R</td><td>A</td></tr><tr><td class="b">B</td></tr></table>`, { waitUntil: "load" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const cell = find(tree, (n) => n.tag === "td" && n.text === "R");
+      const segments = (cell!.styles as any).collapsedBorderSegments as Array<any>;
+      const right = segments.filter((s) => s.side === "right");
+      expect(right).toHaveLength(2);
+      expect(right.map((s) => [s.start, s.end, s.width, s.style])).toEqual([
+        [0, 0.5, 6, "solid"],
+        [0.5, 1, 8, "dashed"],
+      ]);
+      expect(parseFloat(cell!.styles!.borderRightWidth ?? "1")).toBe(0);
+      const svg = elementTreeToSvgInner(tree, W, H);
+      expect(svg).toMatch(/stroke-width="6"/);
+      expect(svg).toMatch(/stroke="rgb\(0,128,0\)" stroke-width="8"/);
+    } finally { await page.close(); }
   }, 60_000);
 });

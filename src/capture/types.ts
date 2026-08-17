@@ -305,6 +305,17 @@ export interface CapturedStyles {
    * instead of doubling.
    */
   borderCollapse: string;
+  /** Unit-edge winners for a spanning collapsed-table cell. Coordinates are
+   * normalized along the owning side so T-junctions do not require splitting
+   * the captured cell box. */
+  collapsedBorderSegments?: Array<{
+    side: "top" | "right" | "bottom" | "left";
+    start: number;
+    end: number;
+    width: number;
+    style: string;
+    color: string;
+  }>;
   overflowX: string;
   overflowY: string;
   /**
