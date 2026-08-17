@@ -1562,7 +1562,14 @@ export function insertSyntheticDottedCircles(
           && coveredMarkFont != null
           && glyphIdForCp(coveredMarkFont, cp) !== 0
           && glyphIdForCp(coveredMarkFont, 0x25CC) !== 0
-          && (shaperClassFlagged || logicallyFlagged || !fontAutoInsertsDottedCircle(coveredMarkFont, ch))
+          // If the selected face's own layout already emitted its U+25CC gid,
+          // keep the source cluster intact. The normal run shaper will produce
+          // that same attached circle; materialising a separate "◌+mark"
+          // string here splits fallback ownership and paints the two glyphs
+          // apart (Miao/Brahmi). Only synthesize for a probe-positive face whose
+          // layout facade does NOT already own the circle.
+          && !logicallyFlagged
+          && (shaperClassFlagged || !fontAutoInsertsDottedCircle(coveredMarkFont, ch))
           // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
           // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
           // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks
