@@ -17,6 +17,16 @@ export function doubleBorderStripeGeometry(width: number): { stripe: number; off
   return { stripe, offset: (snapped - stripe) / 2 };
 }
 
+/** Port of Skia/Blink SelectBestDashGap for open or closed strokes. */
+export function selectBestDashGap(strokeLength: number, dashLength: number, gapLength: number, closedPath: boolean): number {
+  const available = strokeLength + (closedPath ? 0 : gapLength);
+  const minDashes = Math.max(1, Math.floor(available / (dashLength + gapLength)));
+  const gapFor = (n: number) => (strokeLength - n * dashLength) / Math.max(1, closedPath ? n : n - 1);
+  const a = gapFor(minDashes), b = gapFor(minDashes + 1);
+  if (b <= 0) return a;
+  return Math.abs(a - gapLength) < Math.abs(b - gapLength) ? a : b;
+}
+
 /** Minimal rect for collapsed-cell grid analysis. */
 export interface CollapseCellRect {
   x: number;

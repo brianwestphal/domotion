@@ -12,6 +12,7 @@ import {
   parseSide,
   roundedRectPath,
   roundedRectSvg,
+  selectBestDashGap,
   wedgePolygonPoints,
 } from "./borders.js";
 
@@ -22,6 +23,19 @@ describe("doubleBorderStripeGeometry (DM-2244)", () => {
     expect(doubleBorderStripeGeometry(5)).toEqual({ stripe: 2, offset: 1.5 });
     expect(doubleBorderStripeGeometry(6)).toEqual({ stripe: 2, offset: 2 });
     expect(doubleBorderStripeGeometry(7)).toEqual({ stripe: 2, offset: 2.5 });
+  });
+});
+
+describe("selectBestDashGap (DM-2243)", () => {
+  it("uses one gap per dash on a closed perimeter", () => {
+    const gap = selectBestDashGap(100, 12, 6, true);
+    const count = Math.round(100 / (12 + gap));
+    expect(count * (12 + gap)).toBeCloseTo(100, 8);
+  });
+  it("uses one fewer gap on an open side", () => {
+    const gap = selectBestDashGap(100, 12, 6, false);
+    const count = Math.round((100 + gap) / (12 + gap));
+    expect(count * 12 + (count - 1) * gap).toBeCloseTo(100, 8);
   });
 });
 

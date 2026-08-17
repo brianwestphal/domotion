@@ -39,6 +39,7 @@ import {
   wedgePolygonPoints,
   findOffGridCollapsedCells,
   doubleBorderStripeGeometry,
+  selectBestDashGap,
   type CornerRadii,
   type CornerRadiusPair,
   type BorderSide,
@@ -2493,8 +2494,19 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
           `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
         );
       } else {
-        const dash = dashArrayForStyle(ostyle, ow);
-        const linecap = "";
+        let dash = dashArrayForStyle(ostyle, ow);
+        const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
+        if ((ostyle === "dashed" || ostyle === "dotted") && oRadius > 0) {
+          const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
+          if (ostyle === "dashed") {
+            const dashLen = ow * (ow >= 3 ? 2 : 3);
+            const gap = selectBestDashGap(perimeter, dashLen, ow * (ow >= 3 ? 1 : 2), true);
+            dash = gap > 0 ? `${r(dashLen)} ${r(gap)}` : "";
+          } else {
+            const gap = selectBestDashGap(perimeter, ow, ow, true);
+            dash = gap > 0 ? `0.01 ${r(gap + ow - 0.01)}` : "";
+          }
+        }
         out.push(
           `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
         );
@@ -5517,20 +5529,6 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
   // on the `18-border-styles` fixture: 6 px dashed on a 188 px side paints
   // 11 dashes (dash=12 / gap=5.6, flush at corner), NOT 10 dashes (12.53 /
   // 6.27 / mid-gap-offset) as the old algorithm emitted.
-  const selectBestDashGap = (strokeLength: number, dashLength: number, gapLength: number): number => {
-    // Open path only (closed_path = false in BoxBorderPainter — each side
-    // is drawn as a separate line, even for rounded-corner borders which
-    // use a curved path and handle that path-length math separately).
-    const availableLength = strokeLength + gapLength;
-    const minNumDashes = Math.floor(availableLength / (dashLength + gapLength));
-    const maxNumDashes = minNumDashes + 1;
-    const minNumGaps = Math.max(1, minNumDashes - 1);
-    const maxNumGaps = Math.max(1, maxNumDashes - 1);
-    const minGap = (strokeLength - minNumDashes * dashLength) / minNumGaps;
-    const maxGap = (strokeLength - maxNumDashes * dashLength) / maxNumGaps;
-    if (maxGap <= 0) return minGap;
-    return Math.abs(minGap - gapLength) < Math.abs(maxGap - gapLength) ? minGap : maxGap;
-  };
   if (style === "dashed") {
     // dash_length = width * (width >= 3 ? 2 : 3); gap_length similarly.
     const dashLen = width * (width >= 3 ? 2 : 3);
@@ -5542,7 +5540,7 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
       // pixel diff harness; collapse to solid here.
       return { array: "", offset: 0 };
     }
-    const gap = selectBestDashGap(sideLength, dashLen, gapTarget);
+    const gap = selectBestDashGap(sideLength, dashLen, gapTarget, false);
     if (gap <= 0) return { array: "", offset: 0 };
     // Start flush at the corner — matches Chrome's `MakeDash` with phase 0.
     return { array: `${r(dashLen)} ${r(gap)}`, offset: 0 };
@@ -5566,7 +5564,7 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
       // gap longer than the line.
       return { array: `0.01 ${r(width * 2)}`, offset: 0 };
     }
-    const gap = selectBestDashGap(sideLength, width, width);
+    const gap = selectBestDashGap(sideLength, width, width, false);
     if (gap <= 0) return { array: "", offset: 0 };
     const kEpsilon = 0.01;
     return { array: `0.01 ${r(gap + width - kEpsilon)}`, offset: 0 };
