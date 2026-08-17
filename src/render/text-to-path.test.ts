@@ -913,6 +913,16 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     const r = run("\u{113C9}"); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
     expect(r.text).toBe("\u{113C9}");
   });
+  it("DM-2226: honors a negative capture probe for a covered Tai Tham orphan mark", () => {
+    const source = "\u{1A55}";
+    const r = insertSyntheticDottedCircles(source, [40], fam, 400, 32, 0, undefined, undefined, []);
+    expect(r).toEqual({ text: source, xOffsets: [40] });
+  });
+  it("DM-2226: does not duplicate a Balinese circle when capture reports no synthetic insertion", () => {
+    const source = "\u{1B6B}";
+    const r = insertSyntheticDottedCircles(source, [72], fam, 400, 32, 0, undefined, undefined, []);
+    expect(r).toEqual({ text: source, xOffsets: [72] });
+  });
   it("leaves probe-flagged uncovered clusters bare when HarfBuzz will shape .notdef", () => {
     // Kawi U+11F02 is General_Category=Lo, but Blink's USE shaper classifies it
     // as a broken syllable and inserts U+25CC. Prepending one here caused the

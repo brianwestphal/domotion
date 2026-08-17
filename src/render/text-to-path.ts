@@ -1467,8 +1467,16 @@ export function insertSyntheticDottedCircles(
     // syllable pass for the full run. Dedicated shapers remain excluded by
     // resolveDottedCircleHbRun(), preserving the measured Sinhala/Thai/etc.
     // vetoes.
-    const probeFlagged = (coveredCircleSet != null && coveredCircleSet.has(i))
-      || shaperClassFlagged;
+    // When capture supplied probe data, its answer is authoritative for
+    // covered marks: an empty set means Chromium painted the mark bare (Tai
+    // Tham), while a positive index means it painted a circle. Falling back to
+    // the static shaper class despite an explicit negative answer duplicates
+    // font/shaper-owned circles (Balinese) and invents circles for bare marks.
+    // With no capture data (unit callers / old captures), retain the static
+    // compatibility heuristic.
+    const probeFlagged = coveredCircleSet != null
+      ? coveredCircleSet.has(i)
+      : shaperClassFlagged;
     if (isMark || probeFlagged) {
       // The canvas probe is authoritative only for a glyph Chrome actually
       // painted. For an uncovered mark it observes the fallback face's bare

@@ -496,6 +496,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mswkzjvoumfrxl8q",
+          "message": {
+            "text": "An explicit capture probe result must outrank the static shaper-class heuristic for covered marks. The probe observes Chromium's final paint decision: an empty result means Tai Tham stays bare or Balinese already owns its circle, while a positive UTF-16 index requests synthesis. The heuristic remains only for old captures/unit callers with no probe data, preserving uncovered positive controls.",
+            "markdown": "An explicit capture probe result must outrank the static shaper-class heuristic for covered marks. The probe observes Chromium's final paint decision: an empty result means Tai Tham stays bare or Balinese already owns its circle, while a positive UTF-16 index requests synthesis. The heuristic remains only for old captures/unit callers with no probe data, preserving uncovered positive controls."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1478,
+                  "endLine": 1489,
+                  "snippet": {
+                    "text": "      ? coveredCircleSet.has(i)\n      : shaperClassFlagged;\n    if (isMark || probeFlagged) {\n      // The canvas probe is authoritative only for a glyph Chrome actually\n      // painted. For an uncovered mark it observes the fallback face's bare\n      // .notdef box, not HarfBuzz's broken-syllable decision, and therefore\n      // commonly returns an empty array (the macOS Vedic CI route is Arial\n      // Unicode's .notdef plus its real U+25CC). Let the static shaper-class\n      // predicate answer the uncovered case; keep the probe veto below for\n      // covered marks such as Sinhala U+0D81.\n      const wantUncoveredCircle = shaperClassFlagged;\n      // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2226"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f1572042e5cd1a97af506d796382e89e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "671d7854162dca50dca9789a8a6e930c9232e7f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
