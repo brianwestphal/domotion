@@ -712,6 +712,8 @@ export interface CapturedStyles {
   perspectiveOrigin?: string;
   /** Whether the element's reverse-facing plane participates in paint. */
   backfaceVisibility?: string;
+  /** Resolved legacy WebKit box-reflection value (`none` or direction/offset/mask). */
+  webkitBoxReflect?: string;
   /**
    * DM-751: extracted Z translation from `matrix3d(...)` when the
    * element's transform has a non-zero translateZ component. Used by the

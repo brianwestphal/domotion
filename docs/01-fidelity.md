@@ -58,6 +58,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 ### Transforms
 
 - [x] transform: translate/rotate/scale/skew/matrix — full 2D affine; static 3D trees are retained as vector planes projected from Chromium-measured corners, including perspective origins, preserve-3d depth ordering, and hidden backfaces. See `06-css-transforms.md`.
+- [x] `-webkit-box-reflect` — above/below/left/right reflection duplicates the complete rendered subtree as vectors, resolves signed px/% offsets against Blink's stitched box dimension, and applies optional gradient/image masks as alpha masks. Descendants retain their own independently required raster fallbacks; the reflected subtree itself is never flattened to a screenshot.
 - [~] transform: 3D — flattened to its 2D projection (no perspective). See `06-css-transforms.md`.
 
 ### Typography

@@ -430,6 +430,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msyh1dkiep79r6ii",
+          "message": {
+            "text": "The renderer mirrors Blink's box-reflection operation by duplicating the already-rendered subtree, not by recursing through capture again or rasterizing it. Direction matrices and dimension-relative offsets follow boxreflectionutils.cc at Chromium revision 7d859f271cbda744098ac69f44978d4edfa62be3; the optional computed nine-piece image is reduced to its source image and applied as an alpha mask.",
+            "markdown": "The renderer mirrors Blink's box-reflection operation by duplicating the already-rendered subtree, not by recursing through capture again or rasterizing it. Direction matrices and dimension-relative offsets follow box_reflection_utils.cc at Chromium revision 7d859f271cbda744098ac69f44978d4edfa62be3; the optional computed nine-piece image is reduced to its source image and applied as an alpha mask."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3590,
+                  "endLine": 3665,
+                  "snippet": {
+                    "text": "  const n = parseFloat(rawOffset);\n  const offset = Number.isFinite(n) ? (/\\%$/.test(rawOffset) ? n * basis / 100 : n) : 0;\n  let maskImage: string | undefined;\n  const tail = head[3]?.trim();\n  if (tail != null && tail !== \"\" && tail !== \"none\") {\n    const fn = /^(?:repeating-)?(?:linear|radial|conic)-gradient\\(|^url\\(/i.exec(tail);\n    if (fn != null) {\n      let depth = 0;\n      let quote = \"\";\n      for (let i = fn[0].length - 1; i < tail.length; i++) {\n        const ch = tail[i];\n        if (quote !== \"\") { if (ch === quote && tail[i - 1] !== \"\\\\\") quote = \"\"; continue; }\n        if (ch === '\"' || ch === \"'\") { quote = ch; continue; }\n        if (ch === \"(\") depth++;\n        else if (ch === \")\" && --depth === 0) { maskImage = tail.slice(0, i + 1); break; }\n      }\n    }\n  }\n  return { direction, offset, maskImage };\n}\n\nfunction appendBoxReflection(state: RenderState, el: CapturedElement, fragmentStart: number, depth: number): void {\n  const spec = parseBoxReflection(el.styles.webkitBoxReflect, el.width, el.height);\n  if (spec == null || state.svgParts.length === fragmentStart) return;\n  const source = state.svgParts.slice(fragmentStart).join(\"\\n\");\n  let transform: string;\n  if (spec.direction === \"below\") transform = `matrix(1 0 0 -1 0 ${r(2 * (el.y + el.height) + spec.offset)})`;\n  else if (spec.direction === \"above\") transform = `matrix(1 0 0 -1 0 ${r(2 * el.y - spec.offset)})`;\n  else if (spec.direction === \"right\") transform = `matrix(-1 0 0 1 ${r(2 * (el.x + el.width) + spec.offset)} 0)`;\n  else transform = `matrix(-1 0 0 1 ${r(2 * el.x - spec.offset)} 0)`;\n\n  let reflected = source;\n  if (spec.maskImage != null) {\n    const maskId = state.paintCtx.nextClipId(\"reflect-mask\");\n    const fillId = state.paintCtx.nextClipId(\"reflect-fill\");\n    const built = buildBackgroundLayerDef(fillId, spec.maskImage, el.x, el.y, el.width, el.height, \"100% 100%\", \"0% 0%\", \"no-repeat\");\n    if (built.def !== \"\") {\n      state.defsParts.push(built.def);\n      state.defsParts.push(`<mask id=\"${maskId}\" maskUnits=\"userSpaceOnUse\" x=\"${r(el.x)}\" y=\"${r(el.y)}\" width=\"${r(el.width)}\" height=\"${r(el.height)}\" style=\"mask-type:alpha\"><rect x=\"${r(el.x)}\" y=\"${r(el.y)}\" width=\"${r(el.width)}\" height=\"${r(el.height)}\" fill=\"url(#${fillId})\"/></mask>`);\n      reflected = `<g mask=\"url(#${maskId})\">${source}</g>`;\n    }\n  }\n  const indent = \"  \".repeat(depth);\n  const markup = `${indent}<g transform=\"${transform}\" aria-hidden=\"true\">${reflected}</g>`;\n  // Blink's FEBoxReflect composites SourceGraphic over the reflected image.\n  // Insert the copy first so negative offsets cannot make it cover the source.\n  state.svgParts.splice(fragmentStart, 0, markup);\n}\n\n\nfunction computeGroupWrapperAttrs(\n  el: CapturedElement,\n  clipPathUrlId: string | null,\n  maskUrlId: string | null,\n  opacity: number,\n  filterCss: string,\n  blendCss: string,\n): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; localizeReferenceFilter: boolean; hasTransform: boolean } {\n  const projective = el.projectiveTransform;\n  const hasProjectiveTransform = projective != null;\n  const transformAttr = hasProjectiveTransform\n    ? `matrix(${projective[0]} ${projective[3]} ${projective[1]} ${projective[4]} ${projective[2]} ${projective[5]})`\n    : svgTransformForElement(el);\n  // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or\n  // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,\n  // contain:paint, transform, filter…) must form an isolated group for\n  // mix-blend-mode descendants. SVG2 honors `isolation:isolate` natively on\n  // <g>, so emit it as inline style. Don't apply when this element ITSELF\n  // uses mix-blend-mode — that group is the blender, not an isolator. The\n  // explicit `isolation: isolate` value must always apply (even with\n  // mix-blend-mode the group can be both blender and isolator for its own\n  // descendants); but for implicit isolators, only honor when no blend mode\n  // is set on the group, otherwise we'd convert intentional blends into\n  // no-ops.\n  const explicitIsolate = el.styles.isolation === \"isolate\";\n  const implicitIsolate = blendCss === \"\" && ("
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2288"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "55c955a2ec56ccc5c2b5cef3412d0be1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a916d097f04cf9e886dfd8408ec1a9224c9f2a7c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

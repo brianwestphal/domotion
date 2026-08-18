@@ -590,6 +590,7 @@ const captureDocumentTree =
         perspective: cs.perspective,
         perspectiveOrigin: cs.perspectiveOrigin,
         backfaceVisibility: cs.backfaceVisibility,
+        webkitBoxReflect: cs.webkitBoxReflect,
         willChange: cs.willChange,
         contain: cs.contain,
         isolation: cs.isolation,

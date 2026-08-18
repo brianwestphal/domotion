@@ -3573,6 +3573,69 @@ function animationOwnsOpacity(el: CapturedElement): boolean {
     && el.animatedProperties != null && el.animatedProperties.includes("opacity");
 }
 
+interface BoxReflectionSpec {
+  direction: "above" | "below" | "left" | "right";
+  offset: number;
+  maskImage?: string;
+}
+
+/** Parse Chromium's computed `-webkit-box-reflect` serialization. */
+export function parseBoxReflection(value: string | undefined, width: number, height: number): BoxReflectionSpec | null {
+  if (value == null || value === "" || value === "none") return null;
+  const head = /^\s*(above|below|left|right)\s+([^\s]+)(?:\s+([\s\S]+))?$/i.exec(value);
+  if (head == null) return null;
+  const direction = head[1].toLowerCase() as BoxReflectionSpec["direction"];
+  const basis = direction === "above" || direction === "below" ? height : width;
+  const rawOffset = head[2];
+  const n = parseFloat(rawOffset);
+  const offset = Number.isFinite(n) ? (/\%$/.test(rawOffset) ? n * basis / 100 : n) : 0;
+  let maskImage: string | undefined;
+  const tail = head[3]?.trim();
+  if (tail != null && tail !== "" && tail !== "none") {
+    const fn = /^(?:repeating-)?(?:linear|radial|conic)-gradient\(|^url\(/i.exec(tail);
+    if (fn != null) {
+      let depth = 0;
+      let quote = "";
+      for (let i = fn[0].length - 1; i < tail.length; i++) {
+        const ch = tail[i];
+        if (quote !== "") { if (ch === quote && tail[i - 1] !== "\\") quote = ""; continue; }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === "(") depth++;
+        else if (ch === ")" && --depth === 0) { maskImage = tail.slice(0, i + 1); break; }
+      }
+    }
+  }
+  return { direction, offset, maskImage };
+}
+
+function appendBoxReflection(state: RenderState, el: CapturedElement, fragmentStart: number, depth: number): void {
+  const spec = parseBoxReflection(el.styles.webkitBoxReflect, el.width, el.height);
+  if (spec == null || state.svgParts.length === fragmentStart) return;
+  const source = state.svgParts.slice(fragmentStart).join("\n");
+  let transform: string;
+  if (spec.direction === "below") transform = `matrix(1 0 0 -1 0 ${r(2 * (el.y + el.height) + spec.offset)})`;
+  else if (spec.direction === "above") transform = `matrix(1 0 0 -1 0 ${r(2 * el.y - spec.offset)})`;
+  else if (spec.direction === "right") transform = `matrix(-1 0 0 1 ${r(2 * (el.x + el.width) + spec.offset)} 0)`;
+  else transform = `matrix(-1 0 0 1 ${r(2 * el.x - spec.offset)} 0)`;
+
+  let reflected = source;
+  if (spec.maskImage != null) {
+    const maskId = state.paintCtx.nextClipId("reflect-mask");
+    const fillId = state.paintCtx.nextClipId("reflect-fill");
+    const built = buildBackgroundLayerDef(fillId, spec.maskImage, el.x, el.y, el.width, el.height, "100% 100%", "0% 0%", "no-repeat");
+    if (built.def !== "") {
+      state.defsParts.push(built.def);
+      state.defsParts.push(`<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" style="mask-type:alpha"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="url(#${fillId})"/></mask>`);
+      reflected = `<g mask="url(#${maskId})">${source}</g>`;
+    }
+  }
+  const indent = "  ".repeat(depth);
+  const markup = `${indent}<g transform="${transform}" aria-hidden="true">${reflected}</g>`;
+  // Blink's FEBoxReflect composites SourceGraphic over the reflected image.
+  // Insert the copy first so negative offsets cannot make it cover the source.
+  state.svgParts.splice(fragmentStart, 0, markup);
+}
+
 
 function computeGroupWrapperAttrs(
   el: CapturedElement,
@@ -4334,6 +4397,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
     overflowClipPathIds, offGridCollapsedCells,
   } = state;
+  const reflectionFragmentStart = svgParts.length;
   // CSS 2.1 Appendix E splits an element's paint between two context-wide
   // passes: box decorations at step 3, inline content at step 5, with the
   // stacking context's floats (step 4) in between. See `PaintPhase`.
@@ -4376,6 +4440,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   const transformRaster = el.transformSubtreeRaster;
   if (transformRaster?.dataUri != null) {
     svgParts.push(`${indent}<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`);
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return;
   }
   // DM-2149: native form chrome comes from Blink's per-platform LayoutTheme,
@@ -4385,6 +4450,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   const nativeControlRaster = el.nativeControlRaster;
   if (nativeControlRaster?.dataUri != null) {
     svgParts.push(`${indent}<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`);
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return;
   }
   // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously
@@ -4630,6 +4696,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   }
   if (!paintInlinePhase) {
     closeWrappers();
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return;
   }
 
@@ -4644,6 +4711,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     if (_isvg.handled) {
       svgParts.push(..._isvg.svg);
       closeWrappers();
+      appendBoxReflection(state, el, reflectionFragmentStart, depth);
       return;
     }
   }
@@ -4857,6 +4925,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   if (scrollbarMarkup !== "") svgParts.push(scrollbarMarkup);
 
   closeWrappers();
+  appendBoxReflection(state, el, reflectionFragmentStart, depth);
 }
 
 
