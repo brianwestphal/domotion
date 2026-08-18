@@ -538,14 +538,12 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
     if (stops[k].pos < stops[k - 1].pos) stops[k].pos = stops[k - 1].pos;
   }
 
-  // Inject color hints: between two stops A (at posA) and B (at posB) with a
-  // hint at posH, CSS shifts the 50% transition point to posH via a power
-  // interpolation — the mix weight at fraction t = (pos-posA)/(posB-posA) is
-  // `t^(ln0.5/lnH)`, where H = (posH-posA)/(posB-posA) is the hint's relative
-  // position (so weight(H) = 0.5, the midpoint color lands on the hint). SVG
-  // only does linear interpolation between stops, so DM-1242: sample that curve
-  // at several interior points and emit a stop at each, approximating the curve
-  // piecewise-linearly instead of with one mid-color stop (which read too linear).
+  // Blink replaces every interpolation hint with exactly nine ordinary stops
+  // (`ReplaceColorHintsWithColorStops`, css_gradient_value.cc:266-399,
+  // Chromium rev 7d859f27). Mirror its deliberately asymmetric placement:
+  // two samples on the short side and seven on the long side. This is itself
+  // Blink's piecewise-linear approximation of the CSS power curve, so copying
+  // it is exact renderer logic rather than choosing our own sampling quality.
   if (hints.length > 0) {
     const out: GradientStop[] = [];
     let hintIdx = 0;
@@ -561,26 +559,34 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
         if (h.afterColorIdx !== thisColorIdx) continue;
         const a = stops[s];
         const b = stops[s + 1];
-        if (!(h.pos > a.pos && h.pos < b.pos)) continue;
         const span = b.pos - a.pos;
+        if (span <= 0) continue;
         const hRel = (h.pos - a.pos) / span;
         const ca = a.color, cb = b.color;
         const sameColor = ca.r === cb.r && ca.g === cb.g && ca.b === cb.b && ca.a === cb.a;
-        // H ≈ 0.5 ⇒ exponent ≈ 1 ⇒ linear, and identical colors need no curve —
-        // both leave SVG's own A→B linear interpolation to do the right thing.
-        if (sameColor || Math.abs(hRel - 0.5) < 1e-3) continue;
+        if (sameColor || Math.abs(hRel - 0.5) < 1e-6) continue;
+        if (hRel <= 1e-6) {
+          out.push({ color: { ...cb }, pos: a.pos });
+          continue;
+        }
+        if (hRel >= 1 - 1e-6) {
+          out.push({ color: { ...ca }, pos: b.pos });
+          continue;
+        }
         const expo = Math.log(0.5) / Math.log(hRel);
-        // Sample at uniform mix-WEIGHT (w = k/N), inverting to the position
-        // t = w^(1/expo). Since SVG interpolates color linearly between stops and
-        // color is linear in w, equal-w steps put a stop exactly where each even
-        // colour increment occurs — which clusters stops near the curve's steep
-        // region (a vertical colour tangent at t→0 for hints below midpoint) and
-        // lands one stop precisely on the hint (w=0.5). Far better fit per stop
-        // than uniform-t sampling. 8 segments → 7 interior stops.
-        const SEGMENTS = 8;
-        for (let k = 1; k < SEGMENTS; k++) {
-          const w = k / SEGMENTS;
-          const t = Math.pow(w, 1 / expo);
+        const leftDist = h.pos - a.pos;
+        const rightDist = b.pos - h.pos;
+        const positions: number[] = [];
+        if (leftDist > rightDist) {
+          for (let y = 0; y < 7; y++) positions.push(a.pos + leftDist * ((7 + y) / 13));
+          positions.push(h.pos + rightDist / 3, h.pos + rightDist * 2 / 3);
+        } else {
+          positions.push(a.pos + leftDist / 3, a.pos + leftDist * 2 / 3);
+          for (let y = 0; y < 7; y++) positions.push(h.pos + rightDist * (y / 13));
+        }
+        for (const pos of positions) {
+          const t = (pos - a.pos) / span;
+          const w = Math.pow(t, expo);
           out.push({
             color: {
               r: Math.round(ca.r + (cb.r - ca.r) * w),
@@ -588,7 +594,7 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
               b: Math.round(ca.b + (cb.b - ca.b) * w),
               a: ca.a + (cb.a - ca.a) * w,
             },
-            pos: a.pos + t * span,
+            pos,
           });
         }
       }

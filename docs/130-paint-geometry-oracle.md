@@ -8,11 +8,14 @@ gradient, mask, and basic-clip builders. It does not rasterize either side.
 ## Current exact surface
 
 The generated corpus covers all four linear-gradient corner directions over
-landscape, portrait, and irregular non-square boxes; basic `inset()`,
-`circle()`, `ellipse()`, and `polygon()` clip shapes; and a linear-gradient
-alpha mask. Gradient coordinates compare at the emitter's four-decimal
-serialization boundary. Basic clip coordinates compare after the renderer's
-documented one-decimal SVG serialization.
+landscape, portrait, and irregular non-square boxes; circle and ellipse radial
+ending shapes for closest/farthest side/corner behavior; a positive-domain
+repeating radial period; monotonic stop fixup, unspecified-stop distribution,
+double-position stops, and Blink's nine-stop color-hint expansion; basic
+`inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; and a
+linear-gradient alpha mask. Gradient coordinates compare at the emitter's
+four-decimal serialization boundary. Basic clip coordinates compare after the
+renderer's documented one-decimal SVG serialization.
 
 The linear corner rule is transcribed from Chromium revision `7d859f27`,
 `core/css/css_gradient_value.cc:1282-1337,1410-1430`. For `to top right`, Blink
@@ -26,14 +29,21 @@ The gate includes a mutation control: that retired direct-corner construction
 must differ by more than one CSS pixel on the 300×100 discriminator. If it does
 not move, the corpus has stopped proving the branch it claims to test.
 
+Color-hint rows transcribe `ReplaceColorHintsWithColorStops`
+(`css_gradient_value.cc:266-399`) rather than treating SVG's limitation as
+permission to choose a different approximation. Chromium also emits nine
+piecewise-linear stops; matching their positions and weights is exact renderer
+logic for legacy sRGB colors.
+
 ## Boundaries and next expansion
 
-This first gate does not yet claim exhaustive paint parity. Exact oracle rows
-still need to be added for radial ending shapes and repeating periods, stop
-fixup/interpolation, geometry-box reference selection, rounded inset paths,
-mask sizing/position/repeat/composite, URL/fragment masks, and conic raster
-tiles. Those domains remain covered by unit and visual fixtures but do not gain
-an exact logical verdict from this oracle until their structured rows land.
+This gate does not yet claim exhaustive paint parity. Exact oracle rows still
+need to be added for non-default gradient interpolation color spaces and
+premultiplied-alpha color math, negative/out-of-range radial stop domains,
+geometry-box reference selection, rounded inset paths, mask sizing/position/
+repeat/composite, URL/fragment masks, and conic raster tiles. Those domains
+remain covered by unit and visual fixtures but do not gain an exact logical
+verdict from this oracle until their structured rows land.
 
 The pixel suites remain the final integration stage. A pixel residual cannot
 override a failure here, and a passing row here does not classify a later

@@ -81,10 +81,10 @@
       "oracle": "tools/paint-geometry-oracle.ts",
       "sourceAudit": "partial",
       "oracleStatus": "partial-stage-gate",
-      "generatedCoverage": "generated linear magic-corner boxes, basic clip shapes, linear gradient mask, plus curated visual fixtures",
+      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes/repeating domain, stop fixup and nine-stop hints, basic clip shapes, linear gradient mask, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Radial/repeating geometry, stop interpolation, geometry-box selection, and multi-layer mask behavior are not yet structured oracle rows.",
-      "nextAction": "Expand the paint geometry oracle across the remaining radial, stop, reference-box, mask sizing, and compositing domains."
+      "knownGap": "Non-default interpolation spaces/premultiplied alpha, negative radial domains, geometry-box selection, and multi-layer mask behavior are not yet structured oracle rows.",
+      "nextAction": "Expand the paint geometry oracle across interpolation-space, reference-box, mask sizing, and compositing domains."
     },
     {
       "id": "transforms-projection-reflection",

@@ -26,9 +26,10 @@ and unresolved gaps explicit in CI.
 
 **Doc 130 (`docs/130-paint-geometry-oracle.md`) — Partial stage gate.**
 `npm run paint:geometry-oracle` exactly compares source-transcribed linear
-magic-corner geometry, basic clip shapes, and a gradient-mask path against the
-production SVG builders, with a mutation control that proves the old
-direct-to-corner approximation moves. Radial/repeating/stop interpolation,
+magic-corner geometry, radial ending shapes/repeating domains, Blink stop
+fixup and nine-stop color hints, basic clip shapes, and a gradient-mask path
+against the production SVG builders, with a mutation control that proves the
+old direct-to-corner approximation moves. Non-default interpolation spaces,
 geometry-box, and multi-layer mask domains remain explicit expansions.
 
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a

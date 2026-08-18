@@ -8,7 +8,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { buildLinearGradientDef } from "../src/render/gradient-defs.js";
+import { buildLinearGradientDef, buildRadialGradientDef, parseGradientStops } from "../src/render/gradient-defs.js";
 import { translateClipPath } from "../src/render/clip-path.js";
 import { buildMaskDef } from "../src/render/mask.js";
 
@@ -71,6 +71,45 @@ function gradientRows(): OracleRow[] {
   }));
 }
 
+function radialAndStopRows(): OracleRow[] {
+  const radialCases = [
+    { id: "circle.closest-side", args: "circle closest-side at 25% 75%, red, blue", expected: { cx: 60, cy: 110, r: 30, scale: 1 } },
+    { id: "circle.farthest-corner", args: "circle farthest-corner at 25% 75%, red, blue", expected: { cx: 60, cy: 110, r: Math.hypot(150, 90), scale: 1 } },
+    { id: "ellipse.closest-side", args: "ellipse closest-side at 25% 75%, red, blue", expected: { cx: 60, cy: 110, r: 50, scale: 0.6 } },
+    { id: "ellipse.farthest-corner", args: "ellipse farthest-corner at 25% 75%, red, blue", expected: { cx: 60, cy: 110, r: 150 * Math.SQRT2, scale: 0.6 } },
+  ];
+  const rows: OracleRow[] = radialCases.map(({ id, args, expected }) => {
+    const markup = buildRadialGradientDef("g", args, false, 10, 20, 200, 120);
+    const transform = /scale\(1 (-?\d+(?:\.\d+)?)\)/.exec(markup);
+    const actual = { cx: numberAttr(markup, "cx"), cy: numberAttr(markup, "cy"), r: numberAttr(markup, "r"), scale: transform == null ? 1 : Number(transform[1]) };
+    const delta = maxDelta(expected, actual);
+    return { id: `radial.${id}`, stage: "gradient", source: "css_gradient_value.cc:1846-2008", expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE };
+  });
+
+  const repeating = buildRadialGradientDef("g", "circle 100px at center, red 10px, blue 30px", true, 0, 0, 200, 100);
+  const repeatExpected = { fr: 10, r: 30, spread: "repeat", offsets: [0, 1] };
+  const repeatActual = { fr: numberAttr(repeating, "fr"), r: numberAttr(repeating, "r"), spread: /spreadMethod="([^"]+)"/.exec(repeating)?.[1] ?? "", offsets: [...repeating.matchAll(/<stop offset="([^"]+)"/g)].map((m) => Number(m[1])) };
+  rows.push({ id: "radial.repeating-positive-domain", stage: "gradient", source: "css_gradient_value.cc:506-653,809-824", expected: repeatExpected, actual: repeatActual, maxAbsDelta: maxDelta({ fr: 10, r: 30, offsets: [0, 1] }, { fr: repeatActual.fr, r: repeatActual.r, offsets: repeatActual.offsets }), pass: repeatActual.spread === "repeat" && maxDelta(repeatExpected.offsets, repeatActual.offsets) <= TOLERANCE && repeatActual.fr === 10 && repeatActual.r === 30 });
+
+  const stopCases = [
+    { id: "monotonic-clamp", tokens: ["red 70%", "green 20%", "blue"], expected: [0.7, 0.7, 1] },
+    { id: "unspecified-distribution", tokens: ["red", "green", "yellow", "blue"], expected: [0, 1 / 3, 2 / 3, 1] },
+    { id: "double-position", tokens: ["red 10% 30%", "blue"], expected: [0.1, 0.3, 1] },
+  ];
+  for (const test of stopCases) {
+    const actual = parseGradientStops(test.tokens, 100).map((stop) => stop.pos);
+    const delta = maxDelta(test.expected, actual);
+    rows.push({ id: `stops.${test.id}`, stage: "gradient", source: "css_gradient_value.cc:656-790", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
+  }
+
+  const hintStops = parseGradientStops(["red", "20%", "blue"], 100);
+  const expectedHintPositions = [0, 0.2 / 3, 0.2 * 2 / 3, ...Array.from({ length: 7 }, (_, y) => 0.2 + 0.8 * (y / 13)), 1];
+  const hintActual = hintStops.map((stop) => stop.pos);
+  const hintDelta = maxDelta(expectedHintPositions, hintActual);
+  rows.push({ id: "stops.chromium-nine-stop-hint", stage: "gradient", source: "css_gradient_value.cc:266-399", expected: expectedHintPositions, actual: hintActual, maxAbsDelta: hintDelta, pass: hintDelta <= TOLERANCE });
+  return rows;
+}
+
 function clipRows(): OracleRow[] {
   // Basic clip coordinates pass through `r()`, the renderer's documented
   // one-decimal SVG representation boundary. Apply that serialization to the
@@ -104,7 +143,7 @@ function maskRows(): OracleRow[] {
 }
 
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {
-  const rows = [...gradientRows(), ...clipRows(), ...maskRows()];
+  const rows = [...gradientRows(), ...radialAndStopRows(), ...clipRows(), ...maskRows()];
   // Corpus activation control: the retired direct-to-corner formula must be
   // distinguishable from Blink's magic-corner line on every non-square box.
   const correct = blinkCornerLine("top-right", 0, 0, 300, 100);

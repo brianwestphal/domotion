@@ -232,6 +232,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszakp0husrhvmmg",
+          "message": {
+            "text": "Color hints now copy Blink’s own nine-stop approximation exactly. The previous seven-stop uniform-weight sampler was a Domotion-specific visual fit; Chromium revision 7d859f27 deliberately places two stops on the short side and seven on the long side before applying the power weighting, so matching those positions is the logical parity rule.",
+            "markdown": "Color hints now copy Blink’s own nine-stop approximation exactly. The previous seven-stop uniform-weight sampler was a Domotion-specific visual fit; Chromium revision 7d859f27 deliberately places two stops on the short side and seven on the long side before applying the power weighting, so matching those positions is the logical parity rule."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 541,
+                  "endLine": 599,
+                  "snippet": {
+                    "text": "  // Blink replaces every interpolation hint with exactly nine ordinary stops\n  // (`ReplaceColorHintsWithColorStops`, css_gradient_value.cc:266-399,\n  // Chromium rev 7d859f27). Mirror its deliberately asymmetric placement:\n  // two samples on the short side and seven on the long side. This is itself\n  // Blink's piecewise-linear approximation of the CSS power curve, so copying\n  // it is exact renderer logic rather than choosing our own sampling quality.\n  if (hints.length > 0) {\n    const out: GradientStop[] = [];\n    let hintIdx = 0;\n    for (let s = 0; s < stops.length; s++) {\n      out.push(stops[s]);\n      // Is there a hint between this color's last stop and the next color's first stop?\n      if (s === stops.length - 1) continue;\n      const thisColorIdx = stopColorIdx[s];\n      const nextColorIdx = stopColorIdx[s + 1];\n      if (thisColorIdx === nextColorIdx) continue; // inside same color (hard stop)\n      while (hintIdx < hints.length && hints[hintIdx].afterColorIdx <= thisColorIdx) {\n        const h = hints[hintIdx++];\n        if (h.afterColorIdx !== thisColorIdx) continue;\n        const a = stops[s];\n        const b = stops[s + 1];\n        const span = b.pos - a.pos;\n        if (span <= 0) continue;\n        const hRel = (h.pos - a.pos) / span;\n        const ca = a.color, cb = b.color;\n        const sameColor = ca.r === cb.r && ca.g === cb.g && ca.b === cb.b && ca.a === cb.a;\n        if (sameColor || Math.abs(hRel - 0.5) < 1e-6) continue;\n        if (hRel <= 1e-6) {\n          out.push({ color: { ...cb }, pos: a.pos });\n          continue;\n        }\n        if (hRel >= 1 - 1e-6) {\n          out.push({ color: { ...ca }, pos: b.pos });\n          continue;\n        }\n        const expo = Math.log(0.5) / Math.log(hRel);\n        const leftDist = h.pos - a.pos;\n        const rightDist = b.pos - h.pos;\n        const positions: number[] = [];\n        if (leftDist > rightDist) {\n          for (let y = 0; y < 7; y++) positions.push(a.pos + leftDist * ((7 + y) / 13));\n          positions.push(h.pos + rightDist / 3, h.pos + rightDist * 2 / 3);\n        } else {\n          positions.push(a.pos + leftDist / 3, a.pos + leftDist * 2 / 3);\n          for (let y = 0; y < 7; y++) positions.push(h.pos + rightDist * (y / 13));\n        }\n        for (const pos of positions) {\n          const t = (pos - a.pos) / span;\n          const w = Math.pow(t, expo);\n          out.push({\n            color: {\n              r: Math.round(ca.r + (cb.r - ca.r) * w),\n              g: Math.round(ca.g + (cb.g - ca.g) * w),\n              b: Math.round(ca.b + (cb.b - ca.b) * w),\n              a: ca.a + (cb.a - ca.a) * w,\n            },\n            pos,\n          });\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 73
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2305"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3d1b4bf98c6ba0968351f44259dd1a09"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c7700f04986f7e7d34b9b26ae2db79763a90ffc0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

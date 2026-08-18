@@ -3,9 +3,9 @@ import { parseGradientStops } from "./element-tree-to-svg.js";
 
 // DM-1242: a CSS color hint (the bare <percentage> between two color stops)
 // shifts the 50% transition to that position via a power curve. SVG only does
-// linear interpolation between stops, so `parseGradientStops` samples the curve
-// at uniform mix-weight and emits a stop at each sample (one landing exactly on
-// the hint). These lock the curve in.
+// linear interpolation between stops, so Blink replaces the hint with nine
+// ordinary stops placed asymmetrically around it. Domotion mirrors that exact
+// source algorithm rather than choosing its own sampling distribution.
 
 describe("color-hint power-curve interpolation (DM-1242)", () => {
   it("places the 50/50 midpoint color exactly at the hint position, not the geometric middle", () => {
@@ -28,7 +28,12 @@ describe("color-hint power-curve interpolation (DM-1242)", () => {
   it("emits multiple interior stops (piecewise-linear curve), not a single mid stop", () => {
     const stops = parseGradientStops(["red", "20%", "blue"], 100);
     const interior = stops.filter((s) => s.pos > 0 && s.pos < 1);
-    expect(interior.length).toBeGreaterThanOrEqual(5); // 7 samples (one may coincide)
+    expect(interior).toHaveLength(9);
+    expect(interior.map((s) => s.pos)).toEqual([
+      0.2 / 3,
+      0.2 * 2 / 3,
+      ...Array.from({ length: 7 }, (_, y) => 0.2 + 0.8 * (y / 13)),
+    ]);
   });
 
   it("a hint at the exact midpoint (50%) stays linear — no extra stops", () => {
