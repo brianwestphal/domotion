@@ -441,6 +441,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msxzsws0uez5js6y",
+          "message": {
+            "text": "Blink deliberately skips normal display adjustment for ::scroll-marker (style_adjuster.cc:1194-1198). Real markers therefore remain inline inside one anonymous flex item: group gap does not separate them, and inline-axis padding does not enlarge separate flex items. The capture replica uses normal DOM children, so it must suppress those two blockification artifacts while preserving margins and block-axis padding.",
+            "markdown": "Blink deliberately skips normal display adjustment for ::scroll-marker (style_adjuster.cc:1194-1198). Real markers therefore remain inline inside one anonymous flex item: group gap does not separate them, and inline-axis padding does not enlarge separate flex items. The capture replica uses normal DOM children, so it must suppress those two blockification artifacts while preserving margins and block-axis padding."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 980,
+                  "endLine": 1023,
+                  "snippet": {
+                    "text": "    // Do not copy the group's flex gap. Blink leaves ::scroll-marker inline\n    // (style_adjuster.cc:1194-1198), so adjacent markers are laid out through\n    // one anonymous flex item; `gap` separates flex items and therefore does\n    // not add spacing between these inline marker boxes. The replica's DOM\n    // children are independent flex items, so copying gap would widen the row.\n    container.style.gap = '0';\n    container.style.padding = gcs.padding || '0';\n    container.style.background = gcs.backgroundColor || 'transparent';\n    container.style.borderRadius = gcs.borderRadius || '0';\n    container.style.width = groupWidth + 'px';\n    container.style.left = '-99999px';\n    container.style.top = '0px';\n    for (var j = 0; j < items.length; j++) {\n      var mc = items[j].mcs;\n      var m = doc.createElement('div');\n      var txt = items[j].content;\n      if (txt === '\"\"' || txt === \"''\") txt = '';\n      else if (txt.length >= 2 && ((txt[0] === '\"' && txt[txt.length - 1] === '\"') || (txt[0] === \"'\" && txt[txt.length - 1] === \"'\"))) txt = txt.slice(1, -1);\n      else txt = '';\n      m.textContent = txt;\n      m.style.boxSizing = mc.boxSizing || 'content-box';\n      m.style.flex = '0 0 auto';\n      // Empty content ⇒ a sized dot (author set explicit width/height). Non-empty\n      // ⇒ a content-sized pill (width/height auto from text + padding).\n      if (txt === '') { m.style.width = mc.width; m.style.height = mc.height; }\n      m.style.borderRadius = mc.borderRadius;\n      m.style.background = mc.backgroundColor;\n      m.style.color = mc.color;\n      // DM-1257: keep the marker's vertical margin — it offsets each dot inside\n      // the group (dot-top = group padding-top + marker margin-top). Horizontal\n      // margin spaces the row.\n      m.style.marginTop = mc.marginTop || '0'; m.style.marginBottom = mc.marginBottom || '0';\n      m.style.marginLeft = mc.marginLeft || '0'; m.style.marginRight = mc.marginRight || '0';\n      // Blink deliberately skips ordinary display blockification for\n      // ::scroll-marker (style_adjuster.cc:1194-1198). In an in-flow marker\n      // group the pseudo therefore keeps inline padding semantics: block-axis\n      // padding contributes to the painted pill, while inline-axis padding\n      // does not enlarge the marker's flex-item measure. A normal replica DOM\n      // child would be blockified by flex layout and count both inline padding\n      // edges, making a labeled marker row substantially too wide.\n      m.style.paddingTop = mc.paddingTop;\n      m.style.paddingBottom = mc.paddingBottom;\n      m.style.paddingLeft = '0';\n      m.style.paddingRight = '0';"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 82,
+          "workItemUris": [
+            "DM-2284"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5b1654dae0284d7fb49c56748138bd5d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "79a37fb7c43dd650bcf52cb90636e9dad3b8ba0d",
+          "branch": "validate-dm-2284-pseudos"
+        }
+      ]
     }
   ]
 }

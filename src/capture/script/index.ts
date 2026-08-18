@@ -977,7 +977,12 @@ const captureDocumentTree =
     // flex-start — default `normal`/`center` would center them in the zero-height
     // content box and mis-place the row.
     container.style.alignItems = 'flex-start';
-    if (gcs.gap && gcs.gap !== 'normal') container.style.gap = gcs.gap;
+    // Do not copy the group's flex gap. Blink leaves ::scroll-marker inline
+    // (style_adjuster.cc:1194-1198), so adjacent markers are laid out through
+    // one anonymous flex item; `gap` separates flex items and therefore does
+    // not add spacing between these inline marker boxes. The replica's DOM
+    // children are independent flex items, so copying gap would widen the row.
+    container.style.gap = '0';
     container.style.padding = gcs.padding || '0';
     container.style.background = gcs.backgroundColor || 'transparent';
     container.style.borderRadius = gcs.borderRadius || '0';
@@ -1005,7 +1010,17 @@ const captureDocumentTree =
       // margin spaces the row.
       m.style.marginTop = mc.marginTop || '0'; m.style.marginBottom = mc.marginBottom || '0';
       m.style.marginLeft = mc.marginLeft || '0'; m.style.marginRight = mc.marginRight || '0';
-      m.style.padding = mc.padding;
+      // Blink deliberately skips ordinary display blockification for
+      // ::scroll-marker (style_adjuster.cc:1194-1198). In an in-flow marker
+      // group the pseudo therefore keeps inline padding semantics: block-axis
+      // padding contributes to the painted pill, while inline-axis padding
+      // does not enlarge the marker's flex-item measure. A normal replica DOM
+      // child would be blockified by flex layout and count both inline padding
+      // edges, making a labeled marker row substantially too wide.
+      m.style.paddingTop = mc.paddingTop;
+      m.style.paddingBottom = mc.paddingBottom;
+      m.style.paddingLeft = '0';
+      m.style.paddingRight = '0';
       m.style.fontSize = mc.fontSize;
       m.style.fontWeight = mc.fontWeight;
       m.style.fontFamily = mc.fontFamily;
