@@ -582,7 +582,8 @@ function renderTextPathRuns(
   // support and per-char fidelity. Multi-run path falls back to native advances.
   // When synthesizing small-caps we need per-char rendering at variable scales,
   // so we route around singleFontMarkup which emits one fixed-scale group.
-  if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps) {
+  if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps
+      && runs[0].decomposed !== true && runs[0].font.shapesWithHarfbuzz !== true) {
     return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, fauxBoldAttrFor);
   }
 

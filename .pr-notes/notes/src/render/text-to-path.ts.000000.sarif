@@ -561,6 +561,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msyct0isup0xcj2b",
+          "message": {
+            "text": "DM-2291: A one-run primary-key shortcut is only valid for the primary instance's ordinary layout. Decomposed assignments and HarfBuzz shaping views carry run-level shaping semantics (notably Blink's explicit script tag and syllabic dotted-circle insertion), so routing them through singleFontMarkup can silently replace the selected shaping engine even though the font key is unchanged. Keep those runs on the run-text emitter; this is an engine/assignment invariant rather than a codepoint exception.",
+            "markdown": "DM-2291: A one-run primary-key shortcut is only valid for the primary instance's ordinary layout. Decomposed assignments and HarfBuzz shaping views carry run-level shaping semantics (notably Blink's explicit script tag and syllabic dotted-circle insertion), so routing them through singleFontMarkup can silently replace the selected shaping engine even though the font key is unchanged. Keep those runs on the run-text emitter; this is an engine/assignment invariant rather than a codepoint exception."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 582,
+                  "endLine": 582,
+                  "snippet": {
+                    "text": "  // support and per-char fidelity. Multi-run path falls back to native advances."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2291"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f3f2620085b64f8af9110823e0dea031"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fec8a88678644d434714ec1d55046a90e8519c2e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -118,6 +118,20 @@ opens the cluster the same way. Trailing marks join one cluster, sharing a singl
 ◌. The behavior is unit-tested in `text-to-path.test.ts` (orphan → 2 glyphs;
 multi-mark → 3; based mark → 2 with no ◌; bare base letter → 1).
 
+The glyph-path emitter must also preserve that shaped-run decision when the
+selected fallback happens to share the primary key. Its single-font shortcut is
+therefore limited to ordinary, non-decomposed font instances; a run marked
+`decomposed` or backed by a HarfBuzz shaping view goes through the run-text
+branch so the explicit Blink script tag reaches HarfBuzz. This is a routing
+invariant, not a Vedic exception.
+
+Tests which temporarily disable live system fallback scope that process-global
+switch to each individual test and restore it afterward. Suite-wide hooks can
+overlap sibling-suite setup in Vitest and make unrelated shaping tests observe a
+helper-absent resolver, reproducing the same bare-mark symptom for the wrong
+reason. Runtime-helper integration tests also require a successful helper family
+lookup, not merely an on-disk font file.
+
 This fixed the remaining DM-1215 dotted-circle blocks (adlam, miao, brahmi,
 kharoshthi, tagalog, tai-tham, syloti — plus vedic-extensions) without regressing
 the blocks already passing.

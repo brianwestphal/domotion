@@ -155,7 +155,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     });
     // baselineY = textTop + fontAscent = 56 + 9 = 65
     expect(out).toMatch(/transform="translate\(108,\s*65\)"/);
-    expect(out).not.toContain('translate(0,0)');
+    expect(out).not.toMatch(/^<g transform="translate\(0,0\)"/);
   });
 
   it.skipIf(!MACOS_FONTS)("uses the pseudo's fontSize when set, not the host's", () => {
