@@ -8,6 +8,6 @@ describe("CSS family-stack availability", () => {
       resolveFont('"Playfair Display", Times, serif', 400, 32));
 
     expect(face).not.toBeNull();
-    expect(face!.postscriptName.toLowerCase()).toContain("times");
+    expect(face?.postscriptName?.toLowerCase()).toContain("times");
   });
 });
