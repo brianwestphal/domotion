@@ -24,6 +24,12 @@ The native path fires when, and only when, the `<img>`'s source resolves to an S
 
 `resolveSvgSource` deliberately does **not** consult `_resizedDataUriCache`: the image-resize pre-pass ([27-image-resize-on-embed.md](27-image-resize-on-embed.md)) rasterizes SVGs to PNG via `sharp`, which is exactly what this feature avoids. The native path always works from the original vector bytes.
 
+Local file URLs are converted with Node's URL parser using the host platform's
+path semantics. This matters on Windows: `file:///C:/assets/logo.svg` must
+resolve to `C:\\assets\\logo.svg`; manually removing `file://` produces the
+nonexistent `/C:/assets/logo.svg`, silently disabling native inlining and its
+`object-fit` mapping.
+
 ### Rewrite
 
 `inlineImgSvg` (`src/render/svg-inline.ts`) rewrites the SVG file's source into a nested `<svg>` ready to drop into the output:
@@ -71,7 +77,7 @@ All `object-fit` values take the native path:
 ## Testing
 
 - `src/render/svg-inline.test.ts` — `prefixSvgIds` namespacing (both quote styles, external-URL passthrough); `inlineImgSvg` (viewBox preservation, width/height synthesis, intrinsic fallback, no-coordinate-system → `null`, no-root → `null`, XML-decl stripping); and end-to-end through `elementTreeToSvgInner` (SVG `<img>` → native `<svg>`, raster `<img>` → `<image>`, border-radius clip wrapper).
-- `src/render/resolve-svg-source.test.ts` — `resolveSvgSource` decode (base64 + URL-encoded), raster → `null`, remote → `null`, empty/nullish → `null`.
+- `src/render/resolve-svg-source.test.ts` — `resolveSvgSource` decode (base64 + URL-encoded), local URL-encoded files, Windows drive/UNC conversion, raster → `null`, remote → `null`, empty/nullish → `null`.
 - `tests/replaced-used-size.e2e.test.ts` — captures stretched raster and SVG
   images in flex/grid, then proves their browser-used boxes survive unchanged
   into `<image>` and nested `<svg>` placement.

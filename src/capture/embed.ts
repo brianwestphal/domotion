@@ -18,6 +18,7 @@
  */
 
 import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { getLastCaptureWarnings } from "./warnings.js";
 
@@ -69,7 +70,14 @@ function embedAsDataUri(url: string): string {
   if (cached != null) return cached;
   if (url.startsWith("data:") || isRemoteUrl(url)) return url;
   let path = url;
-  if (path.startsWith("file://")) path = decodeURIComponent(path.slice("file://".length));
+  if (path.startsWith("file://")) {
+    try {
+      path = fileUrlToLocalPath(path);
+    } catch {
+      _dataUriCache.set(url, url);
+      return url;
+    }
+  }
   if (!existsSync(path)) {
     _dataUriCache.set(url, url);
     return url;
@@ -84,6 +92,11 @@ function embedAsDataUri(url: string): string {
     _dataUriCache.set(url, url);
     return url;
   }
+}
+
+/** Convert a captured file URL using the platform that will read it. */
+export function fileUrlToLocalPath(url: string, platform: NodeJS.Platform = process.platform): string {
+  return fileURLToPath(url, { windows: platform === "win32" });
 }
 
 /**

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msyc61yh1q1npncd",
+          "message": {
+            "text": "Use the URL parser's platform mode because file URLs are not string-prefix paths. On Windows, manually stripping file:// leaves /C:/..., so resolveSvgSource cannot read the SVG and object-fit silently falls back to the intrinsic-ratio image path; drive and UNC tests exercise the same conversion from macOS.",
+            "markdown": "Use the URL parser's platform mode because file URLs are not string-prefix paths. On Windows, manually stripping file:// leaves /C:/..., so resolveSvgSource cannot read the SVG and object-fit silently falls back to the intrinsic-ratio image path; drive and UNC tests exercise the same conversion from macOS."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/embed.ts"
+                },
+                "region": {
+                  "startLine": 73,
+                  "endLine": 100,
+                  "snippet": {
+                    "text": "  if (path.startsWith(\"file://\")) {\n    try {\n      path = fileUrlToLocalPath(path);\n    } catch {\n      _dataUriCache.set(url, url);\n      return url;\n    }\n  }\n  if (!existsSync(path)) {\n    _dataUriCache.set(url, url);\n    return url;\n  }\n  try {\n    const buf = readFileSync(path);\n    const mime = mimeFromExtension(path) ?? \"application/octet-stream\";\n    const dataUri = `data:${mime};base64,${buf.toString(\"base64\")}`;\n    _dataUriCache.set(url, dataUri);\n    return dataUri;\n  } catch {\n    _dataUriCache.set(url, url);\n    return url;\n  }\n}\n\n/** Convert a captured file URL using the platform that will read it. */\nexport function fileUrlToLocalPath(url: string, platform: NodeJS.Platform = process.platform): string {\n  return fileURLToPath(url, { windows: platform === \"win32\" });\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2292"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "05f5f061a758fb6d454365e231e40c13"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "43becbe0ddcb3a888a4c25df6a4772bc0b21df6c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveSvgSource } from "../capture/embed.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { fileUrlToLocalPath, resolveSvgSource } from "../capture/embed.js";
 
 /**
  * DM-1588: `resolveSvgSource` returns the raw SVG text for an `<img>`'s source
@@ -32,5 +36,24 @@ describe("resolveSvgSource — DM-1588", () => {
     expect(resolveSvgSource("")).toBeNull();
     expect(resolveSvgSource(null)).toBeNull();
     expect(resolveSvgSource(undefined)).toBeNull();
+  });
+
+  it("reads a URL-encoded local file URL", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion svg source "));
+    try {
+      const path = join(dir, "orange asset.svg");
+      const svg = `<svg viewBox="0 0 8 4"><rect width="8" height="4"/></svg>`;
+      writeFileSync(path, svg);
+      expect(resolveSvgSource(pathToFileURL(path).href)).toBe(svg);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("converts Windows drive and UNC file URLs with Windows semantics (DM-2292)", () => {
+    expect(fileUrlToLocalPath("file:///C:/fixtures/orange%20asset.svg", "win32"))
+      .toBe("C:\\fixtures\\orange asset.svg");
+    expect(fileUrlToLocalPath("file://server/share/orange.svg", "win32"))
+      .toBe("\\\\server\\share\\orange.svg");
   });
 });

@@ -127,6 +127,22 @@ describe("paintImage — <img src=svg> inlines natively; raster stays <image> (D
     const out = elementTreeToSvgInner([el], 200, 200);
     expect(out).toMatch(/<g clip-path="url\(#[^)]*\)"><svg[^>]*viewBox="0 0 24 24"/);
   });
+
+  it("keeps cover geometry per consumer when one SVG source is reused at different sizes (DM-2292)", () => {
+    const svg = `<svg viewBox="0 0 128 128"><circle cx="64" cy="64" r="60"/></svg>`;
+    const src = SVG_URI(svg);
+    const wide = imgEl(src, { objectFit: "cover" });
+    wide.width = 160;
+    wide.height = 120;
+    const column = imgEl(src, { objectFit: "cover" });
+    column.x = 200;
+    column.width = 240;
+    column.height = 135;
+    const out = elementTreeToSvgInner([wide, column], 500, 200);
+    expect(out).toMatch(/<svg[^>]*x="10" y="10" width="160" height="120"[^>]*preserveAspectRatio="xMidYMid slice"/);
+    expect(out).toMatch(/<svg[^>]*x="200" y="10" width="240" height="135"[^>]*preserveAspectRatio="xMidYMid slice"/);
+    expect(out.match(/viewBox="0 0 128 128"/g)).toHaveLength(2);
+  });
 });
 
 describe("paintImage — object-fit: none SVG img inlines natively at intrinsic size (DM-1592)", () => {
