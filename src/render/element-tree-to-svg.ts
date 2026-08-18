@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
 import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./font-resolution.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
@@ -701,29 +701,22 @@ function paintSyntheticListMarker(
     }
   } else {
     // Text-based marker (decimal / lower-alpha / lower-roman / etc.).
-    // Chrome's painted ::marker right edge sits ~7px left of li.x for
-    // 16px sans-serif (pixel-probed on 03-lists-style-types DM-678 — the
-    // VISIBLE last-pixel-of-"." sits at li.x - 7).
-    //
-    // SVG `text-anchor="end"` aligns the END of the LAST GLYPH'S ADVANCE
-    // at `x`, not the visible right edge of that glyph. DM-790: measure
-    // the last glyph's right-side-bearing through fontkit and add it
-    // back to the visible-right target (`el.x − 7`, Chromium's
-    // `kCMarkerPaddingPx`). For "01." the `.` glyph has ~3 px rsb in
-    // system-ui Helvetica so `mx = el.x − 7 + 3 = el.x − 4` — the
-    // previous hardcoded constant; for other suffixes (e.g. Greek-
-    // marker styles ending in `)` or `α`) the rsb floats to whatever
-    // the actual last glyph dictates.
+    // Blink generates the complete counter-style representation, including
+    // its suffix (`CounterStyle::GenerateRepresentationWithPrefixAndSuffix`).
+    // For an ordinary outside text marker, `InlineMarginsForOutside` sets
+    // margin_start to exactly -marker_inline_size and margin_end to zero, so
+    // the marker's ADVANCE END is flush with the list item's border-box edge.
+    // Preserve the suffix whitespace and let SVG's end anchor implement that
+    // same geometry; do not reconstruct its width from a fitted pixel gap.
     const label = formatListMarker(lsType, idx) + listMarkerSuffix(lsType);
     const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
-    const builtinLastRsb = measureLastGlyphRsb(label,
-      { fontSize: markerFontSize, fontFamily: markerFontFamily, fontWeight: markerFontWeight, fontStretch: el.styles.fontStretch });
     const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
     const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-    const mx = outside ? el.x - 7 + builtinLastRsb : el.x + borderL + padL;
+    const mx = outside ? el.x : el.x + borderL + padL;
     const anchor = outside ? "end" : "start";
+    const xmlSpace = outside ? ' xml:space="preserve"' : "";
     out.push(
-      `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}" style="font-variant-numeric:tabular-nums">${label}</text>`,
+      `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}" style="font-variant-numeric:tabular-nums"${xmlSpace}>${label}</text>`,
     );
   }
   return out;
@@ -5364,9 +5357,9 @@ export function formatListMarker(type: string, n: number): string {
 }
 
 // DM-1114: marker suffix per CSS Counter Styles. Most predefined styles use the
-// default `. `; the CJK ideographic styles use the ideographic comma `、`. We
-// only emit the visible suffix char (the trailing space is layout, already
-// encoded in the captured marker x). Mirrors the per-style `suffix` descriptor.
+// default `. `; the CJK ideographic styles use the ideographic comma `、`.
+// Return the complete suffix because Blink includes it in the marker inline
+// size and aligns that full advance to the list-item edge.
 // DM-1119: collapse runs of horizontal whitespace in a list-marker label to a
 // single space, mirroring the `white-space: normal` of Chrome's `::marker`. A
 // `@counter-style` `suffix: ":  "` reaches us as a label with a doubled space;
@@ -5382,7 +5375,7 @@ export function listMarkerSuffix(type: string): string {
     case "cjk-heavenly-stem":
       return "、";
     default:
-      return ".";
+      return ". ";
   }
 }
 

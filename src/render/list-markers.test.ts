@@ -64,11 +64,11 @@ describe("formatListMarker — non-decimal counter systems (DM-1114)", () => {
 });
 
 describe("listMarkerSuffix — per-style marker suffix (DM-1114)", () => {
-  it("uses the ideographic comma for CJK styles and a period otherwise", () => {
+  it("uses the complete Chromium suffix, including default trailing space", () => {
     expect(listMarkerSuffix("cjk-decimal")).toBe("、");
-    expect(listMarkerSuffix("decimal")).toBe(".");
-    expect(listMarkerSuffix("armenian")).toBe(".");
-    expect(listMarkerSuffix("hebrew")).toBe(".");
+    expect(listMarkerSuffix("decimal")).toBe(". ");
+    expect(listMarkerSuffix("armenian")).toBe(". ");
+    expect(listMarkerSuffix("hebrew")).toBe(". ");
   });
 });
 

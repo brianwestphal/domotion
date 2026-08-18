@@ -191,8 +191,11 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
   decimal-leading-zero, lower/upper-alpha (latin), lower/upper-roman,
   lower-greek, plus the non-decimal scripts armenian / upper-armenian /
   lower-armenian, georgian, hebrew (additive systems), and arabic-indic /
-  cjk-decimal (positional digit substitution) — with the per-style suffix from
-  `listMarkerSuffix` (`、` for the CJK styles, `.` otherwise) (DM-1114).
+  cjk-decimal (positional digit substitution) — with the complete per-style
+  suffix from `listMarkerSuffix` (`、` for the CJK styles, `. ` otherwise).
+  Outside text markers preserve that suffix whitespace and align the full
+  marker advance end with the list-item border edge, matching Blink's
+  `InlineMarginsForOutside` rather than reconstructing the gap from glyph ink.
   Symbol markers (`disc`, `circle`, `square`, `disclosure-open`, and
   `disclosure-closed`) use Blink's `ListMarker::WidthOfSymbol` /
   `RelativeSymbolMarkerRect` integer formulas with the captured `::marker`

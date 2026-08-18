@@ -300,6 +300,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msy7ytffle06m805",
+          "message": {
+            "text": "Outside text markers now preserve Chromium’s complete counter-style suffix and align its full advance end to the list-item border edge. This transcribes CounterStyle::GenerateRepresentationWithPrefixAndSuffix plus ListMarker::InlineMarginsForOutside; it replaces the prior pixel-probed -7px/right-side-bearing reconstruction.",
+            "markdown": "Outside text markers now preserve Chromium’s complete counter-style suffix and align its full advance end to the list-item border edge. This transcribes CounterStyle::GenerateRepresentationWithPrefixAndSuffix plus ListMarker::InlineMarginsForOutside; it replaces the prior pixel-probed -7px/right-side-bearing reconstruction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 704,
+                  "endLine": 720,
+                  "snippet": {
+                    "text": "    // Blink generates the complete counter-style representation, including\n    // its suffix (`CounterStyle::GenerateRepresentationWithPrefixAndSuffix`).\n    // For an ordinary outside text marker, `InlineMarginsForOutside` sets\n    // margin_start to exactly -marker_inline_size and margin_end to zero, so\n    // the marker's ADVANCE END is flush with the list item's border-box edge.\n    // Preserve the suffix whitespace and let SVG's end anchor implement that\n    // same geometry; do not reconstruct its width from a fitted pixel gap.\n    const label = formatListMarker(lsType, idx) + listMarkerSuffix(lsType);\n    const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;\n    const padL = parseFloat(el.styles.paddingLeft ?? \"0\") || 0;\n    const borderL = parseFloat(el.styles.borderLeftWidth ?? \"0\") || 0;\n    const mx = outside ? el.x : el.x + borderL + padL;\n    const anchor = outside ? \"end\" : \"start\";\n    const xmlSpace = outside ? ' xml:space=\"preserve\"' : \"\";\n    out.push(\n      `${indent}<text x=\"${r(mx)}\" y=\"${r(my)}\" text-anchor=\"${anchor}\" font-size=\"${r(markerFontSize)}\" font-weight=\"${markerFontWeight}\" font-family=\"${esc(markerFontFamily)}\" fill=\"${markerColor}\" style=\"font-variant-numeric:tabular-nums\"${xmlSpace}>${label}</text>`,\n    );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2269"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f6e38c8be05d47ad9dc5c19d187e9214"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9c5689cd444987000cd455195df7fb1c62e8b6fe",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
