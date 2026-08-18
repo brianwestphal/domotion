@@ -57,7 +57,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 ### Transforms
 
-- [x] transform: translate/rotate/scale/skew/matrix — full 2D affine, emitted as an SVG `transform` (Chromium resolves the computed value to `matrix()`/`matrix3d()`, which is what's consumed). See `06-css-transforms.md`.
+- [x] transform: translate/rotate/scale/skew/matrix — full 2D affine; static 3D trees are retained as vector planes projected from Chromium-measured corners, including perspective origins, preserve-3d depth ordering, and hidden backfaces. See `06-css-transforms.md`.
 - [~] transform: 3D — flattened to its 2D projection (no perspective). See `06-css-transforms.md`.
 
 ### Typography

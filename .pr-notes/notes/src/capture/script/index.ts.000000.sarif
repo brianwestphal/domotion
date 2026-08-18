@@ -506,6 +506,71 @@
           "branch": "validate-dm-2284-pseudos"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msygwto7umjy2s9u",
+          "message": {
+            "text": "Chromium remains the projection oracle instead of Domotion reimplementing its transform-function decision tree. Zero-sized border-corner probes observe the already-composed Blink paint transform (perspective, origins, flattening, and preserve-3d); factoring each measured plane against its parent yields reusable vector geometry without codepoint- or fixture-specific matrices. Chromium revision 7d859f271cbda744098ac69f44978d4edfa62be3 was checked in paintpropertytree_builder.cc, including ApplyPerspectiveDepth and transform-node backface state.",
+            "markdown": "Chromium remains the projection oracle instead of Domotion reimplementing its transform-function decision tree. Zero-sized border-corner probes observe the already-composed Blink paint transform (perspective, origins, flattening, and preserve-3d); factoring each measured plane against its parent yields reusable vector geometry without codepoint- or fixture-specific matrices. Chromium revision 7d859f271cbda744098ac69f44978d4edfa62be3 was checked in paint_property_tree_builder.cc, including ApplyPerspectiveDepth and transform-node backface state."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1410,
+                  "endLine": 1476,
+                  "snippet": {
+                    "text": "  // CSS 3D is ultimately a projective mapping of each painted element plane.\n  // Blink does not expose Element.getBoxQuads(), so measure the four border-box\n  // corners with zero-sized positioned descendants while the live transform\n  // tree is still intact. This observes perspective, flattening, origins, and\n  // nested preserve-3d directly, without fitting any fixture-specific matrix.\n  const _projectiveInfluenced = new Set();\n  for (let _pi = 0; _pi < _allEls.length; _pi++) {\n    const _pel = _allEls[_pi];\n    const _pcs = getComputedStyle(_pel);\n    const _is3d = (_pcs.transform || '').startsWith('matrix3d(')\n      || _pcs.transformStyle === 'preserve-3d'\n      || (_pcs.perspective != null && _pcs.perspective !== '' && _pcs.perspective !== 'none');\n    if (!_is3d) continue;\n    _projectiveInfluenced.add(_pel);\n    const _pdescs = _pel.getElementsByTagName('*');\n    for (let _pj = 0; _pj < _pdescs.length; _pj++) _projectiveInfluenced.add(_pdescs[_pj]);\n  }\n  const _projectedQuads = new WeakMap();\n  const _projectiveAbsH = new WeakMap();\n  const _measureProjectedQuad = (_el) => {\n    const _cs = getComputedStyle(_el);\n    const _oldPosition = _el.style.position;\n    if (_cs.position === 'static') _el.style.position = 'relative';\n    const _bl = parseFloat(_cs.borderLeftWidth) || 0;\n    const _bt = parseFloat(_cs.borderTopWidth) || 0;\n    const _w = _el.offsetWidth;\n    const _h = _el.offsetHeight;\n    const _points = [[-_bl, -_bt], [_w - _bl, -_bt], [_w - _bl, _h - _bt], [-_bl, _h - _bt]];\n    const _quad = [];\n    for (let _qi = 0; _qi < 4; _qi++) {\n      const _marker = document.createElement('i');\n      _marker.setAttribute('aria-hidden', 'true');\n      _marker.style.cssText = 'position:absolute;display:block;width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;';\n      _marker.style.left = _points[_qi][0] + 'px';\n      _marker.style.top = _points[_qi][1] + 'px';\n      _el.appendChild(_marker);\n      const _mr = _marker.getBoundingClientRect();\n      _quad.push({ x: _mr.left - vp.x, y: _mr.top - vp.y });\n      _marker.remove();\n    }\n    _el.style.position = _oldPosition;\n    return _quad;\n  };\n  for (const _pel of _projectiveInfluenced) {\n    if (_pel.offsetWidth > 0 && _pel.offsetHeight > 0) _projectedQuads.set(_pel, _measureProjectedQuad(_pel));\n  }\n\n  const _invertH = (m) => {\n    const [a,b,c,d,e,f,g,h,i] = m;\n    const A=e*i-f*h, B=c*h-b*i, C=b*f-c*e;\n    const D=f*g-d*i, E=a*i-c*g, F=c*d-a*f;\n    const G=d*h-e*g, H=b*g-a*h, I=a*e-b*d;\n    const det=a*A+b*D+c*G;\n    if (!isFinite(det) || Math.abs(det) < 1e-12) return null;\n    return [A/det,B/det,C/det,D/det,E/det,F/det,G/det,H/det,I/det];\n  };\n  const _mulH = (a, b) => [\n    a[0]*b[0]+a[1]*b[3]+a[2]*b[6], a[0]*b[1]+a[1]*b[4]+a[2]*b[7], a[0]*b[2]+a[1]*b[5]+a[2]*b[8],\n    a[3]*b[0]+a[4]*b[3]+a[5]*b[6], a[3]*b[1]+a[4]*b[4]+a[5]*b[7], a[3]*b[2]+a[4]*b[5]+a[5]*b[8],\n    a[6]*b[0]+a[7]*b[3]+a[8]*b[6], a[6]*b[1]+a[7]*b[4]+a[8]*b[7], a[6]*b[2]+a[7]*b[5]+a[8]*b[8],\n  ];\n  const _homographyForRect = (rect, q) => {\n    const x=rect.left-vp.x, y=rect.top-vp.y, w=rect.width, h=rect.height;\n    if (w <= 0 || h <= 0) return null;\n    const a=(q[1].x-q[0].x)/w, d=(q[1].y-q[0].y)/w;\n    const b=(q[3].x-q[0].x)/h, e=(q[3].y-q[0].y)/h;\n    return [a,b,q[0].x-a*x-b*y,d,e,q[0].y-d*x-e*y,0,0,1];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.9
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2289"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4c2b836268d52dc12fa370e7c401984b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2fd8c276eab16f99aaf15ff0b2e844071315212c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

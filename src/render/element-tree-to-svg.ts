@@ -3582,7 +3582,11 @@ function computeGroupWrapperAttrs(
   filterCss: string,
   blendCss: string,
 ): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; localizeReferenceFilter: boolean; hasTransform: boolean } {
-  const transformAttr = svgTransformForElement(el);
+  const projective = el.projectiveTransform;
+  const hasProjectiveTransform = projective != null;
+  const transformAttr = hasProjectiveTransform
+    ? `matrix(${projective[0]} ${projective[3]} ${projective[1]} ${projective[4]} ${projective[2]} ${projective[5]})`
+    : svgTransformForElement(el);
   // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
   // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
   // contain:paint, transform, filter…) must form an isolated group for
@@ -3611,7 +3615,7 @@ function computeGroupWrapperAttrs(
   // — the animation's keyframes are the single opacity source, so a fade can
   // brighten past the captured value instead of multiplying against it.
   const bakeOpacity = opacity < 1 && !animationOwnsOpacity(el);
-  const needsGroup = bakeOpacity || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
+  const needsGroup = bakeOpacity || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || hasProjectiveTransform || needsIsolation || needsCullWrapper;
   const groupAttrs: string[] = [];
   if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
   if (bakeOpacity) groupAttrs.push(`opacity="${r(opacity)}"`);
@@ -3654,7 +3658,7 @@ function computeGroupWrapperAttrs(
   // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
   // produced `style="filter:url("#id")"` and broke the SVG parser.
   if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
-  return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform: transformAttr !== "" };
+  return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform: transformAttr !== "" || hasProjectiveTransform };
 }
 
 
@@ -4363,6 +4367,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // animation's keyframes (holding `from`, typically the captured 0) keeping
   // it invisible at rest instead of a baked zero-opacity wrapper pinning it.
   if (opacity === 0 && !animationOwnsOpacity(el)) return;
+  if (el.projectiveHidden === true) return;
   // DM-2150: CSS preserve-3d/perspective is projective, while an SVG
   // `transform` attribute is strictly affine. The capture pipeline therefore
   // snapshots a complete 3D rendering context after Chromium composites it.

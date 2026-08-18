@@ -208,6 +208,7 @@ export const createTransformsHandler = () => {
     // keep the live-rect model. Anything containing a rotate(...) or skew
     // function — including the freshly composed string — needs the freeze.
     const needsFreeze =
+      /^matrix3d\(/.test(originalTransform) ||
       transformHasRotationOrSkew(originalTransform) ||
       /\brotate\b/.test(originalTransform) ||
       /\bskew/.test(originalTransform);

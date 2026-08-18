@@ -123,6 +123,21 @@ const captureDocumentTree =
   };
   const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
     const rect = el.getBoundingClientRect();
+    let projectiveTransform;
+    let projectiveHidden;
+    const _quad = _projectedQuads.get(el);
+    if (_quad != null && rect.width > 0 && rect.height > 0) {
+      const _abs = _homographyForRect(rect, _quad);
+      if (_abs != null) {
+        const _parentAbs = el.parentElement != null ? _projectiveAbsH.get(el.parentElement) : undefined;
+        const _parentInv = _parentAbs != null ? _invertH(_parentAbs) : null;
+        projectiveTransform = _parentInv != null ? _mulH(_parentInv, _abs) : _abs;
+        _projectiveAbsH.set(el, _abs);
+        const _area = (_quad[1].x - _quad[0].x) * (_quad[3].y - _quad[0].y)
+          - (_quad[1].y - _quad[0].y) * (_quad[3].x - _quad[0].x);
+        projectiveHidden = cs.backfaceVisibility === 'hidden' && _area < 0;
+      }
+    }
     // DM-513: when an element's rect is outside the viewport, normally skip the
     // whole subtree. But position:fixed / position:sticky descendants escape
     // their containing-block flow and can paint INSIDE the viewport even when
@@ -223,7 +238,7 @@ const captureDocumentTree =
     // them so the fidelity gaps are self-documenting.
     const sel = shortSelector(el);
     if (cs.transform && cs.transform.startsWith('matrix3d')) {
-      warn(sel, 'transform-3d', 'non-affine 3D rendering context captured from Chromium as a bitmap snapshot');
+      warn(sel, 'transform-3d', 'static 3D plane projected to vector SVG from Chromium-measured corners');
     }
     if (cs.backdropFilter && cs.backdropFilter !== 'none') {
       warn(sel, 'backdrop-filter', 'approximated via a frosted-glass background fallback for the transparent-backdrop case (doc 19); no true backdrop blur');
@@ -572,6 +587,9 @@ const captureDocumentTree =
         // sees it; otherwise z-index:-1 descendants hoist past their intended
         // SC and end up behind the wrong background (DM-589).
         transformStyle: cs.transformStyle,
+        perspective: cs.perspective,
+        perspectiveOrigin: cs.perspectiveOrigin,
+        backfaceVisibility: cs.backfaceVisibility,
         willChange: cs.willChange,
         contain: cs.contain,
         isolation: cs.isolation,
@@ -697,6 +715,8 @@ const captureDocumentTree =
         textEmphasisColor: cs.textEmphasisColor,
         textEmphasisPosition: cs.textEmphasisPosition,
       },
+      projectiveTransform,
+      projectiveHidden,
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
       // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
@@ -723,35 +743,6 @@ const captureDocumentTree =
       // SK-1108 / SK-1128: textarea soft-wrap + writing-mode != horizontal-tb
       // content-box raster rect — see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),
-      // DM-2150: SVG transforms are affine and cannot reproduce CSS
-      // perspective or preserve-3d flattening. Capture the top-level 3D
-      // rendering context as Chromium composited it. Descendant matrix3d
-      // nodes remain part of this one bitmap rather than being stamped
-      // independently. Include overflowing faces by unioning live descendant
-      // client rects before the walker freezes any child transforms.
-      transformSubtreeRaster: (function () {
-        const is3dRoot = cs.transformStyle === 'preserve-3d'
-          || (cs.perspective != null && cs.perspective !== '' && cs.perspective !== 'none');
-        if (!is3dRoot) return undefined;
-        let p = el.parentElement;
-        while (p != null) {
-          const pcs = getComputedStyle(p);
-          if (pcs.transformStyle === 'preserve-3d'
-              || (pcs.perspective != null && pcs.perspective !== '' && pcs.perspective !== 'none')) return undefined;
-          p = p.parentElement;
-        }
-        let left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom;
-        const descendants = el.getElementsByTagName('*');
-        for (let i = 0; i < descendants.length; i++) {
-          const dr = descendants[i].getBoundingClientRect();
-          if (dr.width <= 0 || dr.height <= 0) continue;
-          left = Math.min(left, dr.left);
-          top = Math.min(top, dr.top);
-          right = Math.max(right, dr.right);
-          bottom = Math.max(bottom, dr.bottom);
-        }
-        return { x: left - vp.x, y: top - vp.y, width: right - left, height: bottom - top };
-      })(),
       // DM-2149: `appearance:auto` controls are painted by Blink's platform
       // LayoutTheme (including native shadow-DOM parts), so a single hardcoded
       // SVG geometry/palette cannot match macOS, Windows, and Linux. Preserve
@@ -1415,6 +1406,75 @@ const captureDocumentTree =
       _transformInfluenced.add(_tdescs[_tj]);
     }
   }
+
+  // CSS 3D is ultimately a projective mapping of each painted element plane.
+  // Blink does not expose Element.getBoxQuads(), so measure the four border-box
+  // corners with zero-sized positioned descendants while the live transform
+  // tree is still intact. This observes perspective, flattening, origins, and
+  // nested preserve-3d directly, without fitting any fixture-specific matrix.
+  const _projectiveInfluenced = new Set();
+  for (let _pi = 0; _pi < _allEls.length; _pi++) {
+    const _pel = _allEls[_pi];
+    const _pcs = getComputedStyle(_pel);
+    const _is3d = (_pcs.transform || '').startsWith('matrix3d(')
+      || _pcs.transformStyle === 'preserve-3d'
+      || (_pcs.perspective != null && _pcs.perspective !== '' && _pcs.perspective !== 'none');
+    if (!_is3d) continue;
+    _projectiveInfluenced.add(_pel);
+    const _pdescs = _pel.getElementsByTagName('*');
+    for (let _pj = 0; _pj < _pdescs.length; _pj++) _projectiveInfluenced.add(_pdescs[_pj]);
+  }
+  const _projectedQuads = new WeakMap();
+  const _projectiveAbsH = new WeakMap();
+  const _measureProjectedQuad = (_el) => {
+    const _cs = getComputedStyle(_el);
+    const _oldPosition = _el.style.position;
+    if (_cs.position === 'static') _el.style.position = 'relative';
+    const _bl = parseFloat(_cs.borderLeftWidth) || 0;
+    const _bt = parseFloat(_cs.borderTopWidth) || 0;
+    const _w = _el.offsetWidth;
+    const _h = _el.offsetHeight;
+    const _points = [[-_bl, -_bt], [_w - _bl, -_bt], [_w - _bl, _h - _bt], [-_bl, _h - _bt]];
+    const _quad = [];
+    for (let _qi = 0; _qi < 4; _qi++) {
+      const _marker = document.createElement('i');
+      _marker.setAttribute('aria-hidden', 'true');
+      _marker.style.cssText = 'position:absolute;display:block;width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;';
+      _marker.style.left = _points[_qi][0] + 'px';
+      _marker.style.top = _points[_qi][1] + 'px';
+      _el.appendChild(_marker);
+      const _mr = _marker.getBoundingClientRect();
+      _quad.push({ x: _mr.left - vp.x, y: _mr.top - vp.y });
+      _marker.remove();
+    }
+    _el.style.position = _oldPosition;
+    return _quad;
+  };
+  for (const _pel of _projectiveInfluenced) {
+    if (_pel.offsetWidth > 0 && _pel.offsetHeight > 0) _projectedQuads.set(_pel, _measureProjectedQuad(_pel));
+  }
+
+  const _invertH = (m) => {
+    const [a,b,c,d,e,f,g,h,i] = m;
+    const A=e*i-f*h, B=c*h-b*i, C=b*f-c*e;
+    const D=f*g-d*i, E=a*i-c*g, F=c*d-a*f;
+    const G=d*h-e*g, H=b*g-a*h, I=a*e-b*d;
+    const det=a*A+b*D+c*G;
+    if (!isFinite(det) || Math.abs(det) < 1e-12) return null;
+    return [A/det,B/det,C/det,D/det,E/det,F/det,G/det,H/det,I/det];
+  };
+  const _mulH = (a, b) => [
+    a[0]*b[0]+a[1]*b[3]+a[2]*b[6], a[0]*b[1]+a[1]*b[4]+a[2]*b[7], a[0]*b[2]+a[1]*b[5]+a[2]*b[8],
+    a[3]*b[0]+a[4]*b[3]+a[5]*b[6], a[3]*b[1]+a[4]*b[4]+a[5]*b[7], a[3]*b[2]+a[4]*b[5]+a[5]*b[8],
+    a[6]*b[0]+a[7]*b[3]+a[8]*b[6], a[6]*b[1]+a[7]*b[4]+a[8]*b[7], a[6]*b[2]+a[7]*b[5]+a[8]*b[8],
+  ];
+  const _homographyForRect = (rect, q) => {
+    const x=rect.left-vp.x, y=rect.top-vp.y, w=rect.width, h=rect.height;
+    if (w <= 0 || h <= 0) return null;
+    const a=(q[1].x-q[0].x)/w, d=(q[1].y-q[0].y)/w;
+    const b=(q[3].x-q[0].x)/h, e=(q[3].y-q[0].y)/h;
+    return [a,b,q[0].x-a*x-b*y,d,e,q[0].y-d*x-e*y,0,0,1];
+  };
 
   // DM-1532: an element carrying `data-domotion-anim` gets a post-capture
   // intra-frame animation that CAN be a transform (e.g. an odometer digit reel

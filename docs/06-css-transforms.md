@@ -40,14 +40,16 @@ In `src/render/element-tree-to-svg.ts` `renderElement`, around the existing `<g>
 
 ## Edge cases
 
-- 3D transforms (`rotate3d`, `translate3d`, `perspective`, `matrix3d`) — SVG 1.1 doesn't support them. Drop the z component, treat as 2D, and warn.
+- Static 3D transforms (`rotate3d`, `translate3d`, `perspective`, `matrix3d`) are measured as final border-plane corners while Blink's live transform tree is intact. The capture then factors each plane against its transformed parent and emits nested affine SVG matrices. This preserves vector boxes, glyphs, gradients, and descendant fallbacks while following Blink's perspective/origin/flattening result. A planar SVG matrix cannot express the small non-linear fourth-corner component of a true homography; the renderer anchors top-left, top-right, and bottom-left exactly and keeps that residual as the deliberate vector-first limit rather than rasterising the subtree.
+
+This model was checked against Chromium revision `7d859f271cbda744098ac69f44978d4edfa62be3`: Blink constructs perspective with `ApplyPerspectiveDepth(style.UsedPerspective())` in `third_party/blink/renderer/core/paint/paint_property_tree_builder.cc`, carries preserve-3d state through transform paint-property nodes, and records hidden backfaces on those nodes. Domotion observes the result of that same tree rather than recreating a parallel list of transform-function or codepoint-like exceptions.
 - `transform-style: preserve-3d` — out of scope for this pass.
 - Pre-transformed bounding rect: the `getBoundingClientRect` returns the screen-space AABB of the rotated element, which is bigger than the unrotated rect. If we wrap our render in a transform around the captured center, the visual size will look right because we're rotating contents BACK from upright. But text inside the rotated box will be re-rendered along the rotated baseline, which is what we want.
 - Nested transforms: each element's captured rect already includes ancestor transforms, but if we apply our own transform we'd double-transform. Solution: apply the element's transform RELATIVE to its OWN center, not the ancestor's coordinate space. This is the same as Chrome's behavior.
 
 ## Implementation note (shipped)
 
-The per-named-function mapping above (`rotate(30deg)` → `rotate(30)`, `scale(2)` → `scale(2)`, …) turned out to be unnecessary: `getComputedStyle().transform` always returns the resolved value as `matrix(a, b, c, d, e, f)` (2D) or `matrix3d(…)` (3D), never the named functions. So `src/render/transforms.ts` parses **only** the matrix forms and emits an SVG `matrix(...)` (3D is downgraded to its 2D submatrix `m11, m12, m21, m22, m41, m42`, dropping perspective/depth). The output matches Chrome because the matrix already encodes whatever rotate/scale/skew/translate composition the author wrote.
+The per-named-function mapping above (`rotate(30deg)` → `rotate(30)`, `scale(2)` → `scale(2)`, …) turned out to be unnecessary: `getComputedStyle().transform` returns a resolved `matrix()` or `matrix3d()`. Ordinary 2D transforms still flow through `src/render/transforms.ts`. A matrix3d participating in a static 3D context instead uses the measured-plane path above, because taking only its 2D submatrix discards ancestor perspective and depth.
 
 ## Follow-ups to file
 

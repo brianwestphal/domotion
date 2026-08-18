@@ -365,6 +365,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msygwtzyxpejtmsw",
+          "message": {
+            "text": "Projected 3D planes remain SVG groups, so boxes, gradients, glyph paths, and independently necessary descendant raster fallbacks retain their normal render paths. The focused 21-transform-3d and 21-deep-transform-3d-preserve visual controls render coherent vector faces and hidden backfaces at a 1.2% residual; the full unit suite passes 3,782 tests with 32 skips.",
+            "markdown": "Projected 3D planes remain SVG groups, so boxes, gradients, glyph paths, and independently necessary descendant raster fallbacks retain their normal render paths. The focused 21-transform-3d and 21-deep-transform-3d-preserve visual controls render coherent vector faces and hidden backfaces at a 1.2% residual; the full unit suite passes 3,782 tests with 32 skips."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3585,
+                  "endLine": 3620,
+                  "snippet": {
+                    "text": "  const projective = el.projectiveTransform;\n  const hasProjectiveTransform = projective != null;\n  const transformAttr = hasProjectiveTransform\n    ? `matrix(${projective[0]} ${projective[3]} ${projective[1]} ${projective[4]} ${projective[2]} ${projective[5]})`\n    : svgTransformForElement(el);\n  // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or\n  // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,\n  // contain:paint, transform, filter…) must form an isolated group for\n  // mix-blend-mode descendants. SVG2 honors `isolation:isolate` natively on\n  // <g>, so emit it as inline style. Don't apply when this element ITSELF\n  // uses mix-blend-mode — that group is the blender, not an isolator. The\n  // explicit `isolation: isolate` value must always apply (even with\n  // mix-blend-mode the group can be both blender and isolator for its own\n  // descendants); but for implicit isolators, only honor when no blend mode\n  // is set on the group, otherwise we'd convert intentional blends into\n  // no-ops.\n  const explicitIsolate = el.styles.isolation === \"isolate\";\n  const implicitIsolate = blendCss === \"\" && (\n    opacity < 1\n    || (el.styles.position != null && el.styles.position !== \"static\"\n        && el.styles.zIndex != null && el.styles.zIndex !== \"\" && el.styles.zIndex !== \"auto\")\n    || (el.styles.contain != null && /\\b(?:paint|strict|content)\\b/i.test(el.styles.contain))\n  );\n  const needsIsolation = explicitIsolate || implicitIsolate;\n  // DM-603: an element marked for viewBox culling forces a wrapping <g>\n  // even if none of the above attributes would otherwise have demanded one,\n  // since that's where `style=\"display:none\"` / `class=\"cull-*\"` lives.\n  const needsCullWrapper = el.displayNone === true || (el.cullClass != null && el.cullClass !== \"\");\n  // When an intra-frame animation owns the opacity channel (see\n  // animationOwnsOpacity), the captured opacity is NOT baked onto the wrapper\n  // — the animation's keyframes are the single opacity source, so a fade can\n  // brighten past the captured value instead of multiplying against it.\n  const bakeOpacity = opacity < 1 && !animationOwnsOpacity(el);\n  const needsGroup = bakeOpacity || filterCss !== \"\" || blendCss !== \"\" || clipPathUrlId != null || maskUrlId != null || transformAttr !== \"\" || hasProjectiveTransform || needsIsolation || needsCullWrapper;\n  const groupAttrs: string[] = [];\n  if (transformAttr !== \"\") groupAttrs.push(`transform=\"${transformAttr}\"`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.9
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2289"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bb9426828495bd0b6584c5f3e6fdc1c8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2fd8c276eab16f99aaf15ff0b2e844071315212c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

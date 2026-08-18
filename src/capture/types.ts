@@ -707,6 +707,11 @@ export interface CapturedStyles {
   transformCreatesSc?: boolean;
   /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
   transformStyle?: string;
+  /** CSS perspective and its resolved origin, retained for vector 3D groups. */
+  perspective?: string;
+  perspectiveOrigin?: string;
+  /** Whether the element's reverse-facing plane participates in paint. */
+  backfaceVisibility?: string;
   /**
    * DM-751: extracted Z translation from `matrix3d(...)` when the
    * element's transform has a non-zero translateZ component. Used by the
@@ -993,6 +998,10 @@ export interface CapturedElement {
    */
   cullClass?: string;
   styles: CapturedStyles;
+  /** Relative planar homography measured after Blink composes a static CSS 3D transform tree. */
+  projectiveTransform?: [number, number, number, number, number, number, number, number, number];
+  /** Blink culled this plane because `backface-visibility: hidden` faced away. */
+  projectiveHidden?: boolean;
   /**
    * Per-line-fragment rects (viewport-relative px) for inline elements that
    * wrap across multiple line boxes. Populated by capture when the element
