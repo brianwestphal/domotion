@@ -69,6 +69,10 @@ type LinearGradient = {
 Handle:
 
 - Direction syntax: `to top`, `to right`, `to bottom right`, `45deg`, `0.25turn`, `100grad`, `1.57rad`. Normalize to degrees, then to the SVG convention (CSS 0deg = upward = SVG `(x1=0,y1=1) → (x2=0,y2=0)`).
+- Corner direction keywords use Blink's magic-corner construction, not a
+  vector aimed directly at the named corner. On a non-square box the bearing
+  is `90° − atan2(width,height)` for `to top right`, mirrored for the other
+  corners; see [doc 130](130-paint-geometry-oracle.md).
 - Color stops: `<color>`, `<color> <pct>`, `<color> <px>`. Px-positioned stops get normalized to a fraction of the painted rect's longest gradient axis (a downstream concern — pass through px and let the emit step resolve, since we know the final rect dimensions there).
 - Stops without explicit positions are auto-distributed (CSS rule: missing position = midpoint between neighbors with positions).
 - Hard color stops (`linear-gradient(red 50%, blue 50%)`) emit two SVG stops at the same offset.

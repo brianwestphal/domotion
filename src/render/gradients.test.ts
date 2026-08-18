@@ -180,6 +180,32 @@ describe("background gradient computed-length boundary (DM-2194)", () => {
   });
 });
 
+describe("background gradient magic corners (DM-2297)", () => {
+  it("uses Blink's perpendicular-to-corner line on a landscape box", () => {
+    // Chromium css_gradient_value.cc:1410-1430 computes the bearing as
+    // 90 - atan2(width, height), then EndPointsFromAngle projects the two
+    // magic-corner endpoints. A direct atan2(width,height) vector would emit
+    // (0,100)→(300,0) here and is the historical Domotion bug.
+    const svg = buildBackgroundLinearGradientDef(
+      "g", "to top right, red, blue", false, 300, 100,
+    );
+    expect(svg).toContain('x1="120"');
+    expect(svg).toContain('y1="140"');
+    expect(svg).toContain('x2="180"');
+    expect(svg).toContain('y2="-40"');
+  });
+
+  it("mirrors the same source rule into the opposite corner", () => {
+    const svg = buildBackgroundLinearGradientDef(
+      "g", "to bottom left, red, blue", false, 300, 100, 10, 20,
+    );
+    expect(svg).toContain('x1="190"');
+    expect(svg).toContain('y1="-20"');
+    expect(svg).toContain('x2="130"');
+    expect(svg).toContain('y2="160"');
+  });
+});
+
 describe("buildLinearGradientDef: repeating tiles across the gradient line", () => {
   it("emits multiple tiles spanning [0, 1] with calc-resolved offsets", () => {
     // A 100px-wide rect with a repeating-linear-gradient running 90deg means

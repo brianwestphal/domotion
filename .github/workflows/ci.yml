@@ -46,6 +46,7 @@ jobs:
       # tests/conventions.test.ts; this step surfaces the standalone report.)
       - run: npm run check:features
       - run: npm run check:parity-program
+      - run: npm run paint:geometry-oracle
 
   build:
     runs-on: ubuntu-latest

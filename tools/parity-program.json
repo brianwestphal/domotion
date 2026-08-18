@@ -78,13 +78,13 @@
       "id": "gradients-masks-clips",
       "domotionSources": ["src/render/gradients.ts", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
-      "oracle": null,
+      "oracle": "tools/paint-geometry-oracle.ts",
       "sourceAudit": "partial",
-      "oracleStatus": "visual-only",
-      "generatedCoverage": "curated feature and broad HTML fixtures",
+      "oracleStatus": "partial-stage-gate",
+      "generatedCoverage": "generated linear magic-corner boxes, basic clip shapes, linear gradient mask, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "No exact intermediate oracle separates parsed geometry, paint order, and rasterization variance.",
-      "nextAction": "Add a Chromium-versus-SVG structural oracle for gradient geometry, mask bounds, and clip paths."
+      "knownGap": "Radial/repeating geometry, stop interpolation, geometry-box selection, and multi-layer mask behavior are not yet structured oracle rows.",
+      "nextAction": "Expand the paint geometry oracle across the remaining radial, stop, reference-box, mask sizing, and compositing domains."
     },
     {
       "id": "transforms-projection-reflection",

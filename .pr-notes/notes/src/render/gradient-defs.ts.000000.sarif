@@ -154,6 +154,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msz9zth0ti2xv19a",
+          "message": {
+            "text": "Corner keywords intentionally use Blink’s magic-corner bearing, not a direct vector to the named corner. Chromium revision 7d859f27 computes 90 - atan2(width,height) before endpoint projection; the generated oracle independently pins all four directions over three non-square boxes and its mutation control rejects the retired direct-corner rule.",
+            "markdown": "Corner keywords intentionally use Blink’s magic-corner bearing, not a direct vector to the named corner. Chromium revision 7d859f27 computes `90 - atan2(width,height)` before endpoint projection; the generated oracle independently pins all four directions over three non-square boxes and its mutation control rejects the retired direct-corner rule."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 601,
+                  "endLine": 625,
+                  "snippet": {
+                    "text": "/** Map 'to top', 'to right', 'to top right' etc. to a CSS gradient angle (deg).\n *\n * Corner directions use Blink's “magic corner” construction. The gradient\n * line is perpendicular to the center-to-corner diagonal so its 50% line\n * reaches the other two corners. `CSSLinearGradientValue::CreateGradient`\n * computes `90 - atan2(width, height)` before `EndPointsFromAngle` (Chromium\n * rev 7d859f27, css_gradient_value.cc:1410-1430). A 3:1 landscape box's\n * `to top right` angle is therefore ~18°, not the direct-to-corner ~72°.\n */\nfunction cssDirectionToAngle(dir: string, w: number = 1, h: number = 1): number {\n  const parts = dir.trim().toLowerCase().split(/\\s+/);\n  const set = new Set(parts);\n  const hasTop = set.has(\"top\");\n  const hasBottom = set.has(\"bottom\");\n  const hasLeft = set.has(\"left\");\n  const hasRight = set.has(\"right\");\n  if (hasTop && !hasLeft && !hasRight) return 0;\n  if (hasBottom && !hasLeft && !hasRight) return 180;\n  if (hasRight && !hasTop && !hasBottom) return 90;\n  if (hasLeft && !hasTop && !hasBottom) return 270;\n  const cornerAngle = 90 - Math.atan2(w, h) * 180 / Math.PI;\n  if (hasTop && hasRight) return cornerAngle;\n  if (hasBottom && hasRight) return 180 - cornerAngle;\n  if (hasBottom && hasLeft) return 180 + cornerAngle;\n  if (hasTop && hasLeft) return 360 - cornerAngle;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2297"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1f122784728855bb8bacb606fb4c389d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "147cbc508abdb5b54cf44fa9ab651bfbd47bd166",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

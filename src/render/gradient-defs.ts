@@ -600,10 +600,12 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
 
 /** Map 'to top', 'to right', 'to top right' etc. to a CSS gradient angle (deg).
  *
- * Corner-to-corner directions ('to top right', etc.) depend on the box's
- * aspect ratio per CSS spec — the gradient line is drawn between opposite
- * corners, so the angle is atan2(w, h) for a w×h box (not always 45°). This
- * matters for narrow/tall boxes: a 3:1 landscape 'to top right' is ~72°, not 45°.
+ * Corner directions use Blink's “magic corner” construction. The gradient
+ * line is perpendicular to the center-to-corner diagonal so its 50% line
+ * reaches the other two corners. `CSSLinearGradientValue::CreateGradient`
+ * computes `90 - atan2(width, height)` before `EndPointsFromAngle` (Chromium
+ * rev 7d859f27, css_gradient_value.cc:1410-1430). A 3:1 landscape box's
+ * `to top right` angle is therefore ~18°, not the direct-to-corner ~72°.
  */
 function cssDirectionToAngle(dir: string, w: number = 1, h: number = 1): number {
   const parts = dir.trim().toLowerCase().split(/\s+/);
@@ -616,8 +618,7 @@ function cssDirectionToAngle(dir: string, w: number = 1, h: number = 1): number 
   if (hasBottom && !hasLeft && !hasRight) return 180;
   if (hasRight && !hasTop && !hasBottom) return 90;
   if (hasLeft && !hasTop && !hasBottom) return 270;
-  // Corner: angle from vertical axis to the line from opposite corner to this corner.
-  const cornerAngle = Math.atan2(w, h) * 180 / Math.PI;
+  const cornerAngle = 90 - Math.atan2(w, h) * 180 / Math.PI;
   if (hasTop && hasRight) return cornerAngle;
   if (hasBottom && hasRight) return 180 - cornerAngle;
   if (hasBottom && hasLeft) return 180 + cornerAngle;

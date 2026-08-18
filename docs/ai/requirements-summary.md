@@ -24,6 +24,13 @@ oracle, negative activation control, transition/metamorphic coverage, then
 all-platform visual integration. `npm run check:parity-program` keeps references
 and unresolved gaps explicit in CI.
 
+**Doc 130 (`docs/130-paint-geometry-oracle.md`) — Partial stage gate.**
+`npm run paint:geometry-oracle` exactly compares source-transcribed linear
+magic-corner geometry, basic clip shapes, and a gradient-mask path against the
+production SVG builders, with a mutation control that proves the old
+direct-to-corner approximation moves. Radial/repeating/stop interpolation,
+geometry-box, and multi-layer mask domains remain explicit expansions.
+
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from
 the workflow ordinal, records both beside the tested revision in shard/merged metadata, and runs the 351-stack
