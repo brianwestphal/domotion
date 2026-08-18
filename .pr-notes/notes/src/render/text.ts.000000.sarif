@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msy4fvh7kj2d2538",
+          "message": {
+            "text": "Blink computes initial-letter size from the selected face's vertical metrics (style_resolver.cc::ComputeInitialLetterFont). Capture records Chromium's resulting floated-cap ink height, but the browser canvas probe and Domotion's resolved SFNT can expose different metrics. Refit to that recorded height using the exact face selected by the renderer; width is deliberately not fitted because it is an output of Blink's height-driven sizing rule.",
+            "markdown": "Blink computes initial-letter size from the selected face's vertical metrics (`style_resolver.cc::ComputeInitialLetterFont`). Capture records Chromium's resulting floated-cap ink height, but the browser canvas probe and Domotion's resolved SFNT can expose different metrics. Refit to that recorded height using the exact face selected by the renderer; width is deliberately not fitted because it is an output of Blink's height-driven sizing rule."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1900,
+                  "endLine": 1908,
+                  "snippet": {
+                    "text": "    // purple-bold, the abbr[title]::after blue-and-smaller, etc. ::first-line\n    // uses the same mechanism — the first segment of a paragraph inherits a\n    // pseudo-style override from CAPTURE_SCRIPT (DM-294).\n    const segColor = seg.color ?? fillColor;\n    let segFontSize = seg.fontSize ?? elFontSize;\n    const segFontWeight = seg.fontWeight ?? elFontWeight;\n    const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;\n    // DM-513: pseudos with `font-family: 'sdicon'` etc. need their icon font\n    // routed through the renderer, not the parent element's body font."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2275"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d32293b2436e1566e6aa51c95f0d8bb1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "df9ec919776f5f97babd34a0168ca8aa65e233dd",
+          "branch": "validate-dm-2284-pseudos"
+        }
+      ]
     }
   ]
 }

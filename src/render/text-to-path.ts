@@ -3305,7 +3305,7 @@ export function measureEmphasisMarkMetrics(
 export function measureInkMetrics(
   text: string,
   fontOptions: TextFontOptions,
-): { inkAscent: number; inkDescent: number } | null {
+): { inkAscent: number; inkDescent: number; inkWidth: number } | null {
   const { fontFamily, fontSize, fontStyle, fontStretch, lang, variationSettings, features } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
@@ -3317,6 +3317,9 @@ export function measureInkMetrics(
   const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily, features);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let runOrigin = 0;
   for (const run of runs) {
     const scale = fontSize / run.font.unitsPerEm;
     let layout;
@@ -3326,20 +3329,31 @@ export function measureInkMetrics(
         ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
         : run.font.layout(run.text, undefined, undefined, lang, runDirection);
     } catch { continue; }
-    for (const g of layout.glyphs) {
+    let penX = 0;
+    for (let glyphIndex = 0; glyphIndex < layout.glyphs.length; glyphIndex++) {
+      const g = layout.glyphs[glyphIndex];
       // Skip .notdef tofu (id 0) — its placeholder bbox would inflate the ink
       // box, and `textToPathMarkup` suppresses it from emission anyway.
-      if (g.id === 0) continue;
-      const bbox = (g as { bbox?: { minY: number; maxY: number } }).bbox;
-      if (bbox == null || !(bbox.maxY > bbox.minY)) continue;
+      const position = layout.positions[glyphIndex];
+      const advance = (position?.xAdvance ?? g.advanceWidth) * scale;
+      if (g.id === 0) { penX += advance; continue; }
+      const bbox = (g as { bbox?: { minX: number; maxX: number; minY: number; maxY: number } }).bbox;
+      if (bbox == null || !(bbox.maxY > bbox.minY)) { penX += advance; continue; }
+      const glyphX = runOrigin + penX + (position?.xOffset ?? 0) * scale;
       const top = bbox.maxY * scale;
       const bot = bbox.minY * scale;
+      const left = glyphX + bbox.minX * scale;
+      const right = glyphX + bbox.maxX * scale;
       if (top > maxY) maxY = top;
       if (bot < minY) minY = bot;
+      if (left < minX) minX = left;
+      if (right > maxX) maxX = right;
+      penX += advance;
     }
+    runOrigin += penX;
   }
   if (maxY === -Infinity) return null;
-  return { inkAscent: maxY, inkDescent: -minY };
+  return { inkAscent: maxY, inkDescent: -minY, inkWidth: maxX - minX };
 }
 
 

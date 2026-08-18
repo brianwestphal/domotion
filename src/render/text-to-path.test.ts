@@ -1337,6 +1337,7 @@ describe("measureInkMetrics: MathML token ink positioning (DM-832)", () => {
     const ink = measureInkMetrics("x", { fontSize: 22, fontFamily: "math", fontWeight: "400" });
     expect(ink).not.toBeNull();
     expect(ink!.inkAscent).toBeGreaterThan(0);
+    expect(ink!.inkWidth).toBeGreaterThan(0);
     // 'x' rests on the baseline — descent is ~0 (sub-px), ascent ≈ x-height.
     expect(ink!.inkDescent).toBeLessThan(1);
     expect(ink!.inkAscent).toBeLessThan(22); // never exceeds the em
