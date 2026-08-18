@@ -155,6 +155,12 @@ installed on the capture host. For example, `Helvetica Neue` is a distinct face
 on macOS but is skipped on stock Windows, allowing the next declared family to
 become primary just as Blink's family iterator does.
 
+`resolveFont` applies the same availability rule when turning that key into the
+primary `FontInstance`: recognition by a generated name table is not proof that
+the sampled face exists on the current host. If `getFontInstance` cannot load a
+recognized entry, it continues through the authored stack and finally the
+script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
+
 > **The settings-mapped generics are SCRIPT-KEYED on mac/win.** Blink consults
 > `settings.<Generic>(script)` with `font_description.GetScript()`
 > (`FamilyNameFromSettings`, `platform/fonts/font_selector.cc:72-91`, rev

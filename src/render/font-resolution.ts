@@ -8966,19 +8966,28 @@ export function resolveFont(
    *  via Playwright's per-script tables (see `resolveFontKey`). */
   lang?: string,
 ): FontInstance | null {
-  // DM-1103: pin `opsz` for an explicitly-named optical cut (e.g. "SF Pro
-  // Text" → 17) by injecting it as a variation setting — which wins over the
-  // `opsz = fontSize` default in `applyVariationAxes`. An author-set
-  // `font-variation-settings: "opsz" …` still wins (we don't clobber it).
-  const cutOpsz = opticalCutOpszFor(fontFamily, lang);
-  if (cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)) {
-    variationSettings = { ...(variationSettings ?? {}), opsz: cutOpsz };
+  // A generated family-name table can recognize a face that is absent from
+  // this particular host inventory. Blink's kFontFamily stage keeps walking
+  // the authored CSS stack when matching/loading that face fails; do the same
+  // here rather than returning null from the first recognized snapshot entry.
+  for (const entry of splitFontFamilyNames(fontFamily)) {
+    const key = matchFamilyNameToKey(
+      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,
+    );
+    if (key == null) continue;
+    const cutOpsz = OPTICAL_CUT_OPSZ[entry.name];
+    const settings = cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)
+      ? { ...(variationSettings ?? {}), opsz: cutOpsz }
+      : variationSettings;
+    const instance = getFontInstance(
+      key, fontWeight, fontSize, slant, settings, stretch,
+      stackPrimaryIsSystemUi(entry.name), explicitDarwinSfFamily(entry.name),
+    );
+    if (instance != null) return instance;
   }
-  return getFontInstance(
-    resolveFontKey(fontFamily, lang), fontWeight, fontSize, slant,
-    variationSettings, stretch, stackPrimaryIsSystemUi(fontFamily),
-    explicitDarwinSfFamily(fontFamily),
-  );
+
+  const standardKey = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
+  return getFontInstance(standardKey, fontWeight, fontSize, slant, variationSettings, stretch);
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──
