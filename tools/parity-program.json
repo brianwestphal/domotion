@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "contract": "docs/129-chromium-parity-verification-program.md",
+  "areas": [
+    {
+      "id": "font-selection",
+      "domotionSources": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts"],
+      "oracle": "tools/font-conformance.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "Remaining baseline mismatches and inventory-sensitive paths are classified in docs 107 and 128.",
+      "nextAction": "Complete the pinned-ICU migration and retire helper-backed sampled routing decisions."
+    },
+    {
+      "id": "unicode-decisions",
+      "domotionSources": ["src/render/unicode-classification.ts", "src/render/glyph-helper.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts", "external/harfbuzz/src"],
+      "oracle": "tools/icu-conformance.ts",
+      "sourceAudit": "in-progress",
+      "oracleStatus": "partial-stage-gate",
+      "generatedCoverage": "exhaustive classifier comparisons where an ICU equivalent is exposed",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "The remaining heuristic and generated routing decisions are inventoried in doc 128.",
+      "nextAction": "Finish doc 128's migration checklist using the Chromium-pinned ICU helper."
+    },
+    {
+      "id": "shaping-clusters-glyphs",
+      "domotionSources": ["src/render/text-to-path.ts", "src/render/embedded-font-builder.ts"],
+      "upstreamSources": ["external/harfbuzz/src", "external/chromium/third_party/blink/renderer/platform/fonts/shaping"],
+      "oracle": "tools/exact-shaping-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "derived run corpus plus discriminating cluster fixtures and negative controls",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "The CDP-facing shaping oracle cannot expose Chromium glyph IDs; exact helper/HarfBuzz records and painted geometry cover different halves of the comparison.",
+      "nextAction": "Unify the exact logical report so face, glyph, cluster, advance, and offset evidence share one record."
+    },
+    {
+      "id": "text-layout-placement",
+      "domotionSources": ["src/capture", "src/render/text.ts", "src/render/text-to-path.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/platform/fonts/shaping"],
+      "oracle": "tools/layout-stage-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "partial-stage-gate",
+      "generatedCoverage": "representative line, bidi, writing-mode, spacing, transform, and synthetic-style transitions",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "The corpus is representative rather than a generated transition product, and unsupported-layout classification is narrow.",
+      "nextAction": "Generate transition-matrix and metamorphic layout cases with exact captured-versus-emitted geometry assertions."
+    },
+    {
+      "id": "text-decoration",
+      "domotionSources": ["src/render/text-to-path.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint"],
+      "oracle": "tools/decoration-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "family, size, line, style, thickness, offset, position, and skip-ink matrix",
+      "platformCoverage": ["darwin"],
+      "knownGap": "The exact geometry gate is macOS-primary and does not yet exercise the full platform matrix.",
+      "nextAction": "Run and baseline the logical geometry oracle on Linux and Windows."
+    },
+    {
+      "id": "borders-outlines",
+      "domotionSources": ["src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
+      "oracle": "tools/border-phase-oracle.ts",
+      "sourceAudit": "partial",
+      "oracleStatus": "paint-model-gate",
+      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges",
+      "platformCoverage": ["darwin"],
+      "knownGap": "Rounded corners, non-uniform sides, collapsed borders, writing modes, zoom, and cross-platform phase remain outside the oracle.",
+      "nextAction": "Transcribe the remaining Blink paint branches and expand the structural geometry matrix before changing thresholds."
+    },
+    {
+      "id": "gradients-masks-clips",
+      "domotionSources": ["src/render/gradients.ts", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
+      "oracle": null,
+      "sourceAudit": "partial",
+      "oracleStatus": "visual-only",
+      "generatedCoverage": "curated feature and broad HTML fixtures",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "No exact intermediate oracle separates parsed geometry, paint order, and rasterization variance.",
+      "nextAction": "Add a Chromium-versus-SVG structural oracle for gradient geometry, mask bounds, and clip paths."
+    },
+    {
+      "id": "transforms-projection-reflection",
+      "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
+      "oracle": null,
+      "sourceAudit": "partial",
+      "oracleStatus": "visual-only",
+      "generatedCoverage": "curated transform and reflection fixtures",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "Projective fourth-corner residuals and nested flattening/preserve-3d transitions lack an exact geometry oracle.",
+      "nextAction": "Compare Chromium quad geometry and Domotion matrices over a generated transform tree matrix."
+    },
+    {
+      "id": "compositing-effects-paint-order",
+      "domotionSources": ["src/render/element-tree-to-svg.ts", "src/tree-ops", "src/post-processing"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
+      "oracle": null,
+      "sourceAudit": "partial",
+      "oracleStatus": "visual-only",
+      "generatedCoverage": "curated feature, showcase, and broad HTML fixtures",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "Stacking, isolation, filter, opacity, blend, and mask interactions are sampled rather than transition-enumerated.",
+      "nextAction": "Build a generated paint-order/isolation transition matrix with structural and metamorphic assertions."
+    },
+    {
+      "id": "replaced-elements-controls-generated-content",
+      "domotionSources": ["src/capture", "src/render/form-controls.ts", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
+      "oracle": null,
+      "sourceAudit": "partial",
+      "oracleStatus": "visual-only",
+      "generatedCoverage": "curated feature and broad HTML fixtures",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "Native controls, replaced-element sizing, pseudo content, counters, and recursive frames do not share a decision-level oracle.",
+      "nextAction": "Inventory each synthesized geometry decision and add exact box/paint records for generated combinations."
+    },
+    {
+      "id": "raster-fallback-boundary",
+      "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts", "src/render/text.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint"],
+      "oracle": "docs/reference/raster-image-fallback-cases.md",
+      "sourceAudit": "partial",
+      "oracleStatus": "documented-classifier",
+      "generatedCoverage": "focused fallback fixtures and warning-path tests",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "There is no exhaustive activation gate proving every fallback is necessary, diagnosed, and absent from supported vector cases.",
+      "nextAction": "Add a fallback activation oracle with positive, negative, helper-disabled, and recursive-frame controls."
+    },
+    {
+      "id": "end-to-end-visual-integration",
+      "domotionSources": ["tests/features.ts", "tests/html-test-suite.tsx", "tests/real-world.tsx"],
+      "upstreamSources": ["external/chromium"],
+      "oracle": "src/review/compare-pngs.ts",
+      "sourceAudit": "not-applicable",
+      "oracleStatus": "pixel-integration-gate",
+      "generatedCoverage": "feature, showcase, HTML, Unicode, and real-world corpora",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "Pixels cannot prove that the correct decision path ran or distinguish logical defects from accepted rasterization noise.",
+      "nextAction": "Consume stage-oracle evidence in demo reports and classify each region before ticket creation."
+    }
+  ]
+}

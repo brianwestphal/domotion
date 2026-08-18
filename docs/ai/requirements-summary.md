@@ -15,6 +15,15 @@ required when inventories differ. Comparable reports fingerprint the browser,
 host/fonts/preferences, helper/source versions, layout context, resources, and
 oracle isolation, and require disable-and-require-movement controls.
 
+**Doc 129 (`docs/129-chromium-parity-verification-program.md`) is the durable
+cross-renderer verification plan.** `tools/parity-program.json` inventories each
+rendering subsystem's upstream source proof, stage oracle, generated and
+platform coverage, known confidence boundary, and next action. Work proceeds in
+the mandatory order: source decision, branch classification, intermediate
+oracle, negative activation control, transition/metamorphic coverage, then
+all-platform visual integration. `npm run check:parity-program` keeps references
+and unresolved gaps explicit in CI.
+
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from
 the workflow ordinal, records both beside the tested revision in shard/merged metadata, and runs the 351-stack

@@ -194,6 +194,22 @@ When the vendored docs go stale, the `lint` job is what tells you: `ai-assistant
 
 ## Investigation
 
+### Chromium parity verification program
+
+**Doc 129 (`docs/129-chromium-parity-verification-program.md`) and
+`tools/parity-program.json` are the durable plan for moving fidelity claims
+from screenshot confidence to logical proof.** Keep the matrix current whenever
+a source audit, stage oracle, generated/adversarial corpus, platform gate, or
+known approximation changes; `npm run check:parity-program` verifies its
+references in CI.
+
+For parity work, use this order: upstream source decision → Domotion branch
+classification → exact intermediate oracle → negative activation control →
+generated transition/metamorphic coverage → all-platform visual integration.
+Do not skip directly from a screenshot discrepancy to a fitted renderer change.
+The broad demo loop remains the final safety net, not the proof of the decision
+procedure.
+
 ### Try to DISPROVE it cheaply before proving it expensively
 
 **Before running any long test to confirm a change works, run the cheapest experiment that could show it does NOT.** Reach for the expensive suite only once quick falsification has failed.

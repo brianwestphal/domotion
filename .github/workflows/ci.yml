@@ -45,6 +45,7 @@ jobs:
       # even at 100% line coverage. (Also enforced inside `npm test` via
       # tests/conventions.test.ts; this step surfaces the standalone report.)
       - run: npm run check:features
+      - run: npm run check:parity-program
 
   build:
     runs-on: ubuntu-latest
