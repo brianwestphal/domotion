@@ -90,6 +90,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msydau78t9kzllsh",
+          "message": {
+            "text": "DM-2290: A repeating radial period must define the SVG radial vector, not merely occupy the first fraction of a full-radius vector. CSS measures radial stops along the computed x-radius; after resolving that radius, Domotion maps the first/last stop to SVG fr/r and normalizes the period to 0..1, exactly paralleling its linear endpoint construction. SVG then repeats the period inward/outward. Degenerate periods are collapsed before four-decimal serialization so a near-zero CSS period cannot become an accidental zero-width SVG vector.",
+            "markdown": "DM-2290: A repeating radial period must define the SVG radial vector, not merely occupy the first fraction of a full-radius vector. CSS measures radial stops along the computed x-radius; after resolving that radius, Domotion maps the first/last stop to SVG fr/r and normalizes the period to 0..1, exactly paralleling its linear endpoint construction. SVG then repeats the period inward/outward. Degenerate periods are collapsed before four-decimal serialization so a near-zero CSS period cannot become an accidental zero-width SVG vector."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 337,
+                  "endLine": 385,
+                  "snippet": {
+                    "text": "\n  // A radial percentage/length stop is measured on the gradient ray, whose\n  // end point is the positive-x intersection of the ending shape: `rx` CSS\n  // pixels. The previous half-diagonal estimate was never corrected after the\n  // real shape was known, so px periods were normalized against a different\n  // line from the one SVG painted (especially visible in non-square boxes).\n  let emitStops = parseGradientStops(parts.slice(stopsStart), rx);\n  if (emitStops.length === 0) return \"\";\n\n  // Mirror the linear-gradient construction: one repeating CSS period becomes\n  // the SVG radial vector, and SVG repeats outside it. Leaving a 20px period as\n  // stops 0..0.1 on a 200px radius makes SVG pad the final color over the other\n  // 90%, which is the nearly-solid rectangle DM-2290 exposed. `fr` is the\n  // radial analogue of moving a linear gradient's first endpoint; it preserves\n  // a positive first-stop offset and lets spreadMethod repeat inward as well as\n  // outward. Degenerate periods become the final stop's solid color, matching\n  // CSS Images' fix-up rather than inventing a minimum one-pixel ring.\n  let innerR = 0;\n  let outerR = rx;\n  let useRepeat = repeating;\n  if (repeating && emitStops.length >= 2) {\n    const firstPos = emitStops[0].pos;\n    const lastPos = emitStops[emitStops.length - 1].pos;\n    const period = lastPos - firstPos;\n    // `stopFmt` emits four fractional digits; periods smaller than half that\n    // precision would serialize both radii identically and become a zero-width\n    // SVG vector. Treat that as the CSS degenerate-period case deliberately.\n    if (period * rx > 5e-5) {\n      innerR = Math.max(0, firstPos * rx);\n      outerR = Math.max(innerR + Number.EPSILON, lastPos * rx);\n      emitStops = emitStops.map((s) => ({ ...s, pos: (s.pos - firstPos) / period }));\n    } else {\n      const solid = emitStops[emitStops.length - 1];\n      emitStops = [{ ...solid, pos: 0 }, { ...solid, pos: 1 }];\n      useRepeat = false;\n    }\n  }\n\n  const spread = useRepeat ? ` spreadMethod=\"repeat\"` : \"\";\n  const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset=\"${stopFmt(s.pos)}\" stop-color=\"${colorStr(s.color)}\" />`).join(\"\");\n\n  // SVG radialGradient has a single r — use rx as r and scale Y via gradientTransform\n  // to stretch it into an ellipse matching (rx, ry).\n  const rScale = rx > 0 ? ry / rx : 1;\n  const gradientTransform = Math.abs(rScale - 1) > 0.001\n    ? ` gradientTransform=\"translate(0 ${stopFmt(cy * (1 - rScale))}) scale(1 ${stopFmt(rScale)})\"`\n    : \"\";\n\n  const focal = innerR > 0"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "workItemUris": [
+            "DM-2290"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8962bb61efb2b033d11e78f17d6ae708"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5076f177b3eee2f3a2792f554d40eba81c753cc0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

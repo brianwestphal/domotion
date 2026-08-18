@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
-import { buildLinearGradientDef as buildBackgroundLinearGradientDef } from "./gradient-defs.js";
+import { buildLinearGradientDef as buildBackgroundLinearGradientDef, buildRadialGradientDef as buildBackgroundRadialGradientDef } from "./gradient-defs.js";
 
 describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
   it("vertical top-to-bottom from()/to() form (slashdot mobile header)", () => {
@@ -109,6 +109,60 @@ describe("radial gradient length boundary (DM-2194)", () => {
     expect(parseRadialGradient("radial-gradient(circle 24px, red, blue)")?.size)
       .toEqual({ kind: "px", r1: 24 });
     expect(parseRadialGradient("radial-gradient(circle 2em, red, blue)")).toBeNull();
+  });
+});
+
+describe("repeating radial gradient period geometry (DM-2290)", () => {
+  it("makes the 20px CSS period the SVG radial vector instead of padding the ending color", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle at center, #0ea5e9 0 10px, #bae6fd 10px 20px", true,
+      0, 0, 288, 120,
+    );
+    expect(svg).toContain('r="20"');
+    expect(svg).toContain('spreadMethod="repeat"');
+    expect(svg).toContain('offset="0.5"');
+    expect(svg).toContain('offset="1"');
+  });
+
+  it("resolves percentage stops against the computed x radius in a non-square box", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle 100px at 25% 75%, red 0%, blue 20%", true,
+      10, 20, 200, 80,
+    );
+    expect(svg).toContain('cx="60"');
+    expect(svg).toContain('cy="80"');
+    expect(svg).toContain('r="20"');
+  });
+
+  it("uses SVG's focal radius for a positive first stop so inward repetition keeps its phase", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle 100px at 30% 40%, red 10px, blue 30px", true,
+      0, 0, 200, 100,
+    );
+    expect(svg).toContain('fr="10"');
+    expect(svg).toContain('r="30"');
+    expect(svg).toContain('fx="60"');
+    expect(svg).toContain('fy="40"');
+    expect(svg).toContain('spreadMethod="repeat"');
+  });
+
+  it("collapses a coincident period to the final solid color", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle 100px, red 10px, blue 10px", true,
+      0, 0, 200, 100,
+    );
+    expect(svg).not.toContain("spreadMethod");
+    expect((svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? [])).toHaveLength(2);
+    expect(svg).not.toContain("rgb(255,0,0)");
+  });
+
+  it("also collapses a period below SVG serialization precision", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle 100px, red 10px, blue 10.000001px", true,
+      0, 0, 200, 100,
+    );
+    expect(svg).not.toContain("spreadMethod");
+    expect((svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? [])).toHaveLength(2);
   });
 });
 

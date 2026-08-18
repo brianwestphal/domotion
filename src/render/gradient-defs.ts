@@ -278,14 +278,6 @@ export function buildRadialGradientDef(
       shape = "circle";
     }
   }
-  // Compute the gradient ray length for px-stop normalization. Use the
-  // half-diagonal of the box as a conservative pre-estimate; the actual ray
-  // length (rx, computed below from size keyword + center) is the correct
-  // basis, so re-normalize stops once rx is known.
-  const radialLineLength = Math.sqrt(w * w + h * h) / 2;
-  const stops = parseGradientStops(parts.slice(stopsStart), radialLineLength);
-  if (stops.length === 0) return "";
-
   // Compute center in absolute user-space coords. DM-1121: `background-position`
   // translates the whole gradient IMAGE within the box, which for an auto-sized
   // gradient (image == box) just slides the center by the px offset — the
@@ -343,8 +335,45 @@ export function buildRadialGradientDef(
     }
   }
 
-  const spread = repeating ? ` spreadMethod="repeat"` : "";
-  const stopsMarkup = normalizeTransparentStops(stops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
+  // A radial percentage/length stop is measured on the gradient ray, whose
+  // end point is the positive-x intersection of the ending shape: `rx` CSS
+  // pixels. The previous half-diagonal estimate was never corrected after the
+  // real shape was known, so px periods were normalized against a different
+  // line from the one SVG painted (especially visible in non-square boxes).
+  let emitStops = parseGradientStops(parts.slice(stopsStart), rx);
+  if (emitStops.length === 0) return "";
+
+  // Mirror the linear-gradient construction: one repeating CSS period becomes
+  // the SVG radial vector, and SVG repeats outside it. Leaving a 20px period as
+  // stops 0..0.1 on a 200px radius makes SVG pad the final color over the other
+  // 90%, which is the nearly-solid rectangle DM-2290 exposed. `fr` is the
+  // radial analogue of moving a linear gradient's first endpoint; it preserves
+  // a positive first-stop offset and lets spreadMethod repeat inward as well as
+  // outward. Degenerate periods become the final stop's solid color, matching
+  // CSS Images' fix-up rather than inventing a minimum one-pixel ring.
+  let innerR = 0;
+  let outerR = rx;
+  let useRepeat = repeating;
+  if (repeating && emitStops.length >= 2) {
+    const firstPos = emitStops[0].pos;
+    const lastPos = emitStops[emitStops.length - 1].pos;
+    const period = lastPos - firstPos;
+    // `stopFmt` emits four fractional digits; periods smaller than half that
+    // precision would serialize both radii identically and become a zero-width
+    // SVG vector. Treat that as the CSS degenerate-period case deliberately.
+    if (period * rx > 5e-5) {
+      innerR = Math.max(0, firstPos * rx);
+      outerR = Math.max(innerR + Number.EPSILON, lastPos * rx);
+      emitStops = emitStops.map((s) => ({ ...s, pos: (s.pos - firstPos) / period }));
+    } else {
+      const solid = emitStops[emitStops.length - 1];
+      emitStops = [{ ...solid, pos: 0 }, { ...solid, pos: 1 }];
+      useRepeat = false;
+    }
+  }
+
+  const spread = useRepeat ? ` spreadMethod="repeat"` : "";
+  const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
 
   // SVG radialGradient has a single r — use rx as r and scale Y via gradientTransform
   // to stretch it into an ellipse matching (rx, ry).
@@ -353,7 +382,10 @@ export function buildRadialGradientDef(
     ? ` gradientTransform="translate(0 ${stopFmt(cy * (1 - rScale))}) scale(1 ${stopFmt(rScale)})"`
     : "";
 
-  return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${stopFmt(cx)}" cy="${stopFmt(cy)}" r="${stopFmt(Math.max(rx, 1))}"${spread}${gradientTransform}>${stopsMarkup}</radialGradient>`;
+  const focal = innerR > 0
+    ? ` fx="${stopFmt(cx)}" fy="${stopFmt(cy)}" fr="${stopFmt(innerR)}"`
+    : "";
+  return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${stopFmt(cx)}" cy="${stopFmt(cy)}" r="${stopFmt(Math.max(outerR, Number.EPSILON))}"${focal}${spread}${gradientTransform}>${stopsMarkup}</radialGradient>`;
 }
 
 function resolvePosFraction(token: string, axis: "h" | "v"): number {
