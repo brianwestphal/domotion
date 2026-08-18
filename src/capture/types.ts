@@ -448,6 +448,10 @@ export interface CapturedStyles {
   paddingRight: string;
   paddingBottom: string;
   paddingLeft: string;
+  marginTop?: string;
+  marginRight?: string;
+  marginBottom?: string;
+  marginLeft?: string;
   /** Intrinsic dimensions per background-image layer (same order as splitTopLevelCommas). */
   backgroundIntrinsic?: Array<{ w: number; h: number } | null>;
   borderImageSource: string;

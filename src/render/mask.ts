@@ -549,6 +549,7 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       // corner ≈ 56.6 vs Chrome's 80×containerH farthest-corner ≈ 72).
       gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : h;
     }
+    if (gradW <= 0 || gradH <= 0) return { contents, forceHide: false };
     const posTok = layerPos.trim().split(/\s+/);
     const resolveH = (t: string): number => {
       if (t === "left") return 0;
@@ -574,7 +575,26 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     else if (radial != null) def = buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), gx, gy, gradW, gradH);
     if (def === "") return { contents, forceHide: false };
     contents.push(def);
-    contents.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
+    const repeatTokens = layerRepeat.trim().toLowerCase().split(/\s+/);
+    const repeatX = repeatTokens[0] === "repeat-x" || repeatTokens[0] === "repeat";
+    const repeatY = repeatTokens[0] === "repeat-y" || repeatTokens[1] === "repeat" || (repeatTokens.length === 1 && repeatTokens[0] === "repeat");
+    if (!repeatX && !repeatY) {
+      contents.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
+    } else {
+      // CSSMaskPainter tiles gradient-generated images exactly like bitmap
+      // mask sources. Emit the finite set of vector tiles intersecting the
+      // masked box: a gradient nested inside an SVG <pattern> is not painted
+      // reliably by Chromium when that pattern itself lives inside a mask.
+      const firstX = repeatX ? gx + Math.floor((elX - gx) / gradW) * gradW : gx;
+      const firstY = repeatY ? gy + Math.floor((elY - gy) / gradH) * gradH : gy;
+      const lastX = repeatX ? elX + w : firstX + gradW;
+      const lastY = repeatY ? elY + h : firstY + gradH;
+      for (let tileY = firstY; tileY < lastY; tileY += repeatY ? gradH : lastY - firstY) {
+        for (let tileX = firstX; tileX < lastX; tileX += repeatX ? gradW : lastX - firstX) {
+          contents.push(`<rect x="${r(tileX)}" y="${r(tileY)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
+        }
+      }
+    }
     return { contents, forceHide: false };
   }
   // DM-494: `element(#id)` paint reference — emit the post-capture

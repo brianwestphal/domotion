@@ -16,7 +16,7 @@ import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
-import { translateClipPath } from "./clip-path.js";
+import { clipPathShapeForElement, translateClipPath } from "./clip-path.js";
 import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
 import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
@@ -5201,49 +5201,6 @@ function buildConicGradientDef(
 // Gradient-def builders (buildLinearGradientDef / buildRadialGradientDef + stop parsing) moved to ./gradient-defs.ts (DM-1305).
 
 // Mask + fragment-def builders (buildMaskDef, buildMaskBorder9Slice, rewriteFragmentMaskDef, positionFragment*Def, maskContainAlign) moved to ./mask.ts (DM-1305).
-
-/**
- * Translate a CSS clip-path value into an SVG <clipPath> body anchored at the
- * element's absolute (x, y, w, h). Returns "" for unsupported shapes.
- *
- * Supported:
- *   inset(<t> <r> <b> <l>) — treats percentages as fractions of the element's box
- *   circle(<r> at <x> <y>) — cx/cy via keywords or percentages
- *   ellipse(<rx> <ry> at <x> <y>)
- *   polygon(<x1> <y1>, <x2> <y2>, ...) — supports percentages and px values
- *
- * Returns "" for: path() (handled separately in `clip-path.ts`), geometry-box
- * references, complex shape mixes.
- */
-/**
- * Translate an element's CSS `clip-path` into an SVG clip-shape string, honoring
- * the optional `<geometry-box>` keyword (DM-818): the shape is positioned
- * relative to the named box, so `padding-box` / `content-box` inset the
- * reference rect by the element's border (and padding) widths before translating
- * the shape. Pure (no closure state). Returns "" when the value is a fragment
- * ref / untranslatable — the caller then tries the inline-`<clipPath>` path.
- */
-function clipPathShapeForElement(el: CapturedElement, clipPathCss: string): string {
-  const geoBoxMatch = /\b(content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i.exec(clipPathCss);
-  const geoBox = geoBoxMatch != null ? geoBoxMatch[1].toLowerCase() : "border-box";
-  const shapeValue = geoBoxMatch != null ? (clipPathCss.slice(0, geoBoxMatch.index) + clipPathCss.slice(geoBoxMatch.index + geoBoxMatch[0].length)).trim() : clipPathCss;
-  const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-  const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-  const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-  const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-  const pdT = parseFloat(el.styles.paddingTop ?? "0") || 0;
-  const pdR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-  const pdB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-  const pdL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-  let cpX = el.x, cpY = el.y, cpW = el.width, cpH = el.height;
-  if (geoBox === "padding-box" || geoBox === "content-box") {
-    cpX += bwL; cpY += bwT; cpW -= bwL + bwR; cpH -= bwT + bwB;
-    if (geoBox === "content-box") {
-      cpX += pdL; cpY += pdT; cpW -= pdL + pdR; cpH -= pdT + pdB;
-    }
-  }
-  return translateClipPath(shapeValue, cpX, cpY, Math.max(0, cpW), Math.max(0, cpH));
-}
 
 /**
  * Compose an element's CSS 2D transform into the SVG `<g transform>` value,

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszbcm2otn7edukq",
+          "message": {
+            "text": "Gradient mask layers must enter the same tiling stage as other generated images. The 43-row paint geometry oracle now distinguishes a single positioned patch from the repeated pattern and pins the resolved 80×40 tile at the CSS percentage-positioned origin.",
+            "markdown": "Gradient mask layers must enter the same tiling stage as other generated images. The 43-row paint geometry oracle now distinguishes a single positioned patch from the repeated pattern and pins the resolved 80×40 tile at the CSS percentage-positioned origin."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 577,
+                  "endLine": 592,
+                  "snippet": {
+                    "text": "    const repeatTokens = layerRepeat.trim().toLowerCase().split(/\\s+/);\n    const repeatX = repeatTokens[0] === \"repeat-x\" || repeatTokens[0] === \"repeat\";\n    const repeatY = repeatTokens[0] === \"repeat-y\" || repeatTokens[1] === \"repeat\" || (repeatTokens.length === 1 && repeatTokens[0] === \"repeat\");\n    if (!repeatX && !repeatY) {\n      contents.push(`<rect x=\"${r(gx)}\" y=\"${r(gy)}\" width=\"${r(gradW)}\" height=\"${r(gradH)}\" fill=\"url(#${gradId})\" />`);\n    } else {\n      // CSSMaskPainter tiles gradient-generated images exactly like bitmap\n      // mask sources. Keep the gradient in the resolved image-size rect and\n      // use pattern dimensions only to select the repeated axes.\n      const patId = `${id}p${li}`;\n      const patX = repeatX ? gx : elX;\n      const patY = repeatY ? gy : elY;\n      const patW = repeatX ? gradW : w;\n      const patH = repeatY ? gradH : h;\n      contents.push(`<pattern id=\"${patId}\" patternUnits=\"userSpaceOnUse\" x=\"${r(patX)}\" y=\"${r(patY)}\" width=\"${r(patW)}\" height=\"${r(patH)}\"><rect x=\"${r(gx)}\" y=\"${r(gy)}\" width=\"${r(gradW)}\" height=\"${r(gradH)}\" fill=\"url(#${gradId})\" /></pattern>`);\n      contents.push(`<rect x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" fill=\"url(#${patId})\" />`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2306"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9712bd08b13e53ff229b9d2375013300"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aee11d872268a4f6c62700c75a519e5c6e3c7645",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

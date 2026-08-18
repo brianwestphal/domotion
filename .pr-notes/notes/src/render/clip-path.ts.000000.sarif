@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszbclwwpcxlsmff",
+          "message": {
+            "text": "The reference-box mapping is transcribed from Blink rather than inferred from pixels. GeometryBoxUtils::ReferenceBoxBorderBoxOutsets maps HTML fill-box to content-box, expands margin-box by captured margins, and halves borders for half-border-box; ClipPathClipper::RoundedReferenceBox then adjusts the border radii for the selected box.",
+            "markdown": "The reference-box mapping is transcribed from Blink rather than inferred from pixels. `GeometryBoxUtils::ReferenceBoxBorderBoxOutsets` maps HTML `fill-box` to content-box, expands margin-box by captured margins, and halves borders for `half-border-box`; `ClipPathClipper::RoundedReferenceBox` then adjusts the border radii for the selected box."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/clip-path.ts"
+                },
+                "region": {
+                  "startLine": 31,
+                  "endLine": 69,
+                  "snippet": {
+                    "text": "/** Blink GeometryBoxUtils::ReferenceBoxBorderBoxOutsets, rev 7d859f27. */\nexport function clipReferenceBox(el: ClipPathBoxInput, geometryBox: HtmlClipGeometryBox): { x: number; y: number; width: number; height: number } {\n  const border = { top: px(el.styles.borderTopWidth), right: px(el.styles.borderRightWidth), bottom: px(el.styles.borderBottomWidth), left: px(el.styles.borderLeftWidth) };\n  const padding = { top: px(el.styles.paddingTop), right: px(el.styles.paddingRight), bottom: px(el.styles.paddingBottom), left: px(el.styles.paddingLeft) };\n  const margin = { top: px(el.styles.marginTop), right: px(el.styles.marginRight), bottom: px(el.styles.marginBottom), left: px(el.styles.marginLeft) };\n  let outsets = { top: 0, right: 0, bottom: 0, left: 0 };\n  if (geometryBox === \"padding-box\") outsets = { top: -border.top, right: -border.right, bottom: -border.bottom, left: -border.left };\n  else if (geometryBox === \"content-box\" || geometryBox === \"fill-box\") outsets = { top: -border.top - padding.top, right: -border.right - padding.right, bottom: -border.bottom - padding.bottom, left: -border.left - padding.left };\n  else if (geometryBox === \"margin-box\") outsets = margin;\n  else if (geometryBox === \"half-border-box\") outsets = { top: -border.top / 2, right: -border.right / 2, bottom: -border.bottom / 2, left: -border.left / 2 };\n  return {\n    x: el.x - outsets.left,\n    y: el.y - outsets.top,\n    width: Math.max(0, el.width + outsets.left + outsets.right),\n    height: Math.max(0, el.height + outsets.top + outsets.bottom),\n  };\n}\n\n/** ClipPathClipper::RoundedReferenceBox for non-SVG layout boxes. */\nfunction roundedReferenceBox(el: ClipPathBoxInput, geometryBox: HtmlClipGeometryBox): string {\n  const box = clipReferenceBox(el, geometryBox);\n  const border = { top: px(el.styles.borderTopWidth), right: px(el.styles.borderRightWidth), bottom: px(el.styles.borderBottomWidth), left: px(el.styles.borderLeftWidth) };\n  const padding = { top: px(el.styles.paddingTop), right: px(el.styles.paddingRight), bottom: px(el.styles.paddingBottom), left: px(el.styles.paddingLeft) };\n  let radii = parseCornerRadii(el.styles, el.width, el.height);\n  if (geometryBox === \"padding-box\") radii = insetCornerRadii(radii, border.top, border.right, border.bottom, border.left);\n  else if (geometryBox === \"content-box\" || geometryBox === \"fill-box\") radii = insetCornerRadii(radii, border.top + padding.top, border.right + padding.right, border.bottom + padding.bottom, border.left + padding.left);\n  else if (geometryBox === \"half-border-box\") radii = insetCornerRadii(radii, border.top / 2, border.right / 2, border.bottom / 2, border.left / 2);\n  else if (geometryBox === \"margin-box\") radii = outsetCornerRadiiWithCorrection(radii, px(el.styles.marginTop), px(el.styles.marginRight), px(el.styles.marginBottom), px(el.styles.marginLeft));\n  return roundedRectSvg(box.x, box.y, box.width, box.height, radii, \"\").replace(\"  />\", \" />\");\n}\n\n/** Parse the optional geometry box and apply the basic shape to that box. */\nexport function clipPathShapeForElement(el: ClipPathBoxInput, clipPathCss: string): string {\n  const match = /\\b(content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box|half-border-box)\\b/i.exec(clipPathCss);\n  const geometryBox = (match?.[1].toLowerCase() ?? \"border-box\") as HtmlClipGeometryBox;\n  const shape = match == null ? clipPathCss.trim() : (clipPathCss.slice(0, match.index) + clipPathCss.slice(match.index + match[0].length)).trim();\n  if (shape === \"\") return roundedReferenceBox(el, geometryBox);\n  const box = clipReferenceBox(el, geometryBox);\n  return translateClipPath(shape, box.x, box.y, box.width, box.height);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2306"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7b572e16f4a667ee436637f86a6011d8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aee11d872268a4f6c62700c75a519e5c6e3c7645",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

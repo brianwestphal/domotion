@@ -8,7 +8,66 @@
  */
 
 import { r } from "./format.js";
-import { roundedRectPath } from "./borders.js";
+import { insetCornerRadii, outsetCornerRadiiWithCorrection, parseCornerRadii, roundedRectPath, roundedRectSvg } from "./borders.js";
+
+export interface ClipPathBoxInput {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  styles: {
+    borderTopWidth?: string; borderRightWidth?: string; borderBottomWidth?: string; borderLeftWidth?: string;
+    paddingTop?: string; paddingRight?: string; paddingBottom?: string; paddingLeft?: string;
+    marginTop?: string; marginRight?: string; marginBottom?: string; marginLeft?: string;
+    borderTopLeftRadius?: string; borderTopRightRadius?: string; borderBottomRightRadius?: string; borderBottomLeftRadius?: string;
+    borderRadius?: string;
+  };
+}
+
+export type HtmlClipGeometryBox = "border-box" | "padding-box" | "content-box" | "margin-box" | "fill-box" | "stroke-box" | "view-box" | "half-border-box";
+
+const px = (value: string | undefined): number => parseFloat(value ?? "0") || 0;
+
+/** Blink GeometryBoxUtils::ReferenceBoxBorderBoxOutsets, rev 7d859f27. */
+export function clipReferenceBox(el: ClipPathBoxInput, geometryBox: HtmlClipGeometryBox): { x: number; y: number; width: number; height: number } {
+  const border = { top: px(el.styles.borderTopWidth), right: px(el.styles.borderRightWidth), bottom: px(el.styles.borderBottomWidth), left: px(el.styles.borderLeftWidth) };
+  const padding = { top: px(el.styles.paddingTop), right: px(el.styles.paddingRight), bottom: px(el.styles.paddingBottom), left: px(el.styles.paddingLeft) };
+  const margin = { top: px(el.styles.marginTop), right: px(el.styles.marginRight), bottom: px(el.styles.marginBottom), left: px(el.styles.marginLeft) };
+  let outsets = { top: 0, right: 0, bottom: 0, left: 0 };
+  if (geometryBox === "padding-box") outsets = { top: -border.top, right: -border.right, bottom: -border.bottom, left: -border.left };
+  else if (geometryBox === "content-box" || geometryBox === "fill-box") outsets = { top: -border.top - padding.top, right: -border.right - padding.right, bottom: -border.bottom - padding.bottom, left: -border.left - padding.left };
+  else if (geometryBox === "margin-box") outsets = margin;
+  else if (geometryBox === "half-border-box") outsets = { top: -border.top / 2, right: -border.right / 2, bottom: -border.bottom / 2, left: -border.left / 2 };
+  return {
+    x: el.x - outsets.left,
+    y: el.y - outsets.top,
+    width: Math.max(0, el.width + outsets.left + outsets.right),
+    height: Math.max(0, el.height + outsets.top + outsets.bottom),
+  };
+}
+
+/** ClipPathClipper::RoundedReferenceBox for non-SVG layout boxes. */
+function roundedReferenceBox(el: ClipPathBoxInput, geometryBox: HtmlClipGeometryBox): string {
+  const box = clipReferenceBox(el, geometryBox);
+  const border = { top: px(el.styles.borderTopWidth), right: px(el.styles.borderRightWidth), bottom: px(el.styles.borderBottomWidth), left: px(el.styles.borderLeftWidth) };
+  const padding = { top: px(el.styles.paddingTop), right: px(el.styles.paddingRight), bottom: px(el.styles.paddingBottom), left: px(el.styles.paddingLeft) };
+  let radii = parseCornerRadii(el.styles, el.width, el.height);
+  if (geometryBox === "padding-box") radii = insetCornerRadii(radii, border.top, border.right, border.bottom, border.left);
+  else if (geometryBox === "content-box" || geometryBox === "fill-box") radii = insetCornerRadii(radii, border.top + padding.top, border.right + padding.right, border.bottom + padding.bottom, border.left + padding.left);
+  else if (geometryBox === "half-border-box") radii = insetCornerRadii(radii, border.top / 2, border.right / 2, border.bottom / 2, border.left / 2);
+  else if (geometryBox === "margin-box") radii = outsetCornerRadiiWithCorrection(radii, px(el.styles.marginTop), px(el.styles.marginRight), px(el.styles.marginBottom), px(el.styles.marginLeft));
+  return roundedRectSvg(box.x, box.y, box.width, box.height, radii, "").replace("  />", " />");
+}
+
+/** Parse the optional geometry box and apply the basic shape to that box. */
+export function clipPathShapeForElement(el: ClipPathBoxInput, clipPathCss: string): string {
+  const match = /\b(content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box|half-border-box)\b/i.exec(clipPathCss);
+  const geometryBox = (match?.[1].toLowerCase() ?? "border-box") as HtmlClipGeometryBox;
+  const shape = match == null ? clipPathCss.trim() : (clipPathCss.slice(0, match.index) + clipPathCss.slice(match.index + match[0].length)).trim();
+  if (shape === "") return roundedReferenceBox(el, geometryBox);
+  const box = clipReferenceBox(el, geometryBox);
+  return translateClipPath(shape, box.x, box.y, box.width, box.height);
+}
 
 export function translateClipPath(value: string, x: number, y: number, w: number, h: number): string {
   const resolvePx = (tok: string, basis: number): number => {

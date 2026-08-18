@@ -9,8 +9,8 @@
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { buildLinearGradientDef, buildRadialGradientDef, parseGradientStops } from "../src/render/gradient-defs.js";
-import { translateClipPath } from "../src/render/clip-path.js";
-import { buildMaskDef } from "../src/render/mask.js";
+import { clipPathShapeForElement, clipReferenceBox, translateClipPath, type HtmlClipGeometryBox } from "../src/render/clip-path.js";
+import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } from "../src/render/mask.js";
 
 export interface Point { x: number; y: number }
 export interface LineRecord { p0: Point; p1: Point }
@@ -121,7 +121,7 @@ function clipRows(): OracleRow[] {
     { id: "ellipse", value: "ellipse(30% 40% at 25% 60%)", expected: { cx: 60, cy: 92, rx: 60, ry: 48 } },
     { id: "polygon", value: "polygon(0% 0%, 100% 25%, 75% 100%)", expected: { points: [10, 20, 210, 50, 160, 140] } },
   ];
-  return cases.map(({ id, value, expected }) => {
+  const rows = cases.map(({ id, value, expected }) => {
     const markup = translateClipPath(value, 10, 20, 200, 120);
     let actual: unknown;
     if (id === "inset") actual = { x: numberAttr(markup, "x"), y: numberAttr(markup, "y"), width: numberAttr(markup, "width"), height: numberAttr(markup, "height") };
@@ -131,6 +131,41 @@ function clipRows(): OracleRow[] {
     const delta = maxDelta(expected, actual);
     return { id: `clip.${id}`, stage: "clip" as const, source: "basic_shape_functions.cc and clip_path_clipper.cc reference-box path", expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE };
   });
+  const element = {
+    x: 10, y: 20, width: 200, height: 120,
+    styles: {
+      borderTopWidth: "4px", borderRightWidth: "6px", borderBottomWidth: "8px", borderLeftWidth: "10px",
+      paddingTop: "12px", paddingRight: "14px", paddingBottom: "16px", paddingLeft: "18px",
+      marginTop: "20px", marginRight: "22px", marginBottom: "24px", marginLeft: "26px",
+      borderRadius: "30px",
+    },
+  };
+  const referenceCases: Array<{ box: HtmlClipGeometryBox; expected: { x: number; y: number; width: number; height: number } }> = [
+    { box: "border-box", expected: { x: 10, y: 20, width: 200, height: 120 } },
+    { box: "padding-box", expected: { x: 20, y: 24, width: 184, height: 108 } },
+    { box: "content-box", expected: { x: 38, y: 36, width: 152, height: 80 } },
+    { box: "fill-box", expected: { x: 38, y: 36, width: 152, height: 80 } },
+    { box: "margin-box", expected: { x: -16, y: 0, width: 248, height: 164 } },
+    { box: "half-border-box", expected: { x: 15, y: 22, width: 192, height: 114 } },
+  ];
+  for (const test of referenceCases) {
+    const actual = clipReferenceBox(element, test.box);
+    const delta = maxDelta(test.expected, actual);
+    rows.push({ id: `clip.reference-box.${test.box}`, stage: "clip", source: "geometry_box_utils.cc:13-49", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
+  }
+  const roundedElement = { ...element, styles: { ...element.styles, borderTopWidth: "5px", borderRightWidth: "5px", borderBottomWidth: "5px", borderLeftWidth: "5px", paddingTop: "10px", paddingRight: "10px", paddingBottom: "10px", paddingLeft: "10px" } };
+  for (const test of [{ box: "padding-box" as const, expected: { x: 15, y: 25, width: 190, height: 110, rx: 25 } }, { box: "content-box" as const, expected: { x: 25, y: 35, width: 170, height: 90, rx: 15 } }]) {
+    const markup = clipPathShapeForElement(roundedElement, test.box);
+    const actual = { x: numberAttr(markup, "x"), y: numberAttr(markup, "y"), width: numberAttr(markup, "width"), height: numberAttr(markup, "height"), rx: numberAttr(markup, "rx") };
+    const delta = maxDelta(test.expected, actual);
+    rows.push({ id: `clip.rounded-reference-box.${test.box}`, stage: "clip", source: "clip_path_clipper.cc:242-261", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
+  }
+  const marginRounded = clipPathShapeForElement({ ...roundedElement, styles: { ...roundedElement.styles, borderRadius: "10px", marginTop: "20px", marginRight: "20px", marginBottom: "20px", marginLeft: "20px" } }, "margin-box");
+  const marginExpected = { x: -10, y: 0, width: 240, height: 160, rx: 27.5 };
+  const marginActual = { x: numberAttr(marginRounded, "x"), y: numberAttr(marginRounded, "y"), width: numberAttr(marginRounded, "width"), height: numberAttr(marginRounded, "height"), rx: numberAttr(marginRounded, "rx") };
+  const marginDelta = maxDelta(marginExpected, marginActual);
+  rows.push({ id: "clip.rounded-reference-box.margin-correction", stage: "clip", source: "float_rounded_rect.cc OutsetWithCornerCorrection", expected: marginExpected, actual: marginActual, maxAbsDelta: marginDelta, pass: marginDelta <= TOLERANCE });
+  return rows;
 }
 
 function maskRows(): OracleRow[] {
@@ -139,7 +174,33 @@ function maskRows(): OracleRow[] {
   const actual = { line: lineFromMarkup(built.def), maskType: /mask-type="([^"]+)"/.exec(built.def)?.[1] ?? "" };
   const wanted = { line: expected, maskType: "alpha" };
   const delta = maxDelta(expected, actual.line);
-  return [{ id: "mask.linear.magic-corner.alpha", stage: "mask", source: "CSSMaskPainter FillLayer geometry plus css_gradient_value.cc", expected: wanted, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE && actual.maskType === "alpha" }];
+  const rows: OracleRow[] = [{ id: "mask.linear.magic-corner.alpha", stage: "mask", source: "CSSMaskPainter FillLayer geometry plus css_gradient_value.cc", expected: wanted, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE && actual.maskType === "alpha" }];
+  const positioned = buildMaskDef("mp", "linear-gradient(red, black)", 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", "no-repeat", "add").def;
+  const positionedRect = /<rect x="40" y="65" width="80" height="40"/.test(positioned);
+  rows.push({ id: "mask.size-position.no-repeat", stage: "mask", source: "CSSMaskPainter FillLayer image geometry", expected: true, actual: positionedRect, maxAbsDelta: positionedRect ? 0 : Infinity, pass: positionedRect });
+  const repeated = buildMaskDef("mr", "linear-gradient(red, black)", 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", "repeat", "add").def;
+  const repeatOrigins = [...repeated.matchAll(/<rect x="(-?\d+(?:\.\d+)?)" y="(-?\d+(?:\.\d+)?)" width="80" height="40"/g)].map((match) => [Number(match[1]), Number(match[2])]);
+  const expectedRepeatOrigins = [[-40, -15], [40, -15], [120, -15], [200, -15], [-40, 25], [40, 25], [120, 25], [200, 25], [-40, 65], [40, 65], [120, 65], [200, 65], [-40, 105], [40, 105], [120, 105], [200, 105]];
+  const repeatDelta = maxDelta(expectedRepeatOrigins, repeatOrigins);
+  rows.push({ id: "mask.size-position.repeat", stage: "mask", source: "CSSMaskPainter FillLayer tiling geometry", expected: expectedRepeatOrigins, actual: repeatOrigins, maxAbsDelta: repeatDelta, pass: repeatDelta <= TOLERANCE });
+  const twoLayers = "linear-gradient(red, black),linear-gradient(white, transparent)";
+  for (const test of [
+    { op: "add", marker: (def: string) => !def.includes("<feColorMatrix") && (def.match(/<mask /g)?.length ?? 0) === 1 },
+    { op: "intersect", marker: (def: string) => def.includes('id="mci1"') && def.includes('mask="url(#mci1)"') },
+    { op: "subtract", marker: (def: string) => def.includes('id="mcs1"') && def.includes('id="mcinv"') },
+    { op: "exclude", marker: (def: string) => def.includes('id="mcx0"') && def.includes('id="mcx1"') && def.includes('id="mcinv"') },
+  ]) {
+    const composite = buildMaskDef("mc", twoLayers, 0, 0, 100, 80, "alpha", "auto", "0% 0%", "no-repeat", test.op).def;
+    const matched = test.marker(composite);
+    rows.push({ id: `mask.composite.${test.op}`, stage: "mask", source: "CSS mask-composite Porter-Duff mapping", expected: true, actual: matched, maxAbsDelta: matched ? 0 : Infinity, pass: matched });
+  }
+  const fragmentMask = positionFragmentMaskDef('<mask id="fm" x="0" y="0" width="1" height="1"><rect width="10" height="8"/></mask>', 13, 17, 90, 70);
+  const fragmentMaskExpected = '<mask id="fm" maskUnits="userSpaceOnUse" x="13" y="17" width="90" height="70"><g transform="translate(13, 17)"><rect width="10" height="8"/></g></mask>';
+  rows.push({ id: "mask.fragment.user-space", stage: "mask", source: "SVGResourceClipper/Masker HTML reference coordinate mapping", expected: fragmentMaskExpected, actual: fragmentMask, maxAbsDelta: fragmentMask === fragmentMaskExpected ? 0 : Infinity, pass: fragmentMask === fragmentMaskExpected });
+  const fragmentClip = positionFragmentClipPathDef('<clipPath id="fc" clipPathUnits="userSpaceOnUse"><rect width="10" height="8"/></clipPath>', 13, 17);
+  const fragmentClipExpected = '<clipPath id="fc" clipPathUnits="userSpaceOnUse" transform="translate(13, 17)"><rect width="10" height="8"/></clipPath>';
+  rows.push({ id: "clip.fragment.user-space", stage: "clip", source: "ClipPathClipper local reference coordinate mapping", expected: fragmentClipExpected, actual: fragmentClip, maxAbsDelta: fragmentClip === fragmentClipExpected ? 0 : Infinity, pass: fragmentClip === fragmentClipExpected });
+  return rows;
 }
 
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {

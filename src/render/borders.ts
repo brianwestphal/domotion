@@ -261,6 +261,23 @@ export function outsetCornerRadiiForShadow(c: CornerRadii, spread: number): Corn
   return { tl, tr, br, bl, uniform };
 }
 
+/** Blink FloatRoundedRect::Radii::OutsetWithCornerCorrection. Margin-box
+ * corners use the CSS corner-shaping correction independently per axis so a
+ * small radius approaches a sharp corner continuously instead of simply
+ * adding the whole margin outset. */
+export function outsetCornerRadiiWithCorrection(c: CornerRadii, top: number, right: number, bottom: number, left: number): CornerRadii {
+  const adjusted = (radius: number, outset: number): number => {
+    if (radius === 0 || outset === 0) return radius;
+    const magnitude = Math.abs(outset);
+    const factor = radius < magnitude ? 1 + (radius / magnitude - 1) ** 3 : 1;
+    return Math.max(0, radius + factor * outset);
+  };
+  const corner = (value: CornerRadiusPair, horizontal: number, vertical: number): CornerRadiusPair => ({ h: adjusted(value.h, horizontal), v: adjusted(value.v, vertical) });
+  const tl = corner(c.tl, left, top), tr = corner(c.tr, right, top), br = corner(c.br, right, bottom), bl = corner(c.bl, left, bottom);
+  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return { tl, tr, br, bl, uniform };
+}
+
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
  *  Path goes clockwise from the top-left, using elliptical arc commands at each
  *  corner. Zero-radius corners collapse to a sharp 90° join. */

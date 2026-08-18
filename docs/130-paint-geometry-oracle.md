@@ -12,10 +12,14 @@ landscape, portrait, and irregular non-square boxes; circle and ellipse radial
 ending shapes for closest/farthest side/corner behavior; a positive-domain
 repeating radial period; monotonic stop fixup, unspecified-stop distribution,
 double-position stops, and Blink's nine-stop color-hint expansion; basic
-`inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; and a
-linear-gradient alpha mask. Gradient coordinates compare at the emitter's
-four-decimal serialization boundary. Basic clip coordinates compare after the
-renderer's documented one-decimal SVG serialization.
+`inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; HTML border,
+padding, content/fill, margin, and half-border reference boxes; rounded
+padding/content insets and margin-corner correction; mask size, position, and
+gradient tiling; all four mask-composite operators; fragment mask and clip-path
+user-space positioning; and a linear-gradient alpha mask. Gradient coordinates
+compare at the emitter's four-decimal serialization boundary. Basic clip
+coordinates compare after the renderer's documented one-decimal SVG
+serialization.
 
 The linear corner rule is transcribed from Chromium revision `7d859f27`,
 `core/css/css_gradient_value.cc:1282-1337,1410-1430`. For `to top right`, Blink
@@ -40,10 +44,10 @@ logic for legacy sRGB colors.
 This gate does not yet claim exhaustive paint parity. Exact oracle rows still
 need to be added for non-default gradient interpolation color spaces and
 premultiplied-alpha color math, negative/out-of-range radial stop domains,
-geometry-box reference selection, rounded inset paths, mask sizing/position/
-repeat/composite, URL/fragment masks, and conic raster tiles. Those domains
-remain covered by unit and visual fixtures but do not gain an exact logical
-verdict from this oracle until their structured rows land.
+`round`/`space` mask tiling and mixed per-layer composite lists, SVG-specific
+geometry boxes, and conic raster tiles. Those domains remain covered by unit
+and visual fixtures but do not gain an exact logical verdict from this oracle
+until their structured rows land.
 
 The pixel suites remain the final integration stage. A pixel residual cannot
 override a failure here, and a passing row here does not classify a later
