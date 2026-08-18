@@ -107,12 +107,12 @@ export const createEmojiDetect = () => {
   let _colorCanvas = null;
   let _colorCtx = null;
   const _colorCache = new Map();
-  const isColorGlyph = (cp, font) => {
+  const isColorGlyph = (cp, font, variation = '') => {
     // No font context (e.g. the pseudo-content path) → preserve the prior
     // unconditional behavior: assume the default-presentation emoji renders in
     // color.
     if (font == null || font === '') return true;
-    const key = cp + '|' + font;
+    const key = cp + '|' + variation + '|' + font;
     const hit = _colorCache.get(key);
     if (hit !== undefined) return hit;
     if (_colorCtx == null) {
@@ -127,7 +127,7 @@ export const createEmojiDetect = () => {
       _colorCtx.fillStyle = '#000';
       _colorCtx.textBaseline = 'top';
       _colorCtx.font = '32px ' + font;
-      _colorCtx.fillText(String.fromCodePoint(cp), 8, 4);
+      _colorCtx.fillText(String.fromCodePoint(cp) + variation, 8, 4);
       const data = _colorCtx.getImageData(0, 0, 48, 48).data;
       colored = false;
       for (let i = 0; i < data.length; i += 4) {
@@ -149,9 +149,9 @@ export const createEmojiDetect = () => {
   // Render the cp twice (black vs red fill) — a text glyph's pixels change, a
   // color-emoji bitmap's don't.
   const _fillCache = new Map();
-  const ignoresFillColor = (cp, font) => {
+  const ignoresFillColor = (cp, font, variation = '') => {
     if (font == null || font === '') return true;
-    const key = cp + '|' + font;
+    const key = cp + '|' + variation + '|' + font;
     const hit = _fillCache.get(key);
     if (hit !== undefined) return hit;
     let ignores = true; // fail safe: keep rastering when the probe can't run
@@ -167,7 +167,7 @@ export const createEmojiDetect = () => {
         _colorCtx.fillStyle = fill;
         _colorCtx.textBaseline = 'top';
         _colorCtx.font = '32px ' + font;
-        _colorCtx.fillText(String.fromCodePoint(cp), 8, 4);
+        _colorCtx.fillText(String.fromCodePoint(cp) + variation, 8, 4);
         return _colorCtx.getImageData(0, 0, 48, 48).data;
       };
       const a = draw('#000');
@@ -298,6 +298,17 @@ export const createEmojiDetect = () => {
       // calibration rather than guessing.
       if (textVariantHasMonoFace(cp)) return false;
     }
+    // Variation selectors and default presentation are Unicode properties,
+    // while whether the selected face is actually a color font is a live
+    // cascade result. Probe that exact sequence instead of maintaining another
+    // block/codepoint table parallel to Blink + ICU.
+    if (nextCp === 0xFE0E && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {
+      const live = textPresentationPaintsColor(cp, font);
+      return live ?? false;
+    }
+    if (nextCp === 0xFE0F && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {
+      return isColorGlyph(cp, font, '\uFE0F') || ignoresFillColor(cp, font, '\uFE0F');
+    }
     // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome
     // routes to the COLOR emoji font even when a text font in the cascade has
     // a monochrome glyph — emoji presentation wins regardless of the author's
@@ -427,6 +438,9 @@ export const createEmojiDetect = () => {
     // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
     // Extended-A, Symbols & Pictographs Extended-B.
     if (cp >= 0x1F300 && cp <= 0x1FAFF) return true;
+    if (RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) {
+      return isColorGlyph(cp, font) || ignoresFillColor(cp, font);
+    }
     return false;
   };
 

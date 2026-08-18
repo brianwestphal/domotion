@@ -73,6 +73,18 @@ describe("emoji-detect needsRaster (unconditional branches)", () => {
     expect(needsRaster(0x231C, 0, "x")).toBe(false);
   });
 
+  it("uses Unicode presentation plus the selected-face probe for Geometric Shapes", () => {
+    // ICU/Unicode marks 25FD/25FE Emoji_Presentation, so a color-capable
+    // cascade takes the raster path without a block-specific exception.
+    expect(needsRaster(0x25FD, 0, "")).toBe(true);
+    expect(needsRaster(0x25FE, 0, "")).toBe(true);
+    // VS15 explicitly asks for text presentation even for a default-emoji cp.
+    expect(needsRaster(0x25FD, 0xFE0E, "")).toBe(false);
+    // Neighbor U+25FC defaults to text but VS16 promotes the exact sequence.
+    expect(needsRaster(0x25FC, 0, "x")).toBe(false);
+    expect(needsRaster(0x25FC, 0xFE0F, "")).toBe(true);
+  });
+
   it("routes the default-emoji Mahjong and Playing Card cells below U+1F300", () => {
     expect(needsRaster(0x1F004, 0, "")).toBe(true); // 🀄 red dragon
     expect(needsRaster(0x1F0CF, 0, "")).toBe(true); // 🃏 black joker

@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msz911q5yzadqyxg",
+          "message": {
+            "text": "Presentation is derived from Unicode properties and the exact variation-selector sequence, while color ownership is measured from the live resolved font cascade. This replaces the missing Geometric Shapes special case with the same general decision Blink makes: U+25FD/U+25FE default to emoji presentation, VS15 requests text, VS16 requests emoji, and the selected face's actual paint determines raster versus vector.",
+            "markdown": "Presentation is derived from Unicode properties and the exact variation-selector sequence, while color ownership is measured from the live resolved font cascade. This replaces the missing Geometric Shapes special case with the same general decision Blink makes: U+25FD/U+25FE default to emoji presentation, VS15 requests text, VS16 requests emoji, and the selected face's actual paint determines raster versus vector."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/emoji-detect.ts"
+                },
+                "region": {
+                  "startLine": 301,
+                  "endLine": 314,
+                  "snippet": {
+                    "text": "    // Variation selectors and default presentation are Unicode properties,\n    // while whether the selected face is actually a color font is a live\n    // cascade result. Probe that exact sequence instead of maintaining another\n    // block/codepoint table parallel to Blink + ICU.\n    if (nextCp === 0xFE0E && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {\n      const live = textPresentationPaintsColor(cp, font);\n      return live ?? false;\n    }\n    if (nextCp === 0xFE0F && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {\n      return isColorGlyph(cp, font, '\\uFE0F') || ignoresFillColor(cp, font, '\\uFE0F');\n    }\n    // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome\n    // routes to the COLOR emoji font even when a text font in the cascade has\n    // a monochrome glyph — emoji presentation wins regardless of the author's"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2294"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e789afaeafc7d1e4952a9bfd37c1213c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b26aab0ff83e1850dd4e4cdc7f3992c96d8c04b7",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

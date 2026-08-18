@@ -76,7 +76,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [~] text-align: justify — does not space-stretch (warning logged)
 - [x] RTL/bidi + complex-script shaping — Arabic contextual joining, Devanagari cluster reordering / conjuncts, Thai mark-on-base, and CJK GPOS are shaped through `font.layout()` / CoreText (DM-1022 / DM-1028), with paired-bracket mirroring on RTL embedding levels. (fontkit shaping ≈ HarfBuzz; gap < 1% at body sizes.)
 - [x] writing-mode: vertical-rl/vertical-lr/sideways-* — upright + rotated vertical runs, text-combine-upright. See `02-writing-mode.md`.
-- [x] Color-bitmap glyphs (emoji, U+2713, etc.): rasterized via Playwright `page.screenshot` and embedded as `<image>` — SK-1058 / SK-1090
+- [x] Color-bitmap glyphs (emoji, U+2713, etc.): rasterized via Playwright `page.screenshot` and embedded as `<image>`. Default presentation comes from Unicode `Emoji_Presentation`; VS15/VS16 and `font-variant-emoji` are evaluated as exact sequences. A live canvas probe against the element's resolved cascade determines whether the selected face is genuinely color/fill-invariant, so Windows Segoe UI Emoji, macOS Apple Color Emoji, Linux color fonts, and an earlier monochrome face all follow the same face-aware rule without block-specific routing.
 - [x] ::first-letter drop caps (rasterized when font-size differs from element) — SK-1114
 - [x] `background-clip: text` (gradient/image-fill inside glyph shapes) — DM-462. Captured via `webkitTextFillColor`; rendered via SVG `<mask>` over a `<rect fill="url(#bg)">`. See `18-background-clip-text.md`.
 
