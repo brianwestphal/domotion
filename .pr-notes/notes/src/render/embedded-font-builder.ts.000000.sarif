@@ -209,6 +209,70 @@
           "branch": "validate-dm-2280-icu"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msyd3gzl6hnkjqkx",
+          "message": {
+            "text": "DM-2293: Preserve HarfBuzz's RETAIN_GIDS output instead of applying Domotion's private dense renumberer. Chromium and HarfBuzz treat retained glyph identity as the contract; rewriting only glyf/loca/hmtx and composite references is not a complete TrueType subset plan, and Windows demonstrated the gap as both whole-run PMingLiU Kanbun tofu and sparse Segoe UI Symbol tofu. The padded glyph-id space is an intentional correctness-over-size tradeoff; future compaction needs an upstream subset-plan mapping that rewrites every dependent structure.",
+            "markdown": "DM-2293: Preserve HarfBuzz's RETAIN_GIDS output instead of applying Domotion's private dense renumberer. Chromium and HarfBuzz treat retained glyph identity as the contract; rewriting only glyf/loca/hmtx and composite references is not a complete TrueType subset plan, and Windows demonstrated the gap as both whole-run PMingLiU Kanbun tofu and sparse Segoe UI Symbol tofu. The padded glyph-id space is an intentional correctness-over-size tradeoff; future compaction needs an upstream subset-plan mapping that rewrites every dependent structure."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 568,
+                  "endLine": 582,
+                  "snippet": {
+                    "text": "        // second, private glyph renumbering pass; doing one here made the PUA\n        // cmap depend on our incomplete reconstruction of every TrueType table\n        // and glyph relationship. That is not equivalent even when glyf/loca\n        // and composite components look self-consistent: Windows exposed it as\n        // whole PMingLiU Kanbun runs and sparse Segoe UI Symbol composites\n        // resolving to missing-glyph boxes after an otherwise successful\n        // subset. RETAIN_GIDS is deliberately the contract, so the original\n        // gid map above is already the correct cmap target. The padded loca/hmtx\n        // space is a size cost, not a correctness defect; optimize it only with\n        // an upstream subset plan that rewrites all dependent tables.\n        let subset = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);\n        // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a\n        // cmap entry mapping to gid 0 means \"not covered\" (the consumer browser\n        // cascades past the font and paints NOTHING, losing the tofu box).\n        // Clone the notdef outline at a fresh gid and address that instead."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "workItemUris": [
+            "DM-2293"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3e78b72ee21ea3dffa1f32d37255558a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "59a7ee7000daba8ffbc65e4590c45948241f049c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -38,7 +38,7 @@
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
-import { appendGlyphCopy, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
 /** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
  *  default. Set DOMOTION_HINTED_SUBSET=0 to use the svg2ttf-only control arm.
@@ -563,17 +563,19 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const bytes = readFileSync(entry.hintedSource.path);
       if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
                                      sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
-        const retained = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
-        // DM-1718: compact the RETAIN_GIDS id space (padded to the source's max
-        // gid — ~356 KB of loca+hmtx for a CJK font) down to the kept glyphs,
-        // and translate the PUA map through the old→new gid mapping.
-        const { bytes: compacted, gidMap } = compactRetainedGlyphIds(retained, gids);
-        let subset = compacted;
-        for (const [pua, gid] of puaToGid) {
-          const mapped = gidMap.get(gid);
-          if (mapped == null) throw new Error(`compacted subset lost gid ${gid}`);
-          puaToGid.set(pua, mapped);
-        }
+        // Keep HarfBuzz's RETAIN_GIDS output intact. Chromium hands the
+        // platform font produced by its subsetter to the consumer without a
+        // second, private glyph renumbering pass; doing one here made the PUA
+        // cmap depend on our incomplete reconstruction of every TrueType table
+        // and glyph relationship. That is not equivalent even when glyf/loca
+        // and composite components look self-consistent: Windows exposed it as
+        // whole PMingLiU Kanbun runs and sparse Segoe UI Symbol composites
+        // resolving to missing-glyph boxes after an otherwise successful
+        // subset. RETAIN_GIDS is deliberately the contract, so the original
+        // gid map above is already the correct cmap target. The padded loca/hmtx
+        // space is a size cost, not a correctness defect; optimize it only with
+        // an upstream subset plan that rewrites all dependent tables.
+        let subset = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
         // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
         // cmap entry mapping to gid 0 means "not covered" (the consumer browser
         // cascades past the font and paints NOTHING, losing the tofu box).

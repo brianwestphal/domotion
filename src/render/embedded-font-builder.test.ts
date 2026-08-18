@@ -141,13 +141,16 @@ describe("embedded-font-builder glyf output (DM-1666)", () => {
 describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () => {
   let dir: string;
   let staticPath: string;
+  let compositePath: string;
   let variablePath: string;
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "domotion-hinted-test-"));
     staticPath = join(dir, "static-hinted.ttf");
+    compositePath = join(dir, "composite-hinted.ttf");
     variablePath = join(dir, "variable-hinted.ttf");
     writeFileSync(staticPath, buildStaticHintedFont());
+    writeFileSync(compositePath, buildStaticHintedFont({ withComposite: true }));
     writeFileSync(variablePath, buildVariableHintedFont());
   });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -192,6 +195,23 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
       affectedGlyphCount: 1, affectedGlyphOccurrenceCount: 1,
       retainedTableTags: expect.arrayContaining(["cvt ", "fpgm", "glyf", "prep"]),
     })]);
+  });
+
+  it("keeps HarfBuzz RETAIN_GIDS identity through the PUA cmap for sparse composite glyphs (DM-2293)", () => {
+    // Source gid 3 is composite(A), while gid 2 is deliberately not requested.
+    // A private post-subset compactor used to renumber 3 → 2 and reconstruct
+    // only the tables it knew about. The consumer contract is instead the one
+    // passed to HarfBuzz: retain source ids and point the PUA cmap at those ids.
+    const placement = trackGlyphInEmbedFont("hinted-composite|w=400|s=0", 1000, 800, -200, 3, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: compositePath, faceIndex: 0, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    const font = fontkit.create(bytes) as unknown as {
+      glyphForCodePoint(cp: number): { id: number; bbox: { minX: number; maxX: number } };
+    };
+    const glyph = font.glyphForCodePoint(placement!.puaCodepoint);
+    expect(glyph.id).toBe(3);
+    expect(glyph.bbox.minX).toBeGreaterThanOrEqual(650); // A shifted +600
+    expect(glyph.bbox.maxX).toBeGreaterThan(1100);
   });
 
   it("uses the hinting-preserving path by default and reserves 0 for the control arm", () => {
