@@ -294,28 +294,16 @@ export function gatherStackingContextChildren(
       // piece of inline content (step 5), its own parent's text included, so
       // there is no case left where a float is better off painted in place.
       const isFloat = !positioned && (c.styles.float ?? "none") !== "none";
-      // DM-683: per CSS Flexbox 1 §5.4 ("Flex items paint exactly the same
-      // as inline blocks"), flex items paint at CSS 2.1 Appendix E step 5
-      // (in-flow inline-level non-positioned descendants) — AFTER block
-      // siblings at step 3 + floats at step 4 within the same stacking
-      // context. When a flex item OVERFLOWS its flex container and the
-      // container has block-level following siblings (e.g. `15-deep-flex-
-      // aspect-ratio` section 2: `.row.col` with a `1:2` aspect-ratio item
-      // 388 px tall inside a 360 px tall container, followed by `.frame3`
-      // — Chrome paints the overflowing item ON TOP of `.frame3` because
-      // step 5 > step 3), our DOM-order paint covered the overflow with
-      // the following sibling. Hoist flex items to the SC root paint list
-      // so the post-sort places them after step-3 blocks, mirroring the
-      // float-hoist (DM-639) pattern. Same atomic-positioned-ancestor
-      // gate as floats: a `position:relative` z=auto ancestor scopes the
-      // item to its own atomic paint.
-      const isFlexItem = !positioned && parentIsFlexGrid;
-      if (positioned || flexGridItemSC || (isFloat && !floatHoistBlocked) || (isFlexItem && !floatHoistBlocked)) {
+      // Non-positioned z:auto flex items stay inside their flex container.
+      // They are atomic inline-level boxes internally (Flexbox §5.4), but are
+      // not independent children of the enclosing stacking context. The
+      // renderer's two-phase walk already paints every later block background
+      // before step-5 content, then walks that content in tree order. Hoisting
+      // a flex item into the root inline bucket loses that tree order: an
+      // overflowing early item paints over text in later flow siblings.
+      if (positioned || flexGridItemSC || (isFloat && !floatHoistBlocked)) {
         out.push(c);
         hoistedOut.add(c);
-        if (isFlexItem && !positioned && !flexGridItemSC) {
-          hoistedAsInline?.add(c);
-        }
         // DM-712 / DM-687: a flex/grid item hoisted because of its explicit
         // z-index (not because it's positioned) loses its z-bucket info once
         // it's a child of the SC root for sort purposes. Tag it so the sort
