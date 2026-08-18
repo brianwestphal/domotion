@@ -1,0 +1,16 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [{
+    "tool": { "driver": { "name": "glassbox", "rules": [{
+      "id": "DM-2275-available-family-stack",
+      "shortDescription": { "text": "Continue the CSS stack when a recognized face is unavailable" }
+    }] } },
+    "results": [{
+      "ruleId": "DM-2275-available-family-stack",
+      "level": "warning",
+      "message": { "text": "Generated family-name recognition describes sampled inventories, not guaranteed host availability. Blink continues kFontFamily iteration after a face load miss, so resolveFont now tries each authored entry until getFontInstance succeeds instead of falling into a browser text fallback from the first recognized-but-absent entry." },
+      "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/render/font-resolution.ts" }, "region": { "startLine": 8968 } }]
+    }]
+  }]
+}
