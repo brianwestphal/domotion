@@ -243,7 +243,7 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
 
 Chrome 135+ lets a scroll container declare `scroll-marker-group: after | before`,
 which synthesizes an anonymous marker-group box; each scrollable child whose
-`::scroll-marker` has non-`none` content becomes a dot/pill flex item inside it.
+`::scroll-marker` has non-`none` content becomes a dot/pill inside it.
 `::scroll-marker:target-current` styles the marker of the currently-scrolled-to
 item (the active one).
 
@@ -257,14 +257,19 @@ marker-group flex layout, capture builds a hidden **replica**:
   `:target-current` is already folded into the active marker's computed style by
   the engine, so the active dot/pill needs no special query — and builds a real
   (off-document-flow) `<div>` group with one child per marker (textContent set
-  for `content: attr(...)` pill labels). Chrome lays out the replica identically
-  to the real group, so its measured rects ARE Chrome's geometry.
+  for `content: attr(...)` pill labels). Blink explicitly exempts
+  `::scroll-marker` from the normal display adjustment that blockifies flex
+  children (`style_adjuster.cc`): the inline markers share one anonymous flex
+  item. The replica therefore omits the group's flex `gap` and the markers'
+  inline-axis padding from flex-item measurement; otherwise its separate DOM
+  children would be blockified and make a labeled row wider than Chromium's.
+  Block-axis padding and all marker margins remain represented.
 - The replica is positioned so the **markers sit flush to the scroller edge**
   (the group's outer padding overlaps the scroller's own padding band, matching
   Chrome's paint): for `after`, the marker row's content-top lands at the
   scroller's bottom; for `before`, content-bottom lands at the scroller's top.
-  Marker vertical margins are zeroed in the replica (they space the row
-  horizontally but do not expand Chrome's generated group box).
+  Marker margins position and separate the individual dots/pills but do not
+  expand Chrome's generated group's zero-height content box.
 - The walked subtree is spliced into the captured tree as a real **sibling** of
   the scroller (before it for `before`, after it for `after`) via the parent's
   children loop — NOT emitted from inside the scroller's render, which would put
