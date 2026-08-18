@@ -1612,7 +1612,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // host-level fields exclusively, so a `.marker::after { color: white }`
   // pseudo painted in the marker's own color (typically inherited black).
   const segColor = singleSeg?.color ?? fillColor;
-  let segFontSize = singleSeg?.fontSize ?? fontSize;
+  const segFontSize = singleSeg?.fontSize ?? fontSize;
   const segFontWeight = singleSeg?.fontWeight ?? fontWeight;
   const segAscent = singleSeg?.fontAscent ?? el.fontAscent;
   // DM-513: pseudo-element font-family override (e.g. icon font on
@@ -1624,17 +1624,6 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // path was reading host fontStyle exclusively, so a pseudo's italic was
   // silently swallowed.
   const segFontStyle = singleSeg?.fontStyle ?? el.styles.fontStyle;
-  if (singleSeg?.initialLetterInkHeight != null && singleSeg.initialLetterInkHeight > 0) {
-    const ink = measureInkMetrics(singleSeg.text, {
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
-      fontStyle: segFontStyle, fontStretch: el.styles.fontStretch, lang: el.styles.lang,
-      variationSettings,
-    });
-    const inkHeight = ink == null ? 0 : ink.inkAscent + ink.inkDescent;
-    if (inkHeight > 0) {
-      segFontSize *= singleSeg.initialLetterInkHeight / inkHeight;
-    }
-  }
   // DM-507: when the single segment is a pseudo with its own paint box
   // (background-color / border-radius / border), emit a <rect> behind the
   // glyphs. Same as the multi-segment path; without this the badge / pill
@@ -1902,23 +1891,12 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // uses the same mechanism — the first segment of a paragraph inherits a
     // pseudo-style override from CAPTURE_SCRIPT (DM-294).
     const segColor = seg.color ?? fillColor;
-    let segFontSize = seg.fontSize ?? elFontSize;
+    const segFontSize = seg.fontSize ?? elFontSize;
     const segFontWeight = seg.fontWeight ?? elFontWeight;
     const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
     // DM-513: pseudos with `font-family: 'sdicon'` etc. need their icon font
     // routed through the renderer, not the parent element's body font.
     const segFontFamily = seg.fontFamily ?? fontFamily;
-    if (seg.initialLetterInkHeight != null && seg.initialLetterInkHeight > 0) {
-      const ink = measureInkMetrics(seg.text, {
-        fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
-        fontStyle: segFontStyle, fontStretch: el.styles.fontStretch, lang: el.styles.lang,
-        variationSettings: elVariationSettings,
-      });
-      const inkHeight = ink == null ? 0 : ink.inkAscent + ink.inkDescent;
-      if (inkHeight > 0) {
-        segFontSize *= seg.initialLetterInkHeight / inkHeight;
-      }
-    }
     // Honor either segment-level font-variant override (::first-line) or
     // the element-level font-variant-caps. (DM-294, DM-361, DM-444). See
     // resolveCapsFeatures (module scope) for the full spec mapping. Merge with

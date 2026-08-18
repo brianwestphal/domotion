@@ -125,7 +125,6 @@ describeBrowser("non-floated `initial-letter` raised cap", () => {
       const styled = allSegments(tree).filter((s) => s.text.trim().length === 1 && s.fontSize != null);
       expect(styled.length, "one styled ::first-letter segment").toBe(1);
       const seg = styled[0]!;
-      expect(seg.initialLetterInkHeight).toBeUndefined();
 
       // SIZE: the effective size is the pseudo's content height over the
       // font's cap-height ratio — NOT the specified `2.8em`, and not the

@@ -150,15 +150,14 @@ obvious place:
   box**: its `height` is the cap-height the initial letter was sized to
   (measured across nine variants, exactly `(size − 1) × parent-line-height +
   parent-cap-height`), and its `width` is the glyph's painted **ink** width.
-  Capture derives an initial effective size from that box and a 100 px canvas
-  probe of the pseudo's own font. For floated caps it also records the content
-  box's ink height, the dimension Blink's cap-metric sizing constrains.
-  At render time Domotion measures the glyph from the face it actually resolved
-  and scales the captured size so that face reproduces Chromium's recorded ink
-  width. This second, face-relative step matters when an unavailable first
-  family falls through to another face, or when the browser's platform font
-  metrics differ from the embeddable SFNT instance. It mirrors Blink's use of
-  the selected face's metrics without encoding any family or codepoint rule.
+  The effective font-size is therefore derived from that box, against ratios
+  read from a 100 px canvas probe of the pseudo's own font: `height /
+  capHeightRatio` for a non-floated initial letter, and `height /
+  glyphInkHeightRatio` for a floated drop cap (a float box is sized to the
+  glyph's own ink, which differs from cap-height for glyphs with descenders or
+  round overshoot). Dividing the ink `width` by a canvas *advance* width is
+  **not** equivalent — it under-reports the size by the side bearings (~1.8%
+  on Georgia, ~7% on Arial).
 
 - **Vertical placement.** For a **non-floated** initial letter (a raised
   and/or sunk cap: `float: none`, `display: inline`), the per-character

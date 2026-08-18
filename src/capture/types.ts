@@ -63,15 +63,6 @@ export interface TextSegment {
    */
   fontAscent?: number;
   /**
-   * Chromium-measured ink height for an `initial-letter` glyph. Blink sizes the
-   * initial-letter font from its selected face's cap metrics, while the
-   * capture-side canvas and Node-side font file can expose different metrics
-   * for the same CSS stack. The renderer uses this height to scale the face it
-   * actually resolved, keeping the decision face-relative rather than fitting
-   * a font- or codepoint-specific constant.
-   */
-  initialLetterInkHeight?: number;
-  /**
    * Override `text-shadow` for this segment (DM-989: a `::first-letter`
    * pseudo whose shadow differs from the host element's). The element-level
    * shadow renderer in `element-tree-to-svg.ts` (SK-1113) handles the

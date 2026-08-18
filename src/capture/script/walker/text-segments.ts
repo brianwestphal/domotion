@@ -465,7 +465,6 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
       let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
       let effectiveAscent = flMetrics.ascent;
       let styledSegY = minT - vp.y;
-      let initialLetterInkHeight;
       // `flIsFloatSize` distinguishes a FLOATED sunk drop cap from a NON-floated
       // raised/sunk cap (`.raise`: `initial-letter: 1 3; vertical-align: super;
       // display: inline; float: none`). Chrome's `initial-letter` sizing applies
@@ -508,7 +507,6 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
           const glyphInkW100 = (probeM.actualBoundingBoxLeft || 0) + (probeM.actualBoundingBoxRight || 0);
           if ((flFloatForSize === 'left' || flFloatForSize === 'right')
               && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && glyphInkH100 > 0) {
-            initialLetterInkHeight = pseudoComputedH;
             effectiveFs = 100 * pseudoComputedH / glyphInkH100;
           } else if (!flIsFloatSize && glyphInkW100 > 0) {
             // NON-floated initial letter (`float: none`, e.g. a raised cap).
@@ -661,7 +659,6 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
         fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
         fontVariant: flStyle.fontVariant !== cs.fontVariant ? flStyle.fontVariant : undefined,
         fontAscent: effectiveAscent,
-        initialLetterInkHeight,
         textShadow: flTextShadow,
         pseudoBox,
       };

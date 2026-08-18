@@ -20,7 +20,32 @@ import type { Page } from "@playwright/test";
  *  supports natively. Resolves immediately when no `@font-face` rules
  *  are present. */
 export async function waitForFontsReady(page: Page): Promise<void> {
-  await page.evaluate(() => document.fonts.ready);
+  // `FontFaceSet.ready` only waits for loads that layout has already demanded.
+  // A freshly navigated top-level SVG can reach this call before its first
+  // text layout requests embedded data-URL faces; `ready` is then already
+  // resolved and a screenshot catches fallback metrics. Force layout and load
+  // every declared face explicitly before consulting the set-wide promise.
+  await page.evaluate(`(async function () {
+    document.documentElement.getBoundingClientRect();
+    var faces = Array.from(document.fonts);
+    await Promise.all(faces.map(function (face) {
+      return face.load().catch(function () { return undefined; });
+    }));
+    await document.fonts.ready;
+    document.documentElement.getBoundingClientRect();
+    Array.from(document.querySelectorAll('svg text')).forEach(function (text) {
+      if (typeof text.getComputedTextLength === 'function') text.getComputedTextLength();
+    });
+    await new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(resolve);
+          });
+        });
+      });
+    });
+  })()`);
 }
 
 /** Wait for every `<img>` and SVG `<image>` element in the document to
