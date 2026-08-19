@@ -115,13 +115,13 @@
       "id": "replaced-elements-controls-generated-content",
       "domotionSources": ["src/capture", "src/render/form-controls.ts", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
-      "oracle": null,
-      "sourceAudit": "partial",
-      "oracleStatus": "visual-only",
-      "generatedCoverage": "curated feature and broad HTML fixtures",
+      "oracle": "tools/replaced-geometry-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "11 live Chromium rows covering all object-fit modes with non-bucket positions, native-vs-author control ownership, and before/after generated boxes, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Native controls, replaced-element sizing, pseudo content, counters, and recursive frames do not share a decision-level oracle.",
-      "nextAction": "Inventory each synthesized geometry decision and add exact box/paint records for generated combinations."
+      "knownGap": "Dynamic replaced surfaces remain intentionally frozen, and generated text/counter glyph shaping is graded by the text-stage oracles rather than duplicated here.",
+      "nextAction": "Extend the live rows when Chromium adds a replaced sizing mode or a new generated-box/control ownership transition enters capture."
     },
     {
       "id": "raster-fallback-boundary",

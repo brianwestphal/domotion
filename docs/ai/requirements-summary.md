@@ -78,6 +78,12 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Replaced/control/generated geometry (doc 133) — Shipped.** A live
+  11-row Chromium oracle gates every object-fit mode, exact percentage/calc
+  object-position, native-vs-author control ownership, and positioned
+  `::before`/`::after` boxes. Images now emit Blink's concrete object rectangle
+  instead of reducing alignment to SVG min/mid/max buckets.
+
 - **Symbol list-marker geometry (DM-2192, docs 01/38) — Shipped.** Disc,
   circle, square, and disclosure markers use Blink's captured-font-ascent
   integer sizing/offset formulas and physical edge snapping; disclosure paths

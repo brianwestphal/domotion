@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import { computeObjectFitRect, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
 
 // DM-1239: `object-fit: scale-down` = the smaller of `none` and `contain`. With
@@ -46,10 +46,11 @@ describe("object-fit: scale-down (DM-1239)", () => {
 
   it("shrinks an image larger than the content box like `contain`", () => {
     const tag = imageTag(elementTreeToSvgInner([img({ w: 400, h: 300 })], 200, 100));
-    // contain → image laid into the content box (200×100) with a meet PAR.
-    expect(tag).toContain('width="200"');
+    // Blink resolves a concrete 133.333×100 object rect before painting.
+    expect(tag).toContain('x="33.3"');
+    expect(tag).toContain('width="133.3"');
     expect(tag).toContain('height="100"');
-    expect(tag).toMatch(/preserveAspectRatio="[^"]*meet"/);
+    expect(tag).toContain('preserveAspectRatio="none"');
   });
 
   it("falls back to contain when intrinsic size is unknown (broken / unloaded)", () => {
@@ -57,5 +58,22 @@ describe("object-fit: scale-down (DM-1239)", () => {
     delete (el as { imageIntrinsic?: unknown }).imageIntrinsic;
     const tag = imageTag(elementTreeToSvgInner([el], 200, 100));
     expect(tag).toMatch(/preserveAspectRatio="[^"]*meet"/); // contain fallback, not intrinsic
+  });
+});
+
+describe("Blink concrete object-fit rectangle", () => {
+  it("resolves arbitrary percentage alignment instead of SVG min/mid/max buckets", () => {
+    expect(computeObjectFitRect(10, 20, 200, 100, 80, 80, "contain", "25% 75%"))
+      .toEqual({ x: 35, y: 20, width: 100, height: 100 });
+  });
+
+  it("resolves computed calc positions against negative free space for cover", () => {
+    expect(computeObjectFitRect(0, 0, 200, 100, 80, 80, "cover", "calc(100% - 10px) calc(100% - 20px)"))
+      .toEqual({ x: -10, y: -120, width: 200, height: 200 });
+  });
+
+  it("uses the smaller concrete object for scale-down", () => {
+    expect(computeObjectFitRect(0, 0, 200, 100, 60, 40, "scale-down", "50% 50%"))
+      .toEqual({ x: 70, y: 30, width: 60, height: 40 });
   });
 });

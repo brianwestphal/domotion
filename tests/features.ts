@@ -921,6 +921,20 @@ export const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // Blink computes a concrete replaced-content rectangle before paint.
+    // These non-min/mid/max positions cannot be represented by SVG's native
+    // preserveAspectRatio alignment buckets, and scale-down must choose the
+    // smaller of the intrinsic and contain sizes.
+    name: "image-concrete-object-fit-position",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:12px">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="#ed1234"/><circle cx="12" cy="12" r="8" fill="#fde047"/></svg>')}" style="display:block;width:140px;height:100px;background:#0f172a;object-fit:contain;object-position:25% 75%">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="#0ea5e9"/><circle cx="68" cy="28" r="8" fill="#fde047"/></svg>')}" style="display:block;width:140px;height:100px;background:#0f172a;object-fit:cover;object-position:calc(100% - 10px) calc(100% - 20px)">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="50" height="30"><rect width="50" height="30" fill="#22c55e"/></svg>')}" style="display:block;width:140px;height:100px;background:#0f172a;object-fit:scale-down;object-position:30% 80%">
+    </div>`,
+    width: 496,
+    height: 140,
+  },
+  {
     name: "replaced-canvas-overlay",
     html: `<div style="padding:20px;"><div style="position:relative;width:200px;height:100px;"><canvas id="c3" width="200" height="100" style="display:block;background:#444;position:absolute;left:0;top:0;z-index:1;"></canvas><div style="position:absolute;left:60px;top:30px;width:80px;height:40px;background:rgba(220,38,38,0.7);z-index:10;"></div></div></div><script>(function(){var c=document.getElementById('c3').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);c.fillRect(150,50,30,30);})();</script>`,
     width: 240,

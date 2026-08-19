@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszf1ydifhblhvti",
+          "message": {
+            "text": "This gate compares production decisions with live Chromium observations at their logical boundary: painted object rectangles, native-control ownership, and generated pseudo boxes. It passes 11/11 and its object-position mutation control moves.",
+            "markdown": "This gate compares production decisions with live Chromium observations at their logical boundary: painted object rectangles, native-control ownership, and generated pseudo boxes. It passes 11/11 and its object-position mutation control moves."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/replaced-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 45,
+                  "endLine": 112,
+                  "snippet": {
+                    "text": "    const cases = [\n      [\"fill\", \"50% 50%\"], [\"contain\", \"25% 75%\"], [\"cover\", \"calc(100% - 10px) calc(100% - 20px)\"],\n      [\"none\", \"right 10px bottom 20px\"], [\"scale-down\", \"30% 80%\"],\n    ] as const;\n    for (const [fit, position] of cases) {\n      await page.setContent(`<style>html,body{margin:0;background:white}img{display:block;margin:30px;width:200px;height:120px;object-fit:${fit};object-position:${position}}</style><img src=\"${src}\">`);\n      await page.locator(\"img\").evaluate((element: HTMLImageElement) => element.decode());\n      const expected = await paintedColorRect(page, [237, 18, 52]);\n      const computedPosition = await page.locator(\"img\").evaluate((element) => getComputedStyle(element).objectPosition);\n      const concrete = computeObjectFitRect(30, 30, 200, 120, 80, 40, fit, computedPosition);\n      const clipRight = Math.min(230, concrete.x + concrete.width);\n      const clipBottom = Math.min(150, concrete.y + concrete.height);\n      const actual = {\n        x: Math.max(30, concrete.x), y: Math.max(30, concrete.y),\n        width: Math.max(0, clipRight - Math.max(30, concrete.x)),\n        height: Math.max(0, clipBottom - Math.max(30, concrete.y)),\n      };\n      const maxAbsDelta = rectDelta(expected, actual);\n      rows.push({ id: `object-fit.${fit}`, expected, actual, maxAbsDelta, pass: maxAbsDelta <= TOLERANCE, source: \"Blink LayoutReplaced concrete object rect observed from live painted pixels\" });\n    }\n\n    for (const [id, tag, style, expectedRaster] of [\n      [\"checkbox-auto\", '<input type=\"checkbox\" checked>', \"\", true],\n      [\"checkbox-none\", '<input type=\"checkbox\" checked>', \"appearance:none;width:20px;height:20px;background:#ed1234\", false],\n      [\"select-auto\", \"<select><option>One</option></select>\", \"\", true],\n      [\"button-authored\", \"<button>Go</button>\", \"background:#ed1234;border:0\", false],\n    ] as const) {\n      await page.setContent(`<div id=root style=\"padding:20px\"><span style=\"${style}\">${tag}</span></div>`);\n      if (style !== \"\") await page.locator(\"input,select,button\").evaluate((element, css) => element.setAttribute(\"style\", css), style);\n      const tree = await captureElementTree(page, \"#root\", { x: 0, y: 0, width: 360, height: 260 });\n      const control = find(tree, (element) => [\"input\", \"select\", \"button\"].includes(element.tag));\n      const actual = control?.nativeControlRaster?.dataUri != null;\n      rows.push({ id: `control.${id}`, expected: expectedRaster, actual, maxAbsDelta: actual === expectedRaster ? 0 : Infinity, pass: actual === expectedRaster, source: \"Blink LayoutTheme ownership boundary from computed appearance and author paint\" });\n    }\n\n    for (const pseudo of [\"before\", \"after\"] as const) {\n      await page.setContent(`<style>html,body{margin:0;background:white}#host{position:relative;margin:30px;width:180px;height:100px}#host::${pseudo}{content:\"\";position:absolute;left:17px;top:23px;width:41px;height:29px;background:#ed1234}</style><div id=host></div>`);\n      const expected = await paintedColorRect(page, [237, 18, 52]);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 360, height: 260 });\n      const box = find(tree, (element) => element.pseudoBoxes?.some((item) => item.pseudo === `::${pseudo}`))\n        ?.pseudoBoxes?.find((item) => item.pseudo === `::${pseudo}`);\n      const actual = box == null ? { x: Infinity, y: Infinity, width: 0, height: 0 } : { x: box.x, y: box.y, width: box.width, height: box.height };\n      const maxAbsDelta = rectDelta(expected, actual);\n      rows.push({ id: `generated.${pseudo}-box`, expected, actual, maxAbsDelta, pass: maxAbsDelta <= TOLERANCE, source: \"live Chromium generated box paint vs captured pseudo box\" });\n    }\n  } finally { await browser.close(); }\n  const correct = computeObjectFitRect(0, 0, 200, 120, 80, 40, \"contain\", \"25% 75%\");\n  const mutation = computeObjectFitRect(0, 0, 200, 120, 80, 40, \"contain\", \"50% 50%\");\n  return { rows, mutationMoved: rectDelta(correct, mutation) > 1 };\n}\n\nasync function main(): Promise<void> {\n  const report = await runReplacedGeometryOracle();\n  const failures = report.rows.filter((row) => !row.pass);\n  const jsonIndex = process.argv.indexOf(\"--json\");\n  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));\n  console.log(`replaced geometry oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? \"moved\" : \"DID NOT MOVE\"}`);\n  for (const failure of failures) console.log(`FAIL ${failure.id}: expected=${JSON.stringify(failure.expected)} actual=${JSON.stringify(failure.actual)} delta=${failure.maxAbsDelta}`);\n  if (failures.length > 0 || !report.mutationMoved) process.exitCode = 1;\n}\nif (import.meta.url === new URL(`file://${process.argv[1]}`).href) void main();\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2300"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6121f790134c0bb73618b19c8e79a830"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "41105bd313dee0a691547591d1e4d5b9132eacb3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

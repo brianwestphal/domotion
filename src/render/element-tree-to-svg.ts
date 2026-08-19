@@ -366,16 +366,10 @@ function paintImage(
   const contentY = el.y + _bwT + _padT;
   const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
   const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
-  // DM-1239: `object-fit: scale-down` is the smaller of `none` and
-  // `contain` — render at intrinsic size when the image fits inside the
-  // content box, otherwise shrink it like `contain`. We capture the <img>
-  // intrinsic size (`imageIntrinsic`), so resolve scale-down concretely
-  // instead of always falling back to `contain`. With no intrinsic size
-  // (broken / not-yet-loaded), leave it as scale-down → the contain fallback.
-  let fitEffective = fit;
-  if (fit === "scale-down" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
-    fitEffective = (el.imageIntrinsic.w <= contentW && el.imageIntrinsic.h <= contentH) ? "none" : "contain";
-  }
+  const intrinsic = el.imageIntrinsic;
+  const objectRect = intrinsic != null && intrinsic.w > 0 && intrinsic.h > 0
+    ? computeObjectFitRect(contentX, contentY, contentW, contentH, intrinsic.w, intrinsic.h, fit, el.styles.objectPosition)
+    : null;
   // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
   // image must clip to the rounded content area — otherwise a 40×40
   // `border-radius: 50%` avatar paints as a square photo. Build a
@@ -391,14 +385,13 @@ function paintImage(
       `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
     );
   }
-  if (fitEffective === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
-    // object-fit: none -> render image at intrinsic size, aligned via
-    // object-position inside the element's content box, and clip overflow.
-    const iw = el.imageIntrinsic.w;
-    const ih = el.imageIntrinsic.h;
-    const { hPct, vPct } = parseObjectPosition(el.styles.objectPosition ?? "50% 50%");
-    const ix = contentX + (contentW - iw) * (hPct / 100);
-    const iy = contentY + (contentH - ih) * (vPct / 100);
+  if (objectRect != null) {
+    // Blink's LayoutReplaced computes one concrete paint rectangle for every
+    // object-fit value, then resolves object-position against the remaining
+    // free space. Emitting that rectangle directly preserves arbitrary
+    // percentages/calc lengths and scale-down's none-vs-contain choice; SVG's
+    // preserveAspectRatio alignment only has min/mid/max buckets.
+    const { x: ix, y: iy, width: iw, height: ih } = objectRect;
     // When a border-radius is present, prefer the rounded clip over the
     // plain content-box rect (a rounded clip subsumes the rect clip:
     // anything inside the rounded shape is also inside the box).
@@ -420,7 +413,7 @@ function paintImage(
     const inlinedNone = svgTextNone != null
       ? inlineImgSvg(svgTextNone, {
           x: ix, y: iy, w: iw, h: ih,
-          par: "xMidYMid meet", intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg"),
+          par: "none", intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg"),
         })
       : null;
     if (inlinedNone != null) {
@@ -431,7 +424,7 @@ function paintImage(
       );
     }
   } else {
-    const par = preserveAspectRatioFor(fitEffective, el.styles.objectPosition);
+    const par = preserveAspectRatioFor(fit, el.styles.objectPosition);
     const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
     // DM-1588: an `<img src="*.svg">` embeds today as a `data:image/svg+xml`
     // `<image>`, which Chromium rasterizes at the layout size then scales —
@@ -5298,34 +5291,63 @@ export function preserveAspectRatioFor(fit: string | undefined, pos: string | un
 }
 
 /**
- * Parse an object-position value into horizontal / vertical percentages.
- * Used by object-fit: none to position the intrinsic-size image inside the
- * element box.
+ * Blink `LayoutReplaced::ComputeObjectFitAndPositionRect`, expressed in CSS
+ * pixels. Computed `object-position` serializes each axis as a percentage,
+ * length, or `calc(<percentage> +/- <length>)`; the length is added after the
+ * percentage has been resolved against the free space.
  */
-function parseObjectPosition(pos: string): { hPct: number; vPct: number } {
-  const tokens = pos.trim().split(/\s+/);
-  let hPct = 50, vPct = 50;
-  const setH = (t: string): void => {
-    if (t === "left") hPct = 0;
-    else if (t === "right") hPct = 100;
-    else if (t === "center") hPct = 50;
-    else if (/%$/.test(t)) hPct = parseFloat(t);
-  };
-  const setV = (t: string): void => {
-    if (t === "top") vPct = 0;
-    else if (t === "bottom") vPct = 100;
-    else if (t === "center") vPct = 50;
-    else if (/%$/.test(t)) vPct = parseFloat(t);
-  };
-  if (tokens.length === 1) {
-    const t = tokens[0];
-    if (t === "top" || t === "bottom") setV(t);
-    else setH(t);
-  } else if (tokens.length >= 2) {
-    setH(tokens[0]);
-    setV(tokens[1]);
+export function computeObjectFitRect(
+  x: number, y: number, width: number, height: number,
+  intrinsicWidth: number, intrinsicHeight: number,
+  fit: string | undefined, position: string | undefined,
+): { x: number; y: number; width: number; height: number } {
+  const mode = (fit ?? "fill").trim();
+  let objectWidth = width;
+  let objectHeight = height;
+  if (mode !== "fill") {
+    const containScale = Math.min(width / intrinsicWidth, height / intrinsicHeight);
+    const scale = mode === "cover"
+      ? Math.max(width / intrinsicWidth, height / intrinsicHeight)
+      : mode === "none"
+        ? 1
+        : mode === "scale-down"
+          ? Math.min(1, containScale)
+          : containScale;
+    objectWidth = intrinsicWidth * scale;
+    objectHeight = intrinsicHeight * scale;
   }
-  return { hPct, vPct };
+  const [horizontal, vertical] = splitComputedObjectPosition(position ?? "50% 50%");
+  return {
+    x: x + resolveObjectPositionAxis(horizontal, width - objectWidth),
+    y: y + resolveObjectPositionAxis(vertical, height - objectHeight),
+    width: objectWidth,
+    height: objectHeight,
+  };
+}
+
+function splitComputedObjectPosition(position: string): [string, string] {
+  const tokens = position.trim().match(/calc\([^)]*\)|\S+/g) ?? [];
+  if (tokens.length === 0) return ["50%", "50%"];
+  if (tokens.length === 1) {
+    return tokens[0] === "top" || tokens[0] === "bottom"
+      ? ["50%", tokens[0]]
+      : [tokens[0], "50%"];
+  }
+  return [tokens[0]!, tokens[1]!];
+}
+
+function resolveObjectPositionAxis(token: string, freeSpace: number): number {
+  const keywordPct = token === "left" || token === "top" ? 0
+    : token === "right" || token === "bottom" ? 100
+      : token === "center" ? 50 : null;
+  if (keywordPct != null) return freeSpace * keywordPct / 100;
+  const percentage = /(-?(?:\d+\.?\d*|\.\d+))%/.exec(token);
+  const length = /([+-])\s*(-?(?:\d+\.?\d*|\.\d+))px/.exec(token);
+  const plainPx = /^(-?(?:\d+\.?\d*|\.\d+))px$/.exec(token);
+  const pctOffset = percentage == null ? 0 : freeSpace * Number(percentage[1]) / 100;
+  if (plainPx != null) return Number(plainPx[1]);
+  if (length != null) return pctOffset + (length[1] === "-" ? -1 : 1) * Number(length[2]);
+  return percentage == null ? freeSpace / 2 : pctOffset;
 }
 
 function alignFromObjectPosition(pos: string): string {

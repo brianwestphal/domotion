@@ -42,8 +42,8 @@ for (const area of matrix.areas ?? []) {
   if (area.browserOracle) await requirePath(area.browserOracle, area.id);
 }
 
-if (!matrix.areas?.some((area) => area.oracleStatus === "visual-only")) {
-  errors.push("matrix must preserve unresolved visual-only areas until exact oracles replace them");
+if (!matrix.areas?.some((area) => ["partial-stage-gate", "visual-only", "documented-classifier"].includes(area.oracleStatus))) {
+  errors.push("matrix must preserve explicitly unresolved areas until every decision stage has an exact oracle");
 }
 
 if (errors.length) {

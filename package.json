@@ -84,6 +84,7 @@
     "paint:geometry-browser-oracle": "tsx tools/paint-geometry-browser-oracle.ts",
     "transform:geometry-oracle": "tsx tools/transform-geometry-oracle.ts",
     "paint:order-oracle": "tsx tools/paint-order-oracle.ts",
+    "replaced:geometry-oracle": "tsx tools/replaced-geometry-oracle.ts",
     "demos:examples": "npm run build:capture-script && tsx examples/terminal-demo.ts && tsx examples/terminal-onboarding.ts && tsx examples/progress-install.ts && tsx examples/hero-product-demo.ts && tsx examples/showcase-rendering.ts && tsx examples/showcase-transitions.ts && tsx examples/transition-tour.ts && tsx examples/transition-mixed.ts && tsx examples/svg-to-video-demo.ts && tsx examples/templates-demo.ts && tsx examples/brand-capture-demo.ts && tsx examples/kinetic-over-capture.ts && tsx examples/format-capture-demo.ts && tsx examples/terminal-window-scroll.ts && tsx examples/storyboard-demo.ts",
     "check:features": "tsx tools/check-feature-coverage.ts",
     "check:parity-program": "node tools/check-parity-program.mjs",

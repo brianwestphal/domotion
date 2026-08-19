@@ -51,6 +51,7 @@ jobs:
       - run: npm run paint:geometry-browser-oracle
       - run: npm run transform:geometry-oracle
       - run: npm run paint:order-oracle
+      - run: npm run replaced:geometry-oracle
 
   build:
     runs-on: ubuntu-latest

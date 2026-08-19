@@ -83,7 +83,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 ### Images
 
 - [x] `<img>` with src/width/height
-- [x] object-fit (fill/contain/cover/scale-down) + object-position → SVG preserveAspectRatio
+- [x] object-fit (fill/contain/cover/none/scale-down) + object-position → exact Chromium concrete object rectangle (including arbitrary percentages and computed `calc()` lengths)
 - [x] `<picture>`/`srcset` → captured as the resolved `<img currentSrc>`
 - [~] broken-image alt fallback — not rendered (blank rect)
 - [x] `<svg>` inline content (passed through verbatim)

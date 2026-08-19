@@ -156,6 +156,10 @@ shortest possible map:
   character, CORRECT/INCORRECT on "same font (family/size/weight/style)?"
   with AA/subpixel noise excluded; CLI `tools/compare-glyphs.ts`,
   calibration harness `tools/glyph-compare-calibrate.ts`.
+- **`tools/*-oracle.ts` + `tools/parity-program.json`** — decision-stage
+  Chromium parity gates kept separate from whole-image similarity. The
+  replaced-element leg is `tools/replaced-geometry-oracle.ts`: exact concrete
+  object-fit rectangles, control paint ownership, and generated pseudo boxes.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus

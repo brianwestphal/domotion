@@ -6,7 +6,7 @@ These element types host browsing contexts or canvas surfaces that domotion cann
 
 - `<canvas>` is a bitmap surface drawn into by author JS (2D / WebGL / WebGPU). The drawn pixels live on the GPU/CPU canvas, not in any DOM the capture script can walk.
 - `<video>` paints decoded media frames (or its `poster` attribute) into a media-element box.
-- `<iframe>` hosts a separate browsing context. Same-origin iframes are walkable in principle, but cross-origin iframes are not — and the cost of re-rendering iframe DOMs through the same pipeline isn't justified by the current use case.
+- `<iframe>` hosts a separate browsing context. Same-origin frames are recursively captured as vector DOM. Cross-origin frames do the same when their origin is explicitly allowed and Chromium is launched with the matching access configuration; inaccessible frames use this snapshot boundary.
 - `<object>` / `<embed>` host plug-in or document content (PDF viewers, SVG documents, etc.) the same way iframes do.
 
 Pre-DM-457 behavior: CAPTURE_SCRIPT logged a `<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>` warning per element and the renderer painted only the element's normal box (background + border + outline + shadow). The element's content area appeared blank — visible holes on real-world pages with hero videos, embedded chart canvases, or framed widgets.
@@ -55,6 +55,11 @@ The hide stylesheet is injected once before the rasterize pass and removed in `f
 3. **Renderer**: in `renderElement`, when `el.replacedSnapshot?.dataUri` is set, emit an `<image>` at the content-box rect (mirroring the `<img>` content-box positioning in `src/render/element-tree-to-svg.ts`). The element's normal background / border / outline / shadow paint stays — the image sits on top of the background but inside the borders, exactly like an `<img>`.
 
 4. **Re-rasterization across animation frames**: each frame composites independently — there is no shared-element merge pass (the old `mergeFrames` fast path was removed; see `docs/08`). Every frame's tree carries its own snapshot, so where Chrome painted different pixels in different frames (animated canvas, autoplaying video) each frame shows its own content, and a canvas/video identical between frames simply re-embeds the same data URI per frame.
+
+Ordinary `<img>` elements do not use this snapshot path. When intrinsic
+dimensions are available, their paint rectangle follows Blink's concrete
+object-fit/object-position calculation exactly; see
+[the replaced-geometry oracle](133-replaced-geometry-oracle.md).
 
 ## What still doesn't work
 
