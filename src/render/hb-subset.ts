@@ -156,13 +156,8 @@ export function sfntHasSubsettableOutlines(fontBytes: Buffer, faceIndex = 0): bo
 }
 
 /** True when the selected sfnt/TTC member uses CFF2 variable outlines.
- *
- * CFF2 is structurally subsettable, but retaining its variation program is not
- * equivalent to baking the platform typeface's resolved outlines. The embedded
- * font is consumed as a new CSS face, where variation-store/default-master
- * interpretation can move sparse glyphs even when the source coordinates are
- * nominally at their defaults. Callers that need platform-pixel fidelity use
- * this to choose their already-extracted outline rebuild instead. */
+ * Callers use this to validate HarfBuzz's empty/default instancing result
+ * against the resolved platform glyphs before retaining it. */
 export function sfntHasCff2Outlines(fontBytes: Buffer, faceIndex = 0): boolean {
   return sfntFaceHasAnyTable(fontBytes, faceIndex, ["CFF2"]);
 }

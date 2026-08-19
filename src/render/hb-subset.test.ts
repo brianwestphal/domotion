@@ -202,7 +202,7 @@ describe("sfntHasSubsettableOutlines (DM-1714)", () => {
     expect(sfntHasCff2Outlines(dir)).toBe(false);
   });
 
-  it("identifies CFF2 faces that must use resolved platform outlines", () => {
+  it("identifies CFF2 faces whose default instancing result must be validated", () => {
     const dir = Buffer.alloc(12 + 16 + 4);
     dir.writeUInt32BE(0x4f54544f, 0); // 'OTTO'
     dir.writeUInt16BE(1, 4);

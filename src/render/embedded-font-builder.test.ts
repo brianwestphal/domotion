@@ -136,6 +136,7 @@ describe("embedded-font-builder glyf output (DM-1666)", () => {
     expect(font.glyphForCodePoint(0xE000).id).toBeGreaterThan(0);
     expect(font.glyphForCodePoint(0xE001).id).toBeGreaterThan(0);
   });
+
 });
 
 describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () => {
