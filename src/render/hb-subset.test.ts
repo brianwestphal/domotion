@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
-import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasCff2Outlines, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -199,6 +199,18 @@ describe("sfntHasSubsettableOutlines (DM-1714)", () => {
     dir.writeUInt32BE(28, 20);
     dir.writeUInt32BE(4, 24);
     expect(sfntHasSubsettableOutlines(dir)).toBe(true);
+    expect(sfntHasCff2Outlines(dir)).toBe(false);
+  });
+
+  it("identifies CFF2 faces that must use resolved platform outlines", () => {
+    const dir = Buffer.alloc(12 + 16 + 4);
+    dir.writeUInt32BE(0x4f54544f, 0); // 'OTTO'
+    dir.writeUInt16BE(1, 4);
+    dir.write("CFF2", 12, "latin1");
+    dir.writeUInt32BE(28, 20);
+    dir.writeUInt32BE(4, 24);
+    expect(sfntHasSubsettableOutlines(dir)).toBe(true);
+    expect(sfntHasCff2Outlines(dir)).toBe(true);
   });
 
   it("rejects an outline-less face (e.g. Apple-private hvgl outlines)", () => {

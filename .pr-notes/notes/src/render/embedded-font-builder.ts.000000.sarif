@@ -273,6 +273,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszj6uqru8c9oz7z",
+          "message": {
+            "text": "DM-2304 macOS 26 proof: the normal hinted path reproduced Telugu at 0.0420% and Kannada at 0.0356%, with U+0C04/U+0C5D and U+0C84/U+0CDD displaced after the SVG was rendered even though the SVG y coordinates were correct. The identical two-fixture run with DOMOTIONHINTEDSUBSET=0 was byte-clean for both, and the normal path became byte-clean after selecting the resolved-outline rebuild for CFF2. This isolates the defect to retained CFF2 consumption rather than shaping, routing, or a codepoint rule.",
+            "markdown": "DM-2304 macOS 26 proof: the normal hinted path reproduced Telugu at 0.0420% and Kannada at 0.0356%, with U+0C04/U+0C5D and U+0C84/U+0CDD displaced after the SVG was rendered even though the SVG y coordinates were correct. The identical two-fixture run with DOMOTION_HINTED_SUBSET=0 was byte-clean for both, and the normal path became byte-clean after selecting the resolved-outline rebuild for CFF2. This isolates the defect to retained CFF2 consumption rather than shaping, routing, or a codepoint rule."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 554,
+                  "endLine": 569,
+                  "snippet": {
+                    "text": "      // animation paid that per generation, per entry, and threw away 58 MB each\n      // round.\n      //\n      // Placed BEFORE the read rather than around it on purpose: a `false`\n      // verdict must skip the read entirely, and that is the case worth fixing.\n      // A `true` verdict still needs the bytes for `hbSubsetRetainGids`, so the\n      // memo saves nothing there and is not meant to.\n      if (hintedOutlineGuard(entry.hintedSource.path, srcFaceIndex) === false) {\n        throw new Error(\"source has no subsettable outlines (memoized)\");\n      }\n      const bytes = readFileSync(entry.hintedSource.path);\n      if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,\n                                     sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {\n        // A retained CFF2 program is still variable when the emitted font is\n        // consumed as a fresh CSS face. That is not the same object Chromium\n        // painted through the platform typeface, even at a nominally-default"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2304"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fc6118921e09168e6d43090c9284ee7c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f8afa5d4994827e296b5612c82cdd1a14dc84b19",
+          "branch": "validation/dm-2304-icu"
+        }
+      ]
     }
   ]
 }

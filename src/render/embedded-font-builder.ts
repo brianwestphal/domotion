@@ -38,7 +38,7 @@
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
-import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasCff2Outlines, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
 /** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
  *  default. Set DOMOTION_HINTED_SUBSET=0 to use the svg2ttf-only control arm.
@@ -165,6 +165,7 @@ export type HintedSourceDisqualificationReason =
   | "null-source"
   | "null-face-index"
   | "source-axis-disagreement"
+  | "cff2-outline-rebuild"
   | "cff-or-subset-failure"
   | "disabled-by-environment";
 
@@ -563,6 +564,21 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const bytes = readFileSync(entry.hintedSource.path);
       if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
                                      sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
+        // A retained CFF2 program is still variable when the emitted font is
+        // consumed as a fresh CSS face. That is not the same object Chromium
+        // painted through the platform typeface, even at a nominally-default
+        // axis location: macOS 26's SFIndia faces move the newly assigned
+        // Telugu/Kannada glyph outlines by roughly one grid row after the
+        // retained subset is re-opened. The native helper's extracted commands
+        // are the resolved platform outlines, so rebuild those into a static
+        // glyf font instead. This is a table-format boundary, not a script,
+        // codepoint, or font-name exception; static CFF and hinted TrueType
+        // sources retain the subset path.
+        if (sfntHasCff2Outlines(bytes, srcFaceIndex)) {
+          entry.hintedSourceDisqualificationReasons.add("cff2-outline-rebuild");
+          entry.hintedSourceDisqualified = true;
+          throw new Error("CFF2 source requires resolved-outline rebuild");
+        }
         // Keep HarfBuzz's RETAIN_GIDS output intact. Chromium hands the
         // platform font produced by its subsetter to the consumer without a
         // second, private glyph renumbering pass; doing one here made the PUA
@@ -594,7 +610,9 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         return out;
       }
     } catch (e) {
-      entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
+      if (!entry.hintedSourceDisqualificationReasons.has("cff2-outline-rebuild")) {
+        entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
+      }
       entry.hintedSourceDisqualified = true;
       // A guard/subset failure silently falls back to the proven svg2ttf path —
       // a bad font never breaks a render. Opt-in visibility via the debug env.
