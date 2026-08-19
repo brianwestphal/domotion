@@ -20,6 +20,73 @@ export interface EdgeProfile { values: number[]; origin: number; outer: number; 
 export interface SnapSample { nominalCenter: number; observedCenter: number; width: number }
 export interface SnapFit { rule: "none" | "css-edge-round" | "device-center-round"; mae: number }
 
+/** Inputs consumed by Blink's `BoxBorderPainter::PaintBorderFastPath`.
+ * This is a decision oracle, not an SVG implementation preference: keeping the
+ * branch visible prevents a good corner screenshot from hiding that Domotion
+ * exercised a different paint model. */
+export interface BorderPaintDecisionInput {
+  id: string;
+  uniformColor: boolean;
+  uniformStyle: boolean;
+  uniformWidth: boolean;
+  innerRenderable: boolean;
+  innerRoundCurvature: boolean;
+  style: PrimitiveStyle;
+  allEdges: boolean;
+  outerRounded: boolean;
+  transparent: boolean;
+}
+
+export type BorderPaintDecision =
+  | "solid-rect-fast-path"
+  | "solid-drrect-fast-path"
+  | "double-drrect-fast-path"
+  | "partial-transparent-path-fast-path"
+  | "complex-rounded-close-edge-clips"
+  | "complex-rounded-hull-clips"
+  | "complex-straight-sides";
+
+/** Source transcription of `PaintBorderFastPath`, followed by the rounded
+ * clip split in `ClipBorderSidePolygon`. Revision and source are recorded in
+ * docs/129 and the parity matrix. */
+export function classifyBorderPaintDecision(input: BorderPaintDecisionInput): BorderPaintDecision {
+  const eligible = input.uniformColor && input.uniformStyle
+    && input.innerRenderable && input.innerRoundCurvature
+    && (input.style === "solid" || input.style === "double");
+  if (eligible && input.allEdges) {
+    if (input.style === "double") return "double-drrect-fast-path";
+    if (input.uniformWidth && !input.outerRounded) return "solid-rect-fast-path";
+    return "solid-drrect-fast-path";
+  }
+  if (eligible && input.style === "solid" && !input.outerRounded && input.transparent)
+    return "partial-transparent-path-fast-path";
+  if (!input.outerRounded) return "complex-straight-sides";
+  return input.innerRenderable && input.innerRoundCurvature
+    ? "complex-rounded-close-edge-clips"
+    : "complex-rounded-hull-clips";
+}
+
+export function buildBorderPaintDecisionCases(): BorderPaintDecisionInput[] {
+  const base: Omit<BorderPaintDecisionInput, "id"> = {
+    uniformColor: true, uniformStyle: true, uniformWidth: true,
+    innerRenderable: true, innerRoundCurvature: true, style: "solid",
+    allEdges: true, outerRounded: false, transparent: false,
+  };
+  const rows: BorderPaintDecisionInput[] = [];
+  const add = (id: string, patch: Partial<Omit<BorderPaintDecisionInput, "id">>) => rows.push({ id, ...base, ...patch });
+  add("uniform-solid-rect", {});
+  add("uniform-solid-rounded", { outerRounded: true });
+  add("mixed-width-solid-rounded", { uniformWidth: false, outerRounded: true });
+  add("uniform-double-rounded", { style: "double", outerRounded: true });
+  add("partial-transparent-solid", { allEdges: false, transparent: true });
+  add("mixed-color-straight", { uniformColor: false });
+  add("mixed-style-rounded", { uniformStyle: false, outerRounded: true });
+  add("dashed-rounded", { style: "dashed", outerRounded: true });
+  add("rounded-nonrenderable-inner", { outerRounded: true, innerRenderable: false });
+  add("rounded-nonround-inner", { outerRounded: true, innerRoundCurvature: false });
+  return rows;
+}
+
 const DSF = 4, PAGE_WIDTH = 760, ROW_HEIGHT = 56, TOP_PAD = 18;
 const BOX_WIDTH = 132, BOX_HEIGHT = 34, OUTLINE_OFFSET = 3;
 

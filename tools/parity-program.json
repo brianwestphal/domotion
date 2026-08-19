@@ -69,10 +69,10 @@
       "oracle": "tools/border-phase-oracle.ts",
       "sourceAudit": "partial",
       "oracleStatus": "paint-model-gate",
-      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges",
+      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges plus a generated transcription of all BorderPainter fast-path, complex-straight, rounded close-edge-clip, and rounded hull-clip decisions",
       "platformCoverage": ["darwin"],
-      "knownGap": "Rounded corners, non-uniform sides, collapsed borders, writing modes, zoom, and cross-platform phase remain outside the oracle.",
-      "nextAction": "Transcribe the remaining Blink paint branches and expand the structural geometry matrix before changing thresholds."
+      "knownGap": "Domotion's rounded mixed-side annular wedges approximate rather than transcribe Blink's close-edge and quad/pentagon clipping geometry; collapsed borders, writing modes, zoom, and cross-platform phase also remain outside the geometry oracle.",
+      "nextAction": "Replace rounded mixed-side wedge fitting with the two source-transcribed Blink clipping algorithms and gate their emitted geometry before expanding collapsed-border and platform phase coverage."
     },
     {
       "id": "gradients-masks-clips",

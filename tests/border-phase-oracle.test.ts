@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildPhaseCases, deriveSnapRule, profileEdges, profileRmse } from "../tools/border-phase-oracle.js";
+import {
+  buildBorderPaintDecisionCases,
+  buildPhaseCases,
+  classifyBorderPaintDecision,
+  deriveSnapRule,
+  profileEdges,
+  profileRmse,
+} from "../tools/border-phase-oracle.js";
 
 describe("border phase oracle corpus", () => {
   it("crosses kind, style, width, and quarter-pixel phase", () => {
@@ -8,6 +15,31 @@ describe("border phase oracle corpus", () => {
     expect(new Set(cases.map((c) => c.kind))).toEqual(new Set(["border", "outline"]));
     expect(new Set(cases.map((c) => c.style))).toEqual(new Set(["solid", "dashed", "dotted", "double"]));
     expect(new Set(cases.map((c) => c.phase))).toEqual(new Set([0, 0.25, 0.5, 0.75]));
+  });
+});
+
+describe("Blink border paint decision transcription (DM-2313)", () => {
+  it("covers every fast, straight, and rounded clipping branch", () => {
+    const decisions = new Set(buildBorderPaintDecisionCases().map(classifyBorderPaintDecision));
+    expect(decisions).toEqual(new Set([
+      "solid-rect-fast-path",
+      "solid-drrect-fast-path",
+      "double-drrect-fast-path",
+      "partial-transparent-path-fast-path",
+      "complex-rounded-close-edge-clips",
+      "complex-rounded-hull-clips",
+      "complex-straight-sides",
+    ]));
+  });
+
+  it("uses the complex path when any fast-path prerequisite is absent", () => {
+    const base = buildBorderPaintDecisionCases()[0];
+    expect(classifyBorderPaintDecision({ ...base, id: "color", uniformColor: false }))
+      .toBe("complex-straight-sides");
+    expect(classifyBorderPaintDecision({ ...base, id: "style", uniformStyle: false, outerRounded: true }))
+      .toBe("complex-rounded-close-edge-clips");
+    expect(classifyBorderPaintDecision({ ...base, id: "inner", innerRenderable: false, outerRounded: true }))
+      .toBe("complex-rounded-hull-clips");
   });
 });
 

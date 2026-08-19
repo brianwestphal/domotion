@@ -92,6 +92,16 @@ initial geometry/order/replaced and raster-activation audits have exact stage
 gates; the remaining partial text/paint domains are the next gaps.
 Oracles emit structured records that can be attached to demo-review results.
 
+The border oracle separately records Chromium's paint-path decision before it
+compares pixels.  At Chromium revision `7d859f271c`,
+`BoxBorderPainter::PaintBorderFastPath` selects rectangular, double-rounded,
+solid rounded, and partial-transparent fast paths; the complex path then splits
+rounded sides between `ClipBorderSidePolygonCloseToEdges` and the general
+quad/pentagon hull in `ClipBorderSidePolygon`.  Domotion's current annular-wedge
+SVG is not yet a transcription of those two clipping algorithms.  It remains an
+explicit approximation until that geometry is represented and structurally
+gated; favorable corner pixels do not upgrade its source-audit status.
+
 ### Generated and metamorphic coverage
 
 Generators enumerate rules, not handpicked “interesting” values. Keep their

@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszykq4544320qzl",
+          "message": {
+            "text": "The oracle records Chromium’s paint-path choice before examining pixels. At pinned revision 7d859f271c, PaintBorderFastPath and ClipBorderSidePolygon distinguish these seven outcomes; keeping them explicit prevents an SVG approximation with favorable corner pixels from being mistaken for a source transcription.",
+            "markdown": "The oracle records Chromium’s paint-path choice before examining pixels. At pinned revision `7d859f271c`, `PaintBorderFastPath` and `ClipBorderSidePolygon` distinguish these seven outcomes; keeping them explicit prevents an SVG approximation with favorable corner pixels from being mistaken for a source transcription."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/border-phase-oracle.ts"
+                },
+                "region": {
+                  "startLine": 38,
+                  "endLine": 77,
+                  "snippet": {
+                    "text": "}\n\nexport type BorderPaintDecision =\n  | \"solid-rect-fast-path\"\n  | \"solid-drrect-fast-path\"\n  | \"double-drrect-fast-path\"\n  | \"partial-transparent-path-fast-path\"\n  | \"complex-rounded-close-edge-clips\"\n  | \"complex-rounded-hull-clips\"\n  | \"complex-straight-sides\";\n\n/** Source transcription of `PaintBorderFastPath`, followed by the rounded\n * clip split in `ClipBorderSidePolygon`. Revision and source are recorded in\n * docs/129 and the parity matrix. */\nexport function classifyBorderPaintDecision(input: BorderPaintDecisionInput): BorderPaintDecision {\n  const eligible = input.uniformColor && input.uniformStyle\n    && input.innerRenderable && input.innerRoundCurvature\n    && (input.style === \"solid\" || input.style === \"double\");\n  if (eligible && input.allEdges) {\n    if (input.style === \"double\") return \"double-drrect-fast-path\";\n    if (input.uniformWidth && !input.outerRounded) return \"solid-rect-fast-path\";\n    return \"solid-drrect-fast-path\";\n  }\n  if (eligible && input.style === \"solid\" && !input.outerRounded && input.transparent)\n    return \"partial-transparent-path-fast-path\";\n  if (!input.outerRounded) return \"complex-straight-sides\";\n  return input.innerRenderable && input.innerRoundCurvature\n    ? \"complex-rounded-close-edge-clips\"\n    : \"complex-rounded-hull-clips\";\n}\n\nexport function buildBorderPaintDecisionCases(): BorderPaintDecisionInput[] {\n  const base: Omit<BorderPaintDecisionInput, \"id\"> = {\n    uniformColor: true, uniformStyle: true, uniformWidth: true,\n    innerRenderable: true, innerRoundCurvature: true, style: \"solid\",\n    allEdges: true, outerRounded: false, transparent: false,\n  };\n  const rows: BorderPaintDecisionInput[] = [];\n  const add = (id: string, patch: Partial<Omit<BorderPaintDecisionInput, \"id\">>) => rows.push({ id, ...base, ...patch });\n  add(\"uniform-solid-rect\", {});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2313"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "465f8db7de112a9d1ded8b33e0e8dd05"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "42a0755faec08aa1c40e92d748f6a91f82838b2c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
