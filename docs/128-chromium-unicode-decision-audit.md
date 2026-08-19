@@ -131,6 +131,11 @@ Local migration gates on 2026-08-19:
 - Cluster face-boundary oracle: 16/16 exact, zero mismatches/skips.
 - Representative font-selection oracle: 7,074 comparisons across six corpus
   stacks, zero logical mismatches.
+- The composed multilingual corpus subsequently added
+  `ui-sans-serif, system-ui, sans-serif`, exposing a missing first-effective-
+  family transition outside those six stacks. The corrected single-shot oracle
+  now reports 17/17 exact `.SF Arabic` selections for its Arabic discriminator
+  set; disabling the `systemUiPrimary` signal moves the same query to Geeza Pro.
 
 The accepted implementation at `0d8a4358376c7debaf5348dc7eae184ed76e2ad9`
 completed the all-platform integration gate:

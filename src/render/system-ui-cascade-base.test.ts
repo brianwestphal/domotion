@@ -23,7 +23,13 @@
  * which consults the helper where one exists.)
  */
 import { describe, expect, it } from "vitest";
-import { resolveFontKey, stackPrimaryIsSystemUi } from "./font-resolution.js";
+import {
+  resolveFont,
+  resolveFontForCodepoint,
+  resolveFontKey,
+  resolveFontKeyChain,
+  stackPrimaryIsSystemUi,
+} from "./font-resolution.js";
 
 describe("system-ui cascade-base signal (DM-1859)", () => {
   it("treats the generic UI families as system-ui primaries", () => {
@@ -68,9 +74,15 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     expect(stackPrimaryIsSystemUi("-apple-system, system-ui, sans-serif")).toBe(true);
   });
 
-  it("matches on the FIRST family only, since that is the primary the cascade is walked from", () => {
+  it("walks past any unavailable family to the effective system-ui family", () => {
+    expect(stackPrimaryIsSystemUi("ui-sans-serif, system-ui, sans-serif")).toBe(true);
+    expect(stackPrimaryIsSystemUi('"Does Not Exist", system-ui, sans-serif')).toBe(true);
+  });
+
+  it("matches on the first available family, since that is the primary the cascade is walked from", () => {
     expect(stackPrimaryIsSystemUi("Georgia, system-ui")).toBe(false);
     expect(stackPrimaryIsSystemUi('"Helvetica Neue", BlinkMacSystemFont')).toBe(false);
+    expect(stackPrimaryIsSystemUi("sans-serif, system-ui")).toBe(false);
   });
 
   it("normalizes quoting, casing and whitespace the way a computed style may present it", () => {
@@ -85,4 +97,21 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     expect(stackPrimaryIsSystemUi(undefined)).toBe(false);
     expect(stackPrimaryIsSystemUi("")).toBe(false);
   });
+
+  it.runIf(process.platform === "darwin")(
+    "moves an unresolved-prefix Arabic fallback onto the system UI cascade", () => {
+      const family = "ui-sans-serif, system-ui, sans-serif";
+      const primaryKey = resolveFontKey(family);
+      const primary = resolveFont(family, 400, 16);
+      expect(primary).not.toBeNull();
+      const args = [
+        0x0645, primary!, primaryKey, 400, 16, 0, undefined, undefined,
+        resolveFontKeyChain(family),
+      ] as const;
+      const namedBase = resolveFontForCodepoint(...args, false, 100, undefined, family);
+      const uiBase = resolveFontForCodepoint(...args, stackPrimaryIsSystemUi(family), 100, undefined, family);
+      expect(namedBase.key).toBe("sysfb:GeezaPro");
+      expect(uiBase.key).toBe("sysfb:.SFArabic-Regular");
+    },
+  );
 });

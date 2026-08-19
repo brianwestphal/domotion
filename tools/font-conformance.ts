@@ -844,7 +844,7 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
     // "SF Pro" even though both share the `sf-pro` key. Omitting this would
     // measure a different code path than the one that paints — the exact
     // instrument defect this tool was corrected for once already.
-    stackPrimaryIsSystemUi(rs.spec.fontFamily),
+    stackPrimaryIsSystemUi(rs.spec.fontFamily, lang),
     rs.stretch,
     undefined,
     // The renderer passes the raw declaration because Blink's standard-style

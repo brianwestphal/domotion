@@ -1092,8 +1092,11 @@ Notes:
   in both render modes and ink measurement.
 
 - **The system-ui route follows the first effective family, not the first raw
-  token.** `-apple-system` is intentionally unresolved by the family matcher and
-  falls through the CSS stack. When `system-ui` follows it, Blink therefore uses
+  token.** Unavailable names are skipped by the same family nomination walk
+  used by `resolveFont`; that includes `-apple-system`, unknown author names,
+  and commonly authored pseudo-generics such as `ui-sans-serif` that Blink
+  parses as ordinary unavailable family names. When `system-ui` follows one of
+  them, Blink therefore uses
   `MatchSystemUIFont`; Domotion must carry the same `systemUiPrimary` signal so
   SFNS receives CSS `wght`/`wdth` axis coordinates and its UI cascade base. The
   old raw-first-token test lost that signal and embedded regular SF outlines
@@ -1413,7 +1416,7 @@ Notes:
   `!resolveFontForCodepoint(…).covered` — with the identical argument list,
   `fontKeyChain` included (the caller derives it with
   `resolveFontKeyChain(fontFamily)` and the cascade-base flag with
-  `stackPrimaryIsSystemUi(fontFamily)`, the same helpers the run splitters use).
+  `stackPrimaryIsSystemUi(fontFamily, lang)`, the same helpers the run splitters use).
 
   It used to be a second, hand-maintained copy of the walk (primary → webfont
   partition → `fallbackFontChain` → live resolver), and that copy drifted twice
@@ -1986,9 +1989,10 @@ Three consequences worth holding onto:
   be freezing one OS version's behavior into source.
 
   The signal travels **beside** the font key, not derived from it:
-  `stackPrimaryIsSystemUi(fontFamily)` reads the stack's first family with
-  Blink's case-sensitive `AtomicString` spelling (`system-ui` and, on macOS,
-  `BlinkMacSystemFont` only), because
+  `stackPrimaryIsSystemUi(fontFamily, lang)` walks unavailable candidates with
+  the same platform- and locale-aware matcher as primary resolution, then tests
+  the first effective family with Blink's case-sensitive `AtomicString`
+  spelling (`system-ui` and, on macOS, `BlinkMacSystemFont` only), because
   `system-ui`, `BlinkMacSystemFont` and an explicitly-named `"SF Pro Text"` all
   collapse onto the single `sf-pro` key while Blink sends the first two to
   `MatchSystemUIFont` and the third to `MatchFontFamily`

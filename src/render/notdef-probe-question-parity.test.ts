@@ -146,11 +146,11 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // The caller-side tail, in full — `fontKeyChain` is the argument whose
     // omission this ticket closes (the probe used to see only the primary, so
     // a mark covered by a later-declared family got a spurious circle), and
-    // `stackPrimaryIsSystemUi(fontFamily)` / `stretch` are the two that were
+    // `stackPrimaryIsSystemUi(fontFamily, lang)` / `stretch` are the two that were
     // each dropped once before.
     const call = TEXT_TO_PATH_SRC.replace(/\s+/g, " ");
     expect(call).toContain(
-      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)",
+      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)",
     );
     // And the chain is derived the same way the run splitters derive it —
     // lang included, since the settings-mapped generics and the standard
@@ -191,7 +191,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // call site must read the stack. (The argument used to sit last in these
     // calls; the run's `stretch` now follows it, so the pin matches the call
     // shape rather than a trailing position.)
-    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily), stretch)");
+    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily, lang), stretch)");
     expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif')).toBe(false);
     // The key-collapse itself exists only where the named SF Pro family

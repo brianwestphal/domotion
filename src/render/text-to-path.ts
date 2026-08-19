@@ -488,7 +488,7 @@ function renderTextPathRuns(
   // Math-Alphanumeric base letters, dotted-circle clusters); those render
   // through the run-text / min-x anchored branch — the per-char path (which
   // reads `text` by index) can't be used for them.
-  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
@@ -1517,7 +1517,7 @@ export function insertSyntheticDottedCircles(
       const runFontHasDottedCircle = resolveDottedCircleRunFont() != null;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)) {
+            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {
@@ -1555,7 +1555,7 @@ export function insertSyntheticDottedCircles(
       // (Soyombo) are handled by the notdef path above instead.
       const coveredMarkResolution = probeFlagged && logicalHbRun == null
         ? resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-          variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch)
+          variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)
         : null;
       const coveredMarkFont = logicalHbRun?.font
         ?? (coveredMarkResolution?.covered === true
@@ -1953,7 +1953,7 @@ function renderEmbeddedGlyphRuns(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
   if (runs.length === 0) return null;
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -3254,7 +3254,7 @@ export function measureEmphasisMarkMetrics(
   const runs = splitTextIntoFontRuns(
     mark, primaryFont, primaryFontKey, weight, fontSize, slant,
     variationSettings, lang, resolveFontKeyChain(fontFamily, lang),
-    stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily,
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang), stretch, undefined, fontFamily,
   );
   const run = runs[0];
   if (run == null) return null;
@@ -3320,7 +3320,7 @@ export function measureInkMetrics(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily, features);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, undefined, fontFamily, features);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
@@ -3387,7 +3387,7 @@ export function renderStretchyFenceGlyph(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, fontOptions.lang,
-    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
+    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily, fontOptions.lang), stretch, undefined, fontFamily);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 
@@ -3458,7 +3458,7 @@ export function renderRadicalGlyph(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, fontOptions.lang,
-    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily), stretch, undefined, fontFamily);
+    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily, fontOptions.lang), stretch, undefined, fontFamily);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
 

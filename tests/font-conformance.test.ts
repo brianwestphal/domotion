@@ -63,7 +63,7 @@ describe("oracle resolver question", () => {
     const source = readFileSync(join(process.cwd(), "tools/font-conformance.ts"), "utf8")
       .replace(/\s+/g, " ");
     expect(source).toMatch(
-      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
+      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily, lang\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
     );
   });
 });

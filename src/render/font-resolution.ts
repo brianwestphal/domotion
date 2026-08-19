@@ -2853,17 +2853,30 @@ const _liveFallbackFirst =
  * The distinction only matters for the fallback BASE, so it travels as its own
  * signal.
  *
- * Matches the first EFFECTIVE family in the stack. `-apple-system` is not a
- * resolvable family in this pipeline (matching `matchFamilyNameToKey`), so it
- * falls through; when the next family is `system-ui`, that family entered
- * Blink's MatchSystemUIFont path and must retain the axis/cascade signal.
+ * Matches the first EFFECTIVE family in the stack. Unavailable names (including
+ * `-apple-system` and Blink-unrecognized pseudo-generics such as
+ * `ui-sans-serif`) fall through via the same matcher as primary resolution;
+ * when the next available family is `system-ui`, that family entered Blink's
+ * MatchSystemUIFont path and must retain the axis/cascade signal.
  */
-export function stackPrimaryIsSystemUi(fontFamily: string | undefined): boolean {
+export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: string): boolean {
   if (fontFamily == null || fontFamily === "") return false;
-  for (const raw of fontFamily.split(",")) {
-    const family = raw.trim().replace(/^["']|["']$/g, "");
-    if (family === "-apple-system") continue;
-    return family === "system-ui" || family === "BlinkMacSystemFont";
+  for (const entry of splitFontFamilyNames(fontFamily)) {
+    // These two names enter Blink's system-font path before ordinary family
+    // matching. The intercept is case-sensitive but applies to a quoted
+    // `"system-ui"` too; `canonicalSystemUiName` preserves that distinction.
+    if (entry.canonicalSystemUiName || entry.lookupName === "BlinkMacSystemFont") return true;
+
+    // Mirror the same nomination walk `resolveFont` / `resolveFontKey` use.
+    // An unavailable name is not the primary merely because it appears first
+    // in the declaration: Blink walks past it. This is load-bearing for common
+    // stacks such as `ui-sans-serif, system-ui`, because Blink does not
+    // recognize `ui-sans-serif` as a generic keyword and therefore reaches the
+    // platform UI font (and its private CoreText cascade) on the next entry.
+    const key = matchFamilyNameToKey(
+      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,
+    );
+    if (key != null) return false;
   }
   return false;
 }

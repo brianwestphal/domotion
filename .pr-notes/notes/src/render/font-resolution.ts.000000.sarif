@@ -1826,6 +1826,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszy9zccukepw39v",
+          "message": {
+            "text": "The system-ui cascade-base signal must follow the same first-available-family walk as primary resolution. Chromium parses ui-sans-serif as an ordinary unavailable family, so ui-sans-serif, system-ui reaches MatchSystemUIFont; stopping at the raw first token instead changed CoreText fallback from .SF Arabic to Geeza Pro. The implementation reuses the existing platform/locale-aware matcher rather than adding a family or codepoint exception.",
+            "markdown": "The system-ui cascade-base signal must follow the same first-available-family walk as primary resolution. Chromium parses ui-sans-serif as an ordinary unavailable family, so ui-sans-serif, system-ui reaches MatchSystemUIFont; stopping at the raw first token instead changed CoreText fallback from .SF Arabic to Geeza Pro. The implementation reuses the existing platform/locale-aware matcher rather than adding a family or codepoint exception."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 2862,
+                  "endLine": 2881,
+                  "snippet": {
+                    "text": "export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: string): boolean {\n  if (fontFamily == null || fontFamily === \"\") return false;\n  for (const entry of splitFontFamilyNames(fontFamily)) {\n    // These two names enter Blink's system-font path before ordinary family\n    // matching. The intercept is case-sensitive but applies to a quoted\n    // `\"system-ui\"` too; `canonicalSystemUiName` preserves that distinction.\n    if (entry.canonicalSystemUiName || entry.lookupName === \"BlinkMacSystemFont\") return true;\n\n    // Mirror the same nomination walk `resolveFont` / `resolveFontKey` use.\n    // An unavailable name is not the primary merely because it appears first\n    // in the declaration: Blink walks past it. This is load-bearing for common\n    // stacks such as `ui-sans-serif, system-ui`, because Blink does not\n    // recognize `ui-sans-serif` as a generic keyword and therefore reaches the\n    // platform UI font (and its private CoreText cascade) on the next entry.\n    const key = matchFamilyNameToKey(\n      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,\n    );\n    if (key != null) return false;\n  }\n  return false;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2312"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7769e49b4b6e1f05485db2e7fd912535"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "af7c2a53babd9deaf49430726edee405c8ce5213",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

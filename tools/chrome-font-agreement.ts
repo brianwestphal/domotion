@@ -34,6 +34,7 @@ import {
   resolveFontForCodepoint,
   getFontInstance,
   resolveFontSpec,
+  stackPrimaryIsSystemUi,
 } from "../src/render/font-resolution.js";
 
 const P = (s: string): void => console.log(`FONTAGREE: ${s}`);
@@ -117,7 +118,10 @@ try {
     let ours = "(unresolved)";
     let ourFile = "";
     if (primary != null && primaryKey != null) {
-      const r = resolveFontForCodepoint(cp, primary, primaryKey, 400, FONT_PX, 0, undefined, undefined, chain);
+      const r = resolveFontForCodepoint(
+        cp, primary, primaryKey, 400, FONT_PX, 0, undefined, undefined, chain,
+        stackPrimaryIsSystemUi(STACK), 100, undefined, STACK,
+      );
       if (r != null) {
         ours = r.key;
         const spec = resolveFontSpec(r.key);
