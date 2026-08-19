@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszfjo1mcpsemz7v",
+          "message": {
+            "text": "The classification is deliberately a human decision, not a pixel-score heuristic. A rendered diff can identify where output diverged but cannot prove whether the cause precedes rasterization, belongs to paint/compositing, crosses an unsupported boundary, or is only the accepted raster floor; one shared closed vocabulary keeps the client and ticket proxy in agreement.",
+            "markdown": "The classification is deliberately a human decision, not a pixel-score heuristic. A rendered diff can identify where output diverged but cannot prove whether the cause precedes rasterization, belongs to paint/compositing, crosses an unsupported boundary, or is only the accepted raster floor; one shared closed vocabulary keeps the client and ticket proxy in agreement."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/logical-classification.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 39,
+                  "snippet": {
+                    "text": "/**\n * Human classification applied after a visual residual has been compared\n * against the logical-stage oracles. Pixels alone cannot determine which of\n * these boundaries produced a difference, so the review UI never infers one.\n */\nexport const LOGICAL_CLASSIFICATIONS = {\n  \"logical-defect\": {\n    label: \"Logical defect\",\n    ticketPrefix: \"logical\",\n    description: \"Chromium and Domotion disagree before rasterization: routing, shaping, layout, geometry, or another logical-stage decision.\",\n  },\n  \"paint-compositing\": {\n    label: \"Paint / compositing defect\",\n    ticketPrefix: \"paint\",\n    description: \"Logical geometry agrees, but vector paint, effects, stacking, blending, or compositing differs.\",\n  },\n  unsupported: {\n    label: \"Unsupported behavior\",\n    ticketPrefix: \"unsupported\",\n    description: \"The fixture exercises behavior outside Domotion's current rendering contract and needs an explicit support decision.\",\n  },\n  \"accepted-rasterization\": {\n    label: \"Accepted rasterization-only variance\",\n    ticketPrefix: \"rasterization\",\n    description: \"Logical output agrees and the remaining pixels are attributable only to the documented rasterization, hinting, or antialiasing floor.\",\n  },\n} as const;\n\nexport type LogicalClassification = keyof typeof LOGICAL_CLASSIFICATIONS;\n\nexport function parseLogicalClassification(value: unknown): LogicalClassification | null {\n  return typeof value === \"string\" && Object.hasOwn(LOGICAL_CLASSIFICATIONS, value)\n    ? value as LogicalClassification\n    : null;\n}\n\nexport function formatLogicalClassification(value: LogicalClassification): string {\n  const item = LOGICAL_CLASSIFICATIONS[value];\n  return `**${item.label}** — ${item.description}`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2302"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4cc1264f951f1725abb900b7f9271f09"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4da20ec7176cb07c84a54828997d239a06275dfc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,7 @@
 import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 
 import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
+import { LOGICAL_CLASSIFICATIONS } from "../src/review/logical-classification.js";
 
 type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
 
@@ -413,7 +414,16 @@ function Card({ r }: { r: ReviewTest }) {
           )}
         </>
       )}
-      <textarea className="comment" placeholder="What's wrong or worth a ticket? (Ticket will include the three images, metrics, and your comment.)"></textarea>
+      <label className="classification-label">
+        Logical-stage classification
+        <select className="logical-classification">
+          <option value="" selected>Classify this residual…</option>
+          {Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => (
+            <option value={value}>{item.label}</option>
+          ))}
+        </select>
+      </label>
+      <textarea className="comment" placeholder="What evidence supports this classification? The ticket will include it, the images, metrics, and selected regions."></textarea>
       <div className="actions">
         <button className="file-btn">File ticket</button>
         <span className="status-msg"></span>
@@ -697,26 +707,35 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
   const name = card.dataset["name"] ?? "";
   const suite = card.dataset["suite"] ?? "";
   const commentEl = card.querySelector<HTMLTextAreaElement>(".comment");
+  const classificationEl = card.querySelector<HTMLSelectElement>(".logical-classification");
   const msg = card.querySelector<HTMLElement>(".status-msg");
-  if (commentEl == null || msg == null) return;
+  if (commentEl == null || classificationEl == null || msg == null) return;
   const comment = commentEl.value.trim();
+  const classification = classificationEl.value;
   const overlay = overlayByCard.get(card);
   const regions: Rect[] = overlay != null ? overlay.getRegions() : [];
   msg.className = "status-msg";
   msg.textContent = "";
+  if (classification === "") {
+    msg.className = "status-msg err";
+    msg.textContent = "Choose a logical-stage classification before filing.";
+    classificationEl.focus();
+    return;
+  }
   btn.disabled = true;
   btn.textContent = "Filing...";
   try {
     const res = await fetch("/api/file-ticket", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: MANIFEST.activeSource, suite, name, comment, regions }),
+      body: JSON.stringify({ source: MANIFEST.activeSource, suite, name, classification, comment, regions }),
     });
     const json = await res.json() as { ticket_number?: string; error?: string };
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     msg.className = "status-msg ok";
     msg.textContent = `Filed ${json.ticket_number ?? ""}${regions.length > 0 ? ` (with ${regions.length} region${regions.length === 1 ? "" : "s"})` : ""}`;
     commentEl.value = "";
+    classificationEl.value = "";
     overlay?.clear();
   } catch (err) {
     msg.className = "status-msg err";

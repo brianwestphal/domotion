@@ -22,7 +22,10 @@ platform coverage, known confidence boundary, and next action. Work proceeds in
 the mandatory order: source decision, branch classification, intermediate
 oracle, negative activation control, transition/metamorphic coverage, then
 all-platform visual integration. `npm run check:parity-program` keeps references
-and unresolved gaps explicit in CI.
+and unresolved gaps explicit in CI. The in-repo demos reviewer now requires a
+human logical-stage classification before filing a residual ticket and records
+that classification in the title and details; it deliberately does not infer
+causality from pixel percentages (doc 31).
 
 **Doc 130 (`docs/130-paint-geometry-oracle.md`) — Partial stage gate.**
 `npm run paint:geometry-oracle` exactly compares source-transcribed linear

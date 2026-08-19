@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszfjo7s72npdu2x",
+          "message": {
+            "text": "Server-side validation makes the classification contract non-bypassable and persists its full meaning next to the fixture metrics. This ensures tickets retain the reviewer’s logical-stage conclusion even when created through a direct request rather than the browser control.",
+            "markdown": "Server-side validation makes the classification contract non-bypassable and persists its full meaning next to the fixture metrics. This ensures tickets retain the reviewer’s logical-stage conclusion even when created through a direct request rather than the browser control."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/review-server.tsx"
+                },
+                "region": {
+                  "startLine": 1033,
+                  "endLine": 1067,
+                  "snippet": {
+                    "text": "        const parsed = JSON.parse(body) as { source?: string; suite?: string; name?: string; classification?: unknown; comment?: string; regions?: unknown };\n        const source = sourceById(parsed.source ?? defaultSource);\n        const manifest = loadManifest(source.id);\n        const suite = parsed.suite as SuiteName | undefined;\n        const name = parsed.name ?? \"\";\n        const comment = parsed.comment ?? \"\";\n        const classification = parseLogicalClassification(parsed.classification);\n        if (classification == null) {\n          sendJson(res, 400, { error: `Invalid logical-stage classification. Expected one of: ${Object.keys(LOGICAL_CLASSIFICATIONS).join(\", \")}` });\n          return;\n        }\n        const regions = sanitizeRegions(parsed.regions);\n        const match = manifest.tests.find((r) => r.name === name && r.suite === suite);\n        if (match == null) {\n          sendJson(res, 400, { error: `Unknown test: ${suite}/${name}` });\n          return;\n        }\n        // Lead the title with the qualitative verdict (clean/trivial/minor/\n        // moderate/major) + region count + coverage %. Falls back to raw\n        // diff% only for manifests written before the verdict landed.\n        const titleScore = match.verdict != null && match.coveragePct != null && match.regionCount != null\n          ? `${match.verdict} · ${match.regionCount} regions · ${match.coveragePct.toFixed(2)}% of image`\n          : `${match.diffPct.toFixed(2)}% diff`;\n        const classificationInfo = LOGICAL_CLASSIFICATIONS[classification];\n        const title = `SVG demo test [${classificationInfo.ticketPrefix}] [${match.suite}]: ${name} (${titleScore})`;\n        const regionsBlock = serializeRegions(regions);\n        const regionLine = match.regionCount != null\n          ? `Score: ${match.verdict ?? \"?\"} · ${match.regionCount} region${match.regionCount === 1 ? \"\" : \"s\"} · ${match.coveragePct != null ? match.coveragePct.toFixed(2) + \"%\" : \"?\"} of image · max severity ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : \"?\"}% · scatter ${match.scatteredPixels ?? 0} px`\n          : null;\n        const detailsParts = [\n          `Suite: \\`${match.suite}\\``,\n          `Test: \\`${name}\\``,\n          `Logical-stage classification: ${formatLogicalClassification(classification)}`,\n          ...(regionLine != null ? [regionLine] : []),\n          `Diff (legacy): ${match.diffPct.toFixed(2)}% avg${match.sigPixelPct != null ? ` · sig ${match.sigPixelPct.toFixed(1)}%` : \"\"}${match.worstTilePct != null ? ` · tile avg ${match.worstTilePct.toFixed(1)}%` : \"\"}${match.worstTileSignificantPct != null ? ` · tile sig ${match.worstTileSignificantPct.toFixed(1)}%` : \"\"}`,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2302"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b600dc23b303fa913310e7f34a2b2c48"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4da20ec7176cb07c84a54828997d239a06275dfc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

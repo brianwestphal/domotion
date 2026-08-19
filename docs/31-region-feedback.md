@@ -47,7 +47,12 @@ Keyboard navigation:
 
 ### Submitting a comment
 
-- The comment composer in the review tool exposes a free-text field plus the in-progress rectangle list.
+- The comment composer exposes a required logical-stage classification, a free-text evidence field, and the in-progress rectangle list. A ticket cannot be filed until the reviewer selects one of:
+  - **Logical defect** — routing, shaping, layout, geometry, or another decision differs before rasterization.
+  - **Paint / compositing defect** — logical geometry agrees, but vector paint, effects, stacking, blending, or compositing differs.
+  - **Unsupported behavior** — the fixture is outside the current rendering contract and needs an explicit support decision.
+  - **Accepted rasterization-only variance** — logical output agrees and only the documented rasterization, hinting, or antialiasing floor remains.
+- The tool deliberately does not infer this classification from pixel scores. A screenshot can locate a residual, but cannot identify the pipeline stage that caused it; the reviewer must first compare the relevant logical-stage evidence.
 - On submit, the tool POSTs a note to the Hot Sheet API for the matching ticket. The note body is:
 
   ```
@@ -65,6 +70,7 @@ Keyboard navigation:
   - `image=<basename>` pins the rectangle to a single attachment. The basename is the short suffix the review tool already uses internally (`expected`, `actual`, `diff`) — full filenames like `DM-564_framer-mobile-fold-diff.png` are NOT required in the note; the iteration loop resolves them against the ticket's attachments.
   - A rectangle without an `image=` token applies to all three triplet members. This is the common case ("look at this region across all three").
   - The trailing caption after `—` is optional, free-form, and reproduced verbatim in iteration context.
+- Newly filed ticket titles include a short classification prefix, and ticket details preserve the full classification and definition before the pixel metrics and reviewer evidence.
 
 - After submit, the rectangles are cleared from the review-tool overlay (they live in the comment text now; the UI canvas is the editor, not the archive).
 

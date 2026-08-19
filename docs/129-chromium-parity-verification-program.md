@@ -65,7 +65,9 @@ are true:
 - macOS, Linux, and Windows reports carry comparable environment fingerprints;
   and
 - visual residuals are classified as logical, paint/compositing, unsupported,
-  or accepted rasterization-only rather than treated as one percentage.
+  or accepted rasterization-only rather than treated as one percentage. The
+  demos-review ticket flow requires and persists that human classification; it
+  never infers a pipeline stage from a pixel percentage.
 
 No finite fixture set proves all CSS behavior. “Near 100% certainty” therefore
 means exact agreement by construction for inventoried decisions, exhaustive or

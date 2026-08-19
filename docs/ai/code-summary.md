@@ -149,7 +149,8 @@ shortest possible map:
   live `pty.ts` shim (`domotion term -- <cmd>`, DM-1226 / doc 68 — optional
   `node-pty`).
 - **`src/review/`** — the published review-tool surface
-  (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`)
+  (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`) plus the
+  shared, closed logical-residual vocabulary in `logical-classification.ts`
   shared between the in-repo `tests/review-server.tsx` and the
   consumer-facing `svg-review` CLI. Also `glyph-compare.ts` (doc 98): the
   deterministic-CV glyph font-identity comparator — given two crops of one

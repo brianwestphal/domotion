@@ -135,6 +135,24 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       expect(before.length, "review UI rendered no cards").toBeGreaterThan(1);
       expect(new Set(before).size, "duplicate data-keys on first render").toBe(before.length);
 
+      // Pixel scores cannot establish which pipeline stage caused a residual.
+      // Filing is therefore guarded in both the browser and the server: the
+      // UI refuses an unclassified card, while a direct request cannot bypass
+      // the same contract.
+      const firstCard = page.locator(".card").first();
+      await firstCard.locator(".file-btn").click();
+      await expect.poll(() => firstCard.locator(".status-msg").textContent()).toContain(
+        "Choose a logical-stage classification",
+      );
+      const rejected = await page.request.post(`${started!.url}/api/file-ticket`, {
+        data: { source: "local", suite: "features", name: "bravo-fixture", comment: "evidence", regions: [] },
+      });
+      expect(rejected.status()).toBe(400);
+      expect((await rejected.json() as { error: string }).error).toContain("Invalid logical-stage classification");
+
+      await firstCard.locator(".logical-classification").selectOption("logical-defect");
+      expect(await firstCard.locator(".logical-classification").inputValue()).toBe("logical-defect");
+
       // A card that survives a REORDER must keep its DOM node AND still be
       // showing its own data. We stamp the node, sort, then look for the stamp
       // and check which row now carries it.

@@ -45,6 +45,11 @@ const execFileAsync = promisify(execFile);
 const GH_OPTS = { maxBuffer: 32 * 1024 * 1024 } as const;
 import { raw } from "kerfjs";
 import { openInBrowser } from "../src/cli/common.js";
+import {
+  formatLogicalClassification,
+  LOGICAL_CLASSIFICATIONS,
+  parseLogicalClassification,
+} from "../src/review/logical-classification.js";
 import * as esbuild from "esbuild";
 
 // ── Paths ──
@@ -681,6 +686,8 @@ const REVIEW_CSS = `
   .region-label-text { fill: #ffaa00; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; dominant-baseline: alphabetic; }
   .skip-note { font-size: 12px; color: #8b949e; font-style: italic; padding: 10px 0; }
   .comment { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 8px; font: inherit; resize: vertical; min-height: 54px; }
+  .classification-label { display: grid; gap: 5px; margin-bottom: 8px; color: #8b949e; font-size: 12px; font-weight: 600; }
+  .logical-classification { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 7px 8px; font: inherit; }
   .actions { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
   .file-btn { background: #238636; color: #fff; border: none; padding: 7px 14px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 13px; }
   .file-btn:hover { background: #2ea043; }
@@ -1023,12 +1030,17 @@ async function main(): Promise<void> {
           return;
         }
         const body = await readBody(req);
-        const parsed = JSON.parse(body) as { source?: string; suite?: string; name?: string; comment?: string; regions?: unknown };
+        const parsed = JSON.parse(body) as { source?: string; suite?: string; name?: string; classification?: unknown; comment?: string; regions?: unknown };
         const source = sourceById(parsed.source ?? defaultSource);
         const manifest = loadManifest(source.id);
         const suite = parsed.suite as SuiteName | undefined;
         const name = parsed.name ?? "";
         const comment = parsed.comment ?? "";
+        const classification = parseLogicalClassification(parsed.classification);
+        if (classification == null) {
+          sendJson(res, 400, { error: `Invalid logical-stage classification. Expected one of: ${Object.keys(LOGICAL_CLASSIFICATIONS).join(", ")}` });
+          return;
+        }
         const regions = sanitizeRegions(parsed.regions);
         const match = manifest.tests.find((r) => r.name === name && r.suite === suite);
         if (match == null) {
@@ -1041,7 +1053,8 @@ async function main(): Promise<void> {
         const titleScore = match.verdict != null && match.coveragePct != null && match.regionCount != null
           ? `${match.verdict} · ${match.regionCount} regions · ${match.coveragePct.toFixed(2)}% of image`
           : `${match.diffPct.toFixed(2)}% diff`;
-        const title = `SVG demo test [${match.suite}]: ${name} (${titleScore})`;
+        const classificationInfo = LOGICAL_CLASSIFICATIONS[classification];
+        const title = `SVG demo test [${classificationInfo.ticketPrefix}] [${match.suite}]: ${name} (${titleScore})`;
         const regionsBlock = serializeRegions(regions);
         const regionLine = match.regionCount != null
           ? `Score: ${match.verdict ?? "?"} · ${match.regionCount} region${match.regionCount === 1 ? "" : "s"} · ${match.coveragePct != null ? match.coveragePct.toFixed(2) + "%" : "?"} of image · max severity ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
@@ -1049,6 +1062,7 @@ async function main(): Promise<void> {
         const detailsParts = [
           `Suite: \`${match.suite}\``,
           `Test: \`${name}\``,
+          `Logical-stage classification: ${formatLogicalClassification(classification)}`,
           ...(regionLine != null ? [regionLine] : []),
           `Diff (legacy): ${match.diffPct.toFixed(2)}% avg${match.sigPixelPct != null ? ` · sig ${match.sigPixelPct.toFixed(1)}%` : ""}${match.worstTilePct != null ? ` · tile avg ${match.worstTilePct.toFixed(1)}%` : ""}${match.worstTileSignificantPct != null ? ` · tile sig ${match.worstTileSignificantPct.toFixed(1)}%` : ""}`,
           `Status: ${match.skipped ? `SKIP (${match.skipReason ?? "no reason"})` : match.error != null ? `ERROR (${match.error})` : match.pass ? "PASS" : "FAIL"}`,
