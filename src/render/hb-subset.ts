@@ -27,6 +27,10 @@ const HB_SUBSET_FLAGS_RETAIN_GIDS = 0x02;
  *  embedded pipeline renders the primary font's notdef box for uncovered
  *  codepoints, so the box outline must survive the subset. */
 const HB_SUBSET_FLAGS_NOTDEF_OUTLINE = 0x40;
+/** HarfBuzz's format-level completion step for a fully instantiated CFF2
+ *  source. Without it the subset remains CFF2 even though every axis was
+ *  pinned, leaving a variation program for the consumer to reopen. */
+const HB_SUBSET_FLAGS_DOWNGRADE_CFF2 = 0x4000;
 
 interface HbSubsetExports {
   memory: WebAssembly.Memory;
@@ -103,6 +107,11 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   for (const g of gids) w.hb_set_add(gset, g);
   let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;
   if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;
+  // This flag is ignored for non-CFF2 sources. For CFF2 it only takes effect
+  // when the font is fully instantiated below, yielding a static CFF table.
+  // That is HarfBuzz's own representation of a completed CFF2 instantiation,
+  // rather than a Domotion guess based on a face or codepoint.
+  if (pinAxes != null) flags |= HB_SUBSET_FLAGS_DOWNGRADE_CFF2;
   w.hb_subset_input_set_flags(input, flags);
   if (pinAxes != null) {
     if (w.hb_subset_input_pin_all_axes_to_default(input, face) === 0) {

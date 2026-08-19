@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "msznti86guu92mfx",
+          "message": {
+            "text": "Use HarfBuzz’s completed-instancing representation instead of a Domotion outline fallback. HBSUBSETFLAGSDOWNGRADECFF2 is defined upstream specifically for a fully pinned CFF2 face: it emits static CFF1 while retaining the subsetter’s glyph IDs and resolved charstrings. SFIndia Telugu and Kannada reopen with byte-for-byte path commands and advances after this conversion, and both affected Unicode fixtures become pixel-clean locally. Broad svg2ttf fallback was rejected because it regressed unrelated CFF2 faces.",
+            "markdown": "Use HarfBuzz’s completed-instancing representation instead of a Domotion outline fallback. `HB_SUBSET_FLAGS_DOWNGRADE_CFF2` is defined upstream specifically for a fully pinned CFF2 face: it emits static CFF1 while retaining the subsetter’s glyph IDs and resolved charstrings. SFIndia Telugu and Kannada reopen with byte-for-byte path commands and advances after this conversion, and both affected Unicode fixtures become pixel-clean locally. Broad svg2ttf fallback was rejected because it regressed unrelated CFF2 faces."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/hb-subset.ts"
+                },
+                "region": {
+                  "startLine": 108,
+                  "endLine": 115,
+                  "snippet": {
+                    "text": "  let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;\n  if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;\n  // This flag is ignored for non-CFF2 sources. For CFF2 it only takes effect\n  // when the font is fully instantiated below, yielding a static CFF table.\n  // That is HarfBuzz's own representation of a completed CFF2 instantiation,\n  // rather than a Domotion guess based on a face or codepoint.\n  if (pinAxes != null) flags |= HB_SUBSET_FLAGS_DOWNGRADE_CFF2;\n  w.hb_subset_input_set_flags(input, flags);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2310"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4614d7c868d99df34b1c275d780370d0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7de5b5fe8a2b10e08f0b96f0e53e1f389e3f1be8",
+          "branch": "investigation/dm-2310-cff2"
+        }
+      ]
     }
   ]
 }

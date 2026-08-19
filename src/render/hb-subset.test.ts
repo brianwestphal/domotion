@@ -3,6 +3,7 @@
 // platform-independent (no /System/Library/Fonts dependency) and can assert on
 // the EXACT hinting bytecode and gvar deltas being preserved.
 import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
 import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
@@ -162,6 +163,27 @@ describe("hbSubsetRetainGids variable-axis instancing (DM-1716)", () => {
 
   it("throws when a requested axis cannot be pinned (caller falls back to svg2ttf)", () => {
     expect(() => hbSubsetRetainGids(buildVariableHintedFont(), [1], 0, true, { XXXX: 5 })).toThrow(/pin_axis_location/);
+  });
+});
+
+const sfIndiaPath = "/System/Library/Fonts/SFIndia.ttc";
+describe.runIf(process.platform === "darwin" && existsSync(sfIndiaPath))("CFF2 completed instancing (DM-2310)", () => {
+  it.each([
+    { faceIndex: 8, gids: [104, 390] }, // .SFTelugu-Regular: U+0C04/U+0C5D
+    { faceIndex: 4, gids: [257, 358] }, // .SFKannada-Regular: U+0C84/U+0CDD
+  ])("downgrades face $faceIndex to static CFF while preserving resolved outlines", ({ faceIndex, gids }) => {
+    const sourceBytes = readFileSync(sfIndiaPath);
+    const source = fontkit.openSync(sfIndiaPath).fonts[faceIndex];
+    const out = hbSubsetRetainGids(sourceBytes, [0, ...gids], faceIndex, true, {});
+    const reopened = fontkit.create(out);
+
+    expect(tableTags(out)).toContain("CFF ");
+    expect(tableTags(out)).not.toContain("CFF2");
+    expect(reopened.variationAxes).toEqual({});
+    for (const gid of gids) {
+      expect(reopened.getGlyph(gid).path.toSVG()).toBe(source.getGlyph(gid).path.toSVG());
+      expect(reopened.getGlyph(gid).advanceWidth).toBe(source.getGlyph(gid).advanceWidth);
+    }
   });
 });
 

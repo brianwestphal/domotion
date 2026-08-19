@@ -142,10 +142,13 @@ completed the all-platform integration gate:
 
 Neither suite introduced a newly failing fixture. The macOS Unicode comparison
 had four fixtures move above the regression threshold and four become newly
-passing. Telugu, Kannada, and Latin Extended-C isolate a post-shaping CFF2
-subset/reopen geometry boundary; broad outline fallback experiments fixed some
-cells but regressed unrelated faces, so they were reverted and the logical
-investigation continues in DM-2310. Superscripts and Subscripts remains a sparse
+passing. Telugu, Kannada, and Latin Extended-C isolated a post-shaping CFF2
+subset/reopen geometry boundary. DM-2310 resolved it with HarfBuzz's
+`HB_SUBSET_FLAGS_DOWNGRADE_CFF2` after full axis pinning, which emits the
+completed instance as static CFF1 without rebuilding outlines or selecting
+particular faces or glyphs. A full local 818-fixture Unicode sweep left Telugu,
+Kannada, and Latin Extended-C pixel-clean with no new regression. Superscripts
+and Subscripts remains a sparse
 mixed-face transition covered by its existing visual work. These residuals do
 not contradict the ICU/font-selection stage oracles.
 
