@@ -106,6 +106,15 @@ invariance where shaping context is unchanged, translation covariance,
 equivalent computed-style syntax, helper-path movement, and scale-normalized
 geometry.
 
+The external `html-test` integration corpus also carries composed pages rather
+than only one-property fixtures. Its real-world slice includes editorial,
+pricing, mobile-app, dense admin-dashboard, multilingual messaging, and
+checkout/form layouts. These pages deliberately cross otherwise independent
+decisions—fallback and bidi runs inside flex/grid UI, native controls inside
+responsive fieldsets, and clipping/masking/gradients inside stacking contexts.
+They remain discovery inputs: a failure must be reduced to the earliest stage
+that diverges before it can justify a renderer change.
+
 ### Platform and environment matrix
 
 Every logical report records Chromium, OS image and architecture, font

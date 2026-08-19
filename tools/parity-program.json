@@ -142,7 +142,7 @@
       "oracle": "src/review/compare-pngs.ts",
       "sourceAudit": "not-applicable",
       "oracleStatus": "pixel-integration-gate",
-      "generatedCoverage": "feature, showcase, HTML, Unicode, and real-world corpora",
+      "generatedCoverage": "feature, showcase, HTML, Unicode, and real-world corpora, including composed editorial, pricing, mobile-app, admin-dashboard, multilingual messaging, and checkout/form pages",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Pixels cannot prove that the correct decision path ran or distinguish logical defects from accepted rasterization noise.",
       "nextAction": "Consume stage-oracle evidence in demo reports and classify each region before ticket creation."
