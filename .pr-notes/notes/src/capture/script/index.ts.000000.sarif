@@ -571,6 +571,137 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszea7fssx8gojvq",
+          "message": {
+            "text": "Projective activation is based on geometry, not on matrix3d syntax. The fourth-corner identity q2 = q1 + q3 - q0 separates affine planes that SVG can keep as vectors from genuinely projective quads; an authored perspective context also activates the boundary because its descendant flattening and depth composition cannot be represented by SVG groups.",
+            "markdown": "Projective activation is based on geometry, not on matrix3d syntax. The fourth-corner identity q2 = q1 + q3 - q0 separates affine planes that SVG can keep as vectors from genuinely projective quads; an authored perspective context also activates the boundary because its descendant flattening and depth composition cannot be represented by SVG groups."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1481,
+                  "endLine": 1500,
+                  "snippet": {
+                    "text": "  // A planar quad is affine exactly when q2 = q1 + q3 - q0. Promote every\n  // non-affine plane to the outermost containing 3D context so capture stamps\n  // the composited context once, while affine matrix3d cases stay vectorized.\n  const _nonAffineProjectiveRoots = new Set();\n  for (const _pel of _projectiveInfluenced) {\n    const _style = getComputedStyle(_pel);\n    if (_style.perspective != null && _style.perspective !== '' && _style.perspective !== 'none') {\n      let _root = _pel;\n      while (_root.parentElement != null && _projectiveInfluenced.has(_root.parentElement)) _root = _root.parentElement;\n      _nonAffineProjectiveRoots.add(_root);\n    }\n    const _q = _projectedQuads.get(_pel);\n    if (_q == null) continue;\n    const _rx = _q[2].x - (_q[1].x + _q[3].x - _q[0].x);\n    const _ry = _q[2].y - (_q[1].y + _q[3].y - _q[0].y);\n    if (Math.hypot(_rx, _ry) <= 0.02) continue;\n    let _root = _pel;\n    while (_root.parentElement != null && _projectiveInfluenced.has(_root.parentElement)) _root = _root.parentElement;\n    _nonAffineProjectiveRoots.add(_root);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/transform-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2298"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "89b0548b3944f9d6fa41e9246096e0b2"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszea7lexlwcvvzi",
+          "message": {
+            "text": "Non-affine 3D contexts are snapshotted once at the outer context root and clipped to the capture viewport. The generated oracle proves projective perspective activates the snapshot while affine scale3d remains vector-native, and the preserve-3d visual fixture matches Chromium with zero differing pixels.",
+            "markdown": "Non-affine 3D contexts are snapshotted once at the outer context root and clipped to the capture viewport. The generated oracle proves projective perspective activates the snapshot while affine scale3d remains vector-native, and the preserve-3d visual fixture matches Chromium with zero differing pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 142,
+                  "endLine": 159,
+                  "snippet": {
+                    "text": "    // SVG cannot encode a projective fourth corner or preserve-3d flattening.\n    // Snapshot the outermost 3D context once; descendants remain in the tree\n    // for metadata/paint ordering but the renderer returns after this image.\n    if (_nonAffineProjectiveRoots.has(el)) {\n      let _left = rect.left, _top = rect.top, _right = rect.right, _bottom = rect.bottom;\n      const _subs = el.getElementsByTagName('*');\n      for (let _ri = 0; _ri < _subs.length; _ri++) {\n        const _rr = _subs[_ri].getBoundingClientRect();\n        if (_rr.width <= 0 || _rr.height <= 0) continue;\n        _left = Math.min(_left, _rr.left); _top = Math.min(_top, _rr.top);\n        _right = Math.max(_right, _rr.right); _bottom = Math.max(_bottom, _rr.bottom);\n      }\n      const _rx = Math.max(vp.x, _left), _ry = Math.max(vp.y, _top);\n      const _rright = Math.min(vp.x + vp.width, _right), _rbottom = Math.min(vp.y + vp.height, _bottom);\n      if (_rright > _rx && _rbottom > _ry) {\n        transformSubtreeRaster = { x: _rx - vp.x, y: _ry - vp.y, width: _rright - _rx, height: _rbottom - _ry };\n      }\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4437
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2298"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1e904d403b732225c60cdf468588b50e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1aa445ff192d7963bdca8b853e6d55f71dbc526",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

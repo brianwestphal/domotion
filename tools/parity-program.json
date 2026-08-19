@@ -91,13 +91,13 @@
       "id": "transforms-projection-reflection",
       "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
-      "oracle": null,
-      "sourceAudit": "partial",
-      "oracleStatus": "visual-only",
-      "generatedCoverage": "curated transform and reflection fixtures",
+      "oracle": "tools/transform-geometry-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "five affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, mutation control, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Projective fourth-corner residuals and nested flattening/preserve-3d transitions lack an exact geometry oracle.",
-      "nextAction": "Compare Chromium quad geometry and Domotion matrices over a generated transform tree matrix."
+      "knownGap": "Nested projective contexts are represented by a Chromium subtree snapshot rather than vectors; animated 3D transforms still require frame-level boundary coverage.",
+      "nextAction": "Extend the generated matrix to animated 3D frames when frame-state capture exposes stable per-frame projective snapshots."
     },
     {
       "id": "compositing-effects-paint-order",

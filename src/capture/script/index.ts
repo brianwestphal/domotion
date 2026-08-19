@@ -125,6 +125,7 @@ const captureDocumentTree =
     const rect = el.getBoundingClientRect();
     let projectiveTransform;
     let projectiveHidden;
+    let transformSubtreeRaster;
     const _quad = _projectedQuads.get(el);
     if (_quad != null && rect.width > 0 && rect.height > 0) {
       const _abs = _homographyForRect(rect, _quad);
@@ -136,6 +137,24 @@ const captureDocumentTree =
         const _area = (_quad[1].x - _quad[0].x) * (_quad[3].y - _quad[0].y)
           - (_quad[1].y - _quad[0].y) * (_quad[3].x - _quad[0].x);
         projectiveHidden = cs.backfaceVisibility === 'hidden' && _area < 0;
+      }
+    }
+    // SVG cannot encode a projective fourth corner or preserve-3d flattening.
+    // Snapshot the outermost 3D context once; descendants remain in the tree
+    // for metadata/paint ordering but the renderer returns after this image.
+    if (_nonAffineProjectiveRoots.has(el)) {
+      let _left = rect.left, _top = rect.top, _right = rect.right, _bottom = rect.bottom;
+      const _subs = el.getElementsByTagName('*');
+      for (let _ri = 0; _ri < _subs.length; _ri++) {
+        const _rr = _subs[_ri].getBoundingClientRect();
+        if (_rr.width <= 0 || _rr.height <= 0) continue;
+        _left = Math.min(_left, _rr.left); _top = Math.min(_top, _rr.top);
+        _right = Math.max(_right, _rr.right); _bottom = Math.max(_bottom, _rr.bottom);
+      }
+      const _rx = Math.max(vp.x, _left), _ry = Math.max(vp.y, _top);
+      const _rright = Math.min(vp.x + vp.width, _right), _rbottom = Math.min(vp.y + vp.height, _bottom);
+      if (_rright > _rx && _rbottom > _ry) {
+        transformSubtreeRaster = { x: _rx - vp.x, y: _ry - vp.y, width: _rright - _rx, height: _rbottom - _ry };
       }
     }
     // DM-513: when an element's rect is outside the viewport, normally skip the
@@ -722,6 +741,7 @@ const captureDocumentTree =
       },
       projectiveTransform,
       projectiveHidden,
+      transformSubtreeRaster,
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
       // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
@@ -1457,6 +1477,26 @@ const captureDocumentTree =
   };
   for (const _pel of _projectiveInfluenced) {
     if (_pel.offsetWidth > 0 && _pel.offsetHeight > 0) _projectedQuads.set(_pel, _measureProjectedQuad(_pel));
+  }
+  // A planar quad is affine exactly when q2 = q1 + q3 - q0. Promote every
+  // non-affine plane to the outermost containing 3D context so capture stamps
+  // the composited context once, while affine matrix3d cases stay vectorized.
+  const _nonAffineProjectiveRoots = new Set();
+  for (const _pel of _projectiveInfluenced) {
+    const _style = getComputedStyle(_pel);
+    if (_style.perspective != null && _style.perspective !== '' && _style.perspective !== 'none') {
+      let _root = _pel;
+      while (_root.parentElement != null && _projectiveInfluenced.has(_root.parentElement)) _root = _root.parentElement;
+      _nonAffineProjectiveRoots.add(_root);
+    }
+    const _q = _projectedQuads.get(_pel);
+    if (_q == null) continue;
+    const _rx = _q[2].x - (_q[1].x + _q[3].x - _q[0].x);
+    const _ry = _q[2].y - (_q[1].y + _q[3].y - _q[0].y);
+    if (Math.hypot(_rx, _ry) <= 0.02) continue;
+    let _root = _pel;
+    while (_root.parentElement != null && _projectiveInfluenced.has(_root.parentElement)) _root = _root.parentElement;
+    _nonAffineProjectiveRoots.add(_root);
   }
 
   const _invertH = (m) => {

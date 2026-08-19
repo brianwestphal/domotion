@@ -49,6 +49,7 @@ jobs:
       - run: npm run paint:geometry-oracle
       - run: npx playwright install chromium
       - run: npm run paint:geometry-browser-oracle
+      - run: npm run transform:geometry-oracle
 
   build:
     runs-on: ubuntu-latest

@@ -495,6 +495,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszea7qtxfgclfxk",
+          "message": {
+            "text": "Reflection placement is centralized as an oracle-visible pure mapping. Each direction reflects around the corresponding border-box edge and then applies the signed CSS offset; the generated rows cover all four directions and both percentage and pixel resolution.",
+            "markdown": "Reflection placement is centralized as an oracle-visible pure mapping. Each direction reflects around the corresponding border-box edge and then applies the signed CSS offset; the generated rows cover all four directions and both percentage and pixel resolution."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3637,
+                  "endLine": 3641,
+                  "snippet": {
+                    "text": "export function boxReflectionTransform(spec: BoxReflectionSpec, x: number, y: number, width: number, height: number): string {\n  if (spec.direction === \"below\") return `matrix(1 0 0 -1 0 ${r(2 * (y + height) + spec.offset)})`;\n  if (spec.direction === \"above\") return `matrix(1 0 0 -1 0 ${r(2 * y - spec.offset)})`;\n  if (spec.direction === \"right\") return `matrix(-1 0 0 1 ${r(2 * (x + width) + spec.offset)} 0)`;\n  return `matrix(-1 0 0 1 ${r(2 * x - spec.offset)} 0)`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/transform-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2298"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "394b98e7e51f2e462db3ba4b86510b87"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1aa445ff192d7963bdca8b853e6d55f71dbc526",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -3614,11 +3614,7 @@ function appendBoxReflection(state: RenderState, el: CapturedElement, fragmentSt
   const spec = parseBoxReflection(el.styles.webkitBoxReflect, el.width, el.height);
   if (spec == null || state.svgParts.length === fragmentStart) return;
   const source = state.svgParts.slice(fragmentStart).join("\n");
-  let transform: string;
-  if (spec.direction === "below") transform = `matrix(1 0 0 -1 0 ${r(2 * (el.y + el.height) + spec.offset)})`;
-  else if (spec.direction === "above") transform = `matrix(1 0 0 -1 0 ${r(2 * el.y - spec.offset)})`;
-  else if (spec.direction === "right") transform = `matrix(-1 0 0 1 ${r(2 * (el.x + el.width) + spec.offset)} 0)`;
-  else transform = `matrix(-1 0 0 1 ${r(2 * el.x - spec.offset)} 0)`;
+  const transform = boxReflectionTransform(spec, el.x, el.y, el.width, el.height);
 
   let reflected = source;
   if (spec.maskImage != null) {
@@ -3636,6 +3632,13 @@ function appendBoxReflection(state: RenderState, el: CapturedElement, fragmentSt
   // Blink's FEBoxReflect composites SourceGraphic over the reflected image.
   // Insert the copy first so negative offsets cannot make it cover the source.
   state.svgParts.splice(fragmentStart, 0, markup);
+}
+
+export function boxReflectionTransform(spec: BoxReflectionSpec, x: number, y: number, width: number, height: number): string {
+  if (spec.direction === "below") return `matrix(1 0 0 -1 0 ${r(2 * (y + height) + spec.offset)})`;
+  if (spec.direction === "above") return `matrix(1 0 0 -1 0 ${r(2 * y - spec.offset)})`;
+  if (spec.direction === "right") return `matrix(-1 0 0 1 ${r(2 * (x + width) + spec.offset)} 0)`;
+  return `matrix(-1 0 0 1 ${r(2 * x - spec.offset)} 0)`;
 }
 
 
