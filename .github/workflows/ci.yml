@@ -48,6 +48,7 @@ jobs:
       - run: npm run check:parity-program
       - run: npm run paint:geometry-oracle
       - run: npx playwright install chromium
+      - run: npm run fonts:layout:oracle
       - run: npm run paint:geometry-browser-oracle
       - run: npm run transform:geometry-oracle
       - run: npm run paint:order-oracle

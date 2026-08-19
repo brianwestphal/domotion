@@ -44,11 +44,11 @@
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/platform/fonts/shaping"],
       "oracle": "tools/layout-stage-oracle.ts",
       "sourceAudit": "audited",
-      "oracleStatus": "partial-stage-gate",
-      "generatedCoverage": "representative line, bidi, writing-mode, spacing, transform, and synthetic-style transitions",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "default plus isolated and pairwise transitions across direction, writing mode, spacing, wrapping, synthetic traits, and transforms; neutral-wrapper, node-split, computed-style, translation, and normalized-scale metamorphic relations",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "The corpus is representative rather than a generated transition product, and unsupported-layout classification is narrow.",
-      "nextAction": "Generate transition-matrix and metamorphic layout cases with exact captured-versus-emitted geometry assertions."
+      "knownGap": "Unsupported-layout classification remains intentionally narrow; newly supported CSS text-layout states must be added to the generated axes before claiming coverage.",
+      "nextAction": "Extend the generated axes when Chromium or Domotion adds a text-layout state that changes captured character origins."
     },
     {
       "id": "text-decoration",

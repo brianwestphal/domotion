@@ -27,6 +27,11 @@ human logical-stage classification before filing a residual ticket and records
 that classification in the title and details; it deliberately does not infer
 causality from pixel percentages (doc 31).
 
+The doc-116 text-layout stage is an exact CI gate: a generated covering array
+compares direct Chromium `Range` origins with production-captured
+`textSegments`, proves each transition axis moves, and checks five metamorphic
+relations without cloning the browser geometry into the Domotion leg.
+
 **Doc 130 (`docs/130-paint-geometry-oracle.md`) — Partial stage gate.**
 `npm run paint:geometry-oracle` exactly compares source-transcribed linear
 magic-corner geometry, radial ending shapes/repeating domains, Blink stop

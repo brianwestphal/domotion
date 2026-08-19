@@ -66,6 +66,111 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszfv74avj1ybem6",
+          "message": {
+            "text": "The generated corpus includes both isolated transitions and every pair of non-default states. Isolated rows make each axis independently attributable; pair rows catch interactions that a one-axis-at-a-time suite cannot, while 28 total capture rows remain practical as an always-on CI gate.",
+            "markdown": "The generated corpus includes both isolated transitions and every pair of non-default states. Isolated rows make each axis independently attributable; pair rows catch interactions that a one-axis-at-a-time suite cannot, while 28 total capture rows remain practical as an always-on CI gate."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/layout-stage-oracle.ts"
+                },
+                "region": {
+                  "startLine": 56,
+                  "endLine": 85,
+                  "snippet": {
+                    "text": "// Transition coverage: the base row, every isolated non-default state, then\n// every pair of non-default axis states. This is a covering array rather than\n// the old five hand-picked examples, while remaining cheap enough for CI.\nconst defaults = Object.fromEntries(Object.entries(axisValues).map(([axis, values]) => [axis, values[0]])) as Record<Axis, string>;\nconst axes = Object.keys(axisValues) as Axis[];\nconst matrixAssignments: Array<Record<Axis, string>> = [{ ...defaults }];\nfor (const axis of axes) {\n  matrixAssignments.push({ ...defaults, [axis]: axisValues[axis][1] });\n}\nfor (let i = 0; i < axes.length; i++) {\n  for (let j = i + 1; j < axes.length; j++) {\n    matrixAssignments.push({ ...defaults, [axes[i]]: axisValues[axes[i]][1], [axes[j]]: axisValues[axes[j]][1] });\n  }\n}\nconst fixtures: Fixture[] = matrixAssignments.map((assignment, i) => ({\n  id: `matrix-${String(i).padStart(2, \"0\")}`,\n  css: cssFor(assignment),\n  html: \"office A\\u00adV e\\u0301 אבג 12\",\n  axes: assignment,\n}));\n\nconst metaAxes = { ...defaults };\nconst metaCss = cssFor(metaAxes);\nfixtures.push(\n  { id: \"meta-plain\", css: metaCss, html: \"AV office\", axes: metaAxes, metamorphicGroup: \"inline-equivalence\" },\n  { id: \"meta-neutral-wrapper\", css: metaCss, html: \"<span>AV office</span>\", axes: metaAxes, metamorphicGroup: \"inline-equivalence\" },\n  { id: \"meta-node-split\", css: metaCss, html: \"<span>AV </span><span>office</span>\", axes: metaAxes, metamorphicGroup: \"inline-equivalence\" },\n  { id: \"meta-longhand\", css: metaCss.replace(\"font:19px/27px sans-serif\", \"font-family:sans-serif;font-size:19px;line-height:27px;font-style:normal;font-weight:400\"), html: \"AV office\", axes: metaAxes, metamorphicGroup: \"inline-equivalence\" },\n  { id: \"meta-translated\", css: `${metaCss};transform:translate(37px,23px)`, html: \"AV office\", axes: metaAxes, metamorphicGroup: \"inline-equivalence\" },\n  { id: \"meta-scale-2x\", css: `${metaCss};transform:scale(2);transform-origin:0 0`, html: \"AV office\", axes: metaAxes, normalizeScale: 2, metamorphicGroup: \"inline-equivalence\" },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2303"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9e0dbf820fa6833461e12f7c8b037405"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszfv7ao07rws3qw",
+          "message": {
+            "text": "The oracle no longer grades a clone of Chromium geometry. The expected leg reads direct DOM Range origins, the actual leg independently reads production CAPTURE_SCRIPT textSegments, and metamorphic checks compare the transformation relation on both legs so real Blink LayoutUnit effects (such as a node-boundary shift) are preserved rather than mislabeled as failures.",
+            "markdown": "The oracle no longer grades a clone of Chromium geometry. The expected leg reads direct DOM Range origins, the actual leg independently reads production CAPTURE_SCRIPT textSegments, and metamorphic checks compare the transformation relation on both legs so real Blink LayoutUnit effects (such as a node-boundary shift) are preserved rather than mislabeled as failures."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/layout-stage-oracle.ts"
+                },
+                "region": {
+                  "startLine": 98,
+                  "endLine": 179,
+                  "snippet": {
+                    "text": "async function chromiumGeometry(page: Page, selector: string, scale: number): Promise<Geometry> {\n  return page.locator(selector).evaluate((el, s) => {\n    const box = el.getBoundingClientRect();\n    const origins: Origin[] = [];\n    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);\n    for (let node = walker.nextNode(); node != null; node = walker.nextNode()) {\n      const text = node.textContent ?? \"\";\n      for (let start = 0; start < text.length;) {\n        const size = text.codePointAt(start)! > 0xFFFF ? 2 : 1;\n        const range = document.createRange();\n        range.setStart(node, start); range.setEnd(node, start + size);\n        const rect = range.getBoundingClientRect();\n        const char = text.slice(start, start + size);\n        // Whitespace has no glyph origin for the SVG renderer to consume.\n        // Range can return a nonzero advance (and, at bidi boundaries, the\n        // same origin as a neighboring glyph), while capture intentionally\n        // trims it at a segment edge. Compare painted characters only.\n        if (!/^\\s+$/u.test(char) && !(rect.width === 0 && rect.height === 0)) {\n          origins.push({ char, x: (rect.left - box.left) / s, y: (rect.top - box.top) / s });\n        }\n        start += size;\n      }\n    }\n    return { box: { width: box.width / s, height: box.height / s }, origins };\n  }, scale);\n}\n\nfunction capturedGeometry(tree: CapturedElement[], box: { x: number; y: number }, scale: number): Geometry {\n  const origins: Origin[] = [];\n  const visitSegment = (seg: TextSegment): void => {\n    for (const entry of codePointEntries(seg.sourceText ?? seg.text)) {\n      if (/^\\s+$/u.test(entry.char)) continue;\n      if (seg.verticalWritingMode != null) {\n        const y = seg.yOffsets?.[entry.start];\n        if (y != null) origins.push({ char: entry.char, x: (seg.x - box.x) / scale, y: (y - box.y) / scale });\n      } else {\n        const x = seg.xOffsets?.[entry.start];\n        if (x != null) origins.push({ char: entry.char, x: (x - box.x) / scale, y: (seg.y - box.y) / scale });\n      }\n    }\n  };\n  const visit = (element: CapturedElement): void => {\n    for (const seg of element.textSegments ?? []) visitSegment(seg);\n    for (const child of element.children ?? []) visit(child);\n  };\n  for (const element of tree) visit(element);\n  const root = tree[0];\n  return {\n    box: { width: (root?.width ?? 0) / scale, height: (root?.height ?? 0) / scale },\n    origins,\n  };\n}\n\nfunction geometryDelta(expected: Geometry, actual: Geometry): number {\n  if (expected.origins.length !== actual.origins.length) return Infinity;\n  let delta = 0;\n  for (let i = 0; i < expected.origins.length; i++) {\n    if (expected.origins[i].char !== actual.origins[i].char) return Infinity;\n    delta = Math.max(delta, Math.abs(expected.origins[i].x - actual.origins[i].x), Math.abs(expected.origins[i].y - actual.origins[i].y));\n  }\n  return delta;\n}\n\nfunction signature(geometry: Geometry): string {\n  return JSON.stringify({\n    origins: geometry.origins.map((o) => [o.char, o.x.toFixed(3), o.y.toFixed(3)]),\n  });\n}\n\nfunction metamorphicDelta(baseExpected: Geometry, variantExpected: Geometry, baseActual: Geometry, variantActual: Geometry): number {\n  const lists = [baseExpected.origins, variantExpected.origins, baseActual.origins, variantActual.origins];\n  if (!lists.every((list) => list.length === lists[0].length)) return Infinity;\n  let delta = 0;\n  for (let i = 0; i < lists[0].length; i++) {\n    if (!lists.every((list) => list[i].char === lists[0][i].char)) return Infinity;\n    const expectedDx = variantExpected.origins[i].x - baseExpected.origins[i].x;\n    const expectedDy = variantExpected.origins[i].y - baseExpected.origins[i].y;\n    const actualDx = variantActual.origins[i].x - baseActual.origins[i].x;\n    const actualDy = variantActual.origins[i].y - baseActual.origins[i].y;\n    delta = Math.max(delta, Math.abs(expectedDx - actualDx), Math.abs(expectedDy - actualDy));\n  }\n  return delta;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2303"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6ec889f38150195534e8cb2522d65614"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5da78fe8d2db14c75bbc00e1f5c64200ee647ae4",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
