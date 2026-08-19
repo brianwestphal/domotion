@@ -160,6 +160,8 @@ shortest possible map:
   Chromium parity gates kept separate from whole-image similarity. The
   replaced-element leg is `tools/replaced-geometry-oracle.ts`: exact concrete
   object-fit rectangles, control paint ownership, and generated pseudo boxes.
+  `tools/raster-boundary-oracle.ts` is the paired activation/vector gate for
+  every inventoried raster fallback.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus

@@ -78,6 +78,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Raster activation boundaries (doc 134) — Shipped.** A 24-row gate pairs
+  every live raster ownership class with its representable vector control,
+  including helper-disabled text, recursive iframes, projective transforms,
+  advanced gradients, and the retired textarea/vertical-text raster path.
+
 - **Replaced/control/generated geometry (doc 133) — Shipped.** A live
   11-row Chromium oracle gates every object-fit mode, exact percentage/calc
   object-position, native-vs-author control ownership, and positioned

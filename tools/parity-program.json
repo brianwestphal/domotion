@@ -127,13 +127,13 @@
       "id": "raster-fallback-boundary",
       "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts", "src/render/text.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint"],
-      "oracle": "docs/reference/raster-image-fallback-cases.md",
-      "sourceAudit": "partial",
-      "oracleStatus": "documented-classifier",
-      "generatedCoverage": "focused fallback fixtures and warning-path tests",
+      "oracle": "tools/raster-boundary-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
+      "generatedCoverage": "24 positive/negative live-capture and production-predicate rows covering glyph, replaced/sprite/frame, native-control, backdrop, projective, advanced-gradient, conic, dormant-mask, retired text-raster, and helper-disabled transitions",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "There is no exhaustive activation gate proving every fallback is necessary, diagnosed, and absent from supported vector cases.",
-      "nextAction": "Add a fallback activation oracle with positive, negative, helper-disabled, and recursive-frame controls."
+      "knownGap": "The oracle proves activation ownership; each fallback's pixel contents remain the responsibility of its dedicated visual or paint-stage gate.",
+      "nextAction": "Add paired activation rows whenever a fallback is introduced, retired, or changes ownership."
     },
     {
       "id": "end-to-end-visual-integration",

@@ -75,18 +75,9 @@
 // whether to keep the rect-based defaults its text-shaping locals were
 // initialised with.
 
-// `elementRaster`: textarea soft-wrap and writing-mode != horizontal-tb
-// both fall outside our path-mode rendering contract. Rather than
-// reimplement Chrome's word-wrap (font metrics + kerning + break
-// opportunities + CSS wrap=hard/soft) or vertical-text rotation, stamp
-// the element's painted pixels by screenshotting its content box (minus
-// border + padding). Scoped to textareas with a non-empty value (so
-// short / empty ones keep the cleaner path pipeline — SK-1108) and to
-// any element with `writing-mode != horizontal-tb` that carries text
-// content (SK-1128).
-//
-// Returns the content-box rect viewport-relative or `undefined` when
-// the host doesn't qualify.
+// Legacy `elementRaster` compatibility hook. Textarea soft wrapping and
+// vertical writing modes are now reconstructed from captured logical line/run
+// geometry, so no current live capture activates a whole-element text raster.
 
 export const computeElementRaster = (el, cs, tag, rect, vp) => {
   // DM-991: `<textarea>` content path now uses native SVG; DM-990:

@@ -1132,14 +1132,8 @@ export interface CapturedElement {
   placeholderFontStyle?: string;
   /** Computed ::placeholder font-weight. Set when isPlaceholderText. */
   placeholderFontWeight?: string;
-  /**
-   * Viewport-relative rect of the element's internal content area (minus
-   * borders + padding) that rasterizeBitmapGlyphs should screenshot and
-   * stash on dataUri for the renderer to stamp in place of path text. Used
-   * for <textarea> whose soft-wrap text layout is too involved to replicate
-   * in the path pipeline (see SK-1108) — rely on Chrome's own render of the
-   * content region. Detection happens in CAPTURE_SCRIPT.
-   */
+  /** Legacy serialized-tree compatibility. Current textarea and vertical-text
+   * captures use vector line/run geometry and never set this field. */
   elementRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /**
    * Viewport-relative bitmap fallback for an entire non-affine transform

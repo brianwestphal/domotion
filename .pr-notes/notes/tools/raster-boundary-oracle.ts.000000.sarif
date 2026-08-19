@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszfcbf9bvkv2pkz",
+          "message": {
+            "text": "The paired rows grade ownership rather than screenshot similarity: every supported vector case is adjacent to its raster counterpart, live capture fields must contain bytes, and helper-disabled text plus recursive-frame transitions are exercised explicitly. The packaged gate passes 24/24 and its mutation control moves.",
+            "markdown": "The paired rows grade ownership rather than screenshot similarity: every supported vector case is adjacent to its raster counterpart, live capture fields must contain bytes, and helper-disabled text plus recursive-frame transitions are exercised explicitly. The packaged gate passes 24/24 and its mutation control moves."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/raster-boundary-oracle.ts"
+                },
+                "region": {
+                  "startLine": 43,
+                  "endLine": 110,
+                  "snippet": {
+                    "text": "    const cases: Array<[string, Boundary, boolean, string, string]> = [\n      [\"replaced.canvas\", \"replaced\", true, '<canvas width=\"80\" height=\"40\"></canvas>', \"Blink canvas paint is a bitmap surface\"],\n      [\"replaced.ordinary-div-vector\", \"replaced\", false, '<div style=\"width:80px;height:40px;background:red\"></div>', \"ordinary CSS box has an SVG representation\"],\n      [\"replaced.cross-origin-frame\", \"replaced\", true, '<iframe src=\"data:text/html,<body style=background:red>opaque</body>\" width=\"120\" height=\"60\"></iframe>', \"inaccessible browsing-context snapshot boundary\"],\n      [\"replaced.same-origin-frame-vector\", \"replaced\", false, '<iframe srcdoc=\"<body style=background:red>same</body>\" width=\"120\" height=\"60\"></iframe>', \"accessible iframe recursively captured as vector DOM\"],\n      [\"replaced.sprite-replacement\", \"replaced\", true, '<div aria-label=\"icon\" style=\"width:40px;height:40px;text-indent:-9999px;overflow:hidden;white-space:nowrap;background-image:linear-gradient(red,red)\">icon</div>', \"CSS image-replacement hides unreachable offscreen text\"],\n      [\"replaced.background-vector\", \"replaced\", false, '<div style=\"width:40px;height:40px;background-image:linear-gradient(red,red)\"></div>', \"ordinary background remains vector\"],\n      [\"text.textarea-soft-wrap-vector\", \"element-text\", false, '<textarea style=\"width:100px;height:70px;appearance:none\">a long soft wrapped textarea value</textarea>', \"logical line capture replaced the retired textarea raster path\"],\n      [\"text.vertical-vector\", \"element-text\", false, '<div style=\"writing-mode:vertical-rl;height:100px\">Vertical text</div>', \"vertical run geometry is represented as vectors\"],\n      [\"control.native-checkbox\", \"native-control\", true, '<input type=\"checkbox\" checked>', \"Blink LayoutTheme owns native appearance\"],\n      [\"control.appearance-none-vector\", \"native-control\", false, '<input type=\"checkbox\" checked style=\"appearance:none;width:20px;height:20px;background:red\">', \"author-owned appearance has an SVG representation\"],\n      [\"backdrop.active\", \"backdrop\", true, '<div style=\"width:80px;height:40px;backdrop-filter:blur(2px)\"></div>', \"backdrop input surface is unavailable inside an image SVG\"],\n      [\"backdrop.none-vector\", \"backdrop\", false, '<div style=\"width:80px;height:40px;filter:blur(2px)\"></div>', \"ordinary filter consumes the element surface and stays SVG\"],\n      [\"transform.projective\", \"projective\", true, '<div style=\"perspective:300px;width:120px;height:80px\"><div style=\"width:80px;height:50px;background:red;transform:rotateY(35deg)\"></div></div>', \"projective quad cannot be represented by an affine SVG transform\"],\n      [\"transform.affine-vector\", \"projective\", false, '<div style=\"width:80px;height:50px;background:red;transform:rotate(35deg)\"></div>', \"affine CSS transform maps exactly to SVG matrix\"],\n      [\"glyph.emoji\", \"glyph\", true, '<div>😀</div>', \"color bitmap glyph has no monochrome outline\"],\n      [\"glyph.ascii-vector\", \"glyph\", false, '<div>Vector text</div>', \"ordinary outline glyph stays on text/path pipeline\"],\n    ];\n    for (const [id, boundary, expected, html, source] of cases) {\n      add(id, expected, activated(await capture(page, html), boundary), source);\n    }\n\n    add(\"gradient.oklab-raster\", true, needsChromiumGradientRaster(\"linear-gradient(in oklab, red, blue)\"), \"SVG lacks CSS Color 4 interpolation spaces\");\n    add(\"gradient.alpha-raster\", true, needsChromiumGradientRaster(\"linear-gradient(rgba(255,0,0,.2), blue)\"), \"Blink premultiplies alpha while SVG does not\");\n    add(\"gradient.opaque-srgb-vector\", false, needsChromiumGradientRaster(\"linear-gradient(red, blue)\"), \"opaque sRGB interpolation is native SVG\");\n    add(\"conic.active\", true, parseConicGradient(\"conic-gradient(red, blue)\") != null, \"SVG has no conic paint server\");\n    add(\"conic.linear-negative\", false, parseConicGradient(\"linear-gradient(red, blue)\") != null, \"linear gradient remains native SVG\");\n    add(\"mask.element-dormant\", false, await page.evaluate(() => CSS.supports(\"mask-image\", \"element(#source)\")), \"pinned Chromium parse-rejects CSS element() masks\");\n\n    const previous = process.env.DOMOTION_DISABLE_HELPER;\n    process.env.DOMOTION_DISABLE_HELPER = \"1\";\n    try {\n      add(\"helper-disabled.ascii-stays-vector\", false, activated(await capture(page, '<div>Helperless best effort</div>'), \"glyph\"), \"helper absence degrades font precision, not the vector/raster contract\");\n      add(\"helper-disabled.emoji-still-raster\", true, activated(await capture(page, '<div>😀</div>'), \"glyph\"), \"color bitmap boundary is independent of native outline helper availability\");\n    } finally {\n      if (previous == null) delete process.env.DOMOTION_DISABLE_HELPER;\n      else process.env.DOMOTION_DISABLE_HELPER = previous;\n    }\n  } finally { await browser.close(); }\n  const positive = rows.find((row) => row.id === \"gradient.oklab-raster\")?.actual;\n  const negative = rows.find((row) => row.id === \"gradient.opaque-srgb-vector\")?.actual;\n  return { rows, mutationMoved: positive === true && negative === false };\n}\n\nasync function main(): Promise<void> {\n  const report = await runRasterBoundaryOracle();\n  const failures = report.rows.filter((row) => !row.pass);\n  const jsonIndex = process.argv.indexOf(\"--json\");\n  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));\n  console.log(`raster boundary oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? \"moved\" : \"DID NOT MOVE\"}`);\n  for (const failure of failures) console.log(`FAIL ${failure.id}: expected=${JSON.stringify(failure.expected)} actual=${JSON.stringify(failure.actual)}`);\n  if (failures.length > 0 || !report.mutationMoved) process.exitCode = 1;\n}\nif (import.meta.url === new URL(`file://${process.argv[1]}`).href) void main();\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2301"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c7067c4a1e2cba1001424301eb6e4c84"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d8c8e8b27224eb00a89345931df8a96675c15fb0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

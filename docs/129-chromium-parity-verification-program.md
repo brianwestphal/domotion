@@ -86,8 +86,8 @@ is a hypothesis until this audit identifies the source-backed mismatch.
 Extend the staged model already established by docs 107, 108, 112, 116, 120,
 127, and 128. Prioritize any matrix area still marked `visual-only`, then the
 explicit gaps in `partial-stage-gate` and `documented-classifier` areas. The
-initial geometry/order/replaced audits have exact stage gates; raster-fallback
-activation and the remaining partial text/paint domains are the next gaps.
+initial geometry/order/replaced and raster-activation audits have exact stage
+gates; the remaining partial text/paint domains are the next gaps.
 Oracles emit structured records that can be attached to demo-review results.
 
 ### Generated and metamorphic coverage

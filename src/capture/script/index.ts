@@ -765,8 +765,8 @@ const captureDocumentTree =
       placeholderColor,
       placeholderFontStyle,
       placeholderFontWeight,
-      // SK-1108 / SK-1128: textarea soft-wrap + writing-mode != horizontal-tb
-      // content-box raster rect — see walker/text-segments.ts.
+      // Old-capture compatibility field. Current textarea and vertical text
+      // capture is fully vector; see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),
       // DM-2149: `appearance:auto` controls are painted by Blink's platform
       // LayoutTheme (including native shadow-DOM parts), so a single hardcoded

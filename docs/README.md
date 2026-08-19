@@ -93,5 +93,6 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [131-transform-geometry-oracle.md](131-transform-geometry-oracle.md) | **Transform geometry oracle** — live Chromium affine corner/origin comparisons, projective raster-boundary activation, affine `matrix3d()` negative control, and reflection direction/offset records. |
 | [132-paint-order-oracle.md](132-paint-order-oracle.md) | **Paint-order transition oracle** — stacking-context creators, CSS Appendix E buckets, descendant hoisting/atomic containment, and live Chromium hit-stack records. |
 | [133-replaced-geometry-oracle.md](133-replaced-geometry-oracle.md) | **Replaced/control/generated geometry oracle** — live painted object-fit rectangles, native-control ownership boundaries, and captured `::before`/`::after` boxes. |
+| [134-raster-boundary-oracle.md](134-raster-boundary-oracle.md) | **Raster-fallback activation oracle** — paired positive/vector controls across every live fallback class, helper-disabled behavior, recursive frames, and retired text rasters. |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.

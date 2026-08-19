@@ -2082,10 +2082,8 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
 export function renderInputText(opts: RenderTextOpts): string {
   const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
-  // Textarea content was rasterized via page.screenshot (SK-1108) — stamp the
-  // PNG at the content rect and skip the path pipeline. This bypasses our
-  // missing word-wrap implementation and delivers pixel-perfect Chrome
-  // rendering of the textarea's laid-out value.
+  // Compatibility for captured trees produced before textarea/vertical text
+  // gained vector line/run geometry. Current captures never set this field.
   if (el.elementRaster != null && el.elementRaster.dataUri != null) {
     const er = el.elementRaster;
     // DM-924: snap raster <image> position to integer CSS pixels. The

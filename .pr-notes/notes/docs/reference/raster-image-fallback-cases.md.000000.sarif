@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszfcbl96lo47w31",
+          "message": {
+            "text": "The canonical inventory had drifted behind production: textarea soft wrapping and vertical writing have been vector since the retired elementRaster stub, while projective transforms and advanced gradient interpolation were missing from the fallback list. This correction makes the documented boundary match the 24-row activation oracle.",
+            "markdown": "The canonical inventory had drifted behind production: textarea soft wrapping and vertical writing have been vector since the retired elementRaster stub, while projective transforms and advanced gradient interpolation were missing from the fallback list. This correction makes the documented boundary match the 24-row activation oracle."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/reference/raster-image-fallback-cases.md"
+                },
+                "region": {
+                  "startLine": 75,
+                  "endLine": 100,
+                  "snippet": {
+                    "text": "### E6. Projective transform subtree\n\nTrigger: a transform context whose four-corner geometry is non-affine,\nincluding perspective / `preserve-3d` paint. Affine CSS transforms, including\naffine `matrix3d()`, are explicitly excluded and remain vector.\n\nWhy: SVG transforms are affine and cannot represent perspective projection or\n3D depth ordering. Chromium composites the projective context before Domotion\ncaptures that surface.\n\nCapture and emit: the capture walker records `transformSubtreeRaster` on the\nouter projective context; the Node raster pass fills its PNG and\n`src/render/element-tree-to-svg.ts` emits that image once in place of the\notherwise double-painted subtree. The affine/non-affine boundary is gated by\n`npm run transform:geometry-oracle` and `npm run raster:boundary-oracle`.\n\n---\n\n## CSS-feature fallbacks\n\n### C-1. Native form-control host paint\n\nTrigger: an `input`, `select`, `textarea`, `button`, `progress`, or `meter`\nwhose computed `appearance` is not `none`. A `button` is excluded when a\nmatching author stylesheet or inline declaration owns its background, border,\nshadow, color, font, or padding; authored buttons remain native SVG even when"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 89,
+          "workItemUris": [
+            "DM-2301"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b245131fcc1d96f27886698d320f318e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d8c8e8b27224eb00a89345931df8a96675c15fb0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

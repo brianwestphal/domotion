@@ -72,17 +72,21 @@ Capture: same `data-domotion-rid` + content-box rect mechanism as E4. The handle
 
 Doc: [23-css-sprite-icons.md](../23-css-sprite-icons.md). Ticket: DM-457 (sprite path).
 
-### E6. Element-level text raster — `<textarea>` content + vertical writing-mode
+### E6. Projective transform subtree
 
-Trigger: an element whose text the horizontal path/segment pipeline can't reproduce faithfully — (a) a `<textarea>` whose content soft-wraps (SK-1108), or (b) any element with `writing-mode != horizontal-tb` (vertical text, SK-1128). Both funnel through the one `elementRaster` field.
+Trigger: a transform context whose four-corner geometry is non-affine,
+including perspective / `preserve-3d` paint. Affine CSS transforms, including
+affine `matrix3d()`, are explicitly excluded and remain vector.
 
-Why: the renderer lays glyphs out from per-segment horizontal runs; it can't reproduce a textarea's browser-driven soft-wrapping or vertical writing-mode line-breaking + glyph orientation. Screenshotting the element's painted text region is the faithful fallback (a whole-element `<image>`, like E4/E5, rather than per-glyph like G1).
+Why: SVG transforms are affine and cannot represent perspective projection or
+3D depth ordering. Chromium composites the projective context before Domotion
+captures that surface.
 
-Capture: `computeElementRaster` (`src/capture/script/walker/text-segments.ts` ~line 91) records `el.elementRaster` (the rect + a dedupe key on tag+text+color+size+decoration so identical columns don't collapse). The post-capture `rasterizeBitmapGlyphs` pass (`src/capture/emoji.ts` ~line 235) screenshots the rect and fills `elementRaster.dataUri`.
-
-Emit: `src/render/element-tree-to-svg.ts::emitVerticalRasterText` (~line 668) emits one `<image>` at the element's raster rect, clipped to its box.
-
-Tickets: SK-1108 (`<textarea>`) / SK-1128 (vertical text).
+Capture and emit: the capture walker records `transformSubtreeRaster` on the
+outer projective context; the Node raster pass fills its PNG and
+`src/render/element-tree-to-svg.ts` emits that image once in place of the
+otherwise double-painted subtree. The affine/non-affine boundary is gated by
+`npm run transform:geometry-oracle` and `npm run raster:boundary-oracle`.
 
 ---
 
@@ -129,6 +133,23 @@ descendants as vectors above it.
 
 Doc: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md).
 
+### C0a. Advanced CSS gradient interpolation
+
+Trigger: a linear/radial gradient using Lab, OKLab, LCH, OKLCH, HSL, or HWB
+interpolation (including polar hue routes), or a gradient whose stop alpha
+varies. Opaque sRGB and sRGB-linear gradients remain native SVG.
+
+Why: SVG exposes only sRGB/linearRGB interpolation and uses unpremultiplied
+stop colors. Blink's CSS gradients support the Color 4 spaces and request
+premultiplied-alpha interpolation.
+
+Capture and emit: `rasterizeAdvancedGradients` asks the same Chromium session
+to paint the exact tile, cached by gradient text and concrete tile size. The
+background/mask renderer embeds that tile. Missing cache data warns loudly and
+uses best-effort SVG rather than dropping paint. The positive/negative boundary
+is gated by `npm run raster:boundary-oracle`; paint values are gated by
+`npm run paint:geometry-browser-oracle`.
+
 ### C1. `conic-gradient(...)` / `repeating-conic-gradient(...)`
 
 Trigger: any background layer whose CSS value parses as a conic or repeating-conic gradient.
@@ -158,6 +179,11 @@ Doc: [22-mask-element-paint-references.md](../22-mask-element-paint-references.m
 ---
 
 ## Not in this list
+
+Textarea soft wrapping and vertical writing modes are also **not** fallbacks.
+Current capture records their logical line/run geometry and emits vectors.
+`elementRaster` remains only so older serialized captured trees can still be
+rendered; no live capture path sets it.
 
 These also emit `<image>` tags but **aren't fallbacks** — they're the renderer faithfully passing through an author-supplied raster:
 
