@@ -234,6 +234,20 @@ describe("buildLinearGradientDef: repeating tiles across the gradient line", () 
   });
 });
 
+describe("DM-2308: CSS gradient interpolation space", () => {
+  it("maps opaque srgb-linear interpolation to SVG linearRGB", () => {
+    const svg = buildBackgroundLinearGradientDef("g", "90deg in srgb-linear, red, blue", false, 100, 20);
+    expect(svg).toContain('color-interpolation="linearRGB"');
+    expect(svg).toContain('x1="0"');
+    expect(svg).toContain('x2="100"');
+  });
+
+  it("maps explicit sRGB interpolation to SVG sRGB", () => {
+    const svg = buildBackgroundRadialGradientDef("g", "circle in srgb, red, blue", false, 0, 0, 100, 100);
+    expect(svg).toContain('color-interpolation="sRGB"');
+  });
+});
+
 describe("parseConicGradient (DM-548)", () => {
   it("parses bare conic-gradient with default origin and center", () => {
     const g = parseConicGradient("conic-gradient(red, yellow, green, blue)");

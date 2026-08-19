@@ -19,6 +19,8 @@ import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, translateClipPath } from "./clip-path.js";
 import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
+import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
+import { computeTileSize } from "./conic-raster.js";
 import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
 import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, rewriteFragmentMaskDef } from "./mask.js";
@@ -5099,6 +5101,14 @@ function buildBackgroundLayerDef(
   const gradY = (attachment === "fixed" && fixedViewport != null) ? 0 : elY;
   const gradW = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.w : w;
   const gradH = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.h : h;
+  if (needsChromiumGradientRaster(layer)) {
+    const tile = computeTileSize(sizeCss, gradW, gradH);
+    const raster = advancedGradientTile(layer, tile.w, tile.h);
+    if (raster != null) {
+      return { def: buildImagePatternDef(id, raster, elX, elY, w, h, sizeCss, posCss, repeatCss, { w: tile.w, h: tile.h }, attachment, fixedViewport) };
+    }
+    console.warn(`[domotion] Chromium raster tile unavailable for advanced gradient; using best-effort SVG interpolation: ${layer}`);
+  }
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
   if (linear != null) {
     const repeating = /^repeating-/i.test(layer);

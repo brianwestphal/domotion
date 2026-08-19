@@ -735,6 +735,22 @@ export const tests: FeatureTest[] = [
     height: 114,
   },
 
+  {
+    // DM-2308: SVG natively carries opaque sRGB/linearRGB gradients; spaces
+    // and premultiplied-alpha curves SVG cannot express are tiled from the
+    // already-running Chromium capture page without sampled-stop fitting.
+    name: "gradient-interpolation-spaces-alpha",
+    html: `<div style="padding:12px;display:flex;flex-wrap:wrap;gap:10px;background:#fff;width:620px">
+      <div style="width:140px;height:70px;background:linear-gradient(90deg in srgb-linear,#f00,#00f)"></div>
+      <div style="width:140px;height:70px;background:linear-gradient(90deg in oklab,#f00,#00f)"></div>
+      <div style="width:140px;height:70px;background:linear-gradient(90deg in oklch longer hue,#f00,#00f)"></div>
+      <div style="width:140px;height:70px;background:linear-gradient(90deg in srgb,rgba(255,0,0,0),#00f)"></div>
+      <div style="width:140px;height:70px;background:#16a34a;mask-image:radial-gradient(circle in oklab,#000 0 35%,transparent 70%);mask-repeat:no-repeat"></div>
+    </div>`,
+    width: 644,
+    height: 184,
+  },
+
   // ── Regression: clip-path: url(#id) with clipPathUnits="userSpaceOnUse" (DM-828) ──
   // The clipPath's coords are element-local (origin at the element's border-box,
   // verified against Chrome), but Domotion draws content at absolute (x, y), so

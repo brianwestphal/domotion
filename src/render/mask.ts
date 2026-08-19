@@ -11,6 +11,7 @@ import { embedResizedDataUri } from "../capture/embed.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef } from "./gradient-defs.js";
+import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import type { CapturedElement, MaskRasterRef } from "../capture/types.js";
 
 /**
@@ -576,6 +577,16 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     let gy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
     const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
     const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
+    if (needsChromiumGradientRaster(layer)) {
+      const raster = advancedGradientTile(layer, gradW, gradH);
+      if (raster != null) {
+        const patId = `${id}p${li}`;
+        const patDef = buildImagePatternDef(patId, raster, elX, elY, w, h, layerSize, layerPos, layerRepeat, { w: gradW, h: gradH });
+        contents.push(patDef, `<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
+        return { contents, forceHide: false };
+      }
+      console.warn(`[domotion] Chromium raster tile unavailable for advanced mask gradient; using best-effort SVG interpolation: ${layer}`);
+    }
     let [repeatX, repeatY] = maskRepeatAxes(layerRepeat);
     const widthAuto = layerSize === "auto" || layerSize === "" || sizeTok[0] === "auto";
     const heightAuto = layerSize === "auto" || layerSize === "" || sizeTok.length < 2 || sizeTok[1] === "auto";

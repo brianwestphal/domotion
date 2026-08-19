@@ -12,6 +12,7 @@ import { elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../rende
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
+import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
@@ -1078,6 +1079,7 @@ export async function captureElementTreeWithWarnings(
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
+  await rasterizeAdvancedGradients(typed.tree, page);
   return { tree: typed.tree, warnings };
 }
 

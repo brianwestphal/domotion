@@ -12,6 +12,15 @@ import { splitTopLevelCommas } from "./css-tokens.js";
 
 export interface GradientStop { color: RGBA; pos: number }
 
+function consumeNativeInterpolationClause(value: string): { value: string; attribute: string } {
+  const match = /\s+in\s+(srgb-linear|srgb)\b/i.exec(value);
+  if (match == null) return { value, attribute: "" };
+  return {
+    value: `${value.slice(0, match.index)}${value.slice(match.index + match[0].length)}`.trim(),
+    attribute: ` color-interpolation="${match[1].toLowerCase() === "srgb-linear" ? "linearRGB" : "sRGB"}"`,
+  };
+}
+
 /** Parse the comma-separated 'args' inside a linear-gradient(...) and emit an SVG <linearGradient>.
  * w/h are the element box dimensions — needed to compute corner-to-corner
  * directional keywords ('to top right' etc.) which are aspect-ratio-dependent,
@@ -20,6 +29,8 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
   const parts = splitTopLevelCommas(args).map((p) => p.trim());
   let angleDeg = 180; // default 'to bottom'
   let stopsStart = 0;
+  const interpolation = consumeNativeInterpolationClause(parts[0]);
+  parts[0] = interpolation.value;
   const first = parts[0];
   const toMatch = /^to\s+(.+)$/i.exec(first);
   if (toMatch != null) {
@@ -106,7 +117,7 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
   // Stop offsets need 4 decimals of precision — rounding 0.33 to 0.3 would turn
   // three equal thirds into uneven bands. Use stopFmt, not r(), here.
   const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
-  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(vx1)}" y1="${stopFmt(vy1)}" x2="${stopFmt(vx2)}" y2="${stopFmt(vy2)}"${spread}>${stopsMarkup}</linearGradient>`;
+  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(vx1)}" y1="${stopFmt(vy1)}" x2="${stopFmt(vx2)}" y2="${stopFmt(vy2)}"${spread}${interpolation.attribute}>${stopsMarkup}</linearGradient>`;
 }
 
 /** CSS gradient interpolation treats `transparent` as "the adjacent stop's
@@ -207,6 +218,8 @@ export function buildRadialGradientDef(
   offsetX: number = 0, offsetY: number = 0,
 ): string {
   const parts = splitTopLevelCommas(args).map((p) => p.trim());
+  const interpolation = consumeNativeInterpolationClause(parts[0]);
+  parts[0] = interpolation.value;
   let stopsStart = 0;
   let shape: "circle" | "ellipse" = "ellipse"; // CSS default
   let sizeKeyword: "closest-side" | "closest-corner" | "farthest-side" | "farthest-corner" = "farthest-corner";
@@ -385,7 +398,7 @@ export function buildRadialGradientDef(
   const focal = innerR > 0
     ? ` fx="${stopFmt(cx)}" fy="${stopFmt(cy)}" fr="${stopFmt(innerR)}"`
     : "";
-  return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${stopFmt(cx)}" cy="${stopFmt(cy)}" r="${stopFmt(Math.max(outerR, Number.EPSILON))}"${focal}${spread}${gradientTransform}>${stopsMarkup}</radialGradient>`;
+  return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${stopFmt(cx)}" cy="${stopFmt(cy)}" r="${stopFmt(Math.max(outerR, Number.EPSILON))}"${focal}${spread}${gradientTransform}${interpolation.attribute}>${stopsMarkup}</radialGradient>`;
 }
 
 function resolvePosFraction(token: string, axis: "h" | "v"): number {

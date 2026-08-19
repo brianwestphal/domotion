@@ -310,6 +310,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszdmhkfdbo8kmmd",
+          "message": {
+            "text": "Opaque sRGB and linear-sRGB remain vector-native because SVG has exact interpolation selectors for those two spaces. Consuming the CSS interpolation clause before direction parsing prevents it from being mistaken for a color stop, and maps only the exactly representable pair; all other spaces are handled by the Chromium boundary.",
+            "markdown": "Opaque sRGB and linear-sRGB remain vector-native because SVG has exact interpolation selectors for those two spaces. Consuming the CSS interpolation clause before direction parsing prevents it from being mistaken for a color stop, and maps only the exactly representable pair; all other spaces are handled by the Chromium boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 15,
+                  "endLine": 21,
+                  "snippet": {
+                    "text": "function consumeNativeInterpolationClause(value: string): { value: string; attribute: string } {\n  const match = /\\s+in\\s+(srgb-linear|srgb)\\b/i.exec(value);\n  if (match == null) return { value, attribute: \"\" };\n  return {\n    value: `${value.slice(0, match.index)}${value.slice(match.index + match[0].length)}`.trim(),\n    attribute: ` color-interpolation=\"${match[1].toLowerCase() === \"srgb-linear\" ? \"linearRGB\" : \"sRGB\"}\"`,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/advanced-gradient-raster.ts"
+                },
+                "region": {
+                  "startLine": 19
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2308"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "84ecc770a0d987a681312e6ffa96e5d7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2f34a3188ffdf79d48084172469795004beb5c08",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

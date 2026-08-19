@@ -275,7 +275,7 @@ function resolvePx(p: PosValue, extent: number): number {
  * (px / %) resolve normally. Single-axis values default the missing axis
  * to `auto` per CSS.
  */
-function computeTileSize(sizeCss: string, elW: number, elH: number): { w: number; h: number } {
+export function computeTileSize(sizeCss: string, elW: number, elH: number): { w: number; h: number } {
   const trimmed = sizeCss.trim();
   if (trimmed === "" || trimmed === "auto" || trimmed === "cover" || trimmed === "contain") {
     return { w: elW, h: elH };
@@ -291,7 +291,7 @@ function computeTileSize(sizeCss: string, elW: number, elH: number): { w: number
     return v;
   };
   const w = parseDim(parts[0], elW);
-  const h = parts.length > 1 ? parseDim(parts[1], elH) : w;
+  const h = parts.length > 1 ? parseDim(parts[1], elH) : elH;
   return { w, h };
 }
 

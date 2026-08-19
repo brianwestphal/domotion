@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import { buildLinearGradientDef, buildRadialGradientDef, parseGradientStops } from "../src/render/gradient-defs.js";
 import { clipPathShapeForElement, clipReferenceBox, translateClipPath, type HtmlClipGeometryBox } from "../src/render/clip-path.js";
 import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } from "../src/render/mask.js";
+import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
 
 export interface Point { x: number; y: number }
 export interface LineRecord { p0: Point; p1: Point }
@@ -69,6 +70,24 @@ function gradientRows(): OracleRow[] {
     const delta = maxDelta(expected, actual);
     return { id: `linear.magic-corner.${boxIndex}.${direction}`, stage: "gradient" as const, source: "css_gradient_value.cc:1282-1337,1410-1430", expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE };
   }));
+}
+
+function interpolationRows(): OracleRow[] {
+  const cases = [
+    { id: "srgb", layer: "linear-gradient(90deg in srgb, red, blue)", raster: false, attr: 'color-interpolation="sRGB"' },
+    { id: "srgb-linear", layer: "linear-gradient(90deg in srgb-linear, red, blue)", raster: false, attr: 'color-interpolation="linearRGB"' },
+    ...["lab", "oklab", "lch", "oklch", "hsl", "hwb"].map((space) => ({ id: space, layer: `linear-gradient(90deg in ${space}, red, blue)`, raster: true, attr: "" })),
+    { id: "oklch-longer-hue", layer: "linear-gradient(90deg in oklch longer hue, red, blue)", raster: true, attr: "" },
+    { id: "premultiplied-alpha", layer: "linear-gradient(90deg in srgb, rgba(255,0,0,0), blue)", raster: true, attr: "" },
+  ];
+  return cases.map((test) => {
+    const raster = needsChromiumGradientRaster(test.layer);
+    const markup = raster ? "" : buildLinearGradientDef("gi", test.layer.slice(test.layer.indexOf("(") + 1, -1), false, 100, 20);
+    const actual = { raster, nativeAttribute: test.attr === "" ? "" : (markup.includes(test.attr) ? test.attr : "") };
+    const expected = { raster: test.raster, nativeAttribute: test.attr };
+    const pass = actual.raster === expected.raster && actual.nativeAttribute === expected.nativeAttribute;
+    return { id: `gradient.interpolation.${test.id}`, stage: "gradient" as const, source: "css_gradient_value.cc:1163-1188,1454-1460; Gradient::SetColorInterpolationSpace", expected, actual, maxAbsDelta: pass ? 0 : Infinity, pass };
+  });
 }
 
 function radialAndStopRows(): OracleRow[] {
@@ -245,7 +264,7 @@ function maskRows(): OracleRow[] {
 }
 
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {
-  const rows = [...gradientRows(), ...radialAndStopRows(), ...clipRows(), ...maskRows()];
+  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...clipRows(), ...maskRows()];
   // Corpus activation control: the retired direct-to-corner formula must be
   // distinguishable from Blink's magic-corner line on every non-square box.
   const correct = blinkCornerLine("top-right", 0, 0, 300, 100);

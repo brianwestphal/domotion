@@ -27,7 +27,8 @@ padding/content insets and margin-corner correction; mask size, position,
 per-axis repeat, `round`/`space` adjustment for generated and URL images, and
 cyclic layer lists; bottom-up mixed-layer composition using each upper layer's
 Porter-Duff operator; all four mask-composite operators; fragment mask and
-clip-path user-space positioning; and a linear-gradient alpha mask. Gradient coordinates
+clip-path user-space positioning; explicit gradient interpolation-space routing;
+and a linear-gradient alpha mask. Gradient coordinates
 compare at the emitter's four-decimal serialization boundary. Basic clip
 coordinates compare after the renderer's documented one-decimal SVG
 serialization.
@@ -50,12 +51,21 @@ permission to choose a different approximation. Chromium also emits nine
 piecewise-linear stops; matching their positions and weights is exact renderer
 logic for legacy sRGB colors.
 
+Opaque `srgb` and `srgb-linear` gradients remain vector-native: their SVG
+definitions carry `color-interpolation="sRGB"` or `linearRGB`. SVG cannot encode
+Lab/OKLab/LCH/OKLCH/HSL/HWB interpolation, polar hue routes, or Blink's
+premultiplied-alpha CSS-gradient math. Those layers are therefore rendered once
+in an isolated transparent page in the capture's own Chromium context and
+embedded as a tiled PNG. This is an explicit representation boundary, not a
+sampled-stop approximation; a helper-absent/direct-tree render warns loudly and
+falls back to best-effort SVG interpolation rather than making the application
+fail or dropping the layer.
+
 ## Boundaries and next expansion
 
 This gate does not yet claim exhaustive paint parity. Exact oracle rows still
-need to be added for non-default gradient interpolation color spaces and
-premultiplied-alpha color math, negative/out-of-range radial stop domains,
-SVG-specific geometry boxes, and conic raster tiles. Those domains remain covered by unit
+need to be added for negative/out-of-range radial stop domains, SVG-specific
+geometry boxes, and conic raster tiles. Those domains remain covered by unit
 and visual fixtures but do not gain an exact logical verdict from this oracle
 until their structured rows land.
 

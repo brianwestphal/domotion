@@ -82,10 +82,10 @@
       "browserOracle": "tools/paint-geometry-browser-oracle.ts",
       "sourceAudit": "partial",
       "oracleStatus": "partial-stage-gate",
-      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes/repeating domain, stop fixup and nine-stop hints, basic clip shapes, HTML geometry reference boxes and rounded insets, mask size/position/per-axis repeat/round/space/cyclic lists and bottom-up mixed composition, fragment coordinates, plus curated visual fixtures",
+      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes/repeating domain, stop fixup and nine-stop hints, explicit interpolation-space/vector-raster routing, basic clip shapes, HTML geometry reference boxes and rounded insets, mask size/position/per-axis repeat/round/space/cyclic lists and bottom-up mixed composition, fragment coordinates, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Non-default interpolation spaces/premultiplied alpha, negative radial domains, SVG geometry boxes, and conic raster tiles are not yet structured oracle rows.",
-      "nextAction": "Expand interpolation-space, radial-domain, and SVG-specific geometry-box domains."
+      "knownGap": "Negative radial domains, SVG geometry boxes, and conic raster tiles are not yet structured oracle rows.",
+      "nextAction": "Expand radial-domain, conic-tile, and SVG-specific geometry-box domains."
     },
     {
       "id": "transforms-projection-reflection",
