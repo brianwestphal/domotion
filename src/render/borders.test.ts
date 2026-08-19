@@ -13,6 +13,7 @@ import {
   parseSide,
   roundedRectPath,
   roundedRectSvg,
+  roundBorderSideClipPolygon,
   selectBestDashGap,
   wedgePolygonPoints,
 } from "./borders.js";
@@ -333,6 +334,39 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
     const withWidths = wedgePolygonPoints("top", 0, 0, 240, 100, apexes, { tw: 6, rw: 0, bw: 0, lw: 6 });
     // horizSum = lw + rw = 6 ≠ 0, so the legacy apex form is kept (not the quad).
     expect(withWidths).toBe(wedgePolygonPoints("top", 0, 0, 240, 100, apexes));
+  });
+});
+
+describe("roundBorderSideClipPolygon (DM-2314)", () => {
+  it("preserves the 50%-radius mixed-width ellipse discriminator", () => {
+    const corners = parseCornerRadii({ borderRadius: "999px" }, 240, 100);
+    expect(roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 8, 2, 8, 2))
+      .toBe("0,0 240,0 227.5,50 12.5,50");
+  });
+
+  it("bounds ordinary radii at the opposite inner-corner union", () => {
+    const corners = parseCornerRadii({ borderRadius: "20px" }, 240, 100);
+    const current = roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 6, 6, 6, 6);
+    expect(current).toBe("0,0 240,0 160,80 80,80");
+    expect(roundBorderSideClipPolygon("bottom", 0, 0, 240, 100, corners, 6, 6, 6, 6))
+      .toBe("240,100 0,100 80,20 160,20");
+    // Negative control: the old aspect-ratio fallback ignored the radii and
+    // cut at perpendicular side apices (y=50 here). The source-derived
+    // opposite-corner union must move this discriminator to y=80.
+    const legacyApexes = computeWedgeApexes(0, 0, 240, 100, 6, 6, 6, 6);
+    expect(current).not.toBe(wedgePolygonPoints("top", 0, 0, 240, 100, legacyApexes));
+  });
+
+  it("uses the miter apex when it occurs before the opposite bound", () => {
+    const corners = parseCornerRadii({ borderRadius: "50px" }, 100, 100);
+    expect(roundBorderSideClipPolygon("top", 0, 0, 100, 100, corners, 6, 6, 6, 6))
+      .toBe("0,0 100,0 50,50");
+  });
+
+  it("leaves a lone side uncut when both adjacent widths are zero", () => {
+    const corners = parseCornerRadii({ borderRadius: "30px" }, 240, 100);
+    expect(roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 6, 0, 0, 0))
+      .toBe("0,0 240,0 240,100 0,100");
   });
 });
 

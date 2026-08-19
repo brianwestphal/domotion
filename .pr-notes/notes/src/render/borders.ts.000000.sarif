@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0ph9o98b6jmtq5",
+          "message": {
+            "text": "The finite side polygon is bounded by Blink’s opposite inner-corner union, not by an aspect-ratio midpoint. ClipBorderSidePolygonCloseToEdges first computes UnionInnerCornersAndEdge() for the opposite side; for ordinary round corners its near bounding-box edge is the finite limit used here. The legacy perpendicular-apex model is retained only as a test mutation and demonstrably moves the 20px-radius discriminator.",
+            "markdown": "The finite side polygon is bounded by Blink’s opposite inner-corner union, not by an aspect-ratio midpoint. `ClipBorderSidePolygonCloseToEdges` first computes `UnionInnerCornersAndEdge()` for the opposite side; for ordinary round corners its near bounding-box edge is the finite limit used here. The legacy perpendicular-apex model is retained only as a test mutation and demonstrably moves the 20px-radius discriminator."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/borders.ts"
+                },
+                "region": {
+                  "startLine": 366,
+                  "endLine": 417,
+                  "snippet": {
+                    "text": "/**\n * SVG polygon equivalent of Blink's ordinary-round\n * `ClipBorderSidePolygonCloseToEdges` side partition.\n *\n * Each side is bounded by its two outer-corner → unadjusted-inner-edge miter\n * lines. When their apex lies beyond the visible side, Blink first clips out\n * `UnionInnerCornersAndEdge()` for the opposite side; for a round corner that\n * boundary is the near edge of the opposite inner-corner bounding boxes.\n * Intersecting the two miter lines with that source-derived boundary yields the\n * finite polygon below. No codepoint, fixture, radius bucket, or pixel\n * threshold participates in the decision.\n */\nexport function roundBorderSideClipPolygon(\n  side: \"top\" | \"right\" | \"bottom\" | \"left\",\n  bxL: number, bxT: number, bxR: number, bxB: number,\n  corners: CornerRadii,\n  tw: number, rw: number, bw: number, lw: number,\n): string {\n  const inner = insetCornerRadii(corners, tw, rw, bw, lw);\n  const innerL = bxL + lw, innerT = bxT + tw;\n  const innerR = bxR - rw, innerB = bxB - bw;\n  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));\n  const point = (x: number, y: number) => `${r(x)},${r(y)}`;\n  const fullBox = `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)}`;\n  if ((side === \"top\" && tw <= 0) || (side === \"right\" && rw <= 0)\n    || (side === \"bottom\" && bw <= 0) || (side === \"left\" && lw <= 0)) return fullBox;\n  const apexes = computeWedgeApexes(bxL, bxT, bxR, bxB, tw, rw, bw, lw);\n\n  if (side === \"top\") {\n    if (lw === 0 && rw === 0) return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)}`;\n    const cut = clamp(innerB - Math.max(inner.bl.v, inner.br.v), bxT, bxB);\n    if (apexes.apexTopY <= cut) return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(apexes.apexTopX, apexes.apexTopY)}`;\n    const dy = cut - bxT;\n    return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(clamp(bxR - rw * dy / tw, bxL, bxR), cut)} ${point(clamp(bxL + lw * dy / tw, bxL, bxR), cut)}`;\n  }\n  if (side === \"bottom\") {\n    if (lw === 0 && rw === 0) return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(bxL, bxT)} ${point(bxR, bxT)}`;\n    const cut = clamp(innerT + Math.max(inner.tl.v, inner.tr.v), bxT, bxB);\n    if (apexes.apexBottomY >= cut) return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(apexes.apexBottomX, apexes.apexBottomY)}`;\n    const dy = bxB - cut;\n    return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(clamp(bxL + lw * dy / bw, bxL, bxR), cut)} ${point(clamp(bxR - rw * dy / bw, bxL, bxR), cut)}`;\n  }\n  if (side === \"right\") {\n    if (tw === 0 && bw === 0) return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)} ${point(bxL, bxT)}`;\n    const cut = clamp(innerL + Math.max(inner.tl.h, inner.bl.h), bxL, bxR);\n    if (apexes.apexRightX >= cut) return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(apexes.apexRightX, apexes.apexRightY)}`;\n    const dx = bxR - cut;\n    return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(cut, clamp(bxB - bw * dx / rw, bxT, bxB))} ${point(cut, clamp(bxT + tw * dx / rw, bxT, bxB))}`;\n  }\n  if (tw === 0 && bw === 0) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)}`;\n  const cut = clamp(innerR - Math.max(inner.tr.h, inner.br.h), bxL, bxR);\n  if (apexes.apexLeftX <= cut) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(apexes.apexLeftX, apexes.apexLeftY)}`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2314"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "078b93c79bc9a3722e1f789959ec367d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d013a68c4f92fd7fc43f3532c74e259203d32a5f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

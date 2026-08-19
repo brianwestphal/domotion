@@ -37,8 +37,7 @@ import {
   dashArrayForStyle,
   renderBorderImage,
   injectSvgSize,
-  computeWedgeApexes,
-  wedgePolygonPoints,
+  roundBorderSideClipPolygon,
   findOffGridCollapsedCells,
   doubleBorderStripeGeometry,
   selectBestDashGap,
@@ -1798,41 +1797,13 @@ function paintPerSideBorder(
     const annularPath = hasOuterRadius
       ? `${outerRoundedPath} ${innerRoundedPath}`
       : "";
-    // DM-803: per-side wedge apex = intersection of the two adjacent
-    // corner MITER lines (not box centre). Each corner's miter line goes
-    // from the outer corner inward along direction (lw_at_that_corner,
-    // tw_at_that_corner) — for uniform widths this gives a 45° diagonal
-    // and all 4 apices land at the box centre (matching the old behaviour);
-    // for mixed widths the diagonal tilts toward the thicker adjacent
-    // side, shifting where the colour-transition between adjacent sides
-    // lands on the rounded-corner arc. Matches Chromium's
-    // `box_border_painter.cc` miter-line construction (`miter_line` from
-    // `corner.outer.Outer()` to `corner.unadjusted_inner_edge`). Without
-    // this shift, e.g. the 8/2/8/2 border on a 50%-radius ellipse paints
-    // the top blue and bottom green arcs narrower than Chrome (because
-    // 45° diagonals from the rectangle corners hit the ellipse closer to
-    // the cardinal axes than the wider-top miter lines would).
-    // DM-803: per-side wedge apex = intersection of the two adjacent
-    // corner MITER lines (not box centre). For mixed widths the apex
-    // tilts toward the thicker side, shifting where the colour-transition
-    // between adjacent sides lands on the rounded-corner arc. Matches
-    // Chromium's `box_border_painter.cc` `miter_line` construction —
-    // without it e.g. the 8/2/8/2 border on a 50%-radius ellipse paints
-    // the top blue and bottom green arcs narrower than Chrome.
-    //
-    // DM-917 / DM-918: when a side's own apex falls OUTSIDE the box rect,
-    // the triangular wedge extends across the box and bleeds into the
-    // opposite side's region. In that case `wedgePolygonPoints` falls
-    // back to a 4-point polygon using the perpendicular pair of apex
-    // points (clamped to box bounds) as the inner corners, which caps
-    // the wedge at the adjacent-side meeting points instead.
-    const apexes = computeWedgeApexes(bxL, bxT, bxR, bxB, tw, rw, bw, lw);
-    const wedgeWidths = { tw, rw, bw, lw };
+    // Ordinary round corners use Blink's two miter lines, bounded by the
+    // opposite inner-corner union from ClipBorderSidePolygonCloseToEdges.
     const annularWedges: string[] = hasOuterRadius ? [
-      wedgePolygonPoints("top",    bxL, bxT, bxR, bxB, apexes, wedgeWidths),
-      wedgePolygonPoints("right",  bxL, bxT, bxR, bxB, apexes, wedgeWidths),
-      wedgePolygonPoints("bottom", bxL, bxT, bxR, bxB, apexes, wedgeWidths),
-      wedgePolygonPoints("left",   bxL, bxT, bxR, bxB, apexes, wedgeWidths),
+      roundBorderSideClipPolygon("top", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+      roundBorderSideClipPolygon("right", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+      roundBorderSideClipPolygon("bottom", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+      roundBorderSideClipPolygon("left", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
     ] : [];
     // The outer-outline group still wraps the non-solid branches so their
     // straight `<line>` strokes get trimmed to the rounded outline at the

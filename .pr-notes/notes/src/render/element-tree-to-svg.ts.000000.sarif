@@ -638,6 +638,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0ph9tw19hpplbj",
+          "message": {
+            "text": "The production renderer now consumes the source-derived round-curvature clips. Focused Chromium validation is exact for 18-border-radius and 18-deep-radius-overflow; 18-deep-borders-mixed-sides remains byte-for-byte at its prior output, proving the 50%-radius negative control did not regress while the logical bound changed for ordinary radii.",
+            "markdown": "The production renderer now consumes the source-derived round-curvature clips. Focused Chromium validation is exact for `18-border-radius` and `18-deep-radius-overflow`; `18-deep-borders-mixed-sides` remains byte-for-byte at its prior output, proving the 50%-radius negative control did not regress while the logical bound changed for ordinary radii."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1799,
+                  "endLine": 1807,
+                  "snippet": {
+                    "text": "      : \"\";\n    // Ordinary round corners use Blink's two miter lines, bounded by the\n    // opposite inner-corner union from ClipBorderSidePolygonCloseToEdges.\n    const annularWedges: string[] = hasOuterRadius ? [\n      roundBorderSideClipPolygon(\"top\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      roundBorderSideClipPolygon(\"right\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      roundBorderSideClipPolygon(\"bottom\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      roundBorderSideClipPolygon(\"left\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n    ] : [];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2314"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3c204ab270ff88012f1633b7fe03816e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d013a68c4f92fd7fc43f3532c74e259203d32a5f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

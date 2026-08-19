@@ -362,6 +362,62 @@ export interface WedgeApexes {
   apexBottomX: number; apexBottomY: number;
   apexLeftX: number; apexLeftY: number;
 }
+
+/**
+ * SVG polygon equivalent of Blink's ordinary-round
+ * `ClipBorderSidePolygonCloseToEdges` side partition.
+ *
+ * Each side is bounded by its two outer-corner → unadjusted-inner-edge miter
+ * lines. When their apex lies beyond the visible side, Blink first clips out
+ * `UnionInnerCornersAndEdge()` for the opposite side; for a round corner that
+ * boundary is the near edge of the opposite inner-corner bounding boxes.
+ * Intersecting the two miter lines with that source-derived boundary yields the
+ * finite polygon below. No codepoint, fixture, radius bucket, or pixel
+ * threshold participates in the decision.
+ */
+export function roundBorderSideClipPolygon(
+  side: "top" | "right" | "bottom" | "left",
+  bxL: number, bxT: number, bxR: number, bxB: number,
+  corners: CornerRadii,
+  tw: number, rw: number, bw: number, lw: number,
+): string {
+  const inner = insetCornerRadii(corners, tw, rw, bw, lw);
+  const innerL = bxL + lw, innerT = bxT + tw;
+  const innerR = bxR - rw, innerB = bxB - bw;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const point = (x: number, y: number) => `${r(x)},${r(y)}`;
+  const fullBox = `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)}`;
+  if ((side === "top" && tw <= 0) || (side === "right" && rw <= 0)
+    || (side === "bottom" && bw <= 0) || (side === "left" && lw <= 0)) return fullBox;
+  const apexes = computeWedgeApexes(bxL, bxT, bxR, bxB, tw, rw, bw, lw);
+
+  if (side === "top") {
+    if (lw === 0 && rw === 0) return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)}`;
+    const cut = clamp(innerB - Math.max(inner.bl.v, inner.br.v), bxT, bxB);
+    if (apexes.apexTopY <= cut) return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(apexes.apexTopX, apexes.apexTopY)}`;
+    const dy = cut - bxT;
+    return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(clamp(bxR - rw * dy / tw, bxL, bxR), cut)} ${point(clamp(bxL + lw * dy / tw, bxL, bxR), cut)}`;
+  }
+  if (side === "bottom") {
+    if (lw === 0 && rw === 0) return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(bxL, bxT)} ${point(bxR, bxT)}`;
+    const cut = clamp(innerT + Math.max(inner.tl.v, inner.tr.v), bxT, bxB);
+    if (apexes.apexBottomY >= cut) return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(apexes.apexBottomX, apexes.apexBottomY)}`;
+    const dy = bxB - cut;
+    return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(clamp(bxL + lw * dy / bw, bxL, bxR), cut)} ${point(clamp(bxR - rw * dy / bw, bxL, bxR), cut)}`;
+  }
+  if (side === "right") {
+    if (tw === 0 && bw === 0) return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)} ${point(bxL, bxT)}`;
+    const cut = clamp(innerL + Math.max(inner.tl.h, inner.bl.h), bxL, bxR);
+    if (apexes.apexRightX >= cut) return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(apexes.apexRightX, apexes.apexRightY)}`;
+    const dx = bxR - cut;
+    return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(cut, clamp(bxB - bw * dx / rw, bxT, bxB))} ${point(cut, clamp(bxT + tw * dx / rw, bxT, bxB))}`;
+  }
+  if (tw === 0 && bw === 0) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)}`;
+  const cut = clamp(innerR - Math.max(inner.tr.h, inner.br.h), bxL, bxR);
+  if (apexes.apexLeftX <= cut) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(apexes.apexLeftX, apexes.apexLeftY)}`;
+  const dx = cut - bxL;
+  return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(cut, clamp(bxT + tw * dx / lw, bxT, bxB))} ${point(cut, clamp(bxB - bw * dx / lw, bxT, bxB))}`;
+}
 export function wedgePolygonPoints(
   side: "top" | "right" | "bottom" | "left",
   bxL: number, bxT: number, bxR: number, bxB: number,

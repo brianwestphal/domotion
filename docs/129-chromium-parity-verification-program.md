@@ -98,9 +98,14 @@ compares pixels.  At Chromium revision `7d859f271c`,
 solid rounded, and partial-transparent fast paths; the complex path then splits
 rounded sides between `ClipBorderSidePolygonCloseToEdges` and the general
 quad/pentagon hull in `ClipBorderSidePolygon`.  Domotion's current annular-wedge
-SVG is not yet a transcription of those two clipping algorithms.  It remains an
-explicit approximation until that geometry is represented and structurally
-gated; favorable corner pixels do not upgrade its source-audit status.
+SVG now transcribes the ordinary round-curvature branch: each corner miter is
+bounded by the opposite `UnionInnerCornersAndEdge()` extent derived from the
+captured inner radii. A required negative control moves when the former
+aspect-ratio/perpendicular-apex fallback is substituted, while the 50%-radius
+mixed-side discriminator remains byte-identical and the dedicated radius and
+overlap fixtures remain clean. Non-round `corner-shape` curvature still needs
+the general ContouredRect hull transcription tracked by DM-2315; favorable
+corner pixels do not erase that explicit boundary.
 
 ### Generated and metamorphic coverage
 
