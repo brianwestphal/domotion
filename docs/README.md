@@ -94,5 +94,6 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [132-paint-order-oracle.md](132-paint-order-oracle.md) | **Paint-order transition oracle** — stacking-context creators, CSS Appendix E buckets, descendant hoisting/atomic containment, and live Chromium hit-stack records. |
 | [133-replaced-geometry-oracle.md](133-replaced-geometry-oracle.md) | **Replaced/control/generated geometry oracle** — live painted object-fit rectangles, native-control ownership boundaries, and captured `::before`/`::after` boxes. |
 | [134-raster-boundary-oracle.md](134-raster-boundary-oracle.md) | **Raster-fallback activation oracle** — paired positive/vector controls across every live fallback class, helper-disabled behavior, recursive frames, and retired text rasters. |
+| [135-corner-shape-superellipses.md](135-corner-shape-superellipses.md) | **CSS corner-shape superellipses** — computed physical shape capture plus Blink's parameter/exponent mapping, fitted cubic contour, concave inversion, opposite-hull constraint, and inset alignment as vector SVG. |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.

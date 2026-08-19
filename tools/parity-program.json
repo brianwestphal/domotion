@@ -69,10 +69,10 @@
       "oracle": "tools/border-phase-oracle.ts",
       "sourceAudit": "partial",
       "oracleStatus": "paint-model-gate",
-      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control",
+      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control; computed corner-shape keywords/custom parameters, asymmetric physical corners, concave opposite-hull constraints, and inset origin alignment",
       "platformCoverage": ["darwin"],
-      "knownGap": "Ordinary round-curvature close-edge clipping is transcribed, but non-round corner-shape curvature still lacks capture and Blink's general quad/pentagon hull geometry (DM-2315); collapsed borders, writing modes, zoom, and cross-platform phase also remain outside the geometry oracle.",
-      "nextAction": "Capture corner-shape and transcribe ContouredRect hull clipping in DM-2315, then expand collapsed-border and cross-platform phase coverage."
+      "knownGap": "Round and non-round ContouredRect contours are transcribed; collapsed borders, non-uniform per-side non-round hull partitioning, writing modes, zoom, and cross-platform phase remain outside the geometry oracle.",
+      "nextAction": "Expand non-uniform per-side corner-shape hull partitions, collapsed-border cases, and cross-platform phase coverage."
     },
     {
       "id": "gradients-masks-clips",

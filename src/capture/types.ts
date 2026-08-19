@@ -283,6 +283,11 @@ export interface CapturedStyles {
   borderTopRightRadius?: string;
   borderBottomRightRadius?: string;
   borderBottomLeftRadius?: string;
+  /** Computed physical CSS Borders 4 corner-shape longhands. */
+  cornerTopLeftShape?: string;
+  cornerTopRightShape?: string;
+  cornerBottomRightShape?: string;
+  cornerBottomLeftShape?: string;
   /** Per-side border widths as strings (e.g. "6px"). All set together so we can decide uniform-vs-split in the renderer. */
   borderTopWidth: string;
   borderRightWidth: string;

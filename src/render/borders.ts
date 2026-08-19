@@ -165,7 +165,34 @@ export type CornerRadii = {
   br: CornerRadiusPair;
   bl: CornerRadiusPair;
   uniform: boolean;
+  /** Blink `ContouredRect::CornerCurvature`: the superellipse exponent. */
+  curvature?: { tl: number; tr: number; br: number; bl: number };
+  /** Original border contour and accumulated inset used by Blink's
+   * `Corner::AlignedToOrigin` constant-thickness construction. */
+  originRadii?: { tl: CornerRadiusPair; tr: CornerRadiusPair; br: CornerRadiusPair; bl: CornerRadiusPair };
+  contourInsets?: { top: number; right: number; bottom: number; left: number };
 };
+
+const ROUND_CURVATURE = 2;
+const STRAIGHT_CURVATURE = 1000;
+const NOTCH_CURVATURE = 1 / STRAIGHT_CURVATURE;
+
+/** Blink `Superellipse::Exponent()` (`2^parameter`, clamped to ±16). */
+export function parseCornerShapeCurvature(value: string | undefined): number {
+  const keyword: Record<string, number> = {
+    notch: NOTCH_CURVATURE,
+    scoop: 0.5,
+    bevel: 1,
+    round: ROUND_CURVATURE,
+    squircle: 4,
+    square: STRAIGHT_CURVATURE,
+  };
+  const normalized = (value ?? "round").trim().toLowerCase();
+  if (keyword[normalized] != null) return keyword[normalized];
+  const match = /^superellipse\(\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*\)$/i.exec(normalized);
+  if (match == null) return ROUND_CURVATURE;
+  return Math.pow(2, Math.max(-16, Math.min(16, Number(match[1]))));
+}
 
 /** Parse a captured "h v" axis-pair (e.g. "30px 30px" or "50px 20px"). */
 function _parsePair(v: string | undefined): CornerRadiusPair {
@@ -186,7 +213,7 @@ function _parsePair(v: string | undefined): CornerRadiusPair {
  *  the legacy single `borderRadius` shorthand when the per-corner longhands
  *  weren't captured (older snapshots). */
 export function parseCornerRadii(
-  styles: { borderTopLeftRadius?: string; borderTopRightRadius?: string; borderBottomRightRadius?: string; borderBottomLeftRadius?: string; borderRadius?: string },
+  styles: { borderTopLeftRadius?: string; borderTopRightRadius?: string; borderBottomRightRadius?: string; borderBottomLeftRadius?: string; borderRadius?: string; cornerTopLeftShape?: string; cornerTopRightShape?: string; cornerBottomRightShape?: string; cornerBottomLeftShape?: string },
   width: number,
   height: number,
 ): CornerRadii {
@@ -219,9 +246,24 @@ export function parseCornerRadii(
     br = { h: br.h * f, v: br.v * f };
     bl = { h: bl.h * f, v: bl.v * f };
   }
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
+  const curvature = {
+    tl: tl.h === 0 || tl.v === 0 ? ROUND_CURVATURE : parseCornerShapeCurvature(styles.cornerTopLeftShape),
+    tr: tr.h === 0 || tr.v === 0 ? ROUND_CURVATURE : parseCornerShapeCurvature(styles.cornerTopRightShape),
+    br: br.h === 0 || br.v === 0 ? ROUND_CURVATURE : parseCornerShapeCurvature(styles.cornerBottomRightShape),
+    bl: bl.h === 0 || bl.v === 0 ? ROUND_CURVATURE : parseCornerShapeCurvature(styles.cornerBottomLeftShape),
+  };
+  if (curvature.tl < 1 || curvature.tr < 1 || curvature.br < 1 || curvature.bl < 1) {
+    const factor = concaveRadiiConstraintFactor(width, height, { tl, tr, br, bl }, curvature);
+    if (factor < 1) {
+      const scale = (pair: CornerRadiusPair) => ({ h: pair.h * factor, v: pair.v * factor });
+      tl = scale(tl); tr = scale(tr); br = scale(br); bl = scale(bl);
+    }
+  }
+  const uniform = curvature.tl === ROUND_CURVATURE && curvature.tr === ROUND_CURVATURE
+    && curvature.br === ROUND_CURVATURE && curvature.bl === ROUND_CURVATURE
+    && tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
     && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform };
+  return { tl, tr, br, bl, uniform, curvature };
 }
 
 /** Inset each corner radius by the matching border-side widths, clamping to 0.
@@ -236,7 +278,17 @@ export function insetCornerRadii(c: CornerRadii, top: number, right: number, bot
   const bl = { h: Math.max(0, c.bl.h - left), v: Math.max(0, c.bl.v - bottom) };
   const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
     && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform };
+  const nonRound = c.curvature != null && Object.values(c.curvature).some(value => value !== ROUND_CURVATURE);
+  const previous = c.contourInsets ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  return {
+    tl, tr, br, bl,
+    uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,
+    curvature: c.curvature,
+    ...(nonRound ? {
+      originRadii: c.originRadii ?? { tl: c.tl, tr: c.tr, br: c.br, bl: c.bl },
+      contourInsets: { top: previous.top + top, right: previous.right + right, bottom: previous.bottom + bottom, left: previous.left + left },
+    } : {}),
+  };
 }
 
 /** Grow each corner radius outward by `spread` for an OUTSET box-shadow shape.
@@ -258,7 +310,7 @@ export function outsetCornerRadiiForShadow(c: CornerRadii, spread: number): Corn
   const bl = grow(c.bl);
   const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
     && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform };
+  return { tl, tr, br, bl, uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE, curvature: c.curvature };
 }
 
 /** Blink FloatRoundedRect::Radii::OutsetWithCornerCorrection. Margin-box
@@ -275,7 +327,152 @@ export function outsetCornerRadiiWithCorrection(c: CornerRadii, top: number, rig
   const corner = (value: CornerRadiusPair, horizontal: number, vertical: number): CornerRadiusPair => ({ h: adjusted(value.h, horizontal), v: adjusted(value.v, vertical) });
   const tl = corner(c.tl, left, top), tr = corner(c.tr, right, top), br = corner(c.br, right, bottom), bl = corner(c.bl, left, bottom);
   const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform };
+  return { tl, tr, br, bl, uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE, curvature: c.curvature };
+}
+
+type Point = { x: number; y: number };
+type CornerGeometry = { start: Point; outer: Point; end: Point; center: Point; curvature: number };
+
+function mapCornerPoint(corner: CornerGeometry, normalized: Point): Point {
+  return {
+    x: corner.center.x + (corner.outer.x - corner.start.x) * normalized.x + (corner.start.x - corner.center.x) * normalized.y,
+    y: corner.center.y + (corner.outer.y - corner.start.y) * normalized.x + (corner.start.y - corner.center.y) * normalized.y,
+  };
+}
+
+function lineIntersection(a: Point, b: Point, c: Point, d: Point): Point | null {
+  const abx = b.x - a.x, aby = b.y - a.y, cdx = d.x - c.x, cdy = d.y - c.y;
+  const denominator = abx * cdy - aby * cdx;
+  if (Math.abs(denominator) < 1e-9) return null;
+  const t = ((c.x - a.x) * cdy - (c.y - a.y) * cdx) / denominator;
+  return { x: a.x + t * abx, y: a.y + t * aby };
+}
+
+function hullQuad(corner: CornerGeometry): Point[] {
+  const halfValue = Math.pow(0.5, 1 / Math.max(NOTCH_CURVATURE, Math.min(STRAIGHT_CURVATURE, corner.curvature)));
+  const half = mapCornerPoint(corner, { x: halfValue, y: halfValue });
+  const radial = { x: half.x - corner.outer.x, y: half.y - corner.outer.y };
+  const tangentEnd = { x: half.x - radial.y, y: half.y + radial.x };
+  return [
+    corner.start,
+    lineIntersection(half, tangentEnd, corner.start, corner.center) ?? corner.center,
+    lineIntersection(half, tangentEnd, corner.end, corner.center) ?? corner.center,
+    corner.end,
+  ];
+}
+
+function quadsIntersect(a: Point[], b: Point[]): boolean {
+  for (const polygon of [a, b]) {
+    for (let i = 0; i < polygon.length; i++) {
+      const edge = { x: polygon[(i + 1) % polygon.length].x - polygon[i].x, y: polygon[(i + 1) % polygon.length].y - polygon[i].y };
+      const axis = { x: -edge.y, y: edge.x };
+      const project = (points: Point[]) => points.reduce((range, point) => {
+        const value = point.x * axis.x + point.y * axis.y;
+        return { min: Math.min(range.min, value), max: Math.max(range.max, value) };
+      }, { min: Infinity, max: -Infinity });
+      const pa = project(a), pb = project(b);
+      if (pa.max <= pb.min || pb.max <= pa.min) return false;
+    }
+  }
+  return true;
+}
+
+function scaledQuad(quad: Point[], origin: Point, scale: number): Point[] {
+  return quad.map(point => ({ x: origin.x + (point.x - origin.x) * scale, y: origin.y + (point.y - origin.y) * scale }));
+}
+
+function opposingHullScale(a: CornerGeometry, b: CornerGeometry): number {
+  const boxesOverlap = Math.max(a.start.x, a.end.x) > Math.min(b.start.x, b.end.x)
+    && Math.max(b.start.x, b.end.x) > Math.min(a.start.x, a.end.x)
+    && Math.max(a.start.y, a.end.y) > Math.min(b.start.y, b.end.y)
+    && Math.max(b.start.y, b.end.y) > Math.min(a.start.y, a.end.y);
+  if (!boxesOverlap) return 1;
+  const ah = hullQuad(a), bh = hullQuad(b);
+  if (!quadsIntersect(ah, bh)) return 1;
+  let min = 0, max = 1;
+  while (max - min > 0.05) {
+    const check = (min + max) / 2;
+    if (quadsIntersect(scaledQuad(ah, a.outer, check), scaledQuad(bh, b.outer, check))) max = check;
+    else min = check;
+  }
+  return min;
+}
+
+/** Blink `RadiiConstraintFactorForOppositeCorners` for non-convex contours. */
+function concaveRadiiConstraintFactor(
+  width: number,
+  height: number,
+  radii: Pick<CornerRadii, "tl" | "tr" | "br" | "bl">,
+  curvature: NonNullable<CornerRadii["curvature"]>,
+): number {
+  const tl: CornerGeometry = { start: { x: 0, y: radii.tl.v }, outer: { x: 0, y: 0 }, end: { x: radii.tl.h, y: 0 }, center: { x: radii.tl.h, y: radii.tl.v }, curvature: curvature.tl };
+  const tr: CornerGeometry = { start: { x: width - radii.tr.h, y: 0 }, outer: { x: width, y: 0 }, end: { x: width, y: radii.tr.v }, center: { x: width - radii.tr.h, y: radii.tr.v }, curvature: curvature.tr };
+  const br: CornerGeometry = { start: { x: width, y: height - radii.br.v }, outer: { x: width, y: height }, end: { x: width - radii.br.h, y: height }, center: { x: width - radii.br.h, y: height - radii.br.v }, curvature: curvature.br };
+  const bl: CornerGeometry = { start: { x: radii.bl.h, y: height }, outer: { x: 0, y: height }, end: { x: 0, y: height - radii.bl.v }, center: { x: radii.bl.h, y: height - radii.bl.v }, curvature: curvature.bl };
+  return Math.min(1, opposingHullScale(tl, br), opposingHullScale(bl, tr));
+}
+
+/** Chromium `ApproximateSuperellipseHalfCornerAsBezierCurve`. */
+function superellipseControls(curvature: number): [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] {
+  const p = [1.2430920942724248, 2.010479023614843, 0.32922901179443753, 0.2823023142212073, 1.3473704261055421, 2.9149468637949814, 0.9106507102917086];
+  const s = Math.log2(curvature);
+  const slope = p[0] + (p[6] - p[0]) * 0.5 * (1 + Math.tanh(p[5] * (s - p[1])));
+  const base = 1 / (1 + Math.exp(-slope * (0 - p[1])));
+  const logistic = 1 / (1 + Math.exp(-slope * (s - p[1])));
+  const a = (logistic - base) / (1 - base);
+  const b = p[2] * Math.exp(-p[3] * Math.pow(s, p[4]));
+  const half = Math.pow(0.5, 1 / Math.max(NOTCH_CURVATURE, Math.min(STRAIGHT_CURVATURE, curvature)));
+  return [{ x: a, y: 1 }, { x: half - b, y: half + b }, { x: half, y: half }];
+}
+
+function cornerCommands(start: Point, outer: Point, end: Point, center: Point, rawCurvature: number): string[] {
+  let curvature = Math.max(NOTCH_CURVATURE, Math.min(STRAIGHT_CURVATURE, rawCurvature));
+  const concave = curvature < 1;
+  if (concave) {
+    curvature = 1 / curvature;
+    [outer, center] = [center, outer];
+  }
+  const map = (v: Point): Point => mapCornerPoint({ start, outer, end, center, curvature }, v);
+  const point = (v: Point) => `${r(v.x)},${r(v.y)}`;
+  if (curvature >= STRAIGHT_CURVATURE) return [`L${point(start)}`, `L${point(outer)}`, `L${point(end)}`];
+  if (curvature === 1) return [`L${point(start)}`, `L${point(end)}`];
+  if (curvature === ROUND_CURVATURE) {
+    const radiusX = Math.abs(start.x - end.x), radiusY = Math.abs(start.y - end.y);
+    return [`L${point(start)}`, `A${r(radiusX)},${r(radiusY)} 0 0 ${concave ? 0 : 1} ${point(end)}`];
+  }
+  const [p1, p2, p3] = superellipseControls(curvature);
+  const q1 = map(p1), q2 = map(p2), q3 = map(p3);
+  const q4 = map({ x: p2.y, y: p2.x }), q5 = map({ x: p1.y, y: p1.x });
+  return [`L${point(start)}`, `C${point(q1)} ${point(q2)} ${point(q3)}`, `C${point(q4)} ${point(q5)} ${point(end)}`];
+}
+
+function normalized(vector: Point): Point {
+  const length = Math.hypot(vector.x, vector.y);
+  return length === 0 ? { x: 0, y: 0 } : { x: vector.x / length, y: vector.y / length };
+}
+
+/** Chromium `ContouredRect::Corner::AlignedToOrigin`. */
+function alignedCorner(target: CornerGeometry, origin: CornerGeometry, thicknessStart: number, thicknessEnd: number): CornerGeometry {
+  if ((origin.start.x === origin.end.x && origin.start.y === origin.end.y)
+    || (target.start.x === origin.start.x && target.start.y === origin.start.y
+      && target.outer.x === origin.outer.x && target.outer.y === origin.outer.y
+      && target.end.x === origin.end.x && target.end.y === origin.end.y)) return target;
+  const half = Math.pow(0.5, 1 / Math.max(0.5, Math.min(2, origin.curvature)));
+  const hull = normalized({ x: 2 * half - 0.5, y: 1.5 - 2 * half });
+  const adjusted = { x: hull.x, y: -hull.y };
+  const offset = (from: Point, to: Point, amount: number): Point => {
+    const unit = normalized({ x: to.x - from.x, y: to.y - from.y });
+    return { x: unit.x * amount, y: unit.y * amount };
+  };
+  const v1 = offset(origin.start, origin.outer, thicknessStart * adjusted.y);
+  const v2 = offset(origin.outer, origin.end, thicknessStart * adjusted.x);
+  const v3 = offset(origin.end, origin.center, thicknessEnd * adjusted.x);
+  const v4 = offset(origin.center, origin.start, thicknessEnd * adjusted.y);
+  const add = (point: Point, a: Point, b: Point): Point => ({ x: point.x + a.x + b.x, y: point.y + a.y + b.y });
+  return {
+    start: add(origin.start, v1, v2), outer: add(origin.outer, v2, v3),
+    end: add(origin.end, v3, v4), center: add(origin.center, v4, v1), curvature: origin.curvature,
+  };
 }
 
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
@@ -288,6 +485,35 @@ export function roundedRectPath(x: number, y: number, w: number, h: number, c: C
   const tr = { h: Math.min(c.tr.h, w), v: Math.min(c.tr.v, h) };
   const br = { h: Math.min(c.br.h, w), v: Math.min(c.br.v, h) };
   const bl = { h: Math.min(c.bl.h, w), v: Math.min(c.bl.v, h) };
+  const curvature = c.curvature ?? { tl: 2, tr: 2, br: 2, bl: 2 };
+  if (curvature.tl !== 2 || curvature.tr !== 2 || curvature.br !== 2 || curvature.bl !== 2) {
+    let tlCorner: CornerGeometry = { start: { x, y: y + tl.v }, outer: { x, y }, end: { x: x + tl.h, y }, center: { x: x + tl.h, y: y + tl.v }, curvature: curvature.tl };
+    let trCorner: CornerGeometry = { start: { x: x + w - tr.h, y }, outer: { x: x + w, y }, end: { x: x + w, y: y + tr.v }, center: { x: x + w - tr.h, y: y + tr.v }, curvature: curvature.tr };
+    let brCorner: CornerGeometry = { start: { x: x + w, y: y + h - br.v }, outer: { x: x + w, y: y + h }, end: { x: x + w - br.h, y: y + h }, center: { x: x + w - br.h, y: y + h - br.v }, curvature: curvature.br };
+    let blCorner: CornerGeometry = { start: { x: x + bl.h, y: y + h }, outer: { x, y: y + h }, end: { x, y: y + h - bl.v }, center: { x: x + bl.h, y: y + h - bl.v }, curvature: curvature.bl };
+    if (c.originRadii != null && c.contourInsets != null) {
+      const inset = c.contourInsets, origin = c.originRadii;
+      const ox = x - inset.left, oy = y - inset.top, ow = w + inset.left + inset.right, oh = h + inset.top + inset.bottom;
+      const originTl: CornerGeometry = { start: { x: ox, y: oy + origin.tl.v }, outer: { x: ox, y: oy }, end: { x: ox + origin.tl.h, y: oy }, center: { x: ox + origin.tl.h, y: oy + origin.tl.v }, curvature: curvature.tl };
+      const originTr: CornerGeometry = { start: { x: ox + ow - origin.tr.h, y: oy }, outer: { x: ox + ow, y: oy }, end: { x: ox + ow, y: oy + origin.tr.v }, center: { x: ox + ow - origin.tr.h, y: oy + origin.tr.v }, curvature: curvature.tr };
+      const originBr: CornerGeometry = { start: { x: ox + ow, y: oy + oh - origin.br.v }, outer: { x: ox + ow, y: oy + oh }, end: { x: ox + ow - origin.br.h, y: oy + oh }, center: { x: ox + ow - origin.br.h, y: oy + oh - origin.br.v }, curvature: curvature.br };
+      const originBl: CornerGeometry = { start: { x: ox + origin.bl.h, y: oy + oh }, outer: { x: ox, y: oy + oh }, end: { x: ox, y: oy + oh - origin.bl.v }, center: { x: ox + origin.bl.h, y: oy + oh - origin.bl.v }, curvature: curvature.bl };
+      trCorner = alignedCorner(trCorner, originTr, inset.top, inset.right);
+      brCorner = alignedCorner(brCorner, originBr, inset.right, inset.bottom);
+      blCorner = alignedCorner(blCorner, originBl, inset.bottom, inset.left);
+      tlCorner = alignedCorner(tlCorner, originTl, inset.left, inset.top);
+    }
+    const commands = [`M${r(trCorner.start.x)},${r(trCorner.start.y)}`];
+    commands.push(...cornerCommands(trCorner.start, trCorner.outer, trCorner.end, trCorner.center, curvature.tr));
+    commands.push(`L${r(brCorner.start.x)},${r(brCorner.start.y)}`);
+    commands.push(...cornerCommands(brCorner.start, brCorner.outer, brCorner.end, brCorner.center, curvature.br));
+    commands.push(`L${r(blCorner.start.x)},${r(blCorner.start.y)}`);
+    commands.push(...cornerCommands(blCorner.start, blCorner.outer, blCorner.end, blCorner.center, curvature.bl));
+    commands.push(`L${r(tlCorner.start.x)},${r(tlCorner.start.y)}`);
+    commands.push(...cornerCommands(tlCorner.start, tlCorner.outer, tlCorner.end, tlCorner.center, curvature.tl));
+    commands.push("Z");
+    return commands.join(" ");
+  }
   return [
     `M${r(x + tl.h)},${r(y)}`,
     `L${r(x + w - tr.h)},${r(y)}`,

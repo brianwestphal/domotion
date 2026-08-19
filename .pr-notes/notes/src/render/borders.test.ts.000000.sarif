@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0q58ekqshhomdp",
+          "message": {
+            "text": "The regression matrix pins the upstream decision classes rather than screenshot-specific coordinates: keyword/custom exponent mapping, cubic activation, degeneracies, physical asymmetry, zero-radius EffectiveCurvature, and concave hull scaling. npm test passed all 3,837 tests after the change; the composed Chromium visual moved from 3.28% to 0.43%.",
+            "markdown": "The regression matrix pins the upstream decision classes rather than screenshot-specific coordinates: keyword/custom exponent mapping, cubic activation, degeneracies, physical asymmetry, zero-radius EffectiveCurvature, and concave hull scaling. `npm test` passed all 3,837 tests after the change; the composed Chromium visual moved from 3.28% to 0.43%."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/borders.test.ts"
+                },
+                "region": {
+                  "startLine": 133,
+                  "endLine": 194,
+                  "snippet": {
+                    "text": "    borderTopLeftRadius: \"24px 18px\",\n    borderTopRightRadius: \"24px 18px\",\n    borderBottomRightRadius: \"24px 18px\",\n    borderBottomLeftRadius: \"24px 18px\",\n    cornerTopLeftShape: shape,\n    cornerTopRightShape: shape,\n    cornerBottomRightShape: shape,\n    cornerBottomLeftShape: shape,\n  }, 120, 80);\n\n  it(\"maps CSS keywords and custom parameters through Blink Superellipse::Exponent\", () => {\n    expect(parseCornerShapeCurvature(\"notch\")).toBeCloseTo(1 / 1000);\n    expect(parseCornerShapeCurvature(\"scoop\")).toBe(0.5);\n    expect(parseCornerShapeCurvature(\"bevel\")).toBe(1);\n    expect(parseCornerShapeCurvature(\"round\")).toBe(2);\n    expect(parseCornerShapeCurvature(\"squircle\")).toBe(4);\n    expect(parseCornerShapeCurvature(\"square\")).toBe(1000);\n    expect(parseCornerShapeCurvature(\"superellipse(3)\")).toBe(8);\n    expect(parseCornerShapeCurvature(\"superellipse(-2)\")).toBe(0.25);\n  });\n\n  it(\"uses Blink's fitted two-cubic construction for squircles\", () => {\n    const d = roundedRectPath(0, 0, 120, 80, shaped(\"squircle\"));\n    expect(d.match(/C/g)).toHaveLength(8);\n    expect(d).not.toContain(\" A\");\n  });\n\n  it(\"uses the source degeneracies for bevel, square, and notch\", () => {\n    expect(roundedRectPath(0, 0, 120, 80, shaped(\"bevel\"))).not.toMatch(/[AC]/);\n    expect(roundedRectPath(0, 0, 120, 80, shaped(\"square\"))).not.toMatch(/[AC]/);\n    // A notch is the inverse of Chromium's straight/square contour, so it is\n    // also represented entirely by line segments through the inner corner.\n    expect(roundedRectPath(0, 0, 120, 80, shaped(\"notch\"))).not.toMatch(/[AC]/);\n  });\n\n  it(\"keeps physical corner shapes independent\", () => {\n    const corners = parseCornerRadii({\n      borderTopLeftRadius: \"20px\", borderTopRightRadius: \"20px\",\n      borderBottomRightRadius: \"20px\", borderBottomLeftRadius: \"20px\",\n      cornerTopLeftShape: \"bevel\", cornerTopRightShape: \"round\",\n      cornerBottomRightShape: \"squircle\", cornerBottomLeftShape: \"notch\",\n    }, 100, 100);\n    expect(corners.curvature).toEqual({ tl: 1, tr: 2, br: 4, bl: 0.001 });\n    const d = roundedRectPath(0, 0, 100, 100, corners);\n    expect(d).toContain(\"A20,20\");\n    expect(d.match(/C/g)).toHaveLength(2);\n  });\n\n  it(\"applies Blink's opposite-hull constraint to overlapping concave corners\", () => {\n    const corners = parseCornerRadii({\n      borderTopLeftRadius: \"80px\", borderTopRightRadius: \"0\",\n      borderBottomRightRadius: \"80px\", borderBottomLeftRadius: \"0\",\n      cornerTopLeftShape: \"scoop\", cornerBottomRightShape: \"scoop\",\n    }, 100, 100);\n    expect(corners.tl.h).toBeLessThan(80);\n    expect(corners.br.h).toBe(corners.tl.h);\n  });\n\n  it(\"treats zero-radius non-round shapes as round EffectiveCurvature\", () => {\n    const corners = parseCornerRadii({ borderTopLeftRadius: \"0\", cornerTopLeftShape: \"notch\" }, 100, 100);\n    expect(corners.curvature?.tl).toBe(2);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2315"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a1b36f8e6dce619c13f88eaca4439a8a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c815cf2031737b62d629d6404337b9143ec5d380",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

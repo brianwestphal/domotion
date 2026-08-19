@@ -10,6 +10,7 @@ import {
   insetCornerRadii,
   outsetCornerRadiiForShadow,
   parseCornerRadii,
+  parseCornerShapeCurvature,
   parseSide,
   roundedRectPath,
   roundedRectSvg,
@@ -124,6 +125,72 @@ describe("parseCornerRadii: shorthand and longhand", () => {
     expect(c.tl.h).toBeCloseTo(50, 0);
     expect(c.tl.v).toBeCloseTo(50, 0);
     expect(c.uniform).toBe(true);
+  });
+});
+
+describe("corner-shape contours (DM-2315)", () => {
+  const shaped = (shape: string) => parseCornerRadii({
+    borderTopLeftRadius: "24px 18px",
+    borderTopRightRadius: "24px 18px",
+    borderBottomRightRadius: "24px 18px",
+    borderBottomLeftRadius: "24px 18px",
+    cornerTopLeftShape: shape,
+    cornerTopRightShape: shape,
+    cornerBottomRightShape: shape,
+    cornerBottomLeftShape: shape,
+  }, 120, 80);
+
+  it("maps CSS keywords and custom parameters through Blink Superellipse::Exponent", () => {
+    expect(parseCornerShapeCurvature("notch")).toBeCloseTo(1 / 1000);
+    expect(parseCornerShapeCurvature("scoop")).toBe(0.5);
+    expect(parseCornerShapeCurvature("bevel")).toBe(1);
+    expect(parseCornerShapeCurvature("round")).toBe(2);
+    expect(parseCornerShapeCurvature("squircle")).toBe(4);
+    expect(parseCornerShapeCurvature("square")).toBe(1000);
+    expect(parseCornerShapeCurvature("superellipse(3)")).toBe(8);
+    expect(parseCornerShapeCurvature("superellipse(-2)")).toBe(0.25);
+  });
+
+  it("uses Blink's fitted two-cubic construction for squircles", () => {
+    const d = roundedRectPath(0, 0, 120, 80, shaped("squircle"));
+    expect(d.match(/C/g)).toHaveLength(8);
+    expect(d).not.toContain(" A");
+  });
+
+  it("uses the source degeneracies for bevel, square, and notch", () => {
+    expect(roundedRectPath(0, 0, 120, 80, shaped("bevel"))).not.toMatch(/[AC]/);
+    expect(roundedRectPath(0, 0, 120, 80, shaped("square"))).not.toMatch(/[AC]/);
+    // A notch is the inverse of Chromium's straight/square contour, so it is
+    // also represented entirely by line segments through the inner corner.
+    expect(roundedRectPath(0, 0, 120, 80, shaped("notch"))).not.toMatch(/[AC]/);
+  });
+
+  it("keeps physical corner shapes independent", () => {
+    const corners = parseCornerRadii({
+      borderTopLeftRadius: "20px", borderTopRightRadius: "20px",
+      borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px",
+      cornerTopLeftShape: "bevel", cornerTopRightShape: "round",
+      cornerBottomRightShape: "squircle", cornerBottomLeftShape: "notch",
+    }, 100, 100);
+    expect(corners.curvature).toEqual({ tl: 1, tr: 2, br: 4, bl: 0.001 });
+    const d = roundedRectPath(0, 0, 100, 100, corners);
+    expect(d).toContain("A20,20");
+    expect(d.match(/C/g)).toHaveLength(2);
+  });
+
+  it("applies Blink's opposite-hull constraint to overlapping concave corners", () => {
+    const corners = parseCornerRadii({
+      borderTopLeftRadius: "80px", borderTopRightRadius: "0",
+      borderBottomRightRadius: "80px", borderBottomLeftRadius: "0",
+      cornerTopLeftShape: "scoop", cornerBottomRightShape: "scoop",
+    }, 100, 100);
+    expect(corners.tl.h).toBeLessThan(80);
+    expect(corners.br.h).toBe(corners.tl.h);
+  });
+
+  it("treats zero-radius non-round shapes as round EffectiveCurvature", () => {
+    const corners = parseCornerRadii({ borderTopLeftRadius: "0", cornerTopLeftShape: "notch" }, 100, 100);
+    expect(corners.curvature?.tl).toBe(2);
   });
 });
 

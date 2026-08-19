@@ -703,6 +703,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0q1n3pxmf60dwn",
+          "message": {
+            "text": "A centerline SVG stroke is not equivalent to Blink’s non-round border ring, especially for concave contours where it protrudes on the wrong side. Filling the source-derived outer and aligned-inner paths with even-odd winding reduced the focused Chromium comparison from 0.97% to 0.43%.",
+            "markdown": "A centerline SVG stroke is not equivalent to Blink’s non-round border ring, especially for concave contours where it protrudes on the wrong side. Filling the source-derived outer and aligned-inner paths with even-odd winding reduced the focused Chromium comparison from 0.97% to 0.43%."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1459,
+                  "endLine": 1474,
+                  "snippet": {
+                    "text": "  const hasNonRoundContour = corners.curvature != null\n    && Object.values(corners.curvature).some(value => value !== 2);\n  // Blink paints non-round borders as the area between its outer and aligned\n  // inner ContouredRects. An SVG centerline stroke cannot represent a concave\n  // contour (it protrudes on the wrong side of a scoop/notch), so preserve the\n  // same two vector boundaries and fill the annulus with even-odd winding.\n  if (hasNonRoundContour && !collapse && bt.style === \"solid\") {\n    const outer = roundedRectPath(boxLeft, boxTop, boxRight - boxLeft, boxBottom - boxTop, corners);\n    const innerCorners = insetCornerRadii(corners, bt.w, bt.w, bt.w, bt.w);\n    const inner = roundedRectPath(\n      boxLeft + bt.w, boxTop + bt.w,\n      Math.max(0, boxRight - boxLeft - bt.w * 2), Math.max(0, boxBottom - boxTop - bt.w * 2),\n      innerCorners,\n    );\n    ctx.svgParts.push(`${indent}<path d=\"${outer} ${inner}\" fill=\"${colorStr(bt.color)}\" fill-rule=\"evenodd\"/>`);\n    return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2315"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "476a48e29b57764743fe65747b7b4174"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c815cf2031737b62d629d6404337b9143ec5d380",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

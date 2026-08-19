@@ -1456,6 +1456,23 @@ function paintUniformSolidBorder(
   const boxTop = collapse ? el.y : Math.round(el.y);
   const boxRight = collapse ? el.x + el.width : Math.round(el.x + el.width);
   const boxBottom = collapse ? el.y + el.height : Math.round(el.y + el.height);
+  const hasNonRoundContour = corners.curvature != null
+    && Object.values(corners.curvature).some(value => value !== 2);
+  // Blink paints non-round borders as the area between its outer and aligned
+  // inner ContouredRects. An SVG centerline stroke cannot represent a concave
+  // contour (it protrudes on the wrong side of a scoop/notch), so preserve the
+  // same two vector boundaries and fill the annulus with even-odd winding.
+  if (hasNonRoundContour && !collapse && bt.style === "solid") {
+    const outer = roundedRectPath(boxLeft, boxTop, boxRight - boxLeft, boxBottom - boxTop, corners);
+    const innerCorners = insetCornerRadii(corners, bt.w, bt.w, bt.w, bt.w);
+    const inner = roundedRectPath(
+      boxLeft + bt.w, boxTop + bt.w,
+      Math.max(0, boxRight - boxLeft - bt.w * 2), Math.max(0, boxBottom - boxTop - bt.w * 2),
+      innerCorners,
+    );
+    ctx.svgParts.push(`${indent}<path d="${outer} ${inner}" fill="${colorStr(bt.color)}" fill-rule="evenodd"/>`);
+    return;
+  }
   ctx.svgParts.push(
     `${indent}${roundedRectSvg(boxLeft + half, boxTop + half, Math.max(0, boxRight - boxLeft - half * 2), Math.max(0, boxBottom - boxTop - half * 2), strokeCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttr}${linecap}`)}`,
   );

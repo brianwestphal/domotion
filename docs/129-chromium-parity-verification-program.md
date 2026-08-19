@@ -103,9 +103,13 @@ bounded by the opposite `UnionInnerCornersAndEdge()` extent derived from the
 captured inner radii. A required negative control moves when the former
 aspect-ratio/perpendicular-apex fallback is substituted, while the 50%-radius
 mixed-side discriminator remains byte-identical and the dedicated radius and
-overlap fixtures remain clean. Non-round `corner-shape` curvature still needs
-the general ContouredRect hull transcription tracked by DM-2315; favorable
-corner pixels do not erase that explicit boundary.
+overlap fixtures remain clean. DM-2315 adds the separate non-round path:
+computed physical `corner-shape` capture, Blink's `2^parameter` curvature,
+source-fitted two-cubic contours, concave inversion, opposite-corner hull
+constraint, and `AlignedToOrigin` inset construction. Its composed fixture is
+an activation gate across keywords, custom values, asymmetric corners, and
+overlapping concave corners; pixels validate that transcription but do not
+supply its constants.
 
 ### Generated and metamorphic coverage
 

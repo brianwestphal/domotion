@@ -1302,6 +1302,15 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   sampling and the browser's backdrop-then-element-filter stacking semantics,
   which SVG cannot reproduce from DOM geometry alone.
 
+- **Doc 135 (`docs/135-corner-shape-superellipses.md`) — Shipped.** Capture
+  Chromium's computed physical `corner-*-shape` longhands and carry Blink's
+  superellipse exponent through the shared corner model. Named shapes are
+  aliases for the source's `2^parameter` rule, not separately tuned paths.
+  Non-degenerate contours use Blink's fitted two-cubic construction; concave
+  contours invert it, overlapping opposite concave hulls receive the source's
+  radius constraint, and inset contours align to their border origin. Preserve
+  the round path for old captures and zero radii.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

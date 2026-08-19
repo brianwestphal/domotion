@@ -248,7 +248,9 @@ jobs:
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Add deterministic CFF Unicode fixture
         if: inputs.hinted_subset == '1'
-        run: cp tests/fixtures/html-test-unicode/cff-stix-math.html external/html-test/unicode/
+        run: |
+          cp tests/fixtures/html-test-unicode/cff-stix-math.html external/html-test/unicode/
+          cp tests/fixtures/html-test/corner-shape-superellipses.html external/html-test/
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
         shell: bash
         env:
