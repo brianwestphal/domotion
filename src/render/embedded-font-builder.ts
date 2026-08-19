@@ -36,7 +36,6 @@
 
 // svg2ttf ships no type declarations (see svg2ttf.d.ts for the tiny surface).
 import svg2ttf from "svg2ttf";
-import * as fontkit from "fontkit";
 import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
 import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasCff2Outlines, sfntHasSubsettableOutlines } from "./hb-subset.js";
@@ -169,7 +168,7 @@ export type HintedSourceDisqualificationReason =
   | "null-source"
   | "null-face-index"
   | "source-axis-disagreement"
-  | "cff2-default-instance-mismatch"
+  | "cff2-default-instance-rebuild"
   | "cff-or-subset-failure"
   | "disabled-by-environment";
 
@@ -448,44 +447,6 @@ function pathCommandsToSvgPath(pathCommands: PathCommand[]): string {
   return parts.join("");
 }
 
-/** Whether any tracked CFF2 glyph actually consumes variation deltas.
- * HarfBuzz's default-instance baking defect is glyph-local: static charstrings
- * in the same face remain correct and retain better native rasterization.
- * Probe the source's declared axis extrema through fontkit rather than naming a
- * font, script, or codepoint. A parser/probe failure conservatively rebuilds. */
-function cff2EntryUsesVariation(fontBytes: Buffer, faceIndex: number, gids: readonly number[]): boolean {
-  try {
-    const resource = fontkit.create(fontBytes) as unknown as {
-      fonts?: Array<VariableProbeFace>;
-      variationAxes?: Record<string, { min: number; default: number; max: number }>;
-      getGlyph?: VariableProbeFace["getGlyph"];
-      getVariation?: VariableProbeFace["getVariation"];
-    };
-    const face = resource.fonts?.[faceIndex] ?? resource as VariableProbeFace;
-    const axes = face.variationAxes ?? {};
-    const defaults = Object.fromEntries(Object.entries(axes).map(([tag, axis]) => [tag, axis.default]));
-    const base = new Map(gids.map((gid) => [gid, face.getGlyph(gid).path.toSVG()]));
-    for (const [tag, axis] of Object.entries(axes)) {
-      for (const value of [axis.min, axis.max]) {
-        if (value === axis.default) continue;
-        const varied = face.getVariation({ ...defaults, [tag]: value });
-        for (const gid of gids) {
-          if (varied.getGlyph(gid).path.toSVG() !== base.get(gid)) return true;
-        }
-      }
-    }
-    return false;
-  } catch {
-    return true;
-  }
-}
-
-interface VariableProbeFace {
-  variationAxes: Record<string, { min: number; default: number; max: number }>;
-  getGlyph(gid: number): { path: { toSVG(): string } };
-  getVariation(axes: Record<string, number>): VariableProbeFace;
-}
-
 /**
  * Zero the OpenType `head` table's build timestamps so the serialized font is
  * byte-for-byte reproducible (DM-902). We pass `ts: 0` to svg2ttf so it doesn't
@@ -574,8 +535,8 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
   // instead of svg2ttf's outline-only rebuild. A variable source is fully
   // instanced at the run's resolved axis location (`hintedSource.variationAxes`) — hb
   // applies the same gvar deltas fontkit shaped with, and hinting survives its
-  // instancer. CFF2's empty/default entries use resolved outlines only when a
-  // tracked glyph demonstrably consumes variation deltas.
+  // instancer. CFF2's empty/default instance uses the proven resolved-outline
+  // path; explicitly located CFF2 instances retain the subset and its hinting.
   // Any failure falls through likewise so a bad font never breaks a render.
   if (hintedSubsetEnabled() && entry.hintedSource != null && entry.hintedSource.faceIndex != null
       && !entry.hintedSourceDisqualified) {
@@ -585,9 +546,9 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const puaToGid = new Map<number, number>();
       for (const [gid, pua] of entry.puaForGlyphId) puaToGid.set(pua, gid);
       // Guard outline-less files (for example PingFang's Apple-private hvgl).
-      // glyf, CFF and CFF2 are structurally subsettable. CFF2's default-instance
-      // varying glyphs are rejected below because pinning can bake sparse
-      // charstrings incorrectly within an otherwise-correct face.
+      // glyf, CFF and CFF2 are structurally subsettable; CFF2's default-instance
+      // case is then rejected because its variation-store geometry is not baked
+      // reliably by the empty-axis pinning path.
       // Post-subset glyph-id handling differs below because only glyf/loca can
       // use our compactor.
       //
@@ -610,18 +571,21 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const bytes = readFileSync(entry.hintedSource.path);
       if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
                                      sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
-        // macOS 26 exposes mixed results within one CFF2 face: default pinning
-        // moves sparse varying glyphs by more than an em, while static
-        // charstrings remain correct and benefit from native rasterization.
-        // Detect variation use from the face's own axes and outlines.
-        const axes = entry.hintedSource.variationAxes;
-        const rebuildCff2Default = sfntHasCff2Outlines(bytes, srcFaceIndex)
-          && axes != null && Object.keys(axes).length === 0
-          && cff2EntryUsesVariation(bytes, srcFaceIndex, gids);
-        if (rebuildCff2Default) {
-          entry.hintedSourceDisqualificationReasons.add("cff2-default-instance-mismatch");
+        // HarfBuzz's CFF2 default-instancing path can leave variation-store
+        // geometry that the consumer rasterizer interprets differently from the
+        // platform typeface. macOS 26 exposes it on SFIndia's default instance:
+        // the subset's placement is correct, but sparse outlines move by more
+        // than an em when Chromium reopens the embedded face. CFF2 instances
+        // with explicit coordinates do not take this path and retain native
+        // hinting (SF/New York is the negative control). An empty axis map is
+        // the resolver's exact statement that every axis is at its default, so
+        // this is an instancing-state rule, not a script/font/codepoint list.
+        if (sfntHasCff2Outlines(bytes, srcFaceIndex)
+            && entry.hintedSource.variationAxes != null
+            && Object.keys(entry.hintedSource.variationAxes).length === 0) {
+          entry.hintedSourceDisqualificationReasons.add("cff2-default-instance-rebuild");
           entry.hintedSourceDisqualified = true;
-          throw new Error("CFF2 default real glyphs require resolved outlines");
+          throw new Error("CFF2 default instance requires resolved-outline rebuild");
         }
         // Keep HarfBuzz's RETAIN_GIDS output intact. Chromium hands the
         // platform font produced by its subsetter to the consumer without a
@@ -635,7 +599,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         // gid map above is already the correct cmap target. The padded loca/hmtx
         // space is a size cost, not a correctness defect; optimize it only with
         // an upstream subset plan that rewrites all dependent tables.
-        let subset = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, axes ?? null);
+        let subset = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
         // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
         // cmap entry mapping to gid 0 means "not covered" (the consumer browser
         // cascades past the font and paints NOTHING, losing the tofu box).
@@ -654,7 +618,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         return out;
       }
     } catch (e) {
-      if (!entry.hintedSourceDisqualificationReasons.has("cff2-default-instance-mismatch")) {
+      if (!entry.hintedSourceDisqualificationReasons.has("cff2-default-instance-rebuild")) {
         entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
       }
       entry.hintedSourceDisqualified = true;
