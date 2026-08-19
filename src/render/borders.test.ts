@@ -16,6 +16,7 @@ import {
   roundedRectSvg,
   roundBorderSideClipPolygon,
   hyperellipseBorderSideClipPolygon,
+  contouredRectIntersectionPaths,
   selectBestDashGap,
   wedgePolygonPoints,
 } from "./borders.js";
@@ -224,6 +225,40 @@ describe("hyperellipse border side partitions (DM-2316)", () => {
     const hyper = hyperellipseBorderSideClipPolygon("top", 0, 0, 140, 100, corners, 8, 18, 14, 5);
     const ordinary = roundBorderSideClipPolygon("top", 0, 0, 140, 100, corners, 8, 18, 14, 5);
     expect(hyper).not.toBe(ordinary);
+  });
+});
+
+describe("inset ContouredRect intersections (DM-2317)", () => {
+  const insetShape = (shape: string) => insetCornerRadii(parseCornerRadii({
+    borderTopLeftRadius: "68px", borderTopRightRadius: "68px",
+    borderBottomRightRadius: "68px", borderBottomLeftRadius: "68px",
+    cornerTopLeftShape: shape, cornerTopRightShape: shape,
+    cornerBottomRightShape: shape, cornerBottomLeftShape: shape,
+  }, 100, 112), 9, 17, 15, 6);
+
+  it("emits Chromium's four ordered corner constraints for a narrow scoop", () => {
+    const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape("scoop"));
+    expect(paths).toHaveLength(4);
+    for (const path of paths!) expect(path).toMatch(/^M.*A.*Z$/);
+  });
+
+  it("retains cubic constraints for custom convex and concave contours", () => {
+    for (const shape of ["squircle", "superellipse(-2)"]) {
+      const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape(shape));
+      expect(paths).toHaveLength(4);
+      expect(paths!.every(path => path.includes("C"))).toBe(true);
+    }
+  });
+
+  it("retains line-only notch constraints", () => {
+    const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape("notch"));
+    expect(paths).toHaveLength(4);
+    expect(paths!.every(path => !/[AC]/.test(path))).toBe(true);
+  });
+
+  it("does not perturb the ordinary round single-path contract", () => {
+    const round = insetCornerRadii(parseCornerRadii({ borderRadius: "68px" }, 100, 112), 9, 17, 15, 6);
+    expect(contouredRectIntersectionPaths(6, 9, 77, 88, round)).toBeNull();
   });
 });
 

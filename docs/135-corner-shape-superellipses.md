@@ -79,6 +79,12 @@ crosses unequal widths and four colors through both a squircle and a scoop;
 both ordinary-sized mixed cases are visually correct. A deliberately narrow,
 overlapping scoop case exposed an earlier prerequisite rather than a side-quad
 error: Blink intersects four aligned inset-corner paths with the target rect,
-whereas one joined SVG path crosses its lobes. DM-2317 tracks that vector path
-intersection before the remaining tangent-cutout transcription; the fixture is
-retained as its activation control.
+whereas one joined SVG path crosses its lobes.
+
+DM-2317 transcribes that operation without flattening curves. Each of Blink's
+TR, BR, BL, and TL corner constraint paths becomes an SVG `<clipPath>`; nesting
+the four clips produces intersection semantics, and a luminance mask subtracts
+that exact inner shape from the outer contour. This also preserves Blink's
+ordinary close-edge tangent/miter partition without new side rules. The full
+composed fixture, including the narrow overlap activation case, is now clean at
+**0 regions / 0.00%**.

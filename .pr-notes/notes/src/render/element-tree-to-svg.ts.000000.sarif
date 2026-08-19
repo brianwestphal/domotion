@@ -833,6 +833,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0qvq6wsblp13v3",
+          "message": {
+            "text": "Nested SVG clip paths provide the same intersection algebra as Blink’s four kIntersect_SkPathOp operations, and the luminance mask subtracts that exact inner shape from the white outer contour. Correcting the mask’s user-space extent moved the expanded composed fixture—including the narrow overlapping scoop—from 11 regions / 0.68% to 0 regions / 0.00%.",
+            "markdown": "Nested SVG clip paths provide the same intersection algebra as Blink’s four `kIntersect_SkPathOp` operations, and the luminance mask subtracts that exact inner shape from the white outer contour. Correcting the mask’s user-space extent moved the expanded composed fixture—including the narrow overlapping scoop—from 11 regions / 0.68% to 0 regions / 0.00%."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1421,
+                  "endLine": 1447,
+                  "snippet": {
+                    "text": "function createContouredRingMask(\n  ctx: PaintCtx,\n  outerPath: string,\n  x: number,\n  y: number,\n  width: number,\n  height: number,\n  innerCorners: CornerRadii,\n): string | null {\n  const constraints = contouredRectIntersectionPaths(x, y, width, height, innerCorners);\n  if (constraints == null) return null;\n  const clipIds = constraints.map(() => ctx.nextClipId(\"cci\"));\n  constraints.forEach((path, index) => ctx.defsParts.push(`<clipPath id=\"${clipIds[index]}\"><path d=\"${path}\"/></clipPath>`));\n  const nestedOpen = clipIds.map(id => `<g clip-path=\"url(#${id})\">`).join(\"\");\n  const nestedClose = \"</g>\".repeat(clipIds.length);\n  const maskId = ctx.nextClipId(\"crm\");\n  const pad = Math.max(width, height, 1) * 4 + 1;\n  ctx.defsParts.push(\n    `<mask id=\"${maskId}\" maskUnits=\"userSpaceOnUse\" mask-type=\"luminance\" x=\"${r(x - pad)}\" y=\"${r(y - pad)}\" width=\"${r(width + pad * 2)}\" height=\"${r(height + pad * 2)}\"><path d=\"${outerPath}\" fill=\"white\"/>${nestedOpen}<rect x=\"${r(x)}\" y=\"${r(y)}\" width=\"${r(width)}\" height=\"${r(height)}\" fill=\"black\"/>${nestedClose}</mask>`,\n  );\n  return maskId;\n}\n\n// Uniform solid border (also the fallback for dashed/dotted with rounded corners\n// or non-uniform radii): a single inset, device-pixel-rounded rounded-rect stroke.\n// Extracted from paintBorder (DM-1342) — byte-identical.\nfunction paintUniformSolidBorder("
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2317"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "55c496a3b16b1533333747b75a488553"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fea865896145f63778505e166e9d4da2b35c0296",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

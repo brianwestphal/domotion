@@ -500,6 +500,26 @@ function contouredCornerGeometries(x: number, y: number, w: number, h: number, c
   return { tl: tlCorner, tr: trCorner, br: brCorner, bl: blCorner };
 }
 
+/**
+ * Chromium `PathBuilder::AddContouredRect` represents an inset ContouredRect as
+ * `target rect ∩ TR corner ∩ BR corner ∩ BL corner ∩ TL corner`. SVG has no
+ * path-intersection command, so callers nest these four vector clip paths in
+ * the same order. `null` means this is an origin contour and needs one path.
+ */
+export function contouredRectIntersectionPaths(x: number, y: number, w: number, h: number, c: CornerRadii): string[] | null {
+  if (c.originRadii == null || c.contourInsets == null) return null;
+  const corners = contouredCornerGeometries(x, y, w, h, c);
+  const pad = Math.max(w, h, 1) * 4 + 1;
+  const left = x - pad, top = y - pad, right = x + w + pad, bottom = y + h + pad;
+  const curve = (corner: CornerGeometry) => cornerCommands(corner.start, corner.outer, corner.end, corner.center, corner.curvature);
+  return [
+    [`M${r(left)},${r(top)}`, ...curve(corners.tr), `L${r(right)},${r(bottom)}`, `L${r(left)},${r(bottom)}`, "Z"].join(" "),
+    [`M${r(right)},${r(top)}`, ...curve(corners.br), `L${r(left)},${r(bottom)}`, `L${r(left)},${r(top)}`, "Z"].join(" "),
+    [`M${r(right)},${r(bottom)}`, ...curve(corners.bl), `L${r(left)},${r(top)}`, `L${r(right)},${r(top)}`, "Z"].join(" "),
+    [`M${r(left)},${r(bottom)}`, ...curve(corners.tl), `L${r(right)},${r(top)}`, `L${r(right)},${r(bottom)}`, "Z"].join(" "),
+  ];
+}
+
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
  *  Path goes clockwise from the top-left, using elliptical arc commands at each
  *  corner. Zero-radius corners collapse to a sharp 90° join. */

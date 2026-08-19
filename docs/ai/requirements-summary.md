@@ -1312,8 +1312,9 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   the round path for old captures and zero radii.
   Non-uniform hyperellipse borders normalize each side into Blink's general
   quad construction and intersect corner miters with the inner bevel hull.
-  Ordinary-sized concave/mixed curvature uses the close-edge miter/opposite
-  bound; non-renderable inset corner-path intersection remains DM-2317.
+  Concave/mixed curvature uses the close-edge miter/opposite bound. For a
+  non-renderable inset, preserve Blink's four corner constraints as nested SVG
+  clips and subtract their intersection with a vector luminance mask.
 
 ## What this file is NOT
 

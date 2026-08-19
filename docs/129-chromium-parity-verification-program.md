@@ -113,9 +113,10 @@ supply its constants.
 DM-2316 adds the corresponding mixed-side discriminator and transcribes the
 general hyperellipse side quad by normalizing each physical side, intersecting
 both miters with its inner bevel hull, and rotating the result back. Concave
-and mixed-curvature sides retain the close-edge branch. A narrow overlapping
-scoop discriminator proves the still-open prerequisite: vector representation
-of `PathBuilder::AddContouredRect`'s four corner-path intersections (DM-2317).
+and mixed-curvature sides retain the close-edge branch. DM-2317 represents
+`PathBuilder::AddContouredRect`'s target-rect/four-corner intersection as four
+nested vector clip paths inside the border-ring mask. The narrow overlapping
+scoop discriminator now passes with the entire composed fixture at 0.00%.
 
 ### Generated and metamorphic coverage
 

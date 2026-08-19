@@ -39,6 +39,7 @@ import {
   injectSvgSize,
   roundBorderSideClipPolygon,
   hyperellipseBorderSideClipPolygon,
+  contouredRectIntersectionPaths,
   findOffGridCollapsedCells,
   doubleBorderStripeGeometry,
   selectBestDashGap,
@@ -1417,6 +1418,29 @@ function paintUniformDashedDottedBorder(
   }
 }
 
+function createContouredRingMask(
+  ctx: PaintCtx,
+  outerPath: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  innerCorners: CornerRadii,
+): string | null {
+  const constraints = contouredRectIntersectionPaths(x, y, width, height, innerCorners);
+  if (constraints == null) return null;
+  const clipIds = constraints.map(() => ctx.nextClipId("cci"));
+  constraints.forEach((path, index) => ctx.defsParts.push(`<clipPath id="${clipIds[index]}"><path d="${path}"/></clipPath>`));
+  const nestedOpen = clipIds.map(id => `<g clip-path="url(#${id})">`).join("");
+  const nestedClose = "</g>".repeat(clipIds.length);
+  const maskId = ctx.nextClipId("crm");
+  const pad = Math.max(width, height, 1) * 4 + 1;
+  ctx.defsParts.push(
+    `<mask id="${maskId}" maskUnits="userSpaceOnUse" mask-type="luminance" x="${r(x - pad)}" y="${r(y - pad)}" width="${r(width + pad * 2)}" height="${r(height + pad * 2)}"><path d="${outerPath}" fill="white"/>${nestedOpen}<rect x="${r(x)}" y="${r(y)}" width="${r(width)}" height="${r(height)}" fill="black"/>${nestedClose}</mask>`,
+  );
+  return maskId;
+}
+
 // Uniform solid border (also the fallback for dashed/dotted with rounded corners
 // or non-uniform radii): a single inset, device-pixel-rounded rounded-rect stroke.
 // Extracted from paintBorder (DM-1342) — byte-identical.
@@ -1466,12 +1490,15 @@ function paintUniformSolidBorder(
   if (hasNonRoundContour && !collapse && bt.style === "solid") {
     const outer = roundedRectPath(boxLeft, boxTop, boxRight - boxLeft, boxBottom - boxTop, corners);
     const innerCorners = insetCornerRadii(corners, bt.w, bt.w, bt.w, bt.w);
-    const inner = roundedRectPath(
-      boxLeft + bt.w, boxTop + bt.w,
-      Math.max(0, boxRight - boxLeft - bt.w * 2), Math.max(0, boxBottom - boxTop - bt.w * 2),
-      innerCorners,
-    );
-    ctx.svgParts.push(`${indent}<path d="${outer} ${inner}" fill="${colorStr(bt.color)}" fill-rule="evenodd"/>`);
+    const innerX = boxLeft + bt.w, innerY = boxTop + bt.w;
+    const innerW = Math.max(0, boxRight - boxLeft - bt.w * 2), innerH = Math.max(0, boxBottom - boxTop - bt.w * 2);
+    const maskId = createContouredRingMask(ctx, outer, innerX, innerY, innerW, innerH, innerCorners);
+    if (maskId != null) {
+      ctx.svgParts.push(`${indent}<path d="${outer}" fill="${colorStr(bt.color)}" mask="url(#${maskId})"/>`);
+    } else {
+      const inner = roundedRectPath(innerX, innerY, innerW, innerH, innerCorners);
+      ctx.svgParts.push(`${indent}<path d="${outer} ${inner}" fill="${colorStr(bt.color)}" fill-rule="evenodd"/>`);
+    }
     return;
   }
   ctx.svgParts.push(
@@ -1815,6 +1842,16 @@ function paintPerSideBorder(
     const annularPath = hasOuterRadius
       ? `${outerRoundedPath} ${innerRoundedPath}`
       : "";
+    const hasNonRoundContour = corners.curvature != null
+      && Object.values(corners.curvature).some(value => value !== 2);
+    const contouredRingMaskId = hasOuterRadius && hasNonRoundContour
+      ? createContouredRingMask(
+          ctx, outerRoundedPath,
+          bxL + lw, bxT + tw,
+          Math.max(0, bxR - bxL - lw - rw), Math.max(0, bxB - bxT - tw - bw),
+          innerCornersForAnnular,
+        )
+      : null;
     // Hyperellipses use Blink's general miter/bevel-hull quad. Round and
     // concave contours use the close-edge miter/opposite-bound branch; the
     // non-renderable concave path-intersection prerequisite is DM-2317.
@@ -1849,7 +1886,7 @@ function paintPerSideBorder(
           `<clipPath id="${wid}"><polygon points="${annularWedges[i]}"/></clipPath>`,
         );
         ctx.svgParts.push(
-          `${indent}<path d="${annularPath}" fill="${colorStr(side.color)}" fill-rule="evenodd" clip-path="url(#${wid})"/>`,
+          `${indent}<path d="${contouredRingMaskId == null ? annularPath : outerRoundedPath}" fill="${colorStr(side.color)}"${contouredRingMaskId == null ? ' fill-rule="evenodd"' : ` mask="url(#${contouredRingMaskId})"`} clip-path="url(#${wid})"/>`,
         );
       }
       const rcid = ctx.nextClipId("br");
