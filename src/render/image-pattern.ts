@@ -176,19 +176,23 @@ export function buildImagePatternDef(
   }
 
   // 'round' rebinds tile size so count is integer.
-  if (repH === "round" && intrinsic != null) {
+  if (repH === "round") {
     const count = Math.max(1, Math.round(basisW / tileW));
     tileW = basisW / count;
   }
-  if (repV === "round" && intrinsic != null) {
+  if (repV === "round") {
     const count = Math.max(1, Math.round(basisH / tileH));
     tileH = basisH / count;
   }
+  const spacePeriod = (area: number, tile: number): number => {
+    const count = Math.floor(area / tile);
+    return count > 1 ? tile + (area - count * tile) / (count - 1) : area * 2;
+  };
   const periodW = (repH === "repeat" || repH === "round") ? tileW
-                : repH === "space" ? Math.max(tileW, basisW / Math.max(1, Math.floor(basisW / tileW)))
+                : repH === "space" ? spacePeriod(basisW, tileW)
                 : basisW * 2; // no-repeat: make pattern huge so only one tile fits
   const periodH = (repV === "repeat" || repV === "round") ? tileH
-                : repV === "space" ? Math.max(tileH, basisH / Math.max(1, Math.floor(basisH / tileH)))
+                : repV === "space" ? spacePeriod(basisH, tileH)
                 : basisH * 2;
 
   // Pattern position in userSpaceOnUse — absolute SVG canvas coords. The
@@ -225,6 +229,13 @@ export function buildImagePatternDef(
     imgX = 0;
     imgY = 0;
   }
+  // Multi-tile `space` ignores background-position and aligns a full tile to
+  // the positioning area's start edge. `round` does not discard position:
+  // Blink resolves the position against the pre-adjustment available space,
+  // then converts that offset to a phase for the adjusted tile size
+  // (BackgroundImageGeometry::CalculateRepeatAndPosition, lines 547-586).
+  if (repH === "space" && Math.floor(basisW / tileW) > 1) patX = originX;
+  if (repV === "space" && Math.floor(basisH / tileH) > 1) patY = originY;
 
   return `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${r(patX)}" y="${r(patY)}" width="${r(periodW)}" height="${r(periodH)}"><image href="${esc(embedResizedDataUri(href, tileW, tileH))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(tileW)}" height="${r(tileH)}" preserveAspectRatio="none" /></pattern>`;
 }

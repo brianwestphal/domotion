@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszd395cnu6k56vo",
+          "message": {
+            "text": "URL-image round and space geometry is transcribed from BackgroundImageGeometry::CalculateRepeatAndPosition. A nonzero 25% position exposed that round retains pre-adjustment phase, whereas multi-tile space ignores position; after matching that distinction, the expanded five-case visual fixture is pixel-exact.",
+            "markdown": "URL-image round and space geometry is transcribed from BackgroundImageGeometry::CalculateRepeatAndPosition. A nonzero 25% position exposed that round retains pre-adjustment phase, whereas multi-tile space ignores position; after matching that distinction, the expanded five-case visual fixture is pixel-exact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/image-pattern.ts"
+                },
+                "region": {
+                  "startLine": 174,
+                  "endLine": 240,
+                  "snippet": {
+                    "text": "      posX = resolveH(posTok[1] ?? \"50%\");\n    }\n  }\n\n  // 'round' rebinds tile size so count is integer.\n  if (repH === \"round\") {\n    const count = Math.max(1, Math.round(basisW / tileW));\n    tileW = basisW / count;\n  }\n  if (repV === \"round\") {\n    const count = Math.max(1, Math.round(basisH / tileH));\n    tileH = basisH / count;\n  }\n  const spacePeriod = (area: number, tile: number): number => {\n    const count = Math.floor(area / tile);\n    return count > 1 ? tile + (area - count * tile) / (count - 1) : area * 2;\n  };\n  const periodW = (repH === \"repeat\" || repH === \"round\") ? tileW\n                : repH === \"space\" ? spacePeriod(basisW, tileW)\n                : basisW * 2; // no-repeat: make pattern huge so only one tile fits\n  const periodH = (repV === \"repeat\" || repV === \"round\") ? tileH\n                : repV === \"space\" ? spacePeriod(basisH, tileH)\n                : basisH * 2;\n\n  // Pattern position in userSpaceOnUse — absolute SVG canvas coords. The\n  // pattern unit cell starts here and repeats every (periodW × periodH).\n  // DM-935: for no-repeat with `background-size: cover` where the scaled\n  // image is LARGER than the tile (image extends above / below the tile\n  // with a negative posX/posY), DON'T shift the cell origin by\n  // (posX, posY) — the previous shifting placed the FIRST pattern cell\n  // at the image's top-left (outside the tile) and the tile sat in the\n  // SECOND row of repeated cells where only the image's clipped-top\n  // portion paints (typically empty padding above the visible content).\n  // Anchor the cell at the element origin instead, and place the IMAGE\n  // inside the cell at (posX, posY) so the tile area samples the\n  // correct (center-overflow-clipped) portion of the image.\n  //\n  // Backwards-compat: when the image is SMALLER than or equal to the\n  // basis on both axes (no overflow) keep the existing\n  // shift-the-cell-origin behaviour — the prior layout works for\n  // contain / explicit-size / repeating patterns where the image fits\n  // and the original offset positions it correctly within the tile.\n  const imageOverflows = tileW > basisW || tileH > basisH;\n  let patX: number;\n  let patY: number;\n  let imgX: number;\n  let imgY: number;\n  if (imageOverflows && (repH === \"no-repeat\" || repV === \"no-repeat\")) {\n    patX = originX;\n    patY = originY;\n    imgX = posX;\n    imgY = posY;\n  } else {\n    patX = originX + posX;\n    patY = originY + posY;\n    imgX = 0;\n    imgY = 0;\n  }\n  // Multi-tile `space` ignores background-position and aligns a full tile to\n  // the positioning area's start edge. `round` does not discard position:\n  // Blink resolves the position against the pre-adjustment available space,\n  // then converts that offset to a phase for the adjusted tile size\n  // (BackgroundImageGeometry::CalculateRepeatAndPosition, lines 547-586).\n  if (repH === \"space\" && Math.floor(basisW / tileW) > 1) patX = originX;\n  if (repV === \"space\" && Math.floor(basisH / tileH) > 1) patY = originY;\n\n  return `<pattern id=\"${id}\" patternUnits=\"userSpaceOnUse\" x=\"${r(patX)}\" y=\"${r(patY)}\" width=\"${r(periodW)}\" height=\"${r(periodH)}\"><image href=\"${esc(embedResizedDataUri(href, tileW, tileH))}\" x=\"${r(imgX)}\" y=\"${r(imgY)}\" width=\"${r(tileW)}\" height=\"${r(tileH)}\" preserveAspectRatio=\"none\" /></pattern>`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 579
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 722
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2309"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ba1a39ee6f6089faa3bc3afe7b6a5f59"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8688cb158b9e18c6e65396d0448bccc46af8ca30",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

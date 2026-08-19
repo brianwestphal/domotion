@@ -23,9 +23,11 @@ repeating radial period; monotonic stop fixup, unspecified-stop distribution,
 double-position stops, and Blink's nine-stop color-hint expansion; basic
 `inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; HTML border,
 padding, content/fill, margin, and half-border reference boxes; rounded
-padding/content insets and margin-corner correction; mask size, position, and
-gradient tiling; all four mask-composite operators; fragment mask and clip-path
-user-space positioning; and a linear-gradient alpha mask. Gradient coordinates
+padding/content insets and margin-corner correction; mask size, position,
+per-axis repeat, `round`/`space` adjustment for generated and URL images, and
+cyclic layer lists; bottom-up mixed-layer composition using each upper layer's
+Porter-Duff operator; all four mask-composite operators; fragment mask and
+clip-path user-space positioning; and a linear-gradient alpha mask. Gradient coordinates
 compare at the emitter's four-decimal serialization boundary. Basic clip
 coordinates compare after the renderer's documented one-decimal SVG
 serialization.
@@ -53,8 +55,7 @@ logic for legacy sRGB colors.
 This gate does not yet claim exhaustive paint parity. Exact oracle rows still
 need to be added for non-default gradient interpolation color spaces and
 premultiplied-alpha color math, negative/out-of-range radial stop domains,
-`round`/`space` mask tiling and mixed per-layer composite lists, SVG-specific
-geometry boxes, and conic raster tiles. Those domains remain covered by unit
+SVG-specific geometry boxes, and conic raster tiles. Those domains remain covered by unit
 and visual fixtures but do not gain an exact logical verdict from this oracle
 until their structured rows land.
 

@@ -183,6 +183,38 @@ function maskRows(): OracleRow[] {
   const expectedRepeatOrigins = [[-40, -15], [40, -15], [120, -15], [200, -15], [-40, 25], [40, 25], [120, 25], [200, 25], [-40, 65], [40, 65], [120, 65], [200, 65], [-40, 105], [40, 105], [120, 105], [200, 105]];
   const repeatDelta = maxDelta(expectedRepeatOrigins, repeatOrigins);
   rows.push({ id: "mask.size-position.repeat", stage: "mask", source: "CSSMaskPainter FillLayer tiling geometry", expected: expectedRepeatOrigins, actual: repeatOrigins, maxAbsDelta: repeatDelta, pass: repeatDelta <= TOLERANCE });
+  const axisCases = [
+    { id: "repeat-x", repeat: "repeat no-repeat", expected: [[-40, 65], [40, 65], [120, 65], [200, 65]] },
+    { id: "repeat-y", repeat: "no-repeat repeat", expected: [[40, -15], [40, 25], [40, 65], [40, 105]] },
+  ];
+  for (const test of axisCases) {
+    const def = buildMaskDef("ma", "linear-gradient(red, black)", 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", test.repeat, "add").def;
+    const origins = [...def.matchAll(/<rect x="(-?\d+(?:\.\d+)?)" y="(-?\d+(?:\.\d+)?)" width="80" height="40"/g)].map((match) => [Number(match[1]), Number(match[2])]);
+    const axisDelta = maxDelta(test.expected, origins);
+    rows.push({ id: `mask.repeat.${test.id}`, stage: "mask", source: "background_image_geometry.cc:589-642", expected: test.expected, actual: origins, maxAbsDelta: axisDelta, pass: axisDelta <= TOLERANCE });
+  }
+  const roundDef = buildMaskDef("mround", "linear-gradient(red, black)", 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", "round no-repeat", "add").def;
+  const roundTiles = [...roundDef.matchAll(/<rect x="(-?\d+(?:\.\d+)?)" y="65" width="(-?\d+(?:\.\d+)?)" height="40"/g)].map((match) => [Number(match[1]), Number(match[2])]);
+  const expectedRoundTiles = [[-26.7, 66.7], [40, 66.7], [106.7, 66.7], [173.3, 66.7]];
+  const roundDelta = maxDelta(expectedRoundTiles, roundTiles);
+  rows.push({ id: "mask.repeat.round", stage: "mask", source: "background_image_geometry.cc:26-36,547-588", expected: expectedRoundTiles, actual: roundTiles, maxAbsDelta: roundDelta, pass: roundDelta <= TOLERANCE });
+  const spaceDef = buildMaskDef("mspace", "linear-gradient(red, black)", 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", "space no-repeat", "add").def;
+  const spaceOrigins = [...spaceDef.matchAll(/<rect x="(-?\d+(?:\.\d+)?)" y="65" width="80" height="40"/g)].map((match) => Number(match[1]));
+  const expectedSpaceOrigins = [10, 130];
+  const spaceDelta = maxDelta(expectedSpaceOrigins, spaceOrigins);
+  rows.push({ id: "mask.repeat.space", stage: "mask", source: "background_image_geometry.cc:17-30,596-632", expected: expectedSpaceOrigins, actual: spaceOrigins, maxAbsDelta: spaceDelta, pass: spaceDelta <= TOLERANCE });
+  const dataMask = 'url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2240%22%3E%3Crect width=%2280%22 height=%2240%22 fill=%22black%22/%3E%3C/svg%3E")';
+  for (const test of [{ id: "round", repeat: "round no-repeat", expected: { x: 40, y: 65, width: 66.7, height: 200 } }, { id: "space", repeat: "space no-repeat", expected: { x: 10, y: 65, width: 120, height: 200 } }]) {
+    const def = buildMaskDef("murl", dataMask, 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", test.repeat, "add").def;
+    const pattern = /<pattern[^>]+/.exec(def)?.[0] ?? "";
+    const patternActual = { x: numberAttr(pattern, "x"), y: numberAttr(pattern, "y"), width: numberAttr(pattern, "width"), height: numberAttr(pattern, "height") };
+    const patternDelta = maxDelta(test.expected, patternActual);
+    rows.push({ id: `mask.url-repeat.${test.id}`, stage: "mask", source: "background_image_geometry.cc:547-632", expected: test.expected, actual: patternActual, maxAbsDelta: patternDelta, pass: patternDelta <= TOLERANCE });
+  }
+  const fourLayers = Array.from({ length: 4 }, (_, index) => `linear-gradient(rgb(${index},0,0), black)`).join(",");
+  const cyclicDef = buildMaskDef("mcycle", fourLayers, 0, 0, 100, 80, "alpha", "10px 10px,20px 20px", "0 0", "no-repeat", "add").def;
+  const cyclicActual = [0, 1, 2, 3].map((index) => new RegExp(`<rect x="0" y="0" width="${index % 2 === 0 ? 10 : 20}" height="${index % 2 === 0 ? 10 : 20}" fill="url\\(#mcycleg${index}\\)"`).test(cyclicDef));
+  rows.push({ id: "mask.layer-list.cyclic", stage: "mask", source: "FillLayer linked-list repetition", expected: [true, true, true, true], actual: cyclicActual, maxAbsDelta: cyclicActual.every(Boolean) ? 0 : Infinity, pass: cyclicActual.every(Boolean) });
   const twoLayers = "linear-gradient(red, black),linear-gradient(white, transparent)";
   for (const test of [
     { op: "add", marker: (def: string) => !def.includes("<feColorMatrix") && (def.match(/<mask /g)?.length ?? 0) === 1 },
@@ -194,6 +226,15 @@ function maskRows(): OracleRow[] {
     const matched = test.marker(composite);
     rows.push({ id: `mask.composite.${test.op}`, stage: "mask", source: "CSS mask-composite Porter-Duff mapping", expected: true, actual: matched, maxAbsDelta: matched ? 0 : Infinity, pass: matched });
   }
+  const threeLayers = `${twoLayers},linear-gradient(blue, transparent)`;
+  const mixed = buildMaskDef("mmix", threeLayers, 0, 0, 100, 80, "alpha", "auto", "0% 0%", "no-repeat", "subtract,intersect").def;
+  const mixedActual = {
+    bottomFirst: mixed.includes('id="mmixraw2"') && mixed.includes('id="mmixacc1"'),
+    intersectThenSubtract: mixed.includes('<g mask="url(#mmixraw1)"><rect x="0" y="0" width="100" height="80" fill="#fff" mask="url(#mmixraw2)"') && mixed.includes('id="mmixnota0"') && mixed.includes('<g mask="url(#mmixnota0)"><rect x="0" y="0" width="100" height="80" fill="#fff" mask="url(#mmixraw0)"'),
+  };
+  const mixedExpected = { bottomFirst: true, intersectThenSubtract: true };
+  const mixedPass = mixedActual.bottomFirst && mixedActual.intersectThenSubtract;
+  rows.push({ id: "mask.composite.mixed-sequential", stage: "mask", source: "svg_mask_painter.cc:91-113, IterateFillLayersReveresed", expected: mixedExpected, actual: mixedActual, maxAbsDelta: mixedPass ? 0 : Infinity, pass: mixedPass });
   const fragmentMask = positionFragmentMaskDef('<mask id="fm" x="0" y="0" width="1" height="1"><rect width="10" height="8"/></mask>', 13, 17, 90, 70);
   const fragmentMaskExpected = '<mask id="fm" maskUnits="userSpaceOnUse" x="13" y="17" width="90" height="70"><g transform="translate(13, 17)"><rect width="10" height="8"/></g></mask>';
   rows.push({ id: "mask.fragment.user-space", stage: "mask", source: "SVGResourceClipper/Masker HTML reference coordinate mapping", expected: fragmentMaskExpected, actual: fragmentMask, maxAbsDelta: fragmentMask === fragmentMaskExpected ? 0 : Infinity, pass: fragmentMask === fragmentMaskExpected });

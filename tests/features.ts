@@ -719,6 +719,22 @@ export const tests: FeatureTest[] = [
     height: 90,
   },
 
+  {
+    // DM-2309: mask generated images use Blink's FillLayer round/space tile
+    // adjustment, and 3+ mask layers compose bottom-up with each upper
+    // layer's own Porter-Duff operator.
+    name: "mask-advanced-tiling-composite",
+    html: `<div style="padding:12px;display:flex;gap:12px;background:#fff">
+      <div style="width:150px;height:90px;background:#2563eb;mask-image:linear-gradient(to right,#000 0 50%,transparent 50%);mask-size:55px 90px;mask-repeat:round no-repeat"></div>
+      <div style="width:150px;height:90px;background:#16a34a;mask-image:linear-gradient(to right,#000 0 50%,transparent 50%);mask-size:55px 90px;mask-repeat:space no-repeat"></div>
+      <div style="width:150px;height:90px;background:#7c3aed;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2255%22 height=%2290%22%3E%3Crect width=%2228%22 height=%2290%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:55px 90px;mask-position:25% 75%;mask-repeat:round no-repeat"></div>
+      <div style="width:150px;height:90px;background:#c2410c;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2255%22 height=%2290%22%3E%3Crect width=%2228%22 height=%2290%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:55px 90px;mask-position:25% 75%;mask-repeat:space no-repeat"></div>
+      <div style="width:150px;height:90px;background:#dc2626;mask-image:radial-gradient(circle at 35% 50%,#000 0 35%,transparent 36%),linear-gradient(to right,#000 0 65%,transparent 66%),linear-gradient(#000 0 55%,transparent 56%);mask-size:auto;mask-repeat:no-repeat;mask-composite:subtract,intersect"></div>
+    </div>`,
+    width: 822,
+    height: 114,
+  },
+
   // ── Regression: clip-path: url(#id) with clipPathUnits="userSpaceOnUse" (DM-828) ──
   // The clipPath's coords are element-local (origin at the element's border-box,
   // verified against Chrome), but Domotion draws content at absolute (x, y), so

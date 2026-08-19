@@ -66,6 +66,148 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszd38sl6yehcepq",
+          "message": {
+            "text": "Mask tiling now follows Blink's FillLayer geometry instead of treating SVG gradients as one reusable paint server. Each repeated generated-image tile gets its own gradient coordinates; round preserves the phase resolved before tile-size adjustment, while multi-tile space anchors at the positioning-area edge. The 51-row structural oracle and the URL/gradient visual discriminator both cover these decisions.",
+            "markdown": "Mask tiling now follows Blink's FillLayer geometry instead of treating SVG gradients as one reusable paint server. Each repeated generated-image tile gets its own gradient coordinates; round preserves the phase resolved before tile-size adjustment, while multi-tile space anchors at the positioning-area edge. The 51-row structural oracle and the URL/gradient visual discriminator both cover these decisions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 579,
+                  "endLine": 615,
+                  "snippet": {
+                    "text": "    let [repeatX, repeatY] = maskRepeatAxes(layerRepeat);\n    const widthAuto = layerSize === \"auto\" || layerSize === \"\" || sizeTok[0] === \"auto\";\n    const heightAuto = layerSize === \"auto\" || layerSize === \"\" || sizeTok.length < 2 || sizeTok[1] === \"auto\";\n    if (repeatX === \"round\") {\n      const oldW = gradW;\n      gradW = w / Math.max(1, Math.round(w / gradW));\n      if (heightAuto && repeatY !== \"round\") gradH *= gradW / oldW;\n    }\n    if (repeatY === \"round\") {\n      const oldH = gradH;\n      gradH = h / Math.max(1, Math.round(h / gradH));\n      if (widthAuto && repeatX !== \"round\") gradW *= gradH / oldH;\n    }\n    const axis = (repeat: string, areaStart: number, areaSize: number, tileStart: number, tileSize: number): { starts: number[] } => {\n      if (repeat === \"no-repeat\") return { starts: [tileStart] };\n      if (repeat === \"space\") {\n        const count = Math.floor(areaSize / tileSize);\n        if (count <= 1) return { starts: [tileStart] };\n        const gap = (areaSize - count * tileSize) / (count - 1);\n        return { starts: Array.from({ length: count }, (_, index) => areaStart + index * (tileSize + gap)) };\n      }\n      const first = tileStart + Math.floor((areaStart - tileStart) / tileSize) * tileSize;\n      const starts: number[] = [];\n      for (let value = first; value < areaStart + areaSize; value += tileSize) starts.push(value);\n      return { starts };\n    };\n    const xs = axis(repeatX, elX, w, gx, gradW).starts;\n    const ys = axis(repeatY, elY, h, gy, gradH).starts;\n    let tileIndex = 0;\n    for (const tileY of ys) for (const tileX of xs) {\n      const gradId = `${id}g${li}${xs.length * ys.length > 1 ? `t${tileIndex++}` : \"\"}`;\n      const def = linear != null\n        ? buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, tileX, tileY)\n        : radial != null ? buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), tileX, tileY, gradW, gradH) : \"\";\n      if (def === \"\") continue;\n      contents.push(def, `<rect x=\"${r(tileX)}\" y=\"${r(tileY)}\" width=\"${r(gradW)}\" height=\"${r(gradH)}\" fill=\"url(#${gradId})\" />`);\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/image-pattern.ts"
+                },
+                "region": {
+                  "startLine": 174
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 180
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2309"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "70087b32e888681d6649bf5b99047346"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszd38yuuaypl95z",
+          "message": {
+            "text": "Mixed mask-composite lists require a bottom-up recurrence, because Blink paints the bottom FillLayer first and applies each upper layer's own Porter-Duff operator to the accumulated destination. The generated SVG masks encode add, intersect, subtract, and exclude as alpha-set operations; the three-layer mixed fixture matches Chromium with zero differing pixels.",
+            "markdown": "Mixed mask-composite lists require a bottom-up recurrence, because Blink paints the bottom FillLayer first and applies each upper layer's own Porter-Duff operator to the accumulated destination. The generated SVG masks encode add, intersect, subtract, and exclude as alpha-set operations; the three-layer mixed fixture matches Chromium with zero differing pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 890,
+                  "endLine": 935,
+                  "snippet": {
+                    "text": "  // Blink paints from the bottom layer upward and applies each non-bottom\n  // layer's own Porter-Duff operator to the accumulated destination. The old\n  // uniform-operator shortcuts below are compact and exact for two layers;\n  // arbitrary lists and 3+ layers need the actual sequential recurrence.\n  const operatorAt = (layerIndex: number): string => normaliseComposite(cyclic(compositeLayers, layerIndex, \"add\"));\n  const topOperators = activeLayers.slice(0, -1).map((layer) => operatorAt(layer.index));\n  const needsSequentialComposition = activeLayers.length > 2 || new Set(topOperators).size > 1;\n  if (needsSequentialComposition) {\n    const defs: string[] = [];\n    const fullRect = (maskId: string): string => `<rect x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" fill=\"#fff\" mask=\"url(#${maskId})\" />`;\n    const rawIds = new Map<number, string>();\n    for (const layer of activeLayers) {\n      const rawId = `${id}raw${layer.index}`;\n      rawIds.set(layer.index, rawId);\n      defs.push(`<mask id=\"${rawId}\" maskUnits=\"userSpaceOnUse\" x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" mask-type=\"${maskType}\">${layer.contents.join(\"\")}</mask>`);\n    }\n    const invFilterId = `${id}inv`;\n    defs.push(`<filter id=\"${invFilterId}\" filterUnits=\"userSpaceOnUse\" x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\"><feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1\"/></filter>`);\n    const inverse = (sourceId: string, suffix: string): string => {\n      const inverseId = `${id}not${suffix}`;\n      defs.push(`<mask id=\"${inverseId}\" maskUnits=\"userSpaceOnUse\" x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" mask-type=\"alpha\"><g filter=\"url(#${invFilterId})\"><rect x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" fill=\"transparent\" />${fullRect(sourceId)}</g></mask>`);\n      return inverseId;\n    };\n    let accumulated = rawIds.get(activeLayers[activeLayers.length - 1].index)!;\n    for (let position = activeLayers.length - 2; position >= 0; position--) {\n      const layer = activeLayers[position];\n      const source = rawIds.get(layer.index)!;\n      const combined = `${id}acc${position}`;\n      const op = operatorAt(layer.index);\n      let body: string;\n      if (op === \"intersect\") {\n        body = `<g mask=\"url(#${source})\">${fullRect(accumulated)}</g>`;\n      } else if (op === \"subtract\") {\n        body = `<g mask=\"url(#${inverse(accumulated, `a${position}`)})\">${fullRect(source)}</g>`;\n      } else if (op === \"exclude\") {\n        const notAccumulated = inverse(accumulated, `a${position}`);\n        const notSource = inverse(source, `s${position}`);\n        body = `<g mask=\"url(#${notAccumulated})\">${fullRect(source)}</g><g mask=\"url(#${notSource})\">${fullRect(accumulated)}</g>`;\n      } else {\n        body = `${fullRect(accumulated)}${fullRect(source)}`;\n      }\n      defs.push(`<mask id=\"${combined}\" maskUnits=\"userSpaceOnUse\" x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" mask-type=\"alpha\">${body}</mask>`);\n      accumulated = combined;\n    }\n    defs.push(`<mask id=\"${id}\" maskUnits=\"userSpaceOnUse\" x=\"${r(elX)}\" y=\"${r(elY)}\" width=\"${r(w)}\" height=\"${r(h)}\" mask-type=\"alpha\">${fullRect(accumulated)}</mask>`);\n    return { id, def: defs.join(\"\") };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 722
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2309"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a9c2444f9bc997974cee503b82a0532b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8688cb158b9e18c6e65396d0448bccc46af8ca30",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

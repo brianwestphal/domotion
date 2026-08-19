@@ -510,6 +510,13 @@ interface MaskLayerInput {
   elementRasters?: ReadonlyMap<string, MaskRasterRef>;
 }
 
+function maskRepeatAxes(value: string): [string, string] {
+  const tokens = value.trim().toLowerCase().split(/\s+/);
+  if (tokens[0] === "repeat-x") return ["repeat", "no-repeat"];
+  if (tokens[0] === "repeat-y") return ["no-repeat", "repeat"];
+  return [tokens[0] || "repeat", tokens[1] ?? tokens[0] ?? "repeat"];
+}
+
 /**
  * Build the SVG content (gradient/pattern defs + the painting rect/image) for a
  * SINGLE mask-image layer. Extracted from `buildMaskDef`'s per-layer loop
@@ -565,35 +572,46 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - gradH);
       return parseFloat(t) || 0;
     };
-    const gx = elX + resolveH(posTok[0] ?? "0%");
-    const gy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-    const gradId = `${id}g${li}`;
+    let gx = elX + resolveH(posTok[0] ?? "0%");
+    let gy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
     const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
     const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
-    let def = "";
-    if (linear != null) def = buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, gx, gy);
-    else if (radial != null) def = buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), gx, gy, gradW, gradH);
-    if (def === "") return { contents, forceHide: false };
-    contents.push(def);
-    const repeatTokens = layerRepeat.trim().toLowerCase().split(/\s+/);
-    const repeatX = repeatTokens[0] === "repeat-x" || repeatTokens[0] === "repeat";
-    const repeatY = repeatTokens[0] === "repeat-y" || repeatTokens[1] === "repeat" || (repeatTokens.length === 1 && repeatTokens[0] === "repeat");
-    if (!repeatX && !repeatY) {
-      contents.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
-    } else {
-      // CSSMaskPainter tiles gradient-generated images exactly like bitmap
-      // mask sources. Emit the finite set of vector tiles intersecting the
-      // masked box: a gradient nested inside an SVG <pattern> is not painted
-      // reliably by Chromium when that pattern itself lives inside a mask.
-      const firstX = repeatX ? gx + Math.floor((elX - gx) / gradW) * gradW : gx;
-      const firstY = repeatY ? gy + Math.floor((elY - gy) / gradH) * gradH : gy;
-      const lastX = repeatX ? elX + w : firstX + gradW;
-      const lastY = repeatY ? elY + h : firstY + gradH;
-      for (let tileY = firstY; tileY < lastY; tileY += repeatY ? gradH : lastY - firstY) {
-        for (let tileX = firstX; tileX < lastX; tileX += repeatX ? gradW : lastX - firstX) {
-          contents.push(`<rect x="${r(tileX)}" y="${r(tileY)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
-        }
+    let [repeatX, repeatY] = maskRepeatAxes(layerRepeat);
+    const widthAuto = layerSize === "auto" || layerSize === "" || sizeTok[0] === "auto";
+    const heightAuto = layerSize === "auto" || layerSize === "" || sizeTok.length < 2 || sizeTok[1] === "auto";
+    if (repeatX === "round") {
+      const oldW = gradW;
+      gradW = w / Math.max(1, Math.round(w / gradW));
+      if (heightAuto && repeatY !== "round") gradH *= gradW / oldW;
+    }
+    if (repeatY === "round") {
+      const oldH = gradH;
+      gradH = h / Math.max(1, Math.round(h / gradH));
+      if (widthAuto && repeatX !== "round") gradW *= gradH / oldH;
+    }
+    const axis = (repeat: string, areaStart: number, areaSize: number, tileStart: number, tileSize: number): { starts: number[] } => {
+      if (repeat === "no-repeat") return { starts: [tileStart] };
+      if (repeat === "space") {
+        const count = Math.floor(areaSize / tileSize);
+        if (count <= 1) return { starts: [tileStart] };
+        const gap = (areaSize - count * tileSize) / (count - 1);
+        return { starts: Array.from({ length: count }, (_, index) => areaStart + index * (tileSize + gap)) };
       }
+      const first = tileStart + Math.floor((areaStart - tileStart) / tileSize) * tileSize;
+      const starts: number[] = [];
+      for (let value = first; value < areaStart + areaSize; value += tileSize) starts.push(value);
+      return { starts };
+    };
+    const xs = axis(repeatX, elX, w, gx, gradW).starts;
+    const ys = axis(repeatY, elY, h, gy, gradH).starts;
+    let tileIndex = 0;
+    for (const tileY of ys) for (const tileX of xs) {
+      const gradId = `${id}g${li}${xs.length * ys.length > 1 ? `t${tileIndex++}` : ""}`;
+      const def = linear != null
+        ? buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, tileX, tileY)
+        : radial != null ? buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), tileX, tileY, gradW, gradH) : "";
+      if (def === "") continue;
+      contents.push(def, `<rect x="${r(tileX)}" y="${r(tileY)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
     }
     return { contents, forceHide: false };
   }
@@ -684,7 +702,8 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     // the rect opaque where the pattern is transparent, defeating alpha
     // masking. Direct <image> makes the sources alpha channel propagate
     // cleanly: opaque pixels = mask visible, transparent pixels = hidden.
-    const isNoRepeat = /\bno-repeat\b/i.test(layerRepeat);
+    const [urlRepeatX, urlRepeatY] = maskRepeatAxes(layerRepeat);
+    const isNoRepeat = urlRepeatX === "no-repeat" && urlRepeatY === "no-repeat";
     if (isNoRepeat) {
       // Resolve mask-size + mask-position to a concrete image rect.
       let imgW = w, imgH = h;
@@ -794,20 +813,22 @@ export function buildMaskDef(
   // emission altogether and the element would show UNMASKED (opposite of
   // what we want), so force emission of an empty mask when it's set.
   let forceHide = false;
+  const cyclic = (values: string[], index: number, fallback: string): string => values.length > 0 ? values[index % values.length] : fallback;
   for (let li = layers.length - 1; li >= 0; li--) {
     const result = buildMaskLayer({
       id, li, elX, elY, w, h,
       layer: layers[li].trim(),
-      layerSize: (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim(),
-      layerPos: (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim(),
-      layerRepeat: (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim(),
+      layerSize: cyclic(sizeLayers, li, "auto").trim(),
+      layerPos: cyclic(posLayers, li, "0% 0%").trim(),
+      layerRepeat: cyclic(repeatLayers, li, "repeat").trim(),
       elementRasters,
     });
     layerContents[li] = result.contents;
     if (result.forceHide) forceHide = true;
   }
   // Drop empty layers (e.g. unsupported layer values) to simplify downstream.
-  const nonEmpty = layerContents.filter((c) => c.length > 0);
+  const activeLayers = layerContents.map((contents, index) => ({ contents, index })).filter((layer) => layer.contents.length > 0);
+  const nonEmpty = activeLayers.map((layer) => layer.contents);
   if (nonEmpty.length === 0) {
     if (forceHide) {
       // Empty <mask> hides the referenced element — matches Chrome's empty
@@ -865,6 +886,54 @@ export function buildMaskDef(
   // when any subtract/exclude path needs it.
   const buildInvertAlphaFilter = (filterId: string): string =>
     `<filter id="${filterId}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`;
+
+  // Blink paints from the bottom layer upward and applies each non-bottom
+  // layer's own Porter-Duff operator to the accumulated destination. The old
+  // uniform-operator shortcuts below are compact and exact for two layers;
+  // arbitrary lists and 3+ layers need the actual sequential recurrence.
+  const operatorAt = (layerIndex: number): string => normaliseComposite(cyclic(compositeLayers, layerIndex, "add"));
+  const topOperators = activeLayers.slice(0, -1).map((layer) => operatorAt(layer.index));
+  const needsSequentialComposition = activeLayers.length > 2 || new Set(topOperators).size > 1;
+  if (needsSequentialComposition) {
+    const defs: string[] = [];
+    const fullRect = (maskId: string): string => `<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="#fff" mask="url(#${maskId})" />`;
+    const rawIds = new Map<number, string>();
+    for (const layer of activeLayers) {
+      const rawId = `${id}raw${layer.index}`;
+      rawIds.set(layer.index, rawId);
+      defs.push(`<mask id="${rawId}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="${maskType}">${layer.contents.join("")}</mask>`);
+    }
+    const invFilterId = `${id}inv`;
+    defs.push(`<filter id="${invFilterId}" filterUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`);
+    const inverse = (sourceId: string, suffix: string): string => {
+      const inverseId = `${id}not${suffix}`;
+      defs.push(`<mask id="${inverseId}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="alpha"><g filter="url(#${invFilterId})"><rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="transparent" />${fullRect(sourceId)}</g></mask>`);
+      return inverseId;
+    };
+    let accumulated = rawIds.get(activeLayers[activeLayers.length - 1].index)!;
+    for (let position = activeLayers.length - 2; position >= 0; position--) {
+      const layer = activeLayers[position];
+      const source = rawIds.get(layer.index)!;
+      const combined = `${id}acc${position}`;
+      const op = operatorAt(layer.index);
+      let body: string;
+      if (op === "intersect") {
+        body = `<g mask="url(#${source})">${fullRect(accumulated)}</g>`;
+      } else if (op === "subtract") {
+        body = `<g mask="url(#${inverse(accumulated, `a${position}`)})">${fullRect(source)}</g>`;
+      } else if (op === "exclude") {
+        const notAccumulated = inverse(accumulated, `a${position}`);
+        const notSource = inverse(source, `s${position}`);
+        body = `<g mask="url(#${notAccumulated})">${fullRect(source)}</g><g mask="url(#${notSource})">${fullRect(accumulated)}</g>`;
+      } else {
+        body = `${fullRect(accumulated)}${fullRect(source)}`;
+      }
+      defs.push(`<mask id="${combined}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="alpha">${body}</mask>`);
+      accumulated = combined;
+    }
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="alpha">${fullRect(accumulated)}</mask>`);
+    return { id, def: defs.join("") };
+  }
 
   // For the default add case (single layer OR all-add), flatten every
   // layer's contents into one <mask>. SVG stacks them additively — alpha
