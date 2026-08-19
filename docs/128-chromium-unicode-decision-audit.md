@@ -1,6 +1,6 @@
 # 128 — Chromium Unicode decision audit
 
-Status: **migration in progress**. This document is the source inventory for
+Status: **supported-path migration complete; cross-platform visual validation pending**. This document is the source inventory for
 the helper-backed fidelity requirement introduced before extracting the font
 resolver into a package.
 
@@ -63,6 +63,30 @@ expose all operations Blink calls.
 | macOS/Linux generated font routes | machine-probed Unicode block tables | no corresponding Blink stage | Unsupported-mode compatibility data | Exclude from helper-backed resolution; retain temporarily only as helper-absent best effort. |
 | Windows generated font routes | machine-probed Unicode block table | no corresponding Blink stage | Unsupported compatibility data | Exclude from helper-backed resolution after Blink's hardcoded stage and DirectWrite answer are authoritative. |
 
+## Supported-path result
+
+When both native companions validate, every resolved run is shaped through the
+pinned HarfBuzz build while glyph outlines remain owned by the selected platform
+face. Domotion therefore no longer chooses whether to shape from a script/range
+allowlist. HarfBuzz's actual cluster result owns canonical decomposition,
+default-ignorable removal, shaper selection, and dotted-circle insertion. The
+per-codepoint seam retains HarfBuzz's exact generated same-font-space table
+because callers without a cluster result must still model that substitution.
+
+The per-codepoint fallback walker now performs literal family coverage and the
+cited platform stages only. Mathematical-alphanumeric rewriting, JavaScript NFD
+prediction, generated macOS/Linux routes, and the generated Windows DirectWrite
+snapshot are helper-absent compatibility behavior. Windows retains Blink's own
+hardcoded nomination table, fed by pinned ICU properties, before live
+DirectWrite. Skip-ink block decisions and emoji-presentation classification use
+pinned ICU; CJK trimming asks the selected face's real `halt` feature before any
+degraded geometry fallback.
+
+The legacy predicates and generated inventories intentionally remain in source
+so helper absence is nonfatal. Their presence is not a claim of Chromium parity:
+the helper acquisition path warns loudly and that mode is explicitly best
+effort.
+
 ## ICU helper surface
 
 The first helper protocol should batch codepoints and return raw upstream
@@ -86,7 +110,7 @@ versions.
 
 ## Validation
 
-The migration is complete only when:
+Release validation is complete only when:
 
 1. helper protocol tests prove the exact ICU version and representative values;
 2. exhaustive comparisons show the removed JavaScript/range classifiers agree
@@ -95,3 +119,16 @@ The migration is complete only when:
    mode warning;
 4. font and cluster conformance gates show no regression relative to Chromium;
 5. all-platform HTML and Unicode visual suites have been generated for review.
+
+Local migration gates on 2026-08-19:
+
+- ICU 78.2 exhaustive digest: 1,114,112 codepoints, 299,382 assigned,
+  `6c5c14d607f8d945` (exact expected digest).
+- Full unit suite: 3,821 passed, 32 skipped; no failures.
+- Cluster face-boundary oracle: 16/16 exact, zero mismatches/skips.
+- Representative font-selection oracle: 7,074 comparisons across six corpus
+  stacks, zero logical mismatches.
+
+The remaining release gate is the all-platform HTML/Unicode visual integration
+run. It is intentionally separate from these logical-stage proofs: pixels can
+expose integration errors, but they do not replace the source and oracle checks.

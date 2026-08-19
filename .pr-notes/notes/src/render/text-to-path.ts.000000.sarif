@@ -625,6 +625,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszgl715vcjbnihn",
+          "message": {
+            "text": "Supported shaped-cluster rendering leaves dotted-circle insertion to the actual pinned HarfBuzz result. The range and positioning heuristics remain reachable only in degraded legacy mode, avoiding a second codepoint-specific shaper model.",
+            "markdown": "Supported shaped-cluster rendering leaves dotted-circle insertion to the actual pinned HarfBuzz result. The range and positioning heuristics remain reachable only in degraded legacy mode, avoiding a second codepoint-specific shaper model."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1329,
+                  "endLine": 1330,
+                  "snippet": {
+                    "text": "  const nativeDottedCircleOwnership = shapeUncoveredOrphansNatively\n    && isGlyphHelperAvailable() && isIcuHelperAvailable();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.93
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2304"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4ee8c52edbe26c14c0187d05e7cb47ae"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d77f73387877eb9607d0c6d8378849d7172db998",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

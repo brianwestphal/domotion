@@ -23,13 +23,13 @@ describe("Linux Unifont GSUB-aware HarfBuzz dispatch", () => {
     for (const [cp, key] of measured) expect(resolvedFaceNeedsHarfbuzzShaping(cp, key, "linux")).toBe(true);
   });
 
-  it("does not face-reroute FreeSerif Sinhala, whose GSUB selects sinh → USE", () => {
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0D9A, "u-free-serif", "linux")).toBe(false);
+  it("still shapes FreeSerif Sinhala, while its GSUB selects sinh → USE", () => {
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0D9A, "u-free-serif", "linux")).toBe(true);
   });
 
-  it("does not generalize DFLT behavior to other faces, platforms, or scripts", () => {
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0F40, "u-free-serif", "linux")).toBe(false);
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0F40, "u-unifont", "darwin")).toBe(false);
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0041, "u-unifont", "linux")).toBe(false);
+  it("does not confuse universal shaping with the narrower DFLT classification", () => {
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0F40, "u-free-serif", "linux")).toBe(true);
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0F40, "u-unifont", "darwin")).toBe(true);
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0041, "u-unifont", "linux")).toBe(true);
   });
 });

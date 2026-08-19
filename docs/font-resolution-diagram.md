@@ -62,7 +62,7 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>→ harfbuzzShapedRunOverride() per assembled run (HARFBUZZ_SHAPED_RANGES,<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or helper absence → degraded legacy walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
     B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
@@ -987,20 +987,14 @@ Chromium-fidelity contract. See [doc 128](128-chromium-unicode-decision-audit.md
 flowchart TD
   F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain, …, fontVariantEmoji)"] --> FVE{"font-variant-emoji forces EMOJI<br/>presentation for cp?<br/>(emoji → any \p{Emoji} cp · unicode → Emoji_Presentation only;<br/>explicit VS15/VS16 in the text wins — caller passes undefined)"}
   FVE -->|"yes & color-emoji face covers cp"| FVE1["cover(color-emoji key)<br/>resolveColorEmojiKeyForCp — even over a covering primary<br/>(forced VS16: harfbuzz_face.cc:127-206)"]
-  FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| FC["complexShaperBaseMarkDecomposition(cp)?<br/>(e.g. Kaithi U+110AB, canonical base+mark)"]
-  FC -->|"primary covers all pieces & has on-disk file"| FCH["→ HarfBuzz shaping instance<br/>(shapingFaceFor → makeHarfbuzzShapingInstance) · decomposed=true<br/>matches Chrome's HarfBuzz decompose+GPOS"]
-  FC -->|"no"| F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?"]
+  FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?<br/>(the default cluster shaper already tested HarfBuzz's<br/>real normalization/coverage before this iterator runs)"]
   F1 -->|"yes"| F1H["cover(primaryKey)"]
   F1 -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
-  FSF1 --> F0B
-  FSF -->|"no"| F0B{"caller supplied an EMPTY fontKeyChain?<br/>(compatibility path; normal resolveFontKeyChain<br/>always includes STANDARD)"}
-  F0B -->|"yes"| F0BA["0b. PRIMARY decomposition — the checks<br/>step 1 would have given it:<br/>· canonical NFD singleton?<br/>· else base+mark NFD covered by primary?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
-  F0BA -->|"hit"| F0BH["cover(primaryKey, decomposed)"]
-  F0BA -->|"none"| F2
-  F0B -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)"]
-  F2 --> F2A["for each key: instanceFor(key)<br/>· literal glyphForCodePoint(cp)?<br/>· else canonical NFD singleton WITHIN same font?<br/>· else base+mark NFD covered by same font?<br/>→ HarfBuzz shaping instance (via shapingFaceFor)"]
-  F2A -->|"hit"| F2H["cover(key) — decomposed if via NFD"]
+  FSF1 --> F2
+  FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)<br/>literal coverage only in supported mode;<br/>JS NFD prediction is helper-absent compatibility"]
+  F2 --> F2A["for each key: instanceFor(key)<br/>glyphForCodePoint(cp)?"]
+  F2A -->|"hit"| F2H["cover(key)"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
   FPUA -->|"yes — no system fallback at all"| F6
   FPUA -->|"no"| FSTD{"win32 pre-stage — FallbackOnStandardFontStyle<br/>(win/font_cache_skia_win.cc:270-277): italic run or<br/>weight ≥ 700 (kBoldWeightValue — NOT Linux's 600),<br/>non-emoji-presentation, head declared name matches primary,<br/>and the family's STANDARD-style cut covers cp?"}
@@ -1011,16 +1005,16 @@ flowchart TD
   F4 -->|"yes"| F4A["2a. kSystemFonts — ASK THE OS FIRST:<br/>resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)<br/>(§8 live CoreText/fontconfig/DirectWrite)<br/>· literal? · NFD singleton?"]
   F4A -->|"hit"| F4H["cover(sysfb:key)"]
   F4A -->|"OS declines"| F3
-  F4 -->|"no (no helper on host / flagged off)"| F3["2b. THE DEGRADED-MODE NET: fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>(§7 static per-block calibrated table, literal only)<br/>staticChainArmed: win32 always · darwin/linux ONLY when<br/>the helper is absent or the resolver is flagged off"]
+  F4 -->|"no (no helper on host / flagged off)"| F3["2b. fallbackFontChain(cp, primaryKey, lang, {weight, slant, fontSize})<br/>win32: Blink-transcribed hardcoded nominations always;<br/>generated inventory tail only in degraded mode.<br/>darwin/linux: entire generated/static net only when<br/>a companion is absent or the resolver is flagged off"]
   F3 -->|"not armed (darwin/linux with the live resolver in the loop)"| F5
   F3 -->|"first covering key (skip 'last-resort')"| F3C["macOS: fallbackFamilyCutKey(candidate, …)<br/>in-family cut re-selection at this weight/style"]
   F3C -->|"moved & still covers cp"| F3HC["cover(sysfb:cut)"]
   F3C -->|"unchanged / non-darwin"| F3H["cover(candidate)"]
-  F3 -->|"none"| F5["3. Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
+  F3 -->|"none"| F5["3. HELPER-ABSENT ONLY: Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
   F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(both modes: first candidate's .notdef;<br/>a raster emoji overlay changes paint only)"]
-  FCH & F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>resolvedFaceNeedsHarfbuzzShaping(cp, res.key)?<br/>(script-wide ranges + measured Linux Unifont face/script pairs)"}
-  FHB -->|"no (every other codepoint)"| FHB0["resolution unchanged"]
+  F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>both supported companions validated?<br/>(degraded mode retains legacy selective routes)"}
+  FHB -->|"no and no degraded selective route"| FHB0["resolution unchanged"]
   FHB -->|"yes"| FHB1["shapingFaceFor(res.key, weight, size, slant, fvs) →<br/>makeHarfbuzzShapingInstance(base, path, faceIndex, size, axes,<br/>{ outlinesFromBase: true })<br/>HarfBuzz supplies ids / positions / clusters ·<br/>base engine still draws (base.getGlyph(id))<br/>+ carryFontInstanceMetadata(proxy, base)"]
 ```
 
@@ -1028,15 +1022,16 @@ Notes:
 - `instanceFor(key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
-- **The post-step routes SHAPING to HarfBuzz without moving the OUTLINES.**
+- **The supported post-step routes all SHAPING to HarfBuzz without moving the OUTLINES.**
   `resolveFontForCodepoint` is a thin wrapper: it calls the resolution walk
   above and then hands the result to `harfbuzzShapedScriptOverride`, which — for
-  the scripts listed in `HARFBUZZ_SHAPED_RANGES` (`unicode-classification.ts`) —
+  every resolved run when both native companions validate —
   replaces the resolved instance with a `makeHarfbuzzShapingInstance` proxy in
   `outlinesFromBase` mode. HarfBuzz then supplies glyph ids, positions and
   clusters (it is the engine Chrome runs), and each glyph's outline still comes
   from `base.getGlyph(id)`, which is well-defined because it is the same file
-  and therefore the same gid space. The decision also carries a narrow
+  and therefore the same gid space. Selective script ranges remain only for
+  helper-absent best effort. The decision also carries a narrow
   resolved-face exception on noble Linux: Unifont / Unifont Upper select GSUB
   `DFLT` for measured Telugu, Myanmar, Tibetan, NKo, Mandaic, Phags-pa,
   Balinese, Javanese, Kaithi, Brahmi, Adlam and Kharoshthi runs, so real HarfBuzz chooses DEFAULT
@@ -1403,60 +1398,15 @@ Notes:
   SC at CSS 300, CoreText's re-selection answers Light where Chrome paints
   Thin), so neither can stand in for the other, and neither runs on the other's
   keys.
-- Step 1 confines NFD decomposition to the DECLARED cascade (so it never
-  over-renders into deep fallback faces Chrome can't reach — the DM-1080 hazard;
-  Arial Unicode MS covers +85 CJK-compat cells via in-font decomposition).
-- **Step 0b exists because "the declared cascade" did not include the primary in
-  one case.** Step 0 tests the primary for LITERAL coverage only; both
-  decomposition checks live in step 1's loop. So a font received them only if it
-  also appeared in `fontKeyChain` — and the primary is absent from that chain
-  exactly when the chain is EMPTY. The equivalence is structural, not
-  incidental: `resolveFontKey` returns the first family name that MATCHES while
-  `resolveFontKeyChain` collects EVERY name that matches, so if any name matched
-  at all the resolved key is in the chain. The primary sits outside it only when
-  nothing matched and `resolveFontKey`'s standard-font terminal supplied the
-  answer — the terminal `resolveFontKeyChain` deliberately omits ("callers
-  append their own"). Measured on the conformance corpora, 9 of 450 stacks reach
-  this on each of darwin and linux (bare `math` / `fangsong` / `ui-monospace` /
-  `ui-rounded` / `ui-sans-serif`, plus named families that are not installed),
-  all resolving to `times`, and the movable codepoints are 5 on darwin and 11 on
-  linux — all at or below U+2FFF on both.
-
-  Upstream has no analogue of "decomposition applies only to chain members":
-  HarfBuzz's `decompose_current_character` (`hb-ot-shape-normalize.cc:150-201`,
-  rev `4de187d`) takes the composed glyph when the CURRENT font has one and
-  otherwise calls `decompose`, whose branches are all gated on that same
-  per-font lookup of the decomposed pieces (`:108-147`). Which font is current,
-  and how it was reached, does not enter the rule. The asymmetry was ours, and
-  it surfaced as +5 conformance mismatches the moment a transcription-correct
-  `ui-serif` classification moved that stack onto the terminal.
-- Step 1's third check (**all platforms**) mirrors HarfBuzz's normalizer
-  (`hb-ot-shape-normalize.cc`): a codepoint with a canonical **base+mark** NFD
-  (`nfdBaseMarkDecomposition` — e.g. U+21AE ↮ → U+2194 ↔ + U+0338 combining long
-  solidus) whose pieces a declared family covers is routed through a real-HarfBuzz
-  shaping instance of THAT family, exactly as Chrome shapes it — Chrome-on-Linux
-  paints the negated arrows (↮ ⇎ ↚ ↛) as two Liberation Sans glyphs (base arrow +
-  naively-placed zero-advance slash; no GPOS anchors on arrow bases) and never
-  reaches the fontconfig per-char fallback, whose FreeSans PRECOMPOSED ↮
-  (slash centered) is a visibly different glyph.
-
-  It is **not** platform-gated: HarfBuzz normalization is engine behavior, and
-  what holds a codepoint back is the every-piece-covered guard, not the platform.
-  On macOS that guard is what keeps the negated arrows on their composed route —
-  Helvetica lacks the U+2194 base piece (misc arrows route to Hiragino), so
-  Chrome-on-macOS can't decompose them either and paints Apple Symbols' composed
-  glyph, which the darwin chain already matches. The guard **does** fire on a
-  **stock macOS** install for accented Latin / Cyrillic: with the non-stock
-  "SF Pro Text" absent the unicode fixtures' stacks fall to Arial Unicode MS,
-  which has no precomposed Ѐ Ѝ ѐ ѝ Ӭ ӭ (U+0400, U+040D, U+0450, U+045D, U+04EC,
-  U+04ED) or Ǹ Ș Ț Ȟ Ȧ Ǫ Ȯ Ȱ Ȳ (U+0218–U+0233) yet covers every NFD piece.
-  Chrome decomposes there — CDP `getPlatformFontsForNode` reports "Arial Unicode
-  MS" with glyphCount 2 (3 for the two-mark U+0230/U+0231). Rejecting the font on
-  missing composed coverage previously walked the resolver on to Helvetica's
-  precomposed glyph, whose accent sits at a visibly different height; a developer
-  Mac cannot reproduce that, because SF Pro Text covers those codepoints and the
-  walk never reaches Arial Unicode MS. Windows resolves these via its calibrated
-  chain (Segoe UI Symbol).
+- **Canonical decomposition is not predicted in supported resolution.** Blink
+  hands the cluster to HarfBuzz, whose `decompose_current_character`
+  (`hb-ot-shape-normalize.cc:150-201`, rev `4de187d`) tests the current face and
+  normalizes before the fallback iterator is asked for another face. Domotion's
+  default shaped-cluster splitter now makes that same real shaping result the
+  coverage verdict. The old JavaScript `normalize("NFD")`, singleton rewrite,
+  and base+mark range gates remain only behind helper-absent compatibility; the
+  supported per-codepoint walker performs literal family coverage and never
+  substitutes a source scalar.
 - `codepointResolvesToNotdef(cp, …)` is the coverage predicate behind the
   synthetic dotted circle: "does anything cover `cp`, or does it paint as the
   primary's `.notdef`?" Its body **is** the resolver —
@@ -1601,15 +1551,11 @@ stage order that produces, matching Blink's:
 1. **`blinkWinHardcodedFamilies`** — `GetFallbackFamilyNameFromHardcodedChoices`.
 2. **the live DirectWrite resolver** (§8), run by the walker after this chain —
    Blink's `GetDWriteFallbackFamily` fall-through.
-3. **the generated per-block net** (`UNICODE_FONT_RANGES_WIN32`), deferred behind
-   (2) by `win32DeferOrStatic` so a frozen sample of DirectWrite's answers cannot
-   pre-empt DirectWrite itself. The deferral probe asks the live resolver with
-   the run's FULL context — weight, slant, size, primary key, locale,
-   `font-variant-emoji` — the same question `liveFallback` asks for real moments
-   later; a bare-codepoint probe (weight 400, no primary, no locale) could
-   defer, or fail to defer, on a different verdict, since DirectWrite selects
-   the cut from the style, the base family travels with the query, and the
-   reduced locale decides unified Han.
+3. **the iterator terminal** when DirectWrite declines. A generated per-block
+   snapshot (`UNICODE_FONT_RANGES_WIN32`) is retained only when either native
+   companion is absent or live system fallback is explicitly disabled. It is
+   not a supported-path stage: another host's sampled DirectWrite inventory is
+   not an answer Chromium asks after this host's DirectWrite has returned none.
 
 Blink also runs `FallbackOnStandardFontStyle` **before** stage 1
 (`win/font_cache_skia_win.cc:270-277`, threshold `kBoldWeightValue = 700` —

@@ -35,13 +35,15 @@ interface IcuResponse {
 }
 
 const memo = new Map<number, IcuCodepointProperties>();
-// Routing normally asks about adjacent Unicode cells. A full structural scan
-// must not turn that into one helper launch per tiny page: 4K rows keep the
-// synchronous API practical while remaining well below the explicit buffer.
-const PAGE_SIZE = 16_384;
+// Routing normally asks about adjacent Unicode cells. Fetch a small page so a
+// run does not pay one process launch per character, without materialising a
+// large fraction of Unicode merely to classify one scalar. Exhaustive callers
+// already pass their full batch and therefore bypass page expansion.
+const PAGE_SIZE = 256;
 const MAX_MEMO_ROWS = 65_536;
 let helperPath: string | undefined;
 let checked = false;
+let helperValidated: boolean | null = null;
 
 function inTreeHelper(): string | undefined {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -56,6 +58,29 @@ function resolveHelper(): string | undefined {
     helperPath = process.env.DOMOTION_ICU_HELPER_PATH ?? inTreeHelper() ?? acquireIcuCompanionSync();
   }
   return helperPath;
+}
+
+/** Whether the pinned ICU companion and its data image answer the protocol. */
+export function isIcuHelperAvailable(): boolean {
+  if (helperValidated != null) return helperValidated;
+  const executable = resolveHelper();
+  if (executable == null) return (helperValidated = false);
+  const proc = spawnSync(executable, [], {
+    input: JSON.stringify({ cps: [] }),
+    encoding: "utf8",
+    timeout: 10_000,
+    maxBuffer: 1024 * 1024,
+    env: process.env.DOMOTION_ICU_DATA
+      ? process.env
+      : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
+  });
+  if (proc.status !== 0) return (helperValidated = false);
+  try {
+    const response = JSON.parse(proc.stdout) as IcuResponse;
+    return (helperValidated = response.protocolVersion === "1" && response.icuVersion === "78.2");
+  } catch {
+    return (helperValidated = false);
+  }
 }
 
 export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, IcuCodepointProperties> {
@@ -74,7 +99,7 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
         return out;
       })
     : missingRequested;
-  const executable = missing.length > 0 ? resolveHelper() : undefined;
+  const executable = missing.length > 0 && isIcuHelperAvailable() ? resolveHelper() : undefined;
   if (missing.length > 0 && executable != null) {
     const proc = spawnSync(executable, [], {
       input: JSON.stringify({ cps: missing }),
@@ -122,4 +147,5 @@ export function __resetIcuHelperForTest(): void {
   memo.clear();
   checked = false;
   helperPath = undefined;
+  helperValidated = null;
 }

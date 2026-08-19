@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszglblycvauiq0c",
+          "message": {
+            "text": "Supported-mode availability validates the executable, protocol, pinned ICU version, and data image with a real empty request. A configured path alone is insufficient; a broken binary/data pair remains degraded rather than silently enabling Chromium-fidelity branches.",
+            "markdown": "Supported-mode availability validates the executable, protocol, pinned ICU version, and data image with a real empty request. A configured path alone is insufficient; a broken binary/data pair remains degraded rather than silently enabling Chromium-fidelity branches."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/icu-helper.ts"
+                },
+                "region": {
+                  "startLine": 64,
+                  "endLine": 83,
+                  "snippet": {
+                    "text": "export function isIcuHelperAvailable(): boolean {\n  if (helperValidated != null) return helperValidated;\n  const executable = resolveHelper();\n  if (executable == null) return (helperValidated = false);\n  const proc = spawnSync(executable, [], {\n    input: JSON.stringify({ cps: [] }),\n    encoding: \"utf8\",\n    timeout: 10_000,\n    maxBuffer: 1024 * 1024,\n    env: process.env.DOMOTION_ICU_DATA\n      ? process.env\n      : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), \"icudtl.dat\") },\n  });\n  if (proc.status !== 0) return (helperValidated = false);\n  try {\n    const response = JSON.parse(proc.stdout) as IcuResponse;\n    return (helperValidated = response.protocolVersion === \"1\" && response.icuVersion === \"78.2\");\n  } catch {\n    return (helperValidated = false);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2304"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ec3b3ad5f3169f8629dcb927a369e3ae"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d77f73387877eb9607d0c6d8378849d7172db998",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

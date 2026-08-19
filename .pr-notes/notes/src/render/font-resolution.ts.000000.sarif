@@ -1761,6 +1761,71 @@
           "branch": "validate-dm-2281-icu-acquire"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszgl715kqgqjsdw",
+          "message": {
+            "text": "Universal HarfBuzz routing replaces an empirically grown script allowlist in supported mode. Chromium shapes every run through HarfBuzz; Domotion keeps the resolved platform face as the outline source, so this changes mechanism without substituting font geometry.",
+            "markdown": "Universal HarfBuzz routing replaces an empirically grown script allowlist in supported mode. Chromium shapes every run through HarfBuzz; Domotion keeps the resolved platform face as the outline source, so this changes mechanism without substituting font geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9617,
+                  "endLine": 9624,
+                  "snippet": {
+                    "text": "  // Chromium shapes every supported run with HarfBuzz. Once both native\n  // companions are present, route every assigned/unassigned scalar through\n  // the same engine rather than selecting scripts from Domotion-owned ranges.\n  // The proxy keeps outlines on the resolved platform face, so this changes\n  // shaping decisions without changing the platform raster-outline source.\n  if (isGlyphHelperAvailable() && isIcuHelperAvailable()) return true;\n  if (resolvedFaceUsesDefaultOpenTypeShaper(cp, fontKey, platform)) return true;\n  return usesHarfbuzzShaping(cp);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2304"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "367b855be4baddd7588ad623b15c613e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d77f73387877eb9607d0c6d8378849d7172db998",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

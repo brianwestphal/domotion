@@ -98,47 +98,25 @@ describe("win32 FallbackOnStandardFontStyle — win/font_cache_skia_win.cc:270-2
   });
 });
 
-describe("win32DeferOrStatic asks the question the live resolver answers — MapCharacters takes the run's SkiaFontStyle, base family, and reduced locale (win/font_cache_skia_win.cc:228-240, rev 7d859f27)", () => {
+describe("win32DeferOrStatic keeps sampled inventory out of supported routing", () => {
   const SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
 
-  /** The argument list of the one `resolveSystemFallbackKeyForCp(...)` call
-   *  inside a named top-level function, whitespace-normalized. */
-  const deferProbeArgs = (fnName: string): string => {
+  const functionBody = (fnName: string): string => {
     const at = SRC.search(new RegExp(`^function ${fnName}\\(`, "m"));
     expect(at, `no top-level function ${fnName}`).toBeGreaterThanOrEqual(0);
-    const body = SRC.slice(at, SRC.indexOf("\n}\n", at));
-    const marker = "resolveSystemFallbackKeyForCp(";
-    const i = body.indexOf(marker);
-    expect(i, `${fnName} must consult the live resolver`).toBeGreaterThanOrEqual(0);
-    let depth = 1;
-    let j = i + marker.length;
-    for (; j < body.length && depth > 0; j++) {
-      if (body[j] === "(") depth++;
-      else if (body[j] === ")") depth--;
-    }
-    return body.slice(i + marker.length, j - 1).replace(/\s+/g, " ").trim();
+    return SRC.slice(at, SRC.indexOf("\n}\n", at));
   };
 
-  it("threads the run's weight/slant/primary/locale through the deferral probe, identically to linuxDeferOrStatic", () => {
-    // The probe decides whether the generated per-block net may answer, so it
-    // must ask the SAME question the real per-codepoint stage asks moments
-    // later — a bare `(cp)` probe (weight 400, no primary, no locale) can
-    // defer, or fail to defer, on a different verdict: DirectWrite selects
-    // the cut from the style, the base family travels with the query, and
-    // the reduced locale decides unified Han. Same defect and same fix as
-    // the Linux deferral.
-    const win32 = deferProbeArgs("win32DeferOrStatic");
-    const linux = deferProbeArgs("linuxDeferOrStatic");
-    expect(win32).toBe(linux);
-    expect(win32).toContain("css?.weight");
-    expect(win32).toContain("primaryKey");
-    expect(win32).toContain("lang");
-    expect(win32).toContain("css?.fontVariantEmoji");
+  it("gates the generated range on both companions and never treats a DirectWrite miss as permission", () => {
+    const body = functionBody("win32DeferOrStatic");
+    expect(body).toContain("isGlyphHelperAvailable()");
+    expect(body).toContain("isIcuHelperAvailable()");
+    expect(body).not.toContain("resolveSystemFallbackKeyForCp(");
   });
 
-  it("receives the run context from its win32FallbackChain call site", () => {
+  it("receives only the degraded fallback candidates from its call site", () => {
     expect(SRC.replace(/\s+/g, " ")).toContain(
-      "win32DeferOrStatic(codepoint, [generatedKey], primaryKey, lang, css)",
+      "win32DeferOrStatic([generatedKey])",
     );
   });
 });

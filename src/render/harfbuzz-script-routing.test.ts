@@ -332,13 +332,15 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
     expect(o.ascent).toBe(base!.ascent);
   });
 
-  it("leaves a non-rerouted script's resolution untouched", () => {
+  it("routes every script through HarfBuzz when the supported companions are present", () => {
     const k = key();
     const base = getFontInstance(k!, 400, 16, 0)!;
-    // Latin 'A' and Tibetan KA both resolve without a shaping override.
+    // Chromium has no script allowlist in front of HarfBuzz. Latin and
+    // Tibetan are useful controls because neither belonged to the legacy
+    // empirically grown reroute table.
     for (const cp of [0x0041, 0x0F40]) {
       const res = resolveFontForCodepoint(cp, base, k!, 400, 16, 0, undefined, undefined, [k!]);
-      expect(res.fontOverride).toBeNull();
+      expect(res.fontOverride?.shapesWithHarfbuzz).toBe(true);
     }
   });
 });
@@ -462,10 +464,11 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
     }
   });
 
-  it("Sinhala, N'Ko, Mandaic, Phags-pa, Manichaean, Psalter Pahlavi, Kharoshthi: NOT rerouted (measured inert)", () => {
-    // These seven stay off `HARFBUZZ_SHAPED_RANGES` — no override exists, so
-    // `resolveFontForCodepoint` must report `fontOverride: null` for each,
-    // unlike the Adlam/Hanifi Rohingya cases above.
+  it("routes formerly inert-script controls through Chromium's universal HarfBuzz path", () => {
+    // These seven were deliberately absent from the empirically grown table
+    // because sampled output happened to agree. Supported mode now mirrors
+    // Chromium's mechanism instead: agreement is not a reason to skip its
+    // shaper.
     for (const [fontKey, cp] of [
       ["u-sinhala-sangam-mn", 0x0D91],
       ["u-noto-sans-nko", 0x07C8],
@@ -476,7 +479,7 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
       ["u-noto-sans-kharoshthi", 0x10A02],
     ] as const) {
       const { override } = resolveOverride(fontKey, cp);
-      expect(override, fontKey).toBeNull();
+      expect((override as { shapesWithHarfbuzz?: boolean } | null)?.shapesWithHarfbuzz, fontKey).toBe(true);
     }
   });
 });

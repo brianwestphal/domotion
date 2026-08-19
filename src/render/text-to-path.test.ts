@@ -1622,13 +1622,11 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
   });
 });
 
-// Primary-only NFD canonical decomposition (DM-1080 / DM-1081). CJK compatibility
-// ideographs (U+2F800–2FA1F etc.) have no cmap entry in most faces; Chrome's
-// HarfBuzz shapes their canonical (NFD) form, but ONLY within the font already
-// selected for the run. An earlier version searched the whole fallback chain for
-// the canonical glyph, so it painted real Han where Chrome paints tofu (24 such
-// over-render cells on the 2F800 fixture). These guard that the decomposition
-// stays pinned to the run's PRIMARY font so it can't silently re-broaden.
+// CJK compatibility normalization (DM-1080 / DM-1081). Chromium's HarfBuzz
+// shapes the canonical form within the current face before fallback. The
+// helper-backed cluster splitter owns that verdict; these tests ensure the
+// later per-codepoint iterator never re-predicts NFD or broadens it to a face
+// HarfBuzz did not choose.
 describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", () => {
   it.skipIf(!MACOS_FONTS)("never decomposes a CJK compat ideograph under a Latin primary that can't render the canonical", () => {
     // Helvetica covers neither the literal compat ideograph nor its canonical
@@ -1653,14 +1651,14 @@ describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", ()
     }
   }, 60_000);
 
-  it.skipIf(!MACOS_FONTS)("still decomposes within a CJK primary that DOES cover the canonical (NFD stays load-bearing)", () => {
-    // Removing NFD entirely would tofu these. Hiragino Sans covers the canonical
-    // Han of many 2F800 singletons, so decomposition must still fire there.
+  it.skipIf(!MACOS_FONTS)("does not predict HarfBuzz decomposition in the per-codepoint resolver", () => {
+    // The default shaped-cluster pass asks HarfBuzz first. Reaching this direct
+    // resolver seam must not repeat that decision with JavaScript NFD data.
     let decomposed = 0;
     for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
       if (__resolveFontForCodepointForTest(cp, "Hiragino Sans")?.decomposed) decomposed++;
     }
-    expect(decomposed).toBeGreaterThan(0);
+    expect(decomposed).toBe(0);
   });
 });
 
@@ -1696,12 +1694,9 @@ describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
 });
 
 // DM-1083: the unified family-walk resolver (the shipped resolution path). For a
-// cp the primary lacks, it walks the FULL declared stack (literal then in-font
-// canonical decomposition per font) before the OS fallback — reaching later
-// families a primary-only resolver drops, WITHOUT over-rendering into
-// Chrome-unreachable faces. Validated empirically by
-// tools/probe-2f800-facewalk.mjs (+cells via Arial Unicode MS decomposition,
-// 0 over-paints, on the CJK-compat block).
+// cp the primary lacks, it walks the FULL declared stack for literal coverage
+// before OS fallback. Canonical decomposition is deliberately absent here: the
+// preceding HarfBuzz cluster verdict already owns it.
 describe("resolveFontForCodepoint: unified family-walk loop (DM-1083)", () => {
   // The CJK Compatibility Ideographs Supplement fixture's actual glyph-cell stack.
   const FIXTURE_STACK = `"Hiragino Sans","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
@@ -1723,18 +1718,17 @@ describe("resolveFontForCodepoint: unified family-walk loop (DM-1083)", () => {
     expect(covered).toBeGreaterThan(primarySupplied);
   });
 
-  it.skipIf(!MACOS_FONTS)("reaches a later-DECLARED family (Arial Unicode MS) via in-font decomposition — the DM-1083 win", () => {
-    // The specific mechanism the primary-only resolver dropped: a CJK-compat
-    // ideograph's canonical Han is covered by Arial Unicode MS (declared second),
-    // reached by walking the stack and decomposing WITHIN that face. This must be
-    // a declared family the cascade reaches — not the OS fallback.
+  it.skipIf(!MACOS_FONTS)("does not synthesize a later-family NFD answer after HarfBuzz has rejected the cluster", () => {
+    // Literal later-family coverage remains part of kFontFamily. Canonical
+    // normalization belongs to the preceding HarfBuzz cluster verdict, so this
+    // per-codepoint fallback seam must never manufacture a decomposed answer.
     const arialUnicodeKey = resolveFontKey("Arial Unicode MS");
     let viaLaterFamily = 0;
     for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
       const r = __resolveFontForCodepointForTest(cp, FIXTURE_STACK);
       if (r?.covered && r.decomposed && r.key === arialUnicodeKey) viaLaterFamily++;
     }
-    expect(viaLaterFamily).toBeGreaterThan(0);
+    expect(viaLaterFamily).toBe(0);
   });
 
   it.skipIf(!MACOS_FONTS)("preserves the DM-1080 invariant: a Latin-only stack never over-renders a CJK-compat ideograph", () => {
@@ -3286,7 +3280,7 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     expect(shift).toBe(0);
   });
 
-  it("falls back to ink geometry when the font can't report halt (ink in right half ⇒ opening)", () => {
+  it("does not infer a trim shift from ink geometry in helper-backed mode", () => {
     // A font whose halt layout doesn't narrow the glyph (no half-width form):
     // classify opening (ink centered in the RIGHT half of the em box) and shift
     // left by the trimmed amount; here trim = (16−8)/0.016 = 500 font units.
@@ -3296,7 +3290,7 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     } as unknown as Parameters<typeof cjkTrimShiftFontUnits>[0];
     const openingGlyph = { id: 7, advanceWidth: 1000, path: { commands: [{ command: "moveTo", args: [700, 100] }, { command: "lineTo", args: [950, 800] }] } };
     const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, 0x300C, 8, 16, 0.016);
-    expect(shift).toBe(-500);
+    expect(shift).toBe(0);
   });
 
   // DM-1223: the contextual cases (`」「` adjacent brackets, line-leading `「`)

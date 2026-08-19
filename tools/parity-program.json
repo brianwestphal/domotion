@@ -11,20 +11,20 @@
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Remaining baseline mismatches and inventory-sensitive paths are classified in docs 107 and 128.",
-      "nextAction": "Complete the pinned-ICU migration and retire helper-backed sampled routing decisions."
+      "knownGap": "Remaining baseline mismatches and inventory-sensitive helper-absent paths are classified in docs 107 and 128.",
+      "nextAction": "Run the all-platform HTML/Unicode visual integration pass for the completed pinned-ICU migration."
     },
     {
       "id": "unicode-decisions",
       "domotionSources": ["src/render/unicode-classification.ts", "src/render/glyph-helper.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts", "external/harfbuzz/src"],
       "oracle": "tools/icu-conformance.ts",
-      "sourceAudit": "in-progress",
-      "oracleStatus": "partial-stage-gate",
+      "sourceAudit": "audited",
+      "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "exhaustive classifier comparisons where an ICU equivalent is exposed",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "The remaining heuristic and generated routing decisions are inventoried in doc 128.",
-      "nextAction": "Finish doc 128's migration checklist using the Chromium-pinned ICU helper."
+      "knownGap": "JavaScript classifiers and sampled inventory routes remain only in explicitly unsupported helper-absent best-effort mode.",
+      "nextAction": "Complete all-platform HTML/Unicode visual review and classify any residual by logical stage."
     },
     {
       "id": "shaping-clusters-glyphs",

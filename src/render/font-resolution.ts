@@ -48,6 +48,7 @@ import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityF
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, harfbuzzCanonicalDecompositionCandidates, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
+import { isIcuHelperAvailable } from "./icu-helper.js";
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 /**
@@ -4865,36 +4866,22 @@ export function __setWin32FamilyKeyResolverForTest(
   win32FamilyKeyCache.clear();
 }
 
-/**
- * Defer a Windows fallback route to the live DirectWrite resolver (step 2b) when
- * it covers `cp`, exactly as `linuxDeferOrStatic` does for fc-match.
+/** Keep the sampled Windows range only in degraded mode.
  *
- * The generated per-block table is a SAMPLE of DirectWrite's answers, frozen off
- * one Windows 11 host's CDP sweep. `IDWriteFontFallback::MapCharacters` is
- * DirectWrite itself. Where both can answer, the live call wins by construction,
- * so the sampled table must not pre-empt it — it stays only as the net for a
- * host with no helper binary, a resolver flagged off, or a codepoint DirectWrite
- * declines.
+ * The generated table is a snapshot of one host's DirectWrite answers, not a
+ * Blink stage. Supported rendering runs Blink's hardcoded nomination above,
+ * then live DirectWrite in `walkFontFallbackStages`; a DirectWrite miss reaches
+ * the iterator terminal rather than consulting another machine's inventory.
  */
 function win32DeferOrStatic(
-  cp: number, fallback: string[],
-  /** The run's ACTUAL primary/locale/CSS description. This probe used to ask
-   *  the live resolver with the bare codepoint alone — weight 400, no primary,
-   *  no locale — a DIFFERENT question from the one it answers for
-   *  real moments later (`resolveFontForCodepointInner`'s `liveFallback`
-   *  passes weight/slant/primaryKey/lang in full), so the net could defer (or
-   *  fail to defer) on a different verdict than the real ask reaches. On
-   *  Windows the gap is not hypothetical: `MapCharacters` takes the run's
-   *  `SkiaFontStyle()` and DirectWrite selects the cut with it, the base
-   *  family travels with the query, and the reduced locale decides unified
-   *  Han. Same defect and same fix as `linuxDeferOrStatic`. */
-  primaryKey?: string, lang?: string, css?: CssFallbackDescription,
+  fallback: string[],
 ): string[] {
+  // A sampled DirectWrite answer is never a supported-path fallback stage.
+  // Blink asks its hardcoded family table (assembled above), then asks live
+  // DirectWrite, then reaches the iterator terminal. The generated range is
+  // retained only for helper-absent/explicitly-disabled best effort.
   if (hostPlatform() === "win32" && _systemFallbackResolutionEnabled
-      && resolveSystemFallbackKeyForCp(
-        cp, css?.weight, css?.slant, css?.fontSize, primaryKey, false, lang,
-        css?.stretch, css?.fontVariantEmoji,
-      ) != null) {
+      && isGlyphHelperAvailable() && isIcuHelperAvailable()) {
     return [];
   }
   return fallback;
@@ -5017,7 +5004,7 @@ export function win32FallbackChain(
   // C:\Windows\Fonts faces. Kept ONLY as the net behind the live DirectWrite
   // resolver — see `win32DeferOrStatic`.
   const generatedKey = lookupWin32UnicodeFontRange(codepoint);
-  if (generatedKey != null) keys.push(...win32DeferOrStatic(codepoint, [generatedKey], primaryKey, lang, css));
+  if (generatedKey != null) keys.push(...win32DeferOrStatic([generatedKey]));
   return keys;
 }
 
@@ -9627,6 +9614,12 @@ export function resolvedFaceNeedsHarfbuzzShaping(
   fontKey: string,
   platform: NodeJS.Platform = hostPlatform(),
 ): boolean {
+  // Chromium shapes every supported run with HarfBuzz. Once both native
+  // companions are present, route every assigned/unassigned scalar through
+  // the same engine rather than selecting scripts from Domotion-owned ranges.
+  // The proxy keeps outlines on the resolved platform face, so this changes
+  // shaping decisions without changing the platform raster-outline source.
+  if (isGlyphHelperAvailable() && isIcuHelperAvailable()) return true;
   if (resolvedFaceUsesDefaultOpenTypeShaper(cp, fontKey, platform)) return true;
   return usesHarfbuzzShaping(cp);
 }
@@ -9963,6 +9956,7 @@ function walkFontFallbackStages(
 ): FontResolution {
   _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
+  const helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable();
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     coveredFontResolution(key, fontOverride, emitCh, decomposed);
 
@@ -9996,7 +9990,7 @@ function walkFontFallbackStages(
   // Must precede the literal fast-path, which would otherwise lock in the
   // CoreText-shaped precomposed glyph. Falls through when the font has no on-disk
   // file HarfBuzz can open or the primary doesn't cover every piece.
-  const csDecomp = complexShaperBaseMarkDecomposition(cp);
+  const csDecomp = helperBacked ? null : complexShaperBaseMarkDecomposition(cp);
   if (csDecomp != null) {
     const dcps = [...csDecomp].map((c) => c.codePointAt(0)!);
     if (dcps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
@@ -10082,7 +10076,7 @@ function walkFontFallbackStages(
   // Canonical NFD singleton (e.g. U+2F800→U+4E3D). null when `cp` has no
   // single-codepoint canonical decomposition — multi-char decompositions are not
   // a font-substitution case here.
-  const nfd = ch.normalize("NFD");
+  const nfd = helperBacked ? ch : ch.normalize("NFD");
   const dcp0 = nfd.codePointAt(0);
   const singleton = (dcp0 != null && dcp0 !== cp && String.fromCodePoint(dcp0) === nfd) ? dcp0 : null;
 
@@ -10447,9 +10441,15 @@ function walkFontFallbackStages(
     if (live != null) return live;
   }
 
-  // 3. Math-Alphanumeric decomposition (NFKD compatibility axis).
-  const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize }), weight, fontSize);
-  if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
+  // 3. Helper-absent compatibility only. Chromium never rewrites a Math
+  // Alphanumeric scalar after system fallback; it shapes the source scalar
+  // and reaches kOutOfLuck if no face covers it. Keep the historical FreeFont
+  // synthesis solely as the documented best-effort path when the native
+  // helper cannot provide Chromium's platform fallback/shaping stack.
+  if (!helperBacked) {
+    const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize }), weight, fontSize);
+    if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
+  }
 
   // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.
   _stageStats.uncovered++;

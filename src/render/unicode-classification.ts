@@ -1100,6 +1100,8 @@ export function isCjkIdeographOrSymbol(cp: number): boolean {
   for (const [lo, hi] of CJK_IDEOGRAPH_OR_SYMBOL_RANGES) {
     if (cp >= lo && cp <= hi) return true;
   }
+  const icu = icuCodepointProperties(cp);
+  if (icu != null) return (icu.binaryProperties & ICU_BINARY.EMOJI_PRESENTATION) !== 0;
   return /\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp));
 }
 
@@ -1143,8 +1145,16 @@ export function canTextDecorationSkipInk(cp: number): boolean {
   // their own descender-crossing strokes.
   if (cp === 0x002f || cp === 0x005c || cp === 0x005f) return false;
   if (isCjkIdeographOrSymbol(cp)) return false;
-  for (const [lo, hi] of SKIP_INK_EXCLUDED_BLOCKS) {
-    if (cp >= lo && cp <= hi) return false;
+  const icuBlock = icuCodepointProperties(cp)?.blockName;
+  if (icuBlock != null) {
+    if ([
+      "Hangul_Jamo", "Hangul_Compatibility_Jamo", "Hangul_Syllables",
+      "Hangul_Jamo_Extended_A", "Hangul_Jamo_Extended_B", "Linear_B_Ideograms",
+    ].includes(icuBlock)) return false;
+  } else {
+    for (const [lo, hi] of SKIP_INK_EXCLUDED_BLOCKS) {
+      if (cp >= lo && cp <= hi) return false;
+    }
   }
   return true;
 }

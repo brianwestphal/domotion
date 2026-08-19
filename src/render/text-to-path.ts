@@ -42,6 +42,7 @@ import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
+import { isIcuHelperAvailable } from "./icu-helper.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
@@ -731,7 +732,7 @@ function renderTextPathRuns(
             let cssX = Number(xOffsets[i].toFixed(3));
             // DM-1184: shift trimmed fullwidth-punctuation ink (see
             // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
-            if (isTrimmableCjkPunct(cp) && nextI < xOffsets.length && layout.glyphs.length === 1) {
+            if (nextI < xOffsets.length && layout.glyphs.length === 1) {
               const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, layout.glyphs[0], cp,
                 xOffsets[nextI] - xOffsets[i], fontSize, runScale);
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
@@ -1038,7 +1039,9 @@ export function cjkTrimShiftFontUnits(
   if (!(capturedAdvCss > 0 && fullAdvCss > 0 && capturedAdvCss < fullAdvCss * 0.75)) return 0;
   const halt = haltInfoFor(font, fontKey, cp);
   if (halt.halved) return halt.xOffset;
+  if (isGlyphHelperAvailable() && isIcuHelperAvailable()) return 0;
   // Fallback (font can't report `halt`): classify by ink position.
+  if (!isTrimmableCjkPunct(cp)) return 0;
   const ink = glyphInkXRange(glyph);
   if (ink == null) return 0;
   const inkCenter = (ink.min + ink.max) / 2;
@@ -1209,7 +1212,7 @@ function singleFontMarkup(
         // haltInfoFor). Gated on the captured advance actually being trimmed so
         // an untrimmed （ ） is left untouched.
         const cp0 = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints[0] : undefined;
-        if (cp0 != null && i + 1 < xOffsets!.length && isTrimmableCjkPunct(cp0)) {
+        if (cp0 != null && i + 1 < xOffsets!.length) {
           const fullAdv = pos.xAdvance * scale;                 // full em advance, CSS px
           const capturedAdv = xOffsets![i + 1] - xOffsets![i];  // what Chrome used, CSS px
           if (fullAdv > 0 && capturedAdv > 0 && capturedAdv < fullAdv * 0.75) {
@@ -1323,6 +1326,8 @@ export function insertSyntheticDottedCircles(
    *  second circle. */
   shapeUncoveredOrphansNatively = false,
 ): { text: string; xOffsets: number[] | undefined } {
+  const nativeDottedCircleOwnership = shapeUncoveredOrphansNatively
+    && isGlyphHelperAvailable() && isIcuHelperAvailable();
   // Fast path: nothing to do when the text has no combining marks AND the
   // capture probe flagged no codepoints (the latter can be category-Lo cluster
   // letters — e.g. Soyombo — that carry no \p{M}, DM-1157).
@@ -1445,13 +1450,13 @@ export function insertSyntheticDottedCircles(
     // Ask the selected shaping face the logical question instead: with Blink's
     // resolved script, does shaping this orphan emit that face's U+25CC glyph?
     const orphaned = !clusterHasBase;
-    const logicalHbRun = isMark && orphaned
+    const logicalHbRun = isMark && orphaned && !nativeDottedCircleOwnership
       ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
         variationSettings, lang, fontKeyChain)
       : null;
     const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
     const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;
-    const shaperClassFlagged = logicalScript != null
+    const shaperClassFlagged = !nativeDottedCircleOwnership && logicalScript != null
       && logicalScript !== "Common" && logicalScript !== "Inherited" && logicalScript !== "Unknown"
       && usesComplexShaperDottedCircle(cp) && !usesDedicatedShaper(cp);
     const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;
@@ -1475,7 +1480,9 @@ export function insertSyntheticDottedCircles(
     // font/shaper-owned circles (Balinese) and invents circles for bare marks.
     // With no capture data (unit callers / old captures), retain the static
     // compatibility heuristic.
-    const probeFlagged = coveredCircleSet != null
+    const probeFlagged = nativeDottedCircleOwnership
+      ? false
+      : coveredCircleSet != null
       ? coveredCircleSet.has(i)
       : shaperClassFlagged;
     if (isMark || probeFlagged) {
@@ -2393,7 +2400,7 @@ function renderEmbeddedGlyphRuns(
         // char, which is exactly what the trim logic wants, and it cannot be
         // aliased by a shared Glyph the way `codePoints` can.
         const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
-        if (cpCl != null && isTrimmableCjkPunct(cpCl) && xOffsets != null) {
+        if (cpCl != null && xOffsets != null) {
           const nextCharIdx = wholeTextIdx + (cpCl > 0xFFFF ? 2 : 1);
           if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
             trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cpCl,
@@ -2427,7 +2434,7 @@ function renderEmbeddedGlyphRuns(
           // cjkTrimShiftFontUnits) in the fontkit-shaped embedded path too.
           // DM-1849: source first, as above.
           const cp0 = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
-          if (cp0 != null && isTrimmableCjkPunct(cp0)) {
+          if (cp0 != null) {
             const nextCharIdx = wholeTextIdx + (cp0 > 0xFFFF ? 2 : 1);
             if (xOffsets[nextCharIdx] != null) {
               const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cp0,
@@ -2799,7 +2806,9 @@ export function renderTextAsPath(
 
   // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for
   // (they otherwise fall through to a last-resort tofu box).
-  ({ text, xOffsets } = stripOrphanedDefaultIgnorables(text, xOffsets));
+  if (!(clusterFallbackEnabled() && isGlyphHelperAvailable() && isIcuHelperAvailable())) {
+    ({ text, xOffsets } = stripOrphanedDefaultIgnorables(text, xOffsets));
+  }
 
   // DM-652: opt-in embedded-font path. When `setRenderTextMode("embedded-font")`
   // is active AND we hold a webfont buffer that matches the requested

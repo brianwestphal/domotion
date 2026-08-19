@@ -118,19 +118,16 @@ const isMac = process.platform === "darwin";
 });
 
 /**
- * The other decomposition path — the canonical NFD SINGLETON — needs a
- * different primary. macOS Times covers every singleton-decomposable codepoint
- * literally, so under `times` the step-0 fast path always answers first and the
- * singleton branch is unreachable; a test written on Times would have asserted
- * nothing about it. Courier is stock on every macOS install (so this does not
- * depend on the developer machine's font inventory, which is ~7× the CI
- * runner's) and lacks the Greek polytonic accents while covering their
- * single-codepoint decompositions.
+ * Canonical NFD singleton normalization belongs to HarfBuzz shaping, not the
+ * per-codepoint fallback iterator. Courier is a useful discriminator because
+ * it lacks these source scalars while covering their decompositions: the old
+ * resolver rewrote them into Courier, whereas the helper-backed path must leave
+ * the source scalar intact and let the cluster shaper decide before fallback.
  */
 const courierKey = resolveFontKey("Courier");
 const haveCourier = courierKey != null && getFontInstance(courierKey, 400, 16, 0) != null;
 
-(haveCourier ? describe : describe.skip)("primary NFD singleton without a declared chain", () => {
+(haveCourier ? describe : describe.skip)("primary NFD singleton ownership", () => {
   beforeEach(() => clearFontResolutionCaches());
 
   const resolve = (cp: number, chain: string[]) => {
@@ -146,18 +143,20 @@ const haveCourier = courierKey != null && getFontInstance(courierKey, 400, 16, 0
   ];
 
   for (const [cp, decomposed, label] of SINGLETONS) {
-    it(`${label} decomposes within the primary with an empty chain`, () => {
+    it(`${label} is not rewritten by the helper-backed fallback resolver`, () => {
       const withChain = resolve(cp, [courierKey!]);
       const noChain = resolve(cp, []);
 
       expect(noChain).toEqual(withChain);
       if (isMac) {
-        expect(noChain.key).toBe(courierKey);
-        expect(noChain.decomposed).toBe(true);
+        // Chromium's HarfBuzz normalizer owns canonical decomposition while
+        // shaping the primary cluster. If the per-codepoint fallback resolver
+        // is reached directly, it must not predict/rewrite that shaper result.
+        expect(noChain.key).not.toBe(courierKey);
+        expect(noChain.decomposed).toBe(false);
         expect(noChain.covered).toBe(true);
-        // The singleton path substitutes the emitted character, unlike the
-        // base+mark path which keeps the source char and lets HarfBuzz decompose.
-        expect(noChain.emitCh).toBe(String.fromCodePoint(decomposed));
+        expect(noChain.emitCh).toBe(String.fromCodePoint(cp));
+        expect(noChain.emitCh).not.toBe(String.fromCodePoint(decomposed));
       }
     });
   }

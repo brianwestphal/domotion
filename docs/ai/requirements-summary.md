@@ -32,6 +32,14 @@ compares direct Chromium `Range` origins with production-captured
 `textSegments`, proves each transition axis moves, and checks five metamorphic
 relations without cloning the browser geometry into the Domotion leg.
 
+**Doc 128 (`docs/128-chromium-unicode-decision-audit.md`) — Supported-path
+migration complete; visual validation pending.** Both native companions are the
+Chromium-fidelity contract. With them validated, pinned ICU supplies Unicode
+properties, pinned HarfBuzz shapes every run and owns normalization/cluster
+behavior, and platform APIs own fallback. JavaScript codepoint heuristics and
+generated host-inventory routes remain only as loudly warned, nonfatal
+helper-absent compatibility.
+
 **Doc 130 (`docs/130-paint-geometry-oracle.md`) — Partial stage gate.**
 `npm run paint:geometry-oracle` exactly compares source-transcribed linear
 magic-corner geometry, radial ending shapes/repeating domains, Blink stop
