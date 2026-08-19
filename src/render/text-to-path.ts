@@ -1326,8 +1326,6 @@ export function insertSyntheticDottedCircles(
    *  second circle. */
   shapeUncoveredOrphansNatively = false,
 ): { text: string; xOffsets: number[] | undefined } {
-  const nativeDottedCircleOwnership = shapeUncoveredOrphansNatively
-    && isGlyphHelperAvailable() && isIcuHelperAvailable();
   // Fast path: nothing to do when the text has no combining marks AND the
   // capture probe flagged no codepoints (the latter can be category-Lo cluster
   // letters — e.g. Soyombo — that carry no \p{M}, DM-1157).
@@ -1450,13 +1448,13 @@ export function insertSyntheticDottedCircles(
     // Ask the selected shaping face the logical question instead: with Blink's
     // resolved script, does shaping this orphan emit that face's U+25CC glyph?
     const orphaned = !clusterHasBase;
-    const logicalHbRun = isMark && orphaned && !nativeDottedCircleOwnership
+    const logicalHbRun = isMark && orphaned
       ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
         variationSettings, lang, fontKeyChain)
       : null;
     const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
     const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;
-    const shaperClassFlagged = !nativeDottedCircleOwnership && logicalScript != null
+    const shaperClassFlagged = logicalScript != null
       && logicalScript !== "Common" && logicalScript !== "Inherited" && logicalScript !== "Unknown"
       && usesComplexShaperDottedCircle(cp) && !usesDedicatedShaper(cp);
     const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;
@@ -1480,9 +1478,7 @@ export function insertSyntheticDottedCircles(
     // font/shaper-owned circles (Balinese) and invents circles for bare marks.
     // With no capture data (unit callers / old captures), retain the static
     // compatibility heuristic.
-    const probeFlagged = nativeDottedCircleOwnership
-      ? false
-      : coveredCircleSet != null
+    const probeFlagged = coveredCircleSet != null
       ? coveredCircleSet.has(i)
       : shaperClassFlagged;
     if (isMark || probeFlagged) {

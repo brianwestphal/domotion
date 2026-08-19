@@ -690,6 +690,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszimeo43esrpekj",
+          "message": {
+            "text": "Even with both native companions available, dotted-circle insertion must remain explicit before font-run splitting. Chromium inserts U+25CC while the source script and broken-syllable state are still intact; Domotion’s fallback splitter can terminate on a first-candidate or hidden system face before the later HarfBuzz proxy sees equivalent context. The macOS 26 CI images exposed this as Telugu U+0C04/U+0C5D and Kannada U+0C84/U+0CDD painting outside their cells. The capture probe and face-local HarfBuzz query decide the general rule; this is not a codepoint/font exception.",
+            "markdown": "Even with both native companions available, dotted-circle insertion must remain explicit before font-run splitting. Chromium inserts U+25CC while the source script and broken-syllable state are still intact; Domotion’s fallback splitter can terminate on a first-candidate or hidden system face before the later HarfBuzz proxy sees equivalent context. The macOS 26 CI images exposed this as Telugu U+0C04/U+0C5D and Kannada U+0C84/U+0CDD painting outside their cells. The capture probe and face-local HarfBuzz query decide the general rule; this is not a codepoint/font exception."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1318,
+                  "endLine": 1325,
+                  "snippet": {
+                    "text": "  dottedCircleMarks?: number[],\n  /** Computed CSS `font-stretch` (e.g. `\"75%\"`). */\n  fontStretch?: string,\n  /** Default shaped-cluster fallback feeds uncovered clusters through the same\n   *  HarfBuzz syllabic shaper as Chromium. Retained for call-site compatibility;\n   *  qualifying orphan marks are now made explicit before that splitter because\n   *  its first-candidate `.notdef` run cannot reliably infer the source script.\n   *  An explicit U+25CC makes the syllable based, so HarfBuzz does not insert a"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2304"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "881535e7c3600b31c35046153e095906"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9de3b77e549d9ab35fc6e809065790ac8f65d662",
+          "branch": "validation/dm-2304-icu"
+        }
+      ]
     }
   ]
 }
