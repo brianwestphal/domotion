@@ -1,6 +1,6 @@
 # 128 — Chromium Unicode decision audit
 
-Status: **supported-path migration complete; cross-platform visual validation pending**. This document is the source inventory for
+Status: **supported-path migration complete; cross-platform logical validation complete**. This document is the source inventory for
 the helper-backed fidelity requirement introduced before extracting the font
 resolver into a package.
 
@@ -69,7 +69,10 @@ When both native companions validate, every resolved run is shaped through the
 pinned HarfBuzz build while glyph outlines remain owned by the selected platform
 face. Domotion therefore no longer chooses whether to shape from a script/range
 allowlist. HarfBuzz's actual cluster result owns canonical decomposition,
-default-ignorable removal, shaper selection, and dotted-circle insertion. The
+default-ignorable removal, and shaper selection. Explicit dotted-circle
+fallback is decided before fallback splitting, while the source-script and
+broken-syllable context still exists, and is then shaped by the pinned
+HarfBuzz path; it is not selected from a Domotion codepoint list. The
 per-codepoint seam retains HarfBuzz's exact generated same-font-space table
 because callers without a cluster result must still model that substitution.
 
@@ -129,6 +132,33 @@ Local migration gates on 2026-08-19:
 - Representative font-selection oracle: 7,074 comparisons across six corpus
   stacks, zero logical mismatches.
 
-The remaining release gate is the all-platform HTML/Unicode visual integration
-run. It is intentionally separate from these logical-stage proofs: pixels can
-expose integration errors, but they do not replace the source and oracle checks.
+The accepted implementation at `0d8a4358376c7debaf5348dc7eae184ed76e2ad9`
+completed the all-platform integration gate:
+
+| Suite | Run | macOS | Linux | Windows |
+| --- | --- | ---: | ---: | ---: |
+| Unicode | `32218321780` | 10 failing (10 baseline) | 31 failing (75 baseline) | 3 failing (650 baseline) |
+| HTML | `32218323756` | 74 failing (100 baseline) | 146 failing (165 baseline) | 59 failing (187 baseline) |
+
+Neither suite introduced a newly failing fixture. The macOS Unicode comparison
+had four fixtures move above the regression threshold and four become newly
+passing. Telugu, Kannada, and Latin Extended-C isolate a post-shaping CFF2
+subset/reopen geometry boundary; broad outline fallback experiments fixed some
+cells but regressed unrelated faces, so they were reverted and the logical
+investigation continues in DM-2310. Superscripts and Subscripts remains a sparse
+mixed-face transition covered by its existing visual work. These residuals do
+not contradict the ICU/font-selection stage oracles.
+
+The macOS HTML comparison recorded 18 threshold regressions alongside 44 newly
+passing fixtures. Several regression labels are metric artifacts despite lower
+total error (for example backdrop-filter and wavy underlines); the remaining
+labels are residual paint/layout cases rather than newly selected Unicode
+routes. Linux and Windows baselines predate environment recording and therefore
+cannot establish strict comparability, but they reported no new failing fixture
+and large net reductions. Their apparent regression labels likewise include
+unchanged or substantially improved images.
+
+Pixels remain an integration oracle: they exposed the separate CFF2 boundary,
+but they do not replace the source-derived ICU/HarfBuzz and platform-resolution
+oracles. Future Chromium rolls must rerun both layers and classify any movement
+at the earliest divergent logical stage.
