@@ -714,8 +714,8 @@
           "level": "none",
           "guid": "mszimeo43esrpekj",
           "message": {
-            "text": "Dotted-circle insertion remains explicit before font-run splitting because Chromium makes that decision while source-script and broken-syllable context are intact. Domotion’s capture probe plus face-local HarfBuzz query preserve that context without codepoint/font exceptions; the later shaping proxy sees an explicit based syllable and therefore does not insert a duplicate. Focused DM-1026/DM-1109/DM-1215 tests cover this supported-helper boundary.",
-            "markdown": "Dotted-circle insertion remains explicit before font-run splitting because Chromium makes that decision while source-script and broken-syllable context are intact. Domotion’s capture probe plus face-local HarfBuzz query preserve that context without codepoint/font exceptions; the later shaping proxy sees an explicit based syllable and therefore does not insert a duplicate. Focused DM-1026/DM-1109/DM-1215 tests cover this supported-helper boundary."
+            "text": "Even with both native companions available, dotted-circle insertion must remain explicit before font-run splitting. Chromium inserts U+25CC while the source script and broken-syllable state are still intact; Domotion’s fallback splitter can terminate on a first-candidate or hidden system face before the later HarfBuzz proxy sees equivalent context. The macOS 26 CI images exposed this as Telugu U+0C04/U+0C5D and Kannada U+0C84/U+0CDD painting outside their cells. The capture probe and face-local HarfBuzz query decide the general rule; this is not a codepoint/font exception.",
+            "markdown": "Even with both native companions available, dotted-circle insertion must remain explicit before font-run splitting. Chromium inserts U+25CC while the source script and broken-syllable state are still intact; Domotion’s fallback splitter can terminate on a first-candidate or hidden system face before the later HarfBuzz proxy sees equivalent context. The macOS 26 CI images exposed this as Telugu U+0C04/U+0C5D and Kannada U+0C84/U+0CDD painting outside their cells. The capture probe and face-local HarfBuzz query decide the general rule; this is not a codepoint/font exception."
           },
           "locations": [
             {
@@ -737,9 +737,9 @@
             "tags": [
               "rationale"
             ],
-            "ext-ai-tool-confidence": 0.93
+            "ext-ai-tool-confidence": 0.94
           },
-          "rank": 82,
+          "rank": 88,
           "workItemUris": [
             "DM-2304"
           ],

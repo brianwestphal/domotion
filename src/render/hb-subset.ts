@@ -152,22 +152,6 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
  *  collection member whose table directory is checked (the raw file the
  *  embedded builder reads may be a `ttcf` collection, not a bare sfnt). */
 export function sfntHasSubsettableOutlines(fontBytes: Buffer, faceIndex = 0): boolean {
-  return sfntFaceHasAnyTable(fontBytes, faceIndex, ["glyf", "CFF ", "CFF2"]);
-}
-
-/** True when the selected sfnt/TTC member uses CFF2 variable outlines.
- *
- * CFF2 is structurally subsettable, but retaining its variation program is not
- * equivalent to baking the platform typeface's resolved outlines. The embedded
- * font is consumed as a new CSS face, where variation-store/default-master
- * interpretation can move sparse glyphs even when the source coordinates are
- * nominally at their defaults. Callers that need platform-pixel fidelity use
- * this to choose their already-extracted outline rebuild instead. */
-export function sfntHasCff2Outlines(fontBytes: Buffer, faceIndex = 0): boolean {
-  return sfntFaceHasAnyTable(fontBytes, faceIndex, ["CFF2"]);
-}
-
-function sfntFaceHasAnyTable(fontBytes: Buffer, faceIndex: number, wanted: readonly string[]): boolean {
   if (fontBytes.length < 12) return false;
   let dirOff = 0; // offset of the sfnt table directory to inspect
   if (fontBytes.toString("latin1", 0, 4) === "ttcf") {
@@ -181,7 +165,7 @@ function sfntFaceHasAnyTable(fontBytes: Buffer, faceIndex: number, wanted: reado
     const o = dirOff + 12 + i * 16;
     if (o + 4 > fontBytes.length) break;
     const tag = fontBytes.toString("latin1", o, o + 4);
-    if (wanted.includes(tag)) return true;
+    if (tag === "glyf" || tag === "CFF " || tag === "CFF2") return true;
   }
   return false;
 }
