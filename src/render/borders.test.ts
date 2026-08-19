@@ -15,6 +15,7 @@ import {
   roundedRectPath,
   roundedRectSvg,
   roundBorderSideClipPolygon,
+  hyperellipseBorderSideClipPolygon,
   selectBestDashGap,
   wedgePolygonPoints,
 } from "./borders.js";
@@ -191,6 +192,38 @@ describe("corner-shape contours (DM-2315)", () => {
   it("treats zero-radius non-round shapes as round EffectiveCurvature", () => {
     const corners = parseCornerRadii({ borderTopLeftRadius: "0", cornerTopLeftShape: "notch" }, 100, 100);
     expect(corners.curvature?.tl).toBe(2);
+  });
+});
+
+describe("hyperellipse border side partitions (DM-2316)", () => {
+  const corners = parseCornerRadii({
+    borderTopLeftRadius: "36px 30px", borderTopRightRadius: "28px 34px",
+    borderBottomRightRadius: "32px 26px", borderBottomLeftRadius: "24px 38px",
+    cornerTopLeftShape: "squircle", cornerTopRightShape: "squircle",
+    cornerBottomRightShape: "squircle", cornerBottomLeftShape: "squircle",
+  }, 140, 100);
+
+  it("moves each top inner point to the miter/bevel-hull intersection", () => {
+    const points = hyperellipseBorderSideClipPolygon("top", 10, 20, 150, 120, corners, 8, 18, 14, 5).split(" ");
+    expect(points).toHaveLength(4);
+    expect(points[0]).toBe("10,20");
+    expect(points[3]).toBe("150,20");
+    expect(points[1]).not.toBe("15,28");
+    expect(points[2]).not.toBe("132,28");
+  });
+
+  it("rotates the same canonical construction across all physical sides", () => {
+    const clips = (["top", "right", "bottom", "left"] as const).map(side =>
+      hyperellipseBorderSideClipPolygon(side, 10, 20, 150, 120, corners, 8, 18, 14, 5));
+    for (const clip of clips) expect(clip.split(" ")).toHaveLength(4);
+    expect(clips[0]).not.toBe(clips[1]);
+    expect(clips[1]).not.toBe(clips[2]);
+  });
+
+  it("is an activated replacement for the ordinary-round close-edge clip", () => {
+    const hyper = hyperellipseBorderSideClipPolygon("top", 0, 0, 140, 100, corners, 8, 18, 14, 5);
+    const ordinary = roundBorderSideClipPolygon("top", 0, 0, 140, 100, corners, 8, 18, 14, 5);
+    expect(hyper).not.toBe(ordinary);
   });
 });
 

@@ -16,6 +16,9 @@
   .custom { corner-shape: superellipse(3); }
   .asymmetric { corner-top-left-shape: squircle; corner-top-right-shape: bevel; corner-bottom-right-shape: scoop; corner-bottom-left-shape: notch; border-radius: 58px 26px 44px 34px / 30px 48px 24px 42px; }
   .overlap { corner-shape: scoop; border-radius: 92px 0 92px 0; }
+  .mixed-hyper { corner-shape: squircle; border-width: 8px 18px 14px 5px; border-color: #d92f65 #2866c7 #15996a #ee9b22; }
+  .mixed-concave { corner-shape: scoop; border-width: 8px 18px 14px 5px; border-color: #d92f65 #2866c7 #15996a #ee9b22; }
+  .tangent-overlap { width: 100px; corner-shape: scoop; border-radius: 68px; border-width: 9px 17px 15px 6px; border-color: #d92f65 #2866c7 #15996a #ee9b22; }
 </style>
 <body>
 <h1>CSS corner-shape</h1>
@@ -28,6 +31,9 @@
   <figure><div class="shape custom"></div><figcaption>superellipse(3)</figcaption></figure>
   <figure><div class="shape asymmetric"></div><figcaption>physical asymmetric</figcaption></figure>
   <figure><div class="shape overlap"></div><figcaption>opposite hull constraint</figcaption></figure>
+  <figure><div class="shape mixed-hyper"></div><figcaption>mixed squircle sides</figcaption></figure>
+  <figure><div class="shape mixed-concave"></div><figcaption>mixed scoop sides</figcaption></figure>
+  <figure><div class="shape tangent-overlap"></div><figcaption>concave tangent overlap</figcaption></figure>
 </main>
 </body>
 </html>

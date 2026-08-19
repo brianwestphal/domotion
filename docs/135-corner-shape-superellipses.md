@@ -62,3 +62,23 @@ geometry. Round-only captures retain the prior `<rect rx>` and SVG arc path.
 - The focused visual comparison is diagnostic rather than a source of
   constants. Remaining antialiasing and SVG-stroke differences are classified
   separately from contour decision failures.
+
+## Mixed border sides
+
+DM-2316 extends the contour to non-uniform side painting. Hyperellipses
+(`curvature >= 2` at all four corners) take Blink's general
+`BoxBorderPainter::ClipBorderSidePolygon` path: each physical side is normalized
+to top-side coordinates, its two inner points move from the unadjusted inner
+rect corners to the intersections between the corner miters and inner bevel
+hulls, and the resulting quad clips the shared annular contour. Rotation back
+to physical coordinates is geometry-only; there are no per-side constants.
+
+Concave/mixed-curvature corners continue through the close-edge miter/opposite
+bound introduced for ordinary curvature by DM-2314. The composed fixture
+crosses unequal widths and four colors through both a squircle and a scoop;
+both ordinary-sized mixed cases are visually correct. A deliberately narrow,
+overlapping scoop case exposed an earlier prerequisite rather than a side-quad
+error: Blink intersects four aligned inset-corner paths with the target rect,
+whereas one joined SVG path crosses its lobes. DM-2317 tracks that vector path
+intersection before the remaining tangent-cutout transcription; the fixture is
+retained as its activation control.

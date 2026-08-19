@@ -211,6 +211,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0qlqvtwvenje4b",
+          "message": {
+            "text": "The mixed-side hyperellipse clip is the normalized form of Blink BoxBorderPainter::ClipBorderSidePolygon: outer corners stay fixed, each inner point moves to its miter/interior-bevel-hull intersection, and one canonical top-side construction rotates back to all four physical sides. The activation test proves this differs from the ordinary close-edge partition.",
+            "markdown": "The mixed-side hyperellipse clip is the normalized form of Blink `BoxBorderPainter::ClipBorderSidePolygon`: outer corners stay fixed, each inner point moves to its miter/interior-bevel-hull intersection, and one canonical top-side construction rotates back to all four physical sides. The activation test proves this differs from the ordinary close-edge partition."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/borders.ts"
+                },
+                "region": {
+                  "startLine": 657,
+                  "endLine": 715,
+                  "snippet": {
+                    "text": "\n/**\n * Blink `BoxBorderPainter::ClipBorderSidePolygon` hyperellipse branch.\n *\n * The source builds a four-point side clip from the two outer corners and\n * the corresponding inner-rect corners, then moves each inner point to the\n * intersection of its miter with the inner corner's bevel hull. Normalize all\n * four physical sides into top-side coordinates so the transcription has one\n * decision path; `fromCanonical` only rotates/refects the resulting points.\n */\nexport function hyperellipseBorderSideClipPolygon(\n  side: \"top\" | \"right\" | \"bottom\" | \"left\",\n  bxL: number, bxT: number, bxR: number, bxB: number,\n  corners: CornerRadii,\n  tw: number, rw: number, bw: number, lw: number,\n): string {\n  const width = bxR - bxL, height = bxB - bxT;\n  const inner = insetCornerRadii(corners, tw, rw, bw, lw);\n  let length: number, firstAlong: number, secondAlong: number, inward: number;\n  let firstRadius: CornerRadiusPair, secondRadius: CornerRadiusPair;\n  let fromCanonical: (point: Point) => Point;\n  if (side === \"top\") {\n    length = width; firstAlong = lw; secondAlong = rw; inward = tw;\n    firstRadius = inner.tl; secondRadius = inner.tr;\n    fromCanonical = p => ({ x: bxL + p.x, y: bxT + p.y });\n  } else if (side === \"right\") {\n    length = height; firstAlong = tw; secondAlong = bw; inward = rw;\n    firstRadius = { h: inner.tr.v, v: inner.tr.h }; secondRadius = { h: inner.br.v, v: inner.br.h };\n    fromCanonical = p => ({ x: bxR - p.y, y: bxT + p.x });\n  } else if (side === \"bottom\") {\n    length = width; firstAlong = rw; secondAlong = lw; inward = bw;\n    firstRadius = inner.br; secondRadius = inner.bl;\n    fromCanonical = p => ({ x: bxR - p.x, y: bxB - p.y });\n  } else {\n    length = height; firstAlong = bw; secondAlong = tw; inward = lw;\n    firstRadius = { h: inner.bl.v, v: inner.bl.h }; secondRadius = { h: inner.tl.v, v: inner.tl.h };\n    fromCanonical = p => ({ x: bxL + p.y, y: bxB - p.x });\n  }\n  const outerStart = { x: 0, y: 0 }, outerEnd = { x: length, y: 0 };\n  let innerStart = { x: firstAlong, y: inward };\n  let innerEnd = { x: length - secondAlong, y: inward };\n  if (firstRadius.h !== 0 && firstRadius.v !== 0) {\n    innerStart = lineIntersection(\n      outerStart, innerStart,\n      { x: innerStart.x + firstRadius.h, y: innerStart.y },\n      { x: innerStart.x, y: innerStart.y + firstRadius.v },\n    ) ?? innerStart;\n  }\n  if (secondRadius.h !== 0 && secondRadius.v !== 0) {\n    innerEnd = lineIntersection(\n      outerEnd, innerEnd,\n      { x: innerEnd.x - secondRadius.h, y: innerEnd.y },\n      { x: innerEnd.x, y: innerEnd.y + secondRadius.v },\n    ) ?? innerEnd;\n  }\n  return [outerStart, innerStart, innerEnd, outerEnd]\n    .map(fromCanonical)\n    .map(point => `${r(point.x)},${r(point.y)}`)\n    .join(\" \");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 93,
+          "workItemUris": [
+            "DM-2316"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "56fe9501d6fcdf180538d5249e989f15"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "96647615ec7ff65576a488f241d6f852053b7089",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

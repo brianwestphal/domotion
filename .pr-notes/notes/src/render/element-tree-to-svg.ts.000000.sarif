@@ -768,6 +768,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0qlr3lfrxqgax5",
+          "message": {
+            "text": "The partition branch follows Blink’s curvature decision: all-four hyperellipse curvature uses the general quad, while round/concave contours use the close-edge path. The retained narrow scoop discriminator exposed non-renderable inset path intersection below this layer; that prerequisite is isolated as DM-2317 rather than patched with pixel-derived side rules.",
+            "markdown": "The partition branch follows Blink’s curvature decision: all-four hyperellipse curvature uses the general quad, while round/concave contours use the close-edge path. The retained narrow scoop discriminator exposed non-renderable inset path intersection below this layer; that prerequisite is isolated as DM-2317 rather than patched with pixel-derived side rules."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1818,
+                  "endLine": 1832,
+                  "snippet": {
+                    "text": "    // Hyperellipses use Blink's general miter/bevel-hull quad. Round and\n    // concave contours use the close-edge miter/opposite-bound branch; the\n    // non-renderable concave path-intersection prerequisite is DM-2317.\n    const hyperellipse = corners.curvature != null\n      && Object.values(corners.curvature).every(value => value >= 2);\n    const annularWedges: string[] = !hasOuterRadius ? [] : hyperellipse ? [\n      hyperellipseBorderSideClipPolygon(\"top\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      hyperellipseBorderSideClipPolygon(\"right\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      hyperellipseBorderSideClipPolygon(\"bottom\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      hyperellipseBorderSideClipPolygon(\"left\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n    ] : [\n      roundBorderSideClipPolygon(\"top\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      roundBorderSideClipPolygon(\"right\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      roundBorderSideClipPolygon(\"bottom\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),\n      roundBorderSideClipPolygon(\"left\", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2316"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0113f34e164056ecfe5a7d0ec64d9e91"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "96647615ec7ff65576a488f241d6f852053b7089",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

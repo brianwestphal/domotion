@@ -38,6 +38,7 @@ import {
   renderBorderImage,
   injectSvgSize,
   roundBorderSideClipPolygon,
+  hyperellipseBorderSideClipPolygon,
   findOffGridCollapsedCells,
   doubleBorderStripeGeometry,
   selectBestDashGap,
@@ -1814,14 +1815,22 @@ function paintPerSideBorder(
     const annularPath = hasOuterRadius
       ? `${outerRoundedPath} ${innerRoundedPath}`
       : "";
-    // Ordinary round corners use Blink's two miter lines, bounded by the
-    // opposite inner-corner union from ClipBorderSidePolygonCloseToEdges.
-    const annularWedges: string[] = hasOuterRadius ? [
+    // Hyperellipses use Blink's general miter/bevel-hull quad. Round and
+    // concave contours use the close-edge miter/opposite-bound branch; the
+    // non-renderable concave path-intersection prerequisite is DM-2317.
+    const hyperellipse = corners.curvature != null
+      && Object.values(corners.curvature).every(value => value >= 2);
+    const annularWedges: string[] = !hasOuterRadius ? [] : hyperellipse ? [
+      hyperellipseBorderSideClipPolygon("top", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+      hyperellipseBorderSideClipPolygon("right", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+      hyperellipseBorderSideClipPolygon("bottom", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+      hyperellipseBorderSideClipPolygon("left", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
+    ] : [
       roundBorderSideClipPolygon("top", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
       roundBorderSideClipPolygon("right", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
       roundBorderSideClipPolygon("bottom", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
       roundBorderSideClipPolygon("left", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
-    ] : [];
+    ];
     // The outer-outline group still wraps the non-solid branches so their
     // straight `<line>` strokes get trimmed to the rounded outline at the
     // corners. Solid sides emit their own annular wedge BEFORE the group

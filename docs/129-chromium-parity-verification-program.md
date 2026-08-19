@@ -110,6 +110,12 @@ constraint, and `AlignedToOrigin` inset construction. Its composed fixture is
 an activation gate across keywords, custom values, asymmetric corners, and
 overlapping concave corners; pixels validate that transcription but do not
 supply its constants.
+DM-2316 adds the corresponding mixed-side discriminator and transcribes the
+general hyperellipse side quad by normalizing each physical side, intersecting
+both miters with its inner bevel hull, and rotating the result back. Concave
+and mixed-curvature sides retain the close-edge branch. A narrow overlapping
+scoop discriminator proves the still-open prerequisite: vector representation
+of `PathBuilder::AddContouredRect`'s four corner-path intersections (DM-2317).
 
 ### Generated and metamorphic coverage
 

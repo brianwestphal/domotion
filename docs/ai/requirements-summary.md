@@ -1310,6 +1310,10 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   contours invert it, overlapping opposite concave hulls receive the source's
   radius constraint, and inset contours align to their border origin. Preserve
   the round path for old captures and zero radii.
+  Non-uniform hyperellipse borders normalize each side into Blink's general
+  quad construction and intersect corner miters with the inner bevel hull.
+  Ordinary-sized concave/mixed curvature uses the close-edge miter/opposite
+  bound; non-renderable inset corner-path intersection remains DM-2317.
 
 ## What this file is NOT
 

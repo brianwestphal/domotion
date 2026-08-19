@@ -475,6 +475,31 @@ function alignedCorner(target: CornerGeometry, origin: CornerGeometry, thickness
   };
 }
 
+function contouredCornerGeometries(x: number, y: number, w: number, h: number, c: CornerRadii): { tl: CornerGeometry; tr: CornerGeometry; br: CornerGeometry; bl: CornerGeometry } {
+  const tl = { h: Math.min(c.tl.h, w), v: Math.min(c.tl.v, h) };
+  const tr = { h: Math.min(c.tr.h, w), v: Math.min(c.tr.v, h) };
+  const br = { h: Math.min(c.br.h, w), v: Math.min(c.br.v, h) };
+  const bl = { h: Math.min(c.bl.h, w), v: Math.min(c.bl.v, h) };
+  const curvature = c.curvature ?? { tl: 2, tr: 2, br: 2, bl: 2 };
+  let tlCorner: CornerGeometry = { start: { x, y: y + tl.v }, outer: { x, y }, end: { x: x + tl.h, y }, center: { x: x + tl.h, y: y + tl.v }, curvature: curvature.tl };
+  let trCorner: CornerGeometry = { start: { x: x + w - tr.h, y }, outer: { x: x + w, y }, end: { x: x + w, y: y + tr.v }, center: { x: x + w - tr.h, y: y + tr.v }, curvature: curvature.tr };
+  let brCorner: CornerGeometry = { start: { x: x + w, y: y + h - br.v }, outer: { x: x + w, y: y + h }, end: { x: x + w - br.h, y: y + h }, center: { x: x + w - br.h, y: y + h - br.v }, curvature: curvature.br };
+  let blCorner: CornerGeometry = { start: { x: x + bl.h, y: y + h }, outer: { x, y: y + h }, end: { x, y: y + h - bl.v }, center: { x: x + bl.h, y: y + h - bl.v }, curvature: curvature.bl };
+  if (c.originRadii != null && c.contourInsets != null) {
+    const inset = c.contourInsets, origin = c.originRadii;
+    const ox = x - inset.left, oy = y - inset.top, ow = w + inset.left + inset.right, oh = h + inset.top + inset.bottom;
+    const originTl: CornerGeometry = { start: { x: ox, y: oy + origin.tl.v }, outer: { x: ox, y: oy }, end: { x: ox + origin.tl.h, y: oy }, center: { x: ox + origin.tl.h, y: oy + origin.tl.v }, curvature: curvature.tl };
+    const originTr: CornerGeometry = { start: { x: ox + ow - origin.tr.h, y: oy }, outer: { x: ox + ow, y: oy }, end: { x: ox + ow, y: oy + origin.tr.v }, center: { x: ox + ow - origin.tr.h, y: oy + origin.tr.v }, curvature: curvature.tr };
+    const originBr: CornerGeometry = { start: { x: ox + ow, y: oy + oh - origin.br.v }, outer: { x: ox + ow, y: oy + oh }, end: { x: ox + ow - origin.br.h, y: oy + oh }, center: { x: ox + ow - origin.br.h, y: oy + oh - origin.br.v }, curvature: curvature.br };
+    const originBl: CornerGeometry = { start: { x: ox + origin.bl.h, y: oy + oh }, outer: { x: ox, y: oy + oh }, end: { x: ox, y: oy + oh - origin.bl.v }, center: { x: ox + origin.bl.h, y: oy + oh - origin.bl.v }, curvature: curvature.bl };
+    trCorner = alignedCorner(trCorner, originTr, inset.top, inset.right);
+    brCorner = alignedCorner(brCorner, originBr, inset.right, inset.bottom);
+    blCorner = alignedCorner(blCorner, originBl, inset.bottom, inset.left);
+    tlCorner = alignedCorner(tlCorner, originTl, inset.left, inset.top);
+  }
+  return { tl: tlCorner, tr: trCorner, br: brCorner, bl: blCorner };
+}
+
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
  *  Path goes clockwise from the top-left, using elliptical arc commands at each
  *  corner. Zero-radius corners collapse to a sharp 90° join. */
@@ -487,22 +512,7 @@ export function roundedRectPath(x: number, y: number, w: number, h: number, c: C
   const bl = { h: Math.min(c.bl.h, w), v: Math.min(c.bl.v, h) };
   const curvature = c.curvature ?? { tl: 2, tr: 2, br: 2, bl: 2 };
   if (curvature.tl !== 2 || curvature.tr !== 2 || curvature.br !== 2 || curvature.bl !== 2) {
-    let tlCorner: CornerGeometry = { start: { x, y: y + tl.v }, outer: { x, y }, end: { x: x + tl.h, y }, center: { x: x + tl.h, y: y + tl.v }, curvature: curvature.tl };
-    let trCorner: CornerGeometry = { start: { x: x + w - tr.h, y }, outer: { x: x + w, y }, end: { x: x + w, y: y + tr.v }, center: { x: x + w - tr.h, y: y + tr.v }, curvature: curvature.tr };
-    let brCorner: CornerGeometry = { start: { x: x + w, y: y + h - br.v }, outer: { x: x + w, y: y + h }, end: { x: x + w - br.h, y: y + h }, center: { x: x + w - br.h, y: y + h - br.v }, curvature: curvature.br };
-    let blCorner: CornerGeometry = { start: { x: x + bl.h, y: y + h }, outer: { x, y: y + h }, end: { x, y: y + h - bl.v }, center: { x: x + bl.h, y: y + h - bl.v }, curvature: curvature.bl };
-    if (c.originRadii != null && c.contourInsets != null) {
-      const inset = c.contourInsets, origin = c.originRadii;
-      const ox = x - inset.left, oy = y - inset.top, ow = w + inset.left + inset.right, oh = h + inset.top + inset.bottom;
-      const originTl: CornerGeometry = { start: { x: ox, y: oy + origin.tl.v }, outer: { x: ox, y: oy }, end: { x: ox + origin.tl.h, y: oy }, center: { x: ox + origin.tl.h, y: oy + origin.tl.v }, curvature: curvature.tl };
-      const originTr: CornerGeometry = { start: { x: ox + ow - origin.tr.h, y: oy }, outer: { x: ox + ow, y: oy }, end: { x: ox + ow, y: oy + origin.tr.v }, center: { x: ox + ow - origin.tr.h, y: oy + origin.tr.v }, curvature: curvature.tr };
-      const originBr: CornerGeometry = { start: { x: ox + ow, y: oy + oh - origin.br.v }, outer: { x: ox + ow, y: oy + oh }, end: { x: ox + ow - origin.br.h, y: oy + oh }, center: { x: ox + ow - origin.br.h, y: oy + oh - origin.br.v }, curvature: curvature.br };
-      const originBl: CornerGeometry = { start: { x: ox + origin.bl.h, y: oy + oh }, outer: { x: ox, y: oy + oh }, end: { x: ox, y: oy + oh - origin.bl.v }, center: { x: ox + origin.bl.h, y: oy + oh - origin.bl.v }, curvature: curvature.bl };
-      trCorner = alignedCorner(trCorner, originTr, inset.top, inset.right);
-      brCorner = alignedCorner(brCorner, originBr, inset.right, inset.bottom);
-      blCorner = alignedCorner(blCorner, originBl, inset.bottom, inset.left);
-      tlCorner = alignedCorner(tlCorner, originTl, inset.left, inset.top);
-    }
+    const { tl: tlCorner, tr: trCorner, br: brCorner, bl: blCorner } = contouredCornerGeometries(x, y, w, h, c);
     const commands = [`M${r(trCorner.start.x)},${r(trCorner.start.y)}`];
     commands.push(...cornerCommands(trCorner.start, trCorner.outer, trCorner.end, trCorner.center, curvature.tr));
     commands.push(`L${r(brCorner.start.x)},${r(brCorner.start.y)}`);
@@ -643,6 +653,66 @@ export function roundBorderSideClipPolygon(
   if (apexes.apexLeftX <= cut) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(apexes.apexLeftX, apexes.apexLeftY)}`;
   const dx = cut - bxL;
   return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(cut, clamp(bxT + tw * dx / lw, bxT, bxB))} ${point(cut, clamp(bxB - bw * dx / lw, bxT, bxB))}`;
+}
+
+/**
+ * Blink `BoxBorderPainter::ClipBorderSidePolygon` hyperellipse branch.
+ *
+ * The source builds a four-point side clip from the two outer corners and
+ * the corresponding inner-rect corners, then moves each inner point to the
+ * intersection of its miter with the inner corner's bevel hull. Normalize all
+ * four physical sides into top-side coordinates so the transcription has one
+ * decision path; `fromCanonical` only rotates/refects the resulting points.
+ */
+export function hyperellipseBorderSideClipPolygon(
+  side: "top" | "right" | "bottom" | "left",
+  bxL: number, bxT: number, bxR: number, bxB: number,
+  corners: CornerRadii,
+  tw: number, rw: number, bw: number, lw: number,
+): string {
+  const width = bxR - bxL, height = bxB - bxT;
+  const inner = insetCornerRadii(corners, tw, rw, bw, lw);
+  let length: number, firstAlong: number, secondAlong: number, inward: number;
+  let firstRadius: CornerRadiusPair, secondRadius: CornerRadiusPair;
+  let fromCanonical: (point: Point) => Point;
+  if (side === "top") {
+    length = width; firstAlong = lw; secondAlong = rw; inward = tw;
+    firstRadius = inner.tl; secondRadius = inner.tr;
+    fromCanonical = p => ({ x: bxL + p.x, y: bxT + p.y });
+  } else if (side === "right") {
+    length = height; firstAlong = tw; secondAlong = bw; inward = rw;
+    firstRadius = { h: inner.tr.v, v: inner.tr.h }; secondRadius = { h: inner.br.v, v: inner.br.h };
+    fromCanonical = p => ({ x: bxR - p.y, y: bxT + p.x });
+  } else if (side === "bottom") {
+    length = width; firstAlong = rw; secondAlong = lw; inward = bw;
+    firstRadius = inner.br; secondRadius = inner.bl;
+    fromCanonical = p => ({ x: bxR - p.x, y: bxB - p.y });
+  } else {
+    length = height; firstAlong = bw; secondAlong = tw; inward = lw;
+    firstRadius = { h: inner.bl.v, v: inner.bl.h }; secondRadius = { h: inner.tl.v, v: inner.tl.h };
+    fromCanonical = p => ({ x: bxL + p.y, y: bxB - p.x });
+  }
+  const outerStart = { x: 0, y: 0 }, outerEnd = { x: length, y: 0 };
+  let innerStart = { x: firstAlong, y: inward };
+  let innerEnd = { x: length - secondAlong, y: inward };
+  if (firstRadius.h !== 0 && firstRadius.v !== 0) {
+    innerStart = lineIntersection(
+      outerStart, innerStart,
+      { x: innerStart.x + firstRadius.h, y: innerStart.y },
+      { x: innerStart.x, y: innerStart.y + firstRadius.v },
+    ) ?? innerStart;
+  }
+  if (secondRadius.h !== 0 && secondRadius.v !== 0) {
+    innerEnd = lineIntersection(
+      outerEnd, innerEnd,
+      { x: innerEnd.x - secondRadius.h, y: innerEnd.y },
+      { x: innerEnd.x, y: innerEnd.y + secondRadius.v },
+    ) ?? innerEnd;
+  }
+  return [outerStart, innerStart, innerEnd, outerEnd]
+    .map(fromCanonical)
+    .map(point => `${r(point.x)},${r(point.y)}`)
+    .join(" ");
 }
 export function wedgePolygonPoints(
   side: "top" | "right" | "bottom" | "left",

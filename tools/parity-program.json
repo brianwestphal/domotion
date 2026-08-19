@@ -71,8 +71,8 @@
       "oracleStatus": "paint-model-gate",
       "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control; computed corner-shape keywords/custom parameters, asymmetric physical corners, concave opposite-hull constraints, and inset origin alignment",
       "platformCoverage": ["darwin"],
-      "knownGap": "Round and non-round ContouredRect contours are transcribed; collapsed borders, non-uniform per-side non-round hull partitioning, writing modes, zoom, and cross-platform phase remain outside the geometry oracle.",
-      "nextAction": "Expand non-uniform per-side corner-shape hull partitions, collapsed-border cases, and cross-platform phase coverage."
+      "knownGap": "Round and non-round outer contours plus mixed-side hyperellipse quads are transcribed; non-renderable inset ContouredRect corner-path intersection and its concave tangent cutouts remain DM-2317. Collapsed borders, writing modes, zoom, and cross-platform phase remain outside the geometry oracle.",
+      "nextAction": "Implement the DM-2317 inset path intersection, then expand collapsed-border cases and cross-platform phase coverage."
     },
     {
       "id": "gradients-masks-clips",
