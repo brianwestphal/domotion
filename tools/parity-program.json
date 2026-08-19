@@ -103,13 +103,13 @@
       "id": "compositing-effects-paint-order",
       "domotionSources": ["src/render/element-tree-to-svg.ts", "src/tree-ops", "src/post-processing"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
-      "oracle": null,
-      "sourceAudit": "partial",
-      "oracleStatus": "visual-only",
-      "generatedCoverage": "curated feature, showcase, and broad HTML fixtures",
+      "oracle": "tools/paint-order-oracle.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "paint-model-gate",
+      "generatedCoverage": "27 generated SC-creator, Appendix-E bucket, atomic-containment, descendant-hoist, and live Chromium hit-stack rows plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Stacking, isolation, filter, opacity, blend, and mask interactions are sampled rather than transition-enumerated.",
-      "nextAction": "Build a generated paint-order/isolation transition matrix with structural and metamorphic assertions."
+      "knownGap": "Blend arithmetic and filter kernels remain pixel-stage concerns; backdrop-filter source-surface selection is tracked at its Chromium raster boundary rather than structurally modeled.",
+      "nextAction": "Extend browser rows when new stacking-context creators or backdrop source-surface transitions enter the renderer."
     },
     {
       "id": "replaced-elements-controls-generated-content",

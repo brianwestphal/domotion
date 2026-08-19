@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszemno3oi84ootw",
+          "message": {
+            "text": "The paint-order gate separates classification from raster output. Generated rows enumerate every modeled stacking-context creator, Appendix-E bucket, and atomic containment transition; the live Chromium hit-test rows independently prove that high z-index descendants escape plain wrappers but not opacity or isolation contexts.",
+            "markdown": "The paint-order gate separates classification from raster output. Generated rows enumerate every modeled stacking-context creator, Appendix-E bucket, and atomic containment transition; the live Chromium hit-test rows independently prove that high z-index descendants escape plain wrappers but not opacity or isolation contexts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-order-oracle.ts"
+                },
+                "region": {
+                  "startLine": 14,
+                  "endLine": 87,
+                  "snippet": {
+                    "text": "    [\"fixed\", { position: \"fixed\" }, undefined, true], [\"sticky\", { position: \"sticky\" }, undefined, true],\n    [\"opacity\", { opacity: \".9\" }, undefined, true], [\"transform\", { transform: \"matrix(1,0,0,1,1,0)\" }, undefined, true],\n    [\"transform-captured\", { transformCreatesSc: true }, undefined, true], [\"preserve-3d\", { transformStyle: \"preserve-3d\" }, undefined, true],\n    [\"filter\", { filter: \"blur(1px)\" }, undefined, true], [\"blend\", { mixBlendMode: \"multiply\" }, undefined, true],\n    [\"mask\", { maskImage: \"linear-gradient(black,transparent)\" }, undefined, true], [\"clip\", { clipPath: \"circle(50%)\" }, undefined, true],\n    [\"isolation\", { isolation: \"isolate\" }, undefined, true], [\"contain\", { contain: \"paint\" }, undefined, true],\n    [\"overflow\", { overflowX: \"hidden\" }, undefined, true], [\"will-change\", { willChange: \"transform\" }, undefined, true],\n    [\"flex-item-z\", { zIndex: \"2\" }, \"flex\", true], [\"plain\", {}, undefined, false], [\"relative-auto\", { position: \"relative\" }, undefined, false],\n  ];\n  for (const [id, styles, parentDisplay, expected] of creators) {\n    const actual = establishesStackingContext(el(id, styles), parentDisplay);\n    rows.push({ id: `creator.${id}`, expected, actual, pass: actual === expected, source: \"CSS 2.1 Appendix E; Compositing/Transforms/Containment SC creation\" });\n  }\n\n  const children = [\n    el(\"positive\", { position: \"absolute\", zIndex: \"3\" }), el(\"float\", { float: \"left\" }),\n    el(\"negative\", { position: \"absolute\", zIndex: \"-2\" }), el(\"base\"),\n    el(\"auto\", { position: \"absolute\", zIndex: \"auto\" }), el(\"zero\", { position: \"absolute\", zIndex: \"0\" }),\n  ];\n  const buckets = paintOrderBuckets(children);\n  const actualBuckets = { negative: buckets.negative.map((x) => x.text), base: buckets.base.map((x) => x.text), floats: buckets.floats.map((x) => x.text), zeroOrAuto: buckets.zeroOrAuto.map((x) => x.text), positive: buckets.positive.map((x) => x.text) };\n  const expectedBuckets = { negative: [\"negative\"], base: [\"base\"], floats: [\"float\"], zeroOrAuto: [\"auto\", \"zero\"], positive: [\"positive\"] };\n  rows.push({ id: \"buckets.appendix-e\", expected: expectedBuckets, actual: actualBuckets, pass: JSON.stringify(actualBuckets) === JSON.stringify(expectedBuckets), source: \"CSS 2.1 Appendix E steps 2-7\" });\n\n  for (const [id, boundary] of [[\"opacity\", { opacity: \".9\" }], [\"filter\", { filter: \"blur(1px)\" }], [\"isolation\", { isolation: \"isolate\" }], [\"mask\", { maskImage: \"linear-gradient(black,transparent)\" }]] as const) {\n    const deep = el(\"deep\", { position: \"absolute\", zIndex: \"999\" });\n    const wrapper = el(\"wrapper\", boundary, [deep]);\n    const sibling = el(\"sibling\", { position: \"absolute\", zIndex: \"2\" });\n    const hoisted = new Set<CapturedElement>();\n    const flat = gatherStackingContextChildren([wrapper, sibling], hoisted);\n    const order = sortChildrenByPaintOrder(flat).map((x) => x.text);\n    const actual = { deepHoisted: hoisted.has(deep), top: order.at(-1) };\n    const expected = { deepHoisted: false, top: \"sibling\" };\n    rows.push({ id: `containment.${id}`, expected, actual, pass: JSON.stringify(actual) === JSON.stringify(expected), source: \"atomic stacking-context containment\" });\n  }\n  const deep = el(\"deep\", { position: \"absolute\", zIndex: \"999\" });\n  const transparentWrapper = el(\"wrapper\", {}, [deep]);\n  const sibling = el(\"sibling\", { position: \"absolute\", zIndex: \"2\" });\n  const hoisted = new Set<CapturedElement>();\n  const transparentOrder = sortChildrenByPaintOrder(gatherStackingContextChildren([transparentWrapper, sibling], hoisted)).map((x) => x.text);\n  rows.push({ id: \"containment.non-sc-hoists\", expected: { deepHoisted: true, top: \"deep\" }, actual: { deepHoisted: hoisted.has(deep), top: transparentOrder.at(-1) }, pass: hoisted.has(deep) && transparentOrder.at(-1) === \"deep\", source: \"positioned descendant hoist to nearest real SC\" });\n\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const page = await browser.newPage({ viewport: { width: 600, height: 180 } });\n    await page.setContent(`<style>html,body{margin:0}.root{position:relative;width:120px;height:120px;display:inline-block;margin-right:20px}.layer{position:absolute;inset:10px}</style>\n      <div class=root id=plain><div id=pwrap><div class=layer id=pdeep style=\"z-index:999;background:red\"></div></div><div class=layer id=psib style=\"z-index:2;background:blue\"></div></div>\n      <div class=root id=iso><div class=layer style=\"z-index:1;isolation:isolate\"><div class=layer id=ideep style=\"z-index:999;background:red\"></div></div><div class=layer id=isib style=\"z-index:2;background:blue\"></div></div>\n      <div class=root id=opacity><div class=layer style=\"z-index:1;opacity:.9\"><div class=layer id=odeep style=\"z-index:999;background:red\"></div></div><div class=layer id=osib style=\"z-index:2;background:blue\"></div></div>`);\n    for (const [id, x, expected] of [[\"plain\", 60, \"pdeep\"], [\"isolation\", 200, \"isib\"], [\"opacity\", 340, \"osib\"]] as const) {\n      const actual = await page.evaluate(({ x }) => document.elementsFromPoint(x, 60).map((node) => node.id).find((value) => /(?:deep|sib)$/.test(value)), { x });\n      rows.push({ id: `browser.${id}`, expected, actual, pass: actual === expected, source: \"live Chromium hit-test paint stack\" });\n    }\n  } finally { await browser.close(); }\n  const mutationMoved = establishesStackingContext(el(\"mutation\", { opacity: \".9\" })) && !establishesStackingContext(el(\"mutation\"));\n  return { rows, mutationMoved };\n}\n\nasync function main(): Promise<void> {\n  const report = await runPaintOrderOracle();\n  const failures = report.rows.filter((row) => !row.pass);\n  console.log(`paint-order oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? \"moved\" : \"DID NOT MOVE\"}`);\n  for (const failure of failures) console.log(`FAIL ${failure.id}: expected=${JSON.stringify(failure.expected)} actual=${JSON.stringify(failure.actual)}`);\n  if (failures.length > 0 || !report.mutationMoved) process.exitCode = 1;\n}\nif (import.meta.url === new URL(`file://${process.argv[1]}`).href) void main();\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/stacking.ts"
+                },
+                "region": {
+                  "startLine": 27
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2299"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "af8e3c79d735db3ce5a27116ffa35dc6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "99dcb48ed5c5f882de697e0d9a9bc4bcd808ae44",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

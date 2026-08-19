@@ -50,6 +50,7 @@ jobs:
       - run: npx playwright install chromium
       - run: npm run paint:geometry-browser-oracle
       - run: npm run transform:geometry-oracle
+      - run: npm run paint:order-oracle
 
   build:
     runs-on: ubuntu-latest
