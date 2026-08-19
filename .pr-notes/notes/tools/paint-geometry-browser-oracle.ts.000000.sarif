@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mszbrh4r1i1q4hx5",
+          "message": {
+            "text": "This browser leg is deliberately independent of Domotion SVG output. At 4× scale it checks binary Chromium paint at points selected from source geometry, including eight gradient points where the retired direct-corner construction predicts the opposite color; the structured 43-row oracle remains the primary Domotion comparison.",
+            "markdown": "This browser leg is deliberately independent of Domotion SVG output. At 4× scale it checks binary Chromium paint at points selected from source geometry, including eight gradient points where the retired direct-corner construction predicts the opposite color; the structured 43-row oracle remains the primary Domotion comparison."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-browser-oracle.ts"
+                },
+                "region": {
+                  "startLine": 51,
+                  "endLine": 82,
+                  "snippet": {
+                    "text": "    const line = blinkCornerLine(\"top-right\", 0, 0, 300, 100);\n    const oldDirect = { p0: { x: 0, y: 100 }, p1: { x: 300, y: 0 } };\n    const candidates: Array<{ x: number; y: number; expected: \"black\" | \"white\" }> = [];\n    for (let y = 8; y < 92; y += 7) for (let x = 8; x < 292; x += 9) {\n      const sourceT = gradientParameter({ x, y }, line);\n      const oldT = gradientParameter({ x, y }, oldDirect);\n      if ((sourceT < 0.45 && oldT > 0.55) || (sourceT > 0.55 && oldT < 0.45)) candidates.push({ x, y, expected: sourceT < 0.5 ? \"black\" : \"white\" });\n    }\n    const discriminators = [...candidates.filter((point) => point.expected === \"black\").slice(0, 4), ...candidates.filter((point) => point.expected === \"white\").slice(0, 4)];\n    const gradientActual = discriminators.map((point) => ({ ...point, luminance: luminanceAt(20 + point.x, 20 + point.y) }));\n    const gradientPass = gradientActual.length === 8 && gradientActual.every((point) => point.expected === \"black\" ? point.luminance < 40 : point.luminance > 215);\n\n    const clipSamples = [\n      { x: 49, y: 220, expected: \"white\" }, { x: 51, y: 220, expected: \"black\" },\n      { x: 189, y: 220, expected: \"black\" }, { x: 191, y: 220, expected: \"white\" },\n      { x: 100, y: 189, expected: \"white\" }, { x: 100, y: 191, expected: \"black\" },\n      { x: 100, y: 249, expected: \"black\" }, { x: 100, y: 251, expected: \"white\" },\n    ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));\n    const clipPass = clipSamples.every((point) => point.expected === \"black\" ? point.luminance < 40 : point.luminance > 215);\n\n    const maskSamples = [\n      { x: 25, expected: \"white\" }, { x: 35, expected: \"black\" }, { x: 45, expected: \"black\" }, { x: 55, expected: \"white\" },\n      { x: 65, expected: \"white\" }, { x: 75, expected: \"black\" }, { x: 95, expected: \"white\" }, { x: 115, expected: \"black\" },\n    ].map((point) => ({ ...point, luminance: luminanceAt(point.x, 370) }));\n    const maskPass = maskSamples.every((point) => point.expected === \"black\" ? point.luminance < 40 : point.luminance > 215);\n\n    const probes: BrowserPaintProbe[] = [\n      { id: \"chromium.linear.magic-corner\", source: \"css_gradient_value.cc:1282-1337,1410-1430\", expected: discriminators, actual: gradientActual, pass: gradientPass },\n      { id: \"chromium.clip.content-box\", source: \"geometry_box_utils.cc:13-49 and clip_path_clipper.cc:242-261\", expected: clipSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: clipSamples, pass: clipPass },\n      { id: \"chromium.mask.repeat-phase\", source: \"CSSMaskPainter FillLayer tiling geometry\", expected: maskSamples.map(({ x, expected }) => ({ x, expected })), actual: maskSamples, pass: maskPass },\n    ];\n    return { sourceRevision: SOURCE_REVISION, chromiumVersion: browser.version(), playwrightVersion, platform: process.platform, architecture: process.arch, deviceScaleFactor: DPR, probes, verdict: probes.every((probe) => probe.pass) ? \"browser-validates-source-rules\" : \"browser-source-drift\" };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2307"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2e40074bdedf14bbc4636464c8a5b6cd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "545b5802f82a0b29cb30ae7ed5aa59b4dbf8475e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

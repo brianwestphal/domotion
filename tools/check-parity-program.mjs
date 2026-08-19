@@ -39,6 +39,7 @@ for (const area of matrix.areas ?? []) {
   for (const path of area.domotionSources ?? []) await requirePath(path, area.id);
   for (const path of area.upstreamSources ?? []) await requirePath(path, area.id);
   if (area.oracle) await requirePath(area.oracle, area.id);
+  if (area.browserOracle) await requirePath(area.browserOracle, area.id);
 }
 
 if (!matrix.areas?.some((area) => area.oracleStatus === "visual-only")) {

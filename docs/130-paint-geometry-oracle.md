@@ -5,6 +5,15 @@ geometry that previously had only visual-regression coverage. It compares a
 source-transcribed rule leg against the definitions emitted by Domotion's real
 gradient, mask, and basic-clip builders. It does not rasterize either side.
 
+`npm run paint:geometry-browser-oracle` is the independent live-browser leg.
+At 4× device scale it paints deliberately binary discriminators for the
+non-square magic-corner decision, an HTML content-box clip, and mask-repeat
+phase. Sample points are chosen where the retired direct-corner gradient rule
+predicts the opposite color, or immediately across a source-predicted box/tile
+boundary. The report records the Chromium source revision, installed Chromium
+and Playwright versions, platform, architecture, and device scale so a browser
+upgrade is visible as evidence drift rather than silently accepted.
+
 ## Current exact surface
 
 The generated corpus covers all four linear-gradient corner directions over
@@ -49,6 +58,8 @@ geometry boxes, and conic raster tiles. Those domains remain covered by unit
 and visual fixtures but do not gain an exact logical verdict from this oracle
 until their structured rows land.
 
-The pixel suites remain the final integration stage. A pixel residual cannot
-override a failure here, and a passing row here does not classify a later
-Skia-versus-SVG rasterization difference.
+The live-browser leg validates that the pinned source transcription still
+describes the currently installed Chromium; it does not replace the structured
+Domotion comparison. The broader pixel suites remain the final integration
+stage. A pixel residual cannot override a failure here, and a passing row here
+does not classify a later Skia-versus-SVG rasterization difference.
