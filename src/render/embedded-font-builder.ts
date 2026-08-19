@@ -141,12 +141,9 @@ export interface BuilderEntry {
    * When set, the entry is "pure" — its glyph ids equal the source font's, so
    * `buildGlyfFontForEntry` can hb-subset the ORIGINAL file (keeping TrueType
    * hinting) and inject a PUA→gid cmap, instead of the unhinted svg2ttf rebuild.
-   * For an eligible VARIABLE TrueType source, `axes` is the axis location the
-   * run resolved to (possibly empty = default master) and the subset is fully
-   * instanced there — hinting survives hb's instancer. A CFF2 default instance
-   * is rebuilt from platform-resolved commands because HarfBuzz's empty/default
-   * pinning path does not reliably bake its variation-store geometry.
-   * Cleared to null the moment a glyph
+   * For a VARIABLE source file, `axes` is the axis location the run resolved to
+   * (possibly empty = default master) and the subset is fully instanced there —
+   * hinting survives hb's instancer. Cleared to null the moment a glyph
    * disagrees (different source/axes, or synthetic) — then the whole entry
    * falls back to svg2ttf.
    */
@@ -168,7 +165,7 @@ export type HintedSourceDisqualificationReason =
   | "null-source"
   | "null-face-index"
   | "source-axis-disagreement"
-  | "cff2-default-instance-rebuild"
+  | "cff2-outline-rebuild"
   | "cff-or-subset-failure"
   | "disabled-by-environment";
 
@@ -535,9 +532,8 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
   // instead of svg2ttf's outline-only rebuild. A variable source is fully
   // instanced at the run's resolved axis location (`hintedSource.variationAxes`) — hb
   // applies the same gvar deltas fontkit shaped with, and hinting survives its
-  // instancer. CFF2's empty/default instance uses the proven resolved-outline
-  // path; explicitly located CFF2 instances retain the subset and its hinting.
-  // Any failure falls through likewise so a bad font never breaks a render.
+  // instancer. Any failure falls through to the proven svg2ttf path so a bad
+  // font never breaks a render.
   if (hintedSubsetEnabled() && entry.hintedSource != null && entry.hintedSource.faceIndex != null
       && !entry.hintedSourceDisqualified) {
     const srcFaceIndex = entry.hintedSource.faceIndex;
@@ -546,11 +542,8 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const puaToGid = new Map<number, number>();
       for (const [gid, pua] of entry.puaForGlyphId) puaToGid.set(pua, gid);
       // Guard outline-less files (for example PingFang's Apple-private hvgl).
-      // glyf, CFF and CFF2 are structurally subsettable; CFF2's default-instance
-      // case is then rejected because its variation-store geometry is not baked
-      // reliably by the empty-axis pinning path.
-      // Post-subset glyph-id handling differs below because only glyf/loca can
-      // use our compactor.
+      // Both glyf and CFF/CFF2 are subsettable; their post-subset glyph-id
+      // handling differs below because only glyf/loca can use our compactor.
       //
       // DM-1862: asked from a MEMO first, so a face already known to fail it
       // never re-reads the file. The verdict is a pure function of (path, face
@@ -571,21 +564,20 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const bytes = readFileSync(entry.hintedSource.path);
       if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
                                      sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
-        // HarfBuzz's CFF2 default-instancing path can leave variation-store
-        // geometry that the consumer rasterizer interprets differently from the
-        // platform typeface. macOS 26 exposes it on SFIndia's default instance:
-        // the subset's placement is correct, but sparse outlines move by more
-        // than an em when Chromium reopens the embedded face. CFF2 instances
-        // with explicit coordinates do not take this path and retain native
-        // hinting (SF/New York is the negative control). An empty axis map is
-        // the resolver's exact statement that every axis is at its default, so
-        // this is an instancing-state rule, not a script/font/codepoint list.
-        if (sfntHasCff2Outlines(bytes, srcFaceIndex)
-            && entry.hintedSource.variationAxes != null
-            && Object.keys(entry.hintedSource.variationAxes).length === 0) {
-          entry.hintedSourceDisqualificationReasons.add("cff2-default-instance-rebuild");
+        // A retained CFF2 program is still variable when the emitted font is
+        // consumed as a fresh CSS face. That is not the same object Chromium
+        // painted through the platform typeface, even at a nominally-default
+        // axis location: macOS 26's SFIndia faces move the newly assigned
+        // Telugu/Kannada glyph outlines by roughly one grid row after the
+        // retained subset is re-opened. The native helper's extracted commands
+        // are the resolved platform outlines, so rebuild those into a static
+        // glyf font instead. This is a table-format boundary, not a script,
+        // codepoint, or font-name exception; static CFF and hinted TrueType
+        // sources retain the subset path.
+        if (sfntHasCff2Outlines(bytes, srcFaceIndex)) {
+          entry.hintedSourceDisqualificationReasons.add("cff2-outline-rebuild");
           entry.hintedSourceDisqualified = true;
-          throw new Error("CFF2 default instance requires resolved-outline rebuild");
+          throw new Error("CFF2 source requires resolved-outline rebuild");
         }
         // Keep HarfBuzz's RETAIN_GIDS output intact. Chromium hands the
         // platform font produced by its subsetter to the consumer without a
@@ -618,7 +610,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         return out;
       }
     } catch (e) {
-      if (!entry.hintedSourceDisqualificationReasons.has("cff2-default-instance-rebuild")) {
+      if (!entry.hintedSourceDisqualificationReasons.has("cff2-outline-rebuild")) {
         entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
       }
       entry.hintedSourceDisqualified = true;
