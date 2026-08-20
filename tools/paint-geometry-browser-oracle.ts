@@ -28,13 +28,14 @@ function gradientParameter(point: { x: number; y: number }, line: ReturnType<typ
 export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string; chromiumVersion: string; playwrightVersion: string; platform: string; architecture: string; deviceScaleFactor: number; probes: BrowserPaintProbe[]; verdict: string }> {
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 360, height: 500 }, deviceScaleFactor: DPR });
+    const page = await browser.newPage({ viewport: { width: 360, height: 660 }, deviceScaleFactor: DPR });
     await page.setContent(`<!doctype html><style>
-      * { box-sizing:border-box } html,body { margin:0; width:360px; height:500px; background:white }
+      * { box-sizing:border-box } html,body { margin:0; width:360px; height:660px; background:white }
       #gradient { position:absolute; left:20px; top:20px; width:300px; height:100px; background:linear-gradient(to top right,#000 0 50%,#fff 50% 100%) }
       #clip { position:absolute; left:20px; top:160px; width:200px; height:120px; border:10px solid transparent; padding:20px; background:#000; clip-path:content-box }
       #mask { position:absolute; left:20px; top:330px; width:200px; height:80px; background:#000; mask-image:linear-gradient(to right,#000 0 50%,transparent 50% 100%); mask-size:40px 80px; mask-position:10px 0; mask-repeat:repeat }
-    </style><div id="gradient"></div><div id="clip"></div><div id="mask"></div>`);
+      #negative-radial { position:absolute; left:20px; top:430px; width:200px; height:200px; background:repeating-radial-gradient(circle 100px,#000 -30px -20px,#fff -20px -10px) }
+    </style><div id="gradient"></div><div id="clip"></div><div id="mask"></div><div id="negative-radial"></div>`);
     const png = await page.screenshot();
     const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const luminanceAt = (cssX: number, cssY: number): number => {
@@ -74,10 +75,21 @@ export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string;
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, 370) }));
     const maskPass = maskSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
 
+    // Blink shifts the source [-30,-10] radius interval by two 20px periods
+    // to [10,30]. These radii therefore cross black/white/black bands; the
+    // retired SVG-side clamp collapses both source radii to zero.
+    const radialSamples = [
+      { radius: 15, expected: "black" },
+      { radius: 25, expected: "white" },
+      { radius: 35, expected: "black" },
+    ].map((point) => ({ ...point, luminance: luminanceAt(120 + point.radius, 530) }));
+    const radialPass = radialSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+
     const probes: BrowserPaintProbe[] = [
       { id: "chromium.linear.magic-corner", source: "css_gradient_value.cc:1282-1337,1410-1430", expected: discriminators, actual: gradientActual, pass: gradientPass },
       { id: "chromium.clip.content-box", source: "geometry_box_utils.cc:13-49 and clip_path_clipper.cc:242-261", expected: clipSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: clipSamples, pass: clipPass },
       { id: "chromium.mask.repeat-phase", source: "CSSMaskPainter FillLayer tiling geometry", expected: maskSamples.map(({ x, expected }) => ({ x, expected })), actual: maskSamples, pass: maskPass },
+      { id: "chromium.radial.negative-domain-shift", source: "css_gradient_value.cc:593-633,809-824", expected: radialSamples.map(({ radius, expected }) => ({ radius, expected })), actual: radialSamples, pass: radialPass },
     ];
     return { sourceRevision: SOURCE_REVISION, chromiumVersion: browser.version(), playwrightVersion, platform: process.platform, architecture: process.arch, deviceScaleFactor: DPR, probes, verdict: probes.every((probe) => probe.pass) ? "browser-validates-source-rules" : "browser-source-drift" };
   } finally {

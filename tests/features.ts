@@ -724,6 +724,19 @@ export const tests: FeatureTest[] = [
     width: 220,
     height: 110,
   },
+  {
+    // Negative radial stops alter the gradient's radius domain in Blink. The
+    // repeating cases exercise whole-period positive shifts; the final cell
+    // exercises the non-repeating zero-radius color/domain adjustment.
+    name: "gradient-radial-negative-domain",
+    html: `<div style="padding:12px;display:flex;gap:8px;background:#fff">
+      <div style="width:120px;height:120px;background:repeating-radial-gradient(circle 100px,#111 -30px -20px,#f8fafc -20px -10px)"></div>
+      <div style="width:120px;height:120px;background:repeating-radial-gradient(circle 100px at 40% 60%,#dc2626 -10px 0,#2563eb 0 10px)"></div>
+      <div style="width:120px;height:120px;background:radial-gradient(circle 100px,#dc2626 -20px,#2563eb 80px)"></div>
+    </div>`,
+    width: 410,
+    height: 145,
+  },
 
   // ── Regression: CSS clip-path translated to SVG <clipPath> (SK-436) ──
   // circle, inset, and polygon clip shapes on solid-colored boxes. Previously

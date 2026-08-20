@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0w3ajstqj86ux6",
+          "message": {
+            "text": "The black/white/black samples are a live discriminator for Blink radius shifting. The pinned source maps the authored negative interval to radii 10 through 30; samples at radii 15, 25, and 35 cross black, white, then the repeated black band. The retired SVG-side clamp collapses both authored radii to zero and cannot satisfy this sequence.",
+            "markdown": "The black/white/black samples are a live discriminator for Blink radius shifting. The pinned source maps the authored negative interval to radii 10 through 30; samples at radii 15, 25, and 35 cross black, white, then the repeated black band. The retired SVG-side clamp collapses both authored radii to zero and cannot satisfy this sequence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-browser-oracle.ts"
+                },
+                "region": {
+                  "startLine": 91,
+                  "endLine": 103,
+                  "snippet": {
+                    "text": "      { id: \"chromium.mask.repeat-phase\", source: \"CSSMaskPainter FillLayer tiling geometry\", expected: maskSamples.map(({ x, expected }) => ({ x, expected })), actual: maskSamples, pass: maskPass },\n      { id: \"chromium.radial.negative-domain-shift\", source: \"css_gradient_value.cc:593-633,809-824\", expected: radialSamples.map(({ radius, expected }) => ({ radius, expected })), actual: radialSamples, pass: radialPass },\n    ];\n    return { sourceRevision: SOURCE_REVISION, chromiumVersion: browser.version(), playwrightVersion, platform: process.platform, architecture: process.arch, deviceScaleFactor: DPR, probes, verdict: probes.every((probe) => probe.pass) ? \"browser-validates-source-rules\" : \"browser-source-drift\" };\n  } finally {\n    await browser.close();\n  }\n}\n\nasync function main(): Promise<number> {\n  const report = await runBrowserPaintOracle();\n  const failures = report.probes.filter((probe) => !probe.pass);\n  const jsonIndex = process.argv.indexOf(\"--json\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2326"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4397148bb28a080360e0ec6357eb3168"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a9588a69f3a8ba5b83cb523267743cf0e3b52136",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -7,7 +7,7 @@ describe("paint geometry browser oracle (DM-2307)", () => {
     expect(report.chromiumVersion).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
     expect(report.playwrightVersion).toMatch(/^\d+\.\d+\.\d+/);
     expect(report.deviceScaleFactor).toBe(4);
-    expect(report.probes).toHaveLength(3);
+    expect(report.probes).toHaveLength(4);
     expect(report.probes.filter((probe) => !probe.pass)).toEqual([]);
     expect(report.verdict).toBe("browser-validates-source-rules");
   }, 30_000);

@@ -388,6 +388,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0w3aab823fegar",
+          "message": {
+            "text": "Negative radial stops change Blink radius geometry; they are not merely invalid SVG offsets to clamp. This function transcribes ClampNegativeOffsets, NormalizeAndAddStops, and AdjustGradientRadiiForOffsetRange: non-repeating domains synthesize the zero-radius boundary color in the declared interpolation space, while repeating domains shift negative radii forward by whole periods so phase is preserved. The only added rule is the documented SVG serialization boundary for periods whose two radii would serialize identically.",
+            "markdown": "Negative radial stops change Blink radius geometry; they are not merely invalid SVG offsets to clamp. This function transcribes ClampNegativeOffsets, NormalizeAndAddStops, and AdjustGradientRadiiForOffsetRange: non-repeating domains synthesize the zero-radius boundary color in the declared interpolation space, while repeating domains shift negative radii forward by whole periods so phase is preserved. The only added rule is the documented SVG serialization boundary for periods whose two radii would serialize identically."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 26,
+                  "endLine": 103,
+                  "snippet": {
+                    "text": "export function normalizeRadialGradientDomain(\n  input: GradientStop[],\n  endRadius: number,\n  repeating: boolean,\n  interpolation: \"srgb\" | \"srgb-linear\" = \"srgb\",\n): RadialGradientDomain {\n  if (input.length === 0) return { innerRadius: 0, outerRadius: endRadius, stops: [], repeat: repeating };\n  const stops = input.map((stop) => ({ pos: stop.pos, color: { ...stop.color } }));\n  const originallyNeedsNormalization = repeating || stops[0].pos < 0 || stops[stops.length - 1].pos > 1;\n  if (!originallyNeedsNormalization) return { innerRadius: 0, outerRadius: endRadius, stops, repeat: false };\n\n  if (!repeating) {\n    let lastNegative = -1;\n    for (let i = 0; i < stops.length && stops[i].pos < 0; i++) {\n      stops[i].pos = 0;\n      lastNegative = i;\n    }\n    if (lastNegative >= 0 && lastNegative + 1 < stops.length) {\n      const before = input[lastNegative];\n      const after = input[lastNegative + 1];\n      const t = -before.pos / (after.pos - before.pos);\n      const mixChannel = (a: number, b: number): number => {\n        if (interpolation === \"srgb\") return Math.round(a + (b - a) * t);\n        const toLinear = (value: number) => {\n          const s = value / 255;\n          return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);\n        };\n        const toSrgb = (value: number) => value <= 0.0031308 ? value * 12.92 : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;\n        return Math.round(toSrgb(toLinear(a) + (toLinear(b) - toLinear(a)) * t) * 255);\n      };\n      stops[lastNegative].color = {\n        r: mixChannel(before.color.r, after.color.r),\n        g: mixChannel(before.color.g, after.color.g),\n        b: mixChannel(before.color.b, after.color.b),\n        a: before.color.a + (after.color.a - before.color.a) * t,\n      };\n    }\n  }\n\n  const first = stops[0].pos;\n  const last = stops[stops.length - 1].pos;\n  const span = Math.max(0, last - first);\n  // Blink uses float epsilon. SVG serialization adds a second representation\n  // boundary: if both radii round to the same value, repeat has a zero period,\n  // so preserve the established solid-final-color adaptation.\n  if (span < Number.EPSILON || (repeating && span * endRadius <= 5e-5)) {\n    const clamped = Math.max(0, Math.min(1, first));\n    const solid = stops[stops.length - 1];\n    return repeating\n      ? { innerRadius: 0, outerRadius: endRadius, stops: [{ ...solid, pos: 0 }, { ...solid, pos: 1 }], repeat: false }\n      : { innerRadius: endRadius * clamped, outerRadius: endRadius * clamped, stops: [{ ...stops[0], pos: clamped }, { ...solid, pos: clamped }], repeat: false };\n  }\n\n  const normalized = stops.map((stop) => ({ ...stop, pos: (stop.pos - first) / span }));\n  let innerRadius = endRadius * first;\n  let outerRadius = endRadius * last;\n  if (innerRadius < 0) {\n    const radiusSpan = outerRadius - innerRadius;\n    const shift = radiusSpan * Math.ceil(-innerRadius / radiusSpan);\n    innerRadius += shift;\n    outerRadius += shift;\n  }\n  return { innerRadius, outerRadius, stops: normalized, repeat: repeating };\n}\n\nfunction consumeNativeInterpolationClause(value: string): { value: string; attribute: string } {\n  const match = /\\s+in\\s+(srgb-linear|srgb)\\b/i.exec(value);\n  if (match == null) return { value, attribute: \"\" };\n  return {\n    value: `${value.slice(0, match.index)}${value.slice(match.index + match[0].length)}`.trim(),\n    attribute: ` color-interpolation=\"${match[1].toLowerCase() === \"srgb-linear\" ? \"linearRGB\" : \"sRGB\"}\"`,\n  };\n}\n\n/** Parse the comma-separated 'args' inside a linear-gradient(...) and emit an SVG <linearGradient>.\n * w/h are the element box dimensions — needed to compute corner-to-corner\n * directional keywords ('to top right' etc.) which are aspect-ratio-dependent,\n * not always 45deg. */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2326"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "970259753ed6551eab4fdc55ea1a781c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a9588a69f3a8ba5b83cb523267743cf0e3b52136",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

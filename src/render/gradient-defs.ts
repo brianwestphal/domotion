@@ -12,6 +12,82 @@ import { splitTopLevelCommas } from "./css-tokens.js";
 
 export interface GradientStop { color: RGBA; pos: number }
 
+export interface RadialGradientDomain {
+  innerRadius: number;
+  outerRadius: number;
+  stops: GradientStop[];
+  repeat: boolean;
+}
+
+/** Mirrors Blink's radial branch in CSSGradientValue::AddStops plus
+ * AdjustGradientRadiiForOffsetRange (css_gradient_value.cc, rev 7d859f27).
+ * SVG can represent the adjusted two-radius domain directly with `fr`/`r`.
+ */
+export function normalizeRadialGradientDomain(
+  input: GradientStop[],
+  endRadius: number,
+  repeating: boolean,
+  interpolation: "srgb" | "srgb-linear" = "srgb",
+): RadialGradientDomain {
+  if (input.length === 0) return { innerRadius: 0, outerRadius: endRadius, stops: [], repeat: repeating };
+  const stops = input.map((stop) => ({ pos: stop.pos, color: { ...stop.color } }));
+  const originallyNeedsNormalization = repeating || stops[0].pos < 0 || stops[stops.length - 1].pos > 1;
+  if (!originallyNeedsNormalization) return { innerRadius: 0, outerRadius: endRadius, stops, repeat: false };
+
+  if (!repeating) {
+    let lastNegative = -1;
+    for (let i = 0; i < stops.length && stops[i].pos < 0; i++) {
+      stops[i].pos = 0;
+      lastNegative = i;
+    }
+    if (lastNegative >= 0 && lastNegative + 1 < stops.length) {
+      const before = input[lastNegative];
+      const after = input[lastNegative + 1];
+      const t = -before.pos / (after.pos - before.pos);
+      const mixChannel = (a: number, b: number): number => {
+        if (interpolation === "srgb") return Math.round(a + (b - a) * t);
+        const toLinear = (value: number) => {
+          const s = value / 255;
+          return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        };
+        const toSrgb = (value: number) => value <= 0.0031308 ? value * 12.92 : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+        return Math.round(toSrgb(toLinear(a) + (toLinear(b) - toLinear(a)) * t) * 255);
+      };
+      stops[lastNegative].color = {
+        r: mixChannel(before.color.r, after.color.r),
+        g: mixChannel(before.color.g, after.color.g),
+        b: mixChannel(before.color.b, after.color.b),
+        a: before.color.a + (after.color.a - before.color.a) * t,
+      };
+    }
+  }
+
+  const first = stops[0].pos;
+  const last = stops[stops.length - 1].pos;
+  const span = Math.max(0, last - first);
+  // Blink uses float epsilon. SVG serialization adds a second representation
+  // boundary: if both radii round to the same value, repeat has a zero period,
+  // so preserve the established solid-final-color adaptation.
+  if (span < Number.EPSILON || (repeating && span * endRadius <= 5e-5)) {
+    const clamped = Math.max(0, Math.min(1, first));
+    const solid = stops[stops.length - 1];
+    return repeating
+      ? { innerRadius: 0, outerRadius: endRadius, stops: [{ ...solid, pos: 0 }, { ...solid, pos: 1 }], repeat: false }
+      : { innerRadius: endRadius * clamped, outerRadius: endRadius * clamped, stops: [{ ...stops[0], pos: clamped }, { ...solid, pos: clamped }], repeat: false };
+  }
+
+  const normalized = stops.map((stop) => ({ ...stop, pos: (stop.pos - first) / span }));
+  let innerRadius = endRadius * first;
+  let outerRadius = endRadius * last;
+  if (innerRadius < 0) {
+    const radiusSpan = outerRadius - innerRadius;
+    const shift = radiusSpan * Math.ceil(-innerRadius / radiusSpan);
+    innerRadius += shift;
+    outerRadius += shift;
+  }
+  return { innerRadius, outerRadius, stops: normalized, repeat: repeating };
+}
+
 function consumeNativeInterpolationClause(value: string): { value: string; attribute: string } {
   const match = /\s+in\s+(srgb-linear|srgb)\b/i.exec(value);
   if (match == null) return { value, attribute: "" };
@@ -364,26 +440,16 @@ export function buildRadialGradientDef(
   // a positive first-stop offset and lets spreadMethod repeat inward as well as
   // outward. Degenerate periods become the final stop's solid color, matching
   // CSS Images' fix-up rather than inventing a minimum one-pixel ring.
-  let innerR = 0;
-  let outerR = rx;
-  let useRepeat = repeating;
-  if (repeating && emitStops.length >= 2) {
-    const firstPos = emitStops[0].pos;
-    const lastPos = emitStops[emitStops.length - 1].pos;
-    const period = lastPos - firstPos;
-    // `stopFmt` emits four fractional digits; periods smaller than half that
-    // precision would serialize both radii identically and become a zero-width
-    // SVG vector. Treat that as the CSS degenerate-period case deliberately.
-    if (period * rx > 5e-5) {
-      innerR = Math.max(0, firstPos * rx);
-      outerR = Math.max(innerR + Number.EPSILON, lastPos * rx);
-      emitStops = emitStops.map((s) => ({ ...s, pos: (s.pos - firstPos) / period }));
-    } else {
-      const solid = emitStops[emitStops.length - 1];
-      emitStops = [{ ...solid, pos: 0 }, { ...solid, pos: 1 }];
-      useRepeat = false;
-    }
-  }
+  const domain = normalizeRadialGradientDomain(
+    emitStops,
+    rx,
+    repeating,
+    interpolation.attribute.includes("linearRGB") ? "srgb-linear" : "srgb",
+  );
+  let innerR = domain.innerRadius;
+  let outerR = domain.outerRadius;
+  emitStops = domain.stops;
+  const useRepeat = domain.repeat;
 
   const spread = useRepeat ? ` spreadMethod="repeat"` : "";
   const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");

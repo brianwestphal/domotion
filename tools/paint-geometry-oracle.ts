@@ -8,7 +8,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { buildLinearGradientDef, buildRadialGradientDef, parseGradientStops } from "../src/render/gradient-defs.js";
+import { buildLinearGradientDef, buildRadialGradientDef, normalizeRadialGradientDomain, parseGradientStops } from "../src/render/gradient-defs.js";
 import { clipPathShapeForElement, clipReferenceBox, translateClipPath, type HtmlClipGeometryBox } from "../src/render/clip-path.js";
 import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } from "../src/render/mask.js";
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
@@ -109,6 +109,37 @@ function radialAndStopRows(): OracleRow[] {
   const repeatExpected = { fr: 10, r: 30, spread: "repeat", offsets: [0, 1] };
   const repeatActual = { fr: numberAttr(repeating, "fr"), r: numberAttr(repeating, "r"), spread: /spreadMethod="([^"]+)"/.exec(repeating)?.[1] ?? "", offsets: [...repeating.matchAll(/<stop offset="([^"]+)"/g)].map((m) => Number(m[1])) };
   rows.push({ id: "radial.repeating-positive-domain", stage: "gradient", source: "css_gradient_value.cc:506-653,809-824", expected: repeatExpected, actual: repeatActual, maxAbsDelta: maxDelta({ fr: 10, r: 30, offsets: [0, 1] }, { fr: repeatActual.fr, r: repeatActual.r, offsets: repeatActual.offsets }), pass: repeatActual.spread === "repeat" && maxDelta(repeatExpected.offsets, repeatActual.offsets) <= TOLERANCE && repeatActual.fr === 10 && repeatActual.r === 30 });
+
+  const opaqueStop = (pos: number, r: number, b: number) => ({ pos, color: { r, g: 0, b, a: 1 } });
+  const negativeRepeat = normalizeRadialGradientDomain([opaqueStop(-0.3, 255, 0), opaqueStop(-0.1, 0, 255)], 100, true);
+  const negativeRepeatExpected = { innerRadius: 10, outerRadius: 30, offsets: [0, 1], repeat: true };
+  const negativeRepeatActual = { innerRadius: negativeRepeat.innerRadius, outerRadius: negativeRepeat.outerRadius, offsets: negativeRepeat.stops.map((stop) => stop.pos), repeat: negativeRepeat.repeat };
+  const negativeRepeatDelta = maxDelta(negativeRepeatExpected, negativeRepeatActual);
+  rows.push({ id: "radial.repeating-negative-domain-shift", stage: "gradient", source: "css_gradient_value.cc:593-633,809-824", expected: negativeRepeatExpected, actual: negativeRepeatActual, maxAbsDelta: negativeRepeatDelta, pass: negativeRepeatDelta <= TOLERANCE });
+
+  const nonRepeat = normalizeRadialGradientDomain([opaqueStop(-0.2, 255, 0), opaqueStop(0.8, 0, 255)], 100, false);
+  const nonRepeatExpected = { innerRadius: 0, outerRadius: 80, offsets: [0, 1], boundaryColor: [204, 0, 51] };
+  const nonRepeatActual = { innerRadius: nonRepeat.innerRadius, outerRadius: nonRepeat.outerRadius, offsets: nonRepeat.stops.map((stop) => stop.pos), boundaryColor: [nonRepeat.stops[0].color.r, nonRepeat.stops[0].color.g, nonRepeat.stops[0].color.b] };
+  const nonRepeatDelta = maxDelta(nonRepeatExpected, nonRepeatActual);
+  rows.push({ id: "radial.non-repeating-negative-domain-clamp", stage: "gradient", source: "css_gradient_value.cc:549-588,809-824", expected: nonRepeatExpected, actual: nonRepeatActual, maxAbsDelta: nonRepeatDelta, pass: nonRepeatDelta <= TOLERANCE });
+
+  const linearLight = normalizeRadialGradientDomain([opaqueStop(-0.2, 255, 0), opaqueStop(0.8, 0, 255)], 100, false, "srgb-linear");
+  const linearExpected = [231, 0, 124];
+  const linearActual = [linearLight.stops[0].color.r, linearLight.stops[0].color.g, linearLight.stops[0].color.b];
+  const linearDelta = maxDelta(linearExpected, linearActual);
+  rows.push({ id: "radial.non-repeating-negative-domain-linear-light", stage: "gradient", source: "css_gradient_value.cc:549-588; Color::InterpolateColors", expected: linearExpected, actual: linearActual, maxAbsDelta: linearDelta, pass: linearDelta <= TOLERANCE });
+
+  const outOfRange = normalizeRadialGradientDomain([opaqueStop(0.2, 255, 0), opaqueStop(1.4, 0, 255)], 100, false);
+  const outOfRangeExpected = { innerRadius: 20, outerRadius: 140, offsets: [0, 1] };
+  const outOfRangeActual = { innerRadius: outOfRange.innerRadius, outerRadius: outOfRange.outerRadius, offsets: outOfRange.stops.map((stop) => stop.pos) };
+  const outOfRangeDelta = maxDelta(outOfRangeExpected, outOfRangeActual);
+  rows.push({ id: "radial.non-repeating-out-of-range-domain", stage: "gradient", source: "css_gradient_value.cc:490-547,630-633,809-824", expected: outOfRangeExpected, actual: outOfRangeActual, maxAbsDelta: outOfRangeDelta, pass: outOfRangeDelta <= TOLERANCE });
+
+  // Activation control: the former SVG-side clamp would produce [0, 0] for
+  // an entirely negative repeat interval. The source-transcribed domain must
+  // move both radii to the equivalent positive phase [10, 30].
+  const legacyClamp = { innerRadius: Math.max(0, -30), outerRadius: Math.max(0, -10) };
+  rows.push({ id: "radial.negative-domain-mutation-control", stage: "gradient", source: "css_gradient_value.cc:609-627", expected: { moved: true }, actual: { moved: negativeRepeat.innerRadius !== legacyClamp.innerRadius || negativeRepeat.outerRadius !== legacyClamp.outerRadius }, maxAbsDelta: 0, pass: negativeRepeat.innerRadius !== legacyClamp.innerRadius || negativeRepeat.outerRadius !== legacyClamp.outerRadius });
 
   const stopCases = [
     { id: "monotonic-clamp", tokens: ["red 70%", "green 20%", "blue"], expected: [0.7, 0.7, 1] },

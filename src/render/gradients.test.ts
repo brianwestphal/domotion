@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
-import { buildLinearGradientDef as buildBackgroundLinearGradientDef, buildRadialGradientDef as buildBackgroundRadialGradientDef } from "./gradient-defs.js";
+import { buildLinearGradientDef as buildBackgroundLinearGradientDef, buildRadialGradientDef as buildBackgroundRadialGradientDef, normalizeRadialGradientDomain } from "./gradient-defs.js";
 
 describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
   it("vertical top-to-bottom from()/to() form (slashdot mobile header)", () => {
@@ -163,6 +163,62 @@ describe("repeating radial gradient period geometry (DM-2290)", () => {
     );
     expect(svg).not.toContain("spreadMethod");
     expect((svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? [])).toHaveLength(2);
+  });
+});
+
+describe("radial gradient negative-domain normalization (DM-2326)", () => {
+  const stop = (pos: number, r: number, b: number) => ({ pos, color: { r, g: 0, b, a: 1 } });
+
+  it("shifts a negative repeating radius interval forward by whole periods", () => {
+    const domain = normalizeRadialGradientDomain([stop(-0.3, 255, 0), stop(-0.1, 0, 255)], 100, true);
+    expect(domain).toMatchObject({ innerRadius: 10, outerRadius: 30, repeat: true });
+    expect(domain.stops.map((value) => value.pos)).toEqual([0, 1]);
+  });
+
+  it("emits the shifted radii through the production SVG builder", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle 100px, red -30px, blue -10px", true, 0, 0, 200, 200,
+    );
+    expect(svg).toContain('fr="10"');
+    expect(svg).toContain('r="30"');
+    expect(svg).toContain('spreadMethod="repeat"');
+  });
+
+  it("shifts a straddling repeating interval without clamping its phase to zero", () => {
+    const domain = normalizeRadialGradientDomain([stop(-0.1, 255, 0), stop(0.1, 0, 255)], 100, true);
+    expect(domain).toMatchObject({ innerRadius: 10, outerRadius: 30, repeat: true });
+  });
+
+  it("interpolates the zero-radius color and contracts a non-repeating domain", () => {
+    const domain = normalizeRadialGradientDomain([stop(-0.2, 255, 0), stop(0.8, 0, 255)], 100, false);
+    expect(domain).toMatchObject({ innerRadius: 0, outerRadius: 80, repeat: false });
+    expect(domain.stops.map((value) => value.pos)).toEqual([0, 1]);
+    expect(domain.stops[0].color).toEqual({ r: 204, g: 0, b: 51, a: 1 });
+  });
+
+  it("emits the contracted non-repeating radius and boundary color", () => {
+    const svg = buildBackgroundRadialGradientDef(
+      "g", "circle 100px, rgb(255, 0, 0) -20px, rgb(0, 0, 255) 80px", false, 0, 0, 200, 200,
+    );
+    expect(svg).toContain('r="80"');
+    expect(svg).toContain('stop-color="rgb(204,0,51)"');
+  });
+
+  it("uses the declared linear-light space for the zero-radius boundary color", () => {
+    const domain = normalizeRadialGradientDomain([stop(-0.2, 255, 0), stop(0.8, 0, 255)], 100, false, "srgb-linear");
+    expect(domain.stops[0].color).toEqual({ r: 231, g: 0, b: 124, a: 1 });
+  });
+
+  it("expands a non-repeating domain whose final stop lies beyond the ending shape", () => {
+    const domain = normalizeRadialGradientDomain([stop(0.2, 255, 0), stop(1.4, 0, 255)], 100, false);
+    expect(domain).toMatchObject({ innerRadius: 20, outerRadius: 140, repeat: false });
+    expect(domain.stops.map((value) => value.pos)).toEqual([0, 1]);
+  });
+
+  it("collapses a coincident repeating interval to the final color", () => {
+    const domain = normalizeRadialGradientDomain([stop(-0.2, 255, 0), stop(-0.2, 0, 255)], 100, true);
+    expect(domain).toMatchObject({ innerRadius: 0, outerRadius: 100, repeat: false });
+    expect(domain.stops).toEqual([stop(0, 0, 255), stop(1, 0, 255)]);
   });
 });
 

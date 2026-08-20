@@ -175,6 +175,16 @@ whereas thicker dotted lines use inset round caps. After transcribing
 expanded scenarios pass 128/128 without changing a threshold or adding a
 per-case offset.
 
+The paint-geometry gate now also transcribes Blink's negative radial-gradient
+domain rather than relying on SVG stop clamping. Non-repeating gradients
+interpolate the zero-radius boundary color and resize the radius interval;
+repeating gradients shift a negative interval forward by an integral number of
+its own periods so the phase is unchanged and both radii are non-negative. The
+structured oracle compares the radii, normalized stops, and boundary color,
+while a mutation control proves the retired clamp moves. A live Chromium ring
+probe and a composed visual fixture independently validate wholly negative,
+zero-straddling, and non-repeating cases.
+
 ### Generated and metamorphic coverage
 
 Generators enumerate rules, not handpicked “interesting” values. Keep their

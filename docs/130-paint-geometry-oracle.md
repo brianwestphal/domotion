@@ -18,8 +18,9 @@ upgrade is visible as evidence drift rather than silently accepted.
 
 The generated corpus covers all four linear-gradient corner directions over
 landscape, portrait, and irregular non-square boxes; circle and ellipse radial
-ending shapes for closest/farthest side/corner behavior; a positive-domain
-repeating radial period; monotonic stop fixup, unspecified-stop distribution,
+ending shapes for closest/farthest side/corner behavior; positive, negative,
+and out-of-range radial domains for repeating and non-repeating gradients;
+monotonic stop fixup, unspecified-stop distribution,
 double-position stops, and Blink's nine-stop color-hint expansion; basic
 `inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; HTML border,
 padding, content/fill, margin, and half-border reference boxes; rounded
@@ -45,6 +46,20 @@ The gate includes a mutation control: that retired direct-corner construction
 must differ by more than one CSS pixel on the 300×100 discriminator. If it does
 not move, the corpus has stopped proving the branch it claims to test.
 
+Radial stop domains transcribe `ClampNegativeOffsets`,
+`NormalizeAndAddStops`, and `AdjustGradientRadiiForOffsetRange` from
+`css_gradient_value.cc:490-633,809-824`. A repeating interval whose inner
+radius is negative is shifted forward by an integral number of its own periods,
+preserving phase while making both SVG radii non-negative. A non-repeating
+interval interpolates its zero-radius boundary color, normalizes the stops, and
+moves the outer radius to the last stop. Boundary interpolation follows the
+declared sRGB or linear-light space rather than mixing serialized channels
+unconditionally. The structured gate includes the former SVG-side clamp as a
+mutation control, and the live-browser leg samples
+black/white/black rings that only the shifted domain predicts. The composed
+feature fixture covers wholly negative, zero-straddling, and non-repeating
+domains and is pixel-clean.
+
 Color-hint rows transcribe `ReplaceColorHintsWithColorStops`
 (`css_gradient_value.cc:266-399`) rather than treating SVG's limitation as
 permission to choose a different approximation. Chromium also emits nine
@@ -64,10 +79,9 @@ fail or dropping the layer.
 ## Boundaries and next expansion
 
 This gate does not yet claim exhaustive paint parity. Exact oracle rows still
-need to be added for negative/out-of-range radial stop domains, SVG-specific
-geometry boxes, and conic raster tiles. Those domains remain covered by unit
-and visual fixtures but do not gain an exact logical verdict from this oracle
-until their structured rows land.
+need to be added for SVG-specific geometry boxes and conic raster tiles. Those
+domains remain covered by unit and visual fixtures but do not gain an exact
+logical verdict from this oracle until their structured rows land.
 
 The live-browser leg validates that the pinned source transcription still
 describes the currently installed Chromium; it does not replace the structured
