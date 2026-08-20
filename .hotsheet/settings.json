@@ -40,6 +40,16 @@
       "type": "category",
       "key": "issue",
       "text": "Clarify the problem and its impact before acting. If it turns out to be a defect, add a test that guards against regressions; if it needs a larger change, file follow-up tickets for the work."
+    },
+    {
+      "type": "tag",
+      "key": "deep thought",
+      "text": "IF USING CLAUDE: Use a subagent running the Fable model for this ticket.\nIF USING CODEX: Use a subagent using Max reasoning level / effort for this ticket.\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution"
+    },
+    {
+      "type": "category",
+      "key": "investigation",
+      "text": "Investigate and write up your findings; recommend concrete next steps. Don't implement the change yet — file follow-up tickets for the work you'd propose."
     }
   ],
   "custom_commands": [
