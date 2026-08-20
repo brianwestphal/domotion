@@ -43,6 +43,8 @@ import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
 import { isIcuHelperAvailable } from "./icu-helper.js";
+import { recordSelectedFontRuns, recordTextEmitterTransition, type TextRunRequestDiagnostic } from "./text-run-provenance.js";
+export { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
@@ -95,6 +97,20 @@ import {
  * dual-direction scripts whose HarfBuzz script default is INVALID/LTR. */
 export function shapingDirectionAt(text: string, utf16Index: number): "ltr" | "rtl" {
   return ((bidiLevelsFor(text)?.[utf16Index] ?? 0) & 1) === 1 ? "rtl" : "ltr";
+}
+
+function recordRendererRuns(
+  emitter: "paths" | "embedded-font",
+  sourceText: string,
+  runs: FontRun[],
+  request: Omit<TextRunRequestDiagnostic, "direction">,
+): void {
+  for (const run of runs) {
+    recordSelectedFontRuns(emitter, sourceText, {
+      ...request,
+      direction: shapingDirectionAt(sourceText, run.startIdx),
+    }, [run]);
+  }
 }
 export * from "./font-resolution.js";
 
@@ -231,10 +247,12 @@ export function splitTextIntoGlyphPathRuns(
   /** CSS bidi override applied before Blink's script/run segmentation. */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
 ): FontRun[] {
-  if (clusterFallbackEnabled()) {
+  const clusterEnabled = clusterFallbackEnabled();
+  if (clusterEnabled) {
     const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths", features, bidiOverride });
     if (shaped != null) return shaped;
   }
+  const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = clusterEnabled ? "cluster-decline-legacy" : "cluster-disabled-legacy";
   const runs: FontRun[] = [];
   let curKey = primaryFontKey;
   let curFontOverride: FontInstance | null = null; // DM-557: per-codepoint webfont variant
@@ -345,7 +363,7 @@ export function splitTextIntoGlyphPathRuns(
       // that `resolveFont` injected from the family name (it's keyed on the
       // family, not the collapsed font key), re-emitting at the wrong cut.
       const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey, decomposed: curDecomposed });
+      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey, routeMechanism: legacyMechanism, decomposed: curDecomposed });
       curText = "";
       curStart = i;
     }
@@ -361,7 +379,7 @@ export function splitTextIntoGlyphPathRuns(
     // optical-cut opsz (injected by resolveFont from the family name) survives.
     const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
     const finalKey = curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey);
-    runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey, decomposed: curDecomposed });
+    runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey, routeMechanism: legacyMechanism, decomposed: curDecomposed });
   }
   for (const run of runs) {
     run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant,
@@ -502,6 +520,10 @@ function renderTextPathRuns(
       run.font = fontFeatureValueShapingOverride(run.font, run.fontKey, weight, fontSize, slant, fvs, features!);
     }
   }
+  recordRendererRuns("paths", text, runs, {
+    fontFamily, fontWeight: weight, fontStyle, fontStretch: stretch, fontSizePx: fontSize,
+    variationSettings, features, language: lang, fontVariantEmoji,
+  });
   // Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
   // resolves to the OpenType `smcp` feature but the active font lacks `smcp`
   // (Helvetica, Arial, SF Pro, Georgia, Times — all the body fonts we hit on
@@ -1692,10 +1714,12 @@ function splitTextIntoFontRuns(
   // 7d859f27) instead of the per-codepoint cmap walk below. A decline (null)
   // falls through to the legacy walk, and `DOMOTION_CLUSTER_FALLBACK=0`
   // restores it wholesale for an A/B. See docs/113-cluster-granularity-fallback.md.
-  if (clusterFallbackEnabled()) {
+  const clusterEnabled = clusterFallbackEnabled();
+  if (clusterEnabled) {
     const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { features, bidiOverride });
     if (shaped != null) return shaped;
   }
+  const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = clusterEnabled ? "cluster-decline-legacy" : "cluster-disabled-legacy";
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
   // codepoint in `text` in a single helper round-trip. The per-codepoint
@@ -1845,7 +1869,7 @@ function splitTextIntoFontRuns(
       // the optical-cut opsz (injected by resolveFont from the family name)
       // survives — re-resolving via the collapsed key would lose it.
       const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey });
+      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey, routeMechanism: legacyMechanism });
       curText = "";
       curStart = i;
     }
@@ -1859,7 +1883,7 @@ function splitTextIntoFontRuns(
     // DM-1103: prefer the resolved `primaryFont` for the primary key (keeps the
     // optical-cut opsz; see above).
     const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
-    runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey });
+    runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey, routeMechanism: legacyMechanism });
   }
   for (const run of runs) {
     run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant,
@@ -1968,6 +1992,10 @@ function renderEmbeddedGlyphRuns(
       run.font = fontFeatureValueShapingOverride(run.font, run.fontKey, weight, fontSize, slant, fvs, features!);
     }
   }
+  recordRendererRuns("embedded-font", text, runs, {
+    fontFamily, fontWeight: weight, fontStyle, fontStretch: stretch, fontSizePx: fontSize,
+    variationSettings, features, language: lang, fontVariantEmoji,
+  });
 
   // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
   // captured Chrome `fontBoundingBoxAscent` when provided (matches what
@@ -2840,7 +2868,11 @@ export function renderTextAsPath(
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
       textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
       fontSynthesis, bidiOverride);
-    if (embedded != null) return embedded;
+    if (embedded != null) {
+      recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
+      return embedded;
+    }
+    recordTextEmitterTransition({ kind: "embedded-declined-to-paths", sourceText: text });
   }
 
   // DM-1984: `-webkit-text-stroke` already occupies the stroke attributes, and
@@ -2853,7 +2885,11 @@ export function renderTextAsPath(
     && textStrokeColor != null && textStrokeColor !== "";
   const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
     wantsTextStroke ? undefined : { fill });
-  if (result == null || result.markup === "") return null;
+  if (result == null || result.markup === "") {
+    recordTextEmitterTransition({ kind: "paths-declined", sourceText: text });
+    return null;
+  }
+  recordTextEmitterTransition({ kind: "paths-succeeded", sourceText: text });
 
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (font == null) return null;

@@ -111,6 +111,7 @@ interface Assignment {
   key: string;
   font: FontInstance;
   isPrimary: boolean;
+  mechanism: NonNullable<FontRun["routeMechanism"]>;
   /** Substituted run text (decomposed resolver answers); default = source slice. */
   emitText?: string;
   /** Mirrors `FontRun.decomposed` — a substituted-text commit or a pinned
@@ -467,7 +468,7 @@ function pinnedDottedCircleSpans(
       } else {
         // `decomposed`: the glyph-path emitter must render this span via its
         // run-text branch (the whole ◌+mark cluster shapes as a unit).
-        spans.push({ start: i, end: i + ch.length, key: clusterRun.key, font: clusterRun.font, isPrimary: false, decomposed: true });
+        spans.push({ start: i, end: i + ch.length, key: clusterRun.key, font: clusterRun.font, isPrimary: false, mechanism: "dotted-circle-pin", decomposed: true });
       }
     }
     i += ch.length;
@@ -499,6 +500,7 @@ interface Candidate {
   font: FontInstance;
   face: HbFace;
   isPrimary: boolean;
+  mechanism: NonNullable<FontRun["routeMechanism"]>;
   /** Segmented-webfont range set — clusters containing an out-of-range
    *  character read `.notdef` with this face (Blink passes the face's range
    *  set into `ShapeRange`, `harfbuzz_shaper.cc:1119`). */
@@ -680,13 +682,13 @@ function splitShapedInner(
       return _hasNonTextFallbackPriorityForTest(hint, next, fontVariantEmoji);
     };
 
-    const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, vs?: Record<string, number>): Candidate => {
+    const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, mechanism: NonNullable<FontRun["routeMechanism"]>, vs?: Record<string, number>): Candidate => {
       const face = isPrimary ? primaryFace : hbFaceFor(font, key, weight, fontSize, slant, vs);
       // A candidate HarfBuzz cannot open cannot take this mechanism at all —
       // decline the whole split so the legacy path (which can consult the
       // native helper's coverage) keeps its behavior.
       if (face == null || face.faceIndex == null) throw new DeclineError();
-      return { key, font, face, isPrimary, clampRanges };
+      return { key, font, face, isPrimary, mechanism, clampRanges };
     };
 
     type Picked = Candidate | { decomposedCommit: { hint: number; key: string; font: FontInstance; emitCh: string } } | null;
@@ -732,7 +734,7 @@ function splitShapedInner(
                 // remains primary for CSS axis/feature application. The
                 // concrete-instance check above is narrower: it only decides
                 // when the caller's already-instanced Font object can be reused.
-                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, clampRanges: ranges ?? null };
+                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, mechanism: "declared-family", clampRanges: ranges ?? null };
                 if (firstCandidate == null) firstCandidate = cand;
                 return cand;
               }
@@ -743,7 +745,7 @@ function splitShapedInner(
             const inst = entry.inst ?? getFontInstance(entry.key, weight, fontSize, slant);
             if (inst == null) break;
             const isPrimary = entry.key === primaryFontKey && inst === primaryFont;
-            const cand = candidateFor(entry.key, inst, isPrimary, inst.webfontUnicodeRange ?? null, isPrimary ? variationSettings : undefined);
+            const cand = candidateFor(entry.key, inst, isPrimary, inst.webfontUnicodeRange ?? null, "declared-family", isPrimary ? variationSettings : undefined);
             const identity = `${cand.face.path}#${cand.face.faceIndex}`;
             if (cand.clampRanges == null) {
               if (returnedFaces.has(identity)) break;
@@ -763,7 +765,7 @@ function splitShapedInner(
             if (key == null) break;
             const font = getFontInstance(key, weight, fontSize, slant);
             if (font == null) break;
-            const cand = candidateFor(key, font, false, null);
+            const cand = candidateFor(key, font, false, null, "priority-emoji");
             const identity = `${cand.face.path}#${cand.face.faceIndex}`;
             if (returnedFaces.has(identity)) break;
             returnedFaces.add(identity);
@@ -803,7 +805,7 @@ function splitShapedInner(
               // substituted text. Not a Blink stage — see the module header.
               return { decomposedCommit: { hint, key: res.key, font, emitCh: res.emitCh } };
             }
-            const cand = candidateFor(res.key, font, false, null);
+            const cand = candidateFor(res.key, font, false, null, "system-resolver");
             const identity = `${cand.face.path}#${cand.face.faceIndex}`;
             if (returnedFaces.has(identity)) { iter.stage = "lastResort"; break; }
             returnedFaces.add(identity);
@@ -820,7 +822,7 @@ function splitShapedInner(
             for (const key of lastResortKeys()) {
               const inst = getFontInstance(key, weight, fontSize, slant);
               if (inst == null) continue;
-              const cand = candidateFor(key, inst, false, null);
+              const cand = candidateFor(key, inst, false, null, "last-resort");
               const identity = `${cand.face.path}#${cand.face.faceIndex}`;
               if (returnedFaces.has(identity)) break; // duplicate → first candidate
               returnedFaces.add(identity);
@@ -833,7 +835,7 @@ function splitShapedInner(
             // kFirstCandidateForNotdefGlyph: re-return the FIRST candidate so
             // ITS `.notdef` paints (`font_fallback_iterator.cc:159-164`).
             iter.stage = "outOfLuck";
-            return firstCandidate;
+            return firstCandidate == null ? null : { ...firstCandidate, mechanism: "first-candidate-notdef" };
           }
           case "outOfLuck":
             return null;
@@ -868,7 +870,7 @@ function splitShapedInner(
             const len = cp > 0xffff ? 2 : 1;
             if (cp === hint) {
               if (i > cursor) nextQueue.push({ start: cursor, end: i });
-              assignments.push({ start: i, end: i + chLen, key, font, isPrimary: false, emitText: emitCh, decomposed: true });
+              assignments.push({ start: i, end: i + chLen, key, font, isPrimary: false, mechanism: "decomposed-commit", emitText: emitCh, decomposed: true });
               cursor = i + chLen;
             }
             i += len;
@@ -899,7 +901,7 @@ function splitShapedInner(
         if (verdicts == null) {
           // Unshapeable with this font — the whole range stays queued (or
           // terminally commits to the first candidate below when isLast).
-          if (isLast) assignments.push({ start: range.start, end: range.end, key: current.key, font: current.font, isPrimary: current.isPrimary });
+          if (isLast) assignments.push({ start: range.start, end: range.end, key: current.key, font: current.font, isPrimary: current.isPrimary, mechanism: current.mechanism });
           else nextQueue.push(range);
           continue;
         }
@@ -939,7 +941,7 @@ function splitShapedInner(
             }
           }
           if (ok || isLast) {
-            assignments.push({ ...abs, key: current.key, font: current.font, isPrimary: current.isPrimary });
+            assignments.push({ ...abs, key: current.key, font: current.font, isPrimary: current.isPrimary, mechanism: current.mechanism });
           } else {
             nextQueue.push(abs);
           }
@@ -971,8 +973,8 @@ function splitShapedInner(
     // Anything still queued after a defensive break paints the FIRST
     // candidate's `.notdef` (kFirstCandidateForNotdefGlyph's terminal).
     for (const r of queue) {
-      const fc = firstCandidate ?? { key: primaryFontKey, font: primaryFont, isPrimary: true } as { key: string; font: FontInstance; isPrimary: boolean };
-      assignments.push({ start: r.start, end: r.end, key: fc.key, font: fc.font, isPrimary: fc.isPrimary });
+      const fc = firstCandidate ?? { key: primaryFontKey, font: primaryFont, isPrimary: true };
+      assignments.push({ start: r.start, end: r.end, key: fc.key, font: fc.font, isPrimary: fc.isPrimary, mechanism: "first-candidate-notdef" });
     }
   }
 
@@ -996,12 +998,13 @@ function splitShapedInner(
     // merged mixed run would index the source text with substituted characters.
     // Embedded keeps its shipped merge (it always renders `run.text`).
     if (last != null && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start
+        && last.routeMechanism === a.mechanism
         && (!pathsMode || (last.decomposed === true) === aDecomposed)) {
       last.endIdx = a.end;
       last.text += aText;
       if (aDecomposed) last.decomposed = true;
     } else {
-      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, ...(aDecomposed ? { decomposed: true } : {}) });
+      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });
     }
   }
   // Production shaping is consolidated on the Chromium-configured HarfBuzz

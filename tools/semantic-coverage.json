@@ -36,23 +36,26 @@
       "productionOwners": [
         "src/render/font-resolution.ts",
         "src/render/cluster-fallback.ts",
-        "src/render/glyph-helper.ts"
+        "src/render/glyph-helper.ts",
+        "src/render/text-run-provenance.ts"
       ],
       "oracles": [
         "tools/font-conformance.ts",
         "tools/exact-shaping-oracle.ts",
-        "tools/unified-shaping-oracle.ts"
+        "tools/unified-shaping-oracle.ts",
+        "tools/renderer-font-route-oracle.ts"
       ],
       "metamorphicTests": [
         "src/render/font-stack-availability.test.ts",
-        "src/render/cluster-fallback-features.test.ts"
+        "src/render/cluster-fallback-features.test.ts",
+        "src/render/text-run-provenance.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#text-system-ui-cjk-fallback",
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and the production bypass audit exist, but production lacks the per-run provenance ledger/oracle specified by doc 142; generic preference profiles remain incomplete and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist; generic preference profiles remain incomplete, the renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"

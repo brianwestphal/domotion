@@ -9,6 +9,7 @@ mkdirSync(out, { recursive: true });
 const tsx = resolve("node_modules/.bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
 const runs: Array<[string, string]> = [
   ["shaping-clusters-glyphs", "tools/unified-shaping-oracle.ts"],
+  ["renderer-font-route", "tools/renderer-font-route-oracle.ts"],
   ["text-layout-placement", "tools/layout-stage-oracle.ts"],
   ["text-decoration", "tools/decoration-oracle.ts"],
   ["borders-outlines", "tools/border-phase-oracle.ts"],
@@ -30,9 +31,17 @@ for (const [area, tool] of runs) {
   } catch { /* explicit missing status in the manifest */ }
 }
 
-// The unified report deliberately contains both CDP's painted-face evidence and
-// the helper/HarfBuzz glyph records, so one raw artifact serves both stages.
+// Font selection must pass both instruments: the broad unified face/shaping
+// report and the production-funnel route ledger. Keep the raw child reports in
+// the composite so review never loses which boundary failed.
 try {
-  const report = JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8")) as Record<string, unknown>;
-  writeFileSync(resolve(out, "font-selection.json"), JSON.stringify({ ...report, evidenceOracle: "tools/unified-shaping-oracle.ts" }, null, 2));
+  const unified = JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8")) as Record<string, unknown>;
+  const renderer = JSON.parse(readFileSync(resolve(out, "renderer-font-route.json"), "utf8")) as Record<string, unknown>;
+  writeFileSync(resolve(out, "font-selection.json"), JSON.stringify({
+    evidenceOracle: "tools/unified-shaping-oracle.ts + tools/renderer-font-route-oracle.ts",
+    evidencePassed: unified.evidencePassed === true && renderer.evidencePassed === true,
+    pairs: unified.pairs,
+    records: unified.records,
+    rendererRoute: renderer,
+  }, null, 2));
 } catch { /* explicit missing status in the manifest */ }

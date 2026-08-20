@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt160m11psisjyxb",
+          "message": {
+            "text": "The production-funnel oracle exercises both emitters plus declared, system, emoji-priority, dotted-circle, terminal-notdef, feature, and disabled-cluster transitions. It withholds the verdict unless every selected Domotion PostScript face occurs in Chromium CDP evidence and every mutation/control is live. The collected macOS report passed all nine cases; this is representative transition evidence, not a claim of exhaustive host-font coverage.",
+            "markdown": "The production-funnel oracle exercises both emitters plus declared, system, emoji-priority, dotted-circle, terminal-notdef, feature, and disabled-cluster transitions. It withholds the verdict unless every selected Domotion PostScript face occurs in Chromium CDP evidence and every mutation/control is live. The collected macOS report passed all nine cases; this is representative transition evidence, not a claim of exhaustive host-font coverage."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/renderer-font-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 106,
+                  "endLine": 131,
+                  "snippet": {
+                    "text": "    const byId = new Map(records.map((record) => [record.input.id, record]));\n    const mechanisms = [...new Set(records.flatMap((record) => record.domotion.runs.map((run) => run.mechanism)))];\n    const controls = {\n      emitter: byId.get(\"declared-paths\")!.domotion.runs.some((run) => run.emitter === \"paths\")\n        && byId.get(\"embedded\")!.domotion.runs.some((run) => run.emitter === \"embedded-font\"),\n      clusterFallback: byId.get(\"legacy-disabled\")!.domotion.runs.some((run) => run.mechanism === \"cluster-disabled-legacy\"),\n      features: JSON.stringify(byId.get(\"feature-on\")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id)))\n        !== JSON.stringify(byId.get(\"feature-off\")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),\n      paintedOrigins: records.every((record) => record.chrome.origins.length > 0),\n    };\n    const complete = records.every((record) => record.domotion.runs.length > 0 || record.domotion.transitions.length > 0)\n      && records.every((record) => record.comparison.faceAgreement.every((agreement) => agreement === true))\n      && Object.values(controls).every(Boolean);\n    const report = {\n      schemaVersion: 1,\n      stage: \"production-text-run-provenance\",\n      sourceRevision: \"chromium:7d859f271cbda744098ac69f44978d4edfa62be3\",\n      verdict: complete ? \"evidence-complete\" : \"verdict-withheld\",\n      environment: parityEnvironment({ corpusIdentity: \"renderer-font-route-v1\", sampleIdentity: cases.map((item) => item.id).join(\",\") }),\n      mechanisms,\n      controls,\n      records,\n    };\n    if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));\n    console.log(`renderer font-route evidence: ${records.length} cases; mechanisms ${mechanisms.join(\", \")}; controls ${JSON.stringify(controls)}`);\n    return complete ? 0 : 1;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2398"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "396f0814e9fd10b9ec011880e4763503"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "docs/143-production-text-run-provenance.md",
+                "properties": {
+                  "ext-sha256": "6c40d0d9b9575847344e66a602178a325fcc3795448891e12016bcbafcbc9edc"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d42b3ac7c9d960af829d915ad60628885bcce32f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

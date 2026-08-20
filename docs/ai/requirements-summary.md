@@ -37,7 +37,12 @@ Doc 142 establishes that isolated resolver agreement proves only Blink's
 system-font iterator stage. Exact renderer parity additionally requires
 per-shaped-run provenance across declared/priority faces, cluster requeue,
 dotted-circle/decomposition owners, embedded/path transitions, raster overlays,
-and raw-text fallback; DM-2398 and DM-2399 own the missing gates.
+and raw-text fallback; that audit produced DM-2398 and DM-2399.
+Doc 143 ships DM-2398's opt-in production ledger and Chromium-joined route
+oracle. Demo-review font-selection evidence passes only when both this
+representative production-funnel gate and the broader unified report pass;
+every new assignment owner or emitter transition requires its own route case
+and independent mutation control.
 
 The doc-116 text-layout stage is an exact CI gate: a generated covering array
 compares direct Chromium `Range` origins with production-captured

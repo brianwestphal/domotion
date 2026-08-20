@@ -4,15 +4,15 @@
   "areas": [
     {
       "id": "font-selection",
-      "domotionSources": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts"],
+      "domotionSources": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts", "src/render/text-run-provenance.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts"],
       "oracle": "tools/font-conformance.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Remaining baseline mismatches and inventory-sensitive helper-absent paths are classified in docs 107 and 128.",
-      "nextAction": "Keep the all-platform integration loop as a release gate and extend the exact stage oracle when Chromium changes a fallback stage."
+      "knownGap": "The exhaustive resolver oracle and representative renderer-route oracle prove different stages; helper-absent paths remain intentionally degraded and full renderer-route transition enumeration is expanded alongside new mechanisms.",
+      "nextAction": "Keep both resolver and renderer-route instruments green on all platforms and add a route case/control whenever production gains a new assignment or emitter transition."
     },
     {
       "id": "unicode-decisions",
@@ -35,8 +35,8 @@
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "derived run corpus plus discriminating cluster fixtures and negative controls",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "CDP does not expose Chromium glyph IDs, and production emission does not yet retain a per-source-span ledger linking its iterator mechanism and selected source face to emitted path/subset glyph identity. The unified record preserves the CDP boundary, while doc 142 inventories the remaining renderer seam.",
-      "nextAction": "DM-2398: add the production text-run provenance ledger, join it to unified Chromium evidence, and prove every assignment/emitter transition with independent controls."
+      "knownGap": "CDP does not expose Chromium glyph IDs. The unified record preserves that boundary, while the production ledger records the actual selected source, mechanism, shaped glyph data, emitter identity, and embedded-to-path transition for representative runs.",
+      "nextAction": "Extend the production route corpus and independent controls whenever a new assignment owner, shaping input, or emitter transition is added."
     },
     {
       "id": "text-layout-placement",

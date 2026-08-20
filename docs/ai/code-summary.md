@@ -34,6 +34,9 @@ consumed by those stage-evidence artifacts; its lower-level exact glyph leg is
 `docs/142-renderer-font-route-audit.md` inventories every production
 face-assignment/emission owner and the missing per-run provenance seam between
 those oracles and emitted glyphs.
+`src/render/text-run-provenance.ts` and
+`tools/renderer-font-route-oracle.ts` close that seam for representative
+production runs without adding overhead unless explicitly enabled (doc 143).
 
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:

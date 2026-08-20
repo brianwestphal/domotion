@@ -534,6 +534,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt160m1hjbyy5ww1",
+          "message": {
+            "text": "Route ownership is attached at the point each Blink fallback-iterator analogue actually returns a candidate. Propagating that label with FontRun—and preventing merges across mechanism boundaries—preserves whether the emitted face came from CSS family iteration, priority fallback, system fallback, last resort, or the first-candidate .notdef terminal.",
+            "markdown": "Route ownership is attached at the point each Blink fallback-iterator analogue actually returns a candidate. Propagating that label with FontRun—and preventing merges across mechanism boundaries—preserves whether the emitted face came from CSS family iteration, priority fallback, system fallback, last resort, or the first-candidate .notdef terminal."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 798,
+                  "endLine": 838,
+                  "snippet": {
+                    "text": "            const res = resolveFontForCodepoint(hint, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);\n            if (!res.covered) { iter.stage = \"lastResort\"; break; }\n            const font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));\n            if (font == null) { iter.stage = \"lastResort\"; break; }\n            if (res.decomposed) {\n              // A calibrated per-codepoint substitution (math-alpha base,\n              // cross-font NFD): commit the hint character itself with the\n              // substituted text. Not a Blink stage — see the module header.\n              return { decomposedCommit: { hint, key: res.key, font, emitCh: res.emitCh } };\n            }\n            const cand = candidateFor(res.key, font, false, null, \"system-resolver\");\n            const identity = `${cand.face.path}#${cand.face.faceIndex}`;\n            if (returnedFaces.has(identity)) { iter.stage = \"lastResort\"; break; }\n            returnedFaces.add(identity);\n            if (firstCandidate == null) firstCandidate = cand;\n            return cand;\n          }\n          case \"lastResort\": {\n            // \"we only have the last resort font left\" —\n            // `font_fallback_iterator.cc:143-157`: the stage advances to\n            // kFirstCandidateForNotdefGlyph BEFORE the last-resort face is\n            // returned, and the face is still deduped (a Times primary skips\n            // straight to the first candidate).\n            iter.stage = \"firstCandidate\";\n            for (const key of lastResortKeys()) {\n              const inst = getFontInstance(key, weight, fontSize, slant);\n              if (inst == null) continue;\n              const cand = candidateFor(key, inst, false, null, \"last-resort\");\n              const identity = `${cand.face.path}#${cand.face.faceIndex}`;\n              if (returnedFaces.has(identity)) break; // duplicate → first candidate\n              returnedFaces.add(identity);\n              if (firstCandidate == null) firstCandidate = cand;\n              return cand;\n            }\n            break;\n          }\n          case \"firstCandidate\": {\n            // kFirstCandidateForNotdefGlyph: re-return the FIRST candidate so\n            // ITS `.notdef` paints (`font_fallback_iterator.cc:159-164`).\n            iter.stage = \"outOfLuck\";\n            return firstCandidate == null ? null : { ...firstCandidate, mechanism: \"first-candidate-notdef\" };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2398"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f7356253dd790c48d78fdcb5a67c891f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d42b3ac7c9d960af829d915ad60628885bcce32f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

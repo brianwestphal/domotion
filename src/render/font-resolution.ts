@@ -114,6 +114,8 @@ export interface FontInstance {
   layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl"): {
     glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>;
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+    clusters?: number[];
+    glyphFlags?: number[];
   };
   unitsPerEm: number;
   ascent: number;
@@ -10583,6 +10585,10 @@ export interface FontRun {
   startIdx: number;
   endIdx: number;
   isPrimary: boolean;
+  /** Selection owner recorded by the renderer-facing provenance oracle. */
+  routeMechanism?: "declared-family" | "priority-emoji" | "system-resolver" | "last-resort"
+    | "first-candidate-notdef" | "dotted-circle-pin" | "decomposed-commit"
+    | "cluster-disabled-legacy" | "cluster-decline-legacy";
   /** The run's `text` is not the source slice `[startIdx, endIdx)` — a
    *  decomposed resolver substitution (Math-Alphanumeric base letter, cross-font
    *  NFD) or a dotted-circle cluster shaped through real HarfBuzz. The

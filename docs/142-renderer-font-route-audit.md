@@ -1,6 +1,6 @@
 # Renderer font-route audit
 
-Status: **Investigation complete (DM-2348)**
+Status: **Investigation complete (DM-2348); renderer ledger shipped in DM-2398**
 
 Source baseline: Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a91`. This audit is deliberately about the production
@@ -56,22 +56,21 @@ may be preceded by a declared or priority face.
    path, dotted-circle pinning, decomposed commits, and emoji priority. The
    existing DM-2387, DM-2393, DM-2392, and DM-2330 tickets already own their
    logical reconciliation; this audit does not duplicate them.
-4. **Current artifacts cannot prove the end-to-end claim.** Paths mode loses
-   face provenance when glyph definitions receive global `gN` IDs. Embedded
-   mode reports aggregate builder provenance only after a successful build.
-   Neither records why the shaped splitter declined, why embedded mode fell
-   back, or which source span used which mechanism.
-5. **No new production face divergence was proven by static/source audit.** The
-   unresolved issue is observability, not evidence that a particular current
-   run is wrong. DM-2398 must add a renderer ledger and join it to the unified
-   Chromium evidence before this area can claim exact end-to-end coverage.
+4. **DM-2398 closed the representative observability gap.** The opt-in
+   production ledger now retains per-span mechanism, concrete source, shaping,
+   emitter identity, and embedded-to-path transition evidence and joins its
+   representative cases to Chromium faces/origins. The corpus remains
+   representative rather than exhaustive (doc 143).
+5. **No new production face divergence was proven by static/source audit or the
+   first renderer ledger.** Future assignment owners must add a route case and
+   independent control before they can inherit that claim.
 6. **Raw `<text>` fallback is a separate correctness risk.** It delegates a
    second face-selection pass to the SVG consumer, which need not have the
    capture host's font inventory or fallback rules. DM-2399 isolates that work.
 
 ## Required renderer-facing record
 
-DM-2398 should record, per source span, the request tuple; segment and decision
+DM-2398 records, per source span, the request tuple; segment and decision
 mechanism; selected logical key; concrete source path, collection member,
 PostScript name, and axes from `getFontSourceInfo`; HarfBuzz glyph IDs, clusters,
 advances, and offsets; emitter mode; embedded builder/subset identity or path
@@ -80,6 +79,6 @@ each mechanism move independently. The final comparison must join those records
 to Chromium painted faces and origins from the DM-2341 unified oracle, while
 retaining the standalone resolver oracle as the narrower system-stage proof.
 
-Related follow-ups: DM-2398 (renderer ledger/oracle), DM-2399 (raw-text
+Related implementation/follow-ups: DM-2398 (renderer ledger/oracle), DM-2399 (raw-text
 rerouting), DM-2387 (cluster state machine), DM-2393 (dotted circles), DM-2392
 (emoji ownership), and DM-2330 (`font-variant-emoji`).

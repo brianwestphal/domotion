@@ -75,6 +75,7 @@
     "fonts:shaper-ab": "tsx tools/shape-agreement.ts",
     "fonts:shaping:exact": "tsx tools/exact-shaping-oracle.ts",
     "fonts:shaping:unified": "tsx tools/unified-shaping-oracle.ts",
+    "fonts:renderer-route": "tsx tools/renderer-font-route-oracle.ts",
     "fonts:layout:oracle": "tsx tools/layout-stage-oracle.ts",
     "fonts:family-match": "tsx tools/family-match-conformance.ts",
     "fonts:family-match:linux": "tsx tools/family-match-conformance-linux.ts",
