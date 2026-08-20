@@ -198,7 +198,7 @@ function selectedRasterSpansForSegment(
   el: CapturedElement,
   seg: RasterTextSeg,
   spans: Array<{ start: number; end: number }>,
-): Array<{ start: number; end: number }> {
+): ReturnType<typeof selectedGlyphRasterSpans> {
   return selectedGlyphRasterSpans(seg.text, spans, {
     fontSize: seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14),
     fontFamily: seg.fontFamily ?? el.styles.fontFamily,
@@ -653,6 +653,28 @@ export async function rasterizeBitmapGlyphs(
                 end: g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1)),
               })),
             );
+            // CBDT/CBLC glyphs are strike bitmaps whose ink bounds are not
+            // exposed by CSSOM Range geometry. Chromium/Skia may paint the
+            // strike outside the character advance (Noto Color Emoji does on
+            // Linux), so clipping a per-glyph screenshot to that Range loses
+            // real pixels. Until the helper transports the selected strike's
+            // bitmap metrics, preserve Chromium's paint ownership by
+            // screenshotting this one line fragment as the established
+            // segment-level raster boundary. This is keyed to the selected
+            // glyph representation, never to a platform, font name, or
+            // codepoint.
+            if (selected.some((span) => span.representation === "bitmap")) {
+              const rect = { x: seg.x, y: seg.y, width: seg.width, height: seg.height };
+              seg.rasterRect = rect;
+              seg.rasterGlyphs = structural.length > 0 ? structural : undefined;
+              candidates.push({
+                rect,
+                key: `seg-bitmap|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${rect.width}x${rect.height}`,
+                setDataUri: (uri) => { seg.rasterDataUri = uri; },
+                snapRectToClip: true,
+              });
+              continue;
+            }
             const selectedKeys = new Set(selected.map((span) => `${span.start}:${span.end}`));
             const raster = paintCandidates.filter((g) => {
               const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { glyphUsesRasterRepresentation } from "./text-to-path.js";
+import { glyphRasterRepresentation, glyphUsesRasterRepresentation } from "./text-to-path.js";
 import type { FontInstance } from "./font-resolution.js";
 
 const outline = [{ command: "moveTo", args: [0, 0] }];
@@ -23,6 +23,8 @@ describe("selected glyph raster representation", () => {
     expect(glyphUsesRasterRepresentation(font({ CBDT: {} }), "x", glyph(1, []), 32)).toBe(false);
     expect(glyphUsesRasterRepresentation(font({ COLR: {} }), "x", glyph(1, []), 32)).toBe(false);
     expect(glyphUsesRasterRepresentation(font({ CPAL: {} }), "x", glyph(1, []), 32)).toBe(false);
+    expect(glyphRasterRepresentation(font({ CBDT: {}, CBLC: {} }), "x", glyph(1, []), 32)).toBe("bitmap");
+    expect(glyphRasterRepresentation(font({ COLR: {}, CPAL: {} }), "x", glyph(1, []), 32)).toBe("colr");
   });
 
   it("uses the selected sbix glyph image, not face naming", () => {

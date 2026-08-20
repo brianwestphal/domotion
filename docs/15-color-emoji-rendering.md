@@ -35,7 +35,7 @@ dataUri? }`, where the UTF-16 length makes whole-cluster suppression exact.
 
 1. **Apple Color Emoji's `sbix` table** (preferred on macOS). `extractEmojiBitmap(codepoint, paintedWidthPx)` opens `/System/Library/Fonts/Apple Color Emoji.ttc` once (lazy + cached), looks up the glyph via `font.glyphForCodePoint(cp)`, and calls fontkit's `glyph.getImageForSize(ppem)` which returns the embedded PNG bytes for that strike directly. The strike is picked adaptively as `max(64, paintedWidthPx × 3)` rounded up to the nearest available strike (20, 26, 32, 40, 48, 52, 64, 96, 160 ppem). For a typical 18-20px painted rect this lands on the 64-ppem strike (~6KB embedded) which gives ~3× supersampling — sharp through 1×-2× DPR rasterization without bloating file size. Going larger (160-ppem ~24KB) would supersample 8× but adds 18KB per emoji for diminishing visual gain.
 
-2. **Page screenshot** (fallback, was previously the only source). For codepoints Apple Color Emoji doesn't cover (text-presentation dingbats like ✓ U+2713 / ✗ U+2717, ZWJ sequences, regional-indicator pairs that need pair-shaping) and for non-darwin platforms where the .ttc isn't available, fall back to `page.screenshot({ clip: rect })`. The screenshot is at the page's capture DPR (typically 1×) so it matches Chrome's painted output exactly but is visibly soft when the SVG is rasterized at >1×.
+2. **Page screenshot** (fallback, was previously the only source). For selected glyph representations that Domotion cannot emit directly, capture Chromium's paint. Outline-independent formats normally use the selected cluster rect. CBDT/CBLC is different: CSSOM exposes the character advance/line geometry, not FreeType's strike bitmap bounds, and Noto Color Emoji can paint outside that rect. A selected CBDT glyph therefore promotes the containing line fragment to the existing segment-level screenshot boundary. This preserves every painted pixel without a platform, family-name, or codepoint rule; the helper's selected representation is the discriminator. The screenshot is exact at capture DPR but visibly soft when enlarged.
 
 The sbix path activates only when:
 
@@ -117,9 +117,10 @@ separate selected-glyph output capability. See
 
 ## Known gaps
 
-- **Non-sbix formats use screenshots.** Linux CBDT, Windows COLR, OpenType SVG,
-  custom color webfonts, and multi-codepoint clusters are captured from the
-  page's selected paint. This is exact at capture DPR but softer if enlarged.
+- **Non-sbix formats use screenshots.** COLR, OpenType SVG, custom color
+  webfonts, and multi-codepoint clusters are captured from the selected paint.
+  CBDT/CBLC promotes its line fragment because CSSOM does not expose strike
+  ink bounds. These are exact at capture DPR but softer if enlarged.
 - **Helper-absent mode is approximate.** The app remains non-fatal, but pinned
   ICU properties and native face-table evidence are official-helper features;
   host Unicode/fontkit provide best effort without them.

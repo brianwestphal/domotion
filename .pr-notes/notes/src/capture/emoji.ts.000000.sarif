@@ -90,6 +90,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1b3qy3f8z8jwzn",
+          "message": {
+            "text": "CBDT promotion is driven by the selected glyph representation because CSSOM Range geometry exposes the advance and line box, not the embedded strike's ink bounds. The Linux helper-backed route probe selected Noto Color Emoji and classified its glyphs as bitmap correctly, while the per-glyph clip visibly removed strike pixels; capturing the containing line fragment preserves Chromium's exact paint without inspecting the platform, family name, or Unicode value.",
+            "markdown": "CBDT promotion is driven by the selected glyph representation because CSSOM Range geometry exposes the advance and line box, not the embedded strike's ink bounds. The Linux helper-backed route probe selected Noto Color Emoji and classified its glyphs as bitmap correctly, while the per-glyph clip visibly removed strike pixels; capturing the containing line fragment preserves Chromium's exact paint without inspecting the platform, family name, or Unicode value."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 656,
+                  "endLine": 676,
+                  "snippet": {
+                    "text": "            // CBDT/CBLC glyphs are strike bitmaps whose ink bounds are not\n            // exposed by CSSOM Range geometry. Chromium/Skia may paint the\n            // strike outside the character advance (Noto Color Emoji does on\n            // Linux), so clipping a per-glyph screenshot to that Range loses\n            // real pixels. Until the helper transports the selected strike's\n            // bitmap metrics, preserve Chromium's paint ownership by\n            // screenshotting this one line fragment as the established\n            // segment-level raster boundary. This is keyed to the selected\n            // glyph representation, never to a platform, font name, or\n            // codepoint.\n            if (selected.some((span) => span.representation === \"bitmap\")) {\n              const rect = { x: seg.x, y: seg.y, width: seg.width, height: seg.height };\n              seg.rasterRect = rect;\n              seg.rasterGlyphs = structural.length > 0 ? structural : undefined;\n              candidates.push({\n                rect,\n                key: `seg-bitmap|${seg.text}|${seg.color ?? \"\"}|${seg.fontSize ?? \"\"}|${seg.fontWeight ?? \"\"}|${rect.width}x${rect.height}`,\n                setDataUri: (uri) => { seg.rasterDataUri = uri; },\n                snapRectToClip: true,\n              });\n              continue;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2765
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2330"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1ad8e0580b5653f34eae6554ef0f356b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e1c8b72dec645d398718b828f3d3dab300997ba8",
+          "branch": "validation/dm-2330"
+        }
+      ]
     }
   ]
 }
