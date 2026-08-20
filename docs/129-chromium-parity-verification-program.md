@@ -48,6 +48,15 @@ upstream mechanism has been traced; it does not imply exhaustive inputs.
 does not imply pixel equality. `visual-only` explicitly identifies areas where
 the present evidence cannot establish algorithmic parity.
 
+Parity tickets whose governing logic is genuinely ambiguous carry Hot Sheet's
+`Deep Thought` tag before work begins. The tag selects Max reasoning effort for
+source-heavy reconstruction, multi-subsystem architectural analysis, competing
+hypotheses without a cheap discriminator, and high-regression-risk audits. It
+is not a size or duration label: a long CI sweep or a straightforward
+transcription from a clear upstream branch does not qualify by itself. Ticket
+creation and auto-prioritization both reassess this threshold so newly exposed
+deep investigations receive the context automatically.
+
 ## Evidence required for a strong parity claim
 
 An area approaches complete logical confidence only when all of the following

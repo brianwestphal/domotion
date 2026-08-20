@@ -16,6 +16,14 @@ Work through them in order of priority, where reasonable.
 
 If the worklist says "Auto-Prioritize", follow those instructions to choose and mark tickets as Up Next before working on them.
 
+While creating or prioritizing tickets, apply the `Deep Thought` tag when the
+work genuinely requires Max reasoning effort: ambiguous upstream-source
+reconstruction, multi-subsystem architectural judgment, competing logical
+hypotheses that resist cheap discrimination, or a high-risk parity audit. The
+tag activates the project's automatic deeper-reasoning context. Do not apply it
+merely because work is large, slow, or test-heavy. Add it before starting a
+qualifying ticket, including newly discovered follow-ups.
+
 If API calls fail (connection refused or 403), re-read `.hotsheet/settings.json` for the current `port` and `secret` values — you may be connecting to the wrong Hot Sheet instance.
 
 **MCP tools (`hotsheet_*`) are preferred over curl when the channel is connected** — see the worklist for per-operation guidance. The 14-tool surface covers ticket lifecycle (`hotsheet_update_ticket`, `hotsheet_create_ticket`, `hotsheet_get_ticket`, `hotsheet_delete_ticket`, `hotsheet_restore_ticket`, `hotsheet_toggle_up_next`, `hotsheet_duplicate_tickets`), bulk operations (`hotsheet_batch`), notes (`hotsheet_edit_note`, `hotsheet_delete_note`), attachments (`hotsheet_add_attachment`), channel signaling (`hotsheet_signal_done`), feedback sugar (`hotsheet_request_feedback`), and query (`hotsheet_query_tickets`). Curl stays supported as the universal fallback for non-Claude AI agents and human terminal callers.
