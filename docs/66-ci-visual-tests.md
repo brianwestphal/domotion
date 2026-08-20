@@ -7,6 +7,29 @@ The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual s
 - **Only when a run needs more than ~50 fixtures.** For a handful of fixtures, run locally (`npm run demos:test:html -- --only <name>`, or with the throttle off: `DOMOTION_NO_NICE=1 DOMOTION_TEST_WORKERS=<cores> npm run demos:test:unicode`).
 - **Default to macOS** — it is always the primary testing and calibration target. Linux and Windows are equally supported; select either for platform-specific validation, or `--os all` when a cross-platform change warrants it.
 
+## Fast integration suites on all platforms
+
+The broad HTML and Unicode corpora remain in `visual-tests.yml`, where they can
+be sharded. The unsharded integration suites have their own manual workflow,
+`.github/workflows/fast-visual-tests.yml`. It runs features, showcase,
+snapshot isolation, animate examples, and cached real-world captures on macOS,
+the pinned Linux Playwright image, and Windows. Each platform builds the native
+font helper and records `runner-image.txt` plus `run-env.json` before rendering.
+
+`scripts/ci-run-fast-visuals.mjs` deliberately continues after an individual
+suite fails, writes `fast-visual-completeness.json`, and only then returns a
+failure. Actions therefore uploads every suite's expected/actual/diff PNGs and
+other output instead of losing the later evidence to the first red command.
+Dispatch it from Actions as **Fast visual tests (all platforms)**, selecting one
+platform for focused work or `all` for a release/parity pass.
+
+Feature, showcase, and real-world scalar results are compared with committed
+per-platform baselines when present. Set `update_baseline` to write reviewable
+candidate baseline JSON files into each platform artifact. Snapshot isolation
+is an exact pixel-content assertion, and animate examples use their committed
+SVG goldens plus cross-platform structural assertions, so those two suites
+already carry stronger purpose-built baselines instead of a scalar diff file.
+
 ## One-command path
 
 ```sh

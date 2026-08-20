@@ -62,6 +62,7 @@
     "demos:test:real-world": "npm run build:capture-script && tsx tests/real-world.tsx",
     "demos:test:snapshot-isolation": "npm run build:capture-script && tsx tests/snapshot-isolation.tsx",
     "demos:test:animate": "npm run build:capture-script && tsx tests/animate-examples.tsx",
+    "demos:test:ci-fast": "node scripts/ci-run-fast-visuals.mjs",
     "demos:test:all": "npm run build:capture-script && (tsx tests/features.ts ; tsx tests/snapshot-isolation.tsx ; tsx tests/showcase.tsx ; tsx tests/animate-examples.tsx ; tsx tests/html-test-suite.tsx ; tsx tests/real-world.tsx)",
     "demos:review": "tsx tests/review-server.tsx",
     "fonts:conformance": "tsx tools/font-conformance.ts",

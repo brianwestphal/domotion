@@ -1,0 +1,132 @@
+name: Fast visual tests (all platforms)
+
+run-name: Fast visual tests · os=${{ inputs.os }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: Runner OS
+        type: choice
+        options: [all, macos, linux, windows]
+        default: all
+      update_baseline:
+        description: Write reviewable baseline candidates into each platform artifact
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '22.21.0'
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
+
+concurrency:
+  group: fast-visual-tests-${{ github.ref_name }}-${{ inputs.os }}
+  cancel-in-progress: true
+
+jobs:
+  test-macos:
+    if: inputs.os == 'all' || inputs.os == 'macos'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Build the CoreText helper
+        run: |
+          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths tools/macos-glyph-extractor/domotion-glyph-paths
+      - name: Record environment before rendering
+        run: |
+          mkdir -p tests/output
+          node scripts/record-runner-image.mjs tests/output/runner-image.txt
+          node scripts/run-env.mjs tests/output/run-env.json
+      - name: Run every fast visual suite
+        id: suites
+        continue-on-error: true
+        run: npm run demos:test:ci-fast
+      - name: Compare platform baselines and optionally write candidates
+        if: always()
+        run: node scripts/ci-fast-baselines.mjs --os macos ${{ inputs.update_baseline && '--update-baseline' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-visuals-macos
+          path: tests/output/
+          if-no-files-found: error
+      - name: Fail after preserving evidence
+        if: steps.suites.outcome != 'success'
+        run: exit 1
+
+  test-linux:
+    if: inputs.os == 'all' || inputs.os == 'linux'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install helper build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - run: npm ci
+      - name: Build the fontconfig helper
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Record environment before rendering
+        run: |
+          mkdir -p tests/output
+          node scripts/record-runner-image.mjs tests/output/runner-image.txt
+          node scripts/run-env.mjs tests/output/run-env.json
+      - name: Run every fast visual suite
+        id: suites
+        continue-on-error: true
+        run: npm run demos:test:ci-fast
+      - name: Compare platform baselines and optionally write candidates
+        if: always()
+        run: node scripts/ci-fast-baselines.mjs --os linux ${{ inputs.update_baseline && '--update-baseline' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-visuals-linux
+          path: tests/output/
+          if-no-files-found: error
+      - name: Fail after preserving evidence
+        if: steps.suites.outcome != 'success'
+        run: exit 1
+
+  test-windows:
+    if: inputs.os == 'all' || inputs.os == 'windows'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Build the DirectWrite helper
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Record environment before rendering
+        shell: bash
+        run: |
+          mkdir -p tests/output
+          node scripts/record-runner-image.mjs tests/output/runner-image.txt
+          node scripts/run-env.mjs tests/output/run-env.json
+      - name: Run every fast visual suite
+        id: suites
+        continue-on-error: true
+        run: npm run demos:test:ci-fast
+      - name: Compare platform baselines and optionally write candidates
+        if: always()
+        shell: bash
+        run: node scripts/ci-fast-baselines.mjs --os windows ${{ inputs.update_baseline && '--update-baseline' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-visuals-windows
+          path: tests/output/
+          if-no-files-found: error
+      - name: Fail after preserving evidence
+        if: steps.suites.outcome != 'success'
+        run: exit 1
