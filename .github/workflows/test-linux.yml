@@ -128,6 +128,8 @@ jobs:
         # weight scoring already prefers Bold at 550. A probe at 400 or 700
         # would show no movement and prove nothing.
         run: npx tsx tools/assert-linux-helper-in-loop.ts
+      - name: Trace font-variant-emoji face selection (DM-2330 validation)
+        run: npx tsx tools/probe-font-variant-emoji.mjs
       - name: Run feature visual-regression suite (Linux container, helper present)
         # Passes within the Linux text-hinting floor (DM-259 / DM-262): the
         # runner applies a per-platform coverage cap on Linux because FreeType

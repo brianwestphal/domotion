@@ -33,6 +33,8 @@ import { chromium } from "@playwright/test";
 import {
   resolveFont, resolveFontKey, resolveFontKeyChain, resolveFontForCodepoint, resolveFontSpec,
 } from "../src/render/font-resolution.ts";
+import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.ts";
+import { selectedGlyphRasterSpans } from "../src/render/text-to-path.ts";
 
 // Emoji-presentation-by-default (Blink's `IsEmojiPresentationEmoji` true), then
 // text-presentation-by-default ones — the half where `font-variant-emoji: emoji`
@@ -109,9 +111,18 @@ for (let i = 0; i < rows.length; i++) {
   const norm = (s) => s.toLowerCase().replace(/[^a-z]/g, "");
   const hay = norm(`${key ?? ""} ${file ?? ""} ${spec?.postscriptName ?? ""}`);
   const ok = key != null && (hay.includes(norm(chrome)) || norm(chrome).includes(norm(key)));
+  const source = String.fromCodePoint(r.cp);
+  const productionRuns = splitTextIntoFontRunsShaped(
+    source, primary, primaryKey, 400, SIZE, 0, undefined, undefined, chain,
+    false, 100, fve, STACK, { mode: "paths" },
+  );
+  const productionKey = productionRuns?.[0]?.fontKey ?? "(declined)";
+  const raster = selectedGlyphRasterSpans(source, [{ start: 0, end: source.length }], {
+    fontSize: SIZE, fontFamily: STACK, fontWeight: 400, fontVariantEmoji: fve,
+  }).length > 0;
   ok ? agree++ : disagree++;
   out.push(`U+${r.cp.toString(16).toUpperCase().padStart(4, "0")} ${r.mode.padEnd(6)} `
-    + `chrome=${chrome.padEnd(24)} ours=${ours.padEnd(46)} ${ok ? "" : "  <-- DISAGREE"}  (${r.name})`);
+    + `chrome=${chrome.padEnd(24)} resolver=${ours.padEnd(46)} production=${productionKey.padEnd(28)} raster=${String(raster).padEnd(5)} ${ok ? "" : "  <-- RESOLVER DISAGREE"}  (${r.name})`);
 }
 console.log(`platform=${process.platform}  stack=${STACK}  primary=${primaryKey}  primaryResolved=${primary != null}`);
 console.log(out.join("\n"));
