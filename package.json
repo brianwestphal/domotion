@@ -91,6 +91,7 @@
     "check:parity-program": "node tools/check-parity-program.mjs",
     "check:semantic-coverage": "tsx tools/check-semantic-coverage.ts",
     "check:activation-coverage": "tsx tools/check-activation-coverage.ts",
+    "gate:parity-release": "tsx tools/check-parity-release.ts",
     "site:dev": "cd site && npm install && npm run dev",
     "site:build": "cd site && npm install && npm run build",
     "site:preview": "cd site && npm install && npm run preview"

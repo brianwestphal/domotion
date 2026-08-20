@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt116rmqkdtaca74",
+          "message": {
+            "text": "The release decision is conjunctive and blocker-based, not a weighted score. A high pixel pass rate cannot compensate for one partial semantic family, missing source audit, inert mechanism, stale oracle revision, unreviewed platform suite, unexplained residual, logical residual, or unjustified threshold; explicitly unsupported behavior remains visible without masquerading as partial support.",
+            "markdown": "The release decision is conjunctive and blocker-based, not a weighted score. A high pixel pass rate cannot compensate for one partial semantic family, missing source audit, inert mechanism, stale oracle revision, unreviewed platform suite, unexplained residual, logical residual, or unjustified threshold; explicitly unsupported behavior remains visible without masquerading as partial support."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/parity-release-gate.ts"
+                },
+                "region": {
+                  "startLine": 29,
+                  "endLine": 71,
+                  "snippet": {
+                    "text": "export async function evaluateParityRelease(root: string, evidence: ParityReleaseEvidence): Promise<ParityReleaseResult> {\n  const blockers: string[] = [];\n  const semantic = await loadSemanticCoverage(resolve(root, \"tools/semantic-coverage.json\"));\n  const semanticValidation = await validateSemanticCoverage(semantic, root);\n  blockers.push(...semanticValidation.errors.map((error) => `semantic inventory: ${error}`));\n  for (const row of semantic.transitions) if (row.coverage === \"partial\") blockers.push(`partial semantic family: ${row.id}`);\n  const unsupported = semantic.transitions.filter((row) => row.coverage === \"unsupported\").map((row) => `${row.id}: ${row.boundary ?? \"missing boundary\"}`);\n\n  const activation = await loadActivationLedger(resolve(root, \"tools/activation-coverage.json\"));\n  blockers.push(...(await validateActivationLedger(activation, root)).map((error) => `activation ledger: ${error}`));\n\n  const parity = JSON.parse(await readFile(resolve(root, \"tools/parity-program.json\"), \"utf8\")) as { areas: Array<{ id: string; sourceAudit: string; oracleStatus: string; platformCoverage: string[] }> };\n  for (const area of parity.areas) {\n    if (!new Set([\"audited\", \"not-applicable\"]).has(area.sourceAudit)) blockers.push(`source audit incomplete: ${area.id} (${area.sourceAudit})`);\n    if (!new Set([\"exact-stage-gate\", \"pixel-integration-gate\"]).has(area.oracleStatus)) blockers.push(`stage gate not exact: ${area.id} (${area.oracleStatus})`);\n    for (const platform of [\"darwin\", \"linux\", \"win32\"]) if (!area.platformCoverage.includes(platform)) blockers.push(`parity area ${area.id} lacks ${platform} evidence`);\n  }\n\n  const oracleById = new Map(evidence.stageOracles.map((oracle) => [oracle.id, oracle]));\n  for (const area of parity.areas.filter((entry) => entry.oracleStatus !== \"pixel-integration-gate\")) {\n    const oracle = oracleById.get(area.id);\n    if (oracle == null) blockers.push(`missing stage-oracle report: ${area.id}`);\n    else if (!oracle.passed) blockers.push(`stage-oracle report failed: ${area.id}`);\n    else if (oracle.sourceRevision !== evidence.sourceRevision) blockers.push(`stage-oracle revision mismatch: ${area.id}`);\n  }\n\n  const platformMap = new Map(evidence.platforms.map((entry) => [entry.platform, entry]));\n  for (const platform of [\"darwin\", \"linux\", \"win32\"] as const) {\n    const run = platformMap.get(platform);\n    if (run == null) { blockers.push(`missing reviewed visual evidence: ${platform}`); continue; }\n    for (const suite of RELEASE_SUITES) if (!run.suites.includes(suite)) blockers.push(`${platform} visual evidence lacks ${suite}`);\n    for (const residual of run.residuals) {\n      if (!residual.explained) blockers.push(`unexplained residual: ${platform}/${residual.fixture}`);\n      if (residual.classification === \"logical\") blockers.push(`logical residual remains: ${platform}/${residual.fixture}`);\n    }\n  }\n  const comparisonGroups = new Set(evidence.platforms.map((entry) => entry.comparableGroup));\n  if (evidence.platforms.length === 3 && comparisonGroups.size !== 1) blockers.push(\"platform environment fingerprints are not in one comparable group\");\n  for (const threshold of evidence.relaxedThresholds) if (!threshold.justified) blockers.push(`unjustified relaxed threshold: ${threshold.id}`);\n  for (const boundary of evidence.unsupportedBoundaries) unsupported.push(`${boundary.id}: ${boundary.reason}`);\n\n  const uniqueBlockers = [...new Set(blockers)];\n  return { ready: uniqueBlockers.length === 0, blockers: uniqueBlockers, unsupported, summary: `${uniqueBlockers.length === 0 ? \"READY\" : \"NOT READY\"}: ${uniqueBlockers.length} blocker(s), ${unsupported.length} explicit unsupported boundary/boundaries` };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2377"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a34142995b8e53c061f2b6e10f27c388"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa592dcc5c43d3f3effe3e6612ab79786f29c0c2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

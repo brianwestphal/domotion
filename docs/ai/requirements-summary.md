@@ -1334,6 +1334,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   mutation evidence. CI rejects stale/inert registrations, and visual-test
   artifacts carry the platform-specific activation ledger into demo review.
 
+- **Doc 138 (`docs/138-parity-release-gate.md`) — Shipped gate, currently not
+  ready.** The strict release command combines semantic/source/activation/stage
+  and reviewed three-platform visual evidence. It names every blocker and
+  explicit unsupported boundary; it never substitutes a confidence percentage
+  or permits unexplained logical residuals.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.
