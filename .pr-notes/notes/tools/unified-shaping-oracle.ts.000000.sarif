@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt157h1r0bxc6jst",
+          "message": {
+            "text": "The joined record preserves the CDP observability boundary instead of attributing helper glyph IDs to Chromium. Blink stores glyph data in ShapeResultRun, while public CDP exposes painted faces and DOM geometry; therefore glyph equivalence is asserted only when the concrete PostScript face agrees, and a different face remains explicitly non-comparable.",
+            "markdown": "The joined record preserves the CDP observability boundary instead of attributing helper glyph IDs to Chromium. Blink stores glyph data in ShapeResultRun, while public CDP exposes painted faces and DOM geometry; therefore glyph equivalence is asserted only when the concrete PostScript face agrees, and a different face remains explicitly non-comparable."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/unified-shaping-oracle.ts"
+                },
+                "region": {
+                  "startLine": 45,
+                  "endLine": 60,
+                  "snippet": {
+                    "text": "export function joinShapingEvidence(record: ExactRecord, paintedFaces: PaintedFace[], paintedOrigins: PaintedOrigin[], faceObservation: FaceObservation = \"matched\"): Record<string, unknown> {\n  const localPostscriptName = record.face.localPostscriptName;\n  const faceAgreement = localPostscriptName != null\n    && paintedFaces.some((face) => normalizeFace(face.postScriptName) === normalizeFace(localPostscriptName));\n  return {\n    environment: record.environment,\n    input: record.input,\n    chrome: {\n      paintedFaces,\n      paintedOrigins,\n      glyphIds: { status: \"not-exposed-by-cdp\", owner: \"Blink ShapeResultRun / HarfBuzzRunGlyphData\" },\n    },\n    helper: { ...record.face, fallbackRuns: record.fallbackRuns },\n    glyphs: record.glyphs,\n    comparison: { faceAgreement, faceObservation, glyphIds: faceAgreement ? \"source-equivalent-same-face\" : \"not-compared-across-different-faces\", paintedOrigins: \"recorded-not-inferred-from-pixels\" },\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2341"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c4616355670019f6db883c21f43afe28"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt157h74por0ms2g",
+          "message": {
+            "text": "Protected system faces are resolved by an oracle-only candidate walk, never by adding production routing rules. Every candidate is forced through style/layout before CDP inspection, accepted only on exact normalized PostScript agreement, and exhausted failures remain visibly classified as CSS-unaddressable. The final macOS run matched 672/687 records; the 15 explicit non-matches were limited to SF Mono and SF Compact protected/named-instance keys.",
+            "markdown": "Protected system faces are resolved by an oracle-only candidate walk, never by adding production routing rules. Every candidate is forced through style/layout before CDP inspection, accepted only on exact normalized PostScript agreement, and exhausted failures remain visibly classified as CSS-unaddressable. The final macOS run matched 672/687 records; the 15 explicit non-matches were limited to SF Mono and SF Compact protected/named-instance keys."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/unified-shaping-oracle.ts"
+                },
+                "region": {
+                  "startLine": 123,
+                  "endLine": 151,
+                  "snippet": {
+                    "text": "        const targetPostscript = exactRecord.face.localPostscriptName;\n        let faceObservation: FaceObservation = \"matched\";\n        if (targetPostscript != null && !fonts.some((font) => normalizeFace(font.postScriptName) === normalizeFace(targetPostscript))) {\n          const inferredFamily = targetPostscript.replace(/^\\./, \"\").replace(/-(?:Regular|Italic|Light|Medium|Bold).*$/i, \"\");\n          const keyFamily = exactRecord.face.key.replace(/^(?:sysfb|winfam):/, \"\").replace(/-(?:regular|italic|light|medium|bold).*$/i, \"\").replaceAll(\"-\", \" \");\n          const candidates = [...new Set([inferredFamily, keyFamily, \"system-ui\", \"-apple-system\", \"ui-monospace\", \"sans-serif\", \"serif\", \"monospace\"])]\n            .flatMap((family) => [300, 400, 500, 700].map((weight) => ({ family, weight, style: /italic/i.test(targetPostscript) ? \"italic\" : \"normal\" })));\n          let winner: { selector: string; nodeId: number; fonts: typeof fonts } | undefined;\n          for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {\n            const candidate = candidates[candidateIndex];\n            const id = `candidate-${index}-${candidateIndex}`;\n            const generic = new Set([\"system-ui\", \"-apple-system\", \"ui-monospace\", \"sans-serif\", \"serif\", \"monospace\"]).has(candidate.family);\n            const cssFamily = generic ? candidate.family : `\"${candidate.family}\"`;\n            await page.evaluate(`(() => { const source=document.querySelector(${JSON.stringify(selector)}); const span=source.cloneNode(true); span.id=${JSON.stringify(id)}; span.style.fontFamily=${JSON.stringify(cssFamily)}; span.style.fontWeight=${JSON.stringify(String(candidate.weight))}; span.style.fontStyle=${JSON.stringify(candidate.style)}; document.body.append(span); })()`);\n            await page.evaluate((candidateSelector) => document.querySelector(candidateSelector)?.getBoundingClientRect(), `#${id}`);\n            const candidateNode = await cdp.send(\"DOM.querySelector\", { nodeId: root.nodeId, selector: `#${id}` });\n            const candidateFonts = await cdp.send(\"CSS.getPlatformFontsForNode\", { nodeId: candidateNode.nodeId });\n            if (candidateFonts.fonts.some((font) => normalizeFace(font.postScriptName) === normalizeFace(targetPostscript))) {\n              winner = { selector: `#${id}`, nodeId: candidateNode.nodeId, fonts: candidateFonts.fonts };\n              break;\n            }\n          }\n          if (winner != null) {\n            selector = winner.selector;\n            nodeId = winner.nodeId;\n            fonts = winner.fonts;\n          } else {\n            faceObservation = \"css-unaddressable-after-candidate-walk\";\n          }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2341"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "90bf85440b625faf5e94f0655a3fdcbd"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt157n1r5mwg6i5h",
+          "message": {
+            "text": "The end-to-end oracle produced 687 normalized records with an evidence-complete verdict. Every helper discriminator moved (face 1, axes 21, ptem 46, features 167, direction 679, script 110, language 9, buffer flags 2, cluster level 20), all four browser controls moved, and the stage-evidence consumer reported both font-selection and shaping-clusters-glyphs as passed with 687 rows.",
+            "markdown": "The end-to-end oracle produced 687 normalized records with an evidence-complete verdict. Every helper discriminator moved (face 1, axes 21, ptem 46, features 167, direction 679, script 110, language 9, buffer flags 2, cluster level 20), all four browser controls moved, and the stage-evidence consumer reported both font-selection and shaping-clusters-glyphs as passed with 687 rows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/unified-shaping-oracle.ts"
+                },
+                "region": {
+                  "startLine": 192,
+                  "endLine": 208,
+                  "snippet": {
+                    "text": "      const moved = browserControlMovement({ ...controls, paintedOrigins: controls.origin });\n      const browserControls = { face: moved.face, features: moved.features, direction: moved.direction, paintedOrigins: moved.paintedOrigins };\n      const movementProven = exact.movementProven && Object.values(browserControls).every(Boolean);\n      const complete = exact.completeEnvironment && records.length === exact.pairs\n        && records.every((record) => {\n          const chrome = record.chrome as { paintedFaces: PaintedFace[]; paintedOrigins: unknown[] };\n          const helper = record.helper as ExactRecord[\"face\"];\n          const comparison = record.comparison as { faceAgreement: boolean; faceObservation: FaceObservation };\n          return helper.localPostscriptName != null && chrome.paintedOrigins.length > 0\n            && (comparison.faceAgreement || comparison.faceObservation === \"css-unaddressable-after-candidate-walk\");\n        });\n      const report = {\n        schemaVersion: 1,\n        stage: \"face-shaping-painted-origins\",\n        sourceRevision: \"chromium:7d859f271cbda744098ac69f44978d4edfa62be3\",\n        verdict: complete && movementProven && exactRun.status === 0 ? \"evidence-complete\" : \"verdict-withheld\",\n        boundary: \"CDP exposes painted faces and DOM origins, not Blink glyph ids; glyph records come from the same concrete face shaped by Chromium-configured vendored HarfBuzz.\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2341"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bd4c6a2e39718b6462d31b8f54e835ed"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5c55ed11f1afba506bc110c8dc03408599b2aa8c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

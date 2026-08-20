@@ -30,13 +30,13 @@
       "id": "shaping-clusters-glyphs",
       "domotionSources": ["src/render/text-to-path.ts", "src/render/embedded-font-builder.ts"],
       "upstreamSources": ["external/harfbuzz/src", "external/chromium/third_party/blink/renderer/platform/fonts/shaping"],
-      "oracle": "tools/exact-shaping-oracle.ts",
+      "oracle": "tools/unified-shaping-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "derived run corpus plus discriminating cluster fixtures and negative controls",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "The CDP-facing shaping oracle cannot expose Chromium glyph IDs; exact helper/HarfBuzz records and painted geometry cover different halves of the comparison.",
-      "nextAction": "Unify the exact logical report so face, glyph, cluster, advance, and offset evidence share one record."
+      "knownGap": "CDP does not expose Chromium glyph IDs. The unified record labels that boundary and joins CDP painted-face/origin evidence with exact same-face Chromium-configured HarfBuzz glyph records without pretending the glyph IDs came from CDP.",
+      "nextAction": "Keep every new shaping input wired to an independently moving control and consume the unified records when reducing visual residuals."
     },
     {
       "id": "text-layout-placement",

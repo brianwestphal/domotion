@@ -30,6 +30,9 @@ Doc 140 makes that integration concrete: CI attaches source-linked logical
 stage reports and runner fingerprints, fixture relevance comes only from the
 semantic inventory, and the required human classification persists through
 reload and into the filed ticket.
+Doc 141 closes the shaping-evidence split with one normalized record containing
+CDP painted faces/origins and helper/HarfBuzz face, glyph, cluster, advance, and
+offset evidence, while explicitly preserving CDP's glyph-ID boundary.
 
 The doc-116 text-layout stage is an exact CI gate: a generated covering array
 compares direct Chromium `Range` origins with production-captured

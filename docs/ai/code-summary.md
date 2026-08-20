@@ -28,6 +28,9 @@ Demo-review evidence is resolved by `src/review/stage-evidence.ts`; the CI
 producer is `tools/collect-stage-evidence.ts` plus
 `tools/build-stage-evidence.ts`, and the server/client integration lives in
 `tests/review-server.tsx` and `tests/review-client.tsx`.
+`tools/unified-shaping-oracle.ts` is the face→glyph→painted-origin logical record
+consumed by those stage-evidence artifacts; its lower-level exact glyph leg is
+`tools/exact-shaping-oracle.ts`.
 
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:

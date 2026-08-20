@@ -8,11 +8,12 @@ explicit `visualFixtures` and `parityAreas` links in
 `tools/semantic-coverage.json`. The binding function does not accept image
 scores, so neither `diffPct` nor region severity can imply a logical cause.
 
-The first shard on every enabled platform runs the representative shaping,
+The first shard on every enabled platform runs the representative unified face/shaping,
 layout, paint-geometry, transform, paint-order, replaced-element, and raster
 boundary oracles. Missing or crashed reports remain visibly `missing`; they are
-never converted into positive evidence. Exact shaping also supplies concrete
-resolved-face records for the font-selection stage while the broader
+never converted into positive evidence. Unified shaping supplies Chromium
+painted-face evidence plus concrete helper/HarfBuzz records for the
+font-selection stage while the broader
 font-conformance program remains independently owned by that parity area.
 
 The review UI displays the applicable semantic transitions and report status on

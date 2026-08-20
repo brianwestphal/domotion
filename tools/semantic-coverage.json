@@ -40,7 +40,8 @@
       ],
       "oracles": [
         "tools/font-conformance.ts",
-        "tools/exact-shaping-oracle.ts"
+        "tools/exact-shaping-oracle.ts",
+        "tools/unified-shaping-oracle.ts"
       ],
       "metamorphicTests": [
         "src/render/font-stack-availability.test.ts",
@@ -51,7 +52,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Resolver and shaper evidence are split, generic preference profiles remain incomplete, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence exists, but production renderer bypasses still require the renderer-facing audit, generic preference profiles remain incomplete, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"
@@ -159,7 +160,7 @@
       ],
       "oracles": [
         "tools/layout-stage-oracle.ts",
-        "tools/exact-shaping-oracle.ts"
+        "tools/unified-shaping-oracle.ts"
       ],
       "metamorphicTests": [
         "src/render/cluster-fallback-bidi-override.test.ts",

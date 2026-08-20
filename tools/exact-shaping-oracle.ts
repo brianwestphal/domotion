@@ -10,7 +10,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { versionString, BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/dist/index.mjs";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
-import { platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
+import { getFontInstance, platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
 
@@ -60,7 +60,7 @@ function signature(r: ShapeResult | null): string {
 const samples = mode === "representative" ? SHAPE_SAMPLES.slice(0, 28) : SHAPE_SAMPLES;
 const keys = platformFontKeys().filter((k) => faceFilter == null || k.toLowerCase().includes(faceFilter));
 const records: unknown[] = [];
-const controlHits = { face: 0, axes: 0, ptem: 0, features: 0, direction: 0, clusterLevel: 0 };
+const controlHits = { face: 0, axes: 0, ptem: 0, features: 0, direction: 0, script: 0, language: 0, bufferFlags: 0, clusterLevel: 0 };
 let pairs = 0;
 
 for (const key of keys) {
@@ -75,7 +75,7 @@ for (const key of keys) {
     const script = sample.script === "cjk" ? "Hani" : sample.script;
     const opts = {
       script,
-      language: "und",
+      language: sample.language ?? "und",
       bufferFlags: BufferFlag.BOT | BufferFlag.EOT,
       clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,
     };
@@ -92,22 +92,31 @@ for (const key of keys) {
       ptem: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx * 2, face.axes, undefined, opts),
       features: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, ["-liga", "-kern"], opts),
       direction: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction === "rtl" ? "ltr" : "rtl", sizePx, face.axes, undefined, opts),
+      script: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, { ...opts, script: script === "Latn" ? "Arab" : "Latn" }),
+      language: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, { ...opts, language: opts.language === "sr" ? "und" : "sr" }),
+      bufferFlags: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, { ...opts, bufferFlags: opts.bufferFlags | BufferFlag.PRESERVE_DEFAULT_IGNORABLES }),
       clusterLevel: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, { ...opts, clusterLevel: ClusterLevel.CHARACTERS }),
     };
     for (const name of Object.keys(controls) as Array<keyof typeof controls>) {
       if (name === "axes" && face.axes == null) continue;
       if (signature(controls[name]) !== baseSig) controlHits[name]++;
     }
+    const instance = getFontInstance(key, 400, sizePx, 0);
     records.push({
       environment: parityEnvironment({
         chromium: `Playwright package-pinned; HarfBuzz ${versionString()}`, launchFlags: [], deviceScaleFactor, zoom,
         writingMode: direction === "ttb" ? "vertical-rl" : "horizontal-tb", direction,
         corpusIdentity: `shape-samples-v2:${SHAPE_SAMPLES.length}`, sampleIdentity: `${key}:${sample.note}`,
       }),
-      face: { key, path: face.path, member: face.faceIndex, namedInstance: null, axes: face.axes },
+      face: {
+        key, path: face.path, member: face.faceIndex,
+        postscriptName: instance?.instantiatedPostscriptName ?? instance?.postscriptName ?? null,
+        localPostscriptName: instance?.postscriptName ?? null,
+        namedInstance: null, axes: face.axes,
+      },
       input: {
-        text: sample.text, utf16Span: [0, sample.text.length], direction,
-        script, language: "und", features: [],
+        text: sample.text, utf16Span: [0, sample.text.length], direction, fontSizePx: sizePx,
+        script, language: opts.language, features: [],
         bufferFlags: opts.bufferFlags, clusterLevel: opts.clusterLevel,
       },
       fallbackRuns: [{ utf16Span: [0, sample.text.length], face: `${face.path}#${face.faceIndex}` }],
@@ -131,7 +140,7 @@ if (records.length > 0) {
   }
 }
 
-const required = mode === "representative" ? ["face", "features", "direction"] as const : ["face", "axes", "ptem", "features", "direction", "clusterLevel"] as const;
+const required = ["face", "axes", "ptem", "features", "direction", "script", "language", "bufferFlags", "clusterLevel"] as const;
 const missed = required.filter((k) => controlHits[k] === 0);
 const completeEnvironment = records.every((r) => fingerprintComplete((r as { environment: unknown }).environment));
 const movementProven = !skipNegativeControl && missed.length === 0;

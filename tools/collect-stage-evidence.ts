@@ -8,7 +8,7 @@ const out = resolve(outIndex >= 0 && process.argv[outIndex + 1] != null ? proces
 mkdirSync(out, { recursive: true });
 const tsx = resolve("node_modules/.bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
 const runs: Array<[string, string]> = [
-  ["shaping-clusters-glyphs", "tools/exact-shaping-oracle.ts"],
+  ["shaping-clusters-glyphs", "tools/unified-shaping-oracle.ts"],
   ["text-layout-placement", "tools/layout-stage-oracle.ts"],
   ["text-decoration", "tools/decoration-oracle.ts"],
   ["borders-outlines", "tools/border-phase-oracle.ts"],
@@ -30,10 +30,9 @@ for (const [area, tool] of runs) {
   } catch { /* explicit missing status in the manifest */ }
 }
 
-// Exact shaping records include the resolved face for every face×sample pair.
-// Reuse that raw evidence for the face-stage card, but stamp the real producer
-// so the review UI never mislabels this narrower report as font-conformance.
+// The unified report deliberately contains both CDP's painted-face evidence and
+// the helper/HarfBuzz glyph records, so one raw artifact serves both stages.
 try {
   const report = JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8")) as Record<string, unknown>;
-  writeFileSync(resolve(out, "font-selection.json"), JSON.stringify({ ...report, evidenceOracle: "tools/exact-shaping-oracle.ts" }, null, 2));
+  writeFileSync(resolve(out, "font-selection.json"), JSON.stringify({ ...report, evidenceOracle: "tools/unified-shaping-oracle.ts" }, null, 2));
 } catch { /* explicit missing status in the manifest */ }

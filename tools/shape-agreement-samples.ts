@@ -23,6 +23,7 @@
 export interface ShapeSample {
   /** Script or feature under test — grouped in the summary output. */
   script: string;
+  language?: string;
   text: string;
   /** What a shaper has to get RIGHT here. Not decoration: this is the reason
    *  the entry earns its place, and the thing to read when it fails. */
@@ -45,6 +46,7 @@ export const SHAPE_SAMPLES: ShapeSample[] = [
   // --- Hebrew: right-to-left with below-base points -----------------------
   { script: "hebrew", text: "שלום", note: "shalom — RTL ordering, no joining" },
   { script: "hebrew", text: "בְּרֵאשִׁ", note: "niqqud + shin dot — stacked mark placement" },
+  { script: "cyrl", language: "sr", text: "бгдпт", note: "Serbian localized Cyrillic forms (locl)" },
 
   // --- Devanagari: reordering, the hardest thing in the Indic shaper ------
   { script: "devanagari", text: "क्ष", note: "ksha conjunct — virama ligature" },

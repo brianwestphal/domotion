@@ -34,7 +34,7 @@ function summarizeReport(area: ParityArea, reportsDir: string): StageEvidenceRep
     const totalRows = rows?.length ?? value.records?.length ?? value.pairs;
     const passedRows = rows != null ? rows.filter((row) => row.pass === true).length
       : value.verdict === "exact-logical-agreement" && totalRows != null ? totalRows : undefined;
-    const inferredPass = value.pass === true || value.verdict === "exact-logical-agreement"
+    const inferredPass = value.pass === true || value.verdict === "exact-logical-agreement" || value.verdict === "evidence-complete"
       || (totalRows != null && totalRows > 0 && passedRows === totalRows && (value.mismatches ?? 0) === 0)
       || (Array.isArray(value.failures) && value.failures.length === 0);
     const passed = value.evidencePassed ?? inferredPass;

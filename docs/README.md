@@ -100,5 +100,6 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [138-parity-release-gate.md](138-parity-release-gate.md) | **Parity release gate** — one machine-readable verdict over semantic coverage, activation, platform fingerprints, and all-platform evidence. |
 | [139-raster-fallback-content-gates.md](139-raster-fallback-content-gates.md) | **Raster fallback content gates** — browser E2E checks that each supported raster boundary contains the intended Chromium-painted pixels, not merely an activated image node. |
 | [140-demo-review-stage-evidence.md](140-demo-review-stage-evidence.md) | **Demo-review stage evidence** — CI stage reports and runner fingerprints linked to fixtures without pixel-score inference, with mandatory persisted human classification in filed tickets. |
+| [141-unified-shaping-evidence.md](141-unified-shaping-evidence.md) | **Unified shaping evidence** — one source-honest record joining Chromium painted faces/origins with helper face/file/axes and exact HarfBuzz glyph, cluster, advance, and offset data, guarded by per-input controls. |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.
