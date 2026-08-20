@@ -70,9 +70,9 @@
       "sourceAudit": "partial",
       "oracleStatus": "paint-model-gate",
       "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control; computed corner-shape keywords/custom parameters, asymmetric physical corners, concave opposite-hull constraints, inset origin alignment, mixed-side hyperellipse quads, and non-renderable four-corner path intersections; collapsed-table logical edge merge, span-interior, four-way joint, writing-direction, capture-contract, and composed visual rows",
-      "platformCoverage": ["darwin"],
-      "knownGap": "Round and non-round contours, mixed-side hyperellipse/concave partitions, non-renderable inset corner-path intersections, and non-fragmented collapsed-table edge/joint painting are transcribed. Table fragmentation, zoom, and cross-platform phase remain outside the geometry oracle.",
-      "nextAction": "Expand the phase oracle across zoom, device scale, table fragmentation, and all three platforms."
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "Round and non-round contours, mixed-side hyperellipse/concave partitions, non-renderable inset corner-path intersections, and non-fragmented collapsed-table edge/joint painting are transcribed. The phase matrix collects fingerprinted zoom/DSF reports on all three platforms, but expanded scenario envelopes remain diagnostic pending reviewed native artifacts; table fragmentation is tracked separately.",
+      "nextAction": "Review native phase-matrix artifacts, ratify per-platform envelopes only where stable, and extend collapsed-border coverage after the fragmentation model lands."
     },
     {
       "id": "gradients-masks-clips",

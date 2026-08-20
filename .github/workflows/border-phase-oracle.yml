@@ -1,0 +1,37 @@
+name: Border phase oracle
+
+# DM-2321: collect the same zoom/device-scale paint evidence on native
+# Chromium builds for every supported desktop platform. These jobs are
+# diagnostic until reviewed per-platform envelopes exist: logical snap-model
+# choices and alpha-profile residuals remain separate in the JSON artifact.
+on:
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22.21.0'
+
+jobs:
+  matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Run zoom and device-scale matrix
+        run: npm run borders:phase-oracle -- --dsf 1,2,4 --zoom 0.8,1,1.25 --report-only --json tests/output/border-phase/report.json --keep tests/output/border-phase/artifacts
+      - name: Record runner environment
+        if: always()
+        run: node scripts/run-env.mjs tests/output/border-phase/run-env.json
+      - name: Upload fingerprinted report and visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: border-phase-${{ runner.os }}
+          path: tests/output/border-phase/
+          if-no-files-found: error

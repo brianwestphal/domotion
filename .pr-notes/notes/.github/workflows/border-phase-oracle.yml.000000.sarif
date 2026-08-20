@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0torrje9681ht8",
+          "message": {
+            "text": "The native three-platform matrix deliberately uploads evidence instead of copying the macOS envelope to Linux and Windows. The local expanded probe already found a zoom-dependent outline edge shift reproduced at DSF 1 and 2; that logical finding is isolated in DM-2323, while these artifacts provide the fingerprints needed to ratify future platform envelopes.",
+            "markdown": "The native three-platform matrix deliberately uploads evidence instead of copying the macOS envelope to Linux and Windows. The local expanded probe already found a zoom-dependent outline edge shift reproduced at DSF 1 and 2; that logical finding is isolated in DM-2323, while these artifacts provide the fingerprints needed to ratify future platform envelopes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/border-phase-oracle.yml"
+                },
+                "region": {
+                  "startLine": 13,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "jobs:\n  matrix:\n    strategy:\n      fail-fast: false\n      matrix:\n        os: [macos-latest, ubuntu-latest, windows-latest]\n    runs-on: ${{ matrix.os }}\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }\n      - run: npm ci\n      - run: npx playwright install chromium\n      - name: Run zoom and device-scale matrix\n        run: npm run borders:phase-oracle -- --dsf 1,2,4 --zoom 0.8,1,1.25 --report-only --json tests/output/border-phase/report.json --keep tests/output/border-phase/artifacts\n      - name: Record runner environment\n        if: always()\n        run: node scripts/run-env.mjs tests/output/border-phase/run-env.json\n      - name: Upload fingerprinted report and visual evidence\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: border-phase-${{ runner.os }}\n          path: tests/output/border-phase/\n          if-no-files-found: error"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2321"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8ac2ed9673663d5e80efb91a047e7b34"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "75ff9454e0eb1dff92f547e5dff63669b4f5a5f2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

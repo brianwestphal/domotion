@@ -139,8 +139,12 @@ table: its pure logical graph and joint functions have exact decision tests,
 capture records the resulting physical rectangles, and the renderer paints the
 single edge layer after table-part backgrounds. The generated visual fixture
 crosses spans, unequal tracks, conflicts, joints, vertical-rl, and RTL at 0
-regions / 0.00%. DM-2321 subsequently expands the phase oracle over zoom,
-device scale, and all three platforms.
+regions / 0.00%. The phase oracle now runs a parameterized zoom/device-scale
+matrix and records separate snap-geometry and paint-profile sections with OS,
+architecture, Node, and Chromium fingerprints. A manual CI matrix collects the
+same report and evidence on macOS, Linux, and Windows; only the calibrated
+default scenario gates until native artifacts support reviewed per-platform
+envelopes.
 
 ### Generated and metamorphic coverage
 

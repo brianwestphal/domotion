@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBorderPaintDecisionCases,
   buildPhaseCases,
+  buildPhaseScenarios,
   classifyBorderPaintDecision,
   deriveSnapRule,
   profileEdges,
@@ -15,6 +16,21 @@ describe("border phase oracle corpus", () => {
     expect(new Set(cases.map((c) => c.kind))).toEqual(new Set(["border", "outline"]));
     expect(new Set(cases.map((c) => c.style))).toEqual(new Set(["solid", "dashed", "dotted", "double"]));
     expect(new Set(cases.map((c) => c.phase))).toEqual(new Set([0, 0.25, 0.5, 0.75]));
+    expect(Math.max(...cases.map((c) => c.y))).toBeLessThan(32 * 60);
+  });
+
+  it("takes the Cartesian product of requested scale and zoom values", () => {
+    expect(buildPhaseScenarios([1, 2, 4], [0.8, 1, 1.25])).toEqual([
+      { id: "dsf1.zoom0.8", dsf: 1, zoom: 0.8 },
+      { id: "dsf1.zoom1", dsf: 1, zoom: 1 },
+      { id: "dsf1.zoom1.25", dsf: 1, zoom: 1.25 },
+      { id: "dsf2.zoom0.8", dsf: 2, zoom: 0.8 },
+      { id: "dsf2.zoom1", dsf: 2, zoom: 1 },
+      { id: "dsf2.zoom1.25", dsf: 2, zoom: 1.25 },
+      { id: "dsf4.zoom0.8", dsf: 4, zoom: 0.8 },
+      { id: "dsf4.zoom1", dsf: 4, zoom: 1 },
+      { id: "dsf4.zoom1.25", dsf: 4, zoom: 1.25 },
+    ]);
   });
 });
 
