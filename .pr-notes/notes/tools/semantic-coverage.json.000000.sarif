@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt11p1uodgjyqq6l",
+          "message": {
+            "text": "Raster content is upgraded from partial only after the finite state set gained dedicated byte-level gates and the same combined gate passed on macOS, Linux, and Windows in CI run 32333366640. Changed-frame freshness is discriminated by canvas and gradient cache replacement, clipping by exact backdrop isolation, and scale by physical advanced/conic tile dimensions; activation remains independently proven by the raster-boundary oracle.",
+            "markdown": "Raster content is upgraded from partial only after the finite state set gained dedicated byte-level gates and the same combined gate passed on macOS, Linux, and Windows in CI run 32333366640. Changed-frame freshness is discriminated by canvas and gradient cache replacement, clipping by exact backdrop isolation, and scale by physical advanced/conic tile dimensions; activation remains independently proven by the raster-boundary oracle."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/semantic-coverage.json"
+                },
+                "region": {
+                  "startLine": 1015,
+                  "endLine": 1057,
+                  "snippet": {
+                    "text": "        \"current frame -> changed frame\",\n        \"unclipped -> clipped\",\n        \"1x -> scaled\"\n      ],\n      \"exactStates\": [\n        \"current frame -> changed frame\",\n        \"unclipped -> clipped\",\n        \"1x -> scaled\"\n      ],\n      \"uncoveredStates\": [],\n      \"upstreamSources\": [\n        \"external/chromium/third_party/blink/renderer/core/paint\",\n        \"external/skia/src/core\"\n      ],\n      \"productionOwners\": [\n        \"src/capture\",\n        \"src/render/element-tree-to-svg.ts\",\n        \"src/render/text.ts\"\n      ],\n      \"oracles\": [\n        \"tools/raster-boundary-oracle.ts\"\n      ],\n      \"metamorphicTests\": [\n        \"src/render/projective-transform.test.ts\",\n        \"src/capture/emoji.test.ts\"\n      ],\n      \"visualFixtures\": [\n        \"tests/raster-fallback-content.e2e.test.ts\",\n        \"src/capture/backdrop-isolation.e2e.test.ts\",\n        \"tests/conic-chromium-raster.e2e.test.ts\",\n        \"tests/features.ts#replaced-canvas-overlay\",\n        \"tests/features.ts#bg-conic-chromium-zoom-tile\"\n      ],\n      \"coverage\": \"exact\",\n      \"featureIds\": [\n        \"capture.emoji-detect\",\n        \"render.tree-to-svg\"\n      ],\n      \"verifiedPlatforms\": [\n        \"darwin\",\n        \"linux\",\n        \"win32\"\n      ]"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2361"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "13e719cdfadb095b38c341de3ced92bc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1dc0ee5e3e7eda96d54b169b467cc69fbf02f320",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

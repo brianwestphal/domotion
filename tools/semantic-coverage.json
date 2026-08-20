@@ -1016,12 +1016,12 @@
         "unclipped -> clipped",
         "1x -> scaled"
       ],
-      "exactStates": [],
-      "uncoveredStates": [
+      "exactStates": [
         "current frame -> changed frame",
         "unclipped -> clipped",
         "1x -> scaled"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint",
         "external/skia/src/core"
@@ -1039,11 +1039,13 @@
         "src/capture/emoji.test.ts"
       ],
       "visualFixtures": [
+        "tests/raster-fallback-content.e2e.test.ts",
+        "src/capture/backdrop-isolation.e2e.test.ts",
+        "tests/conic-chromium-raster.e2e.test.ts",
         "tests/features.ts#replaced-canvas-overlay",
         "tests/features.ts#bg-conic-chromium-zoom-tile"
       ],
-      "coverage": "partial",
-      "boundary": "Pixel content, crop, scale, color-space, cache, and paint-order gates are not complete for every activated boundary.",
+      "coverage": "exact",
       "featureIds": [
         "capture.emoji-detect",
         "render.tree-to-svg"
