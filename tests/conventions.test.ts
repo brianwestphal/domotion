@@ -108,6 +108,12 @@ describe("project conventions", () => {
       // the session's painted generic families for the resolver to consult —
       // same capture→render registration pattern as registerWebfont.
       "setSessionGenericFamilyOverrides",
+      // Post-capture color-glyph pruning must ask the exact renderer path with
+      // the exact captured feature/variation inputs. These three form one
+      // renderer-owned classification boundary (DM-2392), not parallel capture
+      // logic.
+      "selectedGlyphRasterSpans", "capturedTextSegmentFontFeatures",
+      "parseFontVariationSettings",
       // the three real queries
       "resolveFontKey", "getFontInstance", "renderTextAsPath",
     ]);

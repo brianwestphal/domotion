@@ -69,6 +69,12 @@ shortest possible map:
   Declared-family ordering and segmented `@font-face` capability-group/range
   construction are source-mapped in
   `docs/122-declared-family-segmented-face-parity.md`.
+  Color-glyph raster ownership is downstream of that same splitter:
+  `emoji-detect.ts` ports Blink's whole-sequence presentation grammar,
+  `selectedGlyphRasterSpans()` inspects the selected shaped glyph and physical
+  color tables, and `text.ts` suppresses exactly the returned UTF-16 span. See
+  `docs/145-renderer-owned-color-glyph-boundary.md`; no codepoint/block/font-name
+  allowlist or canvas-color probe participates.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);

@@ -1142,6 +1142,11 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   }
   FT_Face face = it->second.face;
 
+  auto hasTable = [face](const char tag[5]) {
+    FT_ULong length = 0;
+    return FT_Load_Sfnt_Table(face, FT_MAKE_TAG(tag[0], tag[1], tag[2], tag[3]), 0, nullptr, &length) == 0 && length > 0;
+  };
+
   std::ostringstream out;
   out << "{\"type\":\"meta\""
       << ",\"unitsPerEm\":" << static_cast<int>(face->units_per_EM)
@@ -1151,6 +1156,15 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
       // FreeType-backed face carries that native style bit directly.
       << ",\"traitItalic\":"
       << ((face->style_flags & FT_STYLE_FLAG_ITALIC) != 0 ? "true" : "false");
+  out << ",\"supportedColorTables\":[";
+  bool firstTable = true;
+  for (const char* tag : {"sbix", "COLR", "CPAL", "CBDT", "CBLC", "SVG "}) {
+    if (!hasTable(tag)) continue;
+    if (!firstTable) out << ",";
+    firstTable = false;
+    out << "\"" << tag << "\"";
+  }
+  out << "]";
 
   // post table: underline position / thickness (design units).
   out << ",\"underlinePosition\":" << static_cast<int>(face->underline_position)

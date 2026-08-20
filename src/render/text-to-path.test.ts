@@ -2497,22 +2497,16 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
   });
 });
 
-describe("Emoji codepoints suppress .notdef tofu emission (DM-334)", () => {
-  // When a codepoint is one Chrome paints via Apple Color Emoji (✨ 😀 🚀
-  // 🌟 🎉 etc.), neither Times nor Apple Symbols nor Zapf Dingbats has a
-  // glyph in their path tables — they all return id=0 (the hollow-rectangle
-  // .notdef tofu). The capture layer screenshots the page and stamps a
-  // raster <image> overlay at the emoji's painted rect, so the path
-  // pipeline's tofu rectangle is redundant; emitting it leaves a black
-  // silhouette around the edges of the emoji where the raster has
-  // sub-pixel transparency. Verify that for emoji codepoints the path
-  // pipeline emits NO `<use>` element (the only renderable would be the
-  // tofu, and that's now suppressed).
+describe("Selected raster glyphs suppress vector emission (DM-334 / DM-2392)", () => {
+  // The ordinary fallback iterator selects the concrete face first. If that
+  // selected glyph is sbix/COLR/CBDT/SVG rather than an outline, capture owns
+  // its pixels and the path pipeline must emit no duplicate `<use>` beneath
+  // the overlay. This is representation evidence, not an emoji-codepoint rule.
   it("emits no <use> for U+2728 ✨ (Dingbats emoji-presentation)", () => {
     // Render just "✨" with a captured xOffset. Primary=Times → no glyph.
     // Chain is ["zapf-dingbats", "symbols"] — neither has ✨, so picked
     // would be the chain's last entry (symbols) producing tofu. With the
-    // emoji-codepoint suppression, the markup is empty and
+    // selected-glyph suppression, the markup is empty and
     // renderTextAsPath returns null (no <g> wrapper for empty content).
     const out = renderTextAsPath("✨", 0, 0,
       { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0] });

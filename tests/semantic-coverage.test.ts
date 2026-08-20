@@ -68,7 +68,7 @@ describe("semantic coverage inventory", () => {
     const inventory = await loadSemanticCoverage(INVENTORY);
     const report = semanticCoverageReport(inventory);
     expect(report).toContain("Uncovered:");
-    expect(report).toContain("text.emoji-presentation [partial]");
-    expect(report).toContain("normal -> emoji");
+    expect(report).not.toContain("text.emoji-presentation [partial]");
+    expect(report).toContain("generic family -> browser preference");
   });
 });

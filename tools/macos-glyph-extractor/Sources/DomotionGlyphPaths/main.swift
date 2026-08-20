@@ -735,6 +735,9 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
         strikeoutThick = readI16BE(os2, 26).map { Int($0) }
         strikeoutPos = readI16BE(os2, 28).map { Int($0) }
     }
+    let supportedColorTables = ["sbix", "COLR", "CPAL", "CBDT", "CBLC", "SVG "].filter {
+        CTFontCopyTable(font, CTFontTableTag(fourCharTag($0)), []) != nil
+    }
 
     var result: [String: Any] = [
         "type": "meta",
@@ -750,6 +753,7 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
         "nameMatched": entry.nameMatched,
         "resolution": entry.resolution.rawValue,
         "postscriptName": (CTFontCopyPostScriptName(font) as String?) ?? "",
+        "supportedColorTables": supportedColorTables,
         // DM-1880: CoreText's own symbolic traits. Blink's macOS synthetic-bold
         // rule is `Weight() > 500 && !(traits & kCTFontTraitBold)`
         // (`mac/font_cache_mac.mm:424-427`) — it asks the TRAIT, not a numeric

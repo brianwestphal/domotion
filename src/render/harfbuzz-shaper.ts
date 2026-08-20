@@ -756,6 +756,8 @@ interface ShapingFontView {
   underlineThickness: number;
   availableFeatures?: string[];
   "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
+  directory?: { tables?: Record<string, unknown> };
+  COLR?: { baseGlyphRecord?: Array<{ gid: number }> };
   glyphForCodePoint(codePoint: number): { id: number; advanceWidth?: number; codePoints?: number[] };
   /** By-id glyph access, used only by `outlinesFromBase`. Optional because not
    *  every view has one; a view without it cannot take that mode. */
@@ -944,7 +946,10 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
     get underlineThickness() { return base.underlineThickness; },
     get availableFeatures() { return base.availableFeatures; },
     get "OS/2"() { return base["OS/2"]; },
+    get directory() { return base.directory; },
+    get COLR() { return base.COLR; },
     glyphForCodePoint(cp: number) { return base.glyphForCodePoint(cp); },
+    getGlyph: base.getGlyph?.bind(base),
     warmGlyphs: base.warmGlyphs?.bind(base),
     warmShapes: base.warmShapes?.bind(base),
   };

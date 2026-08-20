@@ -22,8 +22,8 @@ describe("TypefaceHasAnySupportedColorTable transcription", () => {
     expect(fontHasSupportedColorTable(face("glyf"), "webfont:noto color emoji impostor")).toBe(false);
   });
 
-  it("retains the platform-family fallback only when a native face has no directory", () => {
-    expect(fontHasSupportedColorTable({}, "sysfb:AppleColorEmoji")).toBe(true);
+  it("does not infer native-face capability from its platform font name", () => {
+    expect(fontHasSupportedColorTable({}, "sysfb:AppleColorEmoji")).toBe(false);
     expect(fontHasSupportedColorTable({}, "sysfb:ordinary-face")).toBe(false);
   });
 });

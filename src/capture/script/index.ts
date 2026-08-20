@@ -59,7 +59,7 @@ const captureDocumentTree =
   // (e.g. `warnings: _warnings`) to keep captureInner's existing references
   // unchanged.
   const { normColor, normGradientColors } = createColorNorm();
-  const { needsRaster, textNeedsRaster } = createEmojiDetect();
+  const { rasterCandidates, textNeedsRaster } = createEmojiDetect();
   const { markGetsDottedCircle } = createDottedCircleDetect();
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
@@ -106,7 +106,7 @@ const captureDocumentTree =
     composeEffectiveTransform,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
-  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster, normColor, markGetsDottedCircle });
+  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle });
   const { injectPseudoSegments } = createPseudoInjectHandler();
 
   const capture = (el) => {

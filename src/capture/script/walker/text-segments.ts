@@ -222,7 +222,7 @@ export const resolveCharOrientation = (ch, textOrientation) => {
   return isMixedVerticalUpright(ch.codePointAt(0)) ? 'upright' : 'rotated';
 };
 
-const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {
+const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle }) => {
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
   // ranges that paint upright in vertical text: CJK ideographs, CJK
@@ -911,6 +911,8 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
           firstLetterChars = [];
         }
         const rasterGlyphs = [];
+        const rasterSpans = rasterCandidates(visualText, cs.fontVariantEmoji);
+        const rasterSpanAt = new Map(rasterSpans.map((span) => [span.start, span]));
         // DM-1126: UTF-16 indices of orphaned combining marks where Chrome
         // auto-inserts a U+25CC dotted circle (detected via the canvas probe).
         // The renderer synthesizes the circle for COVERED such marks (fontkit
@@ -962,8 +964,6 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
           } else {
             clusterHasBase = true; // a normal base char (incl. uncircled letters)
           }
-          const nextCh = ci + 1 < line.chars.length ? line.chars[ci + 1].ch : '';
-          const nextCp = nextCh ? nextCh.codePointAt(0) : 0;
           const isFirstLetterChar = isFirstStyledLine && ci >= firstLetterStartIdx && ci < firstLetterEndIdx;
           if (isFirstLetterChar) {
             // DM-989: capture the char's per-char rect for later segment
@@ -978,17 +978,29 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
               rect: { x: 0, y: 0, width: 0, height: 0 },
               suppressGlyph: true,
             });
-          } else if (cp != null && needsRaster(cp, nextCp, cs.fontFamily, cs.fontVariantEmoji)) {
-            // Color-bitmap codepoint (emoji etc.) — record the painted rect
-            // so post-capture rasterization can fill in the dataUri and the
-            // renderer can stamp an `<image>` over the path-mode emit.
+          } else if (cp != null && rasterSpanAt.has(utf16Idx)) {
+            // Candidate span from Blink's whole-sequence presentation grammar.
+            // Node-side resolution decides whether the selected glyph is an
+            // outline or a color/bitmap/SVG representation before screenshot.
+            const span = rasterSpanAt.get(utf16Idx);
+            let spanRight = cRec.right;
+            let spanBottom = cRec.bottom;
+            let spanCi = ci + 1;
+            let spanUtf16 = utf16Idx + cRec.ch.length;
+            while (spanCi < line.chars.length && spanUtf16 < span.end) {
+              const member = line.chars[spanCi++];
+              spanRight = Math.max(spanRight, member.right);
+              spanBottom = Math.max(spanBottom, member.bottom);
+              spanUtf16 += member.ch.length;
+            }
             rasterGlyphs.push({
               charIndex: utf16Idx,
+              charLength: span.end - span.start,
               rect: {
                 x: cRec.left - vp.x,
                 y: cRec.top - vp.y,
-                width: cRec.right - cRec.left,
-                height: cRec.bottom - cRec.top,
+                width: spanRight - cRec.left,
+                height: spanBottom - cRec.top,
               },
               // DM-905: the embedded-font default path emits the codepoint
               // as a PUA `<text>` against the system fallback subset font

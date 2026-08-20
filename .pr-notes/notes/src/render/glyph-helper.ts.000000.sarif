@@ -218,6 +218,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt19i97pgfre99qa",
+          "message": {
+            "text": "Native faces now carry physical SFNT table evidence across the same interface as fontkit faces. Each platform helper queries the selected face for sbix/COLR/CPAL/CBDT/CBLC/SVG tables; reconstructing the directory here removes the last PostScript-name color heuristic and lets the shared Blink table-pair predicate decide capability.",
+            "markdown": "Native faces now carry physical SFNT table evidence across the same interface as fontkit faces. Each platform helper queries the selected face for sbix/COLR/CPAL/CBDT/CBLC/SVG tables; reconstructing the directory here removes the last PostScript-name color heuristic and lets the shared Blink table-pair predicate decide capability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 1048,
+                  "endLine": 1052,
+                  "snippet": {
+                    "text": "    availableFeatures: [],\n    ...(metaResp.supportedColorTables != null ? {\n      directory: { tables: Object.fromEntries(metaResp.supportedColorTables.map((tag) => [tag, true])) }\n    } : {}),\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                },
+                "region": {
+                  "startLine": 738
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1159
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 907
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2392"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c654171199f69d10942720e93effec17"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5b761bc9a94729a7bb37dee6ee9c1e143d266ffa",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

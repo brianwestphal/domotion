@@ -85,8 +85,7 @@
         "VS15 -> VS16",
         "monochrome face -> color face"
       ],
-      "exactStates": [],
-      "uncoveredStates": [
+      "exactStates": [
         "normal -> text",
         "normal -> emoji",
         "text -> emoji",
@@ -94,14 +93,18 @@
         "VS15 -> VS16",
         "monochrome face -> color face"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/platform/fonts",
         "external/chromium/third_party/blink/renderer/platform/text"
       ],
       "productionOwners": [
         "src/capture/script/emoji-detect.ts",
+        "src/render/cluster-fallback.ts",
         "src/render/font-resolution.ts",
-        "src/capture/emoji.ts"
+        "src/capture/emoji.ts",
+        "src/render/text-to-path.ts",
+        "src/render/glyph-helper.ts"
       ],
       "oracles": [
         "tools/font-conformance.ts",
@@ -109,13 +112,16 @@
       ],
       "metamorphicTests": [
         "src/render/emoji-presentation-fallback.test.ts",
-        "src/capture/script/emoji-detect.test.ts"
+        "src/capture/script/emoji-detect.test.ts",
+        "src/render/cluster-fallback.test.ts",
+        "src/render/emoji-raster-kind.test.ts",
+        "tests/alchemical-symbols-not-rastered.e2e.test.ts",
+        "tests/raster-fallback-content.e2e.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#text-font-variant-emoji"
       ],
-      "coverage": "partial",
-      "boundary": "Production still contains hardcoded raster codepoint gates and does not yet carry every font-variant-emoji transition through the renderer.",
+      "coverage": "exact",
       "featureIds": [
         "capture.emoji-detect",
         "render.text"

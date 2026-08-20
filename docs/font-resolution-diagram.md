@@ -1878,11 +1878,14 @@ Three consequences worth holding onto:
   reported the unrelated public Thonburi family as its own bold cut. The
   `basePath` field on the request carries the file; the helper now errors on a
   named-but-unopenable `fontRef` instead of quietly substituting Helvetica.
-- **An emoji-presentation codepoint never reaches the cascade at all** (DM-1884).
+- **An emoji-presentation token gets a one-shot priority face after declared
+  families and before system fallback** (DM-1884, refined by DM-2392).
+  Once the fallback iterator reaches that priority stage,
   `PlatformFallbackFontForCharacter` short-circuits at its very top
   (`mac/font_cache_mac.mm:319-324`): if the run's fallback priority is emoji
   presentation, Blink returns `GetFontData(font_description, "Apple Color Emoji")`
-  — a by-NAME family lookup (`kColorEmojiFontMac`, `:288`) — before
+  — a by-NAME family lookup (`kColorEmojiFontMac`, `:288`) — before the system
+  fallback cascade's
   `font_data_to_substitute` is even read. So for emoji the cascade base is
   irrelevant by construction.
 
@@ -1921,7 +1924,11 @@ Three consequences worth holding onto:
   `… | TAG_BASE | EMOJI_MODIFIER_BASE | …`. Upstream later split the category
   into `_TEXT` / `_EMOJI` halves and narrowed the rule to `_EMOJI` — the
   opposite answer for exactly these codepoints. This behaviour tracks Chromium's
-  pin and changes when Chromium rolls it.
+  pin and changes when Chromium rolls it. `scanEmojiPresentation()` is the
+  shared grammar port; capture categories come from the page Chromium and Node
+  categories from the pinned ICU companion. Raster ownership is decided later
+  from the selected shaped glyph and its physical font tables, as documented in
+  [145-renderer-owned-color-glyph-boundary.md](145-renderer-owned-color-glyph-boundary.md).
 
   Measured across all three platforms: the nine `Emoji_Presentation=No` modifier
   bases (U+261D U+26F9 U+270C U+270D U+1F3CB U+1F3CC U+1F574 U+1F575 U+1F590)

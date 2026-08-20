@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt19v3wucn82314t",
+          "message": {
+            "text": "The selected-glyph boundary is mutation-covered independently of font naming. Complete and incomplete COLR/CPAL and CBDT/CBLC pairs, sbix image presence, SVG-only output, and a mixed face's outline/color glyph split all discriminate the production predicate; the authoritative unit run passed 3,898 tests with 32 skipped, and the focused Playwright boundary run passed 9/9.",
+            "markdown": "The selected-glyph boundary is mutation-covered independently of font naming. Complete and incomplete COLR/CPAL and CBDT/CBLC pairs, sbix image presence, SVG-only output, and a mixed face's outline/color glyph split all discriminate the production predicate; the authoritative unit run passed 3,898 tests with 32 skipped, and the focused Playwright boundary run passed 9/9."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/emoji-raster-kind.test.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 46,
+                  "snippet": {
+                    "text": "import { describe, expect, it } from \"vitest\";\nimport { glyphUsesRasterRepresentation } from \"./text-to-path.js\";\nimport type { FontInstance } from \"./font-resolution.js\";\n\nconst outline = [{ command: \"moveTo\", args: [0, 0] }];\nfunction font(tables: Record<string, unknown>, colrIds: number[] = []): FontInstance {\n  return {\n    directory: { tables },\n    COLR: { baseGlyphRecord: colrIds.map((gid) => ({ gid })) },\n  } as unknown as FontInstance;\n}\nconst glyph = (id: number, commands = outline, type?: string) => ({ id, path: { commands }, type });\n\ndescribe(\"selected glyph raster representation\", () => {\n  it(\"distinguishes a COLR glyph from an outline glyph in the same face\", () => {\n    const mixed = font({ COLR: {}, CPAL: {}, glyf: {} }, [7]);\n    expect(glyphUsesRasterRepresentation(mixed, \"mixed\", glyph(7, outline, \"COLR\"), 32)).toBe(true);\n    expect(glyphUsesRasterRepresentation(mixed, \"mixed\", glyph(8, outline, \"COLR\"), 32)).toBe(false);\n  });\n\n  it(\"requires complete Blink color-table pairs\", () => {\n    expect(glyphUsesRasterRepresentation(font({ CBDT: {}, CBLC: {} }), \"x\", glyph(1, []), 32)).toBe(true);\n    expect(glyphUsesRasterRepresentation(font({ CBDT: {} }), \"x\", glyph(1, []), 32)).toBe(false);\n    expect(glyphUsesRasterRepresentation(font({ COLR: {} }), \"x\", glyph(1, []), 32)).toBe(false);\n    expect(glyphUsesRasterRepresentation(font({ CPAL: {} }), \"x\", glyph(1, []), 32)).toBe(false);\n  });\n\n  it(\"uses the selected sbix glyph image, not face naming\", () => {\n    const sbix = font({ sbix: {} });\n    expect(glyphUsesRasterRepresentation(sbix, \"arbitrary\", {\n      ...glyph(2, outline, \"SBIX\"), getImageForSize: () => new Uint8Array([1]),\n    }, 32)).toBe(true);\n    expect(glyphUsesRasterRepresentation(sbix, \"arbitrary\", {\n      ...glyph(3, outline, \"SBIX\"), getImageForSize: () => null,\n    }, 32)).toBe(false);\n  });\n\n  it(\"routes SVG-only glyph output but preserves an available outline\", () => {\n    const svg = font({ \"SVG \": {}, glyf: {} });\n    expect(glyphUsesRasterRepresentation(svg, \"icons\", glyph(4, []), 32)).toBe(true);\n    expect(glyphUsesRasterRepresentation(svg, \"icons\", glyph(5, outline), 32)).toBe(false);\n  });\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 93,
+          "workItemUris": [
+            "DM-2392"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fb045d367c5f517336c899bf432eb695"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5b761bc9a94729a7bb37dee6ee9c1e143d266ffa",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

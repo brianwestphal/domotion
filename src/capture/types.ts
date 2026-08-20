@@ -163,6 +163,8 @@ export interface TextSegment {
    */
   rasterGlyphs?: Array<{
     charIndex: number;
+    /** UTF-16 length of the selected shaping cluster (defaults to one codepoint). */
+    charLength?: number;
     rect: { x: number; y: number; width: number; height: number };
     dataUri?: string;
     /** When true, the underlying text-path emit for this charIndex must be

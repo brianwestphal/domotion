@@ -883,6 +883,16 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   DWRITE_FONT_METRICS m;
   it->second.face->GetMetrics(&m);
 
+  auto hasTable = [&it](UINT32 tag) {
+    const void* data = nullptr;
+    UINT32 size = 0;
+    void* context = nullptr;
+    BOOL exists = FALSE;
+    const HRESULT hr = it->second.face->TryGetFontTable(tag, &data, &size, &context, &exists);
+    if (context) it->second.face->ReleaseFontTable(context);
+    return SUCCEEDED(hr) && exists && size > 0;
+  };
+
   std::ostringstream out;
   out << "{\"type\":\"meta\""
       << ",\"unitsPerEm\":" << static_cast<int>(m.designUnitsPerEm)
@@ -894,6 +904,21 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
       << ",\"underlineThickness\":" << static_cast<int>(m.underlineThickness)
       << ",\"strikeoutPosition\":" << static_cast<int>(m.strikethroughPosition)
       << ",\"strikeoutThickness\":" << static_cast<int>(m.strikethroughThickness);
+  out << ",\"supportedColorTables\":[";
+  bool firstTable = true;
+  struct TaggedTable { const char* name; UINT32 tag; };
+  const TaggedTable colorTables[] = {
+    {"sbix", DWRITE_MAKE_OPENTYPE_TAG('s','b','i','x')}, {"COLR", DWRITE_MAKE_OPENTYPE_TAG('C','O','L','R')},
+    {"CPAL", DWRITE_MAKE_OPENTYPE_TAG('C','P','A','L')}, {"CBDT", DWRITE_MAKE_OPENTYPE_TAG('C','B','D','T')},
+    {"CBLC", DWRITE_MAKE_OPENTYPE_TAG('C','B','L','C')}, {"SVG ", DWRITE_MAKE_OPENTYPE_TAG('S','V','G',' ')},
+  };
+  for (const auto& table : colorTables) {
+    if (!hasTable(table.tag)) continue;
+    if (!firstTable) out << ",";
+    firstTable = false;
+    out << "\"" << table.name << "\"";
+  }
+  out << "]";
   // Exact source of DWriteFontTypeface::fontStyle().slant() in Chromium's
   // pinned Skia: IDWriteFontFace3::GetStyle() (SkTypeface_win_dw.cpp:39-58).
   // Omit the optional field when older DirectWrite lacks Face3 so Node keeps

@@ -2,23 +2,32 @@
 
 Requirements for color emoji glyphs (✨😀🚀⛔🎉 …) in Domotion's SVG output. Origin: DM-278 / DM-334 / DM-335.
 
-> **Cross-platform note**: This doc describes the macOS implementation. Apple Color Emoji's `sbix` table is the on-disk source of truth for color emoji on macOS. Linux uses Noto Color Emoji (CBDT/CBLC) and Windows uses Segoe UI Emoji (COLR/CPAL). Each platform needs a different bitmap-extraction path; the macOS implementation here is the reference and the Linux/Windows ports are tracked under the broader DM-258 → DM-262 cross-platform roadmap.
+> **Cross-platform note**: presentation and raster ownership are shared across
+> macOS, Linux, and Windows. The platform helpers expose the selected face's
+> physical color tables; macOS can additionally extract a high-resolution sbix
+> strike, while Linux/Windows use the exact page screenshot for the selected
+> glyph paint.
 
 ## Why color emoji are special
 
-fontkit can read the path glyph for almost every Unicode codepoint we care about, but emoji are stored as bitmap tables (`sbix` on macOS, `CBDT/CBLC` on Linux, `COLR/CPAL` on Windows). The path tables for emoji codepoints contain only `.notdef` (the hollow-rectangle tofu) — there's no vector geometry to extract. The renderer therefore can't emit `<path>` data for emoji and must instead embed a bitmap as `<image>`.
+Some selected glyphs are represented by bitmap or layered-paint tables (`sbix`
+on macOS, commonly `CBDT/CBLC` on Linux, and COLR/CPAL on Windows) rather than a
+single reusable outline. OpenType SVG glyphs have the same output boundary.
+This is a property of the selected glyph, not of the Unicode codepoint: a mixed
+font may contain both COLR and ordinary outline glyphs, and an arbitrary author
+icon font can contain color glyphs outside Unicode emoji ranges.
 
 ## Capture pipeline
 
-`src/capture/script/::CAPTURE_SCRIPT::needsRaster(cp, nextCp, font)` is the predicate that decides whether a codepoint needs the bitmap path. It covers:
-
-- The Misc Symbols block (U+2600..26FF) chars with default emoji presentation per Unicode emoji-data v15.1 (☔ ☕ ⛏ ⛹ ♈..♓ ⛏️ etc.).
-- Dingbats Chrome on macOS routes to Apple Color Emoji rather than Zapf Dingbats: ✨ ❌ ❎ ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿.
-- VS-16 (U+FE0F) follow-on: any base emoji codepoint paired with U+FE0F is forced to color presentation regardless of its default.
-- Regional-indicator pairs (flag emoji).
-- The main pictograph blocks U+1F300..U+1FAFF.
-
-When `needsRaster` returns true for a char, the capture pass appends a `rasterGlyphs` entry to the segment with the char's viewport-relative rect (taken straight from `Range.getBoundingClientRect()`). Each entry holds `{ charIndex, rect, dataUri? }`.
+`src/capture/script/emoji-detect.ts` ports Chromium's pinned emoji-segmenter
+grammar. It classifies whole regional-indicator, keycap, modifier, tag, and ZWJ
+tokens and records every non-whitespace grapheme as a temporary candidate, so
+non-emoji color fonts are discoverable too. Post-capture,
+`selectedGlyphRasterSpans()` repeats the renderer's actual declared-family,
+fallback-priority, system-fallback, and shaping path using the captured CSS
+font inputs. Only a candidate whose selected glyph is concretely non-outline
+survives into `rasterGlyphs`; entries carry `{ charIndex, charLength, rect,
+dataUri? }`, where the UTF-16 length makes whole-cluster suppression exact.
 
 ## Bitmap source: Apple Color Emoji sbix table (DM-335)
 
@@ -76,7 +85,11 @@ cells; measuring the page is authoritative.
 
 ## Path-pipeline interaction (DM-334)
 
-The path pipeline still walks the emoji codepoint and, when the resolved font (typically Apple Symbols as the last-resort fallback) returns a `.notdef` tofu, USED to emit the tofu rectangle under the raster overlay. PNG anti-aliasing left visible dark edges around the emoji where the raster's sub-pixel transparency exposed the tofu's outline. `src/render/font-resolution.ts::isEmojiCodepoint` mirrors the capture-side `needsRaster` predicate; the path-pipeline per-char emit loop suppresses any `<use>` whose glyph id is 0 when the codepoint is in an emoji range. Non-emoji unknown-char codepoints (PUA, deeply-exotic scripts) keep emitting their tofu as a "missing glyph" indicator.
+Both path and embedded-font emission consult the selected glyph representation.
+They emit no vector outline for a glyph owned by sbix/COLR/CBDT/SVG, and
+`text.ts` replaces exactly the captured overlay span with zero-width fillers.
+Ordinary uncovered characters still paint the fallback iterator's first
+candidate `.notdef`; no Unicode range suppresses tofu.
 
 ## File-size budget
 
@@ -84,22 +97,38 @@ The 20-font-family fixture has 3 emoji (😀 🚀 ✨). With the 64-ppem strike 
 
 ## CSS `font-variant-emoji`
 
-The property overrides which codepoints take the raster-emoji path at all — it is a genuine face-selection input, not a hint. Blink overrides the run's fallback priority and forces a variation selector into every glyph lookup (`ApplyFontVariantEmojiOnFallbackPriority`, `shaping/harfbuzz_shaper.cc:184-198`; `HarfBuzzGetGlyph`, `shaping/harfbuzz_face.cc:127-206`, rev `7d859f27`), so:
+The property is a genuine glyph-lookup and fallback-priority input, not a
+raster hint. Blink forces the corresponding variation-selector mode
+(`ApplyFontVariantEmojiOnFallbackPriority`, `shaping/harfbuzz_shaper.cc:184-198`;
+`HarfBuzzGetGlyph`, `shaping/harfbuzz_face.cc:127-206`, rev `7d859f27`), so:
 
-- `emoji` moves every Unicode `Emoji`-property codepoint to the color font — including covered text-default ones (☺ moves off Helvetica) and the keycap bases (`0-9 # *`; measured: Chrome really paints digit `5` from Apple Color Emoji under the override). All of these raster.
-- `text` moves an emoji-presentation codepoint onto the monochrome cascade when a mono face covers it (⚡ → Apple Symbols, ⭐ → STIX Two Math — Blink's monochrome-emoji replacement, `mac/font_cache_mac.mm:156-184`, mirrored in the macOS glyph helper's `monoEmoji` fallback mode); those render as path glyphs. Codepoints with no mono face anywhere (😀 ✨ ⭕, flags) stay on the color font and keep rastering.
+- `emoji` requests VS16 for Unicode `Emoji` scalars; declared covering faces
+  still precede the priority face.
+- `text` requests VS15 and can select a monochrome face; when no face satisfies
+  the selector, Blink resets the complete fallback iterator once and retries
+  ignoring it.
 - `unicode` behaves like `emoji` for emoji-default codepoints and like `normal` otherwise.
 - An explicit VS15/VS16 in the text always wins over the property.
 
-The capture predicate (`needsRaster`), the per-codepoint resolver, and the render-side path suppression all apply the same rules; the `text-font-variant-emoji` feature fixture pins them pixel-exactly.
+An exact cmap14 sequence wins before the face-wide presentation predicate. The
+predicate is exactly `sbix || (COLR && CPAL) || (CBDT && CBLC)`; SVG is a
+separate selected-glyph output capability. See
+[145-renderer-owned-color-glyph-boundary.md](145-renderer-owned-color-glyph-boundary.md).
 
 ## Known gaps
 
-- **ZWJ sequences** (👨‍👩‍👧 family emoji, 🏳️‍🌈 flag emoji, 👍🏿 skin-tone modifiers): each codepoint in the sequence has its own `rasterGlyphs` entry; the per-codepoint sbix lookup returns the unjoined glyph (👨, 👩, 👧 separately) which doesn't match Chrome's joined paint. The width-vs-height filter rejects the chars whose rect is a thin slice (ZWJ joiner U+200D, VS-16 U+FE0F) but the lead char still paints alone. Fixing this requires shaping-aware lookup: feed the full sequence to `font.layout` and use the resulting glyph cluster's id for sbix lookup. Scope is broader than the current ticket; the screenshot fallback path is still wired for these cases so the visible result is "Chrome's painted output, soft" rather than "wrong".
-- **Linux / Windows**: the .ttc lookup short-circuits on non-darwin, so all emoji currently fall back to the page-screenshot path on those platforms. Re-doing the same plumbing for Noto Color Emoji's CBDT/CBLC tables (Linux) and Segoe UI Emoji's COLR/CPAL (Windows) is tracked under the cross-platform roadmap.
-- **Subset / custom emoji fonts**: the path is hardcoded to `/System/Library/Fonts/Apple Color Emoji.ttc`. Author-installed emoji fonts (Twemoji, Fluent UI, etc.) aren't probed; they'd fall back to the screenshot path.
+- **Non-sbix formats use screenshots.** Linux CBDT, Windows COLR, OpenType SVG,
+  custom color webfonts, and multi-codepoint clusters are captured from the
+  page's selected paint. This is exact at capture DPR but softer if enlarged.
+- **Helper-absent mode is approximate.** The app remains non-fatal, but pinned
+  ICU properties and native face-table evidence are official-helper features;
+  host Unicode/fontkit provide best effort without them.
 
 ## Test coverage
 
 - `tests/output/html-test/20-font-family.html` `.s12` row exercises the typical case (😀 🚀 ✨ — three single-codepoint emoji from different blocks). Visual regression at 16px shows actual closely matches expected with sharper details than Chrome's 1× paint due to 64-ppem supersampling.
-- `src/render/text-to-path.test.ts` `Emoji codepoints suppress .notdef tofu emission (DM-334)` locks the path-pipeline tofu suppression for U+2728 / U+1F600 / U+1F680 / mixed Smile 😀 runs.
+- `src/render/text-to-path.test.ts` `Selected raster glyphs suppress vector emission` locks output ownership for U+2728 / U+1F600 / U+1F680 / mixed Smile 😀 runs.
+- `src/capture/script/emoji-detect.test.ts` mutation-covers the pinned sequence
+  grammar; `src/render/emoji-raster-kind.test.ts` covers mixed faces and every
+  complete/incomplete color-table form; the Alchemical Symbols and raster
+  content browser tests prove negative and positive production activation.

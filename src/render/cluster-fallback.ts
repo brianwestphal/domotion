@@ -61,7 +61,8 @@ import {
   webfontVariantsInDeclarationOrder, unicodeRangeCovers,
   resolveColorEmojiKeyForCp, isEmojiCharCp, isEmojiPresentationCp,
   resolveFontForCodepoint, resolveDottedCircleHbRun,
-  isEmojiCodepoint, fontHasSupportedColorTable,
+  resolveSystemFallbackKeyForCp,
+  fontHasSupportedColorTable,
   glyphIdForCp, harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
   registerFontEnvironmentInvalidator,
@@ -71,6 +72,50 @@ import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import { STANDARDIZED_VARIATION_SEQUENCES } from "./standardized-variation-sequences.generated.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import { isHarfbuzzDefaultIgnorable } from "./unicode-classification.js";
+import { scanEmojiPresentation } from "../capture/script/emoji-detect.js";
+import { ICU_BINARY, icuCodepointProperties } from "./icu-helper.js";
+
+type EmojiCategory = ReturnType<NonNullable<Parameters<typeof scanEmojiPresentation>[1]>>;
+
+/** Blink's category ordering backed by the Chromium-pinned ICU companion.
+ * The in-page scanner deliberately uses the page Chromium's own Unicode data;
+ * renderer-side fallback must not silently inherit Node's host ICU version. */
+function pinnedEmojiCategory(cp: number): EmojiCategory {
+  if (cp <= 0x7f) return cp === 0x23 || cp === 0x2a || (cp >= 0x30 && cp <= 0x39) ? "keycap" : "other";
+  if (cp === 0x20e3) return "keycap-mark";
+  if (cp === 0x20e0) return "circle-backslash";
+  if (cp === 0x200d) return "zwj";
+  if (cp === 0xfe0e) return "vs15";
+  if (cp === 0xfe0f) return "vs16";
+  if (cp === 0x1f3f4) return "tag-base";
+  if (cp >= 0xe0020 && cp <= 0xe007e) return "tag-sequence";
+  if (cp === 0xe007f) return "tag-term";
+  // Blink's Character::IsRegionalIndicator is this literal Unicode range,
+  // independent of ICU data (`character_emoji.cc:350-352`).
+  if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return "regional-indicator";
+  const row = icuCodepointProperties(cp);
+  if (row == null) {
+    // Helper-absent mode is intentionally best effort, but remains non-fatal.
+    const ch = String.fromCodePoint(cp);
+    if (/\p{Emoji_Modifier_Base}/u.test(ch)) return "modifier-base";
+    if (/\p{Emoji_Modifier}/u.test(ch)) return "modifier";
+    if (/\p{Regional_Indicator}/u.test(ch)) return "regional-indicator";
+    if (/\p{Emoji_Presentation}/u.test(ch)) return "emoji-default";
+    return /\p{Emoji}/u.test(ch) ? "text-default" : "other";
+  }
+  const bits = row.binaryProperties;
+  if ((bits & ICU_BINARY.EMOJI_MODIFIER_BASE) !== 0) return "modifier-base";
+  if ((bits & ICU_BINARY.V2) !== 0 && (bits & ICU_BINARY.EMOJI_MODIFIER) !== 0) return "modifier";
+  if ((bits & ICU_BINARY.V2) === 0 && /\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp))) return "modifier";
+  if ((bits & ICU_BINARY.EMOJI_PRESENTATION) !== 0) return "emoji-default";
+  if ((bits & ICU_BINARY.EMOJI) !== 0) return "text-default";
+  // U_UNASSIGNED is ICU general-category value 0. Blink admits only reserved
+  // Extended_Pictographic scalars here, not every pictograph.
+  if (row.generalCategory === 0 && (bits & ICU_BINARY.EXTENDED_PICTOGRAPHIC) !== 0) return "text-default";
+  return "other";
+}
+
+const scanPinnedEmojiPresentation = (text: string) => scanEmojiPresentation(text, pinnedEmojiCategory);
 
 /** Flag gate. Read per call so tests can toggle via env. Default ON;
  *  `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk. */
@@ -488,11 +533,12 @@ export function _hasNonTextFallbackPriorityForTest(
   next: number,
   fontVariantEmoji: FontVariantEmojiOverride | undefined,
 ): boolean {
-  if (next === 0xFE0F) return true;
-  if (next === 0xFE0E) return false;
+  const source = String.fromCodePoint(hint) + (next !== 0 ? String.fromCodePoint(next) : "");
+  const token = scanPinnedEmojiPresentation(source)[0];
+  if (token?.hasVs === true) return true;
   if (fontVariantEmoji === "emoji") return isEmojiCharCp(hint);
   if (fontVariantEmoji === "text") return false;
-  return isEmojiPresentationCp(hint); // normal and unicode
+  return token?.presentation === "emoji"; // normal and unicode
 }
 
 interface Candidate {
@@ -674,12 +720,21 @@ function splitShapedInner(
     /** Effective non-text fallback priority for the first hint. Explicit
      * selectors win over the CSS property; otherwise the run's Unicode emoji
      * presentation supplies Blink's default priority. */
-    const emojiPriorityFor = (hint: number): boolean => {
+    const emojiTokens = scanPinnedEmojiPresentation(logicalText);
+    const fallbackPriorityFor = (hint: number): "text" | "text-vs" | "emoji" => {
       const pos = findCodepoint(logicalText, queue, hint);
       const len = String.fromCodePoint(hint).length;
       const next = pos >= 0 && pos + len < logicalText.length
         ? logicalText.codePointAt(pos + len)! : 0;
-      return _hasNonTextFallbackPriorityForTest(hint, next, fontVariantEmoji);
+      const token = pos < 0 ? undefined : emojiTokens.find((span) => pos >= span.start && pos < span.end);
+      // Explicit VS priority wins over the CSS property. Only emoji
+      // presentation has a dedicated priority face; text-with-VS proceeds to
+      // the same platform fallback stage with VS15 glyph matching intact.
+      if (token?.hasVs === true) return token.presentation === "emoji" ? "emoji" : "text-vs";
+      if (fontVariantEmoji === "emoji") return isEmojiCharCp(hint) ? "emoji" : "text";
+      if (fontVariantEmoji === "text") return "text";
+      if (token != null) return token.presentation === "emoji" ? "emoji" : "text";
+      return next === 0xFE0F && isEmojiCharCp(hint) ? "emoji" : "text";
     };
 
     const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, mechanism: NonNullable<FontRun["routeMechanism"]>, vs?: Record<string, number>): Candidate => {
@@ -699,7 +754,7 @@ function splitShapedInner(
         switch (iter.stage) {
           case "family": {
             if (familyIndex >= familyCycle.length) {
-              iter.stage = emojiPriorityFor(hints[0]) ? "priority" : "system";
+              iter.stage = fallbackPriorityFor(hints[0]) !== "text" ? "priority" : "system";
               break;
             }
             const entry = familyCycle[familyIndex];
@@ -761,7 +816,13 @@ function splitShapedInner(
             iter.stage = "system";
             _priorityAsked++;
             const hint = hints[0];
-            const key = resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang);
+            const priority = fallbackPriorityFor(hint);
+            const key = priority === "emoji"
+              ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
+              : resolveSystemFallbackKeyForCp(
+                  hint, weight, slant, fontSize, primaryFontKey,
+                  systemUiPrimary, lang, stretch, "text", fontFamily,
+                );
             if (key == null) break;
             const font = getFontInstance(key, weight, fontSize, slant);
             if (font == null) break;

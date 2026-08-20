@@ -258,6 +258,12 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRast
   // path rendering, and the fallback repainted the full line under the
   // per-char raster overlays).
   const suppress = seg.rasterGlyphs.filter((g) => g.suppressGlyph === true || (alsoRastered && g.dataUri != null));
+  const suppressedAt = new Set<number>();
+  for (const glyph of suppress) {
+    const fallbackLength = normalized.codePointAt(glyph.charIndex)! > 0xFFFF ? 2 : 1;
+    const length = glyph.charLength ?? fallbackLength;
+    for (let j = 0; j < length; j++) suppressedAt.add(glyph.charIndex + j);
+  }
   if (suppress.length === 0) return normalized;
   // text is a UTF-16 string; charIndex is a UTF-16 position. U+200B is one
   // UTF-16 unit so the substitution preserves text length and xOffsets
@@ -269,26 +275,11 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRast
   // When the suppressed char-at-i is a high surrogate, replace BOTH the
   // high and low surrogate with a single ZWSP and a second filler ZWSP
   // so xOffset / position indexing stays aligned 1:1.
-  const isHighSurrogate = (c: string) => c.charCodeAt(0) >= 0xD800 && c.charCodeAt(0) <= 0xDBFF;
-  const isLowSurrogate = (c: string) => c.charCodeAt(0) >= 0xDC00 && c.charCodeAt(0) <= 0xDFFF;
   let out = "";
   for (let i = 0; i < normalized.length; i++) {
-    const drop = suppress.some((g) => g.charIndex === i);
+    const drop = suppressedAt.has(i);
     if (drop) {
       out += ZWSP;
-      // Pair the high surrogate's ZWSP with a second ZWSP for the low
-      // surrogate so following indices match the original positions.
-      if (isHighSurrogate(normalized[i]) && i + 1 < normalized.length && isLowSurrogate(normalized[i + 1])) {
-        out += ZWSP;
-        i++;
-      }
-      // Swallow a trailing U+FE0F variation selector too — the raster rect
-      // covers the whole emoji cluster (e.g. ❤️ = U+2764 U+FE0F), and a
-      // leftover bare VS16 after the ZWSP would still nudge some renderers.
-      if (i + 1 < normalized.length && normalized.charCodeAt(i + 1) === 0xFE0F) {
-        out += ZWSP;
-        i++;
-      }
     } else {
       out += normalized[i];
     }
@@ -1439,6 +1430,30 @@ export function resolveFontVariantAlternates(
 function elementFontFeatures(el: CapturedElement, fontFamily = el.styles.fontFamily): string[] | undefined {
   const alternates = resolveFontVariantAlternates(el.styles.fontVariantAlternates, fontFamily, el.styles.fontFeatureValues);
   return mergeFeatureLists(alternates, parseFontFeatureSettings(el.styles.fontFeatureSettings));
+}
+
+/** Shared selected-face input for the post-capture color-glyph classifier. */
+export function capturedTextSegmentFontFeatures(
+  el: CapturedElement,
+  seg: TextSegment,
+): string[] | undefined {
+  const family = seg.fontFamily ?? el.styles.fontFamily;
+  const ffs = elementFontFeatures(el, family);
+  return mergeFeatureLists(
+    mergeFeatureLists(
+      mergeFeatureLists(
+        resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
+        resolveFontVariantFeatures(
+          el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
+          el.styles.fontVariantLigatures, el.styles.letterSpacing,
+          el.styles.textRendering, el.styles.fontKerning,
+          el.styles.fontVariantPosition,
+        ),
+      ),
+      ffs,
+    ),
+    resolveChwsFeature(ffs),
+  );
 }
 
 // DM-578: parse `font-variation-settings` into the `{ axisTag: value }` shape

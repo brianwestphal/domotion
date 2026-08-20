@@ -24,6 +24,8 @@ import type { CapturedElement } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
+import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
+import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../render/text.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 let _aceFont: any = null;
@@ -183,6 +185,36 @@ interface RasterCandidate {
 type RasterTextSeg = NonNullable<CapturedElement["textSegments"]>[number];
 type RasterGlyph = NonNullable<RasterTextSeg["rasterGlyphs"]>[number];
 
+function segmentCandidates(text: string): Array<{ start: number; end: number }> {
+  const out: Array<{ start: number; end: number }> = [];
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  for (const part of segmenter.segment(text)) {
+    if (!/^\s+$/u.test(part.segment)) out.push({ start: part.index, end: part.index + part.segment.length });
+  }
+  return out;
+}
+
+function selectedRasterSpansForSegment(
+  el: CapturedElement,
+  seg: RasterTextSeg,
+  spans: Array<{ start: number; end: number }>,
+): Array<{ start: number; end: number }> {
+  return selectedGlyphRasterSpans(seg.text, spans, {
+    fontSize: seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14),
+    fontFamily: seg.fontFamily ?? el.styles.fontFamily,
+    fontWeight: seg.fontWeight ?? el.styles.fontWeight,
+    fontStyle: seg.fontStyle ?? el.styles.fontStyle,
+    fontStretch: el.styles.fontStretch,
+    lang: el.styles.lang,
+    variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
+    features: capturedTextSegmentFontFeatures(el, seg),
+    fontVariantEmoji: el.styles.fontVariantEmoji === "text"
+      || el.styles.fontVariantEmoji === "emoji"
+      || el.styles.fontVariantEmoji === "unicode"
+      ? el.styles.fontVariantEmoji : undefined,
+  });
+}
+
 /**
  * Per-rasterGlyph sbix-vs-screenshot decision (the deepest level of the walk in
  * `rasterizeBitmapGlyphs`, extracted to flatten it). Tries Apple Color Emoji's
@@ -211,6 +243,7 @@ function queueRasterGlyph(
   // capture, and Playwright rejects zero-area clips anyway.
   if (g.rect.width === 0 && g.rect.height === 0) return;
   const cp = seg.text.codePointAt(g.charIndex);
+  const cluster = seg.text.slice(g.charIndex, g.charIndex + (g.charLength ?? (cp != null && cp > 0xFFFF ? 2 : 1)));
   // DM-335: try Apple Color Emoji's sbix table first. Returns the high-DPI
   // bitmap Chrome itself paints from CoreText — sharper than a 1× page
   // screenshot at the same emoji rect. Falls through to the page.screenshot
@@ -251,7 +284,7 @@ function queueRasterGlyph(
   const h = Math.round(g.rect.height);
   candidates.push({
     rect: g.rect,
-    key: `glyph|${cp}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}`,
+    key: `glyph|${cluster}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}`,
     setDataUri: (uri) => { g.dataUri = uri; },
     snapRectToClip: true,
   });
@@ -599,14 +632,35 @@ export async function rasterizeBitmapGlyphs(
       if (el.textSegments != null) {
         for (const seg of el.textSegments) {
           if (seg.rasterRect != null) {
-            candidates.push({
-              rect: seg.rasterRect,
-              key: `seg|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}`,
-              setDataUri: (uri) => { seg.rasterDataUri = uri; },
-            });
+            if (selectedRasterSpansForSegment(el, seg, segmentCandidates(seg.text)).length === 0) {
+              seg.rasterRect = undefined;
+            } else {
+              candidates.push({
+                rect: seg.rasterRect,
+                key: `seg|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}`,
+                setDataUri: (uri) => { seg.rasterDataUri = uri; },
+              });
+            }
           }
           if (seg.rasterGlyphs != null) {
-            for (const g of seg.rasterGlyphs) queueRasterGlyph(g, seg, el, candidates, sbixAligns);
+            const structural = seg.rasterGlyphs.filter((g) => g.rect.width === 0 && g.rect.height === 0);
+            const paintCandidates = seg.rasterGlyphs.filter((g) => g.rect.width !== 0 || g.rect.height !== 0);
+            const selected = selectedRasterSpansForSegment(
+              el,
+              seg,
+              paintCandidates.map((g) => ({
+                start: g.charIndex,
+                end: g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1)),
+              })),
+            );
+            const selectedKeys = new Set(selected.map((span) => `${span.start}:${span.end}`));
+            const raster = paintCandidates.filter((g) => {
+              const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1));
+              return selectedKeys.has(`${g.charIndex}:${end}`);
+            });
+            const retained = [...structural, ...raster];
+            seg.rasterGlyphs = retained.length > 0 ? retained : undefined;
+            for (const g of raster) queueRasterGlyph(g, seg, el, candidates, sbixAligns);
           }
         }
       }

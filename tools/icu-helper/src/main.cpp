@@ -106,7 +106,9 @@ std::vector<uint32_t> parseCodepoints(const std::string& json) {
 }
 
 uint32_t binaryProperties(UChar32 cp) {
-  uint32_t bits = 0;
+  // Capability marker: consumers can distinguish helpers that expose the
+  // modifier/regional-indicator additions from older protocol-1 binaries.
+  uint32_t bits = 1u << 31;
   if (u_hasBinaryProperty(cp, UCHAR_IDEOGRAPHIC)) bits |= 1u << 0;
   if (u_hasBinaryProperty(cp, UCHAR_DEFAULT_IGNORABLE_CODE_POINT)) bits |= 1u << 1;
   if (u_hasBinaryProperty(cp, UCHAR_GRAPHEME_EXTEND)) bits |= 1u << 2;
@@ -115,6 +117,8 @@ uint32_t binaryProperties(UChar32 cp) {
   if (u_hasBinaryProperty(cp, UCHAR_EMOJI_MODIFIER_BASE)) bits |= 1u << 5;
   if (u_hasBinaryProperty(cp, UCHAR_EMOJI_COMPONENT)) bits |= 1u << 6;
   if (u_hasBinaryProperty(cp, UCHAR_EXTENDED_PICTOGRAPHIC)) bits |= 1u << 7;
+  if (u_hasBinaryProperty(cp, UCHAR_EMOJI_MODIFIER)) bits |= 1u << 8;
+  if (u_hasBinaryProperty(cp, UCHAR_REGIONAL_INDICATOR)) bits |= 1u << 9;
   return bits;
 }
 

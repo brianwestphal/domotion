@@ -131,6 +131,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt19i97pg13qg3p7",
+          "message": {
+            "text": "Whole-sequence presentation is a grammar decision, not a codepoint inventory. This is a structural port of Chromium's pinned emoji-segmenter scanner: selector priority, RI pairing, keycaps, modifier sequences, valid tags, and ZWJ consumption are encoded as transitions; the injectable classifier lets capture use the page Chromium's Unicode data while Node uses the pinned ICU companion.",
+            "markdown": "Whole-sequence presentation is a grammar decision, not a codepoint inventory. This is a structural port of Chromium's pinned emoji-segmenter scanner: selector priority, RI pairing, keycaps, modifier sequences, valid tags, and ZWJ consumption are encoded as transitions; the injectable classifier lets capture use the page Chromium's Unicode data while Node uses the pinned ICU companion."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/emoji-detect.ts"
+                },
+                "region": {
+                  "startLine": 39,
+                  "endLine": 118,
+                  "snippet": {
+                    "text": "export const scanEmojiPresentation = (text, classify = emojiCategory) => {\n  const units = [];\n  for (let i = 0; i < text.length;) {\n    const cp = text.codePointAt(i);\n    const ch = String.fromCodePoint(cp);\n    units.push({ start: i, end: i + ch.length, cat: classify(cp) });\n    i += ch.length;\n  }\n  const spans = [];\n  const push = (startUnit, endUnit, presentation, hasVs) => spans.push({\n    start: units[startUnit].start,\n    end: units[endUnit - 1].end,\n    presentation,\n    hasVs,\n  });\n  const elementEnd = (at) => {\n    if (at >= units.length || !isAnyEmoji(units[at].cat)) return at;\n    if (at + 1 < units.length && units[at + 1].cat === \"vs16\") return at + 2;\n    if (units[at].cat === \"modifier-base\" && at + 1 < units.length && units[at + 1].cat === \"modifier\") return at + 2;\n    return at + 1;\n  };\n  let i = 0;\n  while (i < units.length) {\n    const c = units[i].cat;\n    // VS15 tokens are ordered first in the Ragel scanner.\n    if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === \"vs15\") {\n      let end = i + 2;\n      if (c === \"keycap\" && end < units.length && units[end].cat === \"keycap-mark\") end++;\n      push(i, end, \"text\", true); i = end; continue;\n    }\n    let end = 0;\n    let hasVs = false;\n    if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === \"vs16\") {\n      end = i + 2; hasVs = true;\n      if (c === \"keycap\" && end < units.length && units[end].cat === \"keycap-mark\") end++;\n    } else if (c === \"modifier-base\" && i + 1 < units.length && units[i + 1].cat === \"modifier\") {\n      end = i + 2;\n    } else if (c === \"regional-indicator\" && i + 1 < units.length && units[i + 1].cat === \"regional-indicator\") {\n      end = i + 2;\n    } else if (c === \"tag-base\") {\n      let j = i + 1;\n      while (j < units.length && units[j].cat === \"tag-sequence\") j++;\n      if (j > i + 1 && j < units.length && units[j].cat === \"tag-term\") end = j + 1;\n      else end = i + 1; // TAG_BASE alone has emoji presentation.\n    } else if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === \"circle-backslash\") {\n      end = i + 2;\n    } else if (c === \"emoji-default\" || c === \"tag-base\" || c === \"modifier-base\") {\n      end = i + 1;\n    }\n    // A valid ZWJ sequence consumes whole emoji_zwj_element tokens.\n    const firstElementEnd = elementEnd(i);\n    if (firstElementEnd > i) {\n      let j = firstElementEnd;\n      let joined = false;\n      while (j + 1 < units.length && units[j].cat === \"zwj\") {\n        const nextEnd = elementEnd(j + 1);\n        if (nextEnd === j + 1) break;\n        joined = true;\n        j = nextEnd;\n      }\n      if (joined) { end = j; hasVs = false; }\n    }\n    if (end > i) { push(i, end, \"emoji\", hasVs); i = end; continue; }\n    i++;\n  }\n  return spans;\n};\n\nexport const createEmojiDetect = () => {\n  const rasterCandidates = (text, fontVariantEmoji = \"normal\") => {\n    const spans = scanEmojiPresentation(text);\n    if (fontVariantEmoji != null && fontVariantEmoji !== \"normal\" && fontVariantEmoji !== \"unicode\") {\n    // Explicit selector tokens keep their source priority. For unselected\n    // Emoji-property scalars, Blink's CSS property changes glyph lookup mode;\n    // retain whole scanner tokens and add singleton candidates where needed.\n    const covered = new Set();\n    for (const span of spans) for (let i = span.start; i < span.end; i++) covered.add(i);\n    for (let i = 0; i < text.length;) {\n      const cp = text.codePointAt(i);\n      const ch = String.fromCodePoint(cp);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2392"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ebffc5a0047b18672ebf1c1ca197801e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5b761bc9a94729a7bb37dee6ee9c1e143d266ffa",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

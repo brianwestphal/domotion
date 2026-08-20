@@ -2,19 +2,19 @@ import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium, captureElementTree, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
-// DM-1125: the Alchemical Symbols block (U+1F700-1F77F) sits inside the broad
-// `0x1F300-0x1FAFF` "main emoji block" range that `emoji-detect.ts` rasters
-// unconditionally. But Chrome paints the block's 116 covered codepoints as
+// DM-1125 originally exposed a broad emoji-block raster rule. Chrome paints
+// the Alchemical block's covered codepoints as
 // MONOCHROME Apple Symbols path glyphs, not color emoji. The unconditional
 // raster stamped a color-bitmap `<image>` overlay sized to the font CONTENT box
 // (ascent+descent ≈ 29px at 32px font-size) — which CLIPPED the tall apparatus
 // glyphs (retort/alembic U+1F76F / U+1F770, whose ink is ~35px) because Chrome
 // paints the full ink while the raster cropped it to the content box.
 //
-// The fix gates the alchemical block through the same `isColorGlyph` canvas
-// probe the DM-1025 default-presentation-symbol branches use: when the element's
-// font cascade reaches Apple Symbols (monochrome) it path-renders; only a cell
-// whose cascade reaches the color font rasters.
+// DM-2392 removes that block exception and its canvas probe entirely. Every
+// grapheme is a temporary candidate; the real renderer cascade and shaper
+// select a face/glyph, and only a concrete bitmap/COLR/SVG representation stays
+// raster-owned. Thus these cells path-render because their selected glyphs have
+// outlines, while the adjacent color control still rasters.
 //
 // This is a deterministic capture-level guard: the perceptual visual-diff gate
 // is too lenient on a few-px top/bottom clip to catch the regression reliably,

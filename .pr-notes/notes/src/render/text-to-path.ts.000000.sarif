@@ -830,6 +830,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt19i97q3gexwu21",
+          "message": {
+            "text": "Raster ownership is downstream of real face selection and shaping. A temporary grapheme candidate is retained only when the selected glyph has a concrete non-outline representation; checking the exact COLR base glyph and preferring a usable outline prevents a mixed color/outline face from being rasterized wholesale.",
+            "markdown": "Raster ownership is downstream of real face selection and shaping. A temporary grapheme candidate is retained only when the selected glyph has a concrete non-outline representation; checking the exact COLR base glyph and preferring a usable outline prevents a mixed color/outline face from being rasterized wholesale."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2743,
+                  "endLine": 2814,
+                  "snippet": {
+                    "text": "};\n\n/** Pure selected-glyph representation seam used by the mutation matrix. */\nexport function glyphUsesRasterRepresentation(\n  font: FontInstance & { COLR?: { baseGlyphRecord?: Array<{ gid: number }> } },\n  fontKey: string,\n  glyph: RasterKindGlyph,\n  fontSize: number,\n  weight = 400,\n  slant = 0,\n): boolean {\n  if (glyph.type === \"SBIX\") {\n    try { if (glyph.getImageForSize?.(fontSize) != null) return true; } catch { /* use table/path evidence below */ }\n  }\n  if (glyph.type === \"COLR\" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return true;\n  if (commandsFor(glyph, fontKey, weight, fontSize, slant).length > 0) return false;\n  if (fontHasSupportedColorTable(font, fontKey)) return true;\n  return font.directory?.tables != null && \"SVG \" in font.directory.tables;\n}\n\n/**\n * Decide the raster boundary from the face selected by the same run splitter\n * used by glyph emission. This is intentionally downstream of presentation\n * segmentation and declared-family fallback: Blink does not infer color paint\n * from a Unicode block or a family name. A selected glyph needs an overlay\n * only when its concrete representation is non-outline (sbix, COLR, CBDT, or\n * OpenType SVG). Plain outline glyphs in a mixed color-capable face stay vector.\n */\nexport function selectedGlyphRasterSpans(\n  text: string,\n  candidates: Array<{ start: number; end: number }>,\n  options: TextFontOptions,\n): Array<{ start: number; end: number }> {\n  if (text.length === 0 || candidates.length === 0) return [];\n  const fontSize = options.fontSize;\n  const fontFamily = options.fontFamily;\n  const weight = cssWeightOf(options.fontWeight);\n  const slant = slantForStyle(options.fontStyle);\n  const stretch = stretchPercent(options.fontStretch);\n  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, options.variationSettings, stretch, options.lang);\n  if (primaryFont == null) return [];\n  const primaryKey = resolveFontKey(fontFamily, options.lang);\n  const chain = resolveFontKeyChain(fontFamily, options.lang);\n  const runs = splitTextIntoGlyphPathRuns(\n    text, primaryFont, primaryKey, weight, fontSize, slant,\n    options.variationSettings, options.lang, chain,\n    stackPrimaryIsSystemUi(fontFamily, options.lang), stretch,\n    options.fontVariantEmoji, fontFamily, options.features,\n  );\n  const out: Array<{ start: number; end: number }> = [];\n  for (const candidate of candidates) {\n    const run = runs.find((r) => candidate.start >= r.startIdx && candidate.start < r.endIdx);\n    if (run == null) continue;\n    const source = text.slice(candidate.start, candidate.end);\n    let glyphs: Array<{ id: number; path: { commands: PathCommand[] }; type?: string; getImageForSize?: (size: number) => unknown }>;\n    try {\n      glyphs = run.font.layout(source, options.features != null ? fontkitFeatureList(options.features) : undefined).glyphs;\n    } catch { continue; }\n    const fontWithColr = run.font as FontInstance & {\n      COLR?: { baseGlyphRecord?: Array<{ gid: number }> };\n      directory?: { tables?: Record<string, unknown> };\n    };\n    const nonOutline = glyphs.some((glyph) => glyphUsesRasterRepresentation(\n      fontWithColr, run.fontKey, glyph, fontSize, weight, slant,\n    ));\n    if (nonOutline) out.push(candidate);\n  }\n  return out;\n}\n\n/** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */\nexport function cssWeightOf(fontWeight: string | number): number {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2392"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "341bb4293c10617df5df78407d8eefa7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5b761bc9a94729a7bb37dee6ee9c1e143d266ffa",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

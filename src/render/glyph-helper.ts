@@ -119,6 +119,8 @@ interface MetaResponse {
   resolution?: string;
   /** The PostScript name of the face actually opened. */
   postscriptName?: string;
+  /** Physical SFNT paint tables reported by the selected native face. */
+  supportedColorTables?: string[];
 }
 
 interface GlyphResponse {
@@ -1044,6 +1046,9 @@ export function createGlyphHelperFont(spec: {
     // being read into nothing.
     ...(metaResp.traitItalic != null ? { faceIsItalicTrait: metaResp.traitItalic } : {}),
     availableFeatures: [],
+    ...(metaResp.supportedColorTables != null ? {
+      directory: { tables: Object.fromEntries(metaResp.supportedColorTables.map((tag) => [tag, true])) }
+    } : {}),
 
     warmGlyphs(cps: number[]): void {
       fetchByCps(cps);

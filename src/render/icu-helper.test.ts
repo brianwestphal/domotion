@@ -30,11 +30,14 @@ describe.runIf(haveLocalCompanion)("Chromium-pinned ICU companion (DM-2254)", ()
 
   it("returns exact ICU properties in one batched call", () => {
     __resetIcuHelperForTest();
-    const rows = queryIcuCodepoints([0x41, 0x200d, 0x4e00, 0x1f9d1]);
+    const rows = queryIcuCodepoints([0x41, 0x200d, 0x4e00, 0x1f9d1, 0x1f3fb, 0x1f1fa]);
     expect(rows.get(0x41)?.scriptLongName).toBe("Latin");
     expect(rows.get(0x200d)?.generalCategoryName).toBe("Format");
     expect(rows.get(0x4e00)!.binaryProperties & ICU_BINARY.IDEOGRAPHIC).not.toBe(0);
     expect(rows.get(0x1f9d1)!.binaryProperties & ICU_BINARY.EMOJI).not.toBe(0);
+    expect(rows.get(0x1f9d1)!.binaryProperties & ICU_BINARY.V2).not.toBe(0);
+    expect(rows.get(0x1f3fb)!.binaryProperties & ICU_BINARY.EMOJI_MODIFIER).not.toBe(0);
+    expect(rows.get(0x1f1fa)!.binaryProperties & ICU_BINARY.REGIONAL_INDICATOR).not.toBe(0);
   });
 
   it("rejects invalid scalar values before crossing the native boundary", () => {

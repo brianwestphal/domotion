@@ -833,6 +833,11 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
       + "Fix: bash tools/macos-glyph-extractor/build.sh",
     ).toBe(false);
   });
+
+  it("reports physical color tables for native faces without naming heuristics", () => {
+    const meta = __helperMetaForTest("AppleColorEmoji");
+    expect(meta?.supportedColorTables).toContain("sbix");
+  });
 });
 
 (darwinHelper ? describe : describe.skip)("Apple Color Emoji outline offset, live (DM-1831)", () => {

@@ -48,7 +48,7 @@ import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityF
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, harfbuzzCanonicalDecompositionCandidates, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
-import { isIcuHelperAvailable } from "./icu-helper.js";
+import { ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
 export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 /**
@@ -3025,7 +3025,7 @@ function characterFallbackDocKey(
   return `${baseName}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
 }
 
-function resolveSystemFallbackKeyForCp(
+export function resolveSystemFallbackKeyForCp(
   cp: number, weight: number = 400, slant: number = 0, fontSize: number = 16,
   primaryKey?: string, systemUiPrimary: boolean = false,
   // DM-1863: the content locale. Blink passes it on the Linux path —
@@ -3516,9 +3516,15 @@ export function fcLangProperty(lang?: string): string {
  * overlay, which is keyed on the sequence rather than on this.
  */
 export function isEmojiPresentationCp(cp: number): boolean {
-  if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return false;
+  const pinned = icuCodepointProperties(cp);
   const ch = String.fromCodePoint(cp);
-  if (/\p{Emoji_Modifier}/u.test(ch)) return false;
+  const v2 = pinned != null && (pinned.binaryProperties & ICU_BINARY.V2) !== 0;
+  if (v2
+    ? (pinned.binaryProperties & ICU_BINARY.REGIONAL_INDICATOR) !== 0
+    : /\p{Regional_Indicator}/u.test(ch)) return false;
+  if (v2
+    ? (pinned.binaryProperties & ICU_BINARY.EMOJI_MODIFIER) !== 0
+    : /\p{Emoji_Modifier}/u.test(ch)) return false;
   // An emoji-modifier BASE is emoji-presentation whatever its
   // `Emoji_Presentation` property says — and, like the regional-indicator case
   // above, that is an ORDERING rather than a property. The categoriser tests
@@ -3543,6 +3549,10 @@ export function isEmojiPresentationCp(cp: number): boolean {
   // sends the query down the substituted-codepoint/`und-Zsye` branch — Noto
   // Color Emoji is LAST in the `:lang=en` fontconfig order, so no walk of that
   // order could ever have found it.
+  if (pinned != null) {
+    if ((pinned.binaryProperties & ICU_BINARY.EMOJI_MODIFIER_BASE) !== 0) return true;
+    return (pinned.binaryProperties & ICU_BINARY.EMOJI_PRESENTATION) !== 0;
+  }
   if (/\p{Emoji_Modifier_Base}/u.test(ch)) return true;
   return /\p{Emoji_Presentation}/u.test(ch);
 }
@@ -3578,7 +3588,10 @@ export type FontVariantEmojiOverride = "text" | "emoji" | "unicode";
  * Helvetica to Apple Color Emoji (CDP `getPlatformFontsForNode`).
  */
 export function isEmojiCharCp(cp: number): boolean {
-  return /\p{Emoji}/u.test(String.fromCodePoint(cp));
+  const pinned = icuCodepointProperties(cp);
+  return pinned != null
+    ? (pinned.binaryProperties & ICU_BINARY.EMOJI) !== 0
+    : /\p{Emoji}/u.test(String.fromCodePoint(cp));
 }
 
 /**
@@ -3595,18 +3608,6 @@ export function forcesEmojiPresentation(cp: number, fve: FontVariantEmojiOverrid
   return false;
 }
 
-/** Is `key` the platform color-emoji face — the fonts the emoji-presentation
- *  stages register (`sysfb:AppleColorEmoji` / `.AppleColorEmojiUI` on macOS,
- *  Noto Color Emoji on Linux, Segoe UI Emoji on Windows)? Used by the renderer
- *  to decide whether a forced-text-presentation codepoint still needs the
- *  raster-emoji overlay (the cascade found no monochrome face — Blink's
- *  ignore-VS reset) or paints as a normal path glyph. */
-export function isColorEmojiFontKey(key: string): boolean {
-  const k = key.toLowerCase();
-  return k.includes("applecoloremoji") || k.includes("notocoloremoji")
-    || k.includes("noto color emoji") || k.includes("segoe-ui-emoji") || k.includes("seguiemj");
-}
-
 /**
  * Blink `ColorTableLookup::TypefaceHasAnySupportedColorTable`, transcribed
  * from `opentype/color_table_lookup.cc` (Chromium rev 7d859f27).
@@ -3614,12 +3615,12 @@ export function isColorEmojiFontKey(key: string): boolean {
  * A face is color-capable when it contains sbix, both COLR+CPAL, or both
  * CBDT+CBLC. This is deliberately a table query rather than an emoji-family
  * allowlist: author webfonts can carry any of these formats under any name.
- * Native-helper faces currently expose no SFNT directory, so only that tier
- * retains the established platform-family fallback.
+ * Native-helper faces expose the same directory evidence through their meta
+ * response, so this decision never depends on a family or PostScript name.
  */
-export function fontHasSupportedColorTable(font: Pick<FontInstance, "directory">, key = ""): boolean {
+export function fontHasSupportedColorTable(font: Pick<FontInstance, "directory">, _key = ""): boolean {
   const tables = font.directory?.tables;
-  if (tables == null) return isColorEmojiFontKey(key);
+  if (tables == null) return false;
   if ("sbix" in tables) return true;
   if ("COLR" in tables && "CPAL" in tables) return true;
   if ("CBDT" in tables && "CBLC" in tables) return true;
@@ -5784,52 +5785,6 @@ export function isNonCharacterCodepoint(cp: number): boolean {
   if (cp > 0x10FFFF) return false;
   if (cp >= 0xFDD0 && cp <= 0xFDEF) return true;
   return (cp & 0xFFFE) === 0xFFFE;
-}
-
-export function isEmojiCodepoint(cp: number, nextCp: number): boolean {
-  // Misc Symbols block (U+2600..26FF) chars with default emoji presentation.
-  if (cp === 0x2614 || cp === 0x2615 || (cp >= 0x2648 && cp <= 0x2653)
-    || cp === 0x267F || cp === 0x2693 || cp === 0x26A1 || cp === 0x26AA || cp === 0x26AB
-    || cp === 0x26BD || cp === 0x26BE || cp === 0x26C4 || cp === 0x26C5 || cp === 0x26CE
-    || cp === 0x26D4 || cp === 0x26EA || cp === 0x26F2 || cp === 0x26F3 || cp === 0x26F5
-    || cp === 0x26FA || cp === 0x26FD) return true;
-  // Dingbats Chrome routes to Apple Color Emoji (✨ ❌ ❎ ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿ etc.).
-  if (cp === 0x2728 || cp === 0x2753 || cp === 0x2754 || cp === 0x2755 || cp === 0x2757
-    || cp === 0x274C || cp === 0x274E || cp === 0x2795 || cp === 0x2796 || cp === 0x2797
-    || cp === 0x27A1 || cp === 0x27B0 || cp === 0x27BF) return true;
-  // DM-728: Misc Symbols and Arrows (U+2B??) with default emoji presentation
-  // per Unicode emoji-data — Chrome paints these as Apple Color Emoji
-  // without needing the U+FE0F variation selector. ⭐ U+2B50 is the
-  // common case from `20-deep-font-palette.html`.
-  if (cp === 0x2B05 || cp === 0x2B06 || cp === 0x2B07
-    || cp === 0x2B1B || cp === 0x2B1C || cp === 0x2B50 || cp === 0x2B55) return true;
-  // VS-16 (U+FE0F) after a base emoji codepoint requests color presentation.
-  if (nextCp === 0xFE0F && cp >= 0x2600 && cp <= 0x26FF) return true;
-  // DM-728: VS-16 also flips Dingbats block (U+2700..U+27BF) codepoints
-  // with text-default presentation to color emoji. ❤️ U+2764 + VS-16 in
-  // the same fixture was rendering as a small monochrome path glyph
-  // because this branch was missing.
-  if (nextCp === 0xFE0F && cp >= 0x2700 && cp <= 0x27BF) return true;
-  // Enclosed Alphanumeric Supplement squared abbreviations with DEFAULT emoji
-  // presentation (Unicode emoji-data Emoji_Presentation=Yes): 🆎 U+1F18E and
-  // 🆑–🆚 U+1F191..1F19A (CL COOL FREE ID NEW NG OK SOS UP! VS). Chrome paints
-  // these from the color-emoji font WITHOUT a VS-16 (verified vs
-  // getPlatformFontsForNode → Noto Color Emoji on Linux / Apple Color Emoji on
-  // macOS). The sibling squared letters 1F130–1F189 are Emoji_Presentation=No
-  // (text default) and are intentionally NOT included.
-  if (cp === 0x1F18E || (cp >= 0x1F191 && cp <= 0x1F19A)) return true;
-  // NOTE: ◽◾☝⛹ U+25FD/25FE/261D/26F9 are NOT added here — their presentation is
-  // PLATFORM-dependent, not a fixed property: verified vs getPlatformFontsForNode,
-  // macOS Chrome paints them as TEXT (Apple Symbols / STIX Two Math) while Linux
-  // Chrome's fontconfig falls to Noto Color Emoji. A global emoji flag would break
-  // macOS (Domotion already matches Apple Symbols there). The Linux emoji-vs-text
-  // fallback for these few codepoints is a documented residual.
-  // Regional-indicator flags (pairs are joined into country flag emoji).
-  if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
-  // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport,
-  // Alchemical, Supplemental Symbols, Pictographs Extended-A/B.
-  if (cp >= 0x1F300 && cp <= 0x1FAFF) return true;
-  return false;
 }
 
 /**
@@ -9974,25 +9929,6 @@ function walkFontFallbackStages(
   const helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable();
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     coveredFontResolution(key, fontOverride, emitCh, decomposed);
-
-  // `font-variant-emoji: emoji` (and `unicode`, for emoji-default codepoints)
-  // forces VS16 in every glyph lookup, so a candidate WITHOUT color presentation
-  // reads as having no glyph and the cascade lands on the color-emoji font —
-  // even over a covering primary (`HarfBuzzGetGlyph`,
-  // `shaping/harfbuzz_face.cc:127-206` + `ApplyFontVariantEmojiOnFallbackPriority`,
-  // `harfbuzz_shaper.cc:184-198`, rev 7d859f27). Measured: bare U+2764 moves
-  // ZapfDingbats → Apple Color Emoji, a covered U+263A moves Helvetica → Apple
-  // Color Emoji, and even digit `5` moves (the `Emoji` property includes the
-  // keycap bases). When the color font does not cover the codepoint, Blink
-  // resets the queue and resolves ignoring the selector
-  // (`harfbuzz_shaper.cc:1010-1020`) — the fall-through below.
-  if (forcesEmojiPresentation(cp, fontVariantEmoji)) {
-    const emojiKey = resolveColorEmojiKeyForCp(cp, weight, fontSize, slant, lang);
-    if (emojiKey != null) {
-      const inst = emojiKey === primaryFontKey ? null : getFontInstance(emojiKey, weight, fontSize, slant);
-      return cover(emojiKey, inst);
-    }
-  }
 
   // DM-1197: complex-script letters with a canonical base+mark NFD (e.g. Kaithi
   // U+110AB VA) shape DIFFERENTLY in Chrome (HarfBuzz decomposes + GPOS-positions

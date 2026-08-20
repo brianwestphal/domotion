@@ -1,459 +1,160 @@
 // @ts-nocheck
 //
-// Codepoint predicate for glyphs Chrome paints via a color-bitmap font
-// (Apple Color Emoji on macOS, Noto Color Emoji on Linux) even when a
-// path-font has a glyph. fontkit cannot emit a <path> from CBDT/sbix bitmap
-// tables, so these need to be rasterized via page.screenshot and embedded
-// as <image>. See SK-1058.
-//
-// Narrow scope on purpose: the Miscellaneous-Symbols / Geometric-Shapes /
-// Arrows blocks have path glyphs in Apple Symbols that render faithfully
-// (e.g. ⚑ U+2691, → U+2192), so they stay on the path pipeline. The lists
-// below are codepoints we've observed Chrome routing to the emoji font
-// despite path availability (checkmark family), plus the canonical emoji
-// planes (U+1F300+).
+// Blink does not classify emoji paint one codepoint at a time. SymbolsIterator
+// feeds ICU-derived categories through the pinned emoji-segmenter grammar and
+// assigns one of four presentation priorities to each whole token. Keep this
+// capture-side port structural: it only identifies candidate spans. The Node
+// side resolves the declared family cascade and inspects the selected glyph;
+// no codepoint, block, platform, or font name decides raster ownership here.
+
+const RE_EMOJI = /\p{Emoji}/u;
+const RE_EMOJI_PRESENTATION = /\p{Emoji_Presentation}/u;
+const RE_EMOJI_MODIFIER_BASE = /\p{Emoji_Modifier_Base}/u;
+const RE_EMOJI_MODIFIER = /\p{Emoji_Modifier}/u;
+const RE_REGIONAL_INDICATOR = /\p{Regional_Indicator}/u;
+
+export const emojiCategory = (cp) => {
+  const ch = String.fromCodePoint(cp);
+  if (cp <= 0x7F) return cp === 0x23 || cp === 0x2A || (cp >= 0x30 && cp <= 0x39) ? "keycap" : "other";
+  if (cp === 0x20E3) return "keycap-mark";
+  if (cp === 0x20E0) return "circle-backslash";
+  if (cp === 0x200D) return "zwj";
+  if (cp === 0xFE0E) return "vs15";
+  if (cp === 0xFE0F) return "vs16";
+  if (cp === 0x1F3F4) return "tag-base";
+  if (cp >= 0xE0020 && cp <= 0xE007E) return "tag-sequence";
+  if (cp === 0xE007F) return "tag-term";
+  if (RE_EMOJI_MODIFIER_BASE.test(ch)) return "modifier-base";
+  if (RE_EMOJI_MODIFIER.test(ch)) return "modifier";
+  if (RE_REGIONAL_INDICATOR.test(ch)) return "regional-indicator";
+  if (RE_EMOJI_PRESENTATION.test(ch)) return "emoji-default";
+  if (RE_EMOJI.test(ch)) return "text-default";
+  return "other";
+};
+
+const isAnyEmoji = (cat) => cat === "text-default" || cat === "emoji-default"
+  || cat === "keycap" || cat === "modifier-base" || cat === "tag-base";
+
+/** Port of emoji_presentation_scanner.rl at Chromium's pinned submodule. */
+export const scanEmojiPresentation = (text, classify = emojiCategory) => {
+  const units = [];
+  for (let i = 0; i < text.length;) {
+    const cp = text.codePointAt(i);
+    const ch = String.fromCodePoint(cp);
+    units.push({ start: i, end: i + ch.length, cat: classify(cp) });
+    i += ch.length;
+  }
+  const spans = [];
+  const push = (startUnit, endUnit, presentation, hasVs) => spans.push({
+    start: units[startUnit].start,
+    end: units[endUnit - 1].end,
+    presentation,
+    hasVs,
+  });
+  const elementEnd = (at) => {
+    if (at >= units.length || !isAnyEmoji(units[at].cat)) return at;
+    if (at + 1 < units.length && units[at + 1].cat === "vs16") return at + 2;
+    if (units[at].cat === "modifier-base" && at + 1 < units.length && units[at + 1].cat === "modifier") return at + 2;
+    return at + 1;
+  };
+  let i = 0;
+  while (i < units.length) {
+    const c = units[i].cat;
+    // VS15 tokens are ordered first in the Ragel scanner.
+    if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === "vs15") {
+      let end = i + 2;
+      if (c === "keycap" && end < units.length && units[end].cat === "keycap-mark") end++;
+      push(i, end, "text", true); i = end; continue;
+    }
+    let end = 0;
+    let hasVs = false;
+    if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === "vs16") {
+      end = i + 2; hasVs = true;
+      if (c === "keycap" && end < units.length && units[end].cat === "keycap-mark") end++;
+    } else if (c === "modifier-base" && i + 1 < units.length && units[i + 1].cat === "modifier") {
+      end = i + 2;
+    } else if (c === "regional-indicator" && i + 1 < units.length && units[i + 1].cat === "regional-indicator") {
+      end = i + 2;
+    } else if (c === "tag-base") {
+      let j = i + 1;
+      while (j < units.length && units[j].cat === "tag-sequence") j++;
+      if (j > i + 1 && j < units.length && units[j].cat === "tag-term") end = j + 1;
+      else end = i + 1; // TAG_BASE alone has emoji presentation.
+    } else if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === "circle-backslash") {
+      end = i + 2;
+    } else if (c === "emoji-default" || c === "tag-base" || c === "modifier-base") {
+      end = i + 1;
+    }
+    // A valid ZWJ sequence consumes whole emoji_zwj_element tokens.
+    const firstElementEnd = elementEnd(i);
+    if (firstElementEnd > i) {
+      let j = firstElementEnd;
+      let joined = false;
+      while (j + 1 < units.length && units[j].cat === "zwj") {
+        const nextEnd = elementEnd(j + 1);
+        if (nextEnd === j + 1) break;
+        joined = true;
+        j = nextEnd;
+      }
+      if (joined) { end = j; hasVs = false; }
+    }
+    if (end > i) { push(i, end, "emoji", hasVs); i = end; continue; }
+    i++;
+  }
+  return spans;
+};
 
 export const createEmojiDetect = () => {
-  // Codepoints in U+2700-27BF (Dingbats) that Chrome paints via Apple Color
-  // Emoji rather than the monochrome Zapf Dingbats / Apple Symbols glyph —
-  // confirmed empirically per DM-269 (✨ rendered as color emoji, not the
-  // Zapf glyph). Default emoji-presentation per Unicode emoji-data: ✨ ❌ ❎
-  // ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿ etc. Without explicit variation selectors,
-  // Chrome picks color presentation for these. The rasterGlyph system stamps
-  // the captured PNG over the path-mode glyph so this list lets the screen-
-  // shotter pick them up.
-  const rasterCps = new Set([
-    0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
-    0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
-    // Dingbats with default emoji presentation (Emoji_Presentation=Yes per
-    // Unicode emoji-data) that NO macOS text symbol font covers, so Chrome
-    // always routes them to Apple Color Emoji. Bare (no VS-16), they were
-    // painting as a dropped/empty path-mode glyph: ✅ ✊ ✋. Unconditional like
-    // the ✨ ❌ ➡ family above — emoji presentation wins over the cascade.
-    0x2705, 0x270A, 0x270B,
-  ]);
-  // DM-1165: the Miscellaneous Symbols and Arrows (U+2B??) code points with
-  // default emoji presentation — ⬅⬆⬇ (2B05-07), ⬛⬜ (2B1B/1C), ⭐ (2B50),
-  // ⭕ (2B55). DM-728 added these to `rasterCps` unconditionally for the ⭐ in
-  // `20-deep-font-palette.html`, but Chrome's choice is actually CASCADE-
-  // DEPENDENT: when the element's font stack reaches a monochrome symbol/math
-  // font that covers them first, Chrome paints text, not color. Verified via
-  // `CSS.getPlatformFontsForNode` on the 2B00 fixture (cells lead with "Apple
-  // Symbols"): 2B05→Apple Symbols, 2B1B & 2B50→STIX Two Math — all MONOCHROME,
-  // so the unconditional raster was stamping blue emoji / a yellow star over
-  // Chrome's black arrows / hollow star. Probe per-element via `isColorGlyph`
-  // in `needsRaster` instead (color → raster, monochrome → path). A Set so the
-  // membership test in `needsRaster` is O(1).
-  const emojiPresentation2B = new Set([
-    0x2B05, 0x2B06, 0x2B07, 0x2B1B, 0x2B1C, 0x2B50, 0x2B55,
-  ]);
-  // Checks/crosses ✓✔✖✗ (2713/2714/2716/2717) — CASCADE-DEPENDENT like the
-  // 2B?? family above, NOT unconditional raster (where they previously
-  // lived). They are text-presentation by default (2714/2716 are Emoji=Yes
-  // with Emoji_Presentation=No; 2713/2717 aren't emoji at all), and CDP
-  // CSS.getPlatformFontsForNode shows Chrome painting TEXT glyphs (Lucida
-  // Grande / Zapf Dingbats) on 02-text-symbols' generic-family rows — the
-  // unconditional raster stamped the Apple Color Emoji bitmap over Chrome's
-  // bold Zapf check. But the per-Unicode-block fixture cells, whose stacks
-  // cascade to the color font, DO paint the emoji. Probe per element.
-  const checksCrossesCps = new Set([0x2713, 0x2714, 0x2716, 0x2717]);
-  // Codepoints in the U+2600-26FF Misc Symbols block with EmojiPresentation=Yes
-  // per Unicode emoji-data: Chrome paints these as color emoji by default
-  // (without needing the U+FE0F variation selector). Source: unicode.org
-  // emoji-data v15.1. DM-278.
-  const emojiPresentation26 = new Set([
-    0x2614, 0x2615, 0x2648, 0x2649, 0x264A, 0x264B, 0x264C, 0x264D,
-    0x264E, 0x264F, 0x2650, 0x2651, 0x2652, 0x2653, 0x267F, 0x2693,
-    0x26A1, 0x26AA, 0x26AB, 0x26BD, 0x26BE, 0x26C4, 0x26C5, 0x26CE,
-    0x26D4, 0x26EA, 0x26F2, 0x26F3, 0x26F5, 0x26FA, 0x26FD,
-  ]);
-  // Codepoints in U+2600-26FF that are Emoji=Yes but default to text
-  // presentation. Authors typically pair these with U+FE0F (the emoji
-  // variation selector) to force the color emoji glyph. The FE0F-aware
-  // detection in textNeedsRaster catches that pairing; for cases where the
-  // codepoint appears bare (no VS), text presentation is correct and we
-  // still path-render.
-  const emojiBaseCps = new Set([
-    0x2600, 0x2601, 0x2602, 0x2603, 0x2604, 0x260E, 0x2611, 0x2618,
-    0x261D, 0x2620, 0x2622, 0x2623, 0x2626, 0x262A, 0x262E, 0x262F,
-    0x2638, 0x2639, 0x263A, 0x2640, 0x2642, 0x265F, 0x2660, 0x2663,
-    0x2665, 0x2666, 0x2668, 0x267B, 0x267E, 0x2692, 0x2694, 0x2695,
-    0x2696, 0x2697, 0x2699, 0x269B, 0x269C, 0x26A0, 0x26A7, 0x26B0,
-    0x26B1, 0x26C8, 0x26CF, 0x26D1, 0x26D3, 0x26E9, 0x26F0, 0x26F1,
-    0x26F4, 0x26F7, 0x26F8, 0x26F9,
-    // DM-728: Dingbats block (U+27??) codepoints with text-default
-    // presentation that flip to color emoji when paired with U+FE0F. The
-    // fixture's ❤️ (U+2764 + U+FE0F) heart was painting as a small black
-    // monochrome glyph before this entry was added; with it, the VS-16
-    // pairing routes through the raster overlay path so Apple Color Emoji
-    // paints the red heart Chrome shows.
-    0x2702, 0x2708, 0x2709, 0x270C, 0x270D, 0x270F, 0x2712, 0x2716,
-    0x271D, 0x2721, 0x2733, 0x2734, 0x2744, 0x2747, 0x2763, 0x2764,
-  ]);
-
-  // DM-1025: the BMP "default emoji presentation" symbols above (zodiac signs,
-  // ☔ ☕ ⚡ ⛪ ⛲ …) only paint as COLOR emoji when the element's font cascade
-  // actually reaches the color-emoji font. When the author lists a text symbol
-  // font that covers the codepoint FIRST — e.g. the html-test cells use
-  // `"Apple Symbols", … , "Apple Color Emoji", …` and Chrome resolves the
-  // zodiac signs to Apple Symbols (verified via CSS.getPlatformFontsForNode) —
-  // Chrome paints the MONOCHROME text glyph, and rastering a color emoji over
-  // it is wrong. Probe Chrome's actual choice the same way Chrome makes it:
-  // render the codepoint to a canvas with the element's font (canvas uses the
-  // identical font cascade + rasterizer as the page) and check whether any
-  // pixel came out colored. Apple/Noto Color Emoji ignore the black fillStyle
-  // and stamp their colored bitmap; a text glyph stays black/gray. Cached per
-  // (codepoint, font) — the ambiguous symbols are rare.
-  let _colorCanvas = null;
-  let _colorCtx = null;
-  const _colorCache = new Map();
-  const isColorGlyph = (cp, font, variation = '') => {
-    // No font context (e.g. the pseudo-content path) → preserve the prior
-    // unconditional behavior: assume the default-presentation emoji renders in
-    // color.
-    if (font == null || font === '') return true;
-    const key = cp + '|' + variation + '|' + font;
-    const hit = _colorCache.get(key);
-    if (hit !== undefined) return hit;
-    if (_colorCtx == null) {
-      _colorCanvas = document.createElement('canvas');
-      _colorCanvas.width = 48;
-      _colorCanvas.height = 48;
-      _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
-    }
-    let colored = true; // fail safe: if the probe can't run, keep rastering
-    try {
-      _colorCtx.clearRect(0, 0, 48, 48);
-      _colorCtx.fillStyle = '#000';
-      _colorCtx.textBaseline = 'top';
-      _colorCtx.font = '32px ' + font;
-      _colorCtx.fillText(String.fromCodePoint(cp) + variation, 8, 4);
-      const data = _colorCtx.getImageData(0, 0, 48, 48).data;
-      colored = false;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] < 8) continue; // transparent
-        if (Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) > 24) {
-          colored = true;
-          break;
-        }
+  const rasterCandidates = (text, fontVariantEmoji = "normal") => {
+    const spans = scanEmojiPresentation(text);
+    if (fontVariantEmoji != null && fontVariantEmoji !== "normal" && fontVariantEmoji !== "unicode") {
+    // Explicit selector tokens keep their source priority. For unselected
+    // Emoji-property scalars, Blink's CSS property changes glyph lookup mode;
+    // retain whole scanner tokens and add singleton candidates where needed.
+    const covered = new Set();
+    for (const span of spans) for (let i = span.start; i < span.end; i++) covered.add(i);
+    for (let i = 0; i < text.length;) {
+      const cp = text.codePointAt(i);
+      const ch = String.fromCodePoint(cp);
+      const next = i + ch.length < text.length ? text.codePointAt(i + ch.length) : 0;
+      if (!covered.has(i) && RE_EMOJI.test(ch) && next !== 0xFE0E && next !== 0xFE0F) {
+        spans.push({ start: i, end: i + ch.length, presentation: fontVariantEmoji, hasVs: false });
+      } else if (fontVariantEmoji === "text") {
+        const span = spans.find((s) => s.start === i);
+        if (span != null && !span.hasVs) span.presentation = "text";
       }
-    } catch (e) { /* keep colored = true */ }
-    _colorCache.set(key, colored);
-    return colored;
+      i += ch.length;
+    }
+    }
+    // Raster capability is not restricted to Emoji-property text: arbitrary
+    // author fonts can put a symbol in COLR/CBDT/sbix/SVG. Return every
+    // grapheme as a temporary candidate and let selectedGlyphRasterSpans prune
+    // it after the real family/fallback walk. The scanner metadata remains on
+    // matching tokens for priority tests and diagnostics.
+    const byStart = new Map(spans.map((span) => [span.start, span]));
+    const candidates = [];
+    const segmenter = typeof Intl !== "undefined" && Intl.Segmenter != null
+      ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+    if (segmenter != null) {
+      for (const part of segmenter.segment(text)) {
+        if (/^\s+$/u.test(part.segment)) continue;
+        const source = byStart.get(part.index);
+        candidates.push(source ?? { start: part.index, end: part.index + part.segment.length, presentation: "text", hasVs: false });
+      }
+    } else {
+      for (let i = 0; i < text.length;) {
+        const cp = text.codePointAt(i);
+        const ch = String.fromCodePoint(cp);
+        if (!/^\s+$/u.test(ch)) candidates.push(byStart.get(i) ?? { start: i, end: i + ch.length, presentation: "text", hasVs: false });
+        i += ch.length;
+      }
+    }
+    return candidates;
   };
-
-  // DM-1706: some Apple Color Emoji glyphs are GRAY (✔️ ✖️ heavy check /
-  // multiply), so the chromatic-pixel probe above reads them as "not color"
-  // even when Chrome IS painting the emoji. Discriminate by the defining
-  // property of color-font glyphs instead: they IGNORE the canvas fill color.
-  // Render the cp twice (black vs red fill) — a text glyph's pixels change, a
-  // color-emoji bitmap's don't.
-  const _fillCache = new Map();
-  const ignoresFillColor = (cp, font, variation = '') => {
-    if (font == null || font === '') return true;
-    const key = cp + '|' + variation + '|' + font;
-    const hit = _fillCache.get(key);
-    if (hit !== undefined) return hit;
-    let ignores = true; // fail safe: keep rastering when the probe can't run
-    try {
-      if (_colorCtx == null) {
-        _colorCanvas = document.createElement('canvas');
-        _colorCanvas.width = 48;
-        _colorCanvas.height = 48;
-        _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
-      }
-      const draw = (fill) => {
-        _colorCtx.clearRect(0, 0, 48, 48);
-        _colorCtx.fillStyle = fill;
-        _colorCtx.textBaseline = 'top';
-        _colorCtx.font = '32px ' + font;
-        _colorCtx.fillText(String.fromCodePoint(cp) + variation, 8, 4);
-        return _colorCtx.getImageData(0, 0, 48, 48).data;
-      };
-      const a = draw('#000');
-      const b = new Uint8ClampedArray(a); // copy — getImageData reuses buffers in some engines
-      b.set(a);
-      const c = draw('#f00');
-      let ink = false, differs = false;
-      for (let i = 0; i < b.length; i += 4) {
-        if (b[i + 3] >= 8 || c[i + 3] >= 8) ink = true;
-        if (Math.abs(b[i] - c[i]) > 16 || Math.abs(b[i + 1] - c[i + 1]) > 16) { differs = true; break; }
-      }
-      ignores = ink && !differs;
-    } catch (e) { /* keep ignores = true */ }
-    _fillCache.set(key, ignores);
-    return ignores;
+  const textNeedsRaster = (text, _font = "", fontVariantEmoji = "normal") => {
+    const spans = scanEmojiPresentation(text);
+    if (fontVariantEmoji === "emoji") return spans.length > 0 || [...text].some((ch) => RE_EMOJI.test(ch));
+    return spans.length > 0;
   };
-
-  // DM-1987: ask Chrome, per element, whether TEXT presentation of `cp` still
-  // paints in colour — instead of consulting a frozen list of codepoints.
-  //
-  // Draws `cp + U+FE0E` (VS15). Blink gives an explicit VS15 and
-  // `font-variant-emoji: text` the SAME fallback priority, verified over CDP
-  // `CSS.getPlatformFontsForNode` on every probed row: `plain` resolves Apple
-  // Color Emoji while both `vs15` and `fve-text` resolve the identical face,
-  // whatever that face is.
-  //
-  // This replaces a hardcoded set that was calibrated on ONE font stack and
-  // generalised to all of them. Measured: the live probe reproduces that set
-  // 55/55 on a `Helvetica` stack — where the calibration was taken — and
-  // disagrees on 47 of 55 under `system-ui`, where CDP confirms the LIVE answer
-  // and the frozen set is simply wrong (⚡ U+26A1 and ⭐ U+2B50 stay on a colour
-  // emoji face there, rather than moving to Apple Symbols / STIX Two Math).
-  // Being per-element, it is also per-platform for free, which is what a table
-  // naming Apple Symbols / STIX / PingFang could never be off macOS.
-  //
-  // Returns null when there is no font context to probe with, so the caller
-  // keeps the previous behaviour rather than guessing.
-  const _vs15Cache = new Map();
-  const VS15 = '\uFE0E';
-  const textPresentationPaintsColor = (cp, font) => {
-    if (font == null || font === '') return null;
-    const key = cp + '|' + font;
-    const hit = _vs15Cache.get(key);
-    if (hit !== undefined) return hit;
-    let colored = true; // fail safe: keep rastering when the probe cannot run
-    try {
-      if (_colorCtx == null) {
-        _colorCanvas = document.createElement('canvas');
-        _colorCanvas.width = 48;
-        _colorCanvas.height = 48;
-        _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
-      }
-      const str = String.fromCodePoint(cp) + VS15;
-      const draw = (fill) => {
-        _colorCtx.clearRect(0, 0, 48, 48);
-        _colorCtx.fillStyle = fill;
-        _colorCtx.textBaseline = 'top';
-        _colorCtx.font = '32px ' + font;
-        _colorCtx.fillText(str, 8, 4);
-        return _colorCtx.getImageData(0, 0, 48, 48).data;
-      };
-      const a = draw('#000');
-      const black = new Uint8ClampedArray(a);
-      black.set(a);
-      // Stage 1: chromatic pixels. Catches every ordinary colour glyph.
-      let chromatic = false;
-      for (let i = 0; i < black.length; i += 4) {
-        if (black[i + 3] < 8) continue;
-        if (Math.max(black[i], black[i + 1], black[i + 2])
-          - Math.min(black[i], black[i + 1], black[i + 2]) > 24) { chromatic = true; break; }
-      }
-      if (chromatic) { colored = true; } else {
-        // Stage 2: some colour-emoji glyphs are GRAY (✔️ ✖️), so stage 1 reads
-        // them as monochrome. Discriminate on the defining property instead —
-        // a colour bitmap IGNORES the canvas fill colour. Same two-draw test
-        // `ignoresFillColor` uses; kept separate so its cache stays keyed on
-        // the un-suffixed string.
-        const c = draw('#f00');
-        let ink = false, differs = false;
-        for (let i = 0; i < black.length; i += 4) {
-          if (black[i + 3] >= 8 || c[i + 3] >= 8) ink = true;
-          if (Math.abs(black[i] - c[i]) > 16 || Math.abs(black[i + 1] - c[i + 1]) > 16) { differs = true; break; }
-        }
-        colored = ink && !differs;
-      }
-    } catch (e) { /* keep colored = true */ }
-    _vs15Cache.set(key, colored);
-    return colored;
-  };
-
-  // DM-1959: `font-variant-emoji` overrides the raster-vs-path decision the
-  // same way it overrides Blink's fallback priority — UNLESS the codepoint
-  // carries an explicit VS15/VS16, which wins (the HasVSFallbackPriority guard
-  // in Blink's shaper). Rules are MEASURED against Chrome on macOS via CDP
-  // getPlatformFontsForNode (pinned Playwright build):
-  //  - `emoji` forces every Unicode `Emoji`-property codepoint to the color
-  //    font — including a covered ☺ (Helvetica → Apple Color Emoji) and even
-  //    the keycap bases (digit 5, #: both move to Apple Color Emoji).
-  //  - `text` moves an emoji-presentation codepoint to the MONOCHROME cascade
-  //    when a text face covers it (⚡ U+26A1 / ☔ U+2614 → Apple Symbols,
-  //    ⭐ U+2B50 / ⬛ U+2B1B → STIX Two Math, 🈚 U+1F21A → PingFang,
-  //    🌐 U+1F310 / 🎤 U+1F3A4 → Apple Symbols) and leaves it on the color
-  //    font when none does (😀 U+1F600, ✨ U+2728, ❌ U+274C, ⭕ U+2B55,
-  //    🆑 U+1F191, the regional indicators — all stay Apple Color Emoji:
-  //    Blink's ignore-VS reset).
-  //  - `unicode` behaves like `emoji` for emoji-presentation codepoints and
-  //    like `normal` for text-default ones.
-  const RE_EMOJI_PROP = /\p{Emoji}/u;
-  const RE_EMOJI_PRESENTATION = /\p{Emoji_Presentation}/u;
-  // Emoji-presentation codepoints a monochrome macOS face covers, i.e. the
-  // ones `font-variant-emoji: text` really moves off the color font (measured
-  // set above; U+2B55 has no mono coverage and stays color).
-  const textVariantHasMonoFace = (cp) =>
-    (cp >= 0x2600 && cp <= 0x26FF)
-    || (cp >= 0x2B00 && cp <= 0x2BFF && cp !== 0x2B55)
-    || cp === 0x1F310 || cp === 0x1F3A4
-    || cp === 0x1F21A || cp === 0x1F22F || (cp >= 0x1F232 && cp <= 0x1F23A) || cp === 0x1F250 || cp === 0x1F251;
-
-  const needsRaster = (cp, nextCp, font, fontVariantEmoji = undefined) => {
-    const fve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    if (fve === 'emoji') return RE_EMOJI_PROP.test(String.fromCodePoint(cp));
-    if (fve === 'unicode' && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return true;
-    if (fve === 'text' && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {
-      // DM-1987: measure it, per element, instead of consulting the frozen set.
-      const live = textPresentationPaintsColor(cp, font);
-      if (live !== null) return live;
-      // No font context to probe with — fall back to the old macOS/Helvetica
-      // calibration rather than guessing.
-      if (textVariantHasMonoFace(cp)) return false;
-    }
-    // Variation selectors and default presentation are Unicode properties,
-    // while whether the selected face is actually a color font is a live
-    // cascade result. Probe that exact sequence instead of maintaining another
-    // block/codepoint table parallel to Blink + ICU.
-    if (nextCp === 0xFE0E && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {
-      const live = textPresentationPaintsColor(cp, font);
-      return live ?? false;
-    }
-    if (nextCp === 0xFE0F && RE_EMOJI_PROP.test(String.fromCodePoint(cp))) {
-      return isColorGlyph(cp, font, '\uFE0F') || ignoresFillColor(cp, font, '\uFE0F');
-    }
-    // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome
-    // routes to the COLOR emoji font even when a text font in the cascade has
-    // a monochrome glyph — emoji presentation wins regardless of the author's
-    // font, so they stay unconditional. (Gating them on the canvas probe
-    // regressed 2700-dingbats: the probe picks Zapf's mono glyph, but Chrome's
-    // page still paints the color emoji.)
-    if (rasterCps.has(cp)) return true;
-    // DM-1025: the U+2600-26FF "emojiPresentation26" symbols (zodiac signs,
-    // ☔ etc.) are different — Chrome paints the MONOCHROME text glyph when the
-    // author lists a text symbol font that covers them first (the html-test
-    // cells lead with "Apple Symbols"; CSS.getPlatformFontsForNode confirms
-    // Chrome resolves those cells to Apple Symbols, not Apple Color Emoji).
-    // Probe Chrome's actual choice per element font via the canvas (color →
-    // raster, monochrome → path) instead of unconditionally rastering a color
-    // emoji over Chrome's text glyph.
-    if (emojiPresentation26.has(cp)) return isColorGlyph(cp, font);
-    // DM-2167: Emoji_Presentation is not confined to the 2600 block or the
-    // supplementary emoji planes. Misc Technical contains default-emoji
-    // characters such as WATCH, HOURGLASS and the media-control buttons
-    // (U+231A/U+231B/U+23E9..U+23F3). Linux Chromium routes these through
-    // Noto Color Emoji, but the old hand-partitioned ranges left them on the
-    // outline path, where a CBDT-only face has no vector glyph and vanished.
-    // Keep this cascade-sensitive: a leading monochrome face must still win.
-    if (cp >= 0x2300 && cp <= 0x23FF
-        && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return isColorGlyph(cp, font);
-    // The Mahjong Tiles and Playing Cards blocks are another gap below the
-    // historical U+1F300 supplementary-plane floor. Chromium paints MAHJONG
-    // TILE RED DRAGON and PLAYING CARD BLACK JOKER from the color font when
-    // that is the resolved cascade face; keep text-font coverage authoritative.
-    if (cp >= 0x1F000 && cp <= 0x1F0FF
-        && RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) return isColorGlyph(cp, font);
-    // U+FE0F (Variation Selector-16) after a base emoji codepoint requests
-    // emoji presentation — Chrome paints the colorful glyph instead of the
-    // text-mode path glyph. DM-278.
-    if (nextCp === 0xFE0F && (emojiBaseCps.has(cp) || emojiPresentation26.has(cp))) return true;
-    // Bare (no VS-16) text-default emoji base codepoints — Chrome paints the
-    // COLOR glyph only when its font cascade actually reaches the color-emoji
-    // font (e.g. the html-test cells lead the family with "Apple Color Emoji"
-    // when no text font covers the codepoint), and the MONOCHROME text glyph
-    // otherwise. Probe Chrome's actual choice via the canvas (same rule as the
-    // emojiPresentation26 branch above) instead of unconditionally path- OR
-    // raster-rendering. Catches bare ✌ (U+270C) / ✒ (U+2712) the FE0F-only
-    // gate dropped, while leaving cascade-monochrome ✈ (U+2708) on the path.
-    // Checks/crosses ✓✔✖✗ — cascade-dependent (see checksCrossesCps above),
-    // probed via FILL-COLOR INVARIANCE: Apple's ✔️ ✖️ emojis are GRAY, so the
-    // chromatic isColorGlyph probe reads them as text even when Chrome paints
-    // the emoji. Must precede the emojiBaseCps branch (0x2716 is in that set
-    // and its chromatic probe would intercept with the wrong answer).
-    if (checksCrossesCps.has(cp)) return ignoresFillColor(cp, font);
-    if (emojiBaseCps.has(cp)) return isColorGlyph(cp, font);
-    // Regional-indicator flags (pairs are joined into country flag emoji).
-    if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
-    // Enclosed Alphanumeric Supplement (U+1F100-1F1FF) squared-letter emoji
-    // with default emoji presentation (Emoji_Presentation=Yes): 🆎 and 🆑–🆚
-    // (CL / COOL / FREE / ID / NEW / NG / OK / SOS / UP! / VS). They sit BELOW
-    // the 0x1F300 floor of the main-block check below, so they were dropped to
-    // an empty path-mode glyph; no text font carries them, so Chrome always
-    // paints the color emoji (unconditional, like the ✨ family).
-    if (cp === 0x1F18E || (cp >= 0x1F191 && cp <= 0x1F19A)) return true;
-    // DM-1110: Enclosed Ideographic Supplement (U+1F200-1F2FF) squared / circled
-    // CJK emoji that Chrome paints via Apple Color Emoji: 🈁 U+1F201, 🈂 U+1F202,
-    // 🈚 U+1F21A, 🈯 U+1F22F, 🈲–🈺 U+1F232-1F23A, 🉐 U+1F250, 🉑 U+1F251. Like the
-    // 1F100 squared letters above, they sit BELOW the 0x1F300 floor of the main-
-    // block check below, so they were dropped to an empty path-mode glyph. The
-    // set is unconditional: it's the Emoji_Presentation=Yes codepoints of the
-    // block (color wins over the cascade) PLUS the three text-default ones
-    // (1F201 / 1F202 / 1F237) which no macOS text font covers, so Chrome routes
-    // them to the color font too. The canvas `isColorGlyph` probe can't gate
-    // these — for SMP squared-CJK codepoints canvas font fallback diverges from
-    // page layout and reports monochrome even where the page paints color — so
-    // this is verified directly against Chrome's painted output for the 1F200
-    // fixture (every one of the 15 cells classified COLOR by a per-cell pixel-
-    // saturation scan). 1F232-1F23A is contiguous once 1F237 is folded in.
-    if (cp === 0x1F201 || cp === 0x1F202 || cp === 0x1F21A || cp === 0x1F22F
-        || (cp >= 0x1F232 && cp <= 0x1F23A) || cp === 0x1F250 || cp === 0x1F251) return true;
-    // DM-1125: the Alchemical Symbols block (U+1F700-1F77F) sits inside the
-    // main-block range below, but Chrome paints its 116 covered codepoints as
-    // MONOCHROME Apple Symbols path glyphs — not color emoji — when the
-    // element's cascade reaches Apple Symbols (the html-test cells lead with
-    // "Apple Symbols"; CSS.getPlatformFontsForNode confirms it). Unconditionally
-    // rastering them stamped a color-bitmap overlay sized to the font CONTENT
-    // box (ascent+descent ≈ 29px at 32px), which CLIPPED the tall apparatus
-    // glyphs (retort/alembic U+1F76F/U+1F770 etc.) whose ink overflows that box
-    // — Chrome paints the full ink, the raster cropped it. Probe Chrome's actual
-    // choice per element font via the canvas (color → raster, monochrome → path)
-    // exactly like the DM-1025 emojiPresentation26 branch, so the rare cell whose
-    // cascade DOES reach the color font still rasters correctly.
-    if (cp >= 0x1F700 && cp <= 0x1F77F) return isColorGlyph(cp, font);
-    // DM-1168: the two Emoji_Presentation=Yes code points in the Enclosed CJK
-    // Letters and Months block (U+3200-32FF) — ㊗ U+3297 CIRCLED IDEOGRAPH
-    // CONGRATULATION and ㊙ U+3299 CIRCLED IDEOGRAPH SECRET. Chrome paints them
-    // as Apple Color Emoji by default (the fixture cells show the red circled
-    // ideographs). But several macOS text fonts (Hiragino, Arial Unicode) also
-    // cover them with a MONOCHROME glyph, so a `lang=ja` cascade that reaches
-    // Hiragino first paints text, not color. Probe Chrome's actual per-element
-    // choice via the canvas (color → raster, monochrome → path), exactly like
-    // the DM-1025 emojiPresentation26 / DM-1125 alchemical branches.
-    if (cp === 0x3297 || cp === 0x3299) return isColorGlyph(cp, font);
-    // DM-1173: 〽 U+303D PART ALTERNATION MARK (CJK Symbols and Punctuation,
-    // U+3000-303F). Emoji=Yes but text-default presentation, so Chrome paints
-    // the color glyph only when the cascade reaches Apple Color Emoji and no
-    // text font covers it first (many do — Hiragino, M+ 1p, Shippori Mincho).
-    // The fixture cell paints the orange color mark, so probe per-element font
-    // (color → raster, monochrome → path) like the branches above.
-    if (cp === 0x303D) return isColorGlyph(cp, font);
-    // DM-1165: the U+2B?? emoji-presentation symbols (arrows ⬅⬆⬇, squares ⬛⬜,
-    // ⭐, ⭕). Cascade-dependent — Chrome paints text when the stack reaches a
-    // monochrome symbol/math font first (Apple Symbols / STIX Two Math), color
-    // otherwise. See `emojiPresentation2B` above.
-    // Some color-font glyphs in this set are intentionally achromatic (the
-    // black/white square pair). A saturation-only probe mistakes those bitmap
-    // glyphs for text. Color fonts ignore CSS fill while monochrome symbol
-    // fonts inherit it, so fill invariance supplies the missing discriminator.
-    if (emojiPresentation2B.has(cp)) return isColorGlyph(cp, font) || ignoresFillColor(cp, font);
-    // DM-1167: the ONLY two codepoints in the Misc Symbols & Pictographs block
-    // (U+1F300-1F5FF) that a macOS text font also covers monochrome are
-    // 🌐 U+1F310 (GLOBE WITH MERIDIANS) and 🎤 U+1F3A4 (MICROPHONE) — Apple
-    // Symbols carries both. When the element's cascade leads with Apple Symbols
-    // (the html-test `.f1` cells do; CSS.getPlatformFontsForNode confirms),
-    // Chrome paints the MONOCHROME path glyph, not the color emoji. Probe
-    // Chrome's actual per-element choice (color → raster, monochrome → path)
-    // exactly like the DM-1125 Alchemical / DM-1168 ㊗㊙ branches, instead of
-    // unconditionally stamping the Apple Color Emoji bitmap over Chrome's text
-    // glyph. The common Apple-Color-Emoji-first cell still rasters (probe → true).
-    if (cp === 0x1F310 || cp === 0x1F3A4) return isColorGlyph(cp, font);
-    // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
-    // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
-    // Extended-A, Symbols & Pictographs Extended-B.
-    if (cp >= 0x1F300 && cp <= 0x1FAFF) return true;
-    if (RE_EMOJI_PRESENTATION.test(String.fromCodePoint(cp))) {
-      return isColorGlyph(cp, font) || ignoresFillColor(cp, font);
-    }
-    return false;
-  };
-
-  const textNeedsRaster = (s, font, fontVariantEmoji = undefined) => {
-    for (let i = 0; i < s.length; i++) {
-      const cp = s.codePointAt(i);
-      const step = cp > 0xFFFF ? 2 : 1;
-      const nextCp = i + step < s.length ? s.codePointAt(i + step) : 0;
-      if (needsRaster(cp, nextCp, font, fontVariantEmoji)) return true;
-      if (cp > 0xFFFF) i++;
-    }
-    return false;
-  };
-
-  return { needsRaster, textNeedsRaster };
+  return { rasterCandidates, textNeedsRaster };
 };

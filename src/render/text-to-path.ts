@@ -66,13 +66,11 @@ import {
   fontFeatureValueShapingOverride,
   FontVariantEmojiOverride,
   fontHasSupportedColorTable,
-  isEmojiCharCp,
   getFontInstance,
   getFontSourceInfo,
   glyphInkXRange,
   glyphPathIntercepts,
   haltInfoFor,
-  isEmojiCodepoint,
   isNonCharacterCodepoint,
   mergeGaps,
   opticalCutOpszFor,
@@ -700,39 +698,12 @@ function renderTextPathRuns(
             // run's HarfBuzz proxy (bound at wrap time above), never by fontkit.
             ? run.font.layout(ch, fontkitFeatureList(features))
             : run.font.layout(ch);
-          // For emoji codepoints whose layout returns a .notdef tofu (id=0,
-          // hollow rectangle outline), suppress path emission. The capture
-          // layer attached a raster <image> overlay that fills the visual;
-          // emitting the tofu underneath leaves visible black edges around
-          // the emoji where the raster's sub-pixel transparency exposes the
-          // tofu's outline. (DM-334.)
           const nextI = i + ch.length;
-          const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
-          // `font-variant-emoji` moves the raster-overlay boundary (explicit
-          // VS15/VS16 wins — same guard as the resolver call above): under
-          // `text`, an emoji routed to a MONOCHROME face by the suppressed
-          // cascade paints as a path glyph (no overlay to cover for it), and
-          // only one still routed to the color font keeps the suppression;
-          // under `emoji`/`unicode`, every codepoint the override routed to the
-          // color font is overlay-painted, `Emoji`-property extras included.
-          const charFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-          const isEmoji = charFve == null
-            ? isEmojiCodepoint(cp, nextCp)
-            : charFve === "text"
-              ? isEmojiCodepoint(cp, nextCp) && fontHasSupportedColorTable(run.font, run.fontKey)
-              : isEmojiCodepoint(cp, nextCp) || (isEmojiCharCp(cp) && fontHasSupportedColorTable(run.font, run.fontKey));
           const uses: string[] = [];
           for (const g of layout.glyphs) {
+            if (glyphUsesRasterRepresentation(run.font, run.fontKey, g, fontSize, weight, slant)) continue;
             const gCmds = commandsFor(g, run.fontKey, weight, fontSize, slant);
             if (gCmds.length === 0) continue;
-            // Emoji codepoints are covered by the capture layer's raster
-            // <image> overlay (DM-334), so suppress ALL path emission for them
-            // — not only the .notdef tofu. On macOS the fallback chain resolves
-            // emoji to tofu (id 0), so an id-0-only gate sufficed; on Linux the
-            // chain can land a real MONOCHROME glyph (e.g. FreeSans has ✨
-            // U+2728), which must still be suppressed or it paints under the
-            // color raster. DM-842.
-            if (isEmoji) continue;
             // A PUA codepoint with no covering icon font paints its `.notdef`
             // like any other uncovered codepoint — see `singleFontMarkup`'s
             // comment on the same removal for the single-font branch. Chrome's
@@ -935,7 +906,8 @@ function renderTextPathRuns(
           for (let gi = 0; gi < layout.glyphs.length; gi++) {
             const glyph = layout.glyphs[gi];
             const pos = layout.positions[gi];
-            const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+            const glyphCmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
+              ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
             if (glyphCmds.length > 0) {
               const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
               const tx = segFontUnits + pos.xOffset;
@@ -978,7 +950,8 @@ function renderTextPathRuns(
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
-      const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+      const glyphCmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
+        ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
       if (glyphCmds.length > 0) {
         const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
         const tx = runX + pos.xOffset;
@@ -1166,7 +1139,8 @@ function singleFontMarkup(
     for (let gi = 0; gi < run.glyphs.length; gi++) {
       const glyph = run.glyphs[gi];
       const pos = run.positions[gi];
-      const dCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
+      const dCmds = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant)
+        ? [] : commandsFor(glyph, fontKey, weight, fontSize, slant);
       if (textIdx < xOffsets.length && dCmds.length > 0) {
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds, stretch);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
@@ -1212,7 +1186,8 @@ function singleFontMarkup(
   for (let i = 0; i < run.glyphs.length; i++) {
     const glyph = run.glyphs[i];
     const pos = run.positions[i];
-    const eCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
+    const eCmds = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant)
+      ? [] : commandsFor(glyph, fontKey, weight, fontSize, slant);
     if (eCmds.length > 0) {
       const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds, stretch);
       let tx: number;
@@ -2388,7 +2363,8 @@ function renderEmbeddedGlyphRuns(
       // synthesized TTF's glyf, so the helper outline lands in the embedded
       // font with no extra construction. (Inert on macOS, like DM-891: every
       // fontkit-empty glyph here is legitimately inkless and the helper agrees.)
-      const cmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+      const cmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
+        ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
       const placement = trackGlyphInEmbedFont(
         instanceKey, run.font.unitsPerEm, runAscent, runDescent,
         glyph.id, cmds, glyph.advanceWidth,
@@ -2763,6 +2739,81 @@ export interface TextFontOptions {
    * system-font paths. So `none` is a hard veto, not a preference. DM-1971.
    */
   fontSynthesis?: FontSynthesisAllowance;
+}
+
+type RasterKindGlyph = {
+  id: number;
+  path: { commands: PathCommand[] };
+  type?: string;
+  getImageForSize?: (size: number) => unknown;
+};
+
+/** Pure selected-glyph representation seam used by the mutation matrix. */
+export function glyphUsesRasterRepresentation(
+  font: FontInstance & { COLR?: { baseGlyphRecord?: Array<{ gid: number }> } },
+  fontKey: string,
+  glyph: RasterKindGlyph,
+  fontSize: number,
+  weight = 400,
+  slant = 0,
+): boolean {
+  if (glyph.type === "SBIX") {
+    try { if (glyph.getImageForSize?.(fontSize) != null) return true; } catch { /* use table/path evidence below */ }
+  }
+  if (glyph.type === "COLR" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return true;
+  if (commandsFor(glyph, fontKey, weight, fontSize, slant).length > 0) return false;
+  if (fontHasSupportedColorTable(font, fontKey)) return true;
+  return font.directory?.tables != null && "SVG " in font.directory.tables;
+}
+
+/**
+ * Decide the raster boundary from the face selected by the same run splitter
+ * used by glyph emission. This is intentionally downstream of presentation
+ * segmentation and declared-family fallback: Blink does not infer color paint
+ * from a Unicode block or a family name. A selected glyph needs an overlay
+ * only when its concrete representation is non-outline (sbix, COLR, CBDT, or
+ * OpenType SVG). Plain outline glyphs in a mixed color-capable face stay vector.
+ */
+export function selectedGlyphRasterSpans(
+  text: string,
+  candidates: Array<{ start: number; end: number }>,
+  options: TextFontOptions,
+): Array<{ start: number; end: number }> {
+  if (text.length === 0 || candidates.length === 0) return [];
+  const fontSize = options.fontSize;
+  const fontFamily = options.fontFamily;
+  const weight = cssWeightOf(options.fontWeight);
+  const slant = slantForStyle(options.fontStyle);
+  const stretch = stretchPercent(options.fontStretch);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, options.variationSettings, stretch, options.lang);
+  if (primaryFont == null) return [];
+  const primaryKey = resolveFontKey(fontFamily, options.lang);
+  const chain = resolveFontKeyChain(fontFamily, options.lang);
+  const runs = splitTextIntoGlyphPathRuns(
+    text, primaryFont, primaryKey, weight, fontSize, slant,
+    options.variationSettings, options.lang, chain,
+    stackPrimaryIsSystemUi(fontFamily, options.lang), stretch,
+    options.fontVariantEmoji, fontFamily, options.features,
+  );
+  const out: Array<{ start: number; end: number }> = [];
+  for (const candidate of candidates) {
+    const run = runs.find((r) => candidate.start >= r.startIdx && candidate.start < r.endIdx);
+    if (run == null) continue;
+    const source = text.slice(candidate.start, candidate.end);
+    let glyphs: Array<{ id: number; path: { commands: PathCommand[] }; type?: string; getImageForSize?: (size: number) => unknown }>;
+    try {
+      glyphs = run.font.layout(source, options.features != null ? fontkitFeatureList(options.features) : undefined).glyphs;
+    } catch { continue; }
+    const fontWithColr = run.font as FontInstance & {
+      COLR?: { baseGlyphRecord?: Array<{ gid: number }> };
+      directory?: { tables?: Record<string, unknown> };
+    };
+    const nonOutline = glyphs.some((glyph) => glyphUsesRasterRepresentation(
+      fontWithColr, run.fontKey, glyph, fontSize, weight, slant,
+    ));
+    if (nonOutline) out.push(candidate);
+  }
+  return out;
 }
 
 /** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */

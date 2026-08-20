@@ -133,6 +133,7 @@ export function icuCodepointProperties(cp: number): IcuCodepointProperties | und
 }
 
 export const ICU_BINARY = {
+  V2: 0x80000000,
   IDEOGRAPHIC: 1 << 0,
   DEFAULT_IGNORABLE: 1 << 1,
   GRAPHEME_EXTEND: 1 << 2,
@@ -141,6 +142,8 @@ export const ICU_BINARY = {
   EMOJI_MODIFIER_BASE: 1 << 5,
   EMOJI_COMPONENT: 1 << 6,
   EXTENDED_PICTOGRAPHIC: 1 << 7,
+  EMOJI_MODIFIER: 1 << 8,
+  REGIONAL_INDICATOR: 1 << 9,
 } as const;
 
 export function __resetIcuHelperForTest(): void {

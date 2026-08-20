@@ -1056,9 +1056,9 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // trips the verdict. Reviewed visually + quantitatively; accepted baseline.
   "20-deep-writing-mode-mixed": "DM-1039: vertical writing-mode + tate-chu-yoko render correct (DM-1024 + DM-1032); ink positions match Chrome per-glyph, residual is CJK-glyph antialiasing scatter — accepted baseline",
   // DM-1025: Misc Symbols (U+2600-26FF) — the dominant diff (zodiac signs + ☔
-  // etc. wrongly painted as color emoji) is fixed: the capture now probes
-  // Chrome's actual presentation per font (the fixture lists "Apple Symbols"
-  // first, so Chrome paints the monochrome text glyph, not the color emoji).
+  // etc. wrongly painted as color emoji) is fixed: renderer-owned fallback
+  // selects the declared Apple Symbols face first and inspects its actual glyph
+  // representation, so the monochrome outline remains vector-owned.
   // Residual ~0.10% is minor per-symbol glyph-shape on a handful of cells
   // (e.g. ☂ U+2602, the dice faces) where the macOS fallback font draws a
   // slightly different monochrome glyph than Chrome — a per-codepoint routing

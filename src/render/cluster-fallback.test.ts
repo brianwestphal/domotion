@@ -94,10 +94,11 @@ describe("FontFallbackPriority classification", () => {
     expect(p(0x1F600, 0, undefined)).toBe(true); // emoji-default
     expect(p(0x2764, 0, undefined)).toBe(false); // text-default
     expect(p(0x2764, 0xFE0F, undefined)).toBe(true);
-    expect(p(0x1F600, 0xFE0E, undefined)).toBe(false);
+    expect(p(0x1F600, 0xFE0E, undefined)).toBe(true); // kEmojiTextWithVS is non-text priority
     expect(p(0x2764, 0, "emoji")).toBe(true);
     expect(p(0x1F600, 0, "text")).toBe(false);
     expect(p(0x1F600, 0, "unicode")).toBe(true);
+    expect(p(0x2764, 0, "unicode")).toBe(false);
   });
 
   it("does not invent symbol/math/RI/keycap priority categories", () => {
@@ -106,6 +107,7 @@ describe("FontFallbackPriority classification", () => {
     expect(p(0x1F1FA, 0, undefined)).toBe(false); // lone regional indicator
     expect(p(0x23, 0, undefined)).toBe(false); // bare keycap base
     expect(p(0x23, 0, "emoji")).toBe(true); // property explicitly promotes it
+    expect(p(0x41, 0xFE0F, undefined)).toBe(false); // arbitrary base + VS16 is not emoji grammar
   });
 });
 
@@ -149,10 +151,11 @@ describe("flag gate", () => {
     expect(split("Helvetica", "⚡", "text")?.[0].key.toLowerCase()).not.toContain("applecoloremoji");
     expect(split("Helvetica", "⚡︎", "emoji")?.[0].key.toLowerCase()).not.toContain("applecoloremoji");
 
-    const before = _clusterFallbackCounters();
     expect(split("Helvetica", "😀", "text")?.[0].key.toLowerCase()).toContain("applecoloremoji");
-    const after = _clusterFallbackCounters();
-    expect(after.vsResets).toBeGreaterThan(before.vsResets); // no mono face: one ignore-VS retry
+    // Apple Color Emoji carries an exact cmap14 answer for this VS15 lookup,
+    // so Blink accepts the selected face without the ignore-VS reset. Reset
+    // behavior is mutation-covered above with a standardized sequence whose
+    // selected face has only the base glyph.
   });
 
   it("does not treat an orphan selector as an independently fallbackable character", () => {
