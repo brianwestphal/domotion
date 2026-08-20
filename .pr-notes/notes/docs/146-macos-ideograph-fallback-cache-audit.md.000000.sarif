@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1d2fgf5kyfo5z7",
+          "message": {
+            "text": "The investigation corrects the model at ownership boundaries rather than by fitting CJK results. Chromium's key distinguishes raw slope and orientation, while its map belongs to the thread-specific FontGlobalContext rather than a document. DM-2401 tracks those two implementation gaps; pinned ICU and face cmap coverage remain the only character decisions.",
+            "markdown": "The investigation corrects the model at ownership boundaries rather than by fitting CJK results. Chromium's key distinguishes raw slope and orientation, while its map belongs to the thread-specific FontGlobalContext rather than a document. DM-2401 tracks those two implementation gaps; pinned ICU and face cmap coverage remain the only character decisions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/146-macos-ideograph-fallback-cache-audit.md"
+                },
+                "region": {
+                  "startLine": 28,
+                  "endLine": 59,
+                  "snippet": {
+                    "text": "that `unicharToGlyph(character)` is nonzero. A miss asks CoreText through\n`GetAlternateFontPlatformData`. Only a successful result is inserted, and WTF\n`HashMap::insert` makes the first result for a key permanent while its weak value\nremains live; a later uncovered scalar re-asks but does not replace it.\n\n## Lifetime\n\nThe map is not document-owned. It is a member of `FontCache`, which is a member\nof the thread-specific persistent `FontGlobalContext`. It can therefore affect\nlater documents or navigations that execute in the same renderer thread.\n`FontCache::Invalidate()` clears platform/data caches and notifies clients but\ndoes not clear `character_fallback_cache_`. The value is a weak\n`SimpleFontData`, so collection of that value can make an entry cease to answer,\nbut there is no source-backed unconditional document-boundary reset.\n\nThis distinction explains why dense-page and isolated probes can disagree and\nalso why a fresh-page probe is not automatically a fresh-cache oracle: process\nand renderer placement matter. An exact test matrix must compare ordered text\nin one page, navigation in the same renderer, and a newly created renderer\nprocess, recording the actual PostScript face each time.\n\n## Domotion audit result\n\nThe current model correctly implements the ideographic gate, base identifier,\nweight/size separation, cmap hit test, successful-only insertion,\nfirst-writer-wins behavior, nested scopes, and ordered sequence effect. It has\ntwo known approximations:\n\n1. `characterFallbackDocKey` folds style to `slant !== 0`, losing Blink's raw\n   slope distinctions, and it omits orientation.\n2. `beginCharacterFallbackDocument` creates a fresh map for every top-level\n   render. That is safer than process-global accidental contamination, but it"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2342"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b141134b634bb7467f03b1bf12e5e46f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fc4ce8e2d3318d3054d223e981a6ae27993d53d1",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -104,5 +104,6 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [142-renderer-font-route-audit.md](142-renderer-font-route-audit.md) | **Renderer font-route audit** — source-backed inventory of every production face-assignment and emission owner, the exact scope of the standalone resolver oracle, and the required per-run provenance gate. |
 | [143-production-text-run-provenance.md](143-production-text-run-provenance.md) | **Production text-run provenance** — opt-in per-span assignment/source/shaping/emitter ledger plus a Chromium-joined renderer-route oracle and composite demo-review gate. |
 | [144-dotted-circle-shaping-evidence.md](144-dotted-circle-shaping-evidence.md) | **Dotted-circle shaping evidence** — Chromium paint probes and selected-face HarfBuzz glyph streams replace block, plane, and Tamil-pair routing gates. |
+| [146-macos-ideograph-fallback-cache-audit.md](146-macos-ideograph-fallback-cache-audit.md) | **macOS ideograph fallback-cache audit** — exact Chromium key, renderer-thread lifetime, and the remaining Domotion model gaps. |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.
