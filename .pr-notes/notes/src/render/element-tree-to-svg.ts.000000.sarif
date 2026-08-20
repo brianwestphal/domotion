@@ -963,6 +963,111 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0unr74gbyg0m69",
+          "message": {
+            "text": "Thin dotted paint is a distinct Chromium algorithm, not a tuned SVG dash preset. This ports EnforceDotsAtEndpoints modulo classes for widths 1 through 3, including explicit rectangular endpoint dots and the adjusted residual line; widths above 3 remain on the round-cap branch.",
+            "markdown": "Thin dotted paint is a distinct Chromium algorithm, not a tuned SVG dash preset. This ports EnforceDotsAtEndpoints modulo classes for widths 1 through 3, including explicit rectangular endpoint dots and the adjusted residual line; widths above 3 remain on the round-cap branch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2513,
+                  "endLine": 2579,
+                  "snippet": {
+                    "text": "/**\n * Chromium `EnforceDotsAtEndpoints`, expressed along one increasing axis.\n * The caller supplies the already-rounded integer path length and stroke\n * width used by BoxBorderPainter. A non-null growth means that endpoint dot\n * is painted explicitly; zero is an ordinary width-by-width square.\n */\nexport function thinDottedEndpointPlan(pathLength: number, width: number): ThinDottedEndpointPlan {\n  const length = Math.round(pathLength);\n  const w = Math.round(width);\n  let startDotGrowth: number | null = null;\n  let startLineOffset = 0;\n  let endDotGrowth: number | null = null;\n  const mod4 = length % 4;\n  const mod6 = length % 6;\n  if ((w === 1 && length % 2 === 0) || (w === 3 && mod6 === 0)) {\n    startDotGrowth = 1;\n    startLineOffset = 1;\n  }\n  if ((w === 2 && (mod4 === 0 || mod4 === 1)) ||\n      (w === 3 && (mod6 === 1 || mod6 === 2))) {\n    startDotGrowth = 0;\n    startLineOffset = -1;\n  }\n  if ((w === 2 && mod4 === 0) || (w === 3 && mod6 === 1)) endDotGrowth = 0;\n  if ((w === 2 && mod4 === 3) || (w === 3 && (mod6 === 4 || mod6 === 5))) {\n    startDotGrowth = 0;\n    startLineOffset = 1;\n  }\n  if (w === 3 && mod6 === 5) endDotGrowth = 0;\n  else if (w === 3 && mod6 === 0) endDotGrowth = 1;\n  return {\n    startDotGrowth,\n    endDotGrowth,\n    lineStart: startDotGrowth == null ? 0 : 2 * w + startLineOffset,\n    lineEnd: endDotGrowth == null ? length : length - (w + endDotGrowth + 1),\n  };\n}\n\nfunction paintThinDottedLine(\n  x1: number, y1: number, x2: number, y2: number,\n  width: number, color: string, indent: string,\n): string[] {\n  const vertical = x1 === x2;\n  const w = Math.round(width);\n  const length = Math.round(vertical ? y2 - y1 : x2 - x1);\n  const plan = thinDottedEndpointPlan(length, w);\n  const out: string[] = [];\n  if (plan.startDotGrowth != null) {\n    out.push(vertical\n      ? `${indent}<rect x=\"${r(x1 - w / 2)}\" y=\"${r(y1)}\" width=\"${r(w)}\" height=\"${r(w + plan.startDotGrowth)}\" fill=\"${color}\" />`\n      : `${indent}<rect x=\"${r(x1)}\" y=\"${r(y1 - w / 2)}\" width=\"${r(w + plan.startDotGrowth)}\" height=\"${r(w)}\" fill=\"${color}\" />`);\n  }\n  if (plan.endDotGrowth != null) {\n    out.push(vertical\n      ? `${indent}<rect x=\"${r(x2 - w / 2)}\" y=\"${r(y2 - w - plan.endDotGrowth)}\" width=\"${r(w)}\" height=\"${r(w + plan.endDotGrowth)}\" fill=\"${color}\" />`\n      : `${indent}<rect x=\"${r(x2 - w - plan.endDotGrowth)}\" y=\"${r(y2 - w / 2)}\" width=\"${r(w + plan.endDotGrowth)}\" height=\"${r(w)}\" fill=\"${color}\" />`);\n  }\n  // The caller passes the visible centerline (Chromium's integer center path\n  // plus DrawLineWithStyle's odd-width 0.5 adjustment). Keeping that boundary\n  // here also makes the explicit endpoint rectangles integral for odd widths.\n  const sx = vertical ? x1 : x1 + plan.lineStart;\n  const sy = vertical ? y1 + plan.lineStart : y1;\n  const ex = vertical ? x2 : x1 + plan.lineEnd;\n  const ey = vertical ? y1 + plan.lineEnd : y2;\n  if (plan.lineEnd >= plan.lineStart) {\n    out.push(`${indent}<line x1=\"${r(sx)}\" y1=\"${r(sy)}\" x2=\"${r(ex)}\" y2=\"${r(ey)}\" stroke=\"${color}\" stroke-width=\"${r(w)}\" stroke-dasharray=\"${r(w)} ${r(w)}\" />`);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2324"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5e206423e3573f86d34331c76f4f60db"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0unrdfvb1r0017",
+          "message": {
+            "text": "Integer outline geometry removes the zoom-dependent antialias residual at the same boundary Chromium uses. Blink constructs the outline region from integer gfx::Rects before outsetting; after restoring that boundary, the expanded oracle passes 128 of 128 cases at DSF 1 and 2 under zoom 0.8 and 1.25, with no tolerance change.",
+            "markdown": "Integer outline geometry removes the zoom-dependent antialias residual at the same boundary Chromium uses. Blink constructs the outline region from integer gfx::Rects before outsetting; after restoring that boundary, the expanded oracle passes 128 of 128 cases at DSF 1 and 2 under zoom 0.8 and 1.25, with no tolerance change."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2601,
+                  "endLine": 2616,
+                  "snippet": {
+                    "text": "      // DM-2324: ComplexOutlinePainter builds its right-angle region from\n      // integer gfx::Rects, outsets that region by the integer outline offset\n      // and width, then derives the center path.  getBoundingClientRect() is\n      // fractional, so retaining its edges here put otherwise-crisp 1--3 px\n      // dotted outlines between device pixels under CSS zoom.\n      if (borderRadius === 0) {\n        const width = Math.round(ow);\n        const outset = Math.round(offset) + width;\n        const outerLeft = Math.round(el.x) - outset;\n        const outerTop = Math.round(el.y) - outset;\n        const outerRight = Math.round(el.x + el.width) + outset;\n        const outerBottom = Math.round(el.y + el.height) + outset;\n        ox = outerLeft + width / 2;\n        oy = outerTop + width / 2;\n        owd = outerRight - outerLeft - width;\n        oh = outerBottom - outerTop - width;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2324"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "371b56bf3d7e4fc5e3954b528b0e3f2e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3d332346794ef40216f0b029b79897c36572dbeb",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

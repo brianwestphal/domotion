@@ -1343,6 +1343,7 @@ function paintUniformDashedDottedBorder(
   offGridCollapsedCells: Set<CapturedElement>,
 ): void {
   const style = bt.style;
+  const thinDotted = style === "dotted" && Math.round(bt.w) <= 3;
   // Dashed/dotted uniform borders need per-side dash spacing — Chrome
   // adjusts the dash cycle so dashes start and end exactly at corners.
   // SVG `stroke-dasharray` on a single rect would use ONE pattern across
@@ -1351,15 +1352,10 @@ function paintUniformDashedDottedBorder(
   // lines instead so each side gets its own adjusted pattern.
   const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const inset = collapse ? 0 : bt.w / 2;
-  // For dotted, the dasharray is `0.01 period` and renders dots only
-  // when the line has `stroke-linecap="round"` (each near-zero dash
-  // becomes a circle of stroke-width diameter). Without it the dots
-  // are invisible (DM-399). Round caps match Chromium's BoxBorderPainter
-  // which paints dotted as "0 length dash strokes and round endcaps,
-  // producing circles" (verified via Chromium source — DM-435 was
-  // reverted, the earlier square-dots probe was misled by AA at 3 px
-  // dot size; high-resolution probe confirms circles).
-  const linecap = style === "dotted" ? ` stroke-linecap="round"` : "";
+  // Chromium has two dotted branches: widths 1--3 use square {w,w}
+  // intervals plus explicit endpoint dots; thicker strokes use zero-length
+  // dashes with round caps. `paintThinDottedLine` owns the former branch.
+  const linecap = style === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
   // Round box edges to integer device pixels so the stroke center
   // lands on an integer (for even widths) and paints 2 solid rows
   // instead of 3 antialiased rows. Skip when border-collapse:collapse
@@ -1370,8 +1366,8 @@ function paintUniformDashedDottedBorder(
   const bR = collapse ? el.x + el.width : Math.round(el.x + el.width);
   const bB = collapse ? el.y + el.height : Math.round(el.y + el.height);
   // Corner trim along the side's axis. Two reasons it applies:
-  //   • Dotted (always): Chromium's `DrawLineWithStyle` moves the
-  //     line endpoints IN by width/2 before stroking thick-dotted
+  //   • Thick dotted: Chromium's `DrawLineWithStyle` moves the
+  //     line endpoints IN by width/2 before stroking round-dotted
   //     lines so the round endcap fits inside the line. Matching
   //     that is necessary for `adjustedDashAttrs` (which assumes a
   //     post-move sideLength) to compute Chrome-equivalent dot
@@ -1383,14 +1379,14 @@ function paintUniformDashedDottedBorder(
   //     in `17-bg-color-image`). Thin dashed borders use 0 trim
   //     so the dashes meet flush at the corner, matching Chrome
   //     for the common 1-3 px cases.
-  const cornerTrim = style === "dotted" ? bt.w / 2 : (bt.w >= 8 ? inset : 0);
+  const cornerTrim = style === "dotted" && !thinDotted ? bt.w / 2 : (bt.w >= 8 ? inset : 0);
   // Each entry: [x1, y1, x2, y2, naturalLen]. naturalLen is the
   // PRE-cornerTrim side length — Chromium's `DrawLineWithStyle`
   // computes the dash pattern from the original `info.path_length`
   // BEFORE moving thick-dotted endpoints inward by width/2 (the move
   // shifts the painted line but the dash math sees the original).
-  // For thin dashed borders cornerTrim = 0, so naturalLen == drawn
-  // length; for dotted (cornerTrim = width/2) and thick dashed
+  // For thin dashed/dotted borders cornerTrim = 0, so naturalLen == drawn
+  // length; for thick dotted (cornerTrim = width/2) and thick dashed
   // (cornerTrim = width/2) the two differ.
   const sides: Array<[number, number, number, number, number]> = [
     [bL + cornerTrim, bT + inset, bR - cornerTrim, bT + inset, bR - bL],
@@ -1399,6 +1395,10 @@ function paintUniformDashedDottedBorder(
     [bL + inset, bT + cornerTrim, bL + inset, bB - cornerTrim, bB - bT],
   ];
   for (const [x1, y1, x2, y2, len] of sides) {
+    if (thinDotted) {
+      ctx.svgParts.push(...paintThinDottedLine(x1, y1, x2, y2, bt.w, colorStr(bt.color), indent));
+      continue;
+    }
     const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
     // DM-912: the dash math computes pattern positions from `len` (the
     // OUTER corner-to-corner length, e.g. 300 for a 10 px border on a
@@ -2503,6 +2503,83 @@ function paintResizeHandle(el: CapturedElement, indent: string): string[] {
   return out;
 }
 
+export interface ThinDottedEndpointPlan {
+  startDotGrowth: number | null;
+  endDotGrowth: number | null;
+  lineStart: number;
+  lineEnd: number;
+}
+
+/**
+ * Chromium `EnforceDotsAtEndpoints`, expressed along one increasing axis.
+ * The caller supplies the already-rounded integer path length and stroke
+ * width used by BoxBorderPainter. A non-null growth means that endpoint dot
+ * is painted explicitly; zero is an ordinary width-by-width square.
+ */
+export function thinDottedEndpointPlan(pathLength: number, width: number): ThinDottedEndpointPlan {
+  const length = Math.round(pathLength);
+  const w = Math.round(width);
+  let startDotGrowth: number | null = null;
+  let startLineOffset = 0;
+  let endDotGrowth: number | null = null;
+  const mod4 = length % 4;
+  const mod6 = length % 6;
+  if ((w === 1 && length % 2 === 0) || (w === 3 && mod6 === 0)) {
+    startDotGrowth = 1;
+    startLineOffset = 1;
+  }
+  if ((w === 2 && (mod4 === 0 || mod4 === 1)) ||
+      (w === 3 && (mod6 === 1 || mod6 === 2))) {
+    startDotGrowth = 0;
+    startLineOffset = -1;
+  }
+  if ((w === 2 && mod4 === 0) || (w === 3 && mod6 === 1)) endDotGrowth = 0;
+  if ((w === 2 && mod4 === 3) || (w === 3 && (mod6 === 4 || mod6 === 5))) {
+    startDotGrowth = 0;
+    startLineOffset = 1;
+  }
+  if (w === 3 && mod6 === 5) endDotGrowth = 0;
+  else if (w === 3 && mod6 === 0) endDotGrowth = 1;
+  return {
+    startDotGrowth,
+    endDotGrowth,
+    lineStart: startDotGrowth == null ? 0 : 2 * w + startLineOffset,
+    lineEnd: endDotGrowth == null ? length : length - (w + endDotGrowth + 1),
+  };
+}
+
+function paintThinDottedLine(
+  x1: number, y1: number, x2: number, y2: number,
+  width: number, color: string, indent: string,
+): string[] {
+  const vertical = x1 === x2;
+  const w = Math.round(width);
+  const length = Math.round(vertical ? y2 - y1 : x2 - x1);
+  const plan = thinDottedEndpointPlan(length, w);
+  const out: string[] = [];
+  if (plan.startDotGrowth != null) {
+    out.push(vertical
+      ? `${indent}<rect x="${r(x1 - w / 2)}" y="${r(y1)}" width="${r(w)}" height="${r(w + plan.startDotGrowth)}" fill="${color}" />`
+      : `${indent}<rect x="${r(x1)}" y="${r(y1 - w / 2)}" width="${r(w + plan.startDotGrowth)}" height="${r(w)}" fill="${color}" />`);
+  }
+  if (plan.endDotGrowth != null) {
+    out.push(vertical
+      ? `${indent}<rect x="${r(x2 - w / 2)}" y="${r(y2 - w - plan.endDotGrowth)}" width="${r(w)}" height="${r(w + plan.endDotGrowth)}" fill="${color}" />`
+      : `${indent}<rect x="${r(x2 - w - plan.endDotGrowth)}" y="${r(y2 - w / 2)}" width="${r(w + plan.endDotGrowth)}" height="${r(w)}" fill="${color}" />`);
+  }
+  // The caller passes the visible centerline (Chromium's integer center path
+  // plus DrawLineWithStyle's odd-width 0.5 adjustment). Keeping that boundary
+  // here also makes the explicit endpoint rectangles integral for odd widths.
+  const sx = vertical ? x1 : x1 + plan.lineStart;
+  const sy = vertical ? y1 + plan.lineStart : y1;
+  const ex = vertical ? x2 : x1 + plan.lineEnd;
+  const ey = vertical ? y1 + plan.lineEnd : y2;
+  if (plan.lineEnd >= plan.lineStart) {
+    out.push(`${indent}<line x1="${r(sx)}" y1="${r(sy)}" x2="${r(ex)}" y2="${r(ey)}" stroke="${color}" stroke-width="${r(w)}" stroke-dasharray="${r(w)} ${r(w)}" />`);
+  }
+  return out;
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -2517,10 +2594,27 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
       // Outline rect outer edge is at border-box + offset. Stroke is
       // centered, so the rect goes at offset + ow/2 from the border-box.
       const inflate = offset + ow / 2;
-      const ox = el.x - inflate;
-      const oy = el.y - inflate;
-      const owd = el.width + inflate * 2;
-      const oh = el.height + inflate * 2;
+      let ox = el.x - inflate;
+      let oy = el.y - inflate;
+      let owd = el.width + inflate * 2;
+      let oh = el.height + inflate * 2;
+      // DM-2324: ComplexOutlinePainter builds its right-angle region from
+      // integer gfx::Rects, outsets that region by the integer outline offset
+      // and width, then derives the center path.  getBoundingClientRect() is
+      // fractional, so retaining its edges here put otherwise-crisp 1--3 px
+      // dotted outlines between device pixels under CSS zoom.
+      if (borderRadius === 0) {
+        const width = Math.round(ow);
+        const outset = Math.round(offset) + width;
+        const outerLeft = Math.round(el.x) - outset;
+        const outerTop = Math.round(el.y) - outset;
+        const outerRight = Math.round(el.x + el.width) + outset;
+        const outerBottom = Math.round(el.y + el.height) + outset;
+        ox = outerLeft + width / 2;
+        oy = outerTop + width / 2;
+        owd = outerRight - outerLeft - width;
+        oh = outerBottom - outerTop - width;
+      }
       // Outline radius: CSS spec says rounded outlines follow the border
       // radius extended outward by the offset+width. Approximate.
       const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
@@ -2559,7 +2653,8 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
         // start corner. We only take this path when the outline is
         // NOT rounded (oRadius == 0) — for rounded outlines the
         // single-rect emit is still the closest SVG-native fit.
-        const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
+        const thinDotted = ostyle === "dotted" && Math.round(ow) <= 3;
+        const linecap = ostyle === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
         const oxR = ox + owd, oyB = oy + oh;
         const hLen = owd, vLen = oh;
         const hAttrs = (() => {
@@ -2573,12 +2668,22 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
         const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
         // Four sides, each starting at its top-left corner so the
         // dash pattern phases identically per side.
-        out.push(
-          `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-          `${indent}<line x1="${r(oxR)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-          `${indent}<line x1="${r(ox)}" y1="${r(oyB)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-          `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-        );
+        if (thinDotted) {
+          const color = colorStr(ocolor);
+          out.push(
+            ...paintThinDottedLine(ox, oy, oxR, oy, ow, color, indent),
+            ...paintThinDottedLine(oxR, oy, oxR, oyB, ow, color, indent),
+            ...paintThinDottedLine(ox, oyB, oxR, oyB, ow, color, indent),
+            ...paintThinDottedLine(ox, oy, ox, oyB, ow, color, indent),
+          );
+        } else {
+          out.push(
+            `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${indent}<line x1="${r(oxR)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${indent}<line x1="${r(ox)}" y1="${r(oyB)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+          );
+        }
       } else {
         let dash = dashArrayForStyle(ostyle, ow);
         const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
