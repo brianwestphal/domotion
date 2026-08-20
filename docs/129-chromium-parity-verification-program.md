@@ -146,12 +146,34 @@ same report and evidence on macOS, Linux, and Windows; only the calibrated
 default scenario gates until native artifacts support reviewed per-platform
 envelopes.
 
+Fragmented collapsed tables keep that same global winner graph. Matching
+`TablePainter::PaintCollapsedBorders`, Domotion obtains physical table, section,
+row, and cell fragments from `getClientRects()`, derives section-local row
+offsets, and paints the relevant graph slice per table fragment. Whole-row
+breaks paint half of the winning inline edge on each side of the break;
+continued rows omit that inline edge and suppress the missing joint adjustment
+on their block-axis edges. Adjacent sections share one final-row ownership
+cursor so their common edge is not double-painted. Pure tests cover each
+decision and multicol fixtures exercise both whole-row and inside-row breaks.
+For multicolumn repeatable headers and footers, CSSOM exposes the repeat count
+but aliases every clone to the prototype section coordinates. Domotion uses
+that structural signal to place each header at its physical table fragment's
+block start and each footer at its block end, preserving the global row index
+and Chromium's full outer-edge ownership. Actual paged-media capture remains a
+separate concern because the viewport capture path does not expose page
+fragments.
+
 The expanded matrix's first negative control exposed a coordinate-space error:
 CSSOM returns border/outline paint lengths divided by Blink's effective zoom,
 while DOMRects are already physical. Capture now restores the internal zoomed
 length once before SVG emission. The same DSF/zoom run moved from 309 failures
 to 9 DSF=1 dotted-outline paint residuals, with all four HTML/SVG snap-model
-decisions agreeing; no threshold or per-case offset changed.
+decisions agreeing. Those final residuals were the separate thin-dotted paint
+branch: widths 1--3 use square intervals plus modulo-specific endpoint dots,
+whereas thicker dotted lines use inset round caps. After transcribing
+`EnforceDotsAtEndpoints` and the integer outline-region boundary, all four
+expanded scenarios pass 128/128 without changing a threshold or adding a
+per-case offset.
 
 ### Generated and metamorphic coverage
 

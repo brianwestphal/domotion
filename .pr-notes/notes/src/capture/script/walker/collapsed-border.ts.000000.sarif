@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0ve361qfxzlgtm",
+          "message": {
+            "text": "Chromium retains one table-wide collapsed-edge winner graph, then TablePainter slices it with each physical section fragment's global row start and local row offsets. Whole-row fragmentainer boundaries own half the shared row-axis edge; a continued row omits that edge and suppresses the absent joint contribution. This transcription intentionally models those structural flags instead of inferring boundaries from output pixels.",
+            "markdown": "Chromium retains one table-wide collapsed-edge winner graph, then TablePainter slices it with each physical section fragment's global row start and local row offsets. Whole-row fragmentainer boundaries own half the shared row-axis edge; a continued row omits that edge and suppresses the absent joint contribution. This transcription intentionally models those structural flags instead of inferring boundaries from output pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/collapsed-border.ts"
+                },
+                "region": {
+                  "startLine": 244,
+                  "endLine": 329,
+                  "snippet": {
+                    "text": "export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSource>(\n  grid: CollapsedBorderGrid<T>,\n  inlineLines: number[],\n  sections: CollapsedBorderSectionFragment[],\n): Array<CollapsedBorderLogicalRect<T>> {\n  if (inlineLines.length !== grid.columns + 1)\n    throw new Error(\"collapsed-border inline tracks do not match the edge grid\");\n  const rects: Array<CollapsedBorderLogicalRect<T>> = [];\n  let previousPaintedRow: number | null = null;\n  for (const section of sections) {\n    const lines = section.blockLines;\n    if (lines.length < 2) continue;\n    const finalRowEdge = section.rowStart + lines.length - 1;\n    for (let tableRow = section.rowStart; tableRow <= finalRowEdge; tableRow++) {\n      const localRow = tableRow - section.rowStart;\n      const startRow = localRow === 0;\n      const endRow = localRow === lines.length - 1;\n      const startFragmented = startRow && section.startRowFragmented === true;\n      const endFragmented = endRow && section.endRowFragmented === true;\n      const overBoundary = startRow && section.hasContentBefore === true;\n      const underBoundary = endRow && section.hasContentAfter === true;\n\n      if (!startFragmented && !endFragmented && previousPaintedRow !== tableRow) {\n        for (let column = 0; column < grid.columns; column++) {\n          const edge = edgeAt(grid.rowAxis, tableRow, column);\n          if (!canPaintCollapsedEdge(edge)) continue;\n          const start = jointDecision(\n            edgeAt(grid.rowAxis, tableRow, column - 1), edge,\n            edgeAt(grid.columnAxis, tableRow - 1, column), edgeAt(grid.columnAxis, tableRow, column),\n            \"row\", false, overBoundary, underBoundary,\n          );\n          const end = jointDecision(\n            edge, edgeAt(grid.rowAxis, tableRow, column + 1),\n            edgeAt(grid.columnAxis, tableRow - 1, column + 1), edgeAt(grid.columnAxis, tableRow, column + 1),\n            \"row\", true, overBoundary, underBoundary,\n          );\n          let inlineStart = inlineLines[column];\n          let inlineSize = inlineLines[column + 1] - inlineStart;\n          const startDelta = start.inlineWidth / 2;\n          inlineStart += start.wins ? -startDelta : startDelta;\n          inlineSize += start.wins ? startDelta : -startDelta;\n          const endDelta = end.inlineWidth / 2;\n          inlineSize += end.wins ? endDelta : -endDelta;\n          const width = edge.winner.w;\n          rects.push({\n            axis: \"row\", row: tableRow, column,\n            inlineStart,\n            blockStart: overBoundary ? lines[localRow] : lines[localRow] - width / 2,\n            inlineSize,\n            blockSize: overBoundary || underBoundary ? width / 2 : width,\n            winner: edge.winner,\n          });\n        }\n      }\n\n      if (localRow + 1 >= lines.length) continue;\n      for (let column = 0; column <= grid.columns; column++) {\n        const edge = edgeAt(grid.columnAxis, tableRow, column);\n        if (!canPaintCollapsedEdge(edge)) continue;\n        const start = jointDecision(\n          edgeAt(grid.rowAxis, tableRow, column - 1), edgeAt(grid.rowAxis, tableRow, column),\n          edgeAt(grid.columnAxis, tableRow - 1, column), edge,\n          \"column\", false, overBoundary, underBoundary,\n        );\n        const end = jointDecision(\n          edgeAt(grid.rowAxis, tableRow + 1, column - 1), edgeAt(grid.rowAxis, tableRow + 1, column),\n          edge, edgeAt(grid.columnAxis, tableRow + 1, column),\n          \"column\", true, overBoundary, underBoundary,\n        );\n        let blockStart = lines[localRow];\n        let blockSize = lines[localRow + 1] - blockStart;\n        if (!startFragmented) {\n          const delta = start.blockWidth / 2;\n          blockStart += start.wins ? -delta : delta;\n          blockSize += start.wins ? delta : -delta;\n        }\n        if (!endFragmented) {\n          const delta = end.blockWidth / 2;\n          blockSize += end.wins ? delta : -delta;\n        }\n        rects.push({\n          axis: \"column\", row: tableRow, column,\n          inlineStart: inlineLines[column] - edge.winner.w / 2,\n          blockStart, inlineSize: edge.winner.w, blockSize, winner: edge.winner,\n        });\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2322"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f6ca68fe8679acf76e6e5e2ae9647a65"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f06973ca6ad5d62a2ed0d0501f86e45749bdf2ad",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

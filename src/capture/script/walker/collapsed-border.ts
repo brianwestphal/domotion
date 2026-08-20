@@ -51,6 +51,17 @@ export interface CollapsedBorderLogicalRect<T extends CollapsedBorderSource = Co
   winner: T;
 }
 
+export interface CollapsedBorderSectionFragment {
+  /** Global table-row edge represented by blockLines[0]. */
+  rowStart: number;
+  /** Fragment-local logical block offsets for consecutive row edges. */
+  blockLines: number[];
+  hasContentBefore?: boolean;
+  hasContentAfter?: boolean;
+  startRowFragmented?: boolean;
+  endRowFragmented?: boolean;
+}
+
 export const COLLAPSED_BORDER_STYLE_RANK: Record<string, number> = {
   none: 0, inset: 2, groove: 3, outset: 4, ridge: 5,
   dotted: 6, dashed: 7, solid: 8, double: 9,
@@ -198,7 +209,16 @@ function jointDecision<T extends CollapsedBorderSource>(
   under: CollapsedBorderEdge<T> | null,
   axis: "row" | "column",
   end: boolean,
+  overFragmentBoundary = false,
+  underFragmentBoundary = false,
 ): { inlineWidth: number; blockWidth: number; wins: boolean } {
+  if (!end) {
+    if (overFragmentBoundary) over = null;
+    if (underFragmentBoundary && axis === "row") under = null;
+  } else {
+    if (overFragmentBoundary && axis === "row") over = null;
+    if (underFragmentBoundary) under = null;
+  }
   const inlineCompare = compareCollapsedEdgesForPaint(before, after);
   const inlineWinner = inlineCompare === 1 ? before : after;
   const blockCompare = compareCollapsedEdgesForPaint(over, under);
@@ -207,7 +227,110 @@ function jointDecision<T extends CollapsedBorderSource>(
   const wins = axis === "row"
     ? inlineVsBlock !== -1 && inlineCompare !== (end ? -1 : 1)
     : inlineVsBlock !== 1 && blockCompare !== (end ? -1 : 1);
-  return { inlineWidth: winnerWidth(blockWinner), blockWidth: winnerWidth(inlineWinner), wins };
+  const blockWidthSuppressed = !end
+    ? overFragmentBoundary || (underFragmentBoundary && axis === "row")
+    : (overFragmentBoundary && axis === "row") || underFragmentBoundary;
+  return {
+    inlineWidth: winnerWidth(blockWinner),
+    blockWidth: blockWidthSuppressed ? 0 : winnerWidth(inlineWinner),
+    wins,
+  };
+}
+
+/** Fragmented counterpart of `collapsedBorderLogicalRects`, transcribed from
+ * TablePainter::PaintCollapsedBorders. Each entry is one table-section
+ * fragment in paint order; coordinates are local to the containing table
+ * fragment and may therefore include repeated header/footer sections. */
+export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSource>(
+  grid: CollapsedBorderGrid<T>,
+  inlineLines: number[],
+  sections: CollapsedBorderSectionFragment[],
+): Array<CollapsedBorderLogicalRect<T>> {
+  if (inlineLines.length !== grid.columns + 1)
+    throw new Error("collapsed-border inline tracks do not match the edge grid");
+  const rects: Array<CollapsedBorderLogicalRect<T>> = [];
+  let previousPaintedRow: number | null = null;
+  for (const section of sections) {
+    const lines = section.blockLines;
+    if (lines.length < 2) continue;
+    const finalRowEdge = section.rowStart + lines.length - 1;
+    for (let tableRow = section.rowStart; tableRow <= finalRowEdge; tableRow++) {
+      const localRow = tableRow - section.rowStart;
+      const startRow = localRow === 0;
+      const endRow = localRow === lines.length - 1;
+      const startFragmented = startRow && section.startRowFragmented === true;
+      const endFragmented = endRow && section.endRowFragmented === true;
+      const overBoundary = startRow && section.hasContentBefore === true;
+      const underBoundary = endRow && section.hasContentAfter === true;
+
+      if (!startFragmented && !endFragmented && previousPaintedRow !== tableRow) {
+        for (let column = 0; column < grid.columns; column++) {
+          const edge = edgeAt(grid.rowAxis, tableRow, column);
+          if (!canPaintCollapsedEdge(edge)) continue;
+          const start = jointDecision(
+            edgeAt(grid.rowAxis, tableRow, column - 1), edge,
+            edgeAt(grid.columnAxis, tableRow - 1, column), edgeAt(grid.columnAxis, tableRow, column),
+            "row", false, overBoundary, underBoundary,
+          );
+          const end = jointDecision(
+            edge, edgeAt(grid.rowAxis, tableRow, column + 1),
+            edgeAt(grid.columnAxis, tableRow - 1, column + 1), edgeAt(grid.columnAxis, tableRow, column + 1),
+            "row", true, overBoundary, underBoundary,
+          );
+          let inlineStart = inlineLines[column];
+          let inlineSize = inlineLines[column + 1] - inlineStart;
+          const startDelta = start.inlineWidth / 2;
+          inlineStart += start.wins ? -startDelta : startDelta;
+          inlineSize += start.wins ? startDelta : -startDelta;
+          const endDelta = end.inlineWidth / 2;
+          inlineSize += end.wins ? endDelta : -endDelta;
+          const width = edge.winner.w;
+          rects.push({
+            axis: "row", row: tableRow, column,
+            inlineStart,
+            blockStart: overBoundary ? lines[localRow] : lines[localRow] - width / 2,
+            inlineSize,
+            blockSize: overBoundary || underBoundary ? width / 2 : width,
+            winner: edge.winner,
+          });
+        }
+      }
+
+      if (localRow + 1 >= lines.length) continue;
+      for (let column = 0; column <= grid.columns; column++) {
+        const edge = edgeAt(grid.columnAxis, tableRow, column);
+        if (!canPaintCollapsedEdge(edge)) continue;
+        const start = jointDecision(
+          edgeAt(grid.rowAxis, tableRow, column - 1), edgeAt(grid.rowAxis, tableRow, column),
+          edgeAt(grid.columnAxis, tableRow - 1, column), edge,
+          "column", false, overBoundary, underBoundary,
+        );
+        const end = jointDecision(
+          edgeAt(grid.rowAxis, tableRow + 1, column - 1), edgeAt(grid.rowAxis, tableRow + 1, column),
+          edge, edgeAt(grid.columnAxis, tableRow + 1, column),
+          "column", true, overBoundary, underBoundary,
+        );
+        let blockStart = lines[localRow];
+        let blockSize = lines[localRow + 1] - blockStart;
+        if (!startFragmented) {
+          const delta = start.blockWidth / 2;
+          blockStart += start.wins ? -delta : delta;
+          blockSize += start.wins ? delta : -delta;
+        }
+        if (!endFragmented) {
+          const delta = end.blockWidth / 2;
+          blockSize += end.wins ? delta : -delta;
+        }
+        rects.push({
+          axis: "column", row: tableRow, column,
+          inlineStart: inlineLines[column] - edge.winner.w / 2,
+          blockStart, inlineSize: edge.winner.w, blockSize, winner: edge.winner,
+        });
+      }
+    }
+    previousPaintedRow = section.endRowFragmented ? null : finalRowEdge;
+  }
+  return rects;
 }
 
 /** Transcribes the non-fragmented geometry portion of

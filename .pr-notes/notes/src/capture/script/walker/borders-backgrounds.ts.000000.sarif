@@ -155,6 +155,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0ve3e7y1a5dumq",
+          "message": {
+            "text": "For multicol repeatable THEAD/TFOOT, Chromium CSSOM exposes one rectangle per clone but aliases all coordinates to the prototype. Equal repeat and table-fragment counts plus duplicate prototype placement are used as the structural discriminator; headers are anchored to each fragment's block start and footers to its block end. Paged-media capture remains separate because viewport CSSOM does not expose page fragments.",
+            "markdown": "For multicol repeatable THEAD/TFOOT, Chromium CSSOM exposes one rectangle per clone but aliases all coordinates to the prototype. Equal repeat and table-fragment counts plus duplicate prototype placement are used as the structural discriminator; headers are anchored to each fragment's block start and footers to its block end. Paged-media capture remains separate because viewport CSSOM does not expose page fragments."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 287,
+                  "endLine": 363,
+                  "snippet": {
+                    "text": "      const fragmentRectsFor = (node, section) => {\n        const rects = Array.from(node.getClientRects());\n        const repeated = repeatedSections.get(section);\n        if (repeated == null || !rects.length) return rects.map((rect) => ({ rect, fragment: fragmentIndexFor(rect), repeated: false }));\n        const sourceRect = rects[0];\n        const sourceFragment = tableFragments[repeated.sourceFragment];\n        return tableFragments.map((target, fragment) => {\n          let dx, dy;\n          if (horizontal) {\n            dx = target.left - sourceFragment.left;\n            dy = repeated.kind === 'header' ? target.top - sourceFragment.top : target.bottom - sourceFragment.bottom;\n          } else {\n            dy = target.top - sourceFragment.top;\n            if (repeated.kind === 'header') dx = blockReverse ? target.right - sourceFragment.right : target.left - sourceFragment.left;\n            else dx = blockReverse ? target.left - sourceFragment.left : target.right - sourceFragment.right;\n          }\n          return { rect: translatedRect(sourceRect, dx, dy), fragment, repeated: true };\n        });\n      };\n      const rowPieces = rowEntries.map((entry, row) => fragmentRectsFor(entry.row, entry.section)\n        .map((piece) => ({ rect: piece.rect, fragment: piece.fragment, repeated: piece.repeated, row, section: entry.section }))\n        .filter((piece) => piece.fragment >= 0));\n      const cellPieces = cells.map((meta) => fragmentRectsFor(meta.cell, rowEntries[meta.row].section)\n        .map((piece) => ({ rect: piece.rect, fragment: piece.fragment, meta }))\n        .filter((piece) => piece.fragment >= 0));\n      const sectionPieces = new Map(sectionEls.map((section) => [section, fragmentRectsFor(section, section)]));\n      const physicalRects = [];\n      for (let fragmentIndex = 0; fragmentIndex < tableFragments.length; fragmentIndex++) {\n        const fragmentRect = tableFragments[fragmentIndex];\n        const inlineReverse = direction === 'rtl';\n        const logical = (rect) => ({\n          inlineStart: horizontal\n            ? (inlineReverse ? fragmentRect.right - rect.right : rect.left - fragmentRect.left)\n            : (inlineReverse ? fragmentRect.bottom - rect.bottom : rect.top - fragmentRect.top),\n          inlineEnd: horizontal\n            ? (inlineReverse ? fragmentRect.right - rect.left : rect.right - fragmentRect.left)\n            : (inlineReverse ? fragmentRect.bottom - rect.top : rect.bottom - fragmentRect.top),\n          blockStart: horizontal ? rect.top - fragmentRect.top : (blockReverse ? fragmentRect.right - rect.right : rect.left - fragmentRect.left),\n          blockEnd: horizontal ? rect.bottom - fragmentRect.top : (blockReverse ? fragmentRect.right - rect.left : rect.right - fragmentRect.left),\n        });\n        const inlineSamples = Array.from({ length: columns + 1 }, () => []);\n        for (const pieces of cellPieces) for (const piece of pieces) if (piece.fragment === fragmentIndex) {\n          const coords = logical(piece.rect), meta = piece.meta;\n          inlineSamples[meta.column].push(coords.inlineStart);\n          inlineSamples[meta.column + meta.colspan].push(coords.inlineEnd);\n        }\n        const inlineExtent = horizontal ? fragmentRect.width : fragmentRect.height;\n        const inlineLines = trackLines(inlineSamples, inlineExtent);\n        const piecesHere = rowPieces.flat().filter((piece) => piece.fragment === fragmentIndex);\n        const sectionGroups = new Map();\n        for (const piece of piecesHere) {\n          const key = piece.section ?? table;\n          let group = sectionGroups.get(key);\n          if (group == null) { group = []; sectionGroups.set(key, group); }\n          group.push(piece);\n        }\n        const groups = Array.from(sectionGroups.values()).map((pieces) => {\n          pieces.sort((a, b) => logical(a.rect).blockStart - logical(b.rect).blockStart || a.row - b.row);\n          const first = pieces[0], last = pieces[pieces.length - 1];\n          const blockLines = pieces.map((piece) => logical(piece.rect).blockStart);\n          const sectionRect = first.section == null ? null : sectionPieces.get(first.section)?.find((piece) => piece.fragment === fragmentIndex)?.rect;\n          blockLines.push(sectionRect == null ? logical(last.rect).blockEnd : logical(sectionRect).blockEnd);\n          const firstPieceIndex = rowPieces[first.row].findIndex((piece) => piece === first);\n          const lastPieceIndex = rowPieces[last.row].findIndex((piece) => piece === last);\n          return {\n            rowStart: first.row,\n            blockLines,\n            startRowFragmented: !first.repeated && firstPieceIndex > 0,\n            endRowFragmented: !last.repeated && lastPieceIndex >= 0 && lastPieceIndex < rowPieces[last.row].length - 1,\n          };\n        }).sort((a, b) => a.blockLines[0] - b.blockLines[0]);\n        for (let i = 0; i < groups.length; i++) {\n          groups[i].hasContentBefore = i === 0 && groups[i].rowStart > 0;\n          groups[i].hasContentAfter = i === groups.length - 1\n            && groups[i].rowStart + groups[i].blockLines.length < grid.rows + 1;\n        }\n        const logicalRects = collapsedBorderFragmentLogicalRects(grid, inlineLines, groups);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "assumption"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2322"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "241e0cf91540bbf1485bcb6570126593"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f06973ca6ad5d62a2ed0d0501f86e45749bdf2ad",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

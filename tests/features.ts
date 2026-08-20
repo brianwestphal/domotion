@@ -234,6 +234,17 @@ export const tests: FeatureTest[] = [
     width: 520,
     height: 190,
   },
+  {
+    // DM-2322: LayoutNG keeps the global collapsed-border winner graph across
+    // fragmentainers, but TablePainter clips/halves/omits edges using each
+    // section fragment's row offsets. Includes both whole-row breaks and one
+    // row continued across a multicol boundary.
+    name: "border-collapse-fragmented",
+    html: `<div style="padding:16px;background:#fff"><style>.fc{columns:3;column-fill:auto;width:720px;height:132px}.ft{border-collapse:collapse;width:100%}.ft td{box-sizing:border-box;height:38px;border:4px solid #2563eb;padding:2px}.ft .accent{border-left:7px dashed #dc2626}.ft .tall{height:164px}</style><div class="fc"><table class="ft"><tbody><tr><td></td></tr><tr><td class="accent"></td></tr><tr class="tall"><td></td></tr><tr><td></td></tr></tbody></table></div></div>`,
+    width: 960,
+    height: 210,
+    relaxedDiffPct: 1,
+  },
 
   // ── Layout ──
   {

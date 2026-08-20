@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collapsedBorderStyle,
+  collapsedBorderFragmentLogicalRects,
   collapsedBorderLogicalRects,
   compareCollapsedEdgesForPaint,
   createCollapsedBorderGrid,
@@ -129,5 +130,57 @@ describe("Blink table-level collapsed-border graph (DM-2320)", () => {
     const top = collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).find((rect) => rect.axis === "row" && rect.row === 0)!;
     expect(top.inlineStart).toBe(4);
     expect(top.inlineSize).toBe(7);
+  });
+});
+
+describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
+  const twoRowGrid = () => {
+    const grid = createCollapsedBorderGrid(2, 1);
+    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
+      top: source("top", "solid", 4, 1), right: source("right", "solid", 4, 1),
+      bottom: source("bottom", "solid", 4, 1), left: source("left", "solid", 4, 1),
+    }, "horizontal-tb", "ltr");
+    mergeCollapsedBorderBox(grid, 1, 0, 1, 1, {
+      top: source("top", "solid", 4, 2), right: source("right", "solid", 4, 2),
+      bottom: source("bottom", "solid", 4, 2), left: source("left", "solid", 4, 2),
+    }, "horizontal-tb", "ltr");
+    return grid;
+  };
+
+  it("paints half of an inline border on each side of a row break", () => {
+    const grid = twoRowGrid();
+    const before = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
+      rowStart: 0, blockLines: [0, 10], hasContentAfter: true,
+    }]);
+    const after = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
+      rowStart: 1, blockLines: [0, 10], hasContentBefore: true,
+    }]);
+    const beforeBreak = before.find((rect) => rect.axis === "row" && rect.row === 1)!;
+    const afterBreak = after.find((rect) => rect.axis === "row" && rect.row === 1)!;
+    expect(beforeBreak).toMatchObject({ blockStart: 8, blockSize: 2 });
+    expect(afterBreak).toMatchObject({ blockStart: 0, blockSize: 2 });
+  });
+
+  it("omits an inline edge through a fragmented row", () => {
+    const grid = twoRowGrid();
+    const firstPiece = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
+      rowStart: 0, blockLines: [0, 10], endRowFragmented: true,
+    }]);
+    const continuation = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
+      rowStart: 0, blockLines: [0, 10], startRowFragmented: true,
+    }]);
+    expect(firstPiece.some((rect) => rect.axis === "row" && rect.row === 1)).toBe(false);
+    expect(continuation.some((rect) => rect.axis === "row" && rect.row === 0)).toBe(false);
+    expect(firstPiece.some((rect) => rect.axis === "column" && rect.row === 0)).toBe(true);
+    expect(continuation.some((rect) => rect.axis === "column" && rect.row === 0)).toBe(true);
+  });
+
+  it("does not double-paint the shared row edge between adjacent sections", () => {
+    const grid = twoRowGrid();
+    const rects = collapsedBorderFragmentLogicalRects(grid, [0, 20], [
+      { rowStart: 0, blockLines: [0, 10] },
+      { rowStart: 1, blockLines: [10, 20] },
+    ]);
+    expect(rects.filter((rect) => rect.axis === "row" && rect.row === 1)).toHaveLength(1);
   });
 });
