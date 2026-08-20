@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt10kdtxei7uuxeq",
+          "message": {
+            "text": "Activation evidence is artifact provenance, not a per-region causal diagnosis. The review UI exposes the platform and registered mechanism count so reviewers know the build carried the control ledger, while malformed/legacy artifacts omit the badge and region-stage classification remains a separate explicit workflow.",
+            "markdown": "Activation evidence is artifact provenance, not a per-region causal diagnosis. The review UI exposes the platform and registered mechanism count so reviewers know the build carried the control ledger, while malformed/legacy artifacts omit the badge and region-stage classification remains a separate explicit workflow."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/review-server.tsx"
+                },
+                "region": {
+                  "startLine": 236,
+                  "endLine": 245,
+                  "snippet": {
+                    "text": "  for (const m of manifestFiles) {\n    if (!existsSync(m.path)) continue;\n    const activationPath = resolve(dirname(m.path), \"activation-evidence.json\");\n    if (activationEvidence == null && existsSync(activationPath)) {\n      try {\n        const evidence = JSON.parse(readFileSync(activationPath, \"utf8\")) as { platform?: string; mechanisms?: unknown[] };\n        if (typeof evidence.platform === \"string\" && Array.isArray(evidence.mechanisms)) {\n          activationEvidence = { platform: evidence.platform, mechanismCount: evidence.mechanisms.length };\n        }\n      } catch { /* CI validates the evidence file; malformed legacy artifacts simply omit the badge. */ }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2375"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "454e83730990e2ef84ffec85b18dc550"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "25152340a808dcdd65f2d87b77d44d422dc3bc52",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

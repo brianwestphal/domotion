@@ -1328,6 +1328,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   acknowledged gap; the release-level strict mode fails while any row remains
   partial or unsupported.
 
+- **Doc 137 (`docs/137-specialized-path-activation-ledger.md`) — Shipped.**
+  Every registered helper, resolver, cache, platform branch, generated table,
+  fallback trigger, and representation boundary links positive, negative, and
+  mutation evidence. CI rejects stale/inert registrations, and visual-test
+  artifacts carry the platform-specific activation ledger into demo review.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

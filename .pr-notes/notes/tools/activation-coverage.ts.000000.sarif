@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt10kdtr65s1gdf2",
+          "message": {
+            "text": "The ledger validates semantic anchors inside executable evidence rather than accepting a test filename alone. CI still executes the tests/oracles normally; this cross-check makes a renamed, removed, or collapsed positive/negative/mutation discriminator fail structurally before an inert specialized path can retain a stale coverage claim.",
+            "markdown": "The ledger validates semantic anchors inside executable evidence rather than accepting a test filename alone. CI still executes the tests/oracles normally; this cross-check makes a renamed, removed, or collapsed positive/negative/mutation discriminator fail structurally before an inert specialized path can retain a stale coverage claim."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/activation-coverage.ts"
+                },
+                "region": {
+                  "startLine": 22,
+                  "endLine": 48,
+                  "snippet": {
+                    "text": "export async function validateActivationLedger(ledger: ActivationLedger, root: string): Promise<string[]> {\n  const errors: string[] = [];\n  const ids = new Set<string>();\n  const source = async (path: string, label: string): Promise<string | null> => {\n    const absolute = resolve(root, path);\n    if (isAbsolute(path) || relative(root, absolute).startsWith(\"..\")) {\n      errors.push(`${label}: path escapes repository: ${path}`); return null;\n    }\n    try { await access(absolute); return await readFile(absolute, \"utf8\"); }\n    catch { errors.push(`${label}: missing path: ${path}`); return null; }\n  };\n  for (const mechanism of ledger.mechanisms) {\n    if (ids.has(mechanism.id)) errors.push(`duplicate mechanism id: ${mechanism.id}`);\n    ids.add(mechanism.id);\n    for (const owner of mechanism.owners) await source(owner, mechanism.id);\n    const evidence = await source(mechanism.evidenceFile, mechanism.id);\n    if (evidence != null) for (const [kind, marker] of [[\"positive\", mechanism.positive], [\"negative\", mechanism.negative], [\"mutation\", mechanism.mutation]] as const) {\n      if (!evidence.includes(marker)) errors.push(`${mechanism.id}: stale ${kind} marker: ${marker}`);\n    }\n    if (mechanism.positive === mechanism.negative) errors.push(`${mechanism.id}: positive and negative controls must differ`);\n  }\n  for (const kind of ACTIVATION_KINDS) if (!ledger.mechanisms.some((entry) => entry.kind === kind)) errors.push(`unclaimed mechanism kind: ${kind}`);\n  return errors;\n}\n\nexport async function writeActivationEvidence(path: string, ledger: ActivationLedger): Promise<void> {\n  await writeFile(path, `${JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), platform: process.platform, mechanisms: ledger.mechanisms.map(({ id, kind, evidenceFile, positive, negative, mutation, platforms }) => ({ id, kind, evidenceFile, positive, negative, mutation, platforms })) }, null, 2)}\\n`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 93,
+          "workItemUris": [
+            "DM-2375"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "acd6f923624239b6dbb81ce3acd965ba"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "25152340a808dcdd65f2d87b77d44d422dc3bc52",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

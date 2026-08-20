@@ -189,6 +189,9 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+      - name: Attach specialized-path activation evidence
+        if: always()
+        run: npm run check:activation-coverage -- --json tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/activation-evidence.json
       - name: Drop SVGs from artifacts (lean, review needs only PNGs)
         if: ${{ always() && inputs.include_svg != true }}
         shell: bash
@@ -276,6 +279,9 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+      - name: Attach specialized-path activation evidence
+        if: always()
+        run: npm run check:activation-coverage -- --json tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/activation-evidence.json
       - name: Drop SVGs from artifacts (lean, review needs only PNGs)
         if: ${{ always() && inputs.include_svg != true }}
         shell: bash
@@ -347,6 +353,10 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+      - name: Attach specialized-path activation evidence
+        if: always()
+        shell: bash
+        run: npm run check:activation-coverage -- --json tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/activation-evidence.json
       - name: Drop SVGs from artifacts (lean, review needs only PNGs)
         if: ${{ always() && inputs.include_svg != true }}
         shell: bash

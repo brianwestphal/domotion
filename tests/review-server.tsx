@@ -215,6 +215,7 @@ interface ReviewManifest {
   // "Local · macOS" with nothing indicating the mismatch. Reading it required
   // knowing each platform's failure signature by heart; now it says so.
   platformMismatch?: { manifest: string; host: string };
+  activationEvidence?: { platform: string; mechanismCount: number };
 }
 
 function loadManifest(activeSourceId: string): ReviewManifest {
@@ -230,9 +231,19 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   };
   const timestamps: string[] = [];
   let manifestPlatform: string | null = null;
+  let activationEvidence: ReviewManifest["activationEvidence"];
 
   for (const m of manifestFiles) {
     if (!existsSync(m.path)) continue;
+    const activationPath = resolve(dirname(m.path), "activation-evidence.json");
+    if (activationEvidence == null && existsSync(activationPath)) {
+      try {
+        const evidence = JSON.parse(readFileSync(activationPath, "utf8")) as { platform?: string; mechanisms?: unknown[] };
+        if (typeof evidence.platform === "string" && Array.isArray(evidence.mechanisms)) {
+          activationEvidence = { platform: evidence.platform, mechanismCount: evidence.mechanisms.length };
+        }
+      } catch { /* CI validates the evidence file; malformed legacy artifacts simply omit the badge. */ }
+    }
     suites[m.suite].present = true;
     const raw = JSON.parse(readFileSync(m.path, "utf8")) as unknown;
 
@@ -314,7 +325,7 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   const platformMismatch = !activeSourceId.startsWith("ci-") && manifestPlatform != null && manifestPlatform !== process.platform
     ? { manifest: manifestPlatform, host: process.platform }
     : undefined;
-  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded, ...(platformMismatch != null ? { platformMismatch } : {}) };
+  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded, ...(platformMismatch != null ? { platformMismatch } : {}), ...(activationEvidence != null ? { activationEvidence } : {}) };
 }
 
 function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
@@ -800,6 +811,11 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
             {manifest.platformMismatch != null ? (
               <span className="platform-warn" title="Re-run the suite on this host to regenerate, or use the platform-specific output dir (DOMOTION_OUTPUT_DIR)">
                 {`⚠ these artifacts were produced on ${manifest.platformMismatch.manifest}, not ${manifest.platformMismatch.host}`}
+              </span>
+            ) : ""}
+            {manifest.activationEvidence != null ? (
+              <span className="activation-evidence" title="Positive, negative, and mutation controls linked for specialized renderer paths">
+                {`activation ${manifest.activationEvidence.mechanismCount} · ${manifest.activationEvidence.platform}`}
               </span>
             ) : ""}
             <label>Filter: <select id="filter">
