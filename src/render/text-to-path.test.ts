@@ -916,16 +916,16 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     expect(r.xOffsets![1] - 98.4).toBeCloseTo(19.2, 1);
   });
   it("DM-2197: leaves a dedicated-shaper left matra bare for HarfBuzz to circle", () => {
-    const r = run("\u{113C5}"); // Tulu-Tigalari VOWEL SIGN AI — uncovered, InPC=Left
+    const r = insertSyntheticDottedCircles("\u{113C5}", undefined, fam, 400, 32, 0, undefined, undefined, undefined, undefined, true); // Tulu-Tigalari VOWEL SIGN AI — uncovered, InPC=Left
     expect(r.text).toBe("\u{113C5}");
   });
   it("DM-2197: preserves offsets when the dedicated shaper owns insertion", () => {
-    const r = run("\u{113C5}", [40, 40]); // one xOffset per UTF-16 unit
+    const r = insertSyntheticDottedCircles("\u{113C5}", [40, 40], fam, 400, 32, 0, undefined, undefined, undefined, undefined, true); // one xOffset per UTF-16 unit
     expect(r.text).toBe("\u{113C5}");
     expect(r.xOffsets).toEqual([40, 40]);
   });
   it("DM-2197: also leaves a dedicated-shaper right matra bare", () => {
-    const r = run("\u{113C9}"); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
+    const r = insertSyntheticDottedCircles("\u{113C9}", undefined, fam, 400, 32, 0, undefined, undefined, undefined, undefined, true); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
     expect(r.text).toBe("\u{113C9}");
   });
   it("DM-2226: honors a negative capture probe for a covered Tai Tham orphan mark", () => {
@@ -959,11 +959,11 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     // Sogdian COMBINING DOT BELOW U+10F46 is a broken RTL syllable. The capture
     // probe flags index 0, but preprocessing leaves it intact because the
     // dedicated HarfBuzz run inserts and positions its own dotted circle.
-    const r = insertSyntheticDottedCircles("\u{10F46}", undefined, fam, 400, 32, 0, undefined, undefined, [0]);
+    const r = insertSyntheticDottedCircles("\u{10F46}", undefined, fam, 400, 32, 0, undefined, undefined, [0], undefined, true);
     expect(r.text).toBe("\u{10F46}");
   });
   it("DM-2197: preserves offsets for a dedicated-shaper RTL mark", () => {
-    const r = insertSyntheticDottedCircles("\u{10F46}", [674.39, 674.39], fam, 400, 32, 0, undefined, undefined, [0]);
+    const r = insertSyntheticDottedCircles("\u{10F46}", [674.39, 674.39], fam, 400, 32, 0, undefined, undefined, [0], undefined, true);
     expect(r.text).toBe("\u{10F46}");
     expect(r.xOffsets).toEqual([674.39, 674.39]);
   });

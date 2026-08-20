@@ -388,6 +388,13 @@ If those don't surface the cause, fall through to a Playwright probe under
 `tools/probe-*.mjs` — `CLAUDE.md` has copy-pasteable patterns for the two
 most common probes (measure-an-element, screenshot-a-region).
 
+For orphan dotted circles, start at
+`src/capture/script/dotted-circle-detect.ts` and
+`insertSyntheticDottedCircles` in `src/render/text-to-path.ts`. Candidate
+collection is broad; Chromium paint and the selected-face HarfBuzz glyph stream
+own the decision. Do not reintroduce block, plane, font, or script samples as
+routing gates.
+
 ## What this file is NOT
 
 - Not a complete summary of the codebase — `CLAUDE.md` is. Don't grow

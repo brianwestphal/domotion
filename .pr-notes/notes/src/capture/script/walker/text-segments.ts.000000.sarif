@@ -222,6 +222,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1852ouxez1mtl8",
+          "message": {
+            "text": "The old Tamil ZWJ+U+0BC6 exception was a sampled sequence. HarfBuzz shaping machines give ZWJ/ZWNJ their joiner category independent of script, so they preserve (rather than create) the base state; unrelated Cf characters remain outside this rule.",
+            "markdown": "The old Tamil ZWJ+U+0BC6 exception was a sampled sequence. HarfBuzz shaping machines give ZWJ/ZWNJ their joiner category independent of script, so they preserve (rather than create) the base state; unrelated Cf characters remain outside this rule."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 197,
+                  "endLine": 200,
+                  "snippet": {
+                    "text": "// ZWJ/ZWNJ are the shaping machines' `Z` category and are transparent to the\n// base/no-base state. Do not generalize this to every Format character: bidi\n// controls and other Cf scalars are removed/itemized by different stages.\nexport const isShapingTransparentControl = (ch) => ch === \"\\u200C\" || ch === \"\\u200D\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 91,
+          "workItemUris": [
+            "DM-2393"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f966c134fd070ccf38d0efc0dbe5881c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8377369b48d1fa913a694fda01b442fc46dbc2ad",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

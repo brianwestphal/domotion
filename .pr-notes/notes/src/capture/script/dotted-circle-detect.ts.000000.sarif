@@ -66,6 +66,71 @@
           "branch": "validate-dm-2281-icu-acquire"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1852oulzcngszh",
+          "message": {
+            "text": "The candidate set is deliberately broader than the answer. Chromium itself shapes the bare and explicit-circle controls, so admitting BMP/SMP M/Lo/Lm scalars cannot force a circle; it only removes the previous range blind spots. The pixel-mask comparison remains the renderer-owned covered-glyph decision.",
+            "markdown": "The candidate set is deliberately broader than the answer. Chromium itself shapes the bare and explicit-circle controls, so admitting BMP/SMP M/Lo/Lm scalars cannot force a circle; it only removes the previous range blind spots. The pixel-mask comparison remains the renderer-owned covered-glyph decision."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/dotted-circle-detect.ts"
+                },
+                "region": {
+                  "startLine": 22,
+                  "endLine": 38,
+                  "snippet": {
+                    "text": "// Candidate selection is intentionally limited only by Unicode General_Category\n// (M, Lo, or Lm), not by a sampled block/range. The ink comparison is the actual\n// renderer-owned decision: ordinary letters and default-shaper marks differ from\n// the explicit-circle control and therefore answer false.\n\nexport const dottedCircleInkMatches = (bare, comb) => {\n  const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;\n  let union = 0, xor = 0;\n  for (let i = 0; i < bare.mask.length; i++) {\n    if (bare.mask[i] || comb.mask[i]) union++;\n    if (bare.mask[i] !== comb.mask[i]) xor++;\n  }\n  const mismatch = union > 0 ? xor / union : 1;\n  return bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25 && mismatch < 0.12;\n};\n\nexport const isDottedCircleProbeCandidate = (ch) => /\\p{M}|\\p{Lo}|\\p{Lm}/u.test(ch);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2393"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e1c56cce05088355a472e5798cf39f2c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8377369b48d1fa913a694fda01b442fc46dbc2ad",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

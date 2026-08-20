@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dottedCircleInkMatches } from "./dotted-circle-detect.js";
+import { dottedCircleInkMatches, isDottedCircleProbeCandidate } from "./dotted-circle-detect.js";
 
 const stats = (indices: number[], width = 10) => {
   const mask = new Uint8Array(64);
@@ -8,6 +8,15 @@ const stats = (indices: number[], width = 10) => {
 };
 
 describe("dotted-circle capture probe", () => {
+  it("admits BMP and SMP marks/cluster letters without a block boundary", () => {
+    expect(isDottedCircleProbeCandidate("\u0301")).toBe(true); // BMP default-shaper mark: ink probe rejects later
+    expect(isDottedCircleProbeCandidate("\u0B85")).toBe(true); // BMP Lo
+    expect(isDottedCircleProbeCandidate("\u{11A84}")).toBe(true); // SMP Lo
+    expect(isDottedCircleProbeCandidate("\u{16D6B}")).toBe(true); // SMP Lm
+    expect(isDottedCircleProbeCandidate("A")).toBe(false);
+    expect(isDottedCircleProbeCandidate(".")).toBe(false);
+  });
+
   it("accepts matching bare and explicit-circle ink masks", () => {
     const ink = Array.from({ length: 24 }, (_, i) => i + 10);
     expect(dottedCircleInkMatches(stats(ink), stats(ink))).toBe(true);

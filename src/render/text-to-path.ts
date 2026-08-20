@@ -42,10 +42,10 @@ import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
-import { isIcuHelperAvailable } from "./icu-helper.js";
+import { icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
 import { recordSelectedFontRuns, recordTextEmitterTransition, type TextRunRequestDiagnostic } from "./text-run-provenance.js";
 export { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
 import {
@@ -1433,16 +1433,24 @@ export function insertSyntheticDottedCircles(
     const cp = text.codePointAt(i)!;
     const chLen = cp > 0xFFFF ? 2 : 1;
     const ch = text.slice(i, i + chLen);
-    const isMark = /\p{M}/u.test(ch);
+    const icu = icuCodepointProperties(cp);
+    // ICU UCharCategory: NON_SPACING_MARK=6, ENCLOSING_MARK=7,
+    // COMBINING_SPACING_MARK=8, FORMAT_CHAR=16. The pinned companion is the
+    // production authority; Unicode regexes remain only the degraded fallback.
+    const isMark = icu != null ? icu.generalCategory >= 6 && icu.generalCategory <= 8 : /\p{M}/u.test(ch);
     const isWs = chLen === 1 && /\s/.test(ch);
     const nextCp = i + chLen < text.length ? text.codePointAt(i + chLen)! : -1;
-    if (!clusterHasBase && cp === 0x200D && nextCp === 0x0BC6
-        && (coveredCircleSet == null || coveredCircleSet.has(i + chLen))) {
-      // Indic Ragel `z* M` broken cluster, confirmed against Chromium with
-      // Tamil Sangam MN. HarfBuzz inserts the circle BEFORE the leading ZWJ;
-      // our scalar orphan tracker previously treated that Cf as a base and
-      // suppressed the following mark. Scoped to the measured pair: analogous
-      // Malayalam/Sinhala/Lao probes did not match an explicit-circle control.
+    // ICU Indic_Syllabic_Category=Joiner is 20 in the pinned companion. The
+    // literal fallback is helper-absent degradation, not a script/font route.
+    const shapingTransparentControl = icu != null ? icu.indicSyllabicCategory === 20
+      : cp === 0x200C || cp === 0x200D;
+    if (!clusterHasBase && shapingTransparentControl && nextCp >= 0
+        && (coveredCircleSet?.has(i + chLen) === true)) {
+      // A leading format control belongs to the following broken syllable. The
+      // capture-side Chromium probe establishes whether that syllable receives
+      // a dotted circle; HarfBuzz inserts it at the syllable start, before the
+      // transparent prefix. This replaces the former Tamil ZWJ/codepoint pair
+      // with the general shaping-machine rule.
       const joinerX = haveX ? (xOffsets![i] ?? 0) : 0;
       outText += "◌" + ch;
       if (haveX) outX.push(joinerX, joinerX);
@@ -1474,44 +1482,49 @@ export function insertSyntheticDottedCircles(
       ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
         variationSettings, lang, fontKeyChain)
       : null;
-    const logicalScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
-    const logicalScriptTag = logicalScript != null ? SCRIPT_NAME_TO_ISO15924[logicalScript] : undefined;
-    const shaperClassFlagged = logicalScript != null
-      && logicalScript !== "Common" && logicalScript !== "Inherited" && logicalScript !== "Unknown"
-      && usesComplexShaperDottedCircle(cp) && !usesDedicatedShaper(cp);
-    const logicalCircleGid = logicalHbRun != null ? glyphIdForCp(logicalHbRun.font, 0x25cc) : 0;
-    const logicalLayout = logicalHbRun != null && logicalScriptTag != null
-      ? logicalHbRun.font.layout(ch, undefined, logicalScriptTag, lang, "ltr")
+    const fallbackScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
+    const icuScriptTag = icu?.scriptName;
+    const logicalScriptTag = icuScriptTag != null && icuScriptTag !== "Zinh"
+      && icuScriptTag !== "Zyyy" && icuScriptTag !== "Zzzz"
+      ? icuScriptTag
+      : fallbackScript != null ? SCRIPT_NAME_TO_ISO15924[fallbackScript] : undefined;
+    // Covered marks shape on their resolved mark face. An uncovered mark stays
+    // on Blink's first candidate for `.notdef`, which is the run primary here.
+    // In both cases ask the actual HarfBuzz proxy whether the bare orphan emits
+    // that face's U+25CC glyph; no script/block membership participates.
+    const logicalBaseFont = logicalHbRun?.font ?? primaryFont;
+    const logicalFontKey = logicalHbRun?.key ?? primaryFontKey;
+    const logicalShapeFont = isMark && orphaned
+      ? harfbuzzShapedRunOverride(logicalBaseFont, logicalFontKey, weight, fontSize, slant,
+        variationSettings, ch)
+      : null;
+    const logicalCircleGid = logicalShapeFont?.shapesWithHarfbuzz === true
+      ? glyphIdForCp(logicalShapeFont, 0x25cc) : 0;
+    const logicalLayout = logicalShapeFont?.shapesWithHarfbuzz === true && logicalScriptTag != null
+      ? logicalShapeFont.layout(ch, undefined, logicalScriptTag, lang, "ltr")
       : null;
     const logicallyFlagged = logicalCircleGid !== 0
       && logicalLayout != null
       && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);
-    // A successfully resolved non-dedicated HarfBuzz run is itself enough to
-    // establish the shaping route. Some platform fonts expose the mark and
-    // U+25CC but the JS shaping facade returns only the source glyph when asked
-    // to shape the mark in isolation; Chromium still enters the broken-
-    // syllable pass for the full run. Dedicated shapers remain excluded by
-    // resolveDottedCircleHbRun(), preserving the measured Sinhala/Thai/etc.
-    // vetoes.
     // When capture supplied probe data, its answer is authoritative for
     // covered marks: an empty set means Chromium painted the mark bare (Tai
     // Tham), while a positive index means it painted a circle. Falling back to
     // the static shaper class despite an explicit negative answer duplicates
     // font/shaper-owned circles (Balinese) and invents circles for bare marks.
-    // With no capture data (unit callers / old captures), retain the static
-    // compatibility heuristic.
+    // With no capture data (unit callers / old captures), use the same selected
+    // face plus HarfBuzz shaping evidence rather than a codepoint range.
     const probeFlagged = coveredCircleSet != null
       ? coveredCircleSet.has(i)
-      : shaperClassFlagged;
+      : logicallyFlagged;
     if (isMark || probeFlagged) {
       // The canvas probe is authoritative only for a glyph Chrome actually
       // painted. For an uncovered mark it observes the fallback face's bare
       // .notdef box, not HarfBuzz's broken-syllable decision, and therefore
       // commonly returns an empty array (the macOS Vedic CI route is Arial
-      // Unicode's .notdef plus its real U+25CC). Let the static shaper-class
-      // predicate answer the uncovered case; keep the probe veto below for
-      // covered marks such as Sinhala U+0D81.
-      const wantUncoveredCircle = shaperClassFlagged;
+      // Unicode's .notdef plus its real U+25CC). The selected-face HarfBuzz
+      // result answers that uncovered case; keep the probe veto for covered
+      // marks where Chromium's live paint is authoritative.
+      const wantUncoveredCircle = logicallyFlagged;
       // DM-1851: HarfBuzz will not insert a dotted circle unless THE FONT USED
       // FOR THE RUN has a glyph for U+25CC. Transcribed from
       // `hb_syllabic_insert_dotted_circles` (`external/harfbuzz/src/hb-ot-shaper-syllabic.cc:51-53`,
@@ -1538,6 +1551,7 @@ export function insertSyntheticDottedCircles(
       // REMOVE a circle we would otherwise have drawn, never add one.
       const runFontHasDottedCircle = resolveDottedCircleRunFont() != null;
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
+          && !(shapeUncoveredOrphansNatively && logicalShapeFont?.shapesWithHarfbuzz === true)
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
             variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)) {
         const adv = resolveDottedCircleAdvance();
@@ -1595,7 +1609,7 @@ export function insertSyntheticDottedCircles(
           // apart (Miao/Brahmi). Only synthesize for a probe-positive face whose
           // layout facade does NOT already own the circle.
           && !logicallyFlagged
-          && (shaperClassFlagged || !fontAutoInsertsDottedCircle(coveredMarkFont, ch))
+          && !fontAutoInsertsDottedCircle(coveredMarkFont, ch)
           // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
           // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
           // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks
@@ -1644,6 +1658,8 @@ export function insertSyntheticDottedCircles(
       // Non-qualifying mark: pass through unchanged.
     } else if (isWs) {
       clusterHasBase = false;
+    } else if (shapingTransparentControl) {
+      // Joiners and other format controls neither create nor clear a base.
     } else {
       clusterHasBase = true; // a spacing base char
     }

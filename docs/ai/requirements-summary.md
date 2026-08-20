@@ -1396,3 +1396,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   Blink resolve variables, `calc()`, intrinsic content, logical dimensions,
   writing mode, and pseudo typography; raster fallback remains limited to
   text that cannot be represented as font outlines.
+
+- Dotted-circle routing is owned by the selected face's HarfBuzz result, with
+  Chromium capture ink as the covered-glyph control and pinned ICU properties
+  supplying script/category inputs. Unicode block floors, plane gates, and
+  script-specific joiner pairs are not production decisions.

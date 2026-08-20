@@ -755,6 +755,81 @@
           "branch": "validation/dm-2304-icu"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1852owudattcxy",
+          "message": {
+            "text": "Helper-backed dotted-circle classification now crosses the same boundary as Chromium: pinned ICU supplies General Category, Script, and Indic Syllabic Category; fallback selects a concrete face; vendored HarfBuzz shapes the orphan on that face; and the returned glyph stream proves whether that face emitted its U+25CC glyph. No Unicode block, plane, or font-name sample participates.",
+            "markdown": "Helper-backed dotted-circle classification now crosses the same boundary as Chromium: pinned ICU supplies General Category, Script, and Indic Syllabic Category; fallback selects a concrete face; vendored HarfBuzz shapes the orphan on that face; and the returned glyph stream proves whether that face emitted its U+25CC glyph. No Unicode block, plane, or font-name sample participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1436,
+                  "endLine": 1508,
+                  "snippet": {
+                    "text": "    const icu = icuCodepointProperties(cp);\n    // ICU UCharCategory: NON_SPACING_MARK=6, ENCLOSING_MARK=7,\n    // COMBINING_SPACING_MARK=8, FORMAT_CHAR=16. The pinned companion is the\n    // production authority; Unicode regexes remain only the degraded fallback.\n    const isMark = icu != null ? icu.generalCategory >= 6 && icu.generalCategory <= 8 : /\\p{M}/u.test(ch);\n    const isWs = chLen === 1 && /\\s/.test(ch);\n    const nextCp = i + chLen < text.length ? text.codePointAt(i + chLen)! : -1;\n    // ICU Indic_Syllabic_Category=Joiner is 20 in the pinned companion. The\n    // literal fallback is helper-absent degradation, not a script/font route.\n    const shapingTransparentControl = icu != null ? icu.indicSyllabicCategory === 20\n      : cp === 0x200C || cp === 0x200D;\n    if (!clusterHasBase && shapingTransparentControl && nextCp >= 0\n        && (coveredCircleSet?.has(i + chLen) === true)) {\n      // A leading format control belongs to the following broken syllable. The\n      // capture-side Chromium probe establishes whether that syllable receives\n      // a dotted circle; HarfBuzz inserts it at the syllable start, before the\n      // transparent prefix. This replaces the former Tamil ZWJ/codepoint pair\n      // with the general shaping-machine rule.\n      const joinerX = haveX ? (xOffsets![i] ?? 0) : 0;\n      outText += \"◌\" + ch;\n      if (haveX) outX.push(joinerX, joinerX);\n      clusterHasBase = true;\n      changed = true;\n      i += chLen;\n      continue;\n    }\n    if (needsSyntheticVowelConstraintCircle(cp, nextCp)) {\n      // Current Chromium's HarfBuzz inserts U+25CC BETWEEN these invalid\n      // base+dependent-vowel pairs before shaping. Our vendored harfbuzzjs\n      // v1.4.0 predates these generated-table cases and CoreText does not\n      // supply them either. Preserve the source anchors; the inserted circle\n      // borrows the following vowel sign's captured anchor.\n      outText += ch;\n      if (haveX) for (let k = 0; k < chLen; k++) outX.push(xOffsets![i + k] ?? xOffsets![i] ?? 0);\n      outText += \"◌\";\n      if (haveX) outX.push(xOffsets![i + chLen] ?? xOffsets![i] ?? 0);\n      clusterHasBase = true;\n      changed = true;\n      i += chLen;\n      continue;\n    }\n    // Canvas cannot observe Linux's HarfBuzz insertion for zero-advance marks.\n    // Ask the selected shaping face the logical question instead: with Blink's\n    // resolved script, does shaping this orphan emit that face's U+25CC glyph?\n    const orphaned = !clusterHasBase;\n    const logicalHbRun = isMark && orphaned\n      ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,\n        variationSettings, lang, fontKeyChain)\n      : null;\n    const fallbackScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;\n    const icuScriptTag = icu?.scriptName;\n    const logicalScriptTag = icuScriptTag != null && icuScriptTag !== \"Zinh\"\n      && icuScriptTag !== \"Zyyy\" && icuScriptTag !== \"Zzzz\"\n      ? icuScriptTag\n      : fallbackScript != null ? SCRIPT_NAME_TO_ISO15924[fallbackScript] : undefined;\n    // Covered marks shape on their resolved mark face. An uncovered mark stays\n    // on Blink's first candidate for `.notdef`, which is the run primary here.\n    // In both cases ask the actual HarfBuzz proxy whether the bare orphan emits\n    // that face's U+25CC glyph; no script/block membership participates.\n    const logicalBaseFont = logicalHbRun?.font ?? primaryFont;\n    const logicalFontKey = logicalHbRun?.key ?? primaryFontKey;\n    const logicalShapeFont = isMark && orphaned\n      ? harfbuzzShapedRunOverride(logicalBaseFont, logicalFontKey, weight, fontSize, slant,\n        variationSettings, ch)\n      : null;\n    const logicalCircleGid = logicalShapeFont?.shapesWithHarfbuzz === true\n      ? glyphIdForCp(logicalShapeFont, 0x25cc) : 0;\n    const logicalLayout = logicalShapeFont?.shapesWithHarfbuzz === true && logicalScriptTag != null\n      ? logicalShapeFont.layout(ch, undefined, logicalScriptTag, lang, \"ltr\")\n      : null;\n    const logicallyFlagged = logicalCircleGid !== 0\n      && logicalLayout != null\n      && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2393"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6ff1ab96053b3009d4675c0e88396b22"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "docs/144-dotted-circle-shaping-evidence.md",
+                "properties": {
+                  "ext-sha256": "a5377301907c624f07374e2e955e2a03d0ac57d9d60805900604efad397782fa"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8377369b48d1fa913a694fda01b442fc46dbc2ad",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

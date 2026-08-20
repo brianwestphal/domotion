@@ -194,13 +194,10 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
   return out;
 };
 
-// HarfBuzz's Indic Ragel machine (`hb-ot-shaper-indic-machine.rl`, rev
-// 4de187d) accepts `z* M` as a matra group inside a broken cluster. The one
-// live gap established against Chromium is Tamil ZWJ + VOWEL SIGN E: the ZWJ
-// must not become a scalar "base" and suppress probing of the following mark.
-// Keep this deliberately sequence-specific until another script is measured.
-export const isTamilJoinerBrokenPrefix = (cp, nextCp, clusterHasBase) =>
-  !clusterHasBase && cp === 0x200D && nextCp === 0x0BC6;
+// ZWJ/ZWNJ are the shaping machines' `Z` category and are transparent to the
+// base/no-base state. Do not generalize this to every Format character: bidi
+// controls and other Cf scalars are removed/itemized by different stages.
+export const isShapingTransparentControl = (ch) => ch === "\u200C" || ch === "\u200D";
 
 // Unicode 16 UAX #50 ranges whose mixed vertical orientation is upright.
 const UPRIGHT_RANGES = [
@@ -935,14 +932,12 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
           const cp = cRec.ch.codePointAt(0);
           const isMark = /\p{M}/u.test(cRec.ch);
           const isWs = /^\s+$/.test(cRec.ch);
-          const clusterNextCp = ci + 1 < line.chars.length ? line.chars[ci + 1].ch.codePointAt(0) : -1;
-          const tamilJoinerBrokenPrefix = isTamilJoinerBrokenPrefix(cp, clusterNextCp, clusterHasBase);
-          // DM-1157 / DM-1215: also probe SMP category-Lo cluster-initial letters
+          // DM-1157 / DM-1215: also probe category-Lo cluster-initial letters
           // (e.g. Soyombo U+11A84) and category-Lm modifier letters (e.g. Kirat
-          // Rai U+16D6B/6C), which the USE shaper circles when orphaned. Scoped to
-          // SMP (cp >= 0x10000) so BMP Lo / Lm (CJK, Latin spacing modifiers, …)
-          // isn't probed.
-          const isClusterLetter = !isMark && cp != null && cp >= 0x10000 && /\p{Lo}|\p{Lm}/u.test(cRec.ch);
+          // Rai U+16D6B/6C), which the USE shaper circles when orphaned. The
+          // browser ink comparison, not a BMP/SMP boundary, rejects ordinary
+          // Lo/Lm letters.
+          const isClusterLetter = !isMark && /\p{Lo}|\p{Lm}/u.test(cRec.ch);
           let flaggedHere = false;
           if (markGetsDottedCircle != null && (isMark || isClusterLetter) && !clusterHasBase && cp != null) {
             probeConsulted = true;
@@ -960,10 +955,10 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normCol
             // (no orphan-state change).
           } else if (isWs) {
             clusterHasBase = false;
-          } else if (tamilJoinerBrokenPrefix) {
-            // Keep the cluster base-less so U+0BC6 is probed on the next
-            // iteration. Treating every Cf this way would break ordinary ZWJ
-            // sequences; this is the measured Indic-machine production only.
+          } else if (isShapingTransparentControl(cRec.ch)) {
+            // A leading format control does not create a base. After a real
+            // base it likewise leaves the based state intact, so ordinary ZWJ
+            // sequences are not made orphaned.
           } else {
             clusterHasBase = true; // a normal base char (incl. uncircled letters)
           }

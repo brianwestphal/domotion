@@ -19,11 +19,10 @@
 // (own advance) also renders narrower bare than combined. Validated 43/43 against CDP
 // `getPlatformFontsForNode` glyph counts on the 1CD0-1CFF Vedic fixture.
 //
-// Pre-filter `cp >= 0x0900`: scopes the probe to the Indic / Brahmic / SE-Asian
-// complex-shaper blocks where this matters. Latin / Cyrillic / Hebrew / Arabic
-// combining marks (all < 0x0900) are intentionally out of scope — they keep the
-// existing behavior, holding the blast radius tight. The caller additionally
-// gates on the mark being ORPHANED (no base in its cluster).
+// Candidate selection is intentionally limited only by Unicode General_Category
+// (M, Lo, or Lm), not by a sampled block/range. The ink comparison is the actual
+// renderer-owned decision: ordinary letters and default-shaper marks differ from
+// the explicit-circle control and therefore answer false.
 
 export const dottedCircleInkMatches = (bare, comb) => {
   const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;
@@ -35,6 +34,8 @@ export const dottedCircleInkMatches = (bare, comb) => {
   const mismatch = union > 0 ? xor / union : 1;
   return bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25 && mismatch < 0.12;
 };
+
+export const isDottedCircleProbeCandidate = (ch) => /\p{M}|\p{Lo}|\p{Lm}/u.test(ch);
 
 export const createDottedCircleDetect = () => {
   let _cv = null;
@@ -81,9 +82,8 @@ export const createDottedCircleDetect = () => {
   // circle, so bare ≠ comb → false), so including Lo / Lm only widens what's
   // probed, never forces a false positive.
   const markGetsDottedCircle = (cp, ch, font) => {
-    if (cp < 0x0900) return false;
     if (font == null || font === '') return false;
-    if (!/\p{M}|\p{Lo}|\p{Lm}/u.test(ch)) return false;
+    if (!isDottedCircleProbeCandidate(ch)) return false;
     const key = cp + '|' + font;
     const hit = _cache.get(key);
     if (hit !== undefined) return hit;
