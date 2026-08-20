@@ -220,6 +220,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0wl53bfqgikktv",
+          "message": {
+            "text": "DM-2327: computed background-size px terms are CSSOM values divided by effective zoom, while getBoundingClientRect geometry is physical. Multiply only px terms by cumulative effective zoom; leave percentages box-relative. Renderer cache lookup must not apply zoom again.",
+            "markdown": "DM-2327: computed background-size px terms are CSSOM values divided by effective zoom, while getBoundingClientRect geometry is physical. Multiply only px terms by cumulative effective zoom; leave percentages box-relative. Renderer cache lookup must not apply zoom again."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 69,
+                  "endLine": 77,
+                  "snippet": {
+                    "text": "export const physicalComputedTileSize = (value, effectiveZoom) => {\n  if (effectiveZoom === 1) return value;\n  return value.replace(/(-?(?:\\d+(?:\\.\\d+)?|\\.\\d+))px\\b/g, (_match, number) =>\n    `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);\n};\n\nexport const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1 }) => {\n  const isUaColorBorder = (tag, el, cs, side) =>\n    tag === 'input' && el.type === 'color'"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2327"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "52630a4e5cd4a725d384ec1dde4eeaf7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9ad96669bd17858d48367e8d99063cd9fcd4d679",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { physicalComputedPaintLength } from "./borders-backgrounds.js";
+import { physicalComputedPaintLength, physicalComputedTileSize } from "./borders-backgrounds.js";
 
 describe("zoomed border and outline paint lengths (DM-2323)", () => {
   it("restores Blink internal paint lengths from CSSOM serialization", () => {
@@ -15,5 +15,12 @@ describe("zoomed border and outline paint lengths (DM-2323)", () => {
   it("preserves unzoomed bytes and signed offsets", () => {
     expect(physicalComputedPaintLength("5px", 1)).toBe("5px");
     expect(physicalComputedPaintLength("-2.5px", 0.8)).toBe("-2px");
+  });
+});
+
+describe("zoomed background tile lengths (DM-2327)", () => {
+  it("scales px and calc px terms but leaves percentages physical-box-relative", () => {
+    expect(physicalComputedTileSize("40px 30px", 1.25)).toBe("50px 37.5px");
+    expect(physicalComputedTileSize("50% calc(40% - 2px)", 1.25)).toBe("50% calc(40% - 2.5px)");
   });
 });

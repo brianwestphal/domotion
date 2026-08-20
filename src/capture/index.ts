@@ -283,7 +283,7 @@ export class DemoRecorder {
 
   /**
    * Shared post-capture pipeline (DM-1434): self-contained remote-image
-   * embedding + optional resize + conic-gradient rasterization, then reset the
+   * embedding + optional resize + conic fallback completion, then reset the
    * generation-scoped caches and render the tree to SVG body markup at `height`.
    * `captureCurrent` (viewport) and `captureFullPage` (scrollable) differ only in
    * the height, so they both funnel through here.
@@ -297,9 +297,9 @@ export class DemoRecorder {
     if (this.selfContained && this.embedRemoteImagesResize) {
       await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     }
-    // DM-549: rasterize conic-gradient layers into PNG tiles. No-op when the
-    // tree contains no conic content; otherwise the renderer (DM-550) emits
-    // <pattern><image href="data:..."/></pattern> instead of dropping the layer.
+    // DM-2327: captureElementTree already asked this live Chromium page to
+    // paint conic tiles. Fill only missing entries with the historical CPU
+    // approximation so direct-tree/helper-absent use remains non-fatal.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     // DM-839/DM-1338/DM-1435: reset the generation-scoped caches (embedded-font
     // builder + paths-mode glyph registry) so this capture's `@font-face` block /

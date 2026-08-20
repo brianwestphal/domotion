@@ -46,8 +46,8 @@ magic-corner geometry, radial ending shapes plus negative/out-of-range domain
 normalization, Blink stop fixup and nine-stop color hints, basic clip shapes,
 and gradient-mask geometry against the production SVG builders. Mutation
 controls prove both the old direct-to-corner approximation and SVG-side radial
-clamp move. SVG geometry boxes and conic raster tiles remain explicit
-expansions.
+clamp move. Conic center/domain/zoom/raster ownership has structured and live
+coverage. SVG geometry boxes remain the explicit expansion.
 
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from

@@ -12,6 +12,8 @@ import { buildLinearGradientDef, buildRadialGradientDef, normalizeRadialGradient
 import { clipPathShapeForElement, clipReferenceBox, translateClipPath, type HtmlClipGeometryBox } from "../src/render/clip-path.js";
 import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } from "../src/render/mask.js";
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
+import { computeTileSize, resolveConicStops } from "../src/render/conic-raster.js";
+import { parseConicGradient } from "../src/render/gradients.js";
 
 export interface Point { x: number; y: number }
 export interface LineRecord { p0: Point; p1: Point }
@@ -160,6 +162,35 @@ function radialAndStopRows(): OracleRow[] {
   return rows;
 }
 
+function conicRows(): OracleRow[] {
+  const parsed = parseConicGradient("conic-gradient(from 90deg at 25% 75%, black 0 25%, white 25% 50%, black 50% 75%, white 75% 100%)")!;
+  const stops = resolveConicStops(parsed.stops);
+  const geometryExpected = { center: [50, 90], fromAngle: 90, offsets: [0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1] };
+  const geometryActual = {
+    center: [parsed.position.x.value * 200, parsed.position.y.value * 120],
+    fromAngle: parsed.fromAngleDeg,
+    offsets: stops.map((stop) => stop.offset),
+  };
+  const geometryDelta = maxDelta(geometryExpected, geometryActual);
+  const rows: OracleRow[] = [{ id: "conic.center-angle-stop-domain", stage: "gradient", source: "css_gradient_value.cc:2241-2270,656-824", expected: geometryExpected, actual: geometryActual, maxAbsDelta: geometryDelta, pass: geometryDelta <= TOLERANCE }];
+
+  const repeating = parseConicGradient("repeating-conic-gradient(red -25%, blue 25%)")!;
+  const repeatActual = { repeating: repeating.repeating === true, offsets: resolveConicStops(repeating.stops).map((stop) => stop.offset) };
+  const repeatExpected = { repeating: true, offsets: [-0.25, 0.25] };
+  const repeatDelta = maxDelta(repeatExpected, repeatActual);
+  rows.push({ id: "conic.repeating-negative-domain", stage: "gradient", source: "css_gradient_value.cc:490-547,809-821,2241-2270", expected: repeatExpected, actual: repeatActual, maxAbsDelta: repeatDelta, pass: repeatDelta <= TOLERANCE });
+
+  const tileExpected = { width: 50, height: 37.5 };
+  const tile = computeTileSize("50px 37.5px", 100, 75);
+  const tileActual = { width: tile.w, height: tile.h };
+  const tileDelta = maxDelta(tileExpected, tileActual);
+  rows.push({ id: "conic.tile-effective-zoom", stage: "gradient", source: "CSSImageGeneratorValue sizing in effective zoom space", expected: tileExpected, actual: tileActual, maxAbsDelta: tileDelta, pass: tileDelta <= TOLERANCE });
+
+  const routed = needsChromiumGradientRaster("conic-gradient(in oklch longer hue, red, blue)");
+  rows.push({ id: "conic.chromium-raster-boundary", stage: "gradient", source: "Gradient::CreateConic plus SVG conic paint-server boundary", expected: { chromiumRaster: true }, actual: { chromiumRaster: routed }, maxAbsDelta: 0, pass: routed });
+  return rows;
+}
+
 function clipRows(): OracleRow[] {
   // Basic clip coordinates pass through `r()`, the renderer's documented
   // one-decimal SVG representation boundary. Apply that serialization to the
@@ -295,7 +326,7 @@ function maskRows(): OracleRow[] {
 }
 
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {
-  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...clipRows(), ...maskRows()];
+  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...maskRows()];
   // Corpus activation control: the retired direct-to-corner formula must be
   // distinguishable from Blink's magic-corner line on every non-square box.
   const correct = blinkCornerLine("top-right", 0, 0, 300, 100);

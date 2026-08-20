@@ -63,6 +63,15 @@ export const physicalComputedPaintLength = (value, effectiveZoom) => {
   return `${Math.round(number * effectiveZoom * 1e6) / 1e6}px`;
 };
 
+/** Computed background sizes retain pre-zoom px lengths while their consumer
+ * rect is physical. Percentages already use that rect; scale only px terms,
+ * including px components inside calc(). */
+export const physicalComputedTileSize = (value, effectiveZoom) => {
+  if (effectiveZoom === 1) return value;
+  return value.replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g, (_match, number) =>
+    `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
+};
+
 export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1 }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
@@ -498,7 +507,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     })(),
     frostedBgFallback: computeFrostedBgFallback(cs),
     backgroundImage: normGradientColors(cs.backgroundImage, cs.color),
-    backgroundSize: cs.backgroundSize,
+    backgroundSize: physicalComputedTileSize(cs.backgroundSize, effectiveZoom),
     backgroundPosition: cs.backgroundPosition,
     backgroundRepeat: cs.backgroundRepeat,
     backgroundClip: cs.backgroundClip,

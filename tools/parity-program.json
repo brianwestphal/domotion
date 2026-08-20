@@ -82,10 +82,10 @@
       "browserOracle": "tools/paint-geometry-browser-oracle.ts",
       "sourceAudit": "partial",
       "oracleStatus": "partial-stage-gate",
-      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes plus positive/negative/out-of-range repeating and non-repeating domains, stop fixup and nine-stop hints, explicit interpolation-space/vector-raster routing, basic clip shapes, HTML geometry reference boxes and rounded insets, mask size/position/per-axis repeat/round/space/cyclic lists and bottom-up mixed composition, fragment coordinates, plus curated visual fixtures",
+      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes plus positive/negative/out-of-range repeating and non-repeating domains, stop fixup and nine-stop hints, explicit interpolation-space/vector-raster routing, conic center/from-angle/stop and repeating-negative domains, effective-zoom tile sizing and Chromium raster ownership, basic clip shapes, HTML geometry reference boxes and rounded insets, mask size/position/per-axis repeat/round/space/cyclic lists and bottom-up mixed composition, fragment coordinates, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Negative radial domains now have structured source, mutation-control, live-browser, and visual evidence. SVG geometry boxes and conic raster tiles are not yet structured oracle rows.",
-      "nextAction": "Expand conic-tile and SVG-specific geometry-box domains."
+      "knownGap": "Negative radial domains and conic raster tiles now have structured source, live-browser, and visual evidence. SVG-specific geometry boxes are not yet structured oracle rows.",
+      "nextAction": "Expand SVG-specific geometry-box domains."
     },
     {
       "id": "transforms-projection-reflection",

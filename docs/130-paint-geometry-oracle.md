@@ -7,8 +7,10 @@ gradient, mask, and basic-clip builders. It does not rasterize either side.
 
 `npm run paint:geometry-browser-oracle` is the independent live-browser leg.
 At 4× device scale it paints deliberately binary discriminators for the
-non-square magic-corner decision, an HTML content-box clip, and mask-repeat
-phase. Sample points are chosen where the retired direct-corner gradient rule
+non-square magic-corner decision, an HTML content-box clip, mask-repeat
+phase, and a conic hard-quadrant sweep. The conic probe samples away from
+antialiased boundaries and distinguishes center, start-angle, and sweep order.
+Other sample points are chosen where the retired direct-corner gradient rule
 predicts the opposite color, or immediately across a source-predicted box/tile
 boundary. The report records the Chromium source revision, installed Chromium
 and Playwright versions, platform, architecture, and device scale so a browser
@@ -29,7 +31,9 @@ per-axis repeat, `round`/`space` adjustment for generated and URL images, and
 cyclic layer lists; bottom-up mixed-layer composition using each upper layer's
 Porter-Duff operator; all four mask-composite operators; fragment mask and
 clip-path user-space positioning; explicit gradient interpolation-space routing;
-and a linear-gradient alpha mask. Gradient coordinates
+conic center/from-angle/stop-domain and repeating-negative-domain decisions;
+physical tile sizing under CSS effective zoom; the Chromium-raster ownership
+boundary; and a linear-gradient alpha mask. Gradient coordinates
 compare at the emitter's four-decimal serialization boundary. Basic clip
 coordinates compare after the renderer's documented one-decimal SVG
 serialization.
@@ -76,12 +80,19 @@ sampled-stop approximation; a helper-absent/direct-tree render warns loudly and
 falls back to best-effort SVG interpolation rather than making the application
 fail or dropping the layer.
 
+Conic gradients always cross that Chromium raster boundary because SVG has no
+native conic paint server. Structured rows cover the logical inputs and cache
+ownership; a live hard-quadrant discriminator validates the pinned Blink sweep
+against the installed browser. A zoomed advanced-color fixture proves that px
+tile terms cross from CSSOM to physical geometry once while percentage terms
+remain box-relative.
+
 ## Boundaries and next expansion
 
 This gate does not yet claim exhaustive paint parity. Exact oracle rows still
-need to be added for SVG-specific geometry boxes and conic raster tiles. Those
-domains remain covered by unit and visual fixtures but do not gain an exact
-logical verdict from this oracle until their structured rows land.
+need to be added for SVG-specific geometry boxes. That domain remains covered
+by unit and visual fixtures but does not gain an exact logical verdict from
+this oracle until its structured rows land.
 
 The live-browser leg validates that the pinned source transcription still
 describes the currently installed Chromium; it does not replace the structured

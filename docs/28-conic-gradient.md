@@ -8,11 +8,19 @@ CSS `conic-gradient(...)` and `repeating-conic-gradient(...)` paint color stops 
 - Pie / donut progress meters and ring loaders.
 - Brand artwork (rainbow disks, color wheels, sweep-shaded buttons).
 
-SVG has **no native conic-gradient primitive**. Today the renderer detects a conic layer in `src/render/element-tree-to-svg.ts` (`/conic-gradient/i.test(cs.backgroundImage)`), emits a `warn(sel, 'conic-gradient', 'SVG has no conic gradient; layer falls back to nothing')` (line 1631), and drops the layer entirely. Visible fallout: `19-deep-color-mix` shows the currentColor + transparent tinting row against the SVG's white root instead of the intended checkerboard, accounting for the residual ~1 % diff after DM-519.
+SVG has **no native conic-gradient primitive**. Domotion therefore freezes the
+tile Chromium painted and embeds it as an SVG image pattern. This is an
+intentional representation boundary, not an approximation of Blink's conic
+algorithm in Domotion.
 
 ## Decision (per DM-547)
 
-**Implementation path: pattern-raster fallback.** Render each conic layer into a PNG via `sharp` (or canvas-equivalent) at the laid-out tile size, embed as `<pattern><image href="data:image/png;base64,…"/></pattern>`. Cheap, deterministic, works in every static-image viewer (Preview, QuickLook, librsvg, GitHub markdown previews). Loses crispness when the SVG is viewed at >1× zoom; the design accepts that tradeoff.
+**Implementation path: Chromium-painted pattern raster.** During normal capture,
+the same live Chromium page paints each conic layer into a PNG at its concrete
+physical tile size. Domotion embeds it as
+`<pattern><image href="data:image/png;base64,…"/></pattern>`. The historical
+CPU/Sharp rasterizer is retained only as a best-effort fallback for direct-tree
+or helper-absent callers; it is not the supported fidelity path.
 
 Rejected alternatives:
 
@@ -36,19 +44,24 @@ Rejected alternatives:
 
 ## Architecture
 
-### Pre-pass: rasterize conic layers
+### Pre-pass: capture Chromium's conic tiles
 
-A new pre-pass — `rasterizeConicGradients` — runs alongside `embedRemoteImages` (DM-512) and `resizeEmbeddedImages` (DM-539) in the capture pipeline. It walks the captured tree, identifies each `conic-gradient(...)` / `repeating-conic-gradient(...)` background layer, rasterizes it to PNG via `sharp`, and stashes the bytes in a new `_conicTileCache` keyed by `(layerText, tileWidth, tileHeight, hiDPIFactor)`.
-
-The pre-pass mirrors `resize-embedded-images.ts`'s structure: walk → collect (layer, consumer rect) tuples → render each unique tuple once → cache result. Two consumers of the same conic layer at the same tile size dedupe to one PNG.
+`rasterizeAdvancedGradients(tree, page)` walks normal and form-control
+backgrounds, deduplicates `(layerText, tileWidth, tileHeight)` tuples, and asks
+the live page to paint every conic/repeating-conic tuple. Results enter
+`_conicTileCache`; two consumers with the same layer and size share one PNG.
+`rasterizeConicGradients` subsequently fills cache misses only, preserving the
+Chromium-owned result.
 
 ### Render-rect inference
 
 For a `background-size: <w> <h>` (explicit) or `0/24px 24px` (shorthand) layer, the tile is `<w> × <h>` CSS px. For `background-size: auto / cover / contain`, the tile is the element rect (with cover/contain math identical to the existing image-pattern path).
 
-The HiDPI factor follows the embed pipeline: **`embedRemoteImagesHiDPIFactor` (default 2.0)** also drives the conic raster pass. Per user direction: "same as for other images." A tile resolved at `24×24` CSS px renders at `48×48` device px, sharp-resamples down to `24×24` for embedding via the same `<image width=24 height=24>` `<pattern>` path. (Why render-then-shrink? Sharp's antialiased rasterization at 2× and bilinear downsample produces a softer-but-faithful tile; rendering at 1× directly produces aliased hard-stop edges that don't match Chromium's painted output.)
-
-A future option `domotionConicHiDPIFactor` may decouple this from the image-resize knob, but v1 reuses it for symmetry.
+Computed `background-size` is captured in the physical coordinate space used by
+`getBoundingClientRect()`: px terms are multiplied by cumulative CSS effective
+zoom while percentages stay box-relative. Fractional physical dimensions are
+rounded only when allocating the PNG, so cache lookup and SVG pattern geometry
+cross the zoom boundary exactly once.
 
 ### Renderer dispatch
 
@@ -71,7 +84,7 @@ if (conic != null) {
 
 The clip-box rect that consumes this pattern is unchanged — the existing `<rect ... fill="url(#bg7)"/>` emit at line 4513 handles it, identical to a `url(...)` image layer. Background-position offset is applied to the `<pattern>`'s `x`/`y` attrs so multi-layer registration is preserved.
 
-### Conic raster algorithm
+### Helper-absent fallback algorithm
 
 Conic-gradient interpolation is angular: at each pixel `(x, y)`, compute `θ = atan2(y - cy, x - cx) - fromAngle` (normalized to `[0, 1)`), look up the color via the stop list (same offset-blend math as linear/radial), and write the resulting RGBA. Implementation lives in a new `src/render/conic-raster.ts`:
 
@@ -94,7 +107,9 @@ export function rasterizeConic(
 ): Buffer; // raw RGBA, width × height × 4
 ```
 
-`rasterizeConic` is synchronous and pure CPU — it writes raw RGBA bytes, no I/O. The HiDPI scale-up and the lanczos downsample-plus-PNG-encode happen in the `rasterizeConicGradients` pre-pass around it: the pre-pass renders at `width × hiDPI` / `height × hiDPI`, then routes the raw buffer through `sharp(...).resize(...).png()` to produce the embedded tile.
+`rasterizeConic` is synchronous and pure CPU. It exists to keep unsupported
+direct-tree/helper-absent use from dying, not to duplicate Blink/Skia. Normal
+capture does not use its pixels when Chromium produced the tile.
 
 Stops use `<angle>` (e.g. `red 0deg, blue 90deg`) or `<percentage>` (e.g. `red 0%, blue 25%`); both normalize to `[0, 1)` along the sweep. The `0deg/0%` reference point is `from <angle>` (top by default). Hard stops emit two stops at the same offset.
 
@@ -126,7 +141,10 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - **`background-attachment: fixed` on a conic layer**: rare but valid. Tile sizing basis is the viewport, identical to the existing fixed-image path. The rasterizer doesn't need to know — `buildBackgroundLayerDef` already passes the viewport-anchored `(elX, elY, w, h)` for fixed layers.
 - **`background-size: cover / contain` on a conic**: extremely uncommon (conic + cover usually means "fill the element"), but supported by sizing the rasterized tile to the element rect, just like `cover` on a `url()` image.
 - **Animated SVGs (`generateAnimatedSvg`)**: the conic raster is per-frame deterministic. If two frames have different conic stops, they produce two different `<pattern>` defs and the cross-fade swap pipeline handles them like any other per-frame def.
-- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; the raster pre-pass (`rasterizeConicGradients` in `conic-raster.ts`) emits a `console.warn` (`[domotion] could not parse conic-gradient; the layer will paint nothing: …`, once per distinct unparseable layer) and skips the layer, so `_conicTileCache` has no tile for it; `buildConicGradientDef` then misses the cache and returns `{ def: "" }` and the layer loop skips it. The layer paints nothing, but the author is warned so broken syntax is noticeable.
+- **Syntax beyond Domotion's parser**: the supported page-backed path still
+  works because Chromium paints the serialized layer directly. The fallback
+  parser may fail; a remaining cache miss warns loudly rather than silently
+  inventing paint.
 
 ## Performance
 
@@ -140,7 +158,9 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - A standalone fixture demonstrating `conic-gradient(red, yellow, green, blue, red)` at `200×200` renders a smooth color-wheel. New: `tests/features/<NN>-conic-gradient.html`.
 - A standalone fixture demonstrating `repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px` renders a 24×24 alpha-checkerboard tiled across a `300×300` div.
 - A multi-layer fixture (`background: conic-gradient(...), linear-gradient(...), url(bg.png)`) renders with all three layers in the right stacking order.
-- Captured SVG contains no `conic-gradient` warning when the layer parses successfully. A parse failure emits a `console.warn` (once per distinct unparseable layer) from the `rasterizeConicGradients` pre-pass so authors notice broken syntax, and the layer paints nothing.
+- Supported page-backed capture accepts every conic syntax Chromium serialized,
+  without routing through Domotion's fallback parser. Direct-tree/helper-absent
+  fallback warns loudly if it cannot parse or produce the required tile.
 - All previously passing html-test, features, and showcase tests stay passing — the conic branch is additive and doesn't touch linear/radial paths.
 
 ## Implementation slices
@@ -154,10 +174,10 @@ This doc fans out into the following sub-tickets (see DM-547 follow-ups):
 
 ## Status
 
-- **Shipped** (DM-549 / DM-550). A `rasterizeConicGradients` pre-pass
-  (defined in `src/render/conic-raster.ts`, invoked from `src/capture/index.ts`)
-  rasterizes each conic / repeating-conic background layer via `rasterizeConic`
-  (`src/render/conic-raster.ts`) into a PNG tile, and
+- **Shipped** (DM-549 / DM-550 / DM-2327). Normal capture uses
+  `rasterizeAdvancedGradients` with the live Chromium page to paint conic and
+  repeating-conic tiles. `rasterizeConicGradients` is a cache-preserving
+  best-effort fallback for callers without that page. Then
   `buildConicGradientDef` (`src/render/element-tree-to-svg.ts`) emits it as a
   `<pattern><image>` the element fills with. See the raster-fallback index
   (`docs/reference/raster-image-fallback-cases.md` → C1).

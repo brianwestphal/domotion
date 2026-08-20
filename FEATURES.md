@@ -21,7 +21,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **bg-solid**: Solid background colors
 - [x] **bg-transparent**: Semi-transparent backgrounds (rgba)
 - [x] **bg-nested**: Nested backgrounds (child on top of parent)
-- [x] **bg-conic-gradient** (DM-547, doc 28): `conic-gradient` / `repeating-conic-gradient` background layers via pattern-raster pre-pass — covers `bg-conic-smooth`, `bg-conic-checkerboard`, `bg-conic-from-at`, `bg-conic-multilayer` fixtures
+- [x] **bg-conic-gradient** (DM-547, DM-2327, doc 28): `conic-gradient` / `repeating-conic-gradient` background layers via Chromium-painted pattern tiles — covers smooth, checkerboard, from/at, multilayer, and advanced-color effective-zoom fixtures; CPU rasterization is helper-absent best effort only
 - [ ] **bg-dark-mode** (DM-455, doc 29): Dark-mode capture support — caller-chosen `colorScheme`, dark form-control palette, scheme-aware transparent-root fallback
 
 ### Borders

@@ -185,6 +185,13 @@ while a mutation control proves the retired clamp moves. A live Chromium ring
 probe and a composed visual fixture independently validate wholly negative,
 zero-straddling, and non-repeating cases.
 
+Conic gradients now have structured rows for center/from-angle/stop domains,
+negative repeating domains, CSS-effective-zoom tile sizing, and the mandatory
+Chromium raster boundary. The independent live-browser leg paints a binary
+hard-quadrant sweep, while an advanced-color zoomed visual fixture verifies
+that the supported capture path embeds Chromium's pixels rather than the
+helper-absent CPU approximation.
+
 ### Generated and metamorphic coverage
 
 Generators enumerate rules, not handpicked “interesting” values. Keep their

@@ -90,6 +90,109 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0wl4xjcl9ivv1l",
+          "message": {
+            "text": "DM-2327: SVG has no conic paint server, so supported page-backed capture treats every conic and repeating-conic layer as a Chromium-owned raster boundary. Store the page screenshot in _conicTileCache; the CPU/Sharp rasterizer may fill only cache misses for direct-tree or helper-absent callers and must never replace Chromium pixels.",
+            "markdown": "DM-2327: SVG has no conic paint server, so supported page-backed capture treats every conic and repeating-conic layer as a Chromium-owned raster boundary. Store the page screenshot in _conicTileCache; the CPU/Sharp rasterizer may fill only cache misses for direct-tree or helper-absent callers and must never replace Chromium pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/advanced-gradient-raster.ts"
+                },
+                "region": {
+                  "startLine": 18,
+                  "endLine": 104,
+                  "snippet": {
+                    "text": "\nexport const _advancedGradientTileCache = new Map<string, Map<string, string>>();\n\nexport function needsChromiumGradientRaster(layer: string): boolean {\n  if (/^(?:repeating-)?conic-gradient\\(/i.test(layer.trim())) return true;\n  if (!/^(?:repeating-)?(?:linear|radial)-gradient\\(/i.test(layer.trim())) return false;\n  // SVG has no Lab/OKLab/LCH/OKLCH/HSL/HWB interpolation or hue-route knob.\n  if (/\\bin\\s+(?:lab|oklab|lch|oklch|hsl|hwb)\\b/i.test(layer)) return true;\n  // Blink constructs CSS gradients with kPremultiplied. SVG gradients use\n  // unpremultiplied color interpolation, which diverges whenever alpha varies.\n  const alphas = [\n    ...[...layer.matchAll(/rgba\\([^,]+,[^,]+,[^,]+,\\s*([\\d.]+)\\s*\\)/gi)].map((m) => Number(m[1])),\n    ...[...layer.matchAll(/rgb\\([^)]*\\/\\s*([\\d.]+)\\s*\\)/gi)].map((m) => Number(m[1])),\n    ...[...layer.matchAll(/color\\([^)]*\\/\\s*([\\d.]+)\\s*\\)/gi)].map((m) => Number(m[1])),\n  ];\n  return alphas.some((alpha) => Number.isFinite(alpha) && alpha < 1);\n}\n\nexport function advancedGradientTile(layer: string, width: number, height: number): string | null {\n  const sizeKey = `${Math.max(1, Math.round(width))}x${Math.max(1, Math.round(height))}`;\n  const cache = /^(?:repeating-)?conic-gradient\\(/i.test(layer.trim())\n    ? _conicTileCache\n    : _advancedGradientTileCache;\n  return cache.get(layer)?.get(sizeKey) ?? null;\n}\n\nexport async function rasterizeAdvancedGradients(tree: CapturedElement[], page: Page): Promise<void> {\n  const tuples = new Map<string, { layer: string; width: number; height: number }>();\n  const consider = (layer: string, width: number, height: number): void => {\n    if (!needsChromiumGradientRaster(layer)) return;\n    const w = Math.max(1, Math.round(width));\n    const h = Math.max(1, Math.round(height));\n    const key = `${layer}\\n${w}x${h}`;\n    const cache = /^(?:repeating-)?conic-gradient\\(/i.test(layer)\n      ? _conicTileCache\n      : _advancedGradientTileCache;\n    if (cache.get(layer)?.has(`${w}x${h}`) === true) return;\n    tuples.set(key, { layer, width: w, height: h });\n  };\n  const walk = (els: CapturedElement[]): void => {\n    for (const el of els) {\n      for (const [imageCss, sizeCss] of [\n        [el.styles.backgroundImage, el.styles.backgroundSize],\n        [el.styles.maskImage, el.styles.maskSize],\n      ] as const) {\n        if (imageCss == null || imageCss === \"\" || imageCss === \"none\") continue;\n        const layers = splitTopLevelCommas(imageCss);\n        const sizes = splitTopLevelCommas(sizeCss ?? \"auto\");\n        for (let index = 0; index < layers.length; index++) {\n          const layer = layers[index].trim();\n          const tile = computeTileSize((sizes[index % Math.max(1, sizes.length)] ?? \"auto\").trim(), el.width, el.height);\n          consider(layer, tile.w, tile.h);\n        }\n      }\n      for (const tile of collectFormControlConicTiles(el)) consider(tile.layer, tile.w, tile.h);\n      if (el.children.length > 0) walk(el.children);\n    }\n  };\n  walk(tree);\n  if (tuples.size === 0) return;\n\n  const scratch = await page.context().newPage();\n  try {\n    await scratch.setContent('<style>html,body{margin:0;background:transparent}</style><div id=\"tile\"></div>');\n    for (const { layer, width, height } of tuples.values()) {\n      await scratch.locator(\"#tile\").evaluate((node, { layer, width, height }) => {\n        (node as HTMLElement).style.cssText = `width:${width}px;height:${height}px;background-color:transparent;background-repeat:no-repeat;background-size:100% 100%`;\n        (node as HTMLElement).style.backgroundImage = layer;\n      }, { layer, width, height });\n      const png = await scratch.locator(\"#tile\").screenshot({ omitBackground: true });\n      const cache = /^(?:repeating-)?conic-gradient\\(/i.test(layer)\n        ? _conicTileCache\n        : _advancedGradientTileCache;\n      let bySize = cache.get(layer);\n      if (bySize == null) {\n        bySize = new Map();\n        cache.set(layer, bySize);\n      }\n      bySize.set(`${width}x${height}`, `data:image/png;base64,${png.toString(\"base64\")}`);\n    }\n  } finally {\n    await scratch.close();\n  }\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2327"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "52b92f68d656d12258f94fca67ef32a8"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt0ws4twhooo3lwz",
+          "message": {
+            "text": "DM-2327: conicTileCache and advancedGradientTileCache are module-global. A supported page-backed capture must overwrite matching entries on every capture; otherwise pixels from a prior browser context or the CPU fallback could poison an authoritative result. Tuple-map deduplication is sufficient within one capture.",
+            "markdown": "DM-2327: _conicTileCache and _advancedGradientTileCache are module-global. A supported page-backed capture must overwrite matching entries on every capture; otherwise pixels from a prior browser context or the CPU fallback could poison an authoritative result. Tuple-map deduplication is sufficient within one capture."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/advanced-gradient-raster.ts"
+                },
+                "region": {
+                  "startLine": 44,
+                  "endLine": 101,
+                  "snippet": {
+                    "text": "export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: Page): Promise<void> {\n  const tuples = new Map<string, { layer: string; width: number; height: number }>();\n  const consider = (layer: string, width: number, height: number): void => {\n    if (!needsChromiumGradientRaster(layer)) return;\n    const w = Math.max(1, Math.round(width));\n    const h = Math.max(1, Math.round(height));\n    const key = `${layer}\\n${w}x${h}`;\n    // The live page is authoritative for this capture. Do not reuse a module-\n    // global entry that may have come from a prior browser/context or from the\n    // helper-absent CPU conic fallback; overwrite it below with current pixels.\n    tuples.set(key, { layer, width: w, height: h });\n  };\n  const walk = (els: CapturedElement[]): void => {\n    for (const el of els) {\n      for (const [imageCss, sizeCss] of [\n        [el.styles.backgroundImage, el.styles.backgroundSize],\n        [el.styles.maskImage, el.styles.maskSize],\n      ] as const) {\n        if (imageCss == null || imageCss === \"\" || imageCss === \"none\") continue;\n        const layers = splitTopLevelCommas(imageCss);\n        const sizes = splitTopLevelCommas(sizeCss ?? \"auto\");\n        for (let index = 0; index < layers.length; index++) {\n          const layer = layers[index].trim();\n          const tile = computeTileSize((sizes[index % Math.max(1, sizes.length)] ?? \"auto\").trim(), el.width, el.height);\n          consider(layer, tile.w, tile.h);\n        }\n      }\n      for (const tile of collectFormControlConicTiles(el)) consider(tile.layer, tile.w, tile.h);\n      if (el.children.length > 0) walk(el.children);\n    }\n  };\n  walk(tree);\n  if (tuples.size === 0) return;\n\n  const scratch = await page.context().newPage();\n  try {\n    await scratch.setContent('<style>html,body{margin:0;background:transparent}</style><div id=\"tile\"></div>');\n    for (const { layer, width, height } of tuples.values()) {\n      await scratch.locator(\"#tile\").evaluate((node, { layer, width, height }) => {\n        (node as HTMLElement).style.cssText = `width:${width}px;height:${height}px;background-color:transparent;background-repeat:no-repeat;background-size:100% 100%`;\n        (node as HTMLElement).style.backgroundImage = layer;\n      }, { layer, width, height });\n      const png = await scratch.locator(\"#tile\").screenshot({ omitBackground: true });\n      const cache = /^(?:repeating-)?conic-gradient\\(/i.test(layer)\n        ? _conicTileCache\n        : _advancedGradientTileCache;\n      let bySize = cache.get(layer);\n      if (bySize == null) {\n        bySize = new Map();\n        cache.set(layer, bySize);\n      }\n      bySize.set(`${width}x${height}`, `data:image/png;base64,${png.toString(\"base64\")}`);\n    }\n  } finally {\n    await scratch.close();\n  }\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2327"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "01c8c9c5b5c45f5281d3b4da2e2bccad"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9ad96669bd17858d48367e8d99063cd9fcd4d679",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

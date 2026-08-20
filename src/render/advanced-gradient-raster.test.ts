@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 
 describe("needsChromiumGradientRaster (DM-2308)", () => {
+  it("routes every conic gradient through Chromium because SVG has no conic paint server", () => {
+    expect(needsChromiumGradientRaster("conic-gradient(red, blue)")).toBe(true);
+    expect(needsChromiumGradientRaster("repeating-conic-gradient(red 0 25%, blue 25% 50%)")).toBe(true);
+  });
   it.each(["lab", "oklab", "lch", "oklch", "hsl", "hwb"])("routes %s interpolation through Chromium", (space) => {
     expect(needsChromiumGradientRaster(`linear-gradient(90deg in ${space}, red, blue)`)).toBe(true);
   });

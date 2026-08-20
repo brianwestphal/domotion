@@ -77,8 +77,10 @@ export { captureElementTree, captureElementTreeWithWarnings, calibrateBaselines 
 
 /**
  * @internal — DM-549. Per-conic-gradient-layer-text map of `${tileW}x${tileH}` →
- * data URI containing rasterized PNG bytes. Populated by `rasterizeConicGradients`
- * (the conic raster pre-pass) and read by `buildConicGradientDef` (DM-550) when
+ * data URI containing rasterized PNG bytes. Normally populated from the live
+ * page by `rasterizeAdvancedGradients`; `rasterizeConicGradients` fills only
+ * missing entries for direct-tree/helper-absent callers. Read by
+ * `buildConicGradientDef` (DM-550) when
  * the renderer emits a `<pattern><image>` for a conic background layer. Empty
  * at module load — first capture with conic content fills it.
  */
@@ -5329,7 +5331,7 @@ function buildBackgroundLayerDef(
     const [offX, offY] = parseBgPositionPx(posCss);
     return { def: buildRadialGradientDef(id, radial[1], repeating, gradX, gradY, gradW, gradH, offX, offY) };
   }
-  // DM-550: conic. The raster pre-pass (DM-549) populated `_conicTileCache`
+  // DM-550/DM-2327: Chromium capture (or the CPU fallback) populated `_conicTileCache`
   // with PNG bytes for `(layerText, "${tileW}x${tileH}")` tuples; we look up
   // and embed as <pattern><image>. Parse failure or cache miss returns an
   // empty def → caller skips this layer.
@@ -5346,14 +5348,15 @@ function buildBackgroundLayerDef(
 /**
  * DM-550: Emit a `<pattern><image href="data:image/png;base64,…"/></pattern>`
  * for a single conic-gradient background layer. Looks up the PNG bytes in
- * `_conicTileCache` (populated by `rasterizeConicGradients` in DM-549).
+ * `_conicTileCache` (normally painted by the live Chromium page; CPU fallback
+ * only when that page-backed pre-pass was unavailable).
  *
  * Tile size resolves from `sizeCss` against the element rect (mirrors the
  * tile-sizing logic in `conic-raster.ts computeTileSize` so cache lookups
  * line up). Background-position offset is applied to the pattern's x/y attrs.
  *
- * Returns empty string when the cache misses (rasterizer didn't run, or
- * parse failed) — caller skips emission so the warning at line 1631 fires.
+ * Returns empty string when the cache misses; the caller warns loudly and
+ * skips emission.
  */
 function buildConicGradientDef(
   id: string, layer: string,

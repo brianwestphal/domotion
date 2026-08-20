@@ -13,10 +13,13 @@ import type { Page } from "@playwright/test";
 import type { CapturedElement } from "../capture/types.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { computeTileSize } from "./conic-raster.js";
+import { _conicTileCache } from "./element-tree-to-svg.js";
+import { collectFormControlConicTiles } from "./form-controls.js";
 
 export const _advancedGradientTileCache = new Map<string, Map<string, string>>();
 
 export function needsChromiumGradientRaster(layer: string): boolean {
+  if (/^(?:repeating-)?conic-gradient\(/i.test(layer.trim())) return true;
   if (!/^(?:repeating-)?(?:linear|radial)-gradient\(/i.test(layer.trim())) return false;
   // SVG has no Lab/OKLab/LCH/OKLCH/HSL/HWB interpolation or hue-route knob.
   if (/\bin\s+(?:lab|oklab|lch|oklch|hsl|hwb)\b/i.test(layer)) return true;
@@ -32,7 +35,10 @@ export function needsChromiumGradientRaster(layer: string): boolean {
 
 export function advancedGradientTile(layer: string, width: number, height: number): string | null {
   const sizeKey = `${Math.max(1, Math.round(width))}x${Math.max(1, Math.round(height))}`;
-  return _advancedGradientTileCache.get(layer)?.get(sizeKey) ?? null;
+  const cache = /^(?:repeating-)?conic-gradient\(/i.test(layer.trim())
+    ? _conicTileCache
+    : _advancedGradientTileCache;
+  return cache.get(layer)?.get(sizeKey) ?? null;
 }
 
 export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: Page): Promise<void> {
@@ -42,7 +48,9 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const key = `${layer}\n${w}x${h}`;
-    if (_advancedGradientTileCache.get(layer)?.has(`${w}x${h}`) === true) return;
+    // The live page is authoritative for this capture. Do not reuse a module-
+    // global entry that may have come from a prior browser/context or from the
+    // helper-absent CPU conic fallback; overwrite it below with current pixels.
     tuples.set(key, { layer, width: w, height: h });
   };
   const walk = (els: CapturedElement[]): void => {
@@ -60,6 +68,7 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
           consider(layer, tile.w, tile.h);
         }
       }
+      for (const tile of collectFormControlConicTiles(el)) consider(tile.layer, tile.w, tile.h);
       if (el.children.length > 0) walk(el.children);
     }
   };
@@ -75,10 +84,13 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
         (node as HTMLElement).style.backgroundImage = layer;
       }, { layer, width, height });
       const png = await scratch.locator("#tile").screenshot({ omitBackground: true });
-      let bySize = _advancedGradientTileCache.get(layer);
+      const cache = /^(?:repeating-)?conic-gradient\(/i.test(layer)
+        ? _conicTileCache
+        : _advancedGradientTileCache;
+      let bySize = cache.get(layer);
       if (bySize == null) {
         bySize = new Map();
-        _advancedGradientTileCache.set(layer, bySize);
+        cache.set(layer, bySize);
       }
       bySize.set(`${width}x${height}`, `data:image/png;base64,${png.toString("base64")}`);
     }

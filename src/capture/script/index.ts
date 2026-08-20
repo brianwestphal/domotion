@@ -302,11 +302,11 @@ const captureDocumentTree =
         && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) {
       warn(sel, 'scrollbar', 'native scrollbar chrome not emulated yet (SK-468); content is clipped but no scroll indicator');
     }
-    // DM-547/549/550: conic-gradient layers are rasterized into PNG tiles by
-    // the capture pre-pass (rasterizeConicGradients) and emitted as
+    // DM-547/549/550/2327: conic-gradient layers are painted into PNG tiles by
+    // the live Chromium capture pre-pass and emitted as
     // <pattern><image> via buildConicGradientDef. The previous unconditional
     // warning fired even when the layer rendered correctly — moved to
-    // rasterizeConicGradients (DM-549) which warns only on parse failure.
+    // the raster pipeline, which warns only when a tile cannot be produced.
     // text-align: justify combined with wrapping — renderer doesn't space-stretch.
     if (cs.textAlign === 'justify') {
       warn(sel, 'text-align:justify', 'path-mode renderer does not space-stretch justified text');

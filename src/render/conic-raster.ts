@@ -2,16 +2,14 @@
  * DM-549 — Conic-gradient rasterizer + tile cache + capture-tree pre-pass.
  * See `docs/28-conic-gradient.md`.
  *
- * SVG has no native conic-gradient primitive. We rasterize each captured
- * `conic-gradient(...)` / `repeating-conic-gradient(...)` background layer
- * into a PNG tile (via sharp) and the renderer emits the bytes as
- * `<pattern><image href="data:image/png;base64,…"/></pattern>` (DM-550).
+ * SVG has no native conic-gradient primitive. Normal browser capture asks the
+ * live Chromium page to paint each conic tile (`rasterizeAdvancedGradients`)
+ * and the renderer embeds that PNG as a pattern (DM-2327). This module is the
+ * best-effort fallback for direct captured-tree callers that have no page.
  *
- * The pre-pass walks the captured tree, dedupes (layerText, tileW, tileH)
- * tuples, rasterizes each unique tuple once at `tile × hiDPIFactor` then
- * downsamples through sharp's lanczos kernel for antialiased edges, and
- * stashes the resulting data URI in `_conicTileCache` keyed by
- * `(layerText, "${tileW}x${tileH}")`.
+ * It never replaces a Chromium-owned cache entry. Missing tuples are rendered
+ * once with the historical CPU/Sharp approximation and cached by layer text
+ * and physical tile size.
  */
 
 import sharp from "sharp";
@@ -37,9 +35,8 @@ const DEFAULT_HIDPI_FACTOR = 2;
 const MIN_HIDPI_FACTOR = 1;
 
 /**
- * Walk the captured tree, identify every conic-gradient background layer
- * with a known consumer rect, and populate `_conicTileCache` with rasterized
- * PNG bytes for each unique (layerText, tileW, tileH) tuple.
+ * Best-effort helper-absent fallback: identify missing conic tiles and populate
+ * `_conicTileCache` without overwriting tiles painted by Chromium.
  *
  * Idempotent: re-running with the same tree is a no-op (each tuple's PNG
  * is already cached).
