@@ -48,6 +48,13 @@ The macOS, Linux, and Windows glyph helpers report the selected face's physical
 The HarfBuzz shaping proxy forwards this directory unchanged. No PostScript or
 family-name substring is accepted as color capability evidence.
 
+CSSOM Range rectangles describe line/advance geometry, not embedded bitmap
+strike ink bounds. When the selected representation is CBDT/CBLC, the capture
+therefore uses the containing line fragment as the raster boundary; clipping
+the screenshot to the glyph Range loses real Noto Color Emoji pixels on Linux.
+This boundary follows the selected table representation and does not inspect
+the platform, font name, or Unicode value.
+
 ## Discriminating controls
 
 The focused matrix covers lone/paired/trailing regional indicators, bare and

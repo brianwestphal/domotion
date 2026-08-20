@@ -2757,13 +2757,29 @@ export function glyphUsesRasterRepresentation(
   weight = 400,
   slant = 0,
 ): boolean {
+  return glyphRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant) != null;
+}
+
+export type GlyphRasterRepresentation = "sbix" | "colr" | "bitmap" | "svg";
+
+export function glyphRasterRepresentation(
+  font: FontInstance & { COLR?: { baseGlyphRecord?: Array<{ gid: number }> } },
+  fontKey: string,
+  glyph: RasterKindGlyph,
+  fontSize: number,
+  weight = 400,
+  slant = 0,
+): GlyphRasterRepresentation | null {
   if (glyph.type === "SBIX") {
-    try { if (glyph.getImageForSize?.(fontSize) != null) return true; } catch { /* use table/path evidence below */ }
+    try { if (glyph.getImageForSize?.(fontSize) != null) return "sbix"; } catch { /* use table/path evidence below */ }
   }
-  if (glyph.type === "COLR" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return true;
-  if (commandsFor(glyph, fontKey, weight, fontSize, slant).length > 0) return false;
-  if (fontHasSupportedColorTable(font, fontKey)) return true;
-  return font.directory?.tables != null && "SVG " in font.directory.tables;
+  if (glyph.type === "COLR" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return "colr";
+  if (commandsFor(glyph, fontKey, weight, fontSize, slant).length > 0) return null;
+  const tables = font.directory?.tables;
+  if (tables != null && "CBDT" in tables && "CBLC" in tables) return "bitmap";
+  if (tables != null && "sbix" in tables) return "sbix";
+  if (tables != null && "COLR" in tables && "CPAL" in tables) return "colr";
+  return tables != null && "SVG " in tables ? "svg" : null;
 }
 
 /**
@@ -2778,7 +2794,7 @@ export function selectedGlyphRasterSpans(
   text: string,
   candidates: Array<{ start: number; end: number }>,
   options: TextFontOptions,
-): Array<{ start: number; end: number }> {
+): Array<{ start: number; end: number; representation: GlyphRasterRepresentation }> {
   if (text.length === 0 || candidates.length === 0) return [];
   const fontSize = options.fontSize;
   const fontFamily = options.fontFamily;
@@ -2795,7 +2811,7 @@ export function selectedGlyphRasterSpans(
     stackPrimaryIsSystemUi(fontFamily, options.lang), stretch,
     options.fontVariantEmoji, fontFamily, options.features,
   );
-  const out: Array<{ start: number; end: number }> = [];
+  const out: Array<{ start: number; end: number; representation: GlyphRasterRepresentation }> = [];
   for (const candidate of candidates) {
     const run = runs.find((r) => candidate.start >= r.startIdx && candidate.start < r.endIdx);
     if (run == null) continue;
@@ -2808,10 +2824,10 @@ export function selectedGlyphRasterSpans(
       COLR?: { baseGlyphRecord?: Array<{ gid: number }> };
       directory?: { tables?: Record<string, unknown> };
     };
-    const nonOutline = glyphs.some((glyph) => glyphUsesRasterRepresentation(
+    const representation = glyphs.map((glyph) => glyphRasterRepresentation(
       fontWithColr, run.fontKey, glyph, fontSize, weight, slant,
-    ));
-    if (nonOutline) out.push(candidate);
+    )).find((kind) => kind != null);
+    if (representation != null) out.push({ ...candidate, representation });
   }
   return out;
 }
