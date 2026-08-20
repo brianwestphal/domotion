@@ -119,22 +119,33 @@ describeLinux("Linux declared-family NOMINATION walk (Blink's stack walk, transc
 
   it("walks past a rejected name instead of pinning its calibrated table face", () => {
     // Chrome-on-noble paints bare-"Menlo" / bare-"Consolas" stacks in
-    // Liberation Serif (the family rejects, the stack exhausts, the
-    // `-webkit-standard` browser setting supplies "Times New Roman" →
-    // Liberation Serif). The walk must yield the `times` terminal, not the
-    // old `menlo`/`courier` keys' WenQuanYi routing.
-    expect(resolveFontKey("Menlo")).toBe("times");
-    expect(resolveFontKey("Consolas")).toBe("times");
-    expect(psName(resolveFontKey("Menlo"), 550)).toBe("LiberationSerif-Bold");
+    // Liberation Serif (the family rejects, the stack exhausts, and the
+    // `-webkit-standard` browser setting nominates "Times New Roman"). The
+    // armed nomination walk asks fontconfig for that terminal too, so its
+    // externally visible key is the exact `sysfb:` face rather than the
+    // degraded table's logical `times` key. Assert the selected face, then
+    // disable the mechanism to prove the old key is only the fallback arm.
+    const menlo = resolveFontKey("Menlo");
+    const consolas = resolveFontKey("Consolas");
+    expect(menlo.startsWith("sysfb:")).toBe(true);
+    expect(consolas.startsWith("sysfb:")).toBe(true);
+    expect(psName(menlo, 550)).toBe("LiberationSerif-Bold");
+    expect(psName(consolas, 400)).toBe("LiberationSerif");
+    expect(withSystemFallbackResolution(false, () => resolveFontKey("Menlo"))).toBe("times");
   });
 
   it("keeps the generic keywords on their calibrated (un-transcribed) routes", () => {
     // `monospace` is a settings-mapped generic — its concrete family is a
     // browser-side value, NOT walkable from the renderer checkout — and
     // measured on noble it paints WenQuanYi Zen Hei Mono, which only the
-    // calibrated route supplies. A stack that rejects into it must land there.
-    expect(resolveFontKey("Menlo, monospace")).toBe("courier");
-    expect(psName("courier", 400)).toBe("WenQuanYiZenHeiMono");
+    // calibrated route supplies in the degraded arm. With the matcher armed,
+    // the browser setting's concrete family is resolved to its exact `sysfb:`
+    // face; disabling it restores the calibrated logical key. Both select the
+    // same PostScript face on the pinned image.
+    const key = resolveFontKey("Menlo, monospace");
+    expect(key.startsWith("sysfb:")).toBe(true);
+    expect(psName(key, 400)).toBe("WenQuanYiZenHeiMono");
+    expect(withSystemFallbackResolution(false, () => resolveFontKey("Menlo, monospace"))).toBe("courier");
   });
 
   it("accepts Helvetica through the Arial alias onto Liberation Sans", () => {
