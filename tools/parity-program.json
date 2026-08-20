@@ -35,8 +35,8 @@
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "derived run corpus plus discriminating cluster fixtures and negative controls",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "CDP does not expose Chromium glyph IDs. The unified record labels that boundary and joins CDP painted-face/origin evidence with exact same-face Chromium-configured HarfBuzz glyph records without pretending the glyph IDs came from CDP.",
-      "nextAction": "Keep every new shaping input wired to an independently moving control and consume the unified records when reducing visual residuals."
+      "knownGap": "CDP does not expose Chromium glyph IDs, and production emission does not yet retain a per-source-span ledger linking its iterator mechanism and selected source face to emitted path/subset glyph identity. The unified record preserves the CDP boundary, while doc 142 inventories the remaining renderer seam.",
+      "nextAction": "DM-2398: add the production text-run provenance ledger, join it to unified Chromium evidence, and prove every assignment/emitter transition with independent controls."
     },
     {
       "id": "text-layout-placement",

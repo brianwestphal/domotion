@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt15fy2dqxdpjw79",
+          "message": {
+            "text": "The isolated resolver oracle is intentionally retained but scoped to Blink’s kSystemFonts stage. Chromium’s source shows that the final paint owner is a ShapeResultRun after declared, priority, system, last-resort, shaping, and requeue decisions; requiring every final run to equal an isolated per-codepoint answer would reject correct declared/priority wins.",
+            "markdown": "The isolated resolver oracle is intentionally retained but scoped to Blink’s kSystemFonts stage. Chromium’s source shows that the final paint owner is a ShapeResultRun after declared, priority, system, last-resort, shaping, and requeue decisions; requiring every final run to equal an isolated per-codepoint answer would reject correct declared/priority wins."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/142-renderer-font-route-audit.md"
+                },
+                "region": {
+                  "startLine": 11,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "Blink does not ask a per-codepoint resolver for the final painted face. For each\nscript/bidi segment, `HarfBuzzShaper::ShapeSegment` constructs one\n`FontFallbackIterator`, shapes a candidate over the queued ranges, commits\nclusters whose glyphs are nonzero, and requeues the remaining clusters\n(`harfbuzz_shaper.cc:965-1144`). The iterator walks declared/segmented faces,\nfallback-priority faces, one system-font answer per hint, last resort, and then\nthe first candidate for `.notdef` (`font_fallback_iterator.cc:120-229`).\n`ShapeResultRun` retains the chosen `SimpleFontData` together with\n`HarfBuzzRunGlyphData` (`shape_result_run.h:55-75, 257-418`). Thus the logical\nunit that reaches paint is a shaped run: face plus glyph/cluster/position data.\n\nThe standalone Domotion resolver oracle remains necessary: it proves the\n`kSystemFonts` answer. It is not sufficient to prove the final renderer,\nbecause that answer may never be asked for, may be rejected after shaping, or\nmay be preceded by a declared or priority face."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2348"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0feb04bf77ceb704b9912ffbe33bb4a9"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt15fy8pz3o7ilu3",
+          "message": {
+            "text": "This matrix was traced through both production emitters and every alternate assignment owner. Focused activation suites passed 62 tests for cluster invocation/decline, glyph-path splitting, and embedded build provenance, but the audit found that no artifact currently links those mechanisms and exact source faces to each emitted glyph span.",
+            "markdown": "This matrix was traced through both production emitters and every alternate assignment owner. Focused activation suites passed 62 tests for cluster invocation/decline, glyph-path splitting, and embedded build provenance, but the audit found that no artifact currently links those mechanisms and exact source faces to each emitted glyph span."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/142-renderer-font-route-audit.md"
+                },
+                "region": {
+                  "startLine": 29,
+                  "endLine": 42,
+                  "snippet": {
+                    "text": "| Production mechanism | Resolver's role | What reaches emission | Current activation evidence | Remaining proof gap |\n| --- | --- | --- | --- | --- |\n| Primary and later declared families | None until those faces shape `.notdef` | The caller's exact primary instance or a declared/webfont partition | Cluster tests cover primary and segmented webfont acceptance | No per-run source/member/axis record tied to emitted glyphs |\n| Shape-then-requeue cluster fallback | The resolver supplies only the `system` iterator stage | Contiguous `FontRun`s, then a same-face HarfBuzz shaping proxy | `_clusterFallbackCounters`, cluster tests, and `DOMOTION_CLUSTER_FALLBACK=0` A/B | Counters prove invocation, not which selected source produced each emitted glyph |\n| Legacy per-codepoint fallback | It is the whole assignment procedure | Per-codepoint runs, followed by a HarfBuzz shaping override | Flag-off and decline tests exercise it | A decline is not recorded with its reason; an artifact cannot distinguish flag-off from an unopenable face |\n| Priority emoji face | Bypassed for the one-shot priority candidate; the resolver may run afterward | Color-capable run or later fallback | Cluster priority counters and font-variant-emoji tests | Raster-overlay ownership can replace vector emission after this choice |\n| Dotted-circle pinned span | Bypassed; `resolveDottedCircleHbRun` selects the mark companion face first | A forced single-face dotted-circle/mark run | Focused dotted-circle tests | Candidate gates are non-Blink and tracked by DM-2393 |\n| Math/NFD decomposed commit | Resolver returns substituted text and a face; the cluster loop commits it directly | A run whose emitted text differs from its source span | Resolver decomposition tests | This is deliberately outside Blink's iterator and is included in DM-2387 |\n| Feature and general HarfBuzz overrides | Selection is already complete | A proxy that preserves the selected outline/source face and changes shaping only | Exact shaping controls move features/script/language/direction | The proxy identity is not joined to the eventual glyph definition/subset |\n| Paths emitter | The selected `FontRun` is consumed directly | `<path>` definitions and `<use>` placements | Glyph-path run tests | Glyph IDs are globally renumbered into `gN`; the SVG cannot recover face/file/axes or the selecting mechanism |\n| Embedded-font emitter | The selected `FontRun` is consumed directly | PUA-mapped `<text>` plus hb-subset or svg2ttf bytes | `EmbeddedFontBuildDiagnostic` proves aggregate source/builder state | Diagnostics have no source spans, selected keys, clusters, or embedded-decline reason |\n| Embedded decline to paths | Both emitters rerun from the same entry inputs | Paths output after a null embedded result | Mode-parity tests exercise successful arms | The transition and null reason are not recorded, so activation cannot be proven from a result artifact |\n| Raster glyph overlay | Vector selection can be suppressed for captured raster-owned spans | Captured PNG region plus vector remainder | Raster-boundary oracle and emoji fixtures | Production ownership still depends on hardcoded capture-side emoji gates; DM-2392 owns removal |\n| Raw `<text>` fallback in `text.ts` | The original decision is discarded | The consumer browser resolves the captured CSS family again | Partial/all-raster suppression tests | This is an unowned second font-selection pass; DM-2399 owns its removal or explicit degraded-boundary classification |"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2348"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "364797fdc75e213e22f698109b122f17"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt15fyf4lwx2xhuv",
+          "message": {
+            "text": "The remaining claim is blocked by observability, not by a newly proven font mismatch. Paths mode erases face provenance into global gN identifiers, embedded diagnostics are aggregate-only, and raw text fallback performs an unowned second font selection in the consumer; DM-2398 and DM-2399 isolate those risks.",
+            "markdown": "The remaining claim is blocked by observability, not by a newly proven font mismatch. Paths mode erases face provenance into global gN identifiers, embedded diagnostics are aggregate-only, and raw text fallback performs an unowned second font selection in the consumer; DM-2398 and DM-2399 isolate those risks."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/142-renderer-font-route-audit.md"
+                },
+                "region": {
+                  "startLine": 59,
+                  "endLine": 70,
+                  "snippet": {
+                    "text": "4. **Current artifacts cannot prove the end-to-end claim.** Paths mode loses\n   face provenance when glyph definitions receive global `gN` IDs. Embedded\n   mode reports aggregate builder provenance only after a successful build.\n   Neither records why the shaped splitter declined, why embedded mode fell\n   back, or which source span used which mechanism.\n5. **No new production face divergence was proven by static/source audit.** The\n   unresolved issue is observability, not evidence that a particular current\n   run is wrong. DM-2398 must add a renderer ledger and join it to the unified\n   Chromium evidence before this area can claim exact end-to-end coverage.\n6. **Raw `<text>` fallback is a separate correctness risk.** It delegates a\n   second face-selection pass to the SVG consumer, which need not have the\n   capture host's font inventory or fallback rules. DM-2399 isolates that work."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2348"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7feb77e23c0f7acb189ab7a5f119c118"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8f22d45419d859cef5800a6de78fc322ff8d12b5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

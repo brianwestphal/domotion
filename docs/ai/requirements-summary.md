@@ -33,6 +33,11 @@ reload and into the filed ticket.
 Doc 141 closes the shaping-evidence split with one normalized record containing
 CDP painted faces/origins and helper/HarfBuzz face, glyph, cluster, advance, and
 offset evidence, while explicitly preserving CDP's glyph-ID boundary.
+Doc 142 establishes that isolated resolver agreement proves only Blink's
+system-font iterator stage. Exact renderer parity additionally requires
+per-shaped-run provenance across declared/priority faces, cluster requeue,
+dotted-circle/decomposition owners, embedded/path transitions, raster overlays,
+and raw-text fallback; DM-2398 and DM-2399 own the missing gates.
 
 The doc-116 text-layout stage is an exact CI gate: a generated covering array
 compares direct Chromium `Range` origins with production-captured

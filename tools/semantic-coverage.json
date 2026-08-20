@@ -52,7 +52,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence exists, but production renderer bypasses still require the renderer-facing audit, generic preference profiles remain incomplete, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and the production bypass audit exist, but production lacks the per-run provenance ledger/oracle specified by doc 142; generic preference profiles remain incomplete and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"
