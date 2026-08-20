@@ -26,6 +26,10 @@ and unresolved gaps explicit in CI. The in-repo demos reviewer now requires a
 human logical-stage classification before filing a residual ticket and records
 that classification in the title and details; it deliberately does not infer
 causality from pixel percentages (doc 31).
+Doc 140 makes that integration concrete: CI attaches source-linked logical
+stage reports and runner fingerprints, fixture relevance comes only from the
+semantic inventory, and the required human classification persists through
+reload and into the filed ticket.
 
 The doc-116 text-layout stage is an exact CI gate: a generated covering array
 compares direct Chromium `Range` origins with production-captured

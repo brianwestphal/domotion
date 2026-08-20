@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1464h7rleyrde3",
+          "message": {
+            "text": "Missing, malformed, and failed oracle reports stay negative evidence. The collector stamps the actual process result, while legacy reports use only their own explicit verdict/row fields; no absent report or visual score can become a pass.",
+            "markdown": "Missing, malformed, and failed oracle reports stay negative evidence. The collector stamps the actual process result, while legacy reports use only their own explicit verdict/row fields; no absent report or visual score can become a pass."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/build-stage-evidence.ts"
+                },
+                "region": {
+                  "startLine": 25,
+                  "endLine": 43,
+                  "snippet": {
+                    "text": "  const reportFile = `${area.id}.json`;\n  const path = resolve(reportsDir, reportFile);\n  if (!existsSync(path)) return { area: area.id, oracle: area.oracle, status: \"missing\", note: \"No stage report was attached by this run.\" };\n  try {\n    const value = JSON.parse(readFileSync(path, \"utf8\")) as {\n      rows?: Array<{ pass?: boolean }>; records?: unknown[]; failures?: unknown[];\n      pass?: boolean; verdict?: string; mismatches?: number; pairs?: number; evidenceOracle?: string; evidencePassed?: boolean;\n    };\n    const rows = Array.isArray(value.rows) ? value.rows : undefined;\n    const totalRows = rows?.length ?? value.records?.length ?? value.pairs;\n    const passedRows = rows != null ? rows.filter((row) => row.pass === true).length\n      : value.verdict === \"exact-logical-agreement\" && totalRows != null ? totalRows : undefined;\n    const inferredPass = value.pass === true || value.verdict === \"exact-logical-agreement\"\n      || (totalRows != null && totalRows > 0 && passedRows === totalRows && (value.mismatches ?? 0) === 0)\n      || (Array.isArray(value.failures) && value.failures.length === 0);\n    const passed = value.evidencePassed ?? inferredPass;\n    return { area: area.id, oracle: value.evidenceOracle ?? area.oracle, status: passed ? \"passed\" : \"failed\", passedRows, totalRows, reportFile };\n  } catch (error) {\n    return { area: area.id, oracle: area.oracle, status: \"failed\", reportFile, note: `Unreadable report: ${String(error)}` };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/collect-stage-evidence.ts"
+                },
+                "region": {
+                  "startLine": 22
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/stage-evidence.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2340"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "18229500b9fe41f97d51a14687892ccc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2ff84d2873d3ca137a69b25ff70c190762e4e580",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

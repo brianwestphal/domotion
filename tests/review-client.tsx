@@ -21,6 +21,7 @@ import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 
 import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
 import { LOGICAL_CLASSIFICATIONS } from "../src/review/logical-classification.js";
+import type { RelevantStageEvidence } from "../src/review/stage-evidence.js";
 
 type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
 
@@ -63,6 +64,7 @@ interface ReviewTest {
     maxRegionSeverity?: number;
     scatteredPixels?: number;
   }>;
+  stageEvidence?: RelevantStageEvidence;
 }
 
 interface ReviewManifest {
@@ -84,6 +86,10 @@ const MANIFEST = JSON.parse(manifestEl.textContent ?? "{}") as ReviewManifest;
 
 // DM-1660: images are served per-source at /img/<source>/<suite>/<file>.
 const IMG_BASE = `/img/${MANIFEST.activeSource}`;
+const classificationKey = (suite: string, name: string): string => `domotion-review-classification:${MANIFEST.activeSource}:${suite}:${name}`;
+function savedClassification(suite: string, name: string): string {
+  try { return localStorage.getItem(classificationKey(suite, name)) ?? ""; } catch { return ""; }
+}
 
 // The source selector reloads the page with ?source=<id> (server re-renders with
 // that source's manifest). Guard against reloading to the same source.
@@ -351,6 +357,7 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
 }
 
 function Card({ r }: { r: ReviewTest }) {
+  const persistedClassification = savedClassification(r.suite, r.name);
   let badge: string;
   let statusClass: string;
   if (r.skipped)       { badge = "SKIP";  statusClass = "skip"; }
@@ -414,12 +421,26 @@ function Card({ r }: { r: ReviewTest }) {
           )}
         </>
       )}
+      {r.stageEvidence != null && (
+        <details className="stage-evidence">
+          <summary>Stage evidence · {r.stageEvidence.reports.filter((report) => report.status === "passed").length}/{r.stageEvidence.reports.length} reports passing</summary>
+          <div>Applies to every selected region on this fixture.</div>
+          <div>Semantic transitions: {r.stageEvidence.transitionIds.join(", ")}</div>
+          <ul>
+            {r.stageEvidence.reports.map((report) => (
+              <li className={report.status}>
+                {report.area}: {report.status}{report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} · {report.oracle}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <label className="classification-label">
         Logical-stage classification
         <select className="logical-classification">
-          <option value="" selected>Classify this residual…</option>
+          <option value="" selected={persistedClassification === ""}>Classify this residual…</option>
           {Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => (
-            <option value={value}>{item.label}</option>
+            <option value={value} selected={persistedClassification === value}>{item.label}</option>
           ))}
         </select>
       </label>
@@ -701,6 +722,13 @@ void delegate(cardsEl, "click", ".file-btn", (_event, target) => {
   void fileTicket(target as HTMLButtonElement);
 });
 
+void delegate(cardsEl, "change", ".logical-classification", (_event, target) => {
+  const select = target as HTMLSelectElement;
+  const card = select.closest<HTMLElement>(".card");
+  if (card == null) return;
+  try { localStorage.setItem(classificationKey(card.dataset["suite"] ?? "", card.dataset["name"] ?? ""), select.value); } catch { /* best effort */ }
+});
+
 async function fileTicket(btn: HTMLButtonElement): Promise<void> {
   const card = btn.closest<HTMLElement>(".card");
   if (card == null) return;
@@ -736,6 +764,7 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
     msg.textContent = `Filed ${json.ticket_number ?? ""}${regions.length > 0 ? ` (with ${regions.length} region${regions.length === 1 ? "" : "s"})` : ""}`;
     commentEl.value = "";
     classificationEl.value = "";
+    try { localStorage.removeItem(classificationKey(suite, name)); } catch { /* best effort */ }
     overlay?.clear();
   } catch (err) {
     msg.className = "status-msg err";

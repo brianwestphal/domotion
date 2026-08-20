@@ -241,7 +241,8 @@ inventories are deliberate conformance profiles, not noise to normalize away.
 ### Visual integration and classification
 
 Run broad sweeps on CI per the repository policy. Demo review consumes the
-stage evidence when available and classifies each region as:
+stage evidence under the [demo-review stage-evidence contract](140-demo-review-stage-evidence.md)
+and classifies each region as:
 
 1. wrong selection/shaping/layout decision;
 2. wrong SVG geometry;

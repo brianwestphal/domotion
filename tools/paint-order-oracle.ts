@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+import { writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 import { establishesStackingContext, gatherStackingContextChildren, paintOrderBuckets, sortChildrenByPaintOrder } from "../src/render/stacking.js";
 import type { CapturedElement, CapturedStyles } from "../src/capture/types.js";
@@ -72,6 +73,8 @@ export async function runPaintOrderOracle(): Promise<{ rows: Row[]; mutationMove
 async function main(): Promise<void> {
   const report = await runPaintOrderOracle();
   const failures = report.rows.filter((row) => !row.pass);
+  const jsonIndex = process.argv.indexOf("--json");
+  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
   console.log(`paint-order oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? "moved" : "DID NOT MOVE"}`);
   for (const failure of failures) console.log(`FAIL ${failure.id}: expected=${JSON.stringify(failure.expected)} actual=${JSON.stringify(failure.actual)}`);
   if (failures.length > 0 || !report.mutationMoved) process.exitCode = 1;

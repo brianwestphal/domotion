@@ -144,6 +144,18 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(publish).toMatch(/INCLUDE_SVG/);
   });
 
+  it("attaches logical-stage reports and provenance on every platform", () => {
+    for (const name of ["test-macos", "test-linux", "test-windows"]) {
+      const job = jobs[name];
+      expect(job).toContain("stage:evidence:collect");
+      expect(job).toContain("stage:evidence:build");
+      expect(job).toContain("run-env.json --out");
+      expect(job).toMatch(/matrix\.shard == 1/);
+    }
+    expect(jobs.aggregate).toContain("stage-evidence-*.json");
+    expect(jobs.aggregate).toContain('stage-evidence-$os.json');
+  });
+
   it("copies the built binary to the path the resolver looks for", () => {
     // `HELPER_BINARIES.darwin` in src/render/glyph-helper.ts resolves exactly
     // this filename; `swift build` emits `DomotionGlyphPaths`, so a build that

@@ -50,6 +50,7 @@ import {
   LOGICAL_CLASSIFICATIONS,
   parseLogicalClassification,
 } from "../src/review/logical-classification.js";
+import { relevantStageEvidence, type RelevantStageEvidence, type StageEvidenceManifest } from "../src/review/stage-evidence.js";
 import * as esbuild from "esbuild";
 
 // ── Paths ──
@@ -195,6 +196,7 @@ interface ReviewTest {
     maxRegionSeverity?: number;
     scatteredPixels?: number;
   }>;
+  stageEvidence?: RelevantStageEvidence;
 }
 
 interface ReviewManifest {
@@ -216,6 +218,7 @@ interface ReviewManifest {
   // knowing each platform's failure signature by heart; now it says so.
   platformMismatch?: { manifest: string; host: string };
   activationEvidence?: { platform: string; mechanismCount: number };
+  stageEvidence?: Pick<StageEvidenceManifest, "generatedAt" | "sourceRevision" | "platform" | "environmentFingerprint">;
 }
 
 function loadManifest(activeSourceId: string): ReviewManifest {
@@ -232,6 +235,7 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   const timestamps: string[] = [];
   let manifestPlatform: string | null = null;
   let activationEvidence: ReviewManifest["activationEvidence"];
+  let stageEvidenceManifest: StageEvidenceManifest | undefined;
 
   for (const m of manifestFiles) {
     if (!existsSync(m.path)) continue;
@@ -243,6 +247,13 @@ function loadManifest(activeSourceId: string): ReviewManifest {
           activationEvidence = { platform: evidence.platform, mechanismCount: evidence.mechanisms.length };
         }
       } catch { /* CI validates the evidence file; malformed legacy artifacts simply omit the badge. */ }
+    }
+    const stageEvidencePath = resolve(dirname(m.path), "stage-evidence.json");
+    if (stageEvidenceManifest == null && existsSync(stageEvidencePath)) {
+      try {
+        const evidence = JSON.parse(readFileSync(stageEvidencePath, "utf8")) as StageEvidenceManifest;
+        if (evidence.schemaVersion === 1 && Array.isArray(evidence.reports) && Array.isArray(evidence.rules)) stageEvidenceManifest = evidence;
+      } catch { /* Older/local artifacts remain reviewable without stage evidence. */ }
     }
     suites[m.suite].present = true;
     const raw = JSON.parse(readFileSync(m.path, "utf8")) as unknown;
@@ -325,7 +336,16 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   const platformMismatch = !activeSourceId.startsWith("ci-") && manifestPlatform != null && manifestPlatform !== process.platform
     ? { manifest: manifestPlatform, host: process.platform }
     : undefined;
-  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded, ...(platformMismatch != null ? { platformMismatch } : {}), ...(activationEvidence != null ? { activationEvidence } : {}) };
+  if (stageEvidenceManifest != null) {
+    for (const test of tests) test.stageEvidence = relevantStageEvidence(stageEvidenceManifest, test.suite, test.name);
+  }
+  const stageEvidence = stageEvidenceManifest == null ? undefined : {
+    generatedAt: stageEvidenceManifest.generatedAt,
+    sourceRevision: stageEvidenceManifest.sourceRevision,
+    platform: stageEvidenceManifest.platform,
+    environmentFingerprint: stageEvidenceManifest.environmentFingerprint,
+  };
+  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded, ...(platformMismatch != null ? { platformMismatch } : {}), ...(activationEvidence != null ? { activationEvidence } : {}), ...(stageEvidence != null ? { stageEvidence } : {}) };
 }
 
 function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
@@ -497,9 +517,10 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
     const dest = suiteDir(root, suite);
     const existing = readCiSourceMeta(root, suite);
     if (existing?.sha === sha && existsSync(resolve(dest, "results.json"))) return;
-    const [results, metaBuf] = await Promise.all([
+    const [results, metaBuf, stageEvidence] = await Promise.all([
       fetchImagesRepoFile(sha, "results.json"),
       fetchImagesRepoFile(sha, "meta.json"),
+      fetchImagesRepoFile(sha, "stage-evidence.json"),
     ]);
     if (results != null) {
       let runId = sha.slice(0, 12);
@@ -507,6 +528,7 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
       if (existing != null && existing.sha !== sha) wipeCachedPngs(dest);
       mkdirSync(dest, { recursive: true });
       writeFileSync(resolve(dest, "results.json"), results);
+      if (stageEvidence != null) writeFileSync(resolve(dest, "stage-evidence.json"), stageEvidence);
       writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite, sha }));
       console.log(`  ✓ ${os} ${ciSuite} metadata from ${CI_IMAGES_REPO}@${sha.slice(0, 8)} (run ${runId})`);
       return;
@@ -550,6 +572,8 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
           if (existing != null && existing.runId !== runId) wipeCachedPngs(dest);
           mkdirSync(dest, { recursive: true });
           copyFileSync(slim, resolve(dest, "results.json"));
+          const stageEvidence = resolve(src, `stage-evidence-${os}.json`);
+          if (existsSync(stageEvidence)) copyFileSync(stageEvidence, resolve(dest, "stage-evidence.json"));
           writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite }));
         }
       }
@@ -699,6 +723,12 @@ const REVIEW_CSS = `
   .comment { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 8px; font: inherit; resize: vertical; min-height: 54px; }
   .classification-label { display: grid; gap: 5px; margin-bottom: 8px; color: #8b949e; font-size: 12px; font-weight: 600; }
   .logical-classification { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 7px 8px; font: inherit; }
+  .stage-evidence { margin: 8px 0; padding: 8px; border: 1px solid #30363d; border-radius: 4px; color: #8b949e; font-size: 12px; }
+  .stage-evidence summary { cursor: pointer; color: #c9d1d9; font-weight: 600; }
+  .stage-evidence ul { margin: 6px 0 0; padding-left: 20px; }
+  .stage-evidence .passed { color: #56d364; }
+  .stage-evidence .failed { color: #ffa198; }
+  .stage-evidence .missing { color: #d4a82b; }
   .actions { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
   .file-btn { background: #238636; color: #fff; border: none; padding: 7px 14px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 13px; }
   .file-btn:hover { background: #2ea043; }
@@ -1075,6 +1105,14 @@ async function main(): Promise<void> {
         const regionLine = match.regionCount != null
           ? `Score: ${match.verdict ?? "?"} · ${match.regionCount} region${match.regionCount === 1 ? "" : "s"} · ${match.coveragePct != null ? match.coveragePct.toFixed(2) + "%" : "?"} of image · max severity ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
           : null;
+        const evidenceLines = match.stageEvidence == null ? ["Stage evidence: unavailable for this artifact"] : [
+          `Semantic transitions: ${match.stageEvidence.transitionIds.map((id) => `\`${id}\``).join(", ")}`,
+          "Stage reports:",
+          ...match.stageEvidence.reports.map((report) => `- ${report.area}: **${report.status}**${report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} — \`${report.oracle}\``),
+        ];
+        const environmentLine = manifest.stageEvidence == null
+          ? "Environment fingerprint: unavailable for this artifact"
+          : `Environment fingerprint: \`${JSON.stringify(manifest.stageEvidence.environmentFingerprint)}\` · source \`${manifest.stageEvidence.sourceRevision}\``;
         const detailsParts = [
           `Suite: \`${match.suite}\``,
           `Test: \`${name}\``,
@@ -1083,6 +1121,8 @@ async function main(): Promise<void> {
           `Diff (legacy): ${match.diffPct.toFixed(2)}% avg${match.sigPixelPct != null ? ` · sig ${match.sigPixelPct.toFixed(1)}%` : ""}${match.worstTilePct != null ? ` · tile avg ${match.worstTilePct.toFixed(1)}%` : ""}${match.worstTileSignificantPct != null ? ` · tile sig ${match.worstTileSignificantPct.toFixed(1)}%` : ""}`,
           `Status: ${match.skipped ? `SKIP (${match.skipReason ?? "no reason"})` : match.error != null ? `ERROR (${match.error})` : match.pass ? "PASS" : "FAIL"}`,
           `Recorded: ${new Date(manifest.generatedAt).toLocaleString()}`,
+          environmentLine,
+          ...evidenceLines,
           "",
           comment !== "" ? comment : "_(no comment provided)_",
         ];

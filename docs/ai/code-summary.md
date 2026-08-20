@@ -24,6 +24,11 @@ the source of truth lives in `CLAUDE.md` and the numbered `docs/*.md` set.
 
 ## Key code orientation
 
+Demo-review evidence is resolved by `src/review/stage-evidence.ts`; the CI
+producer is `tools/collect-stage-evidence.ts` plus
+`tools/build-stage-evidence.ts`, and the server/client integration lives in
+`tests/review-server.tsx` and `tests/review-client.tsx`.
+
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:
 

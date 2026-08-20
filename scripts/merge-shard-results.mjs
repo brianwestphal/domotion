@@ -18,7 +18,7 @@
 // Usage:
 //   node scripts/merge-shard-results.mjs --input <dir> [--out <dir>] [--summary <file>]
 
-import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
+import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, appendFileSync, copyFileSync } from "node:fs";
 import { resolve, join, basename, dirname } from "node:path";
 
 import { mergeShardEnvs } from "./run-env.mjs";
@@ -94,6 +94,7 @@ function envBesideResults(resultsPath) {
 // defensive against a re-run / double download).
 const byOs = new Map();
 const envsByOs = new Map();
+const stageEvidenceByOs = new Map();
 for (const f of files) {
   const os = osFromPath(f);
   let arr;
@@ -103,6 +104,8 @@ for (const f of files) {
   }
   if (!Array.isArray(arr)) continue;
   const shard = shardFromPath(f);
+  const stageEvidencePath = join(dirname(f), "stage-evidence.json");
+  if (shard === 1 && existsSync(stageEvidencePath) && !stageEvidenceByOs.has(os)) stageEvidenceByOs.set(os, stageEvidencePath);
   const env = envBesideResults(f);
   if (env != null) {
     if (!envsByOs.has(os)) envsByOs.set(os, []);
@@ -147,6 +150,8 @@ for (const os of [...byOs.keys()].sort()) {
 
   const outPath = resolve(outDir, `results-${os}.json`);
   writeFileSync(outPath, JSON.stringify(results, null, 2));
+  const stageEvidencePath = stageEvidenceByOs.get(os);
+  if (stageEvidencePath != null) copyFileSync(stageEvidencePath, resolve(outDir, `stage-evidence-${os}.json`));
 
   lines.push(`### ${os}`, "");
   lines.push(`**${passed} passed, ${failed} failed, ${skipped} skipped** out of ${results.length}.`, "");

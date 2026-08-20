@@ -114,6 +114,15 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       ],
     }),
   );
+  writeFileSync(join(fixtureRoot, "stage-evidence.json"), JSON.stringify({
+    schemaVersion: 1,
+    generatedAt: new Date(0).toISOString(),
+    sourceRevision: "fixture-revision",
+    platform: process.platform,
+    environmentFingerprint: { platform: process.platform, fingerprint: "fixture-fingerprint" },
+    reports: [{ area: "paint", oracle: "tools/paint-oracle.ts", status: "passed", passedRows: 4, totalRows: 4 }],
+    rules: [{ suites: ["features"], fixture: "bravo-fixture", transitionIds: ["box.paint"], areas: ["paint"] }],
+  }));
 
   it("review UI: each() reconciles across reorder and filter, preserving row identity", async () => {
     const started = await startServer("tests/review-server.tsx", [], { REVIEW_OUTPUT_DIR: fixtureRoot });
@@ -152,6 +161,11 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
 
       await firstCard.locator(".logical-classification").selectOption("logical-defect");
       expect(await firstCard.locator(".logical-classification").inputValue()).toBe("logical-defect");
+      const bravoCard = page.locator('.card[data-name="bravo-fixture"]');
+      await expect.poll(() => bravoCard.locator(".stage-evidence").textContent()).toContain("box.paint");
+      await bravoCard.locator(".logical-classification").selectOption("paint-compositing");
+      await page.reload({ waitUntil: "networkidle" });
+      await expect.poll(() => page.locator('.card[data-name="bravo-fixture"] .logical-classification').inputValue()).toBe("paint-compositing");
 
       // A card that survives a REORDER must keep its DOM node AND still be
       // showing its own data. We stamp the node, sort, then look for the stamp

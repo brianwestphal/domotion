@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1464h79cvcn2e3",
+          "message": {
+            "text": "Stage evidence is scoped to every region on the fixture, but classification remains a human choice. The browser E2E proves the evidence renders, the selection survives reload through local storage, and the server still rejects unclassified direct requests.",
+            "markdown": "Stage evidence is scoped to every region on the fixture, but classification remains a human choice. The browser E2E proves the evidence renders, the selection survives reload through local storage, and the server still rejects unclassified direct requests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/review-client.tsx"
+                },
+                "region": {
+                  "startLine": 424,
+                  "endLine": 445,
+                  "snippet": {
+                    "text": "      {r.stageEvidence != null && (\n        <details className=\"stage-evidence\">\n          <summary>Stage evidence · {r.stageEvidence.reports.filter((report) => report.status === \"passed\").length}/{r.stageEvidence.reports.length} reports passing</summary>\n          <div>Applies to every selected region on this fixture.</div>\n          <div>Semantic transitions: {r.stageEvidence.transitionIds.join(\", \")}</div>\n          <ul>\n            {r.stageEvidence.reports.map((report) => (\n              <li className={report.status}>\n                {report.area}: {report.status}{report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : \"\"} · {report.oracle}\n              </li>\n            ))}\n          </ul>\n        </details>\n      )}\n      <label className=\"classification-label\">\n        Logical-stage classification\n        <select className=\"logical-classification\">\n          <option value=\"\" selected={persistedClassification === \"\"}>Classify this residual…</option>\n          {Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => (\n            <option value={value} selected={persistedClassification === value}>{item.label}</option>\n          ))}\n        </select>"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/kerf-client-uis.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 145
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2340"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "edf889f3a3fb85f0b582a38f9f02b284"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2ff84d2873d3ca137a69b25ff70c190762e4e580",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -192,6 +192,12 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+      - name: Collect logical-stage evidence
+        if: ${{ always() && matrix.shard == 1 }}
+        run: npm run stage:evidence:collect -- --out tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-reports
+      - name: Attach logical-stage evidence manifest
+        if: ${{ always() && matrix.shard == 1 }}
+        run: npm run stage:evidence:build -- --reports tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-reports --env tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json --out tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-evidence.json
       - name: Attach specialized-path activation evidence
         if: always()
         run: npm run check:activation-coverage -- --json tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/activation-evidence.json
@@ -285,6 +291,12 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+      - name: Collect logical-stage evidence
+        if: ${{ always() && matrix.shard == 1 }}
+        run: npm run stage:evidence:collect -- --out tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-reports
+      - name: Attach logical-stage evidence manifest
+        if: ${{ always() && matrix.shard == 1 }}
+        run: npm run stage:evidence:build -- --reports tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-reports --env tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json --out tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-evidence.json
       - name: Attach specialized-path activation evidence
         if: always()
         run: npm run check:activation-coverage -- --json tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/activation-evidence.json
@@ -362,6 +374,14 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+      - name: Collect logical-stage evidence
+        if: ${{ always() && matrix.shard == 1 }}
+        shell: bash
+        run: npm run stage:evidence:collect -- --out tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-reports
+      - name: Attach logical-stage evidence manifest
+        if: ${{ always() && matrix.shard == 1 }}
+        shell: bash
+        run: npm run stage:evidence:build -- --reports tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-reports --env tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json --out tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/stage-evidence.json
       - name: Attach specialized-path activation evidence
         if: always()
         shell: bash
@@ -427,6 +447,7 @@ jobs:
           path: |
             shard-artifacts/results-*.slim.json
             shard-artifacts/run-env-*.json
+            shard-artifacts/stage-evidence-*.json
             shard-artifacts/shard-completeness-*.json
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
@@ -481,6 +502,7 @@ jobs:
               fi
             done
             cp "$slim" "$stage/results.json"
+            [ ! -f "shard-artifacts/stage-evidence-$os.json" ] || cp "shard-artifacts/stage-evidence-$os.json" "$stage/stage-evidence.json"
             node -e "require(\"fs\").writeFileSync(process.argv[1] + \"/meta.json\", JSON.stringify({ runId: process.env.GH_RUN_ID, commit: process.env.GH_SHA, suite: process.env.SUITE, os: process.argv[2], pushedAt: new Date().toISOString() }))" "$stage" "$os"
             branch="$SUITE-$os"
             git -C "$stage" init -q -b "$branch"

@@ -227,6 +227,7 @@ if (eager) {
     if (/^run-env-[a-z0-9]+\.json$/i.test(name)) {
       copyFileSync(join(srcDir, name), join(dir, name)); envFound++;
     }
+    if (/^stage-evidence-[a-z0-9]+\.json$/i.test(name)) copyFileSync(join(srcDir, name), join(dir, name));
   }
   console.log(`\nUsing CI slim metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`);
   if (envFound === 0) {
@@ -340,6 +341,8 @@ if (!process.argv.includes("--no-review")) {
     // Metadata (always) + the lazy-fetch pointer so the review server can pull
     // images on demand for THIS run.
     copyFileSync(mergedJson, join(dest, "results.json"));
+    const stageEvidence = join(dir, `stage-evidence-${stageOs}.json`);
+    if (existsSync(stageEvidence)) copyFileSync(stageEvidence, join(dest, "stage-evidence.json"));
     // DM-1803: resolve the `domotion-ci-images` commit sha for this run and put
     // it in the pointer. The review server keys its transport off exactly this
     // field: with a `sha` it fetches individual PNGs from the CDN (~0.2-0.7 s

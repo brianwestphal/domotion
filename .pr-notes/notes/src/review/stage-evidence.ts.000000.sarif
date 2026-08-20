@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1464h7p2hvuebg",
+          "message": {
+            "text": "Fixture relevance is derived only from semantic-inventory links. The resolver deliberately has no pixel-metric input, so visual severity cannot manufacture a logical diagnosis; broad suite rules and exact fixture rules are the only joins.",
+            "markdown": "Fixture relevance is derived only from semantic-inventory links. The resolver deliberately has no pixel-metric input, so visual severity cannot manufacture a logical diagnosis; broad suite rules and exact fixture rules are the only joins."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/stage-evidence.ts"
+                },
+                "region": {
+                  "startLine": 35,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": "/**\n * Resolve evidence by the semantic inventory's explicit fixture links. Pixel\n * scores are intentionally absent from this API: a larger diff must never be\n * allowed to manufacture a more confident logical-stage diagnosis.\n */\nexport function relevantStageEvidence(\n  manifest: StageEvidenceManifest | undefined,\n  suite: string,\n  fixture: string,\n): RelevantStageEvidence | undefined {\n  if (manifest == null) return undefined;\n  const rules = manifest.rules.filter((rule) =>\n    rule.suites.includes(suite) && (rule.fixture == null || rule.fixture === fixture));\n  if (rules.length === 0) return undefined;\n  const transitionIds = [...new Set(rules.flatMap((rule) => rule.transitionIds))].sort();\n  const areas = new Set(rules.flatMap((rule) => rule.areas));\n  return {\n    transitionIds,\n    reports: manifest.reports.filter((report) => areas.has(report.area)),\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/build-stage-evidence.ts"
+                },
+                "region": {
+                  "startLine": 47
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2340"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e7e3fcc0a11f021d751fdb56d0c8a50f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2ff84d2873d3ca137a69b25ff70c190762e4e580",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
