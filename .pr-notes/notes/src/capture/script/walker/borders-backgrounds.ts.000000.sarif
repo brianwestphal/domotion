@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0t754jv5wz367n",
+          "message": {
+            "text": "The table owns one collapsed-border edge graph because Blink merges every table-part source before painting any edge. The cached graph preserves source order, span interiors, logical writing direction, joint geometry, and pixel snapping; assigning winners back to cells cannot encode those decisions.",
+            "markdown": "The table owns one collapsed-border edge graph because Blink merges every table-part source before painting any edge. The cached graph preserves source order, span interiors, logical writing direction, joint geometry, and pixel snapping; assigning winners back to cells cannot encode those decisions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 134,
+                  "endLine": 277,
+                  "snippet": {
+                    "text": "  const resolveCollapsedTableRects = (table) => {\n    if (table.__dmCollapsedBorderRects !== undefined) return table.__dmCollapsedBorderRects;\n    const tableCs = getComputedStyle(table);\n    if (tableCs.borderCollapse !== 'collapse') return (table.__dmCollapsedBorderRects = null);\n    const writingMode = tableCs.writingMode || 'horizontal-tb';\n    const direction = tableCs.direction === 'rtl' ? 'rtl' : 'ltr';\n    const sectionEls = Array.from(table.children).filter((x) => x.tagName === 'THEAD' || x.tagName === 'TBODY' || x.tagName === 'TFOOT');\n    const directRows = Array.from(table.children).filter((x) => x.tagName === 'TR');\n    const rowEntries = [];\n    if (directRows.length) for (const row of directRows) rowEntries.push({ row, section: null, sectionIndex: -1 });\n    for (let sectionIndex = 0; sectionIndex < sectionEls.length; sectionIndex++) {\n      for (const row of Array.from(sectionEls[sectionIndex].children).filter((x) => x.tagName === 'TR')) rowEntries.push({ row, section: sectionEls[sectionIndex], sectionIndex });\n    }\n    if (!rowEntries.length) return (table.__dmCollapsedBorderRects = null);\n    const occupancy = [], cells = [], sections = new Map();\n    let columns = 0;\n    for (let r = 0; r < rowEntries.length; r++) {\n      occupancy[r] ||= [];\n      const entry = rowEntries[r];\n      if (entry.section != null) {\n        const current = sections.get(entry.section);\n        if (current == null) sections.set(entry.section, { start: r, count: 1 });\n        else current.count++;\n      }\n      let c = 0;\n      for (const cell of Array.from(entry.row.children).filter((x) => x.tagName === 'TD' || x.tagName === 'TH')) {\n        while (occupancy[r][c] != null) c++;\n        const colspan = Math.max(1, cell.colSpan || 1);\n        let rowspan = Math.max(1, cell.rowSpan || 1);\n        if (entry.section != null) {\n          const sectionRows = Array.from(entry.section.children).filter((x) => x.tagName === 'TR');\n          const localRow = sectionRows.indexOf(entry.row);\n          rowspan = Math.min(rowspan, sectionRows.length - localRow);\n        } else rowspan = Math.min(rowspan, rowEntries.length - r);\n        const meta = { cell, row: r, column: c, rowspan, colspan };\n        cells.push(meta);\n        for (let rr = r; rr < r + rowspan; rr++) {\n          occupancy[rr] ||= [];\n          for (let cc = c; cc < c + colspan; cc++) occupancy[rr][cc] = meta;\n        }\n        c += colspan;\n        columns = Math.max(columns, c);\n      }\n    }\n    if (!columns) return (table.__dmCollapsedBorderRects = null);\n    const grid = createCollapsedBorderGrid(rowEntries.length, columns);\n    let boxOrder = 0;\n    const physicalBorders = (node, order) => {\n      const cs = getComputedStyle(node);\n      const one = (side) => ({\n        side: side.toLowerCase(), order,\n        w: parseFloat(cs['border' + side + 'Width']) || 0,\n        style: cs['border' + side + 'Style'],\n        color: normColor(cs['border' + side + 'Color'], cs.color),\n      });\n      return { top: one('Top'), right: one('Right'), bottom: one('Bottom'), left: one('Left') };\n    };\n    for (const meta of cells) mergeCollapsedBorderBox(grid, meta.row, meta.column, meta.rowspan, meta.colspan, physicalBorders(meta.cell, ++boxOrder), writingMode, direction, true);\n    for (let r = 0; r < rowEntries.length; r++) mergeCollapsedBorderBox(grid, r, 0, 1, columns, physicalBorders(rowEntries[r].row, ++boxOrder), writingMode, direction);\n    for (const [section, span] of sections) mergeCollapsedBorderBox(grid, span.start, 0, span.count, columns, physicalBorders(section, ++boxOrder), writingMode, direction);\n    const columnEntries = [];\n    for (const child of Array.from(table.children)) {\n      if (child.tagName === 'COL') {\n        columnEntries.push({ col: child, group: null, start: columnEntries.length, span: Math.max(1, child.span || 1) });\n      } else if (child.tagName === 'COLGROUP') {\n        const start = columnEntries.reduce((n, item) => Math.max(n, item.start + item.span), 0);\n        const cols = Array.from(child.children).filter((x) => x.tagName === 'COL');\n        if (!cols.length) columnEntries.push({ col: null, group: child, start, span: Math.max(1, child.span || 1) });\n        else {\n          let at = start;\n          for (const col of cols) { const span = Math.max(1, col.span || 1); columnEntries.push({ col, group: child, start: at, span }); at += span; }\n        }\n      }\n    }\n    const columnOrder = ++boxOrder;\n    for (const entry of columnEntries) if (entry.col != null) mergeCollapsedBorderBox(grid, 0, entry.start, rowEntries.length, entry.span, physicalBorders(entry.col, columnOrder), writingMode, direction);\n    const groupOrder = ++boxOrder;\n    const groupsSeen = new Set();\n    for (const entry of columnEntries) if (entry.group != null && !groupsSeen.has(entry.group)) {\n      groupsSeen.add(entry.group);\n      const members = columnEntries.filter((x) => x.group === entry.group);\n      const start = Math.min(...members.map((x) => x.start));\n      const end = Math.max(...members.map((x) => x.start + x.span));\n      mergeCollapsedBorderBox(grid, 0, start, rowEntries.length, end - start, physicalBorders(entry.group, groupOrder), writingMode, direction);\n    }\n    mergeCollapsedBorderBox(grid, 0, 0, rowEntries.length, columns, physicalBorders(table, ++boxOrder), writingMode, direction);\n\n    const tableRect = table.getBoundingClientRect();\n    const inlineSamples = Array.from({ length: columns + 1 }, () => []);\n    const blockSamples = Array.from({ length: rowEntries.length + 1 }, () => []);\n    const horizontal = writingMode === 'horizontal-tb';\n    const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';\n    const inlineReverse = direction === 'rtl';\n    for (const meta of cells) {\n      const rect = meta.cell.getBoundingClientRect();\n      const inlineStart = horizontal\n        ? (inlineReverse ? tableRect.right - rect.right : rect.left - tableRect.left)\n        : (inlineReverse ? tableRect.bottom - rect.bottom : rect.top - tableRect.top);\n      const inlineEnd = horizontal\n        ? (inlineReverse ? tableRect.right - rect.left : rect.right - tableRect.left)\n        : (inlineReverse ? tableRect.bottom - rect.top : rect.bottom - tableRect.top);\n      const blockStart = horizontal ? rect.top - tableRect.top : (blockReverse ? tableRect.right - rect.right : rect.left - tableRect.left);\n      const blockEnd = horizontal ? rect.bottom - tableRect.top : (blockReverse ? tableRect.right - rect.left : rect.right - tableRect.left);\n      inlineSamples[meta.column].push(inlineStart); inlineSamples[meta.column + meta.colspan].push(inlineEnd);\n      blockSamples[meta.row].push(blockStart); blockSamples[meta.row + meta.rowspan].push(blockEnd);\n    }\n    const trackLines = (samples, fallbackEnd) => {\n      const lines = samples.map((values) => {\n        if (!values.length) return null;\n        values.sort((a, b) => a - b);\n        const mid = Math.floor(values.length / 2);\n        return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;\n      });\n      if (lines[0] == null) lines[0] = 0;\n      if (lines[lines.length - 1] == null) lines[lines.length - 1] = fallbackEnd;\n      for (let i = 1; i < lines.length - 1; i++) if (lines[i] == null) {\n        let hi = i + 1; while (hi < lines.length && lines[hi] == null) hi++;\n        lines[i] = lines[i - 1] + (lines[hi] - lines[i - 1]) / (hi - i + 1);\n      }\n      return lines;\n    };\n    const inlineExtent = horizontal ? tableRect.width : tableRect.height;\n    const blockExtent = horizontal ? tableRect.height : tableRect.width;\n    const logicalRects = collapsedBorderLogicalRects(grid, trackLines(inlineSamples, inlineExtent), trackLines(blockSamples, blockExtent));\n    const snap = (start, size) => { const rounded = Math.round(start); return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) }; };\n    const physicalRects = logicalRects.map((rect) => {\n      let x, y, width, height;\n      if (horizontal) {\n        x = inlineReverse ? tableRect.right - rect.inlineStart - rect.inlineSize : tableRect.left + rect.inlineStart;\n        y = tableRect.top + rect.blockStart; width = rect.inlineSize; height = rect.blockSize;\n      } else {\n        x = blockReverse ? tableRect.right - rect.blockStart - rect.blockSize : tableRect.left + rect.blockStart;\n        y = inlineReverse ? tableRect.bottom - rect.inlineStart - rect.inlineSize : tableRect.top + rect.inlineStart;\n        width = rect.blockSize; height = rect.inlineSize;\n      }\n      const sx = snap(x, width), sy = snap(y, height);\n      return { x: sx.start, y: sy.start, width: sx.size, height: sy.size, axis: rect.axis, style: rect.winner.style, color: rect.winner.color };\n    }).filter((rect) => rect.width > 0 && rect.height > 0);\n    table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));\n    table.__dmCollapsedBorderRects = physicalRects;\n    return physicalRects;\n  };\n  // DM-2246: Blink tabulates cells into logical columns before merging border\n  // edges (`ColspanCellTabulator` in table_borders.cc). Keep the winning unit"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2320"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "06c5f3b587aa5d366977e0057f00d89d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9cf3971f05da97845212ecad113fc7a3546565c9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

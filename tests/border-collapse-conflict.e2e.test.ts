@@ -5,9 +5,9 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // DM-1260: CSS 2.1 §17.6.2.1 collapsed-border conflict resolution. Each grid edge
 // paints the SINGLE winning border (hidden suppresses; else widest wins; tie →
 // style rank; true tie → cell > row > col > table, earlier cell first), and the
-// table / row / column-group box borders are folded into the cells (their own box
-// borders suppressed). The capture resolves this onto the cell sides; assert the
-// resolved widths/styles/colors + structural suppression.
+// table / row / column-group box borders are folded into one table-owned logical
+// edge graph. Capture stores the pixel-snapped physical paint rectangles on the
+// table and suppresses every contributing box border.
 
 const W = 360, H = 220;
 const HTML =
@@ -51,18 +51,16 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       expect(cellB, "captured cell B").toBeTruthy();
       expect(table, "captured table").toBeTruthy();
 
-      // The A|B shared edge: B's 8px red wins over A's 2px blue (width). A paints
-      // its RIGHT edge as the winner (8px red); B suppresses its LEFT (A owns it).
-      expect(cellA!.styles!.borderRightWidth).toBe("8px");
-      expect(cellA!.styles!.borderRightStyle).toBe("solid");
-      expect(cellA!.styles!.borderRightColor).toContain("255, 0, 0");
+      const rects = (table!.styles as any).collapsedBorderRects as Array<any>;
+      // The A|B shared edge: B's 8px red wins over A's 2px blue (width), but the
+      // winner is painted once by the table rather than assigned to either cell.
+      expect(rects).toContainEqual(expect.objectContaining({ axis: "column", width: 8, style: "solid", color: "rgb(255, 0, 0)" }));
+      expect(parseFloat(cellA!.styles!.borderRightWidth ?? "0")).toBe(0);
       expect(parseFloat(cellB!.styles!.borderLeftWidth ?? "0")).toBe(0);
 
       // A's outer LEFT edge: the table's 6px green border WINS over A's 2px blue
-      // (width), so the cell paints the table's border there — demonstrating the
-      // structural border folded into the cell edge rather than drawn as a box.
-      expect(cellA!.styles!.borderLeftWidth).toBe("6px");
-      expect(cellA!.styles!.borderLeftColor).toContain("0, 128, 0");
+      // (width), demonstrating that structural sources participate in the graph.
+      expect(rects).toContainEqual(expect.objectContaining({ axis: "column", width: 6, style: "solid", color: "rgb(0, 128, 0)" }));
 
       // The table's own box border is suppressed (folded into the cell edges).
       expect(parseFloat(table!.styles!.borderTopWidth ?? "0")).toBe(0);
@@ -77,17 +75,18 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     try {
       await page.setContent(`<style>table{border-collapse:collapse}td{width:60px;height:30px;border:2px solid blue}.r{border-right:6px solid red}.b{border-left:8px dashed green}</style><table><tr><td class="r" rowspan="2">R</td><td>A</td></tr><tr><td class="b">B</td></tr></table>`, { waitUntil: "load" });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const cell = find(tree, (n) => n.tag === "td" && n.text === "R");
-      const segments = (cell!.styles as any).collapsedBorderSegments as Array<any>;
-      const right = segments.filter((s) => s.side === "right");
+      const table = find(tree, (n) => n.tag === "table")!;
+      const right = ((table.styles as any).collapsedBorderRects as Array<any>)
+        .filter((rect) => rect.axis === "column" && (rect.color === "rgb(255, 0, 0)" || rect.color === "rgb(0, 128, 0)"));
       expect(right).toHaveLength(2);
-      expect(right.map((s) => [s.start, s.end, s.width, s.style])).toEqual([
-        [0, 0.5, 6, "solid"],
-        [0.5, 1, 8, "dashed"],
+      expect(right.map((rect) => [rect.width, rect.style, rect.color])).toEqual([
+        [6, "solid", "rgb(255, 0, 0)"],
+        [8, "dashed", "rgb(0, 128, 0)"],
       ]);
-      expect(parseFloat(cell!.styles!.borderRightWidth ?? "1")).toBe(0);
+      const cell = find(tree, (n) => n.tag === "td" && n.text === "R")!;
+      expect(parseFloat(cell.styles!.borderRightWidth ?? "1")).toBe(0);
       const svg = elementTreeToSvgInner(tree, W, H);
-      expect(svg).toMatch(/stroke-width="6"/);
+      expect(svg).toMatch(/width="6"[^>]+fill="rgb\(255,0,0\)"/);
       expect(svg).toMatch(/stroke="rgb\(0,128,0\)" stroke-width="8"/);
     } finally { await page.close(); }
   }, 60_000);
@@ -97,13 +96,12 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     try {
       await page.setContent(`<style>table{border-collapse:collapse}td{width:60px;border:2px solid blue}.r{border-right:6px solid red}.a{height:20px}.b{height:70px;border-left:8px dashed green}</style><table><tr><td class="r" rowspan="2">R</td><td class="a">A</td></tr><tr><td class="b">B</td></tr></table>`, { waitUntil: "load" });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const cell = find(tree, (n) => n.tag === "td" && n.text === "R")!;
-      const neighbor = find(tree, (n) => n.tag === "td" && n.text === "B")! as any;
-      const right = ((cell.styles as any).collapsedBorderSegments as Array<any>).filter((s) => s.side === "right");
-      const physicalSplit = (neighbor.y - (cell as any).y) / (cell as any).height;
-      expect(physicalSplit).not.toBeCloseTo(0.5, 2);
-      expect(right[0].end).toBeCloseTo(physicalSplit, 6);
-      expect(right[1].start).toBeCloseTo(physicalSplit, 6);
+      const table = find(tree, (n) => n.tag === "table")!;
+      const right = ((table.styles as any).collapsedBorderRects as Array<any>)
+        .filter((rect) => rect.axis === "column" && (rect.color === "rgb(255, 0, 0)" || rect.color === "rgb(0, 128, 0)"));
+      expect(right).toHaveLength(2);
+      expect(right[0].height).not.toBe(right[1].height);
+      expect(right[0].y + right[0].height).toBe(right[1].y);
     } finally { await page.close(); }
   }, 60_000);
 
@@ -112,13 +110,25 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     try {
       await page.setContent(`<style>table{border-collapse:collapse}td{height:30px;border:2px solid blue}.c{border-bottom:6px solid red}.a{width:25px}.b{width:95px;border-top:8px dashed green}</style><table><tr><td class="c" colspan="2">C</td></tr><tr><td class="a">A</td><td class="b">B</td></tr></table>`, { waitUntil: "load" });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const cell = find(tree, (n) => n.tag === "td" && n.text === "C")! as any;
-      const neighbor = find(tree, (n) => n.tag === "td" && n.text === "B")! as any;
-      const bottom = ((cell.styles as any).collapsedBorderSegments as Array<any>).filter((s) => s.side === "bottom");
-      const physicalSplit = (neighbor.x - cell.x) / cell.width;
-      expect(physicalSplit).not.toBeCloseTo(0.5, 2);
-      expect(bottom[0].end).toBeCloseTo(physicalSplit, 6);
-      expect(bottom[1].start).toBeCloseTo(physicalSplit, 6);
+      const table = find(tree, (n) => n.tag === "table")!;
+      const bottom = ((table.styles as any).collapsedBorderRects as Array<any>)
+        .filter((rect) => rect.axis === "row" && (rect.color === "rgb(255, 0, 0)" || rect.color === "rgb(0, 128, 0)"));
+      expect(bottom).toHaveLength(2);
+      expect(bottom[0].width).not.toBe(bottom[1].width);
+      expect(bottom[0].x + bottom[0].width).toBe(bottom[1].x);
+    } finally { await page.close(); }
+  }, 60_000);
+
+  it("maps vertical-rl RTL logical edges to physical table rectangles (DM-2320)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(`<style>table{border-collapse:collapse;writing-mode:vertical-rl;direction:rtl}td{width:34px;height:44px;border:2px solid blue}.a{border-right:7px solid red}.b{border-right:5px dashed green}</style><table><tr><td class="a">A</td><td class="b">B</td></tr></table>`, { waitUntil: "load" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const table = find(tree, (n) => n.tag === "table")!;
+      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      expect(rects.some((rect) => rect.width === 7 && rect.color === "rgb(255, 0, 0)")).toBe(true);
+      expect(rects.some((rect) => rect.width === 5 && rect.style === "dashed" && rect.color === "rgb(0, 128, 0)")).toBe(true);
+      expect(elementTreeToSvgInner(tree, W, H)).toContain('stroke="rgb(0,128,0)"');
     } finally { await page.close(); }
   }, 60_000);
 });

@@ -321,6 +321,17 @@ export interface CapturedStyles {
     style: string;
     color: string;
   }>;
+  /** Pixel-snapped physical rectangles produced by Chromium's table-level
+   * collapsed-border edge/joint model. Stored on the owning table only. */
+  collapsedBorderRects?: Array<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    axis: "row" | "column";
+    style: string;
+    color: string;
+  }>;
   overflowX: string;
   overflowY: string;
   /**

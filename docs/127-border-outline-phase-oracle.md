@@ -29,5 +29,17 @@ npm run borders:phase-oracle -- --keep /tmp/border-phase-artifacts
 
 `--keep` writes the native HTML PNG, emitted SVG, and img-rendered SVG PNG.
 These are diagnostics only and are never renderer fallbacks. Rounded corners,
-non-uniform sides, collapsed borders, writing modes, zoom, and other device
-scale factors remain outside this deliberately narrow corpus.
+non-uniform ordinary sides, zoom, and other device scale factors remain outside
+this deliberately narrow alpha-profile corpus.
+
+Collapsed table borders have a separate exact logical gate. The capture-side
+model mirrors Chromium's `TableBorders`: one logical edge grid, source merges
+in cell/row/section/column/column-group/table order, span-interior
+`kDoNotFill`, and exact-tie retention. It then mirrors
+`TablePainter::ComputeEdgeJoints`, converts through horizontal or vertical table
+writing direction (including RTL inline flow), and applies
+`ToPixelSnappedRect` semantics before recording table-owned physical edge
+rectangles. Unit tests grade each decision stage, the browser test checks the
+captured table contract, and `border-collapse-edge-graph` is the visual
+integration discriminator. Zoom, device-scale variation, fragmentation, and
+off-platform phase baselines remain the next oracle expansion.

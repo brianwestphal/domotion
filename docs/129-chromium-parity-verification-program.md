@@ -134,11 +134,13 @@ table sources in traversal order, and marks spanned-cell interiors
 `kDoNotFill`. `TablePainter::PaintCollapsedBorders` then resolves four-way
 joint ownership, converts each logical edge rectangle through the table's
 writing direction, and pixel-snaps the resulting physical rectangle before
-calling `DrawBoxSide`. Domotion's current per-cell physical-side ownership,
-off-grid consensus escape hatch, and center-stroked line output cannot encode
-those decisions exactly. DM-2320 replaces that approximation with the
-table-level edge and joint model; DM-2321 subsequently expands the phase oracle
-over zoom, device scale, and all three platforms.
+calling `DrawBoxSide`. Domotion now performs those stages once at the owning
+table: its pure logical graph and joint functions have exact decision tests,
+capture records the resulting physical rectangles, and the renderer paints the
+single edge layer after table-part backgrounds. The generated visual fixture
+crosses spans, unequal tracks, conflicts, joints, vertical-rl, and RTL at 0
+regions / 0.00%. DM-2321 subsequently expands the phase oracle over zoom,
+device scale, and all three platforms.
 
 ### Generated and metamorphic coverage
 

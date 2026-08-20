@@ -898,6 +898,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0t754js340lmjt",
+          "message": {
+            "text": "Collapsed edges paint after child table-part backgrounds because that is the TablePainter ownership boundary. Emitting the same rectangles in the table box phase was falsified by the focused fixture: cell backgrounds covered the complete edge layer.",
+            "markdown": "Collapsed edges paint after child table-part backgrounds because that is the TablePainter ownership boundary. Emitting the same rectangles in the table box phase was falsified by the focused fixture: cell backgrounds covered the complete edge layer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4935,
+                  "endLine": 4940,
+                  "snippet": {
+                    "text": "\n  // Blink's TablePainter paints the collapsed edge graph after cell/row/table\n  // backgrounds. Emitting here gives the single table-owned layer the same\n  // ownership and prevents descendant backgrounds from covering its edges.\n  paintCollapsedBorderRects(paintCtx, el, indent);\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2320"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b946abaa25ca29c39357795e5fbb0572"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9cf3971f05da97845212ecad113fc7a3546565c9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1514,6 +1514,62 @@ function paintUniformSolidBorder(
 // coupling phase: it mints many per-side clip ids (and the border-image pass mints
 // its own), so clipIdx is threaded in and the advanced value returned, keeping the
 // positional id sequence byte-identical. Returns { svg, defs, clipIdx }.
+function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, indent: string): boolean {
+  const rects = el.styles.collapsedBorderRects;
+  if (rects == null) return false;
+  for (const rect of rects) {
+    const color = parseColor(rect.color);
+    if (color == null || color.a < 0.01 || rect.width <= 0 || rect.height <= 0) continue;
+    const fill = colorStr(color);
+    const horizontal = rect.width >= rect.height;
+    const thickness = horizontal ? rect.height : rect.width;
+    const length = horizontal ? rect.width : rect.height;
+    if (rect.style === "solid" || thickness < 1) {
+      ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}" fill="${fill}" />`);
+      continue;
+    }
+    if (rect.style === "double" && thickness >= 3) {
+      const stripe = thickness / 3;
+      if (horizontal) {
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(stripe)}" fill="${fill}" />`);
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y + thickness - stripe)}" width="${r(rect.width)}" height="${r(stripe)}" fill="${fill}" />`);
+      } else {
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(stripe)}" height="${r(rect.height)}" fill="${fill}" />`);
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x + thickness - stripe)}" y="${r(rect.y)}" width="${r(stripe)}" height="${r(rect.height)}" fill="${fill}" />`);
+      }
+      continue;
+    }
+    if (rect.style === "dashed" || rect.style === "dotted") {
+      const clipId = ctx.nextClipId("cb");
+      ctx.defsParts.push(`<clipPath id="${clipId}"><rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"/></clipPath>`);
+      const { array, offset } = adjustedDashAttrs(rect.style, thickness, length);
+      const dash = array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+      const cap = rect.style === "dotted" ? ` stroke-linecap="round"` : "";
+      const x1 = horizontal ? rect.x : rect.x + thickness / 2;
+      const y1 = horizontal ? rect.y + thickness / 2 : rect.y;
+      const x2 = horizontal ? rect.x + rect.width : x1;
+      const y2 = horizontal ? y1 : rect.y + rect.height;
+      ctx.svgParts.push(`${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${fill}" stroke-width="${r(thickness)}"${dash}${cap} clip-path="url(#${clipId})" />`);
+      continue;
+    }
+    if (isBevelStyle(rect.style)) {
+      const dark = colorStr({ r: Math.round(color.r * 2 / 3), g: Math.round(color.g * 2 / 3), b: Math.round(color.b * 2 / 3), a: color.a });
+      const first = rect.style === "outset" || rect.style === "ridge" ? fill : dark;
+      const second = rect.style === "groove" || rect.style === "ridge" ? (first === fill ? dark : fill) : first;
+      if (rect.style === "inset" || rect.style === "outset") {
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}" fill="${first}" />`);
+      } else if (horizontal) {
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(thickness / 2)}" fill="${first}" />`);
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y + thickness / 2)}" width="${r(rect.width)}" height="${r(thickness / 2)}" fill="${second}" />`);
+      } else {
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(thickness / 2)}" height="${r(rect.height)}" fill="${first}" />`);
+        ctx.svgParts.push(`${indent}<rect x="${r(rect.x + thickness / 2)}" y="${r(rect.y)}" width="${r(thickness / 2)}" height="${r(rect.height)}" fill="${second}" />`);
+      }
+    }
+  }
+  return true;
+}
+
 function paintBorder(
   ctx: PaintCtx,
   el: CapturedElement,
@@ -1559,6 +1615,14 @@ function paintBorder(
     );
     ctx.svgParts.push(`${indent}<g clip-path="url(#${notchId})">`);
     notchedBorderOpen = true;
+  }
+
+  // Collapsed table borders belong to TablePainter, after all table-part
+  // backgrounds. The post-child inline phase emits their table-owned rects;
+  // suppress the ordinary per-box border here without painting them early.
+  if (!borderImagePainted && el.styles.collapsedBorderRects != null) {
+    if (notchedBorderOpen) ctx.svgParts.push(`${indent}</g>`);
+    return;
   }
 
   if (suppressEmptyCell) {
@@ -4868,6 +4932,11 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     renderChildInlinePhase(state, childPlan, depth);
     if (childClipId != null) svgParts.push(`${indent}</g>`);
   }
+
+  // Blink's TablePainter paints the collapsed edge graph after cell/row/table
+  // backgrounds. Emitting here gives the single table-owned layer the same
+  // ownership and prevents descendant backgrounds from covering its edges.
+  paintCollapsedBorderRects(paintCtx, el, indent);
 
   // DM-1001: emit deferred fade-overlay `::after` pseudoBoxes AFTER all
   // child recursion. The `::before` loop above skipped these so they paint

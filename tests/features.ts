@@ -225,6 +225,15 @@ export const tests: FeatureTest[] = [
     name: "border-radius-pill",
     html: `<div style="padding: 20px; display: flex; gap: 8px;"><div style="background: #161b22; border: 1px solid #30363d; border-radius: 20px; padding: 6px 14px; color: #8b949e; font-family: -apple-system, sans-serif; font-size: 12px; display: inline-block;">tag-one</div><div style="background: #161b22; border: 1px solid #30363d; border-radius: 20px; padding: 6px 14px; color: #8b949e; font-family: -apple-system, sans-serif; font-size: 12px; display: inline-block;">tag-two</div></div>`,
   },
+  {
+    // Chromium paints collapsed borders from one logical table edge graph, not
+    // as four borders on every cell. Crosses spans, unequal tracks, conflicting
+    // widths/styles, four-way joints, and vertical-rl + RTL physical mapping.
+    name: "border-collapse-edge-graph",
+    html: `<div style="padding:20px;background:#fff;display:flex;gap:30px"><style>.cg{border-collapse:collapse}.cg td{box-sizing:border-box;width:70px;height:38px;border:2px solid #2563eb}.cg .span{border-right:6px solid #dc2626}.cg .wide{height:62px;border-left:8px dashed #16a34a}.vg{writing-mode:vertical-rl;direction:rtl}.vg .a{border-right:7px solid #dc2626}.vg .b{border-right:5px dashed #16a34a}</style><table class="cg"><tr><td class="span" rowspan="2"></td><td></td></tr><tr><td class="wide"></td></tr></table><table class="cg vg"><tr><td class="a"></td><td class="b"></td></tr></table></div>`,
+    width: 520,
+    height: 190,
+  },
 
   // ── Layout ──
   {
