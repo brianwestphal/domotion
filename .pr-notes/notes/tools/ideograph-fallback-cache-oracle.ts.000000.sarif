@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1e79qcjmj1qj8l",
+          "message": {
+            "text": "The oracle proves activation rather than merely recording plausible faces: an isolated renderer selects Songti Black on this host, the dense ordered Ext-A sequence selects Bold and preserves it across navigation, and a separately spawned cache-disabled arm deliberately returns Black for both ordered rows.",
+            "markdown": "The oracle proves activation rather than merely recording plausible faces: an isolated renderer selects Songti Black on this host, the dense ordered Ext-A sequence selects Bold and preserves it across navigation, and a separately spawned cache-disabled arm deliberately returns Black for both ordered rows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/ideograph-fallback-cache-oracle.ts"
+                },
+                "region": {
+                  "startLine": 69,
+                  "endLine": 145,
+                  "snippet": {
+                    "text": "  const rows: Row[] = [];\n  const isolatedBrowser = await chromium.launch({ headless: true });\n  try {\n    clearCharacterFallbackRendererScopesForTest();\n\n    const isolated = await freshContext(isolatedBrowser);\n    await isolated.page.setContent(`<span id=\"target\" style=\"${CSS}\">${String.fromCodePoint(TARGET)}</span>`);\n    beginCharacterFallbackDocument();\n    const isolatedKey = domotionAsk(TARGET);\n    endCharacterFallbackDocument();\n    rows.push(row(\"fresh-renderer isolated target\", await selectedPostScript(isolated.page, \"#target\"), isolatedKey));\n    await isolated.context.close();\n    await isolatedBrowser.close();\n\n    const browser = await chromium.launch({ headless: true });\n    const ordered = await freshContext(browser);\n    await ordered.page.setContent(`<span id=\"seed\" style=\"${CSS}\">${String.fromCodePoint(...DENSE_EXT_A)}</span><span id=\"target\" style=\"${CSS}\">${String.fromCodePoint(TARGET)}</span>`);\n    const rendererSession = createFontRendererSession();\n    const orderedKey = withFontRendererSession(rendererSession, () => {\n      beginCharacterFallbackDocument();\n      try {\n        for (const cp of DENSE_EXT_A) domotionAsk(cp);\n        return domotionAsk(TARGET);\n      }\n      finally { endCharacterFallbackDocument(); }\n    });\n    rows.push(row(\"same-renderer ordered sequence\", await selectedPostScript(ordered.page, \"#target\"), orderedKey));\n\n    // setContent navigates the same Page. Re-select the explicit renderer id;\n    // production state must survive exactly this boundary.\n    await ordered.page.setContent(`<span id=\"target\" style=\"${CSS}\">${String.fromCodePoint(TARGET)}</span>`);\n    const navigationKey = withFontRendererSession(rendererSession, () => {\n      beginCharacterFallbackDocument();\n      try { return domotionAsk(TARGET); }\n      finally { endCharacterFallbackDocument(); }\n    });\n    rows.push(row(\"same-renderer navigation\", await selectedPostScript(ordered.page, \"#target\"), navigationKey));\n    await ordered.context.close();\n    await browser.close();\n\n    const activation = {\n      chromiumSequenceMoved: rows[0].chromiumPostScript !== rows[1].chromiumPostScript,\n      domotionSequenceMoved: rows[0].domotionKey !== rows[1].domotionKey,\n      domotionNavigationReused: rows[1].domotionKey === rows[2].domotionKey,\n    };\n    const enabledOkay = activation.chromiumSequenceMoved && activation.domotionSequenceMoved && activation.domotionNavigationReused;\n    const disabledOkay = activation.chromiumSequenceMoved && !activation.domotionSequenceMoved && activation.domotionNavigationReused;\n    if ((!disabledArm && !enabledOkay) || (disabledArm && !disabledOkay)) {\n      throw new Error(`Ideograph fallback-cache oracle mismatch: ${JSON.stringify({ rows, activation })}`);\n    }\n    const result: Record<string, unknown> = {\n      sourceRevision: \"7d859f271cbda744098ac69f44978d4edfa62be3\",\n      platform: process.platform,\n      rows,\n      activation,\n    };\n    if (!disabledArm) {\n      const child = spawnSync(process.execPath, [\"--import\", \"tsx\", import.meta.filename, \"--disabled-arm\"], {\n        encoding: \"utf8\",\n        env: { ...process.env, DOMOTION_MAC_CHAR_FALLBACK_CACHE: \"0\" },\n      });\n      if (child.status !== 0) throw new Error(`Disabled cache arm failed:\\n${child.stderr}`);\n      result.disabledArm = JSON.parse(child.stdout) as unknown;\n    }\n    console.log(JSON.stringify(result, null, 2));\n  } finally {\n    await isolatedBrowser.close().catch(() => {});\n  }\n}\n\nawait main();\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2401"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ed5f4e830f035e5adc1f90635d11ee02"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "50d3dc639e77749816392b618ca5a55b2616bbf2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

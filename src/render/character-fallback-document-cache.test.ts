@@ -18,14 +18,18 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   __characterFallbackDocumentCacheForTest,
+  __characterFallbackIdentityForTest,
   __resolveSystemFallbackKeyForCpForTest,
   beginCharacterFallbackDocument,
   clearFontResolutionCaches,
+  clearCharacterFallbackRendererScopesForTest,
+  createFontRendererSession,
   endCharacterFallbackDocument,
   getFontInstance,
   resolveFontKey,
   resolveFontSpec,
   selectCharacterFallbackRendererScope,
+  withFontRendererSession,
 } from "./font-resolution.js";
 import { __fcFallbackRendererCacheForTest, isGlyphHelperAvailable } from "./glyph-helper.js";
 import { isIdeographicCp } from "./unicode-classification.js";
@@ -61,6 +65,26 @@ afterEach(() => {
   // Close any scope a failing test left open; a leaked scope would make the
   // REMAINING tests order-dependent, which is the exact defect class under test.
   while (__characterFallbackDocumentCacheForTest() != null) endCharacterFallbackDocument();
+  clearCharacterFallbackRendererScopesForTest();
+});
+
+describe("CharacterFallbackKey exact identity (DM-2401)", () => {
+  const key = (weight = 400, slope = 0, orientation = 0, size = 16) =>
+    __characterFallbackIdentityForTest("Times-Roman", weight, slope, orientation, size);
+
+  it("uses Blink's quarter-unit raw weight and full raw slope", () => {
+    expect(key()).toBe("Times-Roman|1600|0|0|16");
+    expect(key(400, 14)).toBe("Times-Roman|1600|56|0|16");
+    expect(key(400, 14.25)).toBe("Times-Roman|1600|57|0|16");
+    expect(key(400, -12.5)).toBe("Times-Roman|1600|-50|0|16");
+  });
+
+  it("separates orientation, effective size, and weight independently", () => {
+    const base = key();
+    expect(key(400, 0, 3)).not.toBe(base);
+    expect(key(400, 0, 0, 16.25)).not.toBe(base);
+    expect(key(500)).not.toBe(base);
+  });
 });
 
 describe("isIdeographicCp mirrors [:Ideographic=Yes:]", () => {
@@ -101,6 +125,38 @@ describe("document scope lifecycle", () => {
     endCharacterFallbackDocument();
     beginCharacterFallbackDocument();
     expect(__characterFallbackDocumentCacheForTest()!.size).toBe(0);
+    endCharacterFallbackDocument();
+  });
+
+  it("reuses state only within the same owned renderer session", () => {
+    const a = createFontRendererSession();
+    const b = createFontRendererSession();
+    withFontRendererSession(a, () => {
+      beginCharacterFallbackDocument();
+      __characterFallbackDocumentCacheForTest()!.set("sentinel", "pingfang-sc");
+      endCharacterFallbackDocument();
+    });
+    withFontRendererSession(a, () => {
+      beginCharacterFallbackDocument();
+      expect(__characterFallbackDocumentCacheForTest()!.get("sentinel")).toBe("pingfang-sc");
+      endCharacterFallbackDocument();
+    });
+    withFontRendererSession(b, () => {
+      beginCharacterFallbackDocument();
+      expect(__characterFallbackDocumentCacheForTest()!.has("sentinel")).toBe(false);
+      endCharacterFallbackDocument();
+    });
+  });
+
+  it("restores the previous selection so unrelated default renders stay isolated", () => {
+    const session = createFontRendererSession();
+    withFontRendererSession(session, () => {
+      beginCharacterFallbackDocument();
+      __characterFallbackDocumentCacheForTest()!.set("sentinel", "pingfang-sc");
+      endCharacterFallbackDocument();
+    });
+    beginCharacterFallbackDocument();
+    expect(__characterFallbackDocumentCacheForTest()!.has("sentinel")).toBe(false);
     endCharacterFallbackDocument();
   });
 });
@@ -240,7 +296,7 @@ describeDarwin("ideograph fallback answers (darwin, live helper)", () => {
     // At 800 the base is the BOLD cut of the primary, not the family's base
     // entry — Blink keys on `platform_data.CtFont()`'s PostScript name, the
     // face MatchFontFamily selected at the CSS weight.
-    expect(key).toContain("|800|");
+    expect(key).toContain("|3200|"); // FontSelectionValue::RawValue() = CSS weight × 4
     expect(key.split("|")[0]).not.toBe("");
     const boldCutPs = getFontInstance(resolveFontKey("serif"), 800, 16, 0)?.postscriptName;
     if (boldCutPs != null && boldCutPs !== spec?.postscriptName) {

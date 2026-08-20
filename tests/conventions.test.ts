@@ -99,6 +99,7 @@ describe("project conventions", () => {
     const ALLOWED = new Set([
       // lifecycle / scoping
       "beginCharacterFallbackDocument", "endCharacterFallbackDocument",
+      "createFontRendererSession", "withFontRendererSession", "FontRendererSession",
       "resetGeneration", "snapshotGeneration", "restoreGeneration",
       "glyphDefCount", "getGlyphDefsSince", "truncateGlyphDefs",
       "getEmbeddedFontFaceCss", "withRenderTextMode", "RenderTextMode",

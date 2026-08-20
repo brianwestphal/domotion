@@ -225,6 +225,15 @@ invariance where shaping context is unchanged, translation covariance,
 equivalent computed-style syntax, helper-path movement, and scale-normalized
 geometry.
 
+The macOS font-selection leg additionally treats Blink's ideograph fallback
+cache as a state machine. Its browser/helper oracle compares an isolated target,
+an ordered Ext-A-plus-common-Han sequence, and navigation in the same renderer;
+the matching Domotion arm uses an owned `FontRendererSession`. The oracle fails
+unless the ordered sequence activates the cache and the selected face survives
+navigation, while a separately launched Chromium process supplies the isolated
+control. Key unit rows independently cross raw weight, full oblique slope,
+orientation, and effective size.
+
 The external `html-test` integration corpus also carries composed pages rather
 than only one-property fixtures. Its real-world slice includes editorial,
 pricing, mobile-app, dense admin-dashboard, multilingual messaging, and

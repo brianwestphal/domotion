@@ -490,12 +490,12 @@ kept-nominated Bold was cached and answered for every later ideograph it
 covers. A context-free resolver paints two Songti cuts on a page where Chrome
 paints one.
 
-The mirror is a document-scoped cache around the darwin branch of
+The mirror is a renderer-session-owned cache around the darwin branch of
 `resolveSystemFallbackKeyForCp` — see doc
 [font-resolution-diagram § 8b](font-resolution-diagram.md) for scope rules
-(explicit `beginCharacterFallbackDocument()` / `end…()` pairs opened per
-top-level render, per multi-frame composition, and per oracle sweep; no scope →
-context-free, so ordering can only ever be document order, never sweep order).
+(`FontRendererSession` objects are owned by `DemoRecorder` and composition
+sessions; synchronous renders activate one while standalone renders remain
+isolated). This matches Blink's renderer-process lifetime across navigation.
 Two flags A/B the mechanism: `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` disables the
 document cache; `DOMOTION_FALLBACK_BASE_CUT=0` restores the base-entry cascade
 base (the base must otherwise be the primary's weight-matched cut —

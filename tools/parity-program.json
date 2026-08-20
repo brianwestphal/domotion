@@ -9,10 +9,10 @@
       "oracle": "tools/font-conformance.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets",
+      "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets; ordered macOS ideograph renderer-lifetime transitions",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "The exhaustive resolver oracle and representative renderer-route oracle prove different stages; helper-absent paths remain intentionally degraded and full renderer-route transition enumeration is expanded alongside new mechanisms.",
-      "nextAction": "Keep both resolver and renderer-route instruments green on all platforms and add a route case/control whenever production gains a new assignment or emitter transition."
+      "nextAction": "Keep resolver, renderer-route, and tools/ideograph-fallback-cache-oracle.ts green and add a route case/control whenever production gains a new assignment or emitter transition."
     },
     {
       "id": "unicode-decisions",

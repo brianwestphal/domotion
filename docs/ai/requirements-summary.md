@@ -1110,11 +1110,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   pre-DM-1889 Windows conformance figure describes the static chain and is not
   comparable to a later one. **DM-1949 makes the macOS half order-dependent, as
   Chrome's is:** Blink caches ideograph (`[:Ideographic=Yes:]`) fallback per
-  (base font, weight, style, size) on the renderer's FontCache — first ask wins,
+  (base font, raw weight, raw style, orientation, effective size) on the renderer's FontCache — first ask wins,
   later covered ideographs reuse it without re-asking CoreText — so the resolver
-  now mirrors that with a DOCUMENT-scoped cache (`beginCharacterFallbackDocument`
-  / `end…`; opened per top-level render, per multi-frame composition, and
-  spanning a whole oracle sweep; no scope open → context-free as before), and the
+  now mirrors that with an owned `FontRendererSession` (one per `DemoRecorder`
+  or composition lifetime; standalone renders are isolated), and the
   cascade base became the primary's WEIGHT-MATCHED cut (Times-Bold at 800, not
   Times-Roman) since `CTFontCreateForString`'s nomination tracks the base's cut.
   A/B flags `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` / `DOMOTION_FALLBACK_BASE_CUT=0`.

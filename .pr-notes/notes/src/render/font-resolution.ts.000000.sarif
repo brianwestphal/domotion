@@ -1891,6 +1891,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1e79ec8nbnk7u3",
+          "message": {
+            "text": "Renderer cache ownership uses explicit weakly-held session objects because Blink stores this state on the renderer's thread-specific FontCache. Synchronous activation lets DemoRecorder preserve it across navigation without an async module-global scope leaking between interleaved recorders.",
+            "markdown": "Renderer cache ownership uses explicit weakly-held session objects because Blink stores this state on the renderer's thread-specific FontCache. Synchronous activation lets DemoRecorder preserve it across navigation without an async module-global scope leaking between interleaved recorders."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 2980,
+                  "endLine": 3035,
+                  "snippet": {
+                    "text": "export interface FontRendererSession { readonly _fontRendererSession: symbol }\nconst _charFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();\nlet _requestedCharFallbackRendererSession: FontRendererSession | null = null;\n\nexport function createFontRendererSession(): FontRendererSession {\n  return Object.freeze({ _fontRendererSession: Symbol(\"font-renderer-session\") });\n}\n\n/** Select a renderer lifetime only for the synchronous render callback. */\nexport function withFontRendererSession<T>(session: FontRendererSession, render: () => T): T {\n  const previous = _requestedCharFallbackRendererSession;\n  _requestedCharFallbackRendererSession = session;\n  try { return render(); } finally { _requestedCharFallbackRendererSession = previous; }\n}\n\n/** Open a document scope for the ideograph fallback cache (nested calls share\n *  the outermost scope). Pair with `endCharacterFallbackDocument` in `finally`. */\nexport function beginCharacterFallbackDocument(): void {\n  if (_charFallbackDocDepth === 0) {\n    const rendererSession = _requestedCharFallbackRendererSession;\n    if (rendererSession == null) {\n      _charFallbackDocCache = new Map();\n    } else {\n      let cache = _charFallbackRendererCaches.get(rendererSession);\n      if (cache == null) {\n        cache = new Map();\n        _charFallbackRendererCaches.set(rendererSession, cache);\n      }\n      _charFallbackDocCache = cache;\n    }\n    beginFcFallbackRendererScope();\n  }\n  _charFallbackDocDepth++;\n}\n\n/** Close the current document scope; the outermost close drops the state. */\nexport function endCharacterFallbackDocument(): void {\n  if (_charFallbackDocDepth > 0) _charFallbackDocDepth--;\n  if (_charFallbackDocDepth === 0) {\n    _charFallbackDocCache = null;\n    endFcFallbackRendererScope();\n  }\n}\n\n/** Oracle seam: select the renderer cache corresponding to an isolated context. */\nexport function selectCharacterFallbackRendererScope(key: string): void {\n  // The named scope is retained for the Linux fontconfig oracle. Darwin\n  // production rendering uses owned FontRendererSession objects above.\n  selectFcFallbackRendererScope(key);\n}\n\n/** Test/oracle lifecycle: discard all remembered renderer identities. */\nexport function clearCharacterFallbackRendererScopesForTest(): void {\n  _requestedCharFallbackRendererSession = null;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2401"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "06b53dad6c46690c979a66dc9b87b9e0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "50d3dc639e77749816392b618ca5a55b2616bbf2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

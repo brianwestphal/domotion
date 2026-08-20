@@ -22,6 +22,7 @@ import { clipRectForScreenshot } from "./clip-rect.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
+import { createFontRendererSession, withFontRendererSession, type FontRendererSession } from "../render/font-resolution.js";
 // Brand kit (docs/85 + docs/92). `brand.js` has no browser/Playwright deps
 // (node:fs / node:path / zod only), so importing it here creates no cycle with
 // the capture pipeline (the template subsystem imports FROM this module, not the
@@ -212,6 +213,7 @@ export class DemoRecorder {
   private embedRemoteImagesResize: boolean;
   private embedRemoteImagesHiDPIFactor: number | undefined;
   private captureCrossOriginFrames: string | undefined;
+  private readonly fontRendererSession: FontRendererSession = createFontRendererSession();
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
@@ -306,7 +308,8 @@ export class DemoRecorder {
     // <defs> contain only its own fonts/glyphs (the renderer repopulates them
     // during elementTreeToSvg, emitting into this frame's <defs>).
     resetGeneration();
-    return elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
+    return withFontRendererSession(this.fontRendererSession, () =>
+      elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2));
   }
 
   /** Capture the current page state as SVG content. */

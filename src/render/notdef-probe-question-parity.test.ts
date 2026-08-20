@@ -121,7 +121,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"))
       .replace(/\s+/g, " ");
     expect(body).toContain(
-      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji).covered;",
+      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, undefined, rawSlope, orientation).covered;",
     );
   });
 
@@ -150,7 +150,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // each dropped once before.
     const call = TEXT_TO_PATH_SRC.replace(/\s+/g, " ");
     expect(call).toContain(
-      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)",
+      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation)",
     );
     // And the chain is derived the same way the run splitters derive it —
     // lang included, since the settings-mapped generics and the standard
@@ -169,9 +169,11 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     expect(perAsker[0]).toContain("lang");
     expect(perAsker[0]).toContain("stretch");
     expect(perAsker[0]).toContain("fontVariantEmoji");
+    expect(perAsker[0]).toContain("rawSlope");
+    expect(perAsker[0]).toContain("orientation");
   });
 
-  it("keeps every remaining run-context asker's argument list ending in systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily", () => {
+  it("keeps every remaining run-context asker's argument list ending in the complete Blink description", () => {
     // Pins the ORDER too: `resolveSystemFallbackKeyForCp` takes
     // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch,
     // fontVariantEmoji, declaredFamily), and the trailing five are optional
@@ -181,7 +183,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // (the primary-vs-declared-name divergence this ticket closed).
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
-      expect(args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily"), `${name}: ${args}`).toBe(true);
+      expect(args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation"), `${name}: ${args}`).toBe(true);
     }
   });
 
@@ -191,7 +193,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // call site must read the stack. (The argument used to sit last in these
     // calls; the run's `stretch` now follows it, so the pin matches the call
     // shape rather than a trailing position.)
-    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily, lang), stretch)");
+    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily, lang), stretch,");
     expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif')).toBe(false);
     // The key-collapse itself exists only where the named SF Pro family

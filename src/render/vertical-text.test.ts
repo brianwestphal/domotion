@@ -22,7 +22,18 @@ const {
   renderVerticalSegments,
   renderVerticalEmphasisMarks,
   lineRelativeToPhysicalTransform,
+  blinkFontOrientation,
 } = await import("./vertical-text.js");
+
+describe("Blink fallback orientation identity", () => {
+  it("keys the run orientation rather than each glyph paint orientation", () => {
+    expect(blinkFontOrientation()).toBe(0);
+    expect(blinkFontOrientation("vertical-rl", "mixed")).toBe(2);
+    expect(blinkFontOrientation("vertical-lr", "upright")).toBe(3);
+    expect(blinkFontOrientation("sideways-lr", "mixed")).toBe(1);
+    expect(blinkFontOrientation("vertical-rl", "sideways")).toBe(1);
+  });
+});
 
 // renderTextAsPath args under test: (text, x, y, options).
 const ARG_TEXT = 0;

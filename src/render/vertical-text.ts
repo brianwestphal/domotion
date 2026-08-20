@@ -245,6 +245,9 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       if (inner != null) out.push(inner);
       continue;
     }
+    // Blink keys fallback by FontDescription::Orientation for the whole run,
+    // not by each glyph's eventual upright/rotated paint orientation.
+    const fontOrientation = blinkFontOrientation(seg.verticalWritingMode, el.styles.textOrientation);
     const yOffsets = seg.yOffsets;
     const orientations = seg.verticalOrientations;
     const advances = seg.verticalAdvances;
@@ -275,6 +278,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         const inner = renderTextAsPath(ch, colX, charY, {
           fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
           fontStyle, ascentOverride: segAscent,
+          fontOrientation,
           fontStretch: el.styles.fontStretch,
         });
         if (inner == null) { i += step; continue; }
@@ -307,6 +311,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         const inner = renderTextAsPath(ch, xLeft, baseline, {
           fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
           fontStyle, ascentOverride: 0,
+          fontOrientation,
           features: vertPunct ? ["vert"] : undefined,
           fontStretch: el.styles.fontStretch,
         });
@@ -320,6 +325,13 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
   const emphasis = renderVerticalEmphasisMarks(el, fillColor);
   if (emphasis !== "") out.push(emphasis);
   return out.join("");
+}
+
+/** Blink FontDescription::Orientation values used by the fallback-cache key. */
+export function blinkFontOrientation(writingMode?: string, textOrientation?: string): 0 | 1 | 2 | 3 {
+  if (writingMode == null || writingMode.startsWith("horizontal")) return 0;
+  if (writingMode.startsWith("sideways") || textOrientation === "sideways") return 1;
+  return textOrientation === "upright" ? 3 : 2;
 }
 
 /**

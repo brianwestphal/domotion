@@ -2133,16 +2133,13 @@ first ask keeps the nominated Bold, that Bold is cached, and every later
 ideograph Bold covers paints Bold — including ones that would resolve to Black
 alone. One Songti cut on the page in Chrome, two in a context-free resolver.
 
-The mirror is a **document-scoped** cache around the darwin branch of
-`resolveSystemFallbackKeyForCp`, active only between
-`beginCharacterFallbackDocument()` / `endCharacterFallbackDocument()`
-(depth-counted). Every top-level render (`elementTreeToSvgInner`) opens a fresh
-scope; the multi-frame composers (`generateAnimatedSvg`, `composeScrollSvg`)
-open one spanning scope, since all frames of a capture session shared one
-renderer cache in Chrome; the conformance oracle opens one spanning its whole
-sweep, because its single probe page is one renderer. With no scope open the
-resolver stays context-free — so answers can depend on DOCUMENT order (modeled,
-matches Chrome) but never on sweep order across renders in one Node process.
+The mirror is owned by an explicit `FontRendererSession` around the darwin
+branch of `resolveSystemFallbackKeyForCp`. `DemoRecorder` creates one session
+for its lifetime, so navigation on its Playwright Page keeps Blink-equivalent
+state; multi-frame composers likewise use one session. A standalone render gets
+an ephemeral scope, while `withFontRendererSession` synchronously activates an
+owned session without an async module-global lifetime. Session maps are held
+weakly, so discarded recorders cannot create an unbounded registry.
 The scope deliberately survives `clearFontResolutionCaches()`: it is modeled
 state, not a memo. `DOMOTION_MAC_CHAR_FALLBACK_CACHE=0` disables the model.
 

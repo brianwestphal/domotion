@@ -244,10 +244,16 @@ export function splitTextIntoGlyphPathRuns(
   features?: string[],
   /** CSS bidi override applied before Blink's script/run segmentation. */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  /** Exact Blink cache-key request state; neither field changes shaping. */
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): FontRun[] {
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { mode: "paths", features, bidiOverride });
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
+      mode: "paths", features, bidiOverride,
+      fallbackRawSlope: fallbackRequest?.rawSlope,
+      fallbackOrientation: fallbackRequest?.orientation,
+    });
     if (shaped != null) return shaped;
   }
   const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = clusterEnabled ? "cluster-decline-legacy" : "cluster-disabled-legacy";
@@ -311,7 +317,11 @@ export function splitTextIntoGlyphPathRuns(
     // The property must not override an explicit VS15/VS16 in the text
     // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
     const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
+    const res = clusterRun != null ? null : resolveFontForCodepoint(
+      cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+      variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve,
+      fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation,
+    );
     if (clusterRun != null) {
       emitCh = ch;
       useKey = clusterRun.key;
@@ -392,7 +402,7 @@ export function textFontRequest(
   fontStretch: string | undefined,
 ): { weight: number; slant: number; stretch: number } {
   return {
-    weight: parseInt(fontWeight) || 400,
+    weight: parseFloat(fontWeight) || 400,
     slant: slantForStyle(fontStyle),
     stretch: stretchPercent(fontStretch),
   };
@@ -474,6 +484,7 @@ function renderTextPathRuns(
    * since that already occupies the stroke attributes).
    */
   fauxBold?: { fill: string },
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): TextPathResult | null {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
@@ -504,7 +515,7 @@ function renderTextPathRuns(
   // Math-Alphanumeric base letters, dotted-circle clusters); those render
   // through the run-text / min-x anchored branch — the per-char path (which
   // reads `text` by index) can't be used for them.
-  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride, fallbackRequest);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
@@ -989,11 +1000,12 @@ export function textToPathMarkup(
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
   fauxBold?: { fill: string },
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): TextPathResult | null {
   return renderTextPathRuns(
     text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle,
     features, lang, variationSettings, bidiOverride, fontStretch,
-    fontVariantEmoji, fontSynthesis, fauxBold,
+    fontVariantEmoji, fontSynthesis, fauxBold, fallbackRequest,
   );
 }
 
@@ -1322,6 +1334,7 @@ export function insertSyntheticDottedCircles(
    *  An explicit U+25CC makes the syllable based, so HarfBuzz does not insert a
    *  second circle. */
   shapeUncoveredOrphansNatively = false,
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): { text: string; xOffsets: number[] | undefined } {
   // Fast path: nothing to do when the text has no combining marks AND the
   // capture probe flagged no codepoints (the latter can be category-Lo cluster
@@ -1528,7 +1541,8 @@ export function insertSyntheticDottedCircles(
       if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
           && !(shapeUncoveredOrphansNatively && logicalShapeFont?.shapesWithHarfbuzz === true)
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)) {
+            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch,
+            undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {
@@ -1566,7 +1580,8 @@ export function insertSyntheticDottedCircles(
       // (Soyombo) are handled by the notdef path above instead.
       const coveredMarkResolution = probeFlagged && logicalHbRun == null
         ? resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-          variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch)
+          variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch,
+          undefined, undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation)
         : null;
       const coveredMarkFont = logicalHbRun?.font
         ?? (coveredMarkResolution?.covered === true
@@ -1699,6 +1714,7 @@ function splitTextIntoFontRuns(
   /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
   features?: string[],
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): FontRun[] {
   // Default: fallback at shaped-cluster granularity — Blink's shape-then-
   // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
@@ -1707,7 +1723,11 @@ function splitTextIntoFontRuns(
   // restores it wholesale for an A/B. See docs/113-cluster-granularity-fallback.md.
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { features, bidiOverride });
+    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
+      features, bidiOverride,
+      fallbackRawSlope: fallbackRequest?.rawSlope,
+      fallbackOrientation: fallbackRequest?.orientation,
+    });
     if (shaped != null) return shaped;
   }
   const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = clusterEnabled ? "cluster-decline-legacy" : "cluster-disabled-legacy";
@@ -1849,7 +1869,11 @@ function splitTextIntoFontRuns(
     // Explicit VS15/VS16 wins over `font-variant-emoji` (`HasVSFallbackPriority`,
     // `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
     const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
+    const res = clusterRun != null ? null : resolveFontForCodepoint(
+      cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+      variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve,
+      fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation,
+    );
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;
     const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
@@ -1956,6 +1980,7 @@ function renderEmbeddedGlyphRuns(
   fontSynthesis?: FontSynthesisAllowance,
   /** CSS bidi override applied before Blink's script/run segmentation. */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): string | null {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
@@ -1968,7 +1993,7 @@ function renderEmbeddedGlyphRuns(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride, fallbackRequest);
   if (runs.length === 0) return null;
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -2650,12 +2675,13 @@ function renderTextAsEmbedded(
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  fallbackRequest?: { rawSlope: number; orientation: number },
 ): string | null {
   return renderEmbeddedGlyphRuns(
     text, x, y, fontSize, fontFamily, fontWeight, fill, xOffsets, fontStyle,
     ascentOverride, features, lang, variationSettings, textStrokeWidth,
     textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-    fontSynthesis, bidiOverride,
+    fontSynthesis, bidiOverride, fallbackRequest,
   );
 }
 
@@ -2693,6 +2719,9 @@ export interface TextFontOptions {
   fontWeight: string | number;
   /** CSS font-style; 'italic' / 'oblique' activate SF Pro's slnt axis. */
   fontStyle?: string;
+  /** Blink FontOrientation numeric value for fallback-cache identity. The
+   * normal horizontal path is 0; vertical upright runs pass 3. */
+  fontOrientation?: number;
   /**
    * The element's computed `font-stretch` (always a percentage string out of
    * Chrome — `condensed` serializes as `75%`).
@@ -2834,7 +2863,7 @@ export function selectedGlyphRasterSpans(
 
 /** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */
 export function cssWeightOf(fontWeight: string | number): number {
-  return typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  return typeof fontWeight === "number" ? fontWeight : (parseFloat(fontWeight) || 400);
 }
 
 /** Options for `renderTextAsPath` beyond the shared font context. */
@@ -2893,12 +2922,16 @@ export function renderTextAsPath(
   const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
     features, lang, variationSettings, textStrokeWidth, textStrokeColor,
     paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji,
-    fontSynthesis } = options;
+    fontSynthesis, fontOrientation = 0 } = options;
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
   const weight = cssWeightOf(options.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
+  const fallbackRequest = {
+    rawSlope: blinkRequestedSlopeDegrees(fontStyle),
+    orientation: fontOrientation,
+  };
   const esc = escAttr;
 
   // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts
@@ -2909,7 +2942,7 @@ export function renderTextAsPath(
   // xOffsets. A no-op for text with no combining marks.
   ({ text, xOffsets } = insertSyntheticDottedCircles(
     text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang,
-    dottedCircleMarks, fontStretch, clusterFallbackEnabled()));
+    dottedCircleMarks, fontStretch, clusterFallbackEnabled(), fallbackRequest));
 
   // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for
   // (they otherwise fall through to a last-resort tofu box).
@@ -2950,7 +2983,7 @@ export function renderTextAsPath(
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
       textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-      fontSynthesis, bidiOverride);
+      fontSynthesis, bidiOverride, fallbackRequest);
     if (embedded != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
       return embedded;
@@ -2967,7 +3000,7 @@ export function renderTextAsPath(
   const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0
     && textStrokeColor != null && textStrokeColor !== "";
   const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
-    wantsTextStroke ? undefined : { fill });
+    wantsTextStroke ? undefined : { fill }, fallbackRequest);
   if (result == null || result.markup === "") {
     recordTextEmitterTransition({ kind: "paths-declined", sourceText: text });
     return null;

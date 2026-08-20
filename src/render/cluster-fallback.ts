@@ -187,6 +187,11 @@ export interface ShapedSplitOptions {
    * through from the render call sites is a separate, additive follow-up.
    */
   features?: string[];
+  /** Exact Blink FontSelectionRequest slope in CSS degrees, used by the
+   * macOS ideograph CharacterFallbackKey (not by font-instance selection). */
+  fallbackRawSlope?: number;
+  /** Numeric Blink FontOrientation for CharacterFallbackKey identity. */
+  fallbackOrientation?: number;
 }
 
 /** Common/Inherited have no "likely script" — `Character::HasLikelyScript` is
@@ -822,6 +827,7 @@ function splitShapedInner(
               : resolveSystemFallbackKeyForCp(
                   hint, weight, slant, fontSize, primaryFontKey,
                   systemUiPrimary, lang, stretch, "text", fontFamily,
+                  opts?.fallbackRawSlope, opts?.fallbackOrientation,
                 );
             if (key == null) break;
             const font = getFontInstance(key, weight, fontSize, slant);
@@ -856,7 +862,11 @@ function splitShapedInner(
               : nextCp === 0xFE0F ? (isEmojiCharCp(hint) ? "emoji" : undefined)
               : nextCp === 0xFE0E ? (isEmojiCharCp(hint) ? "text" : undefined)
               : fontVariantEmoji;
-            const res = resolveFontForCodepoint(hint, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve, fontFamily);
+            const res = resolveFontForCodepoint(
+              hint, primaryFont, primaryFontKey, weight, fontSize, slant,
+              variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
+              effFve, fontFamily, opts?.fallbackRawSlope, opts?.fallbackOrientation,
+            );
             if (!res.covered) { iter.stage = "lastResort"; break; }
             const font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
             if (font == null) { iter.stage = "lastResort"; break; }

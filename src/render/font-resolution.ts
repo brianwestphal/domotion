@@ -2977,12 +2977,36 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
 const _macCharFallbackCacheEnabled = process.env.DOMOTION_MAC_CHAR_FALLBACK_CACHE !== "0";
 let _charFallbackDocCache: Map<string, string> | null = null;
 let _charFallbackDocDepth = 0;
+export interface FontRendererSession { readonly _fontRendererSession: symbol }
+const _charFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
+let _requestedCharFallbackRendererSession: FontRendererSession | null = null;
+
+export function createFontRendererSession(): FontRendererSession {
+  return Object.freeze({ _fontRendererSession: Symbol("font-renderer-session") });
+}
+
+/** Select a renderer lifetime only for the synchronous render callback. */
+export function withFontRendererSession<T>(session: FontRendererSession, render: () => T): T {
+  const previous = _requestedCharFallbackRendererSession;
+  _requestedCharFallbackRendererSession = session;
+  try { return render(); } finally { _requestedCharFallbackRendererSession = previous; }
+}
 
 /** Open a document scope for the ideograph fallback cache (nested calls share
  *  the outermost scope). Pair with `endCharacterFallbackDocument` in `finally`. */
 export function beginCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth === 0) {
-    _charFallbackDocCache = new Map();
+    const rendererSession = _requestedCharFallbackRendererSession;
+    if (rendererSession == null) {
+      _charFallbackDocCache = new Map();
+    } else {
+      let cache = _charFallbackRendererCaches.get(rendererSession);
+      if (cache == null) {
+        cache = new Map();
+        _charFallbackRendererCaches.set(rendererSession, cache);
+      }
+      _charFallbackDocCache = cache;
+    }
     beginFcFallbackRendererScope();
   }
   _charFallbackDocDepth++;
@@ -2999,7 +3023,14 @@ export function endCharacterFallbackDocument(): void {
 
 /** Oracle seam: select the renderer cache corresponding to an isolated context. */
 export function selectCharacterFallbackRendererScope(key: string): void {
+  // The named scope is retained for the Linux fontconfig oracle. Darwin
+  // production rendering uses owned FontRendererSession objects above.
   selectFcFallbackRendererScope(key);
+}
+
+/** Test/oracle lifecycle: discard all remembered renderer identities. */
+export function clearCharacterFallbackRendererScopesForTest(): void {
+  _requestedCharFallbackRendererSession = null;
 }
 
 /** Test-only window into the active document cache (null when none is open). */
@@ -3014,15 +3045,38 @@ export function __characterFallbackDocumentCacheForTest(): Map<string, string> |
  * see the block comment above for the probe establishing the UI font has no
  * language attribute, hence no key).
  */
+function characterFallbackIdentity(
+  baseName: string,
+  weight: number, rawSlope: number, orientation: number, fontSize: number,
+): string {
+  // FontSelectionValue is a signed quarter-unit fixed-point value. Preserve
+  // that raw identity so distinct oblique angles cannot share Blink's entry.
+  const rawWeight = fontSelectionRawValue(weight);
+  const rawStyle = fontSelectionRawValue(rawSlope);
+  return `${baseName}|${rawWeight}|${rawStyle}|${orientation}|${fontSize}`;
+}
+
+function fontSelectionRawValue(value: number): number {
+  return Math.max(-32768, Math.min(32767, Math.round(value * 4)));
+}
+
+/** Pure key seam for the pinned CharacterFallbackKey mutation matrix. */
+export function __characterFallbackIdentityForTest(
+  baseName: string, weight: number, rawSlope: number,
+  orientation: number, fontSize: number,
+): string {
+  return characterFallbackIdentity(baseName, weight, rawSlope, orientation, fontSize);
+}
+
 function characterFallbackDocKey(
   cp: number, baseName: string, useSystemUiBase: boolean,
-  weight: number, slant: number, fontSize: number,
+  weight: number, rawSlope: number, orientation: number, fontSize: number,
 ): string | null {
   if (_charFallbackDocCache == null || !_macCharFallbackCacheEnabled) return null;
   if (hostPlatform() !== "darwin") return null;
   if (useSystemUiBase || baseName.startsWith(".")) return null;
   if (!isIdeographicCp(cp)) return null;
-  return `${baseName}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}`;
+  return characterFallbackIdentity(baseName, weight, rawSlope, orientation, fontSize);
 }
 
 export function resolveSystemFallbackKeyForCp(
@@ -3060,6 +3114,11 @@ export function resolveSystemFallbackKeyForCp(
    *  keep their exact behavior; omitted → the retry trusts `primaryKey`, which
    *  is only wrong when the stack's first declared name was itself rejected. */
   declaredFamily?: string,
+  /** Blink's full requested slope in CSS degrees. The native font ask still
+   * uses `slant`; this value owns CharacterFallbackKey identity only. */
+  rawSlope: number = slant !== 0 ? 14 : 0,
+  /** Numeric Blink FontOrientation (horizontal=0, vertical-upright=3). */
+  orientation: number = 0,
 ): string | null {
   const suppressEmojiPresentation = fontVariantEmoji === "text" && isEmojiCharCp(cp);
   /** Blink's condition for the monochrome-emoji replacement, verbatim: an
@@ -3097,14 +3156,15 @@ export function resolveSystemFallbackKeyForCp(
   // both already components, and stays unkeyed so its memo behavior (and the
   // committed conformance baseline) is untouched.
   const primaryKeyComponent = hostPlatform() === "darwin" ? "" : primaryKey ?? "";
-  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}`;
+  const darwinDescription = hostPlatform() === "darwin" ? `|${rawSlope}|${orientation}` : "";
+  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and
   // therefore must not answer for a codepoint the document's cached face
   // covers. Hit condition transcribed: the CACHED face has a cmap glyph for
   // this codepoint, at the weight/size/slant the key pins.
-  const docKey = characterFallbackDocKey(cp, base.name, useSystemUiBase, weight, slant, fontSize);
+  const docKey = characterFallbackDocKey(cp, base.name, useSystemUiBase, weight, rawSlope, orientation, fontSize);
   if (docKey != null) {
     const cachedKey = _charFallbackDocCache!.get(docKey);
     if (cachedKey != null) {
@@ -3900,8 +3960,11 @@ export function __resolveSystemFallbackKeyForCpForTest(
   primaryKey?: string, systemUiPrimary = false, lang?: string, stretch = 100,
   fontVariantEmoji?: FontVariantEmojiOverride,
   declaredFamily?: string,
+  rawSlope: number = slant !== 0 ? 14 : 0,
+  orientation: number = 0,
 ): string | null {
-  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily);
+  return resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary,
+    lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation);
 }
 
 /** Test-only window into the platform path resolver (DM-258). Widened by
@@ -9277,7 +9340,7 @@ export function resolveDottedCircleHbRun(
   primaryFont: FontInstance, primaryFontKey: string,
   weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined,
-  lang: string | undefined, fontKeyChain: string[],
+  lang: string | undefined, fontKeyChain: string[], rawSlope?: number, orientation?: number,
 ): { key: string; font: FontInstance } | null {
   // DM-1215 + DM-1197: do NOT reroute marks belonging to a DEDICATED HarfBuzz
   // shaper (Indic / Thai-Lao / Tibetan / Myanmar / Khmer / Arabic / Hebrew /
@@ -9295,7 +9358,8 @@ export function resolveDottedCircleHbRun(
   // devanagari / sinhala / tibetan / brahmi / devanagari-extended fixtures stay
   // green (they're caught by `usesDedicatedShaper`, untouched by this change).
   if (usesDedicatedShaper(markCp)) return null;
-  const r = resolveFontForCodepoint(markCp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+  const r = resolveFontForCodepoint(markCp, primaryFont, primaryFontKey, weight, fontSize, slant,
+    variationSettings, lang, fontKeyChain, false, 100, undefined, undefined, rawSlope, orientation);
   if (!r.covered) return null;
   const markKey = r.key;
   const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
@@ -9437,8 +9501,12 @@ export function codepointResolvesToNotdef(
   /** The run's `font-variant-emoji` override (`normal` = undefined) — the
    *  probe must ask the exact question the resolver answers, override included. */
   fontVariantEmoji?: FontVariantEmojiOverride,
+  rawSlope?: number,
+  orientation?: number,
 ): boolean {
-  return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji).covered;
+  return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
+    variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji,
+    undefined, rawSlope, orientation).covered;
 }
 
 /**
@@ -9888,10 +9956,12 @@ export function resolveFontForCodepoint(
    *  many direct callers of this function (unit tests, calibration harnesses)
    *  keep their exact behavior when they omit it. */
   declaredFamily?: string,
+  rawSlope: number = slant !== 0 ? 14 : 0,
+  orientation: number = 0,
 ): FontResolution {
   return harfbuzzShapedScriptOverride(
     cp,
-    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily),
+    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation),
     primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings,
   );
 }
@@ -9923,6 +9993,8 @@ function walkFontFallbackStages(
   stretch: number = 100,
   fontVariantEmoji?: FontVariantEmojiOverride,
   declaredFamily?: string,
+  rawSlope: number = slant !== 0 ? 14 : 0,
+  orientation: number = 0,
 ): FontResolution {
   _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
@@ -10207,7 +10279,7 @@ function walkFontFallbackStages(
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
     _stageStats.liveAsked++;
-    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily);
+    const sysKey = resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryFontKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation);
     if (sysKey == null) return null;
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
@@ -10422,11 +10494,13 @@ function resolveFontForCodepointInner(
   stretch: number = 100,
   fontVariantEmoji?: FontVariantEmojiOverride,
   declaredFamily?: string,
+  rawSlope: number = slant !== 0 ? 14 : 0,
+  orientation: number = 0,
 ): FontResolution {
   return walkFontFallbackStages(
     cp, primaryFont, primaryFontKey, weight, fontSize, slant,
     variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
-    fontVariantEmoji, declaredFamily,
+    fontVariantEmoji, declaredFamily, rawSlope, orientation,
   );
 }
 

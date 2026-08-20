@@ -155,6 +155,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1e79kbt701yk9r",
+          "message": {
+            "text": "Fallback keys use FontDescription::Orientation, not per-glyph paint orientation: a mixed vertical run remains orientation 2 for both upright CJK and rotated Latin. This mapper transcribes that run-level distinction and the unit matrix pins all four Blink enum values.",
+            "markdown": "Fallback keys use FontDescription::Orientation, not per-glyph paint orientation: a mixed vertical run remains orientation 2 for both upright CJK and rotated Latin. This mapper transcribes that run-level distinction and the unit matrix pins all four Blink enum values."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/vertical-text.ts"
+                },
+                "region": {
+                  "startLine": 335,
+                  "endLine": 340,
+                  "snippet": {
+                    "text": "}\n\n/**\n * Detect if an element should dispatch to the vertical renderer:\n * any segment with `verticalWritingMode` set.\n */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2401"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "046920dd567da91dbc864de14d03f70b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "50d3dc639e77749816392b618ca5a55b2616bbf2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
