@@ -146,6 +146,13 @@ same report and evidence on macOS, Linux, and Windows; only the calibrated
 default scenario gates until native artifacts support reviewed per-platform
 envelopes.
 
+The expanded matrix's first negative control exposed a coordinate-space error:
+CSSOM returns border/outline paint lengths divided by Blink's effective zoom,
+while DOMRects are already physical. Capture now restores the internal zoomed
+length once before SVG emission. The same DSF/zoom run moved from 309 failures
+to 9 DSF=1 dotted-outline paint residuals, with all four HTML/SVG snap-model
+decisions agreeing; no threshold or per-case offset changed.
+
 ### Generated and metamorphic coverage
 
 Generators enumerate rules, not handpicked “interesting” values. Keep their

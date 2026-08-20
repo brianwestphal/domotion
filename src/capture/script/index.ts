@@ -94,6 +94,7 @@ const captureDocumentTree =
     normGradientColors,
     resolvePlaceholderShownBg: _resolvePlaceholderShownBg,
     resolveCornerRadius: _resolveCornerRadius,
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
   });
   const { capturePseudoContent } = createPseudoContentHandler({
     vp,
@@ -508,7 +509,7 @@ const captureDocumentTree =
         // workaround (DM-434), frosted-bg fallback (DM-476), per-layer
         // background-image intrinsic dims (DM-308), and border-image
         // intrinsic dims.
-        ...captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture),
+        ...captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture, _effectiveZoomFor(el)),
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
         // DM-761: `overflow-clip-margin` extends the overflow clip outward
@@ -1561,6 +1562,20 @@ const captureDocumentTree =
   // pivoted around the text origin — matching how Chrome paints glyphs
   // into the post-transform device space with per-axis scaling.
   const _cumulativeScale = new Map();
+  // Keep effective CSS zoom separate from transform scale. Border/outline
+  // ComputedStyle lengths need Blink's EffectiveZoom, whereas text geometry's
+  // cumulative scale intentionally includes transforms too.
+  const _cumulativeZoom = new Map();
+  const _effectiveZoomFor = (el) => {
+    if (el == null) return 1;
+    const hit = _cumulativeZoom.get(el);
+    if (hit != null) return hit;
+    const parentZoom = _effectiveZoomFor(el.parentElement);
+    const own = parseFloat(getComputedStyle(el).zoom);
+    const zoom = parentZoom * (Number.isFinite(own) && own > 0 ? own : 1);
+    _cumulativeZoom.set(el, zoom);
+    return zoom;
+  };
   const _computeOwnScale = (_tt) => {
     if (_tt == null || _tt === 'none' || _tt === '') return [1, 1];
     const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);

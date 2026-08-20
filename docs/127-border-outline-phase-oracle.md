@@ -43,6 +43,18 @@ envelopes; the calibrated default remains blocking. This is intentional:
 copying the macOS DSF=4 thresholds onto other rasterizers would turn expected
 paint-profile variation into false logical failures.
 
+The first expanded run found and closed a shared effective-zoom boundary
+(DM-2323). Blink stores border widths and outline width/offset in zoomed integer
+paint units, but CSSOM serializes those values divided by `EffectiveZoom`.
+Domotion already captured physical DOMRects, so consuming the CSSOM lengths
+unchanged mixed coordinate spaces. Capture now reconstructs the paint lengths
+once from the memoized ancestor effective zoom. On the local DSF 1/2 × zoom
+0.8/1.25 discriminator this changed 309 threshold failures to 9; both DSF=2
+scenarios reached 128/128 and the inferred HTML/SVG snap rule agrees in all
+four scenarios. The remaining nine are DSF=1 dotted-outline alpha/edge-profile
+residuals (worst 0.675 CSS px), kept in the paint section rather than hidden by
+a widened logical envelope.
+
 Collapsed table borders have a separate exact logical gate. The capture-side
 model mirrors Chromium's `TableBorders`: one logical edge grid, source merges
 in cell/row/section/column/column-group/table order, span-interior

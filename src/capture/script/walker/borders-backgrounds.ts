@@ -48,7 +48,21 @@ import {
   mergeCollapsedBorderBox,
 } from "./collapsed-border.js";
 
-export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius }) => {
+/** Computed border/outline lengths are serialized in pre-effective-zoom CSS
+ * pixels, while captured DOMRects are already in painted coordinates. Blink's
+ * paint code consumes the zoomed ComputedStyle value, so cross that boundary
+ * exactly once during capture. Chromium 7d859f271c:
+ * StyleBuilderConverter::{ConvertBorderWidth,ConvertOutlineOffset} stores
+ * zoomed integer lengths; longhands_custom.cc serializes them through
+ * ZoomAdjustedPixelValue before getComputedStyle exposes them. */
+export const physicalComputedPaintLength = (value, effectiveZoom) => {
+  if (effectiveZoom === 1) return value;
+  const number = parseFloat(value);
+  if (!Number.isFinite(number)) return value;
+  return `${Math.round(number * effectiveZoom * 1e6) / 1e6}px`;
+};
+
+export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1 }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
     && normColor(cs[side], cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)';
@@ -181,9 +195,10 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     let boxOrder = 0;
     const physicalBorders = (node, order) => {
       const cs = getComputedStyle(node);
+      const zoom = effectiveZoomFor(node);
       const one = (side) => ({
         side: side.toLowerCase(), order,
-        w: parseFloat(cs['border' + side + 'Width']) || 0,
+        w: parseFloat(physicalComputedPaintLength(cs['border' + side + 'Width'], zoom)) || 0,
         style: collapsedBorderStyle(cs['border' + side + 'Style']),
         color: normColor(cs['border' + side + 'Color'], cs.color),
       });
@@ -281,7 +296,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   const isCollapsedStructural = (tag, cs) => cs.borderCollapse === 'collapse'
     && (tag === 'table' || tag === 'tr' || tag === 'thead' || tag === 'tbody' || tag === 'tfoot' || tag === 'colgroup' || tag === 'col');
 
-  const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture) => ({
+  const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture, effectiveZoom = 1) => ({
     backgroundColor: (function () {
       if (isPlaceholderCapture) {
         const psBg = resolvePlaceholderShownBg(el);
@@ -290,20 +305,20 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       return normColor(cs.backgroundColor, cs.color);
     })(),
     borderColor: normColor(cs.borderColor, cs.color),
-    borderWidth: cs.borderWidth,
+    borderWidth: physicalComputedPaintLength(cs.borderWidth, effectiveZoom),
     borderRadius: cs.borderRadius,
-    borderTopLeftRadius: resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
-    borderTopRightRadius: resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
-    borderBottomRightRadius: resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
-    borderBottomLeftRadius: resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
+    borderTopLeftRadius: resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height, effectiveZoom),
+    borderTopRightRadius: resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height, effectiveZoom),
+    borderBottomRightRadius: resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height, effectiveZoom),
+    borderBottomLeftRadius: resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height, effectiveZoom),
     cornerTopLeftShape: cs.cornerTopLeftShape,
     cornerTopRightShape: cs.cornerTopRightShape,
     cornerBottomRightShape: cs.cornerBottomRightShape,
     cornerBottomLeftShape: cs.cornerBottomLeftShape,
-    borderTopWidth: cs.borderTopWidth,
-    borderRightWidth: cs.borderRightWidth,
-    borderBottomWidth: cs.borderBottomWidth,
-    borderLeftWidth: cs.borderLeftWidth,
+    borderTopWidth: physicalComputedPaintLength(cs.borderTopWidth, effectiveZoom),
+    borderRightWidth: physicalComputedPaintLength(cs.borderRightWidth, effectiveZoom),
+    borderBottomWidth: physicalComputedPaintLength(cs.borderBottomWidth, effectiveZoom),
+    borderLeftWidth: physicalComputedPaintLength(cs.borderLeftWidth, effectiveZoom),
     borderTopStyle: cs.borderTopStyle,
     borderRightStyle: cs.borderRightStyle,
     borderBottomStyle: cs.borderBottomStyle,
@@ -422,9 +437,9 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     borderImageIntrinsicWidth: computeBorderImageIntrinsic(cs, 'naturalWidth'),
     borderImageIntrinsicHeight: computeBorderImageIntrinsic(cs, 'naturalHeight'),
     outlineStyle: cs.outlineStyle,
-    outlineWidth: cs.outlineWidth,
+    outlineWidth: physicalComputedPaintLength(cs.outlineWidth, effectiveZoom),
     outlineColor: normColor(cs.outlineColor),
-    outlineOffset: cs.outlineOffset,
+    outlineOffset: physicalComputedPaintLength(cs.outlineOffset, effectiveZoom),
     boxShadow: cs.boxShadow,
     // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
     // paint of wrapped inline elements; see CapturedElement.inlineFragments.

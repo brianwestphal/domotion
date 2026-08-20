@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0u6st2zd6u29dt",
+          "message": {
+            "text": "This conversion restores Blink internal paint coordinates rather than fitting pixels. At Chromium 7d859f271c, ConvertBorderWidth and ConvertOutlineOffset store effective-zoomed integer lengths, while CSSValueFromComputedStyleInternal serializes through ZoomAdjustedPixelValue. Domotion combines those CSSOM strings with already-physical DOMRects, so multiplying once by the ancestor effective zoom is the missing inverse. The DSF 1/2 × zoom 0.8/1.25 phase matrix moved from 309 failures to 9 without changing an envelope; both DSF=2 rows became 128/128 and every HTML/SVG snap classification now agrees.",
+            "markdown": "This conversion restores Blink internal paint coordinates rather than fitting pixels. At Chromium 7d859f271c, ConvertBorderWidth and ConvertOutlineOffset store effective-zoomed integer lengths, while CSSValueFromComputedStyleInternal serializes through ZoomAdjustedPixelValue. Domotion combines those CSSOM strings with already-physical DOMRects, so multiplying once by the ancestor effective zoom is the missing inverse. The DSF 1/2 × zoom 0.8/1.25 phase matrix moved from 309 failures to 9 without changing an envelope; both DSF=2 rows became 128/128 and every HTML/SVG snap classification now agrees."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 51,
+                  "endLine": 63,
+                  "snippet": {
+                    "text": "/** Computed border/outline lengths are serialized in pre-effective-zoom CSS\n * pixels, while captured DOMRects are already in painted coordinates. Blink's\n * paint code consumes the zoomed ComputedStyle value, so cross that boundary\n * exactly once during capture. Chromium 7d859f271c:\n * StyleBuilderConverter::{ConvertBorderWidth,ConvertOutlineOffset} stores\n * zoomed integer lengths; longhands_custom.cc serializes them through\n * ZoomAdjustedPixelValue before getComputedStyle exposes them. */\nexport const physicalComputedPaintLength = (value, effectiveZoom) => {\n  if (effectiveZoom === 1) return value;\n  const number = parseFloat(value);\n  if (!Number.isFinite(number)) return value;\n  return `${Math.round(number * effectiveZoom * 1e6) / 1e6}px`;\n};"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1564
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/zoomed-outline-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2323"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "888ba5dbba3ad0d904327f360147e11a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "85530639b7876e4adaa119c135e396dc713f1a07",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
