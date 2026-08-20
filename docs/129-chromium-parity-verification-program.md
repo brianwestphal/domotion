@@ -127,6 +127,19 @@ and mixed-curvature sides retain the close-edge branch. DM-2317 represents
 nested vector clip paths inside the border-ring mask. The narrow overlapping
 scoop discriminator now passes with the entire composed fixture at 0.00%.
 
+Collapsed table borders remain a separate model, not another per-box contour.
+At the pinned revision, `TableBorders::ComputeTableBorders` builds one logical
+edge graph for the table, merges cell, row, section, column, column-group, and
+table sources in traversal order, and marks spanned-cell interiors
+`kDoNotFill`. `TablePainter::PaintCollapsedBorders` then resolves four-way
+joint ownership, converts each logical edge rectangle through the table's
+writing direction, and pixel-snaps the resulting physical rectangle before
+calling `DrawBoxSide`. Domotion's current per-cell physical-side ownership,
+off-grid consensus escape hatch, and center-stroked line output cannot encode
+those decisions exactly. DM-2320 replaces that approximation with the
+table-level edge and joint model; DM-2321 subsequently expands the phase oracle
+over zoom, device scale, and all three platforms.
+
 ### Generated and metamorphic coverage
 
 Generators enumerate rules, not handpicked “interesting” values. Keep their

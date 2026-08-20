@@ -71,8 +71,8 @@
       "oracleStatus": "paint-model-gate",
       "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control; computed corner-shape keywords/custom parameters, asymmetric physical corners, concave opposite-hull constraints, inset origin alignment, mixed-side hyperellipse quads, and non-renderable four-corner path intersections",
       "platformCoverage": ["darwin"],
-      "knownGap": "Round and non-round contours, mixed-side hyperellipse/concave partitions, and non-renderable inset corner-path intersections are transcribed. Collapsed borders, writing modes, zoom, and cross-platform phase remain outside the geometry oracle.",
-      "nextAction": "Expand collapsed-border cases and cross-platform phase coverage."
+      "knownGap": "Round and non-round contours, mixed-side hyperellipse/concave partitions, and non-renderable inset corner-path intersections are transcribed. Collapsed borders still use a per-cell physical-side approximation rather than Chromium's table-level logical edge graph, joint ownership, writing-direction conversion, and snapped edge rectangles; zoom and cross-platform phase remain outside the geometry oracle.",
+      "nextAction": "Transcribe the collapsed-border edge/joint model, then expand the phase oracle across zoom, device scale, and all three platforms."
     },
     {
       "id": "gradients-masks-clips",
