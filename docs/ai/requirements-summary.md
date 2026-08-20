@@ -1340,6 +1340,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   explicit unsupported boundary; it never substitutes a confidence percentage
   or permits unexplained logical residuals.
 
+- **Doc 139 (`docs/139-raster-fallback-content-gates.md`) — Implemented,
+  awaiting fresh all-platform evidence.** Every active raster boundary is paired
+  with a pixel/paint gate for its relevant size, crop, scale, color/alpha,
+  placement, freshness, and sibling-order dimensions. The combined live-browser
+  gate runs once per platform visual workflow rather than once per shard.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

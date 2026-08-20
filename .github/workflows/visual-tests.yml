@@ -164,6 +164,9 @@ jobs:
         continue-on-error: true
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Verify raster fallback pixel content
+        if: matrix.shard == 1
+        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
         shell: bash
         env:
@@ -254,6 +257,9 @@ jobs:
         run: |
           cp tests/fixtures/html-test-unicode/cff-stix-math.html external/html-test/unicode/
           cp tests/fixtures/html-test/corner-shape-superellipses.html external/html-test/
+      - name: Verify raster fallback pixel content
+        if: matrix.shard == 1
+        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
         shell: bash
         env:
@@ -319,6 +325,9 @@ jobs:
         run: ./tools/win32-glyph-extractor/build.ps1
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Verify raster fallback pixel content
+        if: matrix.shard == 1
+        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
         shell: bash
         env:

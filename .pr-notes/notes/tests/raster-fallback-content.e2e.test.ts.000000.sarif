@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt11e29n9wnneevp",
+          "message": {
+            "text": "These gates inspect Chromium-produced bitmap bytes independently from activation: used/physical dimensions, alpha and chromatic ink, live-frame/cache replacement, and neighboring vector ownership are asserted across each active boundary class. Backdrop isolation and conic paint details remain in their dedicated companion gates, which the same all-platform workflow command runs.",
+            "markdown": "These gates inspect Chromium-produced bitmap bytes independently from activation: used/physical dimensions, alpha and chromatic ink, live-frame/cache replacement, and neighboring vector ownership are asserted across each active boundary class. Backdrop isolation and conic paint details remain in their dedicated companion gates, which the same all-platform workflow command runs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/raster-fallback-content.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 27,
+                  "endLine": 133,
+                  "snippet": {
+                    "text": "describeBrowser(\"pixel content at Chromium-owned raster boundaries\", () => {\n  it(\"captures replaced canvas pixels at the used size with live frame colors\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 260, height: 180 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<canvas id=\"c\" width=\"120\" height=\"80\" style=\"width:120px;height:80px\"></canvas>`);\n      await page.locator(\"#c\").evaluate((canvas) => { const c = canvas as HTMLCanvasElement; const x = c.getContext(\"2d\")!; x.fillStyle = \"#e22\"; x.fillRect(0, 0, 60, 80); x.fillStyle = \"#25c\"; x.fillRect(60, 0, 60, 80); });\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 260, height: 180 });\n      const snapshot = walk(tree).find((node) => node.tag === \"canvas\")?.replacedSnapshot;\n      expect(snapshot?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      const summary = await pixelSummary(snapshot!.dataUri!);\n      expect(summary).toMatchObject({ width: 120, height: 80 });\n      expect(summary.opaque).toBe(120 * 80);\n      expect(summary.chromatic).toBeGreaterThan(9_000);\n      await page.locator(\"#c\").evaluate((canvas) => { const c = canvas as HTMLCanvasElement; const x = c.getContext(\"2d\")!; x.fillStyle = \"#2c5\"; x.fillRect(0, 0, 120, 80); });\n      const nextTree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 260, height: 180 });\n      const next = walk(nextTree).find((node) => node.tag === \"canvas\")?.replacedSnapshot?.dataUri;\n      expect(next).toMatch(/^data:image\\/png;base64,/);\n      expect(digest(next!)).not.toBe(digest(snapshot!.dataUri!));\n    } finally { await page.close(); }\n  }, 60_000);\n\n  it(\"captures native-control chrome with authoritative geometry and nonempty alpha\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 220, height: 160 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<input id=\"native\" type=\"checkbox\" checked style=\"margin:20px;width:22px;height:22px;accent-color:#d21f5b\">`);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 220, height: 160 });\n      const raster = walk(tree).find((node) => node.nativeControlRaster?.dataUri != null)?.nativeControlRaster;\n      expect(raster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      const summary = await pixelSummary(raster!.dataUri!);\n      expect(summary.width).toBe(Math.max(1, Math.ceil(raster!.width)));\n      expect(summary.height).toBe(Math.max(1, Math.ceil(raster!.height)));\n      expect(summary.opaque).toBeGreaterThan(0);\n      expect(summary.chromatic).toBeGreaterThan(0);\n    } finally { await page.close(); }\n  }, 60_000);\n\n  it(\"captures image-replacement sprite pixels without absorbing a vector sibling\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 240, height: 160 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<div id=\"sprite\" aria-label=\"icon\" style=\"position:absolute;left:20px;top:20px;width:48px;height:36px;text-indent:-9999px;overflow:hidden;white-space:nowrap;background:linear-gradient(90deg,#e22,#25c)\">icon</div><div id=\"vector\" style=\"position:absolute;left:90px;top:20px;width:40px;height:36px;background:#2c5\"></div>`);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 240, height: 160 });\n      const nodes = walk(tree);\n      const sprite = nodes.find((node) => node.replacedSnapshot?.dataUri != null)?.replacedSnapshot;\n      expect(sprite?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(await pixelSummary(sprite!.dataUri!)).toMatchObject({ width: 48, height: 36, opaque: 48 * 36 });\n      expect(nodes.some((node) => node.x === 90 && node.replacedSnapshot == null && node.styles.backgroundColor === \"rgb(34, 204, 85)\" )).toBe(true);\n    } finally { await page.close(); }\n  }, 60_000);\n\n  it(\"captures unreadable iframe pixels while preserving its used box\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 260, height: 180 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<iframe id=\"frame\" src=\"data:text/html,<style>html,body{margin:0;width:100%;height:100%;background:linear-gradient(90deg,%23e22,%2325c)}</style>\" style=\"border:0;width:100px;height:60px\"></iframe>`);\n      await page.waitForTimeout(100);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 260, height: 180 });\n      const frame = walk(tree).find((node) => node.tag === \"iframe\")?.replacedSnapshot;\n      expect(frame?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      const summary = await pixelSummary(frame!.dataUri!);\n      expect(summary).toMatchObject({ width: 100, height: 60, opaque: 6_000 });\n      expect(summary.chromatic).toBeGreaterThan(5_000);\n    } finally { await page.close(); }\n  }, 60_000);\n\n  it(\"captures projective subtree pixels instead of flattening them to an affine SVG\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 300, height: 220 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<div style=\"margin:30px;width:150px;height:110px;perspective:260px\"><div style=\"width:120px;height:90px;background:linear-gradient(90deg,#e22 0 50%,#25c 50%);transform:rotateY(34deg)\"></div></div>`);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 300, height: 220 });\n      const raster = walk(tree).find((node) => node.transformSubtreeRaster?.dataUri != null)?.transformSubtreeRaster;\n      expect(raster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      const summary = await pixelSummary(raster!.dataUri!);\n      expect(summary.width).toBeGreaterThan(50);\n      expect(summary.height).toBeGreaterThan(50);\n      expect(summary.chromatic).toBeGreaterThan(1_000);\n    } finally { await page.close(); }\n  }, 60_000);\n\n  it(\"captures color-glyph pixels while an adjacent text glyph remains vector-owned\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 260, height: 150 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<div style=\"font:48px sans-serif\">A😀B</div>`);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 260, height: 150 });\n      const segments = walk(tree).flatMap((node) => node.textSegments ?? []);\n      const glyph = segments.flatMap((segment) => segment.rasterGlyphs ?? []).find((entry) => entry.dataUri != null);\n      expect(glyph?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect((await pixelSummary(glyph!.dataUri!)).opaque).toBeGreaterThan(100);\n      expect(segments.flatMap((segment) => segment.rasterGlyphs ?? []).filter((entry) => entry.dataUri != null)).toHaveLength(1);\n      expect(segments.map((segment) => segment.text).join(\"\")).toContain(\"A😀B\");\n    } finally { await page.close(); }\n  }, 60_000);\n\n  it(\"replaces stale advanced-gradient cache content with Chromium pixels at the physical tile size\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 260, height: 160 }, deviceScaleFactor: 1 });\n    const page = await context.newPage();\n    try {\n      await page.setContent(`<div id=\"g\" style=\"width:120px;height:90px;background:linear-gradient(90deg in oklab,#e22,#25c);background-size:40px 30px\"></div>`);\n      const layer = await page.locator(\"#g\").evaluate((element) => getComputedStyle(element).backgroundImage);\n      _advancedGradientTileCache.set(layer, new Map([[\"40x30\", \"data:image/png;base64,c3RhbGU=\"]]));\n      await captureElementTree(page, \"body\", { x: 0, y: 0, width: 260, height: 160 });\n      const current = _advancedGradientTileCache.get(layer)?.get(\"40x30\");\n      expect(current).toMatch(/^data:image\\/png;base64,/);\n      expect(current).not.toBe(\"data:image/png;base64,c3RhbGU=\");\n      const summary = await pixelSummary(current!);\n      expect(summary).toMatchObject({ width: 40, height: 30, opaque: 1_200 });\n      expect(summary.chromatic).toBeGreaterThan(1_000);\n    } finally { _advancedGradientTileCache.clear(); await context.close(); }\n  }, 60_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2361"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "34aaf4a41a400b582dcf3238e73a2f5b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "52c80df42e4a6f0ec79ea4ea3f42fcb0477ae010",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
