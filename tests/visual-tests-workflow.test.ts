@@ -156,6 +156,30 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(jobs.aggregate).toContain('stage-evidence-$os.json');
   });
 
+  it("records provenance before fallible diagnostics and still runs every visual shard", () => {
+    for (const name of ["test-macos", "test-linux", "test-windows"]) {
+      const job = jobs[name];
+      const env = job.indexOf("Record run environment before diagnostics and rendering");
+      const diagnostic = job.indexOf("Verify raster fallback pixel content");
+      const shard = job.indexOf("Run shard");
+      expect(env, `${name} must record its environment`).toBeGreaterThanOrEqual(0);
+      expect(diagnostic, `${name} must retain the raster diagnostic`).toBeGreaterThan(env);
+      expect(shard, `${name} must run its visual shard`).toBeGreaterThan(diagnostic);
+      expect(job.slice(diagnostic, shard)).toContain("continue-on-error: true");
+    }
+  });
+
+  it("uploads incomplete-run evidence before reporting aggregate failure", () => {
+    const job = jobs.aggregate;
+    const merge = job.indexOf("Merge + write Step Summary");
+    const meta = job.indexOf("name: visual-tests-meta");
+    const failure = job.indexOf("Fail after preserving incomplete-run evidence");
+    expect(job.slice(merge, meta)).toContain("continue-on-error: true");
+    expect(meta).toBeGreaterThan(merge);
+    expect(failure).toBeGreaterThan(meta);
+    expect(job.slice(meta - 80, meta)).toContain("if: always()");
+  });
+
   it("copies the built binary to the path the resolver looks for", () => {
     // `HELPER_BINARIES.darwin` in src/render/glyph-helper.ts resolves exactly
     // this filename; `swift build` emits `DomotionGlyphPaths`, so a build that
