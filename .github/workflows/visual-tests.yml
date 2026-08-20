@@ -166,7 +166,9 @@ jobs:
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Record runner image before diagnostics and rendering
         shell: bash
-        run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+        run: |
+          mkdir -p tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
+          node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Record run environment before diagnostics and rendering
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
@@ -260,7 +262,9 @@ jobs:
           cp tests/fixtures/html-test/corner-shape-superellipses.html external/html-test/
       - name: Record runner image before diagnostics and rendering
         shell: bash
-        run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+        run: |
+          mkdir -p tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
+          node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Record run environment before diagnostics and rendering
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
@@ -329,7 +333,9 @@ jobs:
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Record runner image before diagnostics and rendering
         shell: bash
-        run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+        run: |
+          mkdir -p tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
+          node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Record run environment before diagnostics and rendering
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
