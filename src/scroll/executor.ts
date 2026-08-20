@@ -37,6 +37,10 @@ export interface ScrollExecutorOptions {
   selector?: string;
   viewportW: number;
   viewportH: number;
+  /** DOM subtree captured at every live scroll anchor. Default: body. */
+  captureSelector?: string;
+  /** Page-space crop captured at every anchor. Defaults to the output viewport. */
+  captureViewport?: { x: number; y: number; width: number; height: number };
   /** Default scroll speed in px/s. Used when no explicit `/<duration>` suffix. */
   defaultSpeed?: number;
   /** Pre-scroll to wake lazy-load before capturing. Default: true. */
@@ -324,6 +328,12 @@ export async function executeScrollPattern(
   // Capture entry point for this run: self-contained (inlines remote image
   // bytes) unless the caller embeds the segments itself.
   const capture = opts.embedImages === false ? captureElementTree : captureElementTreeSelfContained;
+  const captureSelector = opts.captureSelector ?? "body";
+  const captureViewport = opts.captureViewport ?? {
+    x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
+  };
+  const captureCurrentTree = (): Promise<CapturedElement[]> =>
+    capture(page, captureSelector, captureViewport);
 
   if (prescroll) {
     log("  pre-scrolling page to wake lazy-loaded content...");
@@ -337,9 +347,7 @@ export async function executeScrollPattern(
   // Capture the initial state.
   const initialSnap = await pageQuery.snapshot();
   log(`  captured frame 1 at scrollY=${initialSnap.scrollY} (initial)`);
-  let prevTree = await capture(page, "body", {
-    x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
-  });
+  let prevTree = await captureCurrentTree();
   captures.push({
     scrollX: initialSnap.scrollX,
     scrollY: initialSnap.scrollY,
@@ -362,9 +370,7 @@ export async function executeScrollPattern(
       // Wait. Then check whether the DOM changed (lazy-load may fire).
       await page.waitForTimeout(op.durationMs);
       sceneTime += op.durationMs;
-      const nextTree = await capture(page, "body", {
-        x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
-      });
+      const nextTree = await captureCurrentTree();
       const diff = diffTrees(prevTree, nextTree);
       const anyChange = diff.entries.some((e) => e.kind !== "static");
       if (anyChange) {
@@ -427,9 +433,7 @@ export async function executeScrollPattern(
       await scrollTo(page, selector, chunkDestX, chunkDestY, chunkDur);
       sceneTime += chunkDur;
       const snap = await pageQuery.snapshot();
-      const nextTree = await capture(page, "body", {
-        x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
-      });
+      const nextTree = await captureCurrentTree();
       const diff = diffTrees(prevTree, nextTree);
       captures.push({
         scrollX: snap.scrollX, scrollY: snap.scrollY,

@@ -1362,6 +1362,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   placement, freshness, and sibling-order dimensions. The combined live-browser
   gate runs once per platform visual workflow rather than once per shard.
 
+- **Doc 147 (`docs/147-inner-live-scroll-capture.md`) — Shipped.** Scroll
+  ownership, captured subtree, and page-space crop are independent. Every
+  scroll anchor re-captures the live DOM, so an inner virtualized list can
+  recycle rows while fixed page chrome outside the selected clip is excluded
+  from the animated composite.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

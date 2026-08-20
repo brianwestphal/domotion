@@ -160,6 +160,14 @@ Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horiz
 
 - An overall pattern-execution timeout (config-level, not grammar) guards against impossible conditions like `until selector(".never-appears")`. Default: 60 s; override via `ScrollExecutorOptions.maxTimeoutMs`.
 
+- **Inner scrollers and live capture.** Scroll ownership and capture ownership
+  are separate. `--scroll-selector` / `scroll.selector` chooses the element
+  whose offset changes; `--selector` / the frame-level `selector` chooses the
+  captured subtree; and `--clip` / `scroll.clip` chooses the page-space crop.
+  The executor re-captures the live DOM after every anchor, so virtualized lists
+  whose rows are recycled on `scrollTop` changes are supported. See
+  [doc 147](147-inner-live-scroll-capture.md) for the complete contract.
+
 - Comma between top-level groups means **sequential execution with no implicit pause**; insert `pause:` / `<duration>` if you want one.
 
 - **Auto-chunking** (executor implementation detail, not grammar). A long single scroll (multiple viewport-heights covered by one `down:bottom/30s` action) is subdivided internally into viewport-height steps so the composer has enough anchor points to stack contiguous captures. The pattern grammar surface is unaffected — this is purely how the executor schedules the captures.

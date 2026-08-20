@@ -321,6 +321,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         // `--no-embed-images` and time the step in the log.
         embedImages: false,
         selector: values["scroll-selector"],
+        captureSelector: flags.selector,
+        captureViewport: { x: clip[0], y: clip[1], width: clip[2], height: clip[3] },
         viewportW: clip[2],
         viewportH: clip[3],
         defaultSpeed: speed,

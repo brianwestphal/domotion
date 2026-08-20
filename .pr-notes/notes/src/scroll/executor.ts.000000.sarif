@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt23ryyghm7vbrzg",
+          "message": {
+            "text": "Scroll ownership and capture ownership are deliberately separate. An inner element can receive scrollTop updates while the capture root and page-space crop exclude surrounding fixed chrome; every anchor still executes the normal live capture pipeline, which also preserves virtualized rows regenerated after the scroll event.",
+            "markdown": "Scroll ownership and capture ownership are deliberately separate. An inner element can receive scrollTop updates while the capture root and page-space crop exclude surrounding fixed chrome; every anchor still executes the normal live capture pipeline, which also preserves virtualized rows regenerated after the scroll event."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/executor.ts"
+                },
+                "region": {
+                  "startLine": 328,
+                  "endLine": 336,
+                  "snippet": {
+                    "text": "  // Capture entry point for this run: self-contained (inlines remote image\n  // bytes) unless the caller embeds the segments itself.\n  const capture = opts.embedImages === false ? captureElementTree : captureElementTreeSelfContained;\n  const captureSelector = opts.captureSelector ?? \"body\";\n  const captureViewport = opts.captureViewport ?? {\n    x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,\n  };\n  const captureCurrentTree = (): Promise<CapturedElement[]> =>\n    capture(page, captureSelector, captureViewport);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2400"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "649058bba390f8a00dc65b2467419970"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bdeac8413e7c956deb83006ceca9ae126d56f8fb",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
+    }
+  ]
+}

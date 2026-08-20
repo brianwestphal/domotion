@@ -117,6 +117,8 @@ const scrollSchema = z.object({
   speed: z.number().positive("must be a positive number (px/s)").optional(),
   /** CSS selector for an inner scrollable element (default: window). */
   selector: z.string().optional(),
+  /** Optional page-space crop for the live per-anchor captures. */
+  clip: z.tuple([z.number(), z.number(), z.number().positive(), z.number().positive()]).optional(),
   /** Skip the pre-scroll-to-bottom-then-top step. Default: false. */
   prescroll: z.boolean().optional(),
 });
@@ -1733,20 +1735,25 @@ async function buildCapturedFrame(
     // the inner scroll loop.
     log(`  scroll pattern: ${fc.scroll.pattern}`);
     const scrollPattern = parseScrollPattern(fc.scroll.pattern);
+    const scrollClip = fc.scroll.clip ?? [0, 0, cfg.width, cfg.height];
     const segments = await executeScrollPattern(page, scrollPattern, {
       selector: fc.scroll.selector,
-      viewportW: cfg.width,
-      viewportH: cfg.height,
+      captureSelector: fc.selector ?? "body",
+      captureViewport: {
+        x: scrollClip[0], y: scrollClip[1], width: scrollClip[2], height: scrollClip[3],
+      },
+      viewportW: scrollClip[2],
+      viewportH: scrollClip[3],
       defaultSpeed: fc.scroll.speed,
       prescroll: fc.scroll.prescroll !== false,
       log,
     });
     for (const seg of segments) {
       annotateAnimatedProperties(seg.tree, resolvedAnimations);
-      cullElementsOutsideViewBox(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
+      cullElementsOutsideViewBox(seg.tree, scrollClip[2], scrollClip[3], undefined, 0, 1);
     }
     rootBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
-    const composed = composeScrollSvg(segments, { viewportW: cfg.width, viewportH: cfg.height });
+    const composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3] });
     // The composer emits a full `<?xml ...><svg>...</svg>` document. The
     // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
     // happily contains a nested `<svg>` element — strip just the XML

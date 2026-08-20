@@ -212,6 +212,29 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
   });
 
+  describe("inner scroll capture", () => {
+    it("accepts a frame subtree selector and an explicit live-capture clip", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{
+          input: "virtual-list.html",
+          duration: 1000,
+          selector: "#list",
+          scroll: { pattern: "down:bottom/1s", selector: "#list", clip: [30, 187, 640, 382] },
+        }],
+      });
+      expect(cfg.frames[0].selector).toBe("#list");
+      expect(cfg.frames[0].scroll?.clip).toEqual([30, 187, 640, 382]);
+    });
+
+    it("rejects an empty or negative scroll capture extent", () => {
+      expect(() => validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, scroll: { pattern: "down:1px", clip: [0, 0, 0, 10] } }],
+      })).toThrow();
+    });
+  });
+
   // DM-1556 (docs/93 §2): per-keystroke real-site re-sampling.
   describe("typeResample frames (DM-1556)", () => {
     it("accepts a typeResample frame with just selector/text (defaults applied at run time)", () => {
