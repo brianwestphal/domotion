@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt1cbqms0tyno2uo",
+          "message": {
+            "text": "This discriminator proves the fragmented capture path performs logical-to-physical conversion after slicing the global collapsed-border graph. Chromium reports multiple vertical-rl RTL table/section fragments; every non-empty section must own captured edge ink, while the asymmetric border-block-start winner must remain an 8px physical x-width row-axis edge. The focused e2e suite passes all 10 cases.",
+            "markdown": "This discriminator proves the fragmented capture path performs logical-to-physical conversion after slicing the global collapsed-border graph. Chromium reports multiple vertical-rl RTL table/section fragments; every non-empty section must own captured edge ink, while the asymmetric border-block-start winner must remain an 8px physical x-width row-axis edge. The focused e2e suite passes all 10 cases."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/border-collapse-conflict.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 225,
+                  "endLine": 246,
+                  "snippet": {
+                    "text": "  it(\"maps fragmented vertical-rl RTL tables through logical block coordinates (DM-2337)\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 420, height: 1700 }, deviceScaleFactor: 1 });\n    try {\n      // RTL vertical multicol flows toward negative physical y. The top margin\n      // keeps every fragment in the capture viewport without changing its\n      // logical block/inline mapping.\n      await page.setContent(`<style>body{margin:0}.cols{margin-top:700px;columns:3;column-fill:auto;width:180px;height:900px;writing-mode:vertical-rl;direction:rtl}.t{border-collapse:collapse;writing-mode:vertical-rl;direction:rtl}.t td{box-sizing:border-box;width:46px;height:38px;border:4px solid rgb(0,0,255);padding:0}.t .accent{border-block-start:8px dashed rgb(220,0,0)}</style><div class=\"cols\"><table class=\"t\"><tbody>${Array.from({ length: 20 }, (_, i) => `<tr><td class=\"${i === 8 ? \"accent\" : \"\"}\">${i}</td></tr>`).join(\"\")}</tbody></table></div>`, { waitUntil: \"load\" });\n      const fragments = await page.evaluate(() => {\n        const serial = (element: Element) => Array.from(element.getClientRects(), (rect) => ({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }));\n        return { table: serial(document.querySelector(\"table\")!), section: serial(document.querySelector(\"tbody\")!) };\n      });\n      expect(fragments.table.length).toBeGreaterThan(1);\n\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 420, height: 1700 });\n      const table = find(tree, (n) => n.tag === \"table\")!;\n      const rects = (table.styles as any).collapsedBorderRects as Array<any>;\n      for (const fragment of fragments.section) {\n        expect(rects.some((rect) => rect.x < fragment.right && rect.x + rect.width > fragment.left\n          && rect.y < fragment.bottom && rect.y + rect.height > fragment.top)).toBe(true);\n      }\n      expect(rects.some((rect) => rect.axis === \"row\" && rect.width === 8\n        && rect.style === \"dashed\" && rect.color === \"rgb(220, 0, 0)\")).toBe(true);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 82,
+          "workItemUris": [
+            "DM-2337"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fe6f3fa8323118ae2219a5ee861df943"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "82dbed58c5ce790760a1c04d4238428062d540f0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

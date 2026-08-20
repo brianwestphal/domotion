@@ -221,4 +221,29 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       }
     } finally { await page.close(); }
   }, 60_000);
+
+  it("maps fragmented vertical-rl RTL tables through logical block coordinates (DM-2337)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 420, height: 1700 }, deviceScaleFactor: 1 });
+    try {
+      // RTL vertical multicol flows toward negative physical y. The top margin
+      // keeps every fragment in the capture viewport without changing its
+      // logical block/inline mapping.
+      await page.setContent(`<style>body{margin:0}.cols{margin-top:700px;columns:3;column-fill:auto;width:180px;height:900px;writing-mode:vertical-rl;direction:rtl}.t{border-collapse:collapse;writing-mode:vertical-rl;direction:rtl}.t td{box-sizing:border-box;width:46px;height:38px;border:4px solid rgb(0,0,255);padding:0}.t .accent{border-block-start:8px dashed rgb(220,0,0)}</style><div class="cols"><table class="t"><tbody>${Array.from({ length: 20 }, (_, i) => `<tr><td class="${i === 8 ? "accent" : ""}">${i}</td></tr>`).join("")}</tbody></table></div>`, { waitUntil: "load" });
+      const fragments = await page.evaluate(() => {
+        const serial = (element: Element) => Array.from(element.getClientRects(), (rect) => ({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }));
+        return { table: serial(document.querySelector("table")!), section: serial(document.querySelector("tbody")!) };
+      });
+      expect(fragments.table.length).toBeGreaterThan(1);
+
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 1700 });
+      const table = find(tree, (n) => n.tag === "table")!;
+      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      for (const fragment of fragments.section) {
+        expect(rects.some((rect) => rect.x < fragment.right && rect.x + rect.width > fragment.left
+          && rect.y < fragment.bottom && rect.y + rect.height > fragment.top)).toBe(true);
+      }
+      expect(rects.some((rect) => rect.axis === "row" && rect.width === 8
+        && rect.style === "dashed" && rect.color === "rgb(220, 0, 0)")).toBe(true);
+    } finally { await page.close(); }
+  }, 60_000);
 });

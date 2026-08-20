@@ -166,9 +166,13 @@ For multicolumn repeatable headers and footers, CSSOM exposes the repeat count
 but aliases every clone to the prototype section coordinates. Domotion uses
 that structural signal to place each header at its physical table fragment's
 block start and each footer at its block end, preserving the global row index
-and Chromium's full outer-edge ownership. Actual paged-media capture remains a
-separate concern because the viewport capture path does not expose page
-fragments.
+and Chromium's full outer-edge ownership. Actual paged-media capture remains an
+explicit unsupported boundary: Domotion captures one screen-media viewport and
+the DOM/CSSOM APIs used here expose multicol fragment boxes, not the page-
+fragment tree that Blink's print pipeline hands to `TablePainter`. A caller
+switching the page to print media does not make those page fragments observable,
+so capture must not claim paged-table parity until it owns a page-fragment
+transport; `@page` output remains outside the screen-capture contract in doc 01.
 
 The expanded matrix's first negative control exposed a coordinate-space error:
 CSSOM returns border/outline paint lengths divided by Blink's effective zoom,
