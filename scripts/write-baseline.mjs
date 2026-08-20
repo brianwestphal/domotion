@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // DM-1217: turn a merged visual-test result set (scripts/merge-shard-results.mjs
-// output — a plain array) into a committed CI baseline file, the thing
+// output — a plain array — or a suite result wrapper into a committed CI
+// baseline file, the thing
 // scripts/diff-against-baseline.mjs diffs future runs against.
 //
 // The baseline is image-specific by design: the local Mac and the macos-15-arm64
@@ -38,9 +39,10 @@ if (resultsPath == null || outPath == null) {
   process.exit(2);
 }
 
-const arr = JSON.parse(readFileSync(resultsPath, "utf8"));
+const parsed = JSON.parse(readFileSync(resultsPath, "utf8"));
+const arr = Array.isArray(parsed) ? parsed : parsed?.results;
 if (!Array.isArray(arr)) {
-  console.error("write-baseline: --results must be a merged results array");
+  console.error("write-baseline: --results must be an array or an object with a results array");
   process.exit(2);
 }
 

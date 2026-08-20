@@ -462,6 +462,25 @@ describe("byte-aware attribution reaches the baseline and the report", () => {
   });
 });
 
+describe("write-baseline accepts suite result wrappers", () => {
+  const repoRoot = join(import.meta.dirname, "..");
+
+  it("normalizes the feature/showcase/real-world { results } shape", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dm2411-wrapper-"));
+    try {
+      const row = { name: "wrapped", pass: true, skipped: false, diffPct: 0.1, worstTilePct: 0.2, regionCount: 1 };
+      writeFileSync(join(dir, "results.json"), JSON.stringify({ generatedAt: "2026-08-21", results: [row] }));
+      execFileSync("node", ["scripts/write-baseline.mjs",
+        "--results", join(dir, "results.json"), "--out", join(dir, "baseline.json"),
+        "--suite", "features", "--os", "macos"], { cwd: repoRoot, stdio: "pipe" });
+      const written = JSON.parse(readFileSync(join(dir, "baseline.json"), "utf8"));
+      expect(written.meta.counts).toEqual({ passed: 1, failed: 0, skipped: 0, total: 1 });
+      const { name: _name, ...storedFields } = row;
+      expect(written.fixtures.wrapped).toMatchObject(storedFields);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 /**
  * The local-repeat trap: `demos:test:unicode` HARDCODED its output dir, so
  * passing `HTML_TEST_OUTPUT_DIR` on the command line silently did nothing —
