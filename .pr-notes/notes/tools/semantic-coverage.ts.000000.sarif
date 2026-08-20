@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0zx0sj1te2303h",
+          "message": {
+            "text": "The checker treats every semantic family as a finite state-transition partition: each case must be classified exact or uncovered, exact families require all-platform oracle/metamorphic/visual evidence, and every parity area plus transition-bearing public feature must remain linked or explicitly excluded. This prevents a broad feature or screenshot pass from silently standing in for branch-level parity.",
+            "markdown": "The checker treats every semantic family as a finite state-transition partition: each case must be classified exact or uncovered, exact families require all-platform oracle/metamorphic/visual evidence, and every parity area plus transition-bearing public feature must remain linked or explicitly excluded. This prevents a broad feature or screenshot pass from silently standing in for branch-level parity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/semantic-coverage.ts"
+                },
+                "region": {
+                  "startLine": 122,
+                  "endLine": 205,
+                  "snippet": {
+                    "text": "  for (const row of inventory.transitions ?? []) {\n    const label = row.id || \"<empty>\";\n    if (!row.id?.trim() || ids.has(row.id)) errors.push(`duplicate or empty transition id: ${label}`);\n    ids.add(row.id);\n    if (!row.subjects?.length) errors.push(`${label}: subjects must not be empty`);\n    if (!row.parityAreas?.length) errors.push(`${label}: parityAreas must not be empty`);\n    for (const area of row.parityAreas ?? []) {\n      if (!parityAreaIds.has(area)) errors.push(`${label}: unknown parity area ${area}`);\n    }\n    if (!row.featureIds?.length) errors.push(`${label}: featureIds must not be empty`);\n    for (const featureId of row.featureIds ?? []) {\n      if (!featureIds.has(featureId)) errors.push(`${label}: unknown feature id ${featureId}`);\n    }\n    if (!row.states?.length || row.states.some((state) => {\n      const sides = state.split(\"->\");\n      return sides.length !== 2 || sides.some((side) => !side.trim());\n    })) {\n      errors.push(`${label}: every state must name exactly one nonempty transition with ->`);\n    }\n    const stateSet = new Set(row.states ?? []);\n    const exactStateSet = new Set(row.exactStates ?? []);\n    const uncoveredStateSet = new Set(row.uncoveredStates ?? []);\n    if (stateSet.size !== (row.states ?? []).length) errors.push(`${label}: states must be unique`);\n    for (const state of row.exactStates ?? []) {\n      if (!stateSet.has(state)) errors.push(`${label}: exactStates contains unknown state ${state}`);\n    }\n    for (const state of row.uncoveredStates ?? []) {\n      if (!stateSet.has(state)) errors.push(`${label}: uncoveredStates contains unknown state ${state}`);\n      if (exactStateSet.has(state)) errors.push(`${label}: state appears in both exactStates and uncoveredStates: ${state}`);\n    }\n    for (const state of row.states ?? []) {\n      if (!exactStateSet.has(state) && !uncoveredStateSet.has(state)) errors.push(`${label}: unclassified state ${state}`);\n    }\n    if (!coverageValues.has(row.coverage)) errors.push(`${label}: invalid coverage ${String(row.coverage)}`);\n    if (!row.verifiedPlatforms?.length || row.verifiedPlatforms.some((platform) => !platforms.has(platform))) {\n      errors.push(`${label}: invalid or empty verifiedPlatforms`);\n    }\n    if (row.coverage === \"exact\") {\n      if (uncoveredStateSet.size !== 0 || exactStateSet.size !== stateSet.size) {\n        errors.push(`${label}: exact row must classify every state as exact`);\n      }\n      const missingPlatforms = SEMANTIC_PLATFORMS.filter((platform) => !row.verifiedPlatforms.includes(platform));\n      if (missingPlatforms.length) errors.push(`${label}: exact row misses ${missingPlatforms.join(\", \")}`);\n      if (!row.oracles?.length || !row.metamorphicTests?.length || !row.visualFixtures?.length) {\n        errors.push(`${label}: exact row requires oracle, metamorphic, and visual evidence`);\n      }\n      if (row.boundary?.trim()) errors.push(`${label}: exact row must not declare an uncovered boundary`);\n    } else {\n      if (!row.boundary?.trim()) errors.push(`${label}: ${row.coverage} row must declare its boundary`);\n      if (uncoveredStateSet.size === 0) errors.push(`${label}: ${row.coverage} row must name uncoveredStates`);\n    }\n    for (const fixture of row.visualFixtures ?? []) {\n      const [path, fixtureId] = fixture.split(\"#\", 2);\n      if (path === \"tests/features.ts\" && (fixtureId == null || !featureFixtureIds.has(fixtureId))) {\n        errors.push(`${label}: unknown tests/features.ts fixture ${fixtureId ?? \"<missing>\"}`);\n      }\n    }\n    for (const ref of [\n      ...(row.upstreamSources ?? []),\n      ...(row.productionOwners ?? []),\n      ...(row.oracles ?? []),\n      ...(row.metamorphicTests ?? []),\n      ...(row.visualFixtures ?? []),\n    ]) await requirePath(ref, label);\n  }\n\n  const claimedParityAreas = new Set((inventory.transitions ?? []).flatMap((row) => row.parityAreas ?? []));\n  for (const area of parityAreaIds) {\n    if (!claimedParityAreas.has(area)) errors.push(`unclaimed parity area: ${area}`);\n  }\n  const linkedFeatureTransitions = new Set((inventory.transitions ?? []).flatMap((row) => row.featureIds ?? []));\n  const excludedFeatureTransitions = new Set<string>();\n  for (const exclusion of inventory.excludedFeatureTransitions ?? []) {\n    if (!featureIds.has(exclusion.featureId)) errors.push(`unknown excluded feature id: ${exclusion.featureId}`);\n    if (!exclusion.reason?.trim()) errors.push(`excluded feature ${exclusion.featureId} must include a reason`);\n    if (excludedFeatureTransitions.has(exclusion.featureId)) errors.push(`duplicate excluded feature: ${exclusion.featureId}`);\n    if (linkedFeatureTransitions.has(exclusion.featureId)) errors.push(`feature ${exclusion.featureId} is both linked and excluded`);\n    excludedFeatureTransitions.add(exclusion.featureId);\n  }\n  for (const feature of FEATURES.filter((entry) => entry.transition != null)) {\n    if (!linkedFeatureTransitions.has(feature.id) && !excludedFeatureTransitions.has(feature.id)) {\n      errors.push(`transition-bearing feature is neither linked nor excluded: ${feature.id}`);\n    }\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2376"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1f2809a995bf825764849ef45d73ead1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e27602fd79baea882a7fd93a3ff09cc44a738863",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

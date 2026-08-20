@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0zx0sjdd29umjz",
+          "message": {
+            "text": "Raster-boundary activation is the initial exhaustive seed because it has a finite positive/negative ownership matrix, a Chromium-backed stage oracle, mutation movement, focused tests, a visual fixture, and evidence on all supported platforms. Raster content geometry remains a separate partial family so this exact claim does not imply pixel-content parity.",
+            "markdown": "Raster-boundary activation is the initial exhaustive seed because it has a finite positive/negative ownership matrix, a Chromium-backed stage oracle, mutation movement, focused tests, a visual fixture, and evidence on all supported platforms. Raster content geometry remains a separate partial family so this exact claim does not imply pixel-content parity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/semantic-coverage.json"
+                },
+                "region": {
+                  "startLine": 953,
+                  "endLine": 999,
+                  "snippet": {
+                    "text": "      \"id\": \"raster.boundary-activation\",\n      \"parityAreas\": [\n        \"raster-fallback-boundary\"\n      ],\n      \"subjects\": [\n        \"unsupported vector content\",\n        \"raster fallback ownership\"\n      ],\n      \"states\": [\n        \"vector-representable -> vector-owned\",\n        \"vector-unrepresentable -> raster-owned\"\n      ],\n      \"exactStates\": [\n        \"vector-representable -> vector-owned\",\n        \"vector-unrepresentable -> raster-owned\"\n      ],\n      \"uncoveredStates\": [],\n      \"upstreamSources\": [\n        \"external/chromium/third_party/blink/renderer/core/paint\"\n      ],\n      \"productionOwners\": [\n        \"src/capture/index.ts\",\n        \"src/render/advanced-gradient-raster.ts\",\n        \"src/render/element-tree-to-svg.ts\"\n      ],\n      \"oracles\": [\n        \"tools/raster-boundary-oracle.ts\"\n      ],\n      \"metamorphicTests\": [\n        \"src/render/advanced-gradient-raster.test.ts\",\n        \"src/render/projective-transform.test.ts\",\n        \"src/capture/emoji.test.ts\"\n      ],\n      \"visualFixtures\": [\n        \"tests/features.ts#replaced-canvas-overlay\"\n      ],\n      \"coverage\": \"exact\",\n      \"featureIds\": [\n        \"capture.emoji-detect\",\n        \"render.tree-to-svg\"\n      ],\n      \"verifiedPlatforms\": [\n        \"darwin\",\n        \"linux\",\n        \"win32\"\n      ]\n    },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2376"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "93585f9657eb6eaba50091f803ea3985"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e27602fd79baea882a7fd93a3ff09cc44a738863",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

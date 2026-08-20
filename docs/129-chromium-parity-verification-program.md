@@ -48,6 +48,13 @@ upstream mechanism has been traced; it does not imply exhaustive inputs.
 does not imply pixel equality. `visual-only` explicitly identifies areas where
 the present evidence cannot establish algorithmic parity.
 
+The area matrix is complemented by the state-level inventory in
+[`tools/semantic-coverage.json`](../tools/semantic-coverage.json). The area
+matrix owns pipeline-wide source and oracle programs; the semantic inventory
+links public feature IDs and fixture IDs to explicit `before -> after` cases,
+partitions them into exact and uncovered states, and prevents broad area status
+from hiding an untested decision branch.
+
 Parity tickets whose governing logic is genuinely ambiguous carry Hot Sheet's
 `Deep Thought` tag before work begins. The tag selects Max reasoning effort for
 source-heavy reconstruction, multi-subsystem architectural analysis, competing

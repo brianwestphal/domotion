@@ -2,6 +2,12 @@
 
 Status: **shipped** (DM-1459). Modeled on the apple-fm coverage-by-feature exercise.
 
+This public-feature catalog is linked to the state-level rendering inventory in
+[`tools/semantic-coverage.json`](../tools/semantic-coverage.json). A feature's
+presence here means its public surface is tracked; exact Chromium parity is a
+separate claim made only for explicitly inventoried semantic transitions with
+oracle, metamorphic, visual, and platform evidence.
+
 ## Why line coverage isn't enough
 
 Line/branch coverage proves every *line executed*. It says **nothing** about

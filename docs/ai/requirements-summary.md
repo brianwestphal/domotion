@@ -1320,6 +1320,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   non-renderable inset, preserve Blink's four corner constraints as nested SVG
   clips and subtract their intersection with a vector luminance mask.
 
+- **Doc 136 (`docs/136-semantic-coverage-inventory.md`) — Shipped framework,
+  partial coverage.** A machine-readable matrix tracks CSS/SVG rendering state
+  transitions to upstream and production owners, structured oracles,
+  metamorphic tests, visual fixtures, platform evidence, and explicit
+  unsupported boundaries. CI rejects silent/stale claims and reports every
+  acknowledged gap; the release-level strict mode fails while any row remains
+  partial or unsupported.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

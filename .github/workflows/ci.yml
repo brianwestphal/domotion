@@ -46,6 +46,7 @@ jobs:
       # tests/conventions.test.ts; this step surfaces the standalone report.)
       - run: npm run check:features
       - run: npm run check:parity-program
+      - run: npm run check:semantic-coverage
       - run: npm run paint:geometry-oracle
       - run: npx playwright install chromium
       - run: npm run fonts:layout:oracle

@@ -1,0 +1,1112 @@
+{
+  "schemaVersion": 1,
+  "contract": "docs/136-semantic-coverage-inventory.md",
+  "transitions": [
+    {
+      "id": "text.family-fallback",
+      "parityAreas": [
+        "font-selection",
+        "shaping-clusters-glyphs"
+      ],
+      "subjects": [
+        "font-family",
+        "font-weight",
+        "font-style",
+        "font-stretch",
+        "lang"
+      ],
+      "states": [
+        "declared face covers cluster -> declared face",
+        "declared face misses cluster -> platform fallback",
+        "generic family -> browser preference",
+        "helper available -> helper absent"
+      ],
+      "exactStates": [
+        "declared face covers cluster -> declared face",
+        "declared face misses cluster -> platform fallback"
+      ],
+      "uncoveredStates": [
+        "generic family -> browser preference",
+        "helper available -> helper absent"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/platform/fonts",
+        "external/harfbuzz/src"
+      ],
+      "productionOwners": [
+        "src/render/font-resolution.ts",
+        "src/render/cluster-fallback.ts",
+        "src/render/glyph-helper.ts"
+      ],
+      "oracles": [
+        "tools/font-conformance.ts",
+        "tools/exact-shaping-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/font-stack-availability.test.ts",
+        "src/render/cluster-fallback-features.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#text-system-ui-cjk-fallback",
+        "tests/html-test-suite.tsx"
+      ],
+      "coverage": "partial",
+      "boundary": "Resolver and shaper evidence are split, generic preference profiles remain incomplete, and helper-absent behavior is intentionally degraded.",
+      "featureIds": [
+        "render.text",
+        "fonts.glyph-helper"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "text.emoji-presentation",
+      "parityAreas": [
+        "font-selection",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "font-variant-emoji",
+        "variation selectors",
+        "Unicode emoji properties"
+      ],
+      "states": [
+        "normal -> text",
+        "normal -> emoji",
+        "text -> emoji",
+        "emoji -> text",
+        "VS15 -> VS16",
+        "monochrome face -> color face"
+      ],
+      "exactStates": [],
+      "uncoveredStates": [
+        "normal -> text",
+        "normal -> emoji",
+        "text -> emoji",
+        "emoji -> text",
+        "VS15 -> VS16",
+        "monochrome face -> color face"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/platform/fonts",
+        "external/chromium/third_party/blink/renderer/platform/text"
+      ],
+      "productionOwners": [
+        "src/capture/script/emoji-detect.ts",
+        "src/render/font-resolution.ts",
+        "src/capture/emoji.ts"
+      ],
+      "oracles": [
+        "tools/font-conformance.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/emoji-presentation-fallback.test.ts",
+        "src/capture/script/emoji-detect.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#text-font-variant-emoji"
+      ],
+      "coverage": "partial",
+      "boundary": "Production still contains hardcoded raster codepoint gates and does not yet carry every font-variant-emoji transition through the renderer.",
+      "featureIds": [
+        "capture.emoji-detect",
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "text.bidi-runs",
+      "parityAreas": [
+        "shaping-clusters-glyphs",
+        "text-layout-placement"
+      ],
+      "subjects": [
+        "direction",
+        "unicode-bidi"
+      ],
+      "states": [
+        "LTR -> RTL embedding",
+        "RTL -> LTR embedding",
+        "normal -> isolate",
+        "normal -> override",
+        "single script -> adjacent mixed scripts"
+      ],
+      "exactStates": [
+        "LTR -> RTL embedding",
+        "RTL -> LTR embedding",
+        "normal -> isolate",
+        "normal -> override"
+      ],
+      "uncoveredStates": [
+        "single script -> adjacent mixed scripts"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/inline",
+        "external/harfbuzz/src"
+      ],
+      "productionOwners": [
+        "src/render/script-segmentation.ts",
+        "src/render/text.ts",
+        "src/render/text-to-path.ts"
+      ],
+      "oracles": [
+        "tools/layout-stage-oracle.ts",
+        "tools/exact-shaping-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/cluster-fallback-bidi-override.test.ts",
+        "src/render/rtl-smp-bidi.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#text-rtl-in-ltr-line"
+      ],
+      "coverage": "partial",
+      "boundary": "Mixed pointed-Hebrew, Arabic, and digit runs retain an unexplained visual residual.",
+      "featureIds": [
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "text.vertical-orientation",
+      "parityAreas": [
+        "unicode-decisions",
+        "text-layout-placement"
+      ],
+      "subjects": [
+        "writing-mode",
+        "text-orientation",
+        "text-combine-upright"
+      ],
+      "states": [
+        "horizontal -> vertical-rl",
+        "vertical-rl -> vertical-lr",
+        "mixed upright -> rotated",
+        "none -> text combine"
+      ],
+      "exactStates": [
+        "horizontal -> vertical-rl",
+        "vertical-rl -> vertical-lr"
+      ],
+      "uncoveredStates": [
+        "mixed upright -> rotated",
+        "none -> text combine"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/inline",
+        "external/chromium/third_party/blink/renderer/platform/text"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/text-segments.ts",
+        "src/render/vertical-text.ts"
+      ],
+      "oracles": [
+        "tools/layout-stage-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/vertical-text.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/vertical-font-metrics.e2e.test.ts"
+      ],
+      "coverage": "partial",
+      "boundary": "Mixed orientation uses a handwritten Unicode range table and sideways/combine states remain explicitly unsupported.",
+      "featureIds": [
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "text.wrapping-fragmentation",
+      "parityAreas": [
+        "text-layout-placement"
+      ],
+      "subjects": [
+        "white-space",
+        "overflow-wrap",
+        "word-break",
+        "line-break",
+        "hyphens",
+        "columns"
+      ],
+      "states": [
+        "unwrapped -> soft wrap",
+        "ordinary break -> emergency break",
+        "hidden soft hyphen -> painted hyphen",
+        "single fragment -> multiple fragments"
+      ],
+      "exactStates": [
+        "unwrapped -> soft wrap",
+        "hidden soft hyphen -> painted hyphen"
+      ],
+      "uncoveredStates": [
+        "ordinary break -> emergency break",
+        "single fragment -> multiple fragments"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/inline"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/text-segments.ts",
+        "src/render/text.ts"
+      ],
+      "oracles": [
+        "tools/layout-stage-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/text.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#text-multiline"
+      ],
+      "coverage": "partial",
+      "boundary": "The generated layout axes do not yet enumerate every line-breaking and fragmentation interaction.",
+      "featureIds": [
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "text.decoration",
+      "parityAreas": [
+        "text-decoration"
+      ],
+      "subjects": [
+        "text-decoration-line",
+        "text-decoration-style",
+        "text-decoration-thickness",
+        "text-underline-offset",
+        "text-decoration-skip-ink"
+      ],
+      "states": [
+        "none -> line",
+        "solid -> double/dotted/dashed/wavy",
+        "auto -> explicit thickness",
+        "skip-ink none -> auto",
+        "local -> propagated decoration"
+      ],
+      "exactStates": [
+        "none -> line",
+        "solid -> double/dotted/dashed/wavy",
+        "auto -> explicit thickness",
+        "skip-ink none -> auto"
+      ],
+      "uncoveredStates": [
+        "local -> propagated decoration"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/render/text.ts",
+        "src/tree-ops/decoration-propagation.ts"
+      ],
+      "oracles": [
+        "tools/decoration-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/skip-ink-geometry.test.ts",
+        "src/tree-ops/decoration-propagation.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#text-decorations"
+      ],
+      "coverage": "partial",
+      "boundary": "Exact geometry is macOS-only and propagated wavy phase retains an empirical decision.",
+      "featureIds": [
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin"
+      ]
+    },
+    {
+      "id": "box.border-outline",
+      "parityAreas": [
+        "borders-outlines"
+      ],
+      "subjects": [
+        "border-style",
+        "border-width",
+        "border-radius",
+        "corner-shape",
+        "outline",
+        "zoom"
+      ],
+      "states": [
+        "solid -> dotted/dashed/double",
+        "round -> non-round corner",
+        "uniform -> mixed sides",
+        "unzoomed -> effective zoom",
+        "unfragmented -> fragmented"
+      ],
+      "exactStates": [
+        "round -> non-round corner",
+        "uniform -> mixed sides",
+        "unzoomed -> effective zoom"
+      ],
+      "uncoveredStates": [
+        "solid -> dotted/dashed/double",
+        "unfragmented -> fragmented"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/skia/src/core"
+      ],
+      "productionOwners": [
+        "src/render/element-tree-to-svg.ts",
+        "src/capture/script/walker/borders-backgrounds.ts"
+      ],
+      "oracles": [
+        "tools/border-phase-oracle.ts",
+        "tools/paint-geometry-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/borders.test.ts",
+        "tests/border-phase-oracle.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#border-styles-variants"
+      ],
+      "coverage": "partial",
+      "boundary": "Native phase envelopes and some dotted/dashed paint profiles remain under review.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "table.collapsed-fragmentation",
+      "parityAreas": [
+        "borders-outlines"
+      ],
+      "subjects": [
+        "border-collapse",
+        "break-inside",
+        "thead repetition",
+        "tfoot repetition",
+        "writing-mode"
+      ],
+      "states": [
+        "separate -> collapse",
+        "whole-row break -> continued-row break",
+        "single fragment -> repeated header/footer",
+        "horizontal -> vertical fragmentation"
+      ],
+      "exactStates": [
+        "separate -> collapse"
+      ],
+      "uncoveredStates": [
+        "whole-row break -> continued-row break",
+        "single fragment -> repeated header/footer",
+        "horizontal -> vertical fragmentation"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/table",
+        "external/chromium/third_party/blink/renderer/core/paint/table_painters.cc"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/collapsed-border.ts",
+        "src/capture/script/walker/borders-backgrounds.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/paint-geometry-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/capture/script/walker/collapsed-border.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/border-collapse-conflict.e2e.test.ts"
+      ],
+      "coverage": "partial",
+      "boundary": "Paged media and the full fragmented repeated-section/joint matrix remain incomplete.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "paint.gradients",
+      "parityAreas": [
+        "gradients-masks-clips",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "background-image",
+        "mask-image",
+        "linear-gradient",
+        "radial-gradient",
+        "conic-gradient",
+        "color-interpolation-method"
+      ],
+      "states": [
+        "linear -> radial",
+        "radial -> conic",
+        "non-repeating -> repeating",
+        "positive -> negative domain",
+        "sRGB -> perceptual color space",
+        "vector -> Chromium raster tile",
+        "legacy endpoint -> modern center line"
+      ],
+      "exactStates": [
+        "linear -> radial",
+        "radial -> conic",
+        "non-repeating -> repeating",
+        "positive -> negative domain",
+        "sRGB -> perceptual color space",
+        "vector -> Chromium raster tile"
+      ],
+      "uncoveredStates": [
+        "legacy endpoint -> modern center line"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/skia/src/core"
+      ],
+      "productionOwners": [
+        "src/render/gradients.ts",
+        "src/render/advanced-gradient-raster.ts",
+        "src/render/conic-raster.ts"
+      ],
+      "oracles": [
+        "tools/paint-geometry-oracle.ts",
+        "tools/paint-geometry-browser-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/color-hint-interpolation.test.ts",
+        "src/render/color-table-lookup.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#gradient-radial-negative-domain",
+        "tests/features.ts#bg-conic-chromium-zoom-tile"
+      ],
+      "coverage": "partial",
+      "boundary": "Legacy -webkit-gradient endpoint geometry and one repeating-linear threshold remain unresolved.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "paint.masks-clips",
+      "parityAreas": [
+        "gradients-masks-clips"
+      ],
+      "subjects": [
+        "mask-image",
+        "mask-size",
+        "mask-position",
+        "mask-repeat",
+        "mask-composite",
+        "clip-path",
+        "geometry-box"
+      ],
+      "states": [
+        "none -> image/gradient/reference",
+        "objectBoundingBox -> userSpaceOnUse",
+        "border-box -> fill/stroke/view-box",
+        "alpha -> luminance",
+        "single -> multiple composed layers",
+        "center position -> arbitrary position"
+      ],
+      "exactStates": [
+        "none -> image/gradient/reference",
+        "objectBoundingBox -> userSpaceOnUse",
+        "border-box -> fill/stroke/view-box",
+        "alpha -> luminance",
+        "single -> multiple composed layers"
+      ],
+      "uncoveredStates": [
+        "center position -> arbitrary position"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/chromium/third_party/blink/renderer/core/layout/svg"
+      ],
+      "productionOwners": [
+        "src/render/mask.ts",
+        "src/render/clip-path.ts",
+        "src/capture/script/walker/masks-clips.ts"
+      ],
+      "oracles": [
+        "tools/paint-geometry-oracle.ts",
+        "tools/paint-geometry-browser-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/mask-contain-align.test.ts",
+        "src/render/svg-inline.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#mask-advanced-tiling-composite",
+        "tests/features.ts#clip-path-userspaceonuse-fragment"
+      ],
+      "coverage": "partial",
+      "boundary": "Arbitrary contain/cover positions, URL clip origins, and full SVG effect combinations are not exact.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "geometry.transforms",
+      "parityAreas": [
+        "transforms-projection-reflection",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "transform",
+        "transform-origin",
+        "transform-box",
+        "perspective",
+        "transform-style",
+        "zoom"
+      ],
+      "states": [
+        "identity -> affine",
+        "affine -> projective",
+        "flat -> preserve-3d",
+        "border-box -> fill-box",
+        "static -> animated",
+        "unzoomed -> zoomed"
+      ],
+      "exactStates": [
+        "identity -> affine",
+        "border-box -> fill-box",
+        "unzoomed -> zoomed"
+      ],
+      "uncoveredStates": [
+        "affine -> projective",
+        "flat -> preserve-3d",
+        "static -> animated"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout",
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/transforms.ts",
+        "src/render/transforms.ts",
+        "src/tree-ops/viewbox-culling.ts"
+      ],
+      "oracles": [
+        "tools/transform-geometry-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/projective-transform.test.ts",
+        "src/tree-ops/viewbox-culling.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#transform-scale-flex-descendants",
+        "tests/features.ts#preserve-3d-translatez-paint-order"
+      ],
+      "coverage": "partial",
+      "boundary": "Nested/animated projective contexts, missing perspective capture, scalar text transforms, and animated culling remain incomplete.",
+      "featureIds": [
+        "render.tree-to-svg",
+        "render.cull"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "paint.stacking-compositing",
+      "parityAreas": [
+        "compositing-effects-paint-order"
+      ],
+      "subjects": [
+        "position",
+        "z-index",
+        "opacity",
+        "isolation",
+        "mix-blend-mode",
+        "filter",
+        "backdrop-filter",
+        "contain",
+        "will-change"
+      ],
+      "states": [
+        "non-stacking -> stacking context",
+        "in-flow -> positioned/floating",
+        "normal -> blend/filter/backdrop",
+        "non-atomic -> atomic",
+        "viewport fixed -> trapped fixed"
+      ],
+      "exactStates": [
+        "non-stacking -> stacking context",
+        "in-flow -> positioned/floating",
+        "non-atomic -> atomic",
+        "viewport fixed -> trapped fixed"
+      ],
+      "uncoveredStates": [
+        "normal -> blend/filter/backdrop"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/skia/src/core"
+      ],
+      "productionOwners": [
+        "src/render/stacking.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/capture/backdrop-isolation.ts"
+      ],
+      "oracles": [
+        "tools/paint-order-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/stacking-context.test.ts",
+        "src/render/stacking-flex-overflow-order.test.ts",
+        "src/capture/backdrop-isolation.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#z-index-order",
+        "tests/features.ts#filter-passthrough",
+        "tests/features.ts#blend-mode-passthrough"
+      ],
+      "coverage": "partial",
+      "boundary": "Blend/filter kernels and several backdrop source-surface transitions lack exact pixel-stage evidence.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "replaced.object-sizing",
+      "parityAreas": [
+        "replaced-elements-controls-generated-content",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "object-fit",
+        "object-position",
+        "intrinsic dimensions",
+        "image decoding"
+      ],
+      "states": [
+        "fill -> contain/cover/none/scale-down",
+        "center -> non-bucket position",
+        "decoded -> broken",
+        "static -> dynamic frame"
+      ],
+      "exactStates": [
+        "fill -> contain/cover/none/scale-down",
+        "center -> non-bucket position"
+      ],
+      "uncoveredStates": [
+        "decoded -> broken",
+        "static -> dynamic frame"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout",
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/replaced-elements.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/capture/index.ts"
+      ],
+      "oracles": [
+        "tools/replaced-geometry-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/object-fit-scale-down.test.ts",
+        "tests/replaced-used-size.e2e.test.ts",
+        "src/capture/content-box.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#image-concrete-object-fit-position"
+      ],
+      "coverage": "partial",
+      "boundary": "Transformed clipped snapshots and broken-image UA paint are not source-exact.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "controls.native-ownership",
+      "parityAreas": [
+        "replaced-elements-controls-generated-content",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "appearance",
+        "accent-color",
+        "color-scheme",
+        "resize",
+        "scrollbar styling"
+      ],
+      "states": [
+        "native -> author styled",
+        "light -> dark",
+        "default -> accented",
+        "no scrollbar -> classic/overlay scrollbar",
+        "not resizable -> resizable"
+      ],
+      "exactStates": [],
+      "uncoveredStates": [
+        "native -> author styled",
+        "light -> dark",
+        "default -> accented",
+        "no scrollbar -> classic/overlay scrollbar",
+        "not resizable -> resizable"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/forms",
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/render/form-controls.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/replaced-geometry-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/form-controls.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#form-controls"
+      ],
+      "coverage": "partial",
+      "boundary": "Native controls use sampled macOS-style synthesis cross-platform and native scrollbar ownership is undefined.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "frames.iframe-recursion",
+      "parityAreas": [
+        "replaced-elements-controls-generated-content",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "iframe origin",
+        "allowlist",
+        "scroll capture",
+        "clip-path",
+        "mask"
+      ],
+      "states": [
+        "same-origin -> recursive vector",
+        "cross-origin denied -> raster",
+        "cross-origin allowlisted -> recursive vector",
+        "static capture -> scroll composition"
+      ],
+      "exactStates": [
+        "same-origin -> recursive vector",
+        "cross-origin denied -> raster",
+        "cross-origin allowlisted -> recursive vector"
+      ],
+      "uncoveredStates": [
+        "static capture -> scroll composition"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/html",
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/capture/script/cross-origin.ts",
+        "src/capture/index.ts",
+        "src/scroll/composer.ts"
+      ],
+      "oracles": [
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/capture/script/cross-origin.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#replaced-iframe-same-origin",
+        "tests/features.ts#iframe-inner-clip-mask"
+      ],
+      "coverage": "partial",
+      "boundary": "Allowlist state is not threaded through scroll capture and one nested clip/mask threshold remains.",
+      "featureIds": [
+        "capture.iframe-recursion"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "svg.effect-reference-boxes",
+      "parityAreas": [
+        "gradients-masks-clips",
+        "transforms-projection-reflection"
+      ],
+      "subjects": [
+        "fill-box",
+        "stroke-box",
+        "view-box",
+        "clipPathUnits",
+        "maskUnits",
+        "gradientUnits"
+      ],
+      "states": [
+        "objectBoundingBox -> userSpaceOnUse",
+        "fill-box -> stroke-box",
+        "stroke-box -> view-box",
+        "root viewport -> nested viewport",
+        "untransformed -> transformed"
+      ],
+      "exactStates": [
+        "objectBoundingBox -> userSpaceOnUse",
+        "fill-box -> stroke-box",
+        "stroke-box -> view-box",
+        "root viewport -> nested viewport"
+      ],
+      "uncoveredStates": [
+        "untransformed -> transformed"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/svg",
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/inline-svg.ts",
+        "src/render/svg-inline.ts",
+        "src/render/clip-path.ts",
+        "src/render/mask.ts"
+      ],
+      "oracles": [
+        "tools/paint-geometry-oracle.ts",
+        "tools/paint-geometry-browser-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/svg-inline.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#inline-svg-effect-geometry-boxes"
+      ],
+      "coverage": "partial",
+      "boundary": "Generated effect combinations, URL clip origins, and inline-SVG 3D transforms are not exhaustively covered.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "raster.boundary-activation",
+      "parityAreas": [
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "unsupported vector content",
+        "raster fallback ownership"
+      ],
+      "states": [
+        "vector-representable -> vector-owned",
+        "vector-unrepresentable -> raster-owned"
+      ],
+      "exactStates": [
+        "vector-representable -> vector-owned",
+        "vector-unrepresentable -> raster-owned"
+      ],
+      "uncoveredStates": [],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/capture/index.ts",
+        "src/render/advanced-gradient-raster.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/advanced-gradient-raster.test.ts",
+        "src/render/projective-transform.test.ts",
+        "src/capture/emoji.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#replaced-canvas-overlay"
+      ],
+      "coverage": "exact",
+      "featureIds": [
+        "capture.emoji-detect",
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "raster.boundary-content",
+      "parityAreas": [
+        "raster-fallback-boundary",
+        "end-to-end-visual-integration"
+      ],
+      "subjects": [
+        "color glyph",
+        "replaced media",
+        "native controls",
+        "projective transform",
+        "advanced gradient",
+        "backdrop-filter"
+      ],
+      "states": [
+        "current frame -> changed frame",
+        "unclipped -> clipped",
+        "1x -> scaled"
+      ],
+      "exactStates": [],
+      "uncoveredStates": [
+        "current frame -> changed frame",
+        "unclipped -> clipped",
+        "1x -> scaled"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/skia/src/core"
+      ],
+      "productionOwners": [
+        "src/capture",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/text.ts"
+      ],
+      "oracles": [
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/projective-transform.test.ts",
+        "src/capture/emoji.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#replaced-canvas-overlay",
+        "tests/features.ts#bg-conic-chromium-zoom-tile"
+      ],
+      "coverage": "partial",
+      "boundary": "Pixel content, crop, scale, color-space, cache, and paint-order gates are not complete for every activated boundary.",
+      "featureIds": [
+        "capture.emoji-detect",
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    }
+  ],
+  "excludedFeatureTransitions": [
+    {
+      "featureId": "text.mode",
+      "reason": "Process-global renderer lifecycle, not a CSS/SVG semantic decision."
+    },
+    {
+      "featureId": "text.glyph-defs",
+      "reason": "Renderer registry lifecycle, not a CSS/SVG semantic decision."
+    },
+    {
+      "featureId": "text.embedded-fonts",
+      "reason": "Renderer registry lifecycle, not a CSS/SVG semantic decision."
+    },
+    {
+      "featureId": "text.speculative-compose",
+      "reason": "Speculative transaction lifecycle, not a CSS/SVG semantic decision."
+    },
+    {
+      "featureId": "scroll.execute",
+      "reason": "Scroll command state machine, not a CSS/SVG rendering semantic."
+    },
+    {
+      "featureId": "animate.transitions",
+      "reason": "Domotion animation authoring semantics, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "animate.overlays",
+      "reason": "Domotion overlay composition semantics, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "animate.compressed-run",
+      "reason": "Domotion compressed animation lifecycle, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "animate.states-config",
+      "reason": "Domotion configuration lifecycle, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "animate.overlay-window",
+      "reason": "Domotion overlay timeline lifecycle, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "animate.states-regions",
+      "reason": "Domotion region assembly lifecycle, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "composite.layers",
+      "reason": "Domotion composite timeline semantics, not Chromium CSS/SVG capture parity."
+    },
+    {
+      "featureId": "bin.svg-scrubber",
+      "reason": "Review-server interaction state, not a CSS/SVG rendering semantic."
+    }
+  ]
+}
