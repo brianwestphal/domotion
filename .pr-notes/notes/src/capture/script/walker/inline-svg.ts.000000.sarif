@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0x10vhwe7ka1st",
+          "message": {
+            "text": "DM-2328: Preserve computed stylesheet-owned SVG clip and mask declarations on the cloned subtree, then let the output browser resolve object, stroke, marker, and nested viewport bounds natively. Reconstructing those boxes from getBoundingClientRect or stroke-width would diverge from Blink's SVGResources::ReferenceBoxForEffects and complex stroke geometry.",
+            "markdown": "DM-2328: Preserve computed stylesheet-owned SVG clip and mask declarations on the cloned subtree, then let the output browser resolve object, stroke, marker, and nested viewport bounds natively. Reconstructing those boxes from getBoundingClientRect or stroke-width would diverge from Blink's SVGResources::ReferenceBoxForEffects and complex stroke geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 55,
+                  "endLine": 160,
+                  "snippet": {
+                    "text": "      // DM-720: SVG 2 promotes geometry properties (cx/cy/r/rx/ry/x/y/width/\n      // height/d) to CSS — modern Chrome resolves them from the cascade. When\n      // a fixture sets them entirely from CSS (no XML attrs on the element),\n      // the cloned subtree has no geometry and renders blank. Bake the\n      // computed values onto the clone so the emitted SVG stands on its own.\n      // We keep these in a separate list because (a) the per-tag applicability\n      // varies (circles want cx/cy/r, rects want x/y/width/height + rx/ry,\n      // paths want d) and (b) computed values need light normalisation\n      // (strip \"px\"; unwrap path(\"…\") for d) before they're valid as XML\n      // presentation attributes.\n      const _bakeSvgGeomAttrs = ['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'd'];\n      // CSS effects are not presentation geometry carried by the cloned XML\n      // unless authored inline. Preserve the computed declarations so the\n      // output browser resolves SVG fill/stroke/view reference boxes natively.\n      const _bakeSvgMaskProps = ['mask-image', 'mask-origin', 'mask-clip', 'mask-position', 'mask-size', 'mask-repeat', 'mask-composite', 'mask-mode'];\n      const _walkBake = (origNode, cloneNode) => {\n        if (origNode.nodeType !== 1) return;\n        const ns = origNode.namespaceURI;\n        if (ns === 'http://www.w3.org/2000/svg' && origNode !== el) {\n          const ocs = window.getComputedStyle(origNode);\n          // DM-778: detect whether the source's `fill` / `stroke` was driven\n          // by `currentColor`. When the symbol is defined in a hidden <defs>\n          // <svg> and the polygon/polyline's CSS rule is `fill:\n          // currentColor` (or `stroke: currentColor`), getComputedStyle on\n          // that node resolves the value against the DEFS's cascade —\n          // typically the document body's color = black. If we baked that\n          // black literal onto the clone, every <use> consumer would paint\n          // the icon black regardless of its own host color. Probe by\n          // temporarily flipping `style.color` on the source: if `fill` /\n          // `stroke` follows, the value was driven by `currentColor` and we\n          // should preserve the keyword so `_substCurrentColor` can resolve\n          // it against the consumer's color later. Restore the source's\n          // inline color so the live page state isn't disturbed.\n          const _usesCurrentColor = (camel) => {\n            const baseVal = ocs[camel];\n            if (baseVal !== ocs.color) return false;\n            const savedColor = origNode.style.color;\n            origNode.style.color = \"rgb(1, 2, 3)\";\n            const probeCs = window.getComputedStyle(origNode);\n            const matches = probeCs[camel] === probeCs.color;\n            origNode.style.color = savedColor;\n            return matches;\n          };\n          for (const attr of _bakeSvgAttrs) {\n            const camel = attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase());\n            const val = ocs[camel];\n            // DM-524: see _hasConcreteAttr comment above. Skip the bake only\n            // when the source attr value is a concrete literal — var() /\n            // calc() / env() / attr() references resolve against the source\n            // cascade and lose their resolution outside it, so we replace\n            // them with the resolved computed value.\n            if (val != null && val !== '' && !_hasConcreteAttr(origNode, attr)) {\n              // DM-778: preserve `currentColor` for `fill` / `stroke` when\n              // the source rule uses it, so the consumer's color cascades\n              // through the inlined symbol.\n              const preserveCurrent = (attr === \"fill\" || attr === \"stroke\") && _usesCurrentColor(camel);\n              cloneNode.setAttribute(attr, preserveCurrent ? \"currentColor\" : val);\n            }\n          }\n          // DM-720: bake CSS-driven geometry. Skip when the source has a\n          // concrete XML attr — Chrome's per-property precedence is \"CSS wins\n          // over the presentation attribute\" since SVG 2, but the computed\n          // value reflects that already, so writing it to the clone preserves\n          // the same painted geometry. Strip \"px\" suffixes and unwrap d's\n          // path() wrapper so the values parse as XML presentation attrs.\n          for (const gattr of _bakeSvgGeomAttrs) {\n            if (_hasConcreteAttr(origNode, gattr)) continue;\n            let gval = ocs.getPropertyValue(gattr);\n            if (gval == null) continue;\n            gval = gval.trim();\n            if (gval === '' || gval === 'auto' || gval === 'none' || gval === 'normal') continue;\n            if (gattr === 'd') {\n              // Computed `d` is wrapped as `path(\"M …\")`. Unwrap to bare data.\n              const m = /^path\\(\\s*(?:\"([^\"]*)\"|'([^']*)')\\s*\\)$/.exec(gval);\n              if (m) gval = m[1] != null ? m[1] : m[2];\n              else continue; // not a recognized path() form\n            } else if (/^-?\\d+(?:\\.\\d+)?px$/.test(gval)) {\n              gval = gval.slice(0, -2);\n            }\n            cloneNode.setAttribute(gattr, gval);\n          }\n          const computedClipPath = ocs.getPropertyValue('clip-path').trim();\n          if (computedClipPath !== '' && computedClipPath !== 'none') {\n            cloneNode.style.setProperty('clip-path', computedClipPath);\n          }\n          const computedMaskImage = ocs.getPropertyValue('mask-image').trim();\n          if (computedMaskImage !== '' && computedMaskImage !== 'none') {\n            for (const prop of _bakeSvgMaskProps) {\n              const value = ocs.getPropertyValue(prop).trim();\n              if (value !== '') cloneNode.style.setProperty(prop, value);\n            }\n          }\n          // DM-815: `<mask mask-type=\"…\">` is a presentation attribute that\n          // CSS can override (e.g. `svg .alpha-test { mask-type: alpha }`).\n          // Bake the computed value as an attribute on cloned `<mask>` nodes\n          // so the emitted standalone SVG renders the mask with the\n          // intended semantics — without it, alpha-driven masks (gradient\n          // with stop-opacity transitions on solid black) decode as\n          // luminance and paint nothing.\n          if (origNode.tagName && origNode.tagName.toLowerCase() === 'mask') {\n            const mt = ocs.maskType || ocs.getPropertyValue('mask-type');\n            if (mt === 'alpha' || mt === 'luminance') {\n              if (!origNode.hasAttribute('mask-type') || origNode.getAttribute('mask-type') !== mt) {\n                cloneNode.setAttribute('mask-type', mt);\n              }\n            }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2328"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d3aa54cbebb6b435f443211fd3d97f0c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dedabae7e0f4fdf8a81dc4901ae53c23011dbbc9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,8 @@ gradient, mask, and basic-clip builders. It does not rasterize either side.
 `npm run paint:geometry-browser-oracle` is the independent live-browser leg.
 At 4× device scale it paints deliberately binary discriminators for the
 non-square magic-corner decision, an HTML content-box clip, mask-repeat
-phase, and a conic hard-quadrant sweep. The conic probe samples away from
+phase, a conic hard-quadrant sweep, and SVG fill/stroke/view reference boxes.
+The conic probe samples away from
 antialiased boundaries and distinguishes center, start-angle, and sweep order.
 Other sample points are chosen where the retired direct-corner gradient rule
 predicts the opposite color, or immediately across a source-predicted box/tile
@@ -26,7 +27,9 @@ monotonic stop fixup, unspecified-stop distribution,
 double-position stops, and Blink's nine-stop color-hint expansion; basic
 `inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; HTML border,
 padding, content/fill, margin, and half-border reference boxes; rounded
-padding/content insets and margin-corner correction; mask size, position,
+padding/content insets and margin-corner correction; SVG content/padding/fill
+mapping to the object bounding box, border/margin/stroke mapping to the stroke
+bounding box, and view-box mapping to the local SVG viewport; mask size, position,
 per-axis repeat, `round`/`space` adjustment for generated and URL images, and
 cyclic layer lists; bottom-up mixed-layer composition using each upper layer's
 Porter-Duff operator; all four mask-composite operators; fragment mask and
@@ -87,12 +90,24 @@ against the installed browser. A zoomed advanced-color fixture proves that px
 tile terms cross from CSSOM to physical geometry once while percentage terms
 remain box-relative.
 
+SVG effect boxes transcribe `SVGResources::ReferenceBoxForEffects` and
+`ClipPathClipper::CalcLocalReferenceBox`. SVG child `content-box`,
+`padding-box`, and `fill-box` select `ObjectBoundingBox()`;
+`border-box`, `margin-box`, and `stroke-box` select `StrokeBoundingBox()`;
+`view-box` selects the resolved local SVG viewport at origin zero. URL clip
+references deliberately force the fill box. Domotion does not recreate stroke
+joins, markers, or nested viewport bounds: it bakes stylesheet-owned clip/mask
+declarations onto the cloned SVG child so the output browser executes the same
+native SVG logic. The activation control proves the former HTML layout-box
+mapping is observably different, while the live and strict visual fixtures
+exercise all three box classes.
+
 ## Boundaries and next expansion
 
-This gate does not yet claim exhaustive paint parity. Exact oracle rows still
-need to be added for SVG-specific geometry boxes. That domain remains covered
-by unit and visual fixtures but does not gain an exact logical verdict from
-this oracle until its structured rows land.
+This gate does not claim exhaustive paint parity. The covered geometry-box
+classes now have structured, mutation-control, live-browser, capture-contract,
+and strict visual evidence. New SVG effects should extend this matrix rather
+than infer object or stroke bounds from screenshot pixels.
 
 The live-browser leg validates that the pinned source transcription still
 describes the currently installed Chromium; it does not replace the structured

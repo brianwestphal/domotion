@@ -192,6 +192,14 @@ hard-quadrant sweep, while an advanced-color zoomed visual fixture verifies
 that the supported capture path embeds Chromium's pixels rather than the
 helper-absent CPU approximation.
 
+SVG effect geometry boxes now transcribe Blink's object-bounds, stroke-bounds,
+and local-viewport class selection. Capture preserves computed CSS-only
+`clip-path` and mask declarations on cloned SVG descendants, then delegates
+actual stroke joins, markers, and nested viewport resolution to the output
+browser's native SVG engine. A retired HTML-box mapping control, binary live
+browser samples, capture-contract E2E, and strict composed fixture validate the
+boundary without adding a Domotion stroke-bounds approximation.
+
 ### Generated and metamorphic coverage
 
 Generators enumerate rules, not handpicked “interesting” values. Keep their

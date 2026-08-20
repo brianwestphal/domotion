@@ -28,15 +28,21 @@ function gradientParameter(point: { x: number; y: number }, line: ReturnType<typ
 export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string; chromiumVersion: string; playwrightVersion: string; platform: string; architecture: string; deviceScaleFactor: number; probes: BrowserPaintProbe[]; verdict: string }> {
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 360, height: 850 }, deviceScaleFactor: DPR });
+    const page = await browser.newPage({ viewport: { width: 360, height: 1260 }, deviceScaleFactor: DPR });
     await page.setContent(`<!doctype html><style>
-      * { box-sizing:border-box } html,body { margin:0; width:360px; height:850px; background:white }
+      * { box-sizing:border-box } html,body { margin:0; width:360px; height:1260px; background:white }
       #gradient { position:absolute; left:20px; top:20px; width:300px; height:100px; background:linear-gradient(to top right,#000 0 50%,#fff 50% 100%) }
       #clip { position:absolute; left:20px; top:160px; width:200px; height:120px; border:10px solid transparent; padding:20px; background:#000; clip-path:content-box }
       #mask { position:absolute; left:20px; top:330px; width:200px; height:80px; background:#000; mask-image:linear-gradient(to right,#000 0 50%,transparent 50% 100%); mask-size:40px 80px; mask-position:10px 0; mask-repeat:repeat }
       #negative-radial { position:absolute; left:20px; top:430px; width:200px; height:200px; background:repeating-radial-gradient(circle 100px,#000 -30px -20px,#fff -20px -10px) }
       #conic { position:absolute; left:20px; top:650px; width:160px; height:160px; background:conic-gradient(from 90deg at 25% 75%,#000 0 25%,#fff 25% 50%,#000 50% 75%,#fff 75% 100%) }
-    </style><div id="gradient"></div><div id="clip"></div><div id="mask"></div><div id="negative-radial"></div><div id="conic"></div>`);
+      svg { position:absolute;left:20px;width:200px;height:120px;overflow:visible }
+      svg rect { fill:#000;stroke:#000;stroke-width:20px }
+      #svg-fill { top:830px } #svg-stroke { top:970px } #svg-view { top:1110px }
+      #svg-fill rect { clip-path:circle(20% at 0% 50%) fill-box }
+      #svg-stroke rect { clip-path:circle(20% at 0% 50%) stroke-box }
+      #svg-view rect { clip-path:circle(20% at 0% 50%) view-box }
+    </style><div id="gradient"></div><div id="clip"></div><div id="mask"></div><div id="negative-radial"></div><div id="conic"></div><svg id="svg-fill" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40"/></svg><svg id="svg-stroke" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40"/></svg><svg id="svg-view" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40"/></svg>`);
     const png = await page.screenshot();
     const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const luminanceAt = (cssX: number, cssY: number): number => {
@@ -94,12 +100,21 @@ export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string;
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
     const conicPass = conicSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
 
+    const svgBoxSamples = [
+      { x: 90, y: 880, expected: "black" },
+      { x: 75, y: 1020, expected: "black" },
+      { x: 90, y: 1020, expected: "white" },
+      { x: 75, y: 1160, expected: "white" },
+    ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
+    const svgBoxPass = svgBoxSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+
     const probes: BrowserPaintProbe[] = [
       { id: "chromium.linear.magic-corner", source: "css_gradient_value.cc:1282-1337,1410-1430", expected: discriminators, actual: gradientActual, pass: gradientPass },
       { id: "chromium.clip.content-box", source: "geometry_box_utils.cc:13-49 and clip_path_clipper.cc:242-261", expected: clipSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: clipSamples, pass: clipPass },
       { id: "chromium.mask.repeat-phase", source: "CSSMaskPainter FillLayer tiling geometry", expected: maskSamples.map(({ x, expected }) => ({ x, expected })), actual: maskSamples, pass: maskPass },
       { id: "chromium.radial.negative-domain-shift", source: "css_gradient_value.cc:593-633,809-824", expected: radialSamples.map(({ radius, expected }) => ({ radius, expected })), actual: radialSamples, pass: radialPass },
       { id: "chromium.conic.center-angle-domain", source: "css_gradient_value.cc:2241-2270,656-824", expected: conicSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: conicSamples, pass: conicPass },
+      { id: "chromium.clip.svg-reference-boxes", source: "svg_resources.cc:51-91 and clip_path_clipper.cc:367-386", expected: svgBoxSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: svgBoxSamples, pass: svgBoxPass },
     ];
     return { sourceRevision: SOURCE_REVISION, chromiumVersion: browser.version(), playwrightVersion, platform: process.platform, architecture: process.arch, deviceScaleFactor: DPR, probes, verdict: probes.every((probe) => probe.pass) ? "browser-validates-source-rules" : "browser-source-drift" };
   } finally {

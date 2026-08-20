@@ -47,7 +47,10 @@ normalization, Blink stop fixup and nine-stop color hints, basic clip shapes,
 and gradient-mask geometry against the production SVG builders. Mutation
 controls prove both the old direct-to-corner approximation and SVG-side radial
 clamp move. Conic center/domain/zoom/raster ownership has structured and live
-coverage. SVG geometry boxes remain the explicit expansion.
+coverage. SVG effect geometry boxes also have source-transcribed class
+selection, mutation, live-browser, capture-contract, and strict visual evidence;
+the production path preserves computed declarations and delegates bounding-box
+resolution to native SVG.
 
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from

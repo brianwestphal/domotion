@@ -50,7 +50,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [ ] **comp-nav**: Navigation bar with logo and links
 
 ### SVG
-- [ ] **svg-inline**: Inline SVG elements (icons) positioned correctly
+- [x] **svg-inline**: Inline SVG elements are cloned as self-contained vectors; CSS-only clip/mask effects preserve native fill-box, stroke-box, and view-box resolution (DM-2328)
 
 ### Text effects
 - [x] **text-bg-clip-gradient** (DM-462): `background-clip: text` + `-webkit-text-fill-color: transparent` — gradient fills the glyph shapes via SVG `<mask>` over the bg-color rect

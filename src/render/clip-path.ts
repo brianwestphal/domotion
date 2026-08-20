@@ -25,6 +25,24 @@ export interface ClipPathBoxInput {
 }
 
 export type HtmlClipGeometryBox = "border-box" | "padding-box" | "content-box" | "margin-box" | "fill-box" | "stroke-box" | "view-box" | "half-border-box";
+export type SvgEffectGeometryBox = "content-box" | "padding-box" | "fill-box" | "border-box" | "margin-box" | "stroke-box" | "view-box";
+
+export interface SvgEffectReferenceBoxes {
+  fillBox: { x: number; y: number; width: number; height: number };
+  strokeBox: { x: number; y: number; width: number; height: number };
+  viewport: { width: number; height: number };
+}
+
+/** SVGResources::ReferenceBoxForEffects, Chromium rev 7d859f27. */
+export function svgEffectReferenceBox(boxes: SvgEffectReferenceBoxes, geometryBox: SvgEffectGeometryBox): { x: number; y: number; width: number; height: number } {
+  if (geometryBox === "content-box" || geometryBox === "padding-box" || geometryBox === "fill-box") {
+    return { ...boxes.fillBox };
+  }
+  if (geometryBox === "border-box" || geometryBox === "margin-box" || geometryBox === "stroke-box") {
+    return { ...boxes.strokeBox };
+  }
+  return { x: 0, y: 0, width: boxes.viewport.width, height: boxes.viewport.height };
+}
 
 const px = (value: string | undefined): number => parseFloat(value ?? "0") || 0;
 

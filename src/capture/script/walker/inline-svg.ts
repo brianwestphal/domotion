@@ -63,6 +63,10 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       // (strip "px"; unwrap path("…") for d) before they're valid as XML
       // presentation attributes.
       const _bakeSvgGeomAttrs = ['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'd'];
+      // CSS effects are not presentation geometry carried by the cloned XML
+      // unless authored inline. Preserve the computed declarations so the
+      // output browser resolves SVG fill/stroke/view reference boxes natively.
+      const _bakeSvgMaskProps = ['mask-image', 'mask-origin', 'mask-clip', 'mask-position', 'mask-size', 'mask-repeat', 'mask-composite', 'mask-mode'];
       const _walkBake = (origNode, cloneNode) => {
         if (origNode.nodeType !== 1) return;
         const ns = origNode.namespaceURI;
@@ -128,6 +132,17 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
               gval = gval.slice(0, -2);
             }
             cloneNode.setAttribute(gattr, gval);
+          }
+          const computedClipPath = ocs.getPropertyValue('clip-path').trim();
+          if (computedClipPath !== '' && computedClipPath !== 'none') {
+            cloneNode.style.setProperty('clip-path', computedClipPath);
+          }
+          const computedMaskImage = ocs.getPropertyValue('mask-image').trim();
+          if (computedMaskImage !== '' && computedMaskImage !== 'none') {
+            for (const prop of _bakeSvgMaskProps) {
+              const value = ocs.getPropertyValue(prop).trim();
+              if (value !== '') cloneNode.style.setProperty(prop, value);
+            }
           }
           // DM-815: `<mask mask-type="…">` is a presentation attribute that
           // CSS can override (e.g. `svg .alpha-test { mask-type: alpha }`).

@@ -66,6 +66,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt0x111chgwmlv5p",
+          "message": {
+            "text": "DM-2328: Chromium groups SVG effect boxes into three source-defined classes: content/padding/fill use ObjectBoundingBox, border/margin/stroke use StrokeBoundingBox, and view-box uses the local resolved viewport at origin zero. The structured oracle checks every alias and includes an activation control against the retired HTML-box mapping.",
+            "markdown": "DM-2328: Chromium groups SVG effect boxes into three source-defined classes: content/padding/fill use ObjectBoundingBox, border/margin/stroke use StrokeBoundingBox, and view-box uses the local resolved viewport at origin zero. The structured oracle checks every alias and includes an activation control against the retired HTML-box mapping."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/clip-path.ts"
+                },
+                "region": {
+                  "startLine": 28,
+                  "endLine": 53,
+                  "snippet": {
+                    "text": "export type SvgEffectGeometryBox = \"content-box\" | \"padding-box\" | \"fill-box\" | \"border-box\" | \"margin-box\" | \"stroke-box\" | \"view-box\";\n\nexport interface SvgEffectReferenceBoxes {\n  fillBox: { x: number; y: number; width: number; height: number };\n  strokeBox: { x: number; y: number; width: number; height: number };\n  viewport: { width: number; height: number };\n}\n\n/** SVGResources::ReferenceBoxForEffects, Chromium rev 7d859f27. */\nexport function svgEffectReferenceBox(boxes: SvgEffectReferenceBoxes, geometryBox: SvgEffectGeometryBox): { x: number; y: number; width: number; height: number } {\n  if (geometryBox === \"content-box\" || geometryBox === \"padding-box\" || geometryBox === \"fill-box\") {\n    return { ...boxes.fillBox };\n  }\n  if (geometryBox === \"border-box\" || geometryBox === \"margin-box\" || geometryBox === \"stroke-box\") {\n    return { ...boxes.strokeBox };\n  }\n  return { x: 0, y: 0, width: boxes.viewport.width, height: boxes.viewport.height };\n}\n\nconst px = (value: string | undefined): number => parseFloat(value ?? \"0\") || 0;\n\n/** Blink GeometryBoxUtils::ReferenceBoxBorderBoxOutsets, rev 7d859f27. */\nexport function clipReferenceBox(el: ClipPathBoxInput, geometryBox: HtmlClipGeometryBox): { x: number; y: number; width: number; height: number } {\n  const border = { top: px(el.styles.borderTopWidth), right: px(el.styles.borderRightWidth), bottom: px(el.styles.borderBottomWidth), left: px(el.styles.borderLeftWidth) };\n  const padding = { top: px(el.styles.paddingTop), right: px(el.styles.paddingRight), bottom: px(el.styles.paddingBottom), left: px(el.styles.paddingLeft) };\n  const margin = { top: px(el.styles.marginTop), right: px(el.styles.marginRight), bottom: px(el.styles.marginBottom), left: px(el.styles.marginLeft) };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2328"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e554bc42bda8bdc97d07b87c7350198d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dedabae7e0f4fdf8a81dc4901ae53c23011dbbc9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

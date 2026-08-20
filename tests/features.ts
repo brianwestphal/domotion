@@ -1417,6 +1417,15 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // DM-2328: CSS-only SVG clip-path declarations must be baked onto the
+    // cloned subtree so the output browser resolves native fill/stroke/view
+    // reference boxes instead of losing the source page's stylesheet.
+    name: "inline-svg-effect-geometry-boxes",
+    html: `<style>.dm-svg-boxes{display:flex;gap:10px}.dm-svg-boxes svg{width:200px;height:120px;overflow:visible}.dm-svg-boxes rect{fill:#2563eb;stroke:#dc2626;stroke-width:20px}.dm-fill{clip-path:circle(20% at 0% 50%) fill-box}.dm-stroke{clip-path:circle(20% at 0% 50%) stroke-box}.dm-view{clip-path:circle(20% at 0% 50%) view-box}.dm-mask{mask-image:linear-gradient(to right,#000 0 50%,transparent 50%);mask-size:50% 100%;mask-repeat:no-repeat}.dm-mask-fill{mask-origin:fill-box;mask-clip:fill-box}.dm-mask-stroke{mask-origin:stroke-box;mask-clip:stroke-box}.dm-mask-view{mask-origin:view-box;mask-clip:view-box}</style><div style="padding:20px"><div class="dm-svg-boxes"><svg viewBox="0 0 200 120"><rect class="dm-fill" x="60" y="30" width="80" height="40"/></svg><svg viewBox="0 0 200 120"><rect class="dm-stroke" x="60" y="30" width="80" height="40"/></svg><svg viewBox="0 0 200 120"><rect class="dm-view" x="60" y="30" width="80" height="40"/></svg></div><div class="dm-svg-boxes"><svg viewBox="0 0 200 120"><rect class="dm-mask dm-mask-fill" x="60" y="30" width="80" height="40"/></svg><svg viewBox="0 0 200 120"><rect class="dm-mask dm-mask-stroke" x="60" y="30" width="80" height="40"/></svg><svg viewBox="0 0 200 120"><rect class="dm-mask dm-mask-view" x="60" y="30" width="80" height="40"/></svg></div></div>`,
+    width: 690,
+    height: 300,
+  },
+  {
     // DM-523: position:fixed inside a transformed ancestor pins to that
     // ancestor (CSS Transforms 2: any non-none transform creates a
     // containing block for fixed-positioned descendants). When capturing,

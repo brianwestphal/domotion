@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { buildLinearGradientDef, buildRadialGradientDef, normalizeRadialGradientDomain, parseGradientStops } from "../src/render/gradient-defs.js";
-import { clipPathShapeForElement, clipReferenceBox, translateClipPath, type HtmlClipGeometryBox } from "../src/render/clip-path.js";
+import { clipPathShapeForElement, clipReferenceBox, svgEffectReferenceBox, translateClipPath, type HtmlClipGeometryBox, type SvgEffectGeometryBox } from "../src/render/clip-path.js";
 import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } from "../src/render/mask.js";
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
 import { computeTileSize, resolveConicStops } from "../src/render/conic-raster.js";
@@ -234,6 +234,29 @@ function clipRows(): OracleRow[] {
     const delta = maxDelta(test.expected, actual);
     rows.push({ id: `clip.reference-box.${test.box}`, stage: "clip", source: "geometry_box_utils.cc:13-49", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
   }
+  const svgBoxes = {
+    fillBox: { x: 60, y: 30, width: 80, height: 40 },
+    strokeBox: { x: 50, y: 20, width: 100, height: 60 },
+    viewport: { width: 200, height: 120 },
+  };
+  const svgReferenceCases: Array<{ box: SvgEffectGeometryBox; expected: { x: number; y: number; width: number; height: number } }> = [
+    { box: "content-box", expected: svgBoxes.fillBox },
+    { box: "padding-box", expected: svgBoxes.fillBox },
+    { box: "fill-box", expected: svgBoxes.fillBox },
+    { box: "border-box", expected: svgBoxes.strokeBox },
+    { box: "margin-box", expected: svgBoxes.strokeBox },
+    { box: "stroke-box", expected: svgBoxes.strokeBox },
+    { box: "view-box", expected: { x: 0, y: 0, width: 200, height: 120 } },
+  ];
+  for (const test of svgReferenceCases) {
+    const actual = svgEffectReferenceBox(svgBoxes, test.box);
+    const delta = maxDelta(test.expected, actual);
+    rows.push({ id: `clip.svg-reference-box.${test.box}`, stage: "clip", source: "svg_resources.cc:51-91 and clip_path_clipper.cc:367-386", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
+  }
+  const retiredHtmlMapping = clipReferenceBox({ x: 10, y: 20, width: 200, height: 120, styles: {} }, "fill-box");
+  const svgFill = svgEffectReferenceBox(svgBoxes, "fill-box");
+  const svgActivationDelta = maxDelta(retiredHtmlMapping, svgFill);
+  rows.push({ id: "clip.svg-reference-box.activation-control", stage: "clip", source: "SVGResources::ReferenceBoxForEffects SVG-child branch", expected: { differsFromHtmlLayoutBox: true }, actual: { differsFromHtmlLayoutBox: svgActivationDelta > 1 }, maxAbsDelta: 0, pass: svgActivationDelta > 1 });
   const roundedElement = { ...element, styles: { ...element.styles, borderTopWidth: "5px", borderRightWidth: "5px", borderBottomWidth: "5px", borderLeftWidth: "5px", paddingTop: "10px", paddingRight: "10px", paddingBottom: "10px", paddingLeft: "10px" } };
   for (const test of [{ box: "padding-box" as const, expected: { x: 15, y: 25, width: 190, height: 110, rx: 25 } }, { box: "content-box" as const, expected: { x: 25, y: 35, width: 170, height: 90, rx: 15 } }]) {
     const markup = clipPathShapeForElement(roundedElement, test.box);
