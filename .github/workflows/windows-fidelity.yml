@@ -81,6 +81,13 @@ jobs:
       - run: npm ci
       - name: Install Chromium
         run: npx playwright install chromium
+      - name: Build the DirectWrite helper
+        # DM-2392: production color-glyph ownership is selected-face evidence
+        # returned by the helper.  A helper-absent visual run exercises only
+        # the intentionally best-effort compatibility path and cannot gate the
+        # supported renderer contract.
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
       - name: Run feature visual-regression suite
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite
