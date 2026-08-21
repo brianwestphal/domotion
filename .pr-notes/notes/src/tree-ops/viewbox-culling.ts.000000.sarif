@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt34tn6139lt19g9",
+          "message": {
+            "text": "The supported animation path is not conservative and can remove visible paint. A fresh Chromium probe independently triggers over-hide from function-first scale/translate interpolation and an entry at 50.5% between the fixed 50%/52% samples; the same evidence table (0) isolates reference-box, nested-timeline, and frozen-static-transform failures. The current unsupported/own-timing fallback remains safe because it retains paint; the separate nearest-context replacement is linked at the tree decision (1).",
+            "markdown": "The supported animation path is not conservative and can remove visible paint. A fresh Chromium probe independently triggers over-hide from function-first scale/translate interpolation and an entry at 50.5% between the fixed 50%/52% samples; the same [evidence table](0) isolates reference-box, nested-timeline, and frozen-static-transform failures. The current unsupported/own-timing fallback remains safe because it retains paint; the separate nearest-context replacement is linked at [the tree decision](1)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 408,
+                  "endLine": 430,
+                  "snippet": {
+                    "text": "  // Sample the animation interpolation: lerp the affine components (exact for\n  // matched translate+scale lists — CSS interpolates each function's args\n  // linearly, and the composed sx/sy/tx/ty are linear in those args). If any\n  // sample intersects, the element is visible during the animation (per\n  // user's rule we don't hide during animation that crosses the boundary).\n  let anyDuringVisible = false;\n  for (let i = 1; i < SAMPLE_COUNT; i++) {\n    const t = i / SAMPLE_COUNT;\n    const p = evalEasing(ctx.anim.easing, t);\n    const at: Affine = {\n      sx: from.sx + p * (to.sx - from.sx),\n      sy: from.sy + p * (to.sy - from.sy),\n      tx: from.tx + p * (to.tx - from.tx),\n      ty: from.ty + p * (to.ty - from.ty),\n    };\n    if (bboxIntersectsViewport(mapBbox(staticBbox, at, ox, oy), vw, vh)) {\n      anyDuringVisible = true;\n      break;\n    }\n  }\n  const everVisible = fromVisible || toVisible || anyDuringVisible;\n  if (!everVisible) {\n    return { alwaysHidden: true };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/155-animated-viewbox-culling-audit.md"
+                },
+                "region": {
+                  "startLine": 117
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 452
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2386"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d9678e9e4fde99b3ac196db1b82ecb7c"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2386-adversarial-browser-evidence.json",
+                "properties": {
+                  "ext-sha256": "c527bfa3ad5532c67272857278588e213b9f1007e67d186eb8134c32d975d45f"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a0afb0dd0909e7b43d35882ab70a946e817c7e34",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

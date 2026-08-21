@@ -95,10 +95,10 @@
       "oracle": "tools/transform-geometry-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "five affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, mutation control, plus curated visual fixtures",
+      "generatedCoverage": "five affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, mutation control, plus curated visual fixtures; these rows do not exercise the separate viewBox-culling decision",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Nested projective contexts are represented by a Chromium subtree snapshot rather than vectors; animated 3D transforms still require frame-level boundary coverage.",
-      "nextAction": "Extend the generated matrix to animated 3D frames when frame-state capture exposes stable per-frame projective snapshots."
+      "knownGap": "Nested projective contexts are represented by a Chromium subtree snapshot rather than vectors, and animated 3D transforms still require frame-level boundary coverage. DM-2386 also confirmed that the viewBox culler can over-hide visible paint because it substitutes a captured border box for SVG fill-box, keeps only the nearest animation timeline, interpolates composed endpoint matrices, and treats a fixed 50-part grid as a continuous bound.",
+      "nextAction": "Implement rendered reference/visual bounds in DM-2460, composed global-timeline swept bounds in DM-2461, and the independent live Chromium culling oracle in DM-2462; separately extend animated 3D frame coverage when stable snapshots exist."
     },
     {
       "id": "compositing-effects-paint-order",

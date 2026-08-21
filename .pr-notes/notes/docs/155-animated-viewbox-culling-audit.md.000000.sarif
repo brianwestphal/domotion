@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt34nntdpcu1ydmk",
+          "message": {
+            "text": "Continuous animated SVG needs conservative swept visual bounds, while exact per-frame quads belong to finite raster output and the oracle. Pinned Chromium exposes a conservative interval-bounds routine (1) that fails open; Blink SVG paint (2) likewise substitutes an infinite cull rect when transforms or pixel-moving effects make local culling uncertain. This is why DM-2460/2461 separate reference geometry from visual ink, compose every global-time wrapper, and retain any unbounded state instead of increasing the sample count (0).",
+            "markdown": "Continuous animated SVG needs conservative swept visual bounds, while exact per-frame quads belong to finite raster output and the oracle. Pinned Chromium exposes [a conservative interval-bounds routine](1) that fails open; [Blink SVG paint](2) likewise substitutes an infinite cull rect when transforms or pixel-moving effects make local culling uncertain. This is why DM-2460/2461 separate reference geometry from visual ink, compose every global-time wrapper, and retain any unbounded state instead of increasing [the sample count](0)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/155-animated-viewbox-culling-audit.md"
+                },
+                "region": {
+                  "startLine": 132,
+                  "endLine": 159,
+                  "snippet": {
+                    "text": "## Required model\n\nThe implementation work should separate two geometries that the current box\nconflates:\n\n1. a **transform reference box** matching the box actually used by the emitted\n   SVG wrapper (`fill`, `stroke`, or local viewport), including its origin and\n   effective-zoom coordinate space; and\n2. a **visual/ink bound** for intersection, including transformed descendants,\n   stroke, outline, shadow, filter displacement/blur, masks, clips, and any\n   raster fallback surface.\n\nFor each subtree, construct the emitted transform-operation stack and all of\nits local timing functions. Partition the global scene clock at every relevant\ndelay, active-interval, iteration, direction, fill, and step discontinuity.\nWithin each interval, propagate the visual bound from the inner wrapper through\neach ancestor operation using a source-transcribed conservative swept-bound\nroutine. Matching function lists must be interpolated as functions before they\nare composed. A failed parse, incompatible/decomposition-only list, independent\nchannel not represented in capture, projective singularity, unbounded motion\npath, or non-finite result returns `unknown`; `unknown` means visible for that\ninterval.\n\nThis may over-retain correlated nested motion because successively bounding\neach operation loses correlation. That is safe. It must never tighten a box\nfrom sampled pixels or tune a threshold to these fixtures. An exact global\nextremum implementation can replace an over-bound only when its rule comes from\nthe operation model and carries an oracle discriminator."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 324
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/ui/gfx/geometry/transform_operations.cc"
+                },
+                "region": {
+                  "startLine": 58
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/svg_container_painter.cc"
+                },
+                "region": {
+                  "startLine": 36
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2386"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "013e11c6c636ade581d7bbf0616b6621"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a0afb0dd0909e7b43d35882ab70a946e817c7e34",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

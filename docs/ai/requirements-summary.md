@@ -1450,3 +1450,15 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   fontkit or native-helper fallback glyphs. Mixed-script tokens union those
   boxes; they never fall back to a primary-face ascent merely because the
   selected physical face is helper-backed.
+
+<!-- DM-2386 -->
+- Animated viewBox culling (doc 155) is not yet safe for its nominally supported
+  transform path. Fresh browser controls prove over-hide from the SVG
+  fill-box/border-box proxy, nearest-only nested timing, endpoint-matrix
+  interpolation, fixed 2% sampling, and ignored frozen static transforms.
+  Continuous SVG output requires conservative swept **visual** bounds over
+  source-derived global-time intervals; exact per-frame quads are an oracle and
+  finite-raster mechanism, not proof between frames. Unknown transform lists,
+  motion paths, pixel-moving effects, and projective `w`-plane crossings retain
+  content. DM-2460 owns reference/visual bounds, DM-2461 owns composed timeline
+  bounds, and DM-2462 owns the live Chromium activation oracle.

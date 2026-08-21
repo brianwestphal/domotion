@@ -651,7 +651,7 @@
         "tests/features.ts#preserve-3d-translatez-paint-order"
       ],
       "coverage": "partial",
-      "boundary": "Nested/animated projective contexts, missing perspective capture, scalar text transforms, and animated culling remain incomplete.",
+      "boundary": "Nested/animated projective contexts, missing perspective capture, and scalar text transforms remain incomplete. DM-2386 proves animated/static-transform viewBox culling is unsafe on its supported path: reference and visual bounds (DM-2460), composed global-timeline swept bounds (DM-2461), and a live activation oracle (DM-2462) remain required.",
       "featureIds": [
         "render.tree-to-svg",
         "render.cull"
