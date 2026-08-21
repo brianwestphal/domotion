@@ -121,8 +121,9 @@ An embedded entry takes the hinted path only while **every** glyph in it:
 
 - came from ONE openable sfnt file (same path + TTC `faceIndex`),
 - at ONE axis location (`variationAxes` deep-equal),
-- was NOT synthesized (no faux-bold `emboldenPathCommands` / faux-oblique
-  `shearPathCommands` bake — those outlines exist nowhere in the source file),
+- was not outline-synthesized (no faux-oblique `shearPathCommands` bake — that
+  outline exists nowhere in the source file). Faux-bold is paint-owned and
+  therefore preserves eligibility for the unchanged hinted source subset,
 - and the file actually carries TrueType `glyf` outlines
   (`sfntHasSubsettableOutlines`, TTC-aware). CFF/CFF2 (`OTTO`) faces — common
   among macOS system fonts (Kohinoor, ITF Devanagari, …) — are excluded: the
@@ -139,7 +140,7 @@ svg2ttf (`trackGlyphInEmbedFont` tracks this per entry; entries are keyed per
 hb-subset failure likewise falls through to svg2ttf — a bad font never breaks a
 render.
 
-**Stays on svg2ttf by design:** faux-bold/italic bakes, per-glyph native-helper
+**Stays on svg2ttf by design:** faux-oblique bakes, per-glyph native-helper
 outlines (glyphs fontkit couldn't decode), CFF/CFF2 faces, native-only
 no-`glyf` fonts (PingFang `hvgl`), webfont buffers (no on-disk file is recorded
 for them).

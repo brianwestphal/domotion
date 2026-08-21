@@ -6,12 +6,11 @@
 // re-derived them. A second derivation of a font decision is the failure mode
 // this area keeps producing (the sampled per-block routing table, the two
 // disagreeing bold rules), so they live here once and both call sites read
-// them. The HOW differs per mode — embedded mode bakes a shear into the
-// outline and emits the frame as a `<text>` stroke, paths mode emits a group
-// `skewX` and a group stroke — but the WHETHER must not.
+// them. The HOW differs only for oblique (embedded outline shear vs path-group
+// transform). Bold is the same ordered source-outline paint plan in both.
 //
-// What is NOT here: `resolveFakeBoldTextStroke` (embolden-outline.ts), which
-// turns "yes, synthesize" into the actual stroke width, and is likewise shared.
+// What is NOT here: `resolveFakeBoldTextPaint` (embolden-outline.ts), which
+// turns "yes, synthesize" into Skia scaler records and SVG paint passes.
 
 import { webfontSyntheticBold, webfontSyntheticItalic, BLINK_ITALIC_SLOPE_VALUE, type FontInstance } from "./font-resolution.js";
 import { hostPlatform } from "./host-platform.js";
@@ -27,7 +26,7 @@ import { FAUX_BOLD_WEIGHT_DELTA } from "./embolden-outline.js";
  * checkout 7d859f27) are ANDed into every synthesis site.
  */
 export interface FontSynthesisAllowance {
-  /** `font-synthesis-weight` — gates faux-bold (fill bake AND stroke). */
+  /** `font-synthesis-weight` — gates faux-bold paint stages. */
   weight?: boolean;
   /** `font-synthesis-style` — gates faux-oblique (the shear). */
   style?: boolean;

@@ -403,6 +403,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3073fkoc1fsqwt",
+          "message": {
+            "text": "Fake bold no longer disqualifies the hinting-preserving subset or participates in the subset identity because it never changes the selected glyph path. Faux-oblique remains the only synthesis baked here; bold is applied later as paint records, preserving static/variable source outlines and hinting.",
+            "markdown": "Fake bold no longer disqualifies the hinting-preserving subset or participates in the subset identity because it never changes the selected glyph path. Faux-oblique remains the only synthesis baked here; bold is applied later as paint records, preserving static/variable source outlines and hinting."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 392,
+                  "endLine": 440,
+                  "snippet": {
+                    "text": "  // DM-1714: the entry stays eligible for the hinting-preserving hb-subset path\n  // only while every glyph agrees on one openable source and none is synthetic.\n  // A synthetic glyph (faux-oblique baked its own outline) or a glyph from a\n  // different file (per-glyph helper fallback) breaks the gid↔source identity the\n  // subset relies on — disqualify the whole entry the moment one appears.\n  // DM-1716: the axis LOCATION is part of the identity too — two runs on the\n  // same variable file at different locations can't share one instanced subset.\n  // (In practice the instanceKey already separates them; this is the guard.)\n  // Synthetic bold is paint geometry and never changes the source outline.\n  // Only faux-oblique still bakes an affine outline transform.\n  const isSynthetic = Boolean(variant.shearFactor);\n  const glyphSource = variant.hintedSource ?? null;\n  // A null faceIndex means the requested PostScript name is not a physical\n  // member of the file, so there is no index to subset by — hb_face_create would\n  // silently take member zero, a face nobody asked for. Disqualify instead; the\n  // svg2ttf path renders the outlines the helper actually extracted.\n  if (isSynthetic) entry.hintedSourceDisqualificationReasons.add(\"synthetic\");\n  if (glyphSource == null || entry.hintedSource == null) entry.hintedSourceDisqualificationReasons.add(\"null-source\");\n  if ((glyphSource != null && glyphSource.faceIndex == null)\n      || (entry.hintedSource != null && entry.hintedSource.faceIndex == null)) {\n    entry.hintedSourceDisqualificationReasons.add(\"null-face-index\");\n  }\n  if (glyphSource != null && entry.hintedSource != null\n      && (glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex\n        || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes))) {\n    entry.hintedSourceDisqualificationReasons.add(\"source-axis-disagreement\");\n  }\n  entry.hintedSourceDisqualified = entry.hintedSourceDisqualificationReasons.size > 0;\n  entry.glyphOccurrenceCount++;\n  if (variant.runToken != null) entry.runIds.add(variant.runToken);\n  if (variant.weight < entry.weightMin) entry.weightMin = variant.weight;\n  if (variant.weight > entry.weightMax) entry.weightMax = variant.weight;\n  const cached = entry.puaForGlyphId.get(glyphId);\n  if (cached != null) return { cssFamily: entry.cssFamily, puaCodepoint: cached };\n\n  if (entry.nextPua > PUA_END) {\n    // Out of PUA-A slots. Caller falls through to paths-mode emission for\n    // this glyph; the (rare) over-6400-glyph case keeps rendering, just\n    // without the embedded-font fast path for the run that exceeded.\n    return null;\n  }\n  const pua = entry.nextPua++;\n  entry.puaForGlyphId.set(glyphId, pua);\n\n  // Faux-oblique remains an affine outline transform. Synthetic bold is emitted\n  // later as Skia-equivalent paint stages and deliberately never reaches this\n  // outline/subset owner.\n  let cmds = pathCommands;\n  if (variant.shearFactor) cmds = shearPathCommands(cmds, variant.shearFactor);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2518
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/99-hinted-embedded-subset.md"
+                },
+                "region": {
+                  "startLine": 118
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2390"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c92bb0342c26deeb5c9debb6fccbd436"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f7be4cce8a24334d828958d20c49fe3eea8b70f7",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -114,8 +114,9 @@ shortest possible map:
   the `font-synthesis` vetoes), read by BOTH render modes so neither re-derives
   a font decision;
   `embolden-outline.ts` owns HOW — `skiaFakeBoldStrokeExtraPx` /
-  `resolveFakeBoldTextStroke` reproduce Skia's fake-bold stroke frame
-  (`useStrokeForFakeBold`), and `shearPathCommands` bakes the faux-italic shear
+  `resolveFakeBoldTextPaint` reproduce Skia's unchanged-outline fake-bold
+  scaler records and ordered SVG paint passes (`useStrokeForFakeBold`), and
+  `shearPathCommands` bakes the faux-italic shear
   into an embedded outline (paths mode applies the same factor as a group
   transform instead);
   `embedded-font-builder.ts` builds the per-instance subset `glyf` TTF —

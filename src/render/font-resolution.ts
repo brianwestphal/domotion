@@ -149,10 +149,10 @@ export interface FontInstance {
   warmShapes?(texts: string[]): void;
   /** The resolved STATIC face's natural weight (`OS/2.usWeightClass`), populated
    *  for fontkit instances in `getFontInstance`. Drives the embedded-mode
-   *  faux-bold decision (DM-1693): when the requested weight exceeds this by a
-   *  wide margin and no weight axis was baked, Chrome emboldens the face, so we
-   *  bake the same dilation into the embedded outline. Absent on native-helper
-   *  / webfont instances → those never trigger synthetic bold (safe default). */
+   *  faux-bold decision (DM-1693/DM-2390): when the requested weight exceeds
+   *  this by a wide margin and no weight axis satisfies it, Chromium asks Skia
+   *  to frame the unchanged source outline. Absent on native-helper / webfont
+   *  instances; webfonts carry their separate descriptor facts. */
   naturalWeight?: number;
   /** True when this instance baked the requested weight into a variable `wght`
    *  axis — its outline is ALREADY at the requested weight, so no faux-bold. */
@@ -6628,7 +6628,7 @@ function instantiateResolvedFont(
     }
   }
   // DM-1693: expose the static face's natural weight + whether a variable wght
-  // axis was baked, so the embedded-font path can decide faux-bold. Read from
+  // axis was applied, so both render modes can decide faux-bold. Read from
   // the ORIGINAL fontkit Font (`font`) — `instance` may be a variation instance
   // whose OS/2 reflects the base, and whose `variationAxes` presence is what we
   // want to gate on. Only set a sane usWeightClass (1..1000); 0/absent → leave

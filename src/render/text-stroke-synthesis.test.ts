@@ -1,100 +1,45 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveFakeBoldTextStroke, skiaFakeBoldStrokeExtraPx } from "./embolden-outline.js";
+import { resolveFakeBoldTextPaint } from "./embolden-outline.js";
 import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
 
-// Chrome-on-Linux implements synthetic bold as a STROKE-frame inflation (Skia
-// `SkScalerContextRec::useStrokeForFakeBold`, src/core/SkScalerContext.cpp:
-// 1019-1041, reached from `SkTypeface_FreeType::onFilterRec`): a
-// `-webkit-text-stroke` on a face that lacks the requested weight paints
-// `cssWidth + fontSize*(1/24…1/32)` thick, and the fill dilates by half that
-// extra. These tests lock the measured model (calibrated in the Playwright
-// noble container against WenQuanYi Zen Hei, usWeightClass 500: weight ≤700
-// paints a 2px stroke as 2px, weight ≥701 as ~4.25px at 72px) plus the
-// platform gating — macOS/Windows synthesize bold without touching stroke
-// width, so only `linux` inflates.
-
-describe("skiaFakeBoldStrokeExtraPx (Skia SkTextFormatParams.h interpolation)", () => {
-  it("uses textSize/24 at or below 9px", () => {
-    expect(skiaFakeBoldStrokeExtraPx(9)).toBeCloseTo(9 / 24, 6);
-    expect(skiaFakeBoldStrokeExtraPx(6)).toBeCloseTo(6 / 24, 6);
-  });
-
-  it("uses textSize/32 at or above 36px", () => {
-    expect(skiaFakeBoldStrokeExtraPx(36)).toBeCloseTo(36 / 32, 6);
-    expect(skiaFakeBoldStrokeExtraPx(64)).toBeCloseTo(2, 6);
-    expect(skiaFakeBoldStrokeExtraPx(72)).toBeCloseTo(2.25, 6);
-  });
-
-  it("interpolates between 9px and 36px", () => {
-    // Midpoint of the key range → midpoint of the scale range.
-    const mid = skiaFakeBoldStrokeExtraPx(22.5);
-    expect(mid).toBeCloseTo(22.5 * (1 / 24 + 1 / 32) / 2, 6);
-    // The fixture's 22px callout row: between the endpoints' scales.
-    const at22 = skiaFakeBoldStrokeExtraPx(22);
-    expect(at22).toBeGreaterThan(22 / 32);
-    expect(at22).toBeLessThan(22 / 24);
-  });
-});
-
-describe("resolveFakeBoldTextStroke", () => {
-  const base = { strokeWidthPx: 2, strokeFirst: false, fillIsTransparent: false, fontSizePx: 72 };
-
-  it("linux + face lacks weight + default paint order: stroke inflates by extra, fill stays thin", () => {
-    const r = resolveFakeBoldTextStroke({ ...base, faceLacksWeight: true, platform: "linux" });
-    expect(r.strokeWidthPx).toBeCloseTo(2 + 2.25, 6);
-    expect(r.emboldenFill).toBe(false);
-  });
-
-  it("linux + transparent fill (outline-only text): full inflated band, no embolden, even stroke-first", () => {
-    const r = resolveFakeBoldTextStroke({ ...base, strokeFirst: true, fillIsTransparent: true, faceLacksWeight: true, platform: "linux" });
-    expect(r.strokeWidthPx).toBeCloseTo(4.25, 6);
-    expect(r.emboldenFill).toBe(false);
-  });
-
-  it("linux + stroke-first + opaque fill: fill emboldens, stroke width stays at the CSS width", () => {
-    const r = resolveFakeBoldTextStroke({ ...base, strokeFirst: true, faceLacksWeight: true, platform: "linux" });
-    expect(r.strokeWidthPx).toBe(2);
-    expect(r.emboldenFill).toBe(true);
-  });
-
-  it("face has the weight: no inflation on any platform", () => {
-    for (const platform of ["linux", "darwin", "win32"] as const) {
-      const r = resolveFakeBoldTextStroke({ ...base, faceLacksWeight: false, platform });
-      expect(r.strokeWidthPx).toBe(2);
-      expect(r.emboldenFill).toBe(false);
+// Paint-order coverage lives here because this file also owns the captured
+// `-webkit-text-stroke` tree controls below. Skia's fill and author stroke are
+// separate scaler records; opaque stroke-first synthetic text therefore needs
+// two SVG passes over the same source outline on every desktop backend.
+describe("synthetic-bold text-stroke paint ordering", () => {
+  it("does not make a platform-only exception for author strokes", () => {
+    const records = (["darwin", "linux", "win32"] as const).map((platform) =>
+      resolveFakeBoldTextPaint({
+        strokeWidthPx: 3,
+        strokeFirst: true,
+        fillIsTransparent: false,
+        faceLacksWeight: true,
+        fontSizePx: 36,
+        platform,
+      }));
+    for (const record of records) {
+      expect(record.stages).toEqual(records[0].stages);
+      expect(record.svgPasses).toEqual(records[0].svgPasses);
+      expect(record.svgPasses.map((pass) => pass.kind)).toEqual([
+        "author-stroke", "synthetic-fill",
+      ]);
     }
   });
 
-  it("macOS / Windows never inflate stroked runs even when the face lacks the weight", () => {
-    for (const platform of ["darwin", "win32"] as const) {
-      const r = resolveFakeBoldTextStroke({ ...base, faceLacksWeight: true, platform });
-      expect(r.strokeWidthPx).toBe(2);
-      expect(r.emboldenFill).toBe(false);
-    }
-  });
-
-  it("unstroked runs emit Skia's FRAME, not an outline dilation (DM-1970)", () => {
-    // DM-1693 baked a design-space dilation here. Skia does not dilate: it sets
-    // kFrameAndFill with `fFrameWidth = textSize * fakeBoldScale` and a default
-    // paint's miter join (`useStrokeForFakeBold`,
-    // src/core/SkScalerContext.cpp:1019-1041, rev ebf5052), reached
-    // unconditionally on macOS from `SkTypeface_Mac::onFilterRec` and on
-    // FreeType platforms from its own `onFilterRec`. So this is the same
-    // operation on every platform, which is why the loop below expects no
-    // per-platform difference.
-    for (const platform of ["linux", "darwin", "win32"] as const) {
-      const bold = resolveFakeBoldTextStroke({ ...base, strokeWidthPx: 0, faceLacksWeight: true, platform });
-      expect(bold.emboldenFill).toBe(false);
-      expect(bold.strokeIsFakeBold).toBe(true);
-      expect(bold.strokeWidthPx).toBeCloseTo(skiaFakeBoldStrokeExtraPx(base.fontSizePx), 6);
-
-      const plain = resolveFakeBoldTextStroke({ ...base, strokeWidthPx: 0, faceLacksWeight: false, platform });
-      expect(plain.emboldenFill).toBe(false);
-      expect(plain.strokeWidthPx).toBe(0);
-      expect(plain.strokeIsFakeBold).not.toBe(true);
-    }
+  it("keeps both paint colours visible for opaque stroke-first", () => {
+    const record = resolveFakeBoldTextPaint({
+      strokeWidthPx: 3,
+      strokeFirst: true,
+      fillIsTransparent: false,
+      faceLacksWeight: true,
+      fontSizePx: 36,
+    });
+    expect(record.svgPasses[0]).toMatchObject({ fill: "none", stroke: "author" });
+    expect(record.svgPasses[1]).toMatchObject({ fill: "source", stroke: "source-fill" });
+    expect(record.svgPasses[0].strokeWidthPx).toBeCloseTo(3 + 36 / 32, 8);
+    expect(record.svgPasses[1].strokeWidthPx).toBeCloseTo(36 / 32, 8);
   });
 });
 

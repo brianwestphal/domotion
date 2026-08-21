@@ -1,185 +1,144 @@
-import { describe, it, expect } from "vitest";
-import { emboldenPathCommands, emboldenStrengthForFont, FAUX_BOLD_WEIGHT_DELTA, shearPathCommands, OBLIQUE_SHEAR } from "./embolden-outline.js";
+import { describe, expect, it } from "vitest";
+import {
+  FAUX_BOLD_WEIGHT_DELTA,
+  OBLIQUE_SHEAR,
+  resolveFakeBoldTextPaint,
+  shearPathCommands,
+  skiaFakeBoldStrokeExtraPx,
+} from "./embolden-outline.js";
 import type { PathCommand } from "./embedded-font-builder.js";
 
-/** Axis-aligned bounding box of a command list's coordinate pairs. */
-function bbox(cmds: PathCommand[]) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const c of cmds) {
-    for (let i = 0; i + 1 < c.args.length; i += 2) {
-      minX = Math.min(minX, c.args[i]); maxX = Math.max(maxX, c.args[i]);
-      minY = Math.min(minY, c.args[i + 1]); maxY = Math.max(maxY, c.args[i + 1]);
-    }
-  }
-  return { w: maxX - minX, h: maxY - minY, minX, minY, maxX, maxY };
-}
-
-/** Shoelace area of a single closed contour (abs). */
-function area(cmds: PathCommand[]): number {
-  const pts: Array<[number, number]> = [];
-  for (const c of cmds) {
-    if (c.command === "moveTo" || c.command === "lineTo") pts.push([c.args[0], c.args[1]]);
-  }
-  let a = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const [x1, y1] = pts[i];
-    const [x2, y2] = pts[(i + 1) % pts.length];
-    a += x1 * y2 - x2 * y1;
-  }
-  return Math.abs(a / 2);
-}
-
-const square = (s: number): PathCommand[] => [
-  { command: "moveTo", args: [0, 0] },
-  { command: "lineTo", args: [s, 0] },
-  { command: "lineTo", args: [s, s] },
-  { command: "lineTo", args: [0, s] },
-  { command: "closePath", args: [] },
-];
-
-describe("emboldenStrengthForFont", () => {
-  it("is 0.73 * upem/24 (calibrated to Chrome's painted ink)", () => {
-    expect(emboldenStrengthForFont(1000)).toBeCloseTo((1000 / 24) * 0.73, 6);
-    expect(emboldenStrengthForFont(2048)).toBeCloseTo((2048 / 24) * 0.73, 6);
-  });
-  it("scales linearly with unitsPerEm (constant dilation is size-independent)", () => {
-    expect(emboldenStrengthForFont(2000) / emboldenStrengthForFont(1000)).toBeCloseTo(2, 6);
+describe("skiaFakeBoldStrokeExtraPx", () => {
+  it("transcribes SkTextFormatParams' two knees and interpolated scale", () => {
+    expect(skiaFakeBoldStrokeExtraPx(6)).toBeCloseTo(6 / 24, 8);
+    expect(skiaFakeBoldStrokeExtraPx(9)).toBeCloseTo(9 / 24, 8);
+    expect(skiaFakeBoldStrokeExtraPx(22.5)).toBeCloseTo(22.5 * ((1 / 24 + 1 / 32) / 2), 8);
+    expect(skiaFakeBoldStrokeExtraPx(36)).toBeCloseTo(36 / 32, 8);
+    expect(skiaFakeBoldStrokeExtraPx(72)).toBeCloseTo(72 / 32, 8);
   });
 });
 
-describe("emboldenPathCommands", () => {
-  it("returns the input unchanged for strength <= 0", () => {
-    const cmds = square(100);
-    expect(emboldenPathCommands(cmds, 0)).toBe(cmds);
-    expect(emboldenPathCommands(cmds, -5)).toBe(cmds);
+describe("resolveFakeBoldTextPaint", () => {
+  const base = {
+    strokeWidthPx: 2,
+    strokeFirst: false,
+    fillIsTransparent: false,
+    faceLacksWeight: true,
+    fontSizePx: 72,
+  };
+
+  it("keeps the source outline and records Skia's fill/stroke scaler stages", () => {
+    const plan = resolveFakeBoldTextPaint(base);
+    expect(plan.outline).toBe("source");
+    expect(plan.extraPx).toBeCloseTo(2.25, 8);
+    expect(plan.stages).toEqual([
+      { paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: true },
+      { paint: "stroke", frameWidthPx: 4.25, frameAndFill: false, visible: true },
+    ]);
+    expect(plan.svgPasses).toEqual([{
+      kind: "combined",
+      fill: "source",
+      stroke: "author",
+      strokeWidthPx: 4.25,
+    }]);
   });
 
-  it("returns the input unchanged for empty commands", () => {
-    expect(emboldenPathCommands([], 20)).toEqual([]);
+  it("preserves opaque stroke-first as two differently coloured passes", () => {
+    const plan = resolveFakeBoldTextPaint({ ...base, strokeFirst: true });
+    expect(plan.stages).toEqual([
+      { paint: "stroke", frameWidthPx: 4.25, frameAndFill: false, visible: true },
+      { paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: true },
+    ]);
+    expect(plan.svgPasses).toEqual([
+      { kind: "author-stroke", fill: "none", stroke: "author", strokeWidthPx: 4.25 },
+      { kind: "synthetic-fill", fill: "source", stroke: "source-fill", strokeWidthPx: 2.25 },
+    ]);
   });
 
-  it("does not mutate the source outline", () => {
-    const cmds = square(100);
-    const snapshot = JSON.stringify(cmds);
-    emboldenPathCommands(cmds, 20);
-    expect(JSON.stringify(cmds)).toBe(snapshot);
+  it("coalesces transparent stroke-first because the hidden fill frame cannot contribute", () => {
+    const plan = resolveFakeBoldTextPaint({ ...base, strokeFirst: true, fillIsTransparent: true });
+    expect(plan.stages[1]).toEqual({
+      paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: false,
+    });
+    expect(plan.svgPasses).toEqual([{
+      kind: "combined",
+      fill: "source",
+      stroke: "author",
+      strokeWidthPx: 4.25,
+      paintOrder: "stroke fill",
+    }]);
   });
 
-  it("grows a filled contour outward (bbox + area both increase)", () => {
-    const before = square(100);
-    const after = emboldenPathCommands(before, 20);
-    const b = bbox(before), a = bbox(after);
-    expect(a.w).toBeGreaterThan(b.w);
-    expect(a.h).toBeGreaterThan(b.h);
-    expect(area(after)).toBeGreaterThan(area(before));
-    // A ~10px-per-side dilation on a 100px square grows each dimension by roughly
-    // the strength — sanity-bound it well away from 0 and from absurd blowup.
-    expect(a.w - b.w).toBeGreaterThan(5);
-    expect(a.w - b.w).toBeLessThan(60);
+  it("represents an unstroked synthetic fill as source fill plus its frame", () => {
+    const plan = resolveFakeBoldTextPaint({ ...base, strokeWidthPx: 0 });
+    expect(plan.stages).toEqual([
+      { paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: true },
+    ]);
+    expect(plan.svgPasses).toEqual([{
+      kind: "combined", fill: "source", stroke: "source-fill", strokeWidthPx: 2.25,
+    }]);
   });
 
-  it("emits integer coordinates (glyf outlines are integer font units)", () => {
-    const after = emboldenPathCommands(square(100), 17);
-    for (const c of after) for (const v of c.args) expect(Number.isInteger(v)).toBe(true);
+  it("does not synthesize a static/variable face that already satisfies weight", () => {
+    const plan = resolveFakeBoldTextPaint({ ...base, faceLacksWeight: false });
+    expect(plan.extraPx).toBe(0);
+    expect(plan.outline).toBe("source");
+    expect(plan.stages).toEqual([
+      { paint: "fill", frameWidthPx: -1, frameAndFill: false, visible: true },
+      { paint: "stroke", frameWidthPx: 2, frameAndFill: false, visible: true },
+    ]);
+    expect(plan.svgPasses[0]).toEqual({
+      kind: "combined", fill: "source", stroke: "author", strokeWidthPx: 2,
+    });
   });
 
-  it("is deterministic (same input → identical output)", () => {
-    const a = emboldenPathCommands(square(100), 20);
-    const b = emboldenPathCommands(square(100), 20);
-    expect(a).toEqual(b);
+  it("uses identical source-owned scaler records on all Chromium desktop backends", () => {
+    const plans = (["darwin", "linux", "win32"] as const).map((platform) =>
+      resolveFakeBoldTextPaint({ ...base, strokeFirst: true, platform }));
+    for (const plan of plans) {
+      expect(plan.outline).toBe("source");
+      expect(plan.stages).toEqual(plans[0].stages);
+      expect(plan.svgPasses).toEqual(plans[0].svgPasses);
+    }
   });
 
-  it("shrinks an interior counter (hole) while growing the outer contour → more ink", () => {
-    // Outer 200-square (CCW) + inner 100-square hole (CW winding). After embolden
-    // the outer grows and the hole shrinks, so the filled ring area increases.
-    const glyph: PathCommand[] = [
-      { command: "moveTo", args: [0, 0] },
-      { command: "lineTo", args: [200, 0] },
-      { command: "lineTo", args: [200, 200] },
-      { command: "lineTo", args: [0, 200] },
-      { command: "closePath", args: [] },
-      // hole, opposite winding
-      { command: "moveTo", args: [50, 50] },
-      { command: "lineTo", args: [50, 150] },
-      { command: "lineTo", args: [150, 150] },
-      { command: "lineTo", args: [150, 50] },
-      { command: "closePath", args: [] },
-    ];
-    const after = emboldenPathCommands(glyph, 20);
-    const outerBefore = bbox(glyph.slice(0, 5));
-    const outerAfter = bbox(after.slice(0, 5));
-    expect(outerAfter.w).toBeGreaterThan(outerBefore.w); // outer grew
-    // hole (commands 5..8) got smaller
-    const holeBefore = bbox(glyph.slice(5, 9));
-    const holeAfter = bbox(after.slice(5, 9));
-    expect(holeAfter.w).toBeLessThan(holeBefore.w);
-  });
-
-  it("preserves command structure (same commands, curves keep their arity)", () => {
-    const cmds: PathCommand[] = [
-      { command: "moveTo", args: [0, 0] },
-      { command: "quadraticCurveTo", args: [50, 100, 100, 0] },
-      { command: "bezierCurveTo", args: [120, 20, 120, 80, 100, 100] },
-      { command: "lineTo", args: [0, 100] },
-      { command: "closePath", args: [] },
-    ];
-    const after = emboldenPathCommands(cmds, 15);
-    expect(after.map((c) => c.command)).toEqual(cmds.map((c) => c.command));
-    expect(after.map((c) => c.args.length)).toEqual(cmds.map((c) => c.args.length));
+  it("mutation control: a retired derived-outline branch changes the exact record", () => {
+    const sourcePlan = resolveFakeBoldTextPaint({ ...base, strokeFirst: true });
+    const retiredMutation = {
+      ...sourcePlan,
+      outline: "derived-outline",
+      svgPasses: [sourcePlan.svgPasses[0]],
+    };
+    expect(retiredMutation).not.toEqual(sourcePlan);
+    expect(sourcePlan.outline).toBe("source");
+    expect(sourcePlan.svgPasses).toHaveLength(2);
   });
 });
 
 describe("shearPathCommands (faux-italic)", () => {
   const glyph: PathCommand[] = [
-    { command: "moveTo", args: [0, 0] },      // on baseline
-    { command: "lineTo", args: [0, 100] },    // ascender
+    { command: "moveTo", args: [0, 0] },
+    { command: "lineTo", args: [0, 100] },
     { command: "quadraticCurveTo", args: [10, 200, 40, 0] },
     { command: "closePath", args: [] },
   ];
 
-  it("returns the input unchanged for factor 0", () => {
+  it("returns the input unchanged for factor zero", () => {
     expect(shearPathCommands(glyph, 0)).toBe(glyph);
   });
 
-  it("returns the input unchanged for empty commands", () => {
-    expect(shearPathCommands([], 0.25)).toEqual([]);
-  });
-
-  it("shears x by factor*y (ascenders lean right, baseline fixed)", () => {
-    const out = shearPathCommands(glyph, 0.25);
-    // baseline point (y=0) x unchanged
-    expect(out[0].args).toEqual([0, 0]);
-    // ascender (0,100) -> x += 0.25*100 = 25
-    expect(out[1].args).toEqual([25, 100]);
-    // quad control (10,200) -> x += 50 = 60 ; endpoint (40,0) -> x unchanged
-    expect(out[2].args).toEqual([60, 200, 40, 0]);
-  });
-
-  it("leans right for a positive factor (top shifts further than bottom)", () => {
-    const out = shearPathCommands(glyph, OBLIQUE_SHEAR);
-    expect(out[1].args[0]).toBeGreaterThan(out[0].args[0]); // ascender x > baseline x
-  });
-
-  it("emits integer coordinates and does not mutate the source", () => {
+  it("shears x around the baseline without mutating the source", () => {
     const snapshot = JSON.stringify(glyph);
-    const out = shearPathCommands(glyph, 0.25);
-    for (const c of out) for (const v of c.args) expect(Number.isInteger(v)).toBe(true);
+    const out = shearPathCommands(glyph, OBLIQUE_SHEAR);
+    expect(out[0].args).toEqual([0, 0]);
+    expect(out[1].args).toEqual([25, 100]);
+    expect(out[2].args).toEqual([60, 200, 40, 0]);
     expect(JSON.stringify(glyph)).toBe(snapshot);
-  });
-
-  it("preserves command structure", () => {
-    const out = shearPathCommands(glyph, 0.25);
-    expect(out.map((c) => c.command)).toEqual(glyph.map((c) => c.command));
-    expect(out.map((c) => c.args.length)).toEqual(glyph.map((c) => c.args.length));
-  });
-
-  it("OBLIQUE_SHEAR matches Chrome's setSkewX(1/4)", () => {
-    expect(OBLIQUE_SHEAR).toBe(0.25);
   });
 });
 
 describe("FAUX_BOLD_WEIGHT_DELTA", () => {
-  it("excludes the corpus-wide weight-700 headers on a 500-face (Δ200) but includes 800 (Δ300)", () => {
+  it("keeps the generic Blink selection threshold source-owned", () => {
     expect(700 - 500).not.toBeGreaterThan(FAUX_BOLD_WEIGHT_DELTA);
     expect(800 - 500).toBeGreaterThan(FAUX_BOLD_WEIGHT_DELTA);
   });

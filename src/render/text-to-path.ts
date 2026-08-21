@@ -29,7 +29,7 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // one implementation instead of restating it; see `esc` for the disposition.
 import { esc as escAttr } from "./format.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
-import { emboldenStrengthForFont, OBLIQUE_SHEAR, resolveFakeBoldTextStroke, skiaFakeBoldStrokeExtraPx } from "./embolden-outline.js";
+import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
 // DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
 // live in one module because BOTH render modes ask them. Re-exported below so
 // the long-standing `text-to-path.js` import sites keep working.
@@ -487,6 +487,39 @@ function ownedCommandsFor(
   return resolution.commands;
 }
 
+/** Concrete CSS colours plus local-space author-stroke geometry. The
+ * source-derived fake-bold planner deliberately uses colour roles, so the same
+ * plan can lower to outlined paths or generated embedded-font text. */
+interface TextRunPaintOptions {
+  fill: string;
+  strokeWidthPx: number;
+  strokeColor?: string;
+  strokeFirst: boolean;
+  fillIsTransparent: boolean;
+}
+
+/** Serialize one source-derived paint pass. Path groups live inside a
+ * font-unit scale, hence the inverse `groupScale`; embedded `<text>` calls this
+ * with 1 because its stroke width is already expressed in CSS px. */
+function fakeBoldSvgPaintAttributes(
+  pass: FakeBoldSvgPaintPass,
+  paint: TextRunPaintOptions,
+  groupScale: number,
+): string {
+  const fillColor = pass.fill === "none" ? "none" : paint.fill;
+  let attrs = ` fill="${escAttr(fillColor)}"`;
+  if (pass.stroke !== "none" && pass.strokeWidthPx > 0) {
+    const strokeColor = pass.stroke === "source-fill"
+      ? paint.fill
+      : paint.strokeColor;
+    if (strokeColor != null && strokeColor !== "") {
+      attrs += ` stroke="${escAttr(strokeColor)}" stroke-width="${r2(pass.strokeWidthPx / groupScale)}"`;
+    }
+  }
+  if (pass.paintOrder != null) attrs += ` paint-order="${pass.paintOrder}"`;
+  return attrs;
+}
+
 function renderTextPathRuns(
   text: string,
   fontSize: number,
@@ -526,26 +559,16 @@ function renderTextPathRuns(
    *  `shaping/harfbuzz_shaper.cc:184-198`, rev 7d859f27). */
   fontVariantEmoji?: FontVariantEmojiOverride,
   /** DM-1971 / DM-1984: the run's `font-synthesis` permissions. Read by the
-   *  small-caps stand-in below AND by the per-run faux-bold frame. */
+   *  small-caps stand-in below AND by the per-run faux-bold paint plan. */
   fontSynthesis?: FontSynthesisAllowance,
   /**
-   * DM-1984: paints Skia's synthetic-bold frame on the runs that need it. The
-   * fill color travels because the frame IS the fill color — `useStrokeForFakeBold`
-   * frame-and-fills with one paint (Skia `src/core/SkScalerContext.cpp:1019-1041`,
-   * rev ebf5052).
-   *
-   * PER RUN rather than on the outer group, which is the decision this
-   * parameter exists to encode. The outer-group version was measured and is
-   * WORSE THAN NO SYNTHESIS AT ALL on a mixed-script line: Papyrus (no bold cut)
-   * + CJK at weight 700, best-shift IoU against Chrome — 0.6997 with an
-   * outer-group frame, 0.8882 with none, 0.8736 for the plain control. The
-   * fallback run routes to a real bold cut (HiraginoSans W6) and needs no
-   * frame; giving it one closes the counters of glyphs whose perimeter dwarfs
-   * the Latin run's, so the spurious frame costs more than the missing one
-   * gained. Absent ⇒ no frame anywhere (what a `-webkit-text-stroke` run does,
-   * since that already occupies the stroke attributes).
+   * Concrete CSS paint supplied by the coordinator. Geometry stays per run:
+   * each selected face has its own synthetic-bold decision, while the helper
+   * below lowers Blink/Skia's ordered fill/stroke stages over the unchanged
+   * source outline. Absent keeps this low-level entry point's historic
+   * fill-inheriting behavior.
    */
-  fauxBold?: { fill: string },
+  paint?: TextRunPaintOptions,
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): TextPathResult | null {
   const ownership = createTextPathOwnership();
@@ -556,14 +579,32 @@ function renderTextPathRuns(
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
 
-  // DM-1984: the synthetic-bold frame for ONE run's glyph group. `groupScale`
-  // is that group's own `scale(s,-s)` factor, so the emitted width lands at
-  // `extra` CSS px after the transform — a fallback run on a face with a
-  // different unitsPerEm gets its own conversion rather than the primary's.
-  const fauxBoldAttrFor = (runFont: FontInstance, groupScale: number): string =>
-    fauxBold != null && groupScale > 0 && faceNeedsSyntheticBold(runFont, weight, fontSynthesis)
-      ? ` stroke="${escAttr(fauxBold.fill)}" stroke-width="${r2(skiaFakeBoldStrokeExtraPx(fontSize) / groupScale)}"`
-      : "";
+  // Keep fake-bold and author-stroke geometry on the selected RUN. A fallback
+  // face can have a real bold cut while the primary needs synthesis (or vice
+  // versa), and each face can have a different units-per-em scale. Repeating
+  // the same <use> stream is necessary only for opaque `stroke fill`: Skia's
+  // author-stroke pass and frame-and-fill pass have different colours.
+  const paintPathGroup = (
+    runFont: FontInstance,
+    groupScale: number,
+    transform: string,
+    body: string,
+  ): string => {
+    if (paint == null || groupScale <= 0) {
+      return `<g transform="${transform}">${body}</g>`;
+    }
+    const plan = resolveFakeBoldTextPaint({
+      strokeWidthPx: paint.strokeWidthPx,
+      strokeFirst: paint.strokeFirst,
+      fillIsTransparent: paint.fillIsTransparent,
+      faceLacksWeight: faceNeedsSyntheticBold(runFont, weight, fontSynthesis),
+      fontSizePx: fontSize,
+    });
+    return plan.svgPasses.map((pass) => {
+      const attrs = fakeBoldSvgPaintAttributes(pass, paint, groupScale);
+      return `<g transform="${transform}"${attrs}>${body}</g>`;
+    }).join("");
+  };
 
   // Split the text into runs by font. Code points that primary lacks (Arabic,
   // CJK, …) get routed to a fallback font. Each run keeps its order; this
@@ -679,7 +720,7 @@ function renderTextPathRuns(
   // so we route around singleFontMarkup which emits one fixed-scale group.
   if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps
       && runs[0].decomposed !== true && runs[0].font.shapesWithHarfbuzz !== true) {
-    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, fauxBoldAttrFor, ownership);
+    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, paintPathGroup, ownership);
   }
 
   // Content with captured per-char xOffsets. Primary runs and non-shaping
@@ -811,7 +852,7 @@ function renderTextPathRuns(
                 xOffsets[nextI] - xOffsets[i], fontSize, runScale);
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
             }
-            groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"${fauxBoldAttrFor(run.font, chScale)}>${uses.join("")}</g>`);
+            groups.push(paintPathGroup(run.font, chScale, `translate(${cssX},0) scale(${chScale},${-chScale})`, uses.join("")));
             if (cssX > rightEdge) rightEdge = cssX;
           }
           i += ch.length;
@@ -1039,7 +1080,7 @@ function renderTextPathRuns(
           }
           if (uses.length > 0) {
             const cssX = Number(segMinX.toFixed(3));
-            groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})"${fauxBoldAttrFor(run.font, sc)}>${uses.join("")}</g>`);
+            groups.push(paintPathGroup(run.font, sc, `translate(${cssX},0) scale(${sc},${-sc})`, uses.join("")));
             const segRight = maxRightCss;
             if (segRight > rightEdge) rightEdge = segRight;
           }
@@ -1103,7 +1144,7 @@ function renderTextPathRuns(
     }
     if (uses.length > 0) {
       const sc = Number(runScale.toFixed(5));
-      groups.push(`<g transform="translate(${r2(xCss)},0) scale(${sc},${-sc})"${fauxBoldAttrFor(run.font, sc)}>${uses.join("")}</g>`);
+      groups.push(paintPathGroup(run.font, sc, `translate(${r2(xCss)},0) scale(${sc},${-sc})`, uses.join("")));
     }
     xCss += runX * runScale;
   }
@@ -1130,13 +1171,13 @@ export function textToPathMarkup(
   fontStretch?: string,
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
-  fauxBold?: { fill: string },
+  paint?: TextRunPaintOptions,
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): TextPathResult | null {
   return renderTextPathRuns(
     text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle,
     features, lang, variationSettings, bidiOverride, fontStretch,
-    fontVariantEmoji, fontSynthesis, fauxBold, fallbackRequest,
+    fontVariantEmoji, fontSynthesis, paint, fallbackRequest,
   );
 }
 
@@ -1346,12 +1387,13 @@ function singleFontMarkup(
   /** CSS `font-stretch` percentage — part of the glyph-def identity (see
    *  `ensureGlyphDef`). */
   stretch: number = 100,
-  /** DM-1984: builds the synthetic-bold frame attribute for this font at the
-   *  emitted group's own scale. Supplied by `textToPathMarkup`, which owns the
-   *  decision; a single-font run is the case where the outer group and the run
-   *  coincide, so the placement is moot here — it stays a callback purely so
-   *  the two branches cannot drift on WHETHER to synthesize. */
-  fauxBoldAttrFor: ((font: FontInstance, groupScale: number) => string) | undefined = undefined,
+  /** Lower the source outline stream through the run's ordered paint stages. */
+  paintPathGroup?: (
+    font: FontInstance,
+    groupScale: number,
+    transform: string,
+    body: string,
+  ) => string,
   ownership: TextPathOwnership = createTextPathOwnership(),
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
@@ -1412,7 +1454,10 @@ function singleFontMarkup(
       textIdx += clusterSpan;
     }
     return {
-      markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})"${fauxBoldAttrFor?.(font, sc) ?? ""}>${uses.join("")}</g>` : "",
+      markup: uses.length > 0
+        ? (paintPathGroup?.(font, sc, `scale(${sc},${-sc})`, uses.join(""))
+          ?? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>`)
+        : "",
       width: xOffsets[xOffsets.length - 1] + nativeWidth / Math.max(1, text.length),
       ownership,
     };
@@ -1494,7 +1539,10 @@ function singleFontMarkup(
     sourceCursor += clusterSpan;
   }
   return {
-    markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})"${fauxBoldAttrFor?.(font, sc) ?? ""}>${uses.join("")}</g>` : "",
+    markup: uses.length > 0
+      ? (paintPathGroup?.(font, sc, `scale(${sc},${-sc})`, uses.join(""))
+        ?? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>`)
+      : "",
     width: usePerChar ? (xOffsets![xOffsets!.length - 1] + nativeWidth / run.glyphs.length) : (targetWidth ?? nativeWidth),
     ownership,
   };
@@ -2169,8 +2217,8 @@ function splitTextIntoFontRuns(
  * `rgba()`/`hsla()` with a 0 alpha channel (the shape `colorStr()` and the
  * capture layer emit for `color: transparent`). Gradient/pattern refs
  * (`url(#…)`) and every opaque color form return false. Used to pick the
- * synthetic-bold stroke model for outline-only text (see
- * `resolveFakeBoldTextStroke`).
+ * synthetic-bold paint plan for outline-only text (see
+ * `resolveFakeBoldTextPaint`).
  */
 function isFullyTransparentColor(fill: string): boolean {
   const f = fill.trim().toLowerCase();
@@ -2316,7 +2364,7 @@ function renderEmbeddedGlyphRuns(
     weightAttr: string;
     italicAttr: string;
     fvsAttr: string;
-    strokeAttr: string;
+    paintPasses: FakeBoldSvgPaintPass[];
   }
   const pending: PendingSeg[] = [];
   let rasterOwnedGlyphs = 0;
@@ -2467,38 +2515,17 @@ function renderEmbeddedGlyphRuns(
     const runAscent = run.font.ascent;
     const runDescent = run.font.descent;
 
-    // DM-1693: faux-bold for a resolved STATIC face that lacks the requested
-    // weight. Chrome (via fontconfig/FreeType on Linux, CoreText/DirectWrite
-    // elsewhere) emboldens such a face algorithmically; the embedded `@font-face`
-    // otherwise paints the thin natural outline (the descriptor already carries
-    // the requested weight, so the consumer browser synthesizes nothing). When
-    // the requested weight exceeds the face's natural weight by a wide margin
-    // AND no variable `wght` axis carries the weight, bake the same dilation
-    // into the embedded outline. Threshold + strength are empirically calibrated
-    // against Chrome-on-Linux's painted ink (see embolden-outline.ts). Fonts WITH
-    // the weight (a real bold sibling / a baked wght axis) resolve to that face,
-    // so their natural weight ≈ requested → delta small → no embolden.
-    //
-    // Stroked runs used to be gated OFF entirely (design-space vs device-space
-    // edge residual traced by the stroke). Chrome-on-Linux, however, implements
-    // synthetic bold as a STROKE-frame inflation (Skia `useStrokeForFakeBold`,
-    // SkScalerContext.cpp:1019-1041) — both the fill pass and the
-    // `-webkit-text-stroke` pass grow by `extra = fontSize/24…/32`, so leaving
-    // the stroke at its CSS width painted a hairline where Chrome paints a
-    // `w + extra` band. `resolveFakeBoldTextStroke` (embolden-outline.ts) maps
-    // Chrome's two emboldened passes onto our flat SVG emit: on Linux the
-    // emitted stroke widens to `w + extra` (default paint order / transparent
-    // fill) or the fill emboldens with the stroke kept at `w` (stroke-first +
-    // opaque fill, where the fill covers the stroke's inner half). Other
-    // platforms keep the previous behavior (embolden only unstroked runs).
-    // DM-1984: the predicate itself moved to `synthesis-decision.ts` so paths
-    // mode reads the SAME one rather than re-deriving it. Its per-platform
-    // transcription (macOS `Weight() > 500` + `kCTFontTraitBold`, Linux's
-    // `> 200 + typeface weight` delta, Windows' `>= 600` + `isBold()`, and the
-    // fourth platform-independent webfont-descriptor rule) is documented there.
+    // DM-2390: synthetic bold is paint-stage geometry over the unchanged
+    // selected outline. Blink sets SkFont's embolden flag; every pinned desktop
+    // Skia backend lowers it through `useStrokeForFakeBold`, which turns a fill
+    // into FrameAndFill(extra) and widens an author stroke to `w + extra`.
+    // Preserve those ordered stages explicitly: opaque `stroke fill` needs two
+    // generated `<text>` passes because the author stroke and fill frame have
+    // different colours. The shared predicate still owns WHETHER synthesis is
+    // active, including real/static cuts, variable wght instances and vetoes.
     const faceLacksWeight = faceNeedsSyntheticBold(run.font, weight, fontSynthesis);
     const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
-    const fakeBoldStroke = resolveFakeBoldTextStroke({
+    const fakeBoldPaint = resolveFakeBoldTextPaint({
       strokeWidthPx: (textStrokeWidth != null && textStrokeWidth > 0
         && textStrokeColor != null && textStrokeColor !== "") ? textStrokeWidth : 0,
       strokeFirst: runStrokeFirst,
@@ -2506,8 +2533,6 @@ function renderEmbeddedGlyphRuns(
       faceLacksWeight,
       fontSizePx: fontSize,
     });
-    const emboldenStrengthFU = fakeBoldStroke.emboldenFill
-      ? emboldenStrengthForFont(run.font.unitsPerEm) : 0;
 
     // DM-1695: faux-italic. Embedded mode BAKES the shear into the outline (the
     // @font-face descriptor stays italic, so the consumer synthesizes nothing).
@@ -2518,8 +2543,8 @@ function renderEmbeddedGlyphRuns(
     const shearFactor = faceNeedsSyntheticOblique(run.font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
       ? OBLIQUE_SHEAR : 0;
 
-    // DM-1722: for a STATIC-weight source on the hinted path (no wght axis,
-    // no faux-bold bake), the glyph outlines are identical at every requested
+    // DM-1722 / DM-2390: for a STATIC-weight source on the hinted path (no
+    // wght axis), the glyph outlines are identical at every requested
     // CSS weight — the file is what it is. Requested weight then only matters
     // for the @font-face descriptor, so drop it from the key and let the
     // builder emit a `font-weight: min max` RANGE descriptor covering every
@@ -2539,21 +2564,14 @@ function renderEmbeddedGlyphRuns(
     // shared entry, the exact first-seen-face-wins bug the comment above
     // describes. Fall back to per-weight keying when the member can't be named.
     const staticWeightShared = srcInfo != null && srcInfo.nameMatched && srcInfo.faceIndex != null
-      && srcInfo.variationAxes?.wght == null && !emboldenStrengthFU;
+      && srcInfo.variationAxes?.wght == null;
     const weightPart = staticWeightShared
       ? `w=*|src=${srcInfo!.path}#${srcInfo!.faceIndex}`
       : `w=${weight}`;
-    // DM-1971: the SYNTHESIS BAKE is part of the entry's identity. Two runs can
-    // agree on family, weight, slant, features and axes and still need different
-    // outlines, because one baked a faux-bold dilation or a faux-oblique shear
-    // and the other was vetoed by `font-synthesis`. Without this, the second run
-    // silently reuses the first's entry and paints the synthesis it asked NOT to
-    // have — measured: `font-style: italic` with and without
-    // `font-synthesis-style: none` both resolved to one italic entry, so the
-    // veto changed nothing in the output. (The bold pair escaped only by
-    // accident: `emboldenStrengthFU` already forces `weightPart` off the shared
-    // `w=*` form, so its two arms keyed apart for an unrelated reason.)
-    const synthPart = `|b=${emboldenStrengthFU}|sh=${shearFactor}`;
+    // Only synthesis that changes the embedded glyph belongs in the subset
+    // identity. Bold now changes paint records, not outlines; oblique still
+    // shears the outline and therefore remains keyed.
+    const synthPart = `|sh=${shearFactor}`;
     const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`;
 
 
@@ -2829,7 +2847,7 @@ function renderEmbeddedGlyphRuns(
           glyph.id, commandResolution.commands, glyph.advanceWidth,
           // The descriptor exactly matches the already-resolved/baked face;
           // the consumer browser performs neither face selection nor shaping.
-          { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource, runToken: run },
+          { italic: slant !== 0, weight, shearFactor, hintedSource, runToken: run },
         );
         if (placement == null) {
           return { markup: null, decline: { reason: "pua-exhausted" } };
@@ -2886,23 +2904,10 @@ function renderEmbeddedGlyphRuns(
     const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
-    let strokeAttr = "";
-    // DM-1970: a synthetic-bold frame is painted in the FILL color and has no
-    // CSS stroke behind it, so it carries its own colour rather than reading
-    // `textStrokeColor` (which is null on these runs — the old guard would have
-    // dropped the frame entirely).
-    if (fakeBoldStroke.strokeIsFakeBold === true && fakeBoldStroke.strokeWidthPx > 0) {
-      strokeAttr = ` stroke="${esc(fill)}" stroke-width="${r2(fakeBoldStroke.strokeWidthPx)}"`;
-    } else if (fakeBoldStroke.strokeWidthPx > 0 && textStrokeColor != null && textStrokeColor !== "") {
-      // `fakeBoldStroke.strokeWidthPx` is the CSS width plus Chrome-on-Linux's
-      // synthetic-bold inflation when this run's face lacks the weight (see the
-      // faux-bold block above); elsewhere it's the CSS width unchanged.
-      strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(fakeBoldStroke.strokeWidthPx)}"`;
-      if (runStrokeFirst) {
-        strokeAttr += ` paint-order="stroke fill"`;
-      }
-    }
-    pending.push({ perGlyph, runCssFamily, weightAttr, italicAttr, fvsAttr, strokeAttr });
+    pending.push({
+      perGlyph, runCssFamily, weightAttr, italicAttr, fvsAttr,
+      paintPasses: fakeBoldPaint.svgPasses,
+    });
     cssX += runCursorFontUnits * runScale;
   }
 
@@ -2958,7 +2963,17 @@ function renderEmbeddedGlyphRuns(
       const yAttr = anyY
         ? `y="${slice.map((g) => r2(baselineY + g.yCss)).join(" ")}"`
         : `y="${r2(baselineY)}"`;
-      segments.push(`<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
+      const base = `<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr}`;
+      const paint = {
+        fill,
+        strokeWidthPx: textStrokeWidth ?? 0,
+        strokeColor: textStrokeColor,
+        strokeFirst: paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder),
+        fillIsTransparent: isFullyTransparentColor(fill),
+      };
+      for (const pass of p.paintPasses) {
+        segments.push(`${base}${fakeBoldSvgPaintAttributes(pass, paint, 1)}>${puaStream}</text>`);
+      }
       runStart = runEnd;
     }
   }
@@ -3338,18 +3353,23 @@ export function renderTextAsPath(
     });
   }
 
-  // DM-1984: `-webkit-text-stroke` already occupies the stroke attributes, and
-  // Chrome's own handling of the two together is a per-platform mapping onto a
-  // single flat paint (`resolveFakeBoldTextStroke`). Rather than run two stroke
-  // sources against each other, a stroked run keeps the outer-group treatment
-  // below and takes the primary font's decision; an unstroked run — every
-  // ordinary one — gets the per-run frame.
+  // DM-2390: author stroke and synthetic bold are one source-owned per-run
+  // paint plan. Keeping the concrete colours here lets the path emitter repeat
+  // an unchanged outline for the two Skia passes required by opaque
+  // `paint-order: stroke fill`; every other case safely coalesces to one pass.
   const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0
     && textStrokeColor != null && textStrokeColor !== "";
+  const runPaint: TextRunPaintOptions = {
+    fill,
+    strokeWidthPx: wantsTextStroke ? textStrokeWidth! : 0,
+    ...(wantsTextStroke ? { strokeColor: textStrokeColor } : {}),
+    strokeFirst: paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder),
+    fillIsTransparent: isFullyTransparentColor(fill),
+  };
   let result: TextPathResult | null;
   try {
     result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
-      wantsTextStroke ? undefined : { fill }, fallbackRequest);
+      runPaint, fallbackRequest);
   } catch {
     const reason = "path-layout-failed" as const;
     recordTextEmitterTransition({ kind: "paths-declined", sourceText: text, reason });
@@ -3424,57 +3444,9 @@ export function renderTextAsPath(
     ? y + ascent
     : Math.floor(y + ascent + 0.5);
 
-  // DM-719: -webkit-text-stroke. Glyphs paint inside inner
-  // `<g transform="scale(s,-s)">` groups where s = fontSize/unitsPerEm — a
-  // tiny number (≈ 0.03 at 64px on a 2048-UPEM font). SVG strokes scale
-  // with the transform, so a literal `stroke-width="2"` on the outer group
-  // would render at 2 × 0.03 ≈ 0.06 user units. `vector-effect:
-  // non-scaling-stroke` must be set on the actual graphics element, not a
-  // parent (it doesn't inherit through `<use>` consistently). Instead,
-  // pre-multiply the stroke width by the inverse scale so the post-
-  // transform paint matches the requested CSS width.
-  // DM-1984: synthetic bold + oblique in PATHS mode. Until now this branch
-  // applied neither — a `font-weight: 700` run on a face with no bold cut
-  // painted the thin natural outline, and a `font-style: italic` run on an
-  // upright face painted it upright. Embedded mode has synthesized both since
-  // DM-1693/DM-1695, and paths mode ships (the visual suites pin it, and it is
-  // the always-correct fallback whenever a run cannot be embedded), so the
-  // fidelity gap was real rather than theoretical.
-  //
-  // The WHETHER is the shared predicate — `faceNeedsSyntheticBold` /
-  // `faceNeedsSyntheticOblique`, the same functions the embedded branch calls.
-  // Only the HOW differs: embedded mode bakes the shear into the outline and
-  // strokes the `<text>`; here the shear is a group transform and the frame
-  // rides on the PER-RUN groups (see `textToPathMarkup`'s `fauxBold` parameter
-  // for the measurement that settled the placement).
-  let strokeAttr = "";
-  if (wantsTextStroke) {
-    const inverseScale = font.unitsPerEm / fontSize;
-    // A stroked run keeps the outer-group treatment: the stroke attributes are
-    // already spoken for, so the two stroke sources are resolved into one width
-    // by the same per-platform mapping the embedded branch uses, taking the
-    // PRIMARY font's synthesis decision. `emboldenFill` (Linux, stroke-first,
-    // opaque fill) asks the FILL to carry the dilation with the stroke left at
-    // its CSS width; paths mode cannot do that without re-keying every glyph
-    // def, which is exactly the work the frame model removed — so take the
-    // other arm of the same mapping and widen the stroke. Residual: the band
-    // from the outline out to `extra/2` paints stroke-colored where Chrome
-    // paints it fill-colored, under a quarter pixel at body sizes.
-    const fakeBold = resolveFakeBoldTextStroke({
-      strokeWidthPx: textStrokeWidth!,
-      strokeFirst: paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder),
-      fillIsTransparent: isFullyTransparentColor(fill),
-      faceLacksWeight: faceNeedsSyntheticBold(font, weight, fontSynthesis),
-      fontSizePx: fontSize,
-    });
-    const swPx = fakeBold.emboldenFill
-      ? textStrokeWidth! + skiaFakeBoldStrokeExtraPx(fontSize)
-      : fakeBold.strokeWidthPx;
-    strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(swPx * inverseScale)}"`;
-    if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
-      strokeAttr += ` paint-order="stroke fill"`;
-    }
-  }
+  // DM-719 / DM-2390: stroke widths are now attached to the actual per-run
+  // path groups by `fakeBoldSvgPaintAttributes`, where each run's font-unit
+  // scale is known. The outer group owns placement/accessibility only.
 
   // DM-1695 shear, as an SVG transform rather than a baked outline. Glyphs
   // paint inside inner `scale(s,-s)` groups, so the y axis is FLIPPED by the
@@ -3489,7 +3461,7 @@ export function renderTextAsPath(
     ? ""
     : ` data-domotion-text-owner="source-partial" data-domotion-text-degraded-spans="${esc(result.ownership.degradedGlyphs.map((item) =>
       `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
-  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"${degradedAttr}><title>${esc(text)}</title>${result.markup}</g>`;
+  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}" role="img" aria-label="${esc(text)}"${degradedAttr}><title>${esc(text)}</title>${result.markup}</g>`;
 }
 
 /**

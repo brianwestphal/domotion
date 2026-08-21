@@ -38,7 +38,7 @@
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
+import { shearPathCommands } from "./embolden-outline.js";
 import { appendGlyphCopy, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, sfntHasSubsettableOutlines, type HbSubsetAttemptDiagnostic } from "./hb-subset.js";
 
 /** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
@@ -138,7 +138,7 @@ export interface BuilderEntry {
    * `font-style="italic"` / `font-weight="700"` — without these descriptors
    * the rule defaults to `font-style: normal; font-weight: 400` and Chromium
    * synthesizes faux italic / faux bold ON TOP of glyphs whose italic slant
-   * (or bold weight) is already baked in by the variant we resolved. Result
+   * or weight is already satisfied by the variant/paint we resolved. Result
    * pre-fix: double-italic (~2× slant) on `<i>` text against a non-bold
    * upright fallback (the Slashdot mobile `<i>` river-story abstract).
    */
@@ -152,7 +152,7 @@ export interface BuilderEntry {
   /**
    * DM-1714/DM-1716: the sfnt file + collection index every glyph in this entry
    * came from, when they ALL share one openable fontkit source and NONE was
-   * synthesized (faux-bold/italic) or supplied by the per-glyph helper fallback.
+   * outline-synthesized (faux-oblique) or supplied by the per-glyph helper fallback.
    * When set, the entry is "pure" — its glyph ids equal the source font's, so
    * `buildGlyfFontForEntry` can hb-subset the ORIGINAL file (keeping TrueType
    * hinting) and inject a PUA→gid cmap, instead of the unhinted svg2ttf rebuild.
@@ -363,7 +363,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number; shearFactor?: number; hintedSource?: HintedSource | null; runToken?: object } = { italic: false, weight: 400 },
+  variant: { italic: boolean; weight: number; shearFactor?: number; hintedSource?: HintedSource | null; runToken?: object } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -391,13 +391,15 @@ export function trackGlyphInEmbedFont(
   }
   // DM-1714: the entry stays eligible for the hinting-preserving hb-subset path
   // only while every glyph agrees on one openable source and none is synthetic.
-  // A synthetic glyph (faux-bold/italic baked its own outline) or a glyph from a
+  // A synthetic glyph (faux-oblique baked its own outline) or a glyph from a
   // different file (per-glyph helper fallback) breaks the gid↔source identity the
   // subset relies on — disqualify the whole entry the moment one appears.
   // DM-1716: the axis LOCATION is part of the identity too — two runs on the
   // same variable file at different locations can't share one instanced subset.
   // (In practice the instanceKey already separates them; this is the guard.)
-  const isSynthetic = Boolean(variant.emboldenStrengthFU) || Boolean(variant.shearFactor);
+  // Synthetic bold is paint geometry and never changes the source outline.
+  // Only faux-oblique still bakes an affine outline transform.
+  const isSynthetic = Boolean(variant.shearFactor);
   const glyphSource = variant.hintedSource ?? null;
   // A null faceIndex means the requested PostScript name is not a physical
   // member of the file, so there is no index to subset by — hb_face_create would
@@ -431,14 +433,10 @@ export function trackGlyphInEmbedFont(
   const pua = entry.nextPua++;
   entry.puaForGlyphId.set(glyphId, pua);
 
-  // DM-1693 / DM-1695: bake synthetic bold and/or oblique into the embedded
-  // glyph when the resolved face lacks the requested weight/style (the @font-face
-  // descriptor stays at the requested weight/style, so the consumer browser
-  // synthesizes nothing on top). Embolden first (outline dilation), then shear
-  // (affine) — mirroring Skia, which emboldens the outline then applies the skew
-  // matrix. Both helpers return the input unchanged when their amount is 0/absent.
+  // Faux-oblique remains an affine outline transform. Synthetic bold is emitted
+  // later as Skia-equivalent paint stages and deliberately never reaches this
+  // outline/subset owner.
   let cmds = pathCommands;
-  if (variant.emboldenStrengthFU) cmds = emboldenPathCommands(cmds, variant.emboldenStrengthFU);
   if (variant.shearFactor) cmds = shearPathCommands(cmds, variant.shearFactor);
   entry.glyphs.set(glyphId, {
     d: pathCommandsToSvgPath(cmds),

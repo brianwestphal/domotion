@@ -231,12 +231,12 @@ describeWithVar("variable webfonts: auto exempts, declared does not", () => {
   });
 });
 
-// ── The renderer seam: the emitted subset must actually carry the embolden ──
+// ── The renderer seam: the emitted run must actually carry the paint frame ──
 //
 // These are the tests that go red if the rule is computed but never consulted.
 // Verified by construction: stubbing the seam's `run.font.webfontFace` to null
 // collapses all four cases to "outlines identical", which is the pre-fix
-// behavior — a webfont run could not reach the faux-bold bake at all, because
+// behavior — a webfont run could not reach the faux-bold paint plan at all, because
 // only the system-font branch set the fields it reads.
 
 describeWithSerif("the emitted run carries the synthetic bold (DM-1970)", () => {
@@ -320,5 +320,66 @@ describeWithSerif("the emitted run carries the synthetic bold (DM-1970)", () => 
     // fraction of the text at small sizes. A constant design-space strength
     // gets this backwards and leaves body text ~25% too light.
     expect(at(9)! / 9).toBeGreaterThan(at(48)! / 48);
+  });
+
+  it.each(["embedded-font", "paths"] as const)(
+    "%s preserves opaque stroke-first as author-stroke then synthetic-fill passes",
+    (mode) => {
+      registerWebfont("SeamStrokeFirst", 400, "normal", serifBuf!);
+      clearEmbeddedFontBuilder();
+      setRenderTextMode(mode);
+      const markup = renderTextAsPath("Hn", 0, 100, {
+        fontSize: 100,
+        fontFamily: '"SeamStrokeFirst"',
+        fontWeight: 700,
+        fill: "rgb(0, 0, 0)",
+        textStrokeWidth: 4,
+        textStrokeColor: "rgb(255, 0, 0)",
+        paintOrder: "stroke fill",
+      });
+      const extra = skiaFakeBoldStrokeExtraPx(100);
+      const expectedAuthorCss = Math.round((4 + extra) * 100) / 100;
+      const expectedFillCss = Math.round(extra * 100) / 100;
+
+      if (mode === "embedded-font") {
+        const visible = [...markup.matchAll(/<text\b[^>]*>/g)].map((match) => match[0]);
+        expect(visible).toHaveLength(2);
+        expect(visible[0]).toContain('fill="none"');
+        expect(visible[0]).toContain('stroke="rgb(255, 0, 0)"');
+        expect(visible[0]).toContain(`stroke-width="${expectedAuthorCss}"`);
+        expect(visible[1]).toContain('fill="rgb(0, 0, 0)"');
+        expect(visible[1]).toContain('stroke="rgb(0, 0, 0)"');
+        expect(visible[1]).toContain(`stroke-width="${expectedFillCss}"`);
+      } else {
+        const font = resolveFont("SeamStrokeFirst", 700, 100, 0)!;
+        const scale = 100 / font.unitsPerEm;
+        const authorWidthFu = Math.round(((4 + extra) / scale) * 100) / 100;
+        const fillWidthFu = Math.round((extra / scale) * 100) / 100;
+        expect(markup).toContain(`fill="none" stroke="rgb(255, 0, 0)" stroke-width="${authorWidthFu}"`);
+        expect(markup).toContain(`fill="rgb(0, 0, 0)" stroke="rgb(0, 0, 0)" stroke-width="${fillWidthFu}"`);
+        const hrefs = [...markup.matchAll(/<use href="([^"]+)"/g)].map((match) => match[1]);
+        expect(hrefs.length).toBeGreaterThan(0);
+        expect(hrefs.length % 2).toBe(0);
+        expect(hrefs.slice(0, hrefs.length / 2)).toEqual(hrefs.slice(hrefs.length / 2));
+      }
+    },
+  );
+
+  it("keeps a non-synthetic stroke-first run in one ordinary paint pass", () => {
+    registerWebfont("SeamPlainStroke", 400, "normal", serifBuf!);
+    setRenderTextMode("embedded-font");
+    const markup = renderTextAsPath("Hn", 0, 100, {
+      fontSize: 100,
+      fontFamily: '"SeamPlainStroke"',
+      fontWeight: 400,
+      fill: "#000",
+      textStrokeWidth: 4,
+      textStrokeColor: "#f00",
+      paintOrder: "stroke fill",
+    });
+    const visible = [...markup.matchAll(/<text\b[^>]*>/g)].map((match) => match[0]);
+    expect(visible).toHaveLength(1);
+    expect(visible[0]).toContain('stroke-width="4"');
+    expect(visible[0]).toContain('paint-order="stroke fill"');
   });
 });

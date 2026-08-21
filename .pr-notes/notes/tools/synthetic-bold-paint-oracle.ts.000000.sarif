@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3079amb46u0scq",
+          "message": {
+            "text": "The source-rule oracle passes 5,400/5,400 rows across Darwin/Linux/Windows, static and variable controls, three hinting records, five size points including both Skia knees, fill/stroke order and transparency, and three transform matrices. Its retired derived-outline mutation moves 270/270 opaque stroke-first synthetic rows, and the production scan confirms the calibration literal and former outline helpers are absent.",
+            "markdown": "The source-rule oracle passes 5,400/5,400 rows across Darwin/Linux/Windows, static and variable controls, three hinting records, five size points including both Skia knees, fill/stroke order and transparency, and three transform matrices. Its retired derived-outline mutation moves 270/270 opaque stroke-first synthetic rows, and the production scan confirms the calibration literal and former outline helpers are absent."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/synthetic-bold-paint-oracle.ts"
+                },
+                "region": {
+                  "startLine": 163,
+                  "endLine": 235,
+                  "snippet": {
+                    "text": "export function runSyntheticBoldPaintOracle(): {\n  rows: SyntheticBoldPaintOracleRow[];\n  failures: number;\n  retiredMutationRows: number;\n  retiredMutationMoved: number;\n  retiredProductionSymbolsGone: boolean;\n} {\n  const rows: SyntheticBoldPaintOracleRow[] = [];\n  for (const platform of PLATFORMS) {\n    for (const face of FACES) {\n      for (const hinting of HINTING) {\n        for (const fontSizePx of SIZES) {\n          for (const strokeWidthPx of STROKES) {\n            for (const strokeFirst of BOOLEANS) {\n              for (const fillIsTransparent of BOOLEANS) {\n                for (const transform of TRANSFORMS) {\n                  const input = {\n                    fontSizePx, strokeWidthPx, strokeFirst, fillIsTransparent,\n                    faceLacksWeight: face.faceLacksWeight,\n                  };\n                  const source = sourceRule(input);\n                  const production = resolveFakeBoldTextPaint({ ...input, platform });\n                  const expected = {\n                    ...source,\n                    deviceFrameBasis: deviceFrameBasis(source.stages, transform.matrix),\n                  };\n                  const actual = {\n                    outline: production.outline,\n                    extraPx: production.extraPx,\n                    stages: production.stages,\n                    svgPasses: production.svgPasses,\n                    deviceFrameBasis: deviceFrameBasis(production.stages, transform.matrix),\n                  };\n                  const mutationTarget = face.faceLacksWeight && strokeWidthPx > 0\n                    && strokeFirst && !fillIsTransparent;\n                  const retiredMutation = mutationTarget\n                    ? { ...actual, outline: \"derived-outline\", svgPasses: [actual.svgPasses[0]] }\n                    : actual;\n                  rows.push({\n                    id: [platform, face.id, hinting, fontSizePx, `sw${strokeWidthPx}`,\n                      strokeFirst ? \"stroke-first\" : \"fill-first\",\n                      fillIsTransparent ? \"transparent\" : \"opaque\", transform.id].join(\"/\"),\n                    platform, face, hinting, fontSizePx, strokeWidthPx,\n                    strokeFirst, fillIsTransparent, transform,\n                    sourceOutlineRecord: { owner: \"selected-face-glyph\", hinting, mutation: \"none\" },\n                    expected, actual,\n                    pass: same(expected, actual),\n                    retiredMutationMoved: mutationTarget ? !same(expected, retiredMutation) : false,\n                  });\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  const sourceFiles = [\n    fileURLToPath(new URL(\"../src/render/embolden-outline.ts\", import.meta.url)),\n    fileURLToPath(new URL(\"../src/render/embedded-font-builder.ts\", import.meta.url)),\n    fileURLToPath(new URL(\"../src/render/text-to-path.ts\", import.meta.url)),\n  ];\n  const retiredSymbol = /(?:0\\.73|emboldenStrengthForFont|emboldenPathCommands|emboldenStrengthFU)/;\n  const retiredProductionSymbolsGone = sourceFiles.every((file) => !retiredSymbol.test(readFileSync(file, \"utf8\")));\n  const mutationRows = rows.filter((row) => row.face.faceLacksWeight && row.strokeWidthPx > 0\n    && row.strokeFirst && !row.fillIsTransparent);\n  return {\n    rows,\n    failures: rows.filter((row) => !row.pass).length,\n    retiredMutationRows: mutationRows.length,\n    retiredMutationMoved: mutationRows.filter((row) => row.retiredMutationMoved).length,\n    retiredProductionSymbolsGone,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/synthetic-bold-paint-oracle.test.ts"
+                },
+                "region": {
+                  "startLine": 4
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embolden-outline.test.ts"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2390"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c1418ea84c98a87f1fa5ae29f5d88a50"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f7be4cce8a24334d828958d20c49fe3eea8b70f7",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

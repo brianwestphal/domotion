@@ -1315,6 +1315,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt306wxu91gbqs0d",
+          "message": {
+            "text": "Paint geometry is resolved per selected run, not on the primary-font outer group. This preserves the correct synthesis decision and units-per-em conversion for mixed fallback runs; when Skia requires opaque stroke-first ordering, both groups repeat the identical use stream and differ only in source-owned paint attributes.",
+            "markdown": "Paint geometry is resolved per selected run, not on the primary-font outer group. This preserves the correct synthesis decision and units-per-em conversion for mixed fallback runs; when Skia requires opaque stroke-first ordering, both groups repeat the identical use stream and differ only in source-owned paint attributes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 582,
+                  "endLine": 606,
+                  "snippet": {
+                    "text": "  // Keep fake-bold and author-stroke geometry on the selected RUN. A fallback\n  // face can have a real bold cut while the primary needs synthesis (or vice\n  // versa), and each face can have a different units-per-em scale. Repeating\n  // the same <use> stream is necessary only for opaque `stroke fill`: Skia's\n  // author-stroke pass and frame-and-fill pass have different colours.\n  const paintPathGroup = (\n    runFont: FontInstance,\n    groupScale: number,\n    transform: string,\n    body: string,\n  ): string => {\n    if (paint == null || groupScale <= 0) {\n      return `<g transform=\"${transform}\">${body}</g>`;\n    }\n    const plan = resolveFakeBoldTextPaint({\n      strokeWidthPx: paint.strokeWidthPx,\n      strokeFirst: paint.strokeFirst,\n      fillIsTransparent: paint.fillIsTransparent,\n      faceLacksWeight: faceNeedsSyntheticBold(runFont, weight, fontSynthesis),\n      fontSizePx: fontSize,\n    });\n    return plan.svgPasses.map((pass) => {\n      const attrs = fakeBoldSvgPaintAttributes(pass, paint, groupScale);\n      return `<g transform=\"${transform}\"${attrs}>${body}</g>`;\n    }).join(\"\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embolden-outline.ts"
+                },
+                "region": {
+                  "startLine": 109
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2966
+                }
+              }
+            }
+          ],
+          "rank": 91,
+          "workItemUris": [
+            "DM-2390"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d64c0c3323924624a6c86778912f2b87"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f7be4cce8a24334d828958d20c49fe3eea8b70f7",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -26,11 +26,9 @@
 //
 // ── What these tests actually pin ───────────────────────────────────────────
 //
-// The vetoes are only observable in `embedded-font` mode, because paths mode
-// emits raw outlines and applies neither faux-bold nor faux-oblique at all
-// (tracked separately as a coverage gap, and the reason the feature visual
-// suite — which pins paths mode — cannot grade any of this). So these drive the
-// embedded builder and read the emitted `@font-face` set.
+// Both render modes honor the vetoes. These tests drive embedded mode because
+// it exposes both ownership boundaries at once: bold changes only the ordered
+// `<text>` paint passes, while oblique still changes subset bytes.
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { renderTextAsPath, setRenderTextMode, synthesisAllowed, type RenderTextOptions } from "./text-to-path.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss } from "./embedded-font-builder.js";
@@ -78,20 +76,7 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
   beforeEach(() => { setRenderTextMode("embedded-font"); clearEmbeddedFontBuilder(); });
   afterEach(() => { setRenderTextMode("paths"); clearEmbeddedFontBuilder(); });
 
-  /**
-   * Whether this host's `FAMILY` actually SYNTHESIZES — not merely whether it
-   * renders. The two are different preconditions, and the weaker one is wrong:
-   * a host without Papyrus resolves the stack to some fallback that ships a
-   * real bold cut, and then no synthesis happens for these tests to observe.
-   * Every assertion below counts entries or compares bytes across a
-   * synthesis boundary, so on such a host they assert a difference that should
-   * not exist. (Measured: the weak guard passed on Linux and failed four
-   * assertions in the pinned container.)
-   *
-   * The check is the synthesis itself: an un-vetoed bold run must produce
-   * DIFFERENT embedded bytes from a plain one. Same bytes means the face
-   * carried the weight rather than having it baked on.
-   */
+  /** Whether this host's resolved face actually enters the synthesis path. */
   const synthesizes = (): boolean => {
     clearEmbeddedFontBuilder();
     if (render("Hg", { fontWeight: "400" }) == null || faces().length === 0) {
@@ -99,21 +84,22 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
       return false;
     }
     clearEmbeddedFontBuilder();
-    render("Hamburgefonstiv", { fontWeight: "700" });
-    render("Hamburgefonstiv", { fontWeight: "700", fontSynthesis: { weight: false } });
-    const ok = faceBytes().length === 2 && faceBytes()[0] !== faceBytes()[1];
+    const auto = render("Hamburgefonstiv", { fontWeight: "700" }) ?? "";
+    const veto = render("Hamburgefonstiv", { fontWeight: "700", fontSynthesis: { weight: false } }) ?? "";
+    const ok = /<text\b[^>]*\sstroke="#000"/.test(auto)
+      && !/<text\b[^>]*\sstroke="#000"/.test(veto);
     clearEmbeddedFontBuilder();
     return ok;
   };
 
-  it("keys the faux-bold bake into the entry identity, so a vetoed run cannot reuse an emboldened entry", () => {
+  it("reuses one source subset while a weight veto changes only the paint pass", () => {
     if (!synthesizes()) return;
-    // Both runs: same family, same weight, same slant, same features. Only the
-    // veto differs. If the bake were not part of the key they would share ONE
-    // entry and the veto would change nothing in the output.
-    expect(render("Hamburgefonstiv", { fontWeight: "700" })).not.toBeNull();
-    expect(render("Hamburgefonstiv", { fontWeight: "700", fontSynthesis: { weight: false } })).not.toBeNull();
-    expect(faces().length).toBe(2);
+    const auto = render("Hamburgefonstiv", { fontWeight: "700" })!;
+    const veto = render("Hamburgefonstiv", { fontWeight: "700", fontSynthesis: { weight: false } })!;
+    expect(auto).toMatch(/<text\b[^>]*\sstroke="#000"/);
+    expect(veto).not.toMatch(/<text\b[^>]*\sstroke="#000"/);
+    expect(faces()).toHaveLength(1);
+    expect(faceBytes()).toHaveLength(1);
   });
 
   it("keys the faux-oblique shear into the entry identity — the bug that made the style veto inert", () => {

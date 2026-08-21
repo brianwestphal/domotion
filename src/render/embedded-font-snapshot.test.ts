@@ -167,9 +167,9 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
 
     // Mutate every field the entry can mutate: add glyphs (glyphs +
     // puaForGlyphId + nextPua), widen the weight range both ways, and latch the
-    // hinted-source disqualification with a synthetic (faux-bold) glyph.
+    // hinted-source disqualification with a synthetic faux-oblique glyph.
     trackGlyphInEmbedFont(KEY, 1000, 800, -200, 5, BOX, 620, { italic: false, weight: 900, hintedSource: SRC });
-    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 6, TRI, 630, { italic: false, weight: 100, emboldenStrengthFU: 20 });
+    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 6, TRI, 630, { italic: false, weight: 100, shearFactor: 0.25 });
     trackGlyphInEmbedFont("brand-new|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
     const dirty = _builderEntryState(KEY)!;
     expect(dirty.glyphIds).not.toEqual(before!.glyphIds);

@@ -618,12 +618,12 @@ embedded mode: entries that must stay on svg2ttf (synthetic faux-bold/italic
 bakes, per-glyph helper outlines, `hvgl`-only faces, webfonts) and the `paths`
 mode suites.
 
-### `-webkit-text-stroke` + faux-bold: Skia's stroke-frame fake bold (DM-1694 → DM-1736)
+### `-webkit-text-stroke` + faux-bold: source-owned Skia paint stages (DM-1694 → DM-2390)
 
 An earlier note here accepted the `20-deep-text-stroke` fixture's Linux
 residual as an amplified hinting-floor case. That diagnosis was wrong — the
-real mechanism is that Chrome-on-Linux implements synthetic bold as a **stroke
-inflation**, and Domotion now mirrors it:
+real mechanism is that Chromium's pinned Skia implements synthetic bold as
+**paint-stage frame inflation**, and Domotion now mirrors it:
 
 - Blink requests synthetic bold when the CSS weight exceeds the resolved
   typeface's weight by more than 200
@@ -631,7 +631,12 @@ inflation**, and Domotion now mirrors it:
   The fixture's `system-ui` at `font-weight: 800` resolves to single-weight
   WenQuanYi Zen Hei (usWeightClass 500) in the CI container, so 800 > 700
   triggers it (measured: weight 700 paints clean, 701 emboldens).
-- On FreeType typefaces Skia converts the embolden flag into a stroke frame:
+- Skia converts the embolden flag into a stroke frame in every Chromium desktop
+  backend: FreeType (`SkFontHost_FreeType.cpp:821-824`), CoreText
+  (`SkTypeface_mac_ct.cpp:887-889`), DirectWrite
+  (`SkTypeface_win_dw.cpp:727-729`), and Fontations
+  (`SkTypeface_fontations.cpp:299`), at Chromium-pinned Skia revision
+  `62efacd37737505732dbe3d8daa62abd679626a1`. The FreeType entry point is:
   `SkTypeface_FreeType::onFilterRec` (src/ports/SkFontHost_FreeType.cpp:821-824)
   calls `SkScalerContextRec::useStrokeForFakeBold` (src/core/SkScalerContext.cpp:
   1019-1041). With `extra = textSize·(1/24 at ≤9px … 1/32 at ≥36px)`
@@ -639,18 +644,21 @@ inflation**, and Domotion now mirrors it:
   and a `-webkit-text-stroke` pass paints `cssWidth + extra` thick — a 1px
   stroke at 72px paints as a ~3.25px band (measured in the container:
   weight 400 → band = cssWidth exactly; weight 800 → band = cssWidth + 2.25).
-- Domotion's embedded-font mode reproduces this via
-  `resolveFakeBoldTextStroke` / `skiaFakeBoldStrokeExtraPx`
-  (`src/render/embolden-outline.ts`), Linux-gated: default paint order and
-  outline-only text emit `w + extra` strokes on the natural outline (the
-  widened band fully covers Chrome's fill dilation); `paint-order: stroke
-  fill` with an opaque fill emboldens the fill and keeps the stroke at `w`
-  (the fill on top hides the stroke's inner half). macOS/Windows paint the CSS
-  width verbatim (CoreText/DirectWrite synthesize bold without touching the
-  stroke) and are unchanged.
+- Both renderer modes reproduce this through `resolveFakeBoldTextPaint` /
+  `skiaFakeBoldStrokeExtraPx` (`src/render/embolden-outline.ts`), with no
+  platform gate and no outline mutation. Default paint order and outline-only
+  text coalesce to a `w + extra` frame on the natural outline. Opaque
+  `paint-order: stroke fill` remains two passes: author-color stroke at
+  `w + extra`, followed by fill-color FrameAndFill at `extra`. The generated
+  embedded subset therefore retains its source hinting/variable instance, and
+  paths mode repeats the same `<use>` stream rather than deriving a new glyph.
 
-With the model in place the fixture's Linux diff drops from 1.60% / 54 regions
-to ~0.02% coverage / a handful of sub-region AA nits; macOS stays pixel-clean.
+The source-rule oracle (`npm run fonts:synthetic-bold-paint`) grades 5,400 rows:
+all three platforms, static/variable activation controls, unhinted/light/native
+hinting records, the 9px/36px interpolation knees, fill/stroke ordering and
+transparency, plus uniform and anisotropic/rotated transforms. Its retired
+derived-outline mutation must move every opaque stroke-first synthetic row and
+its source scan rejects the former calibration symbols in production.
 
 ## Every platform is now scored by the conformance oracle, not only by fixtures
 

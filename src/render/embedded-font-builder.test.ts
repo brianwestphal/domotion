@@ -281,14 +281,14 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     }));
   });
 
-  it("falls back to svg2ttf for a synthetic (faux-bold) glyph", () => {
+  it("retains the hinted source outline when synthetic bold is paint-owned", () => {
     trackGlyphInEmbedFont("hinted-synth|w=700|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 700, emboldenStrengthFU: 30, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+      { italic: false, weight: 700, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
-    expect(tags(bytes).has("fpgm")).toBe(false); // svg2ttf output carries no hinting
+    expect(tags(bytes).has("fpgm")).toBe(true);
     expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
-      selectedBuilder: "svg2ttf",
-      hintedSourceDisqualifiedReasons: ["synthetic"],
+      selectedBuilder: "hb-subset",
+      hintedSourceDisqualifiedReasons: [],
       affectedGlyphCount: 1,
       affectedGlyphOccurrenceCount: 1,
     }));

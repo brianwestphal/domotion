@@ -2310,7 +2310,7 @@ still fall back to svg2ttf when the source cannot be subset safely.
    (`carryFontInstanceMetadata`) so a shaped-script override does not strip it.
 2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
-   faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the
+   faux-oblique bakes, per-glyph helper outlines, CFF/CFF2 faces (the
    bundled wasm silently drops `CFF ` — an outline-less subset fails Chrome's
    OTS) and outline-less sources (PingFang `hvgl`) — both guarded by
    `sfntHasSubsettableOutlines` — plus webfont buffers, mixed entries, an
@@ -2634,23 +2634,26 @@ baseline correction CoreText only reports through the system-registered font):
 the probe is applied only when that handle is confirmed to be the requested face,
 so a face-wide baseline correction can never be read off a substituted font.
 
-**Synthetic (faux) bold (DM-1693, remodelled DM-1970, extended to paths mode
-DM-1984):** when the resolved face has no variant at the requested weight, Chrome
+**Synthetic (faux) bold (DM-1693, remodelled DM-1970/DM-2390, extended to paths
+mode DM-1984):** when the resolved face has no variant at the requested weight, Chrome
 emboldens it; the embedded `@font-face` — tagged with the requested weight —
 would otherwise paint the thin natural outline with no synthesis.
 
 What Chrome does is a STROKE FRAME, not an outline dilation, and we emit the same
 operation rather than an approximation of it. `SkScalerContextRec::useStrokeForFakeBold`
-(Skia `src/core/SkScalerContext.cpp:1019-1041`, rev ebf5052) clears the embolden
+(Skia `src/core/SkScalerContext.cpp:1019-1041`, Chromium-pinned revision
+`62efacd37737505732dbe3d8daa62abd679626a1`) clears the embolden
 flag, switches the paint to `kFrameAndFill` and sets
 `fFrameWidth = textSize * fakeBoldScale`, where `fakeBoldScale` interpolates
 1/24 at ≤9 px to 1/32 at ≥36 px (`src/core/SkTextFormatParams.h:16-29`). macOS
-reaches it unconditionally from `SkTypeface_Mac::onFilterRec`
-(`src/ports/SkTypeface_mac_ct.cpp:887`) and FreeType platforms from
-`SkTypeface_FreeType::onFilterRec`. So an SVG `stroke-width` in the FILL color,
-over the same outline, IS the operation — `skiaFakeBoldStrokeExtraPx` computes it
-and `resolveFakeBoldTextStroke` (`src/render/embolden-outline.ts`) decides how it
-combines with an author `-webkit-text-stroke`. The dilation this replaced
+reaches it from `SkTypeface_Mac::onFilterRec`
+(`src/ports/SkTypeface_mac_ct.cpp:887`), FreeType
+(`SkFontHost_FreeType.cpp:821-824`), DirectWrite
+(`SkTypeface_win_dw.cpp:727-729`), and Fontations
+(`SkTypeface_fontations.cpp:299`). So an SVG frame in the fill color over the
+same outline IS the operation. `skiaFakeBoldStrokeExtraPx` computes the exact
+local width and `resolveFakeBoldTextPaint` (`src/render/embolden-outline.ts`)
+records the ordered Skia stages and lowers them to SVG passes. The dilation this replaced
 overshot by a size-dependent amount because its strength had no size term at all
 (measured against Chrome, ink delta over the un-emboldened control: 1.53× at
 100 px, 3.54× at 48 px; the frame measures 1.00×).
@@ -2662,7 +2665,7 @@ the HOW:
 
 | | embedded-font mode | paths mode |
 |---|---|---|
-| bold | `stroke-width` on the emitted `<text>` | `stroke` + `stroke-width` on each per-run `<g scale(s,-s)>` group, converted by **that run's** scale |
+| bold | ordered fill/stroke attributes on emitted `<text>` passes | the same ordered passes on each per-run `<g scale(s,-s)>`, with widths converted by **that run's** scale |
 | oblique | shear baked into the outline (`shearPathCommands`) before `trackGlyphInEmbedFont` | `matrix(1,0,-0.25,1,0,0)` on the outer group, composed after the `translate` so it pivots on the baseline |
 
 Paths mode carried NEITHER until DM-1984 — a `font-weight: 700` run on a face
@@ -2841,26 +2844,21 @@ synthetic bold moves neither the advance nor the reported platform face: weight
 control; italic `auto` 5868.5 against `none` 5822.0, exactly the upright control;
 small-caps `auto` 4018.4 against `none` 5822.0, exactly the no-caps control.
 
-**The bake is part of the embedded entry's IDENTITY.** `instanceKey` carries the
-resolved embolden strength and shear factor, because two runs can agree on
-family, weight, slant, features and axes and still need different outlines when
-one baked a synthesis and the other was vetoed. Without that term the second run
-silently reuses the first's entry: `font-style: italic` with and without
-`font-synthesis-style: none` collapsed to one italic entry and the veto changed
-nothing in the output. (The bold pair escaped only by accident — a non-zero
-embolden strength already forces `weightPart` off its shared `w=*` form.)
+**Only outline-changing synthesis is part of the embedded entry's IDENTITY.**
+`instanceKey` carries the shear factor because faux-oblique changes the subset
+outline. Synthetic bold deliberately does not: the same hinted/static/variable
+source subset is reused and its run receives different paint records. This is
+what preserves the source's hinting and axis instance while honoring
+`font-synthesis-weight: none` without duplicating font payloads.
 
-**`-webkit-text-stroke` runs** resolve the two stroke sources into one width via
-`resolveFakeBoldTextStroke`, per platform: on Linux Chrome inflates the stroke
-pass itself by the same `extra` (`fFrameWidth += extra`), so the emitted stroke
-widens to `w + extra` — or, under `paint-order: stroke` with an opaque fill, the
-FILL carries the dilation and the stroke stays at `w`. Paths mode cannot take
-that second arm without re-keying every glyph def, so it widens the stroke there
-too; the residual is the band from the outline out to `extra/2` painting
-stroke-colored where Chrome paints it fill-colored, under a quarter pixel at body
-sizes. Chrome emboldens in device space (post-hinting) and we work in design
-space, so a ~1px edge residual that a high-contrast stroke would trace remains
-for stroked heavy text (see doc 52).
+**`-webkit-text-stroke` runs** preserve Skia's two paint records exactly on all
+desktop backends. The author-stroke record becomes `w + extra`. For default
+fill-first order, or a transparent fill, the visible result safely coalesces to
+one SVG pass. For opaque `paint-order: stroke fill`, the colors overlap
+differently, so both render modes emit the source outline twice: author-color
+stroke at `w + extra`, then fill-color FrameAndFill at `extra`. No glyph def is
+re-keyed, no outline is dilated, and the outer transform acts after these local
+widths just as Skia's device matrix does.
 
 **Synthetic (faux) oblique bake (DM-1695):** the italic mirror. When italic is
 requested but the resolved face is upright (no italic sibling was routed to, no
@@ -2876,8 +2874,8 @@ needed because `Helvetica-LightOblique` and `HelveticaNeue-BoldItalic` report
 `post.italicAngle` 0 despite genuinely slanted outlines, and the angle test
 alone sheared them a second time), all populated in `getFontInstance`. A shear is a pure affine transform — it commutes with the
 uniform font scaling, so unlike the embolden it reproduces Chrome's device-space
-skew EXACTLY at every size and is applied to stroked runs too (no gate). Embolden
-then shear when both apply (bold-italic on a no-bold-no-italic face). Paths mode
+skew EXACTLY at every size and is applied to stroked runs too (no gate). When
+both apply, the sheared source outline receives the fake-bold paint stages. Paths mode
 applies the identical factor as a group transform rather than a baked outline —
 see the two-mode table above.
 

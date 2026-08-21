@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt306rdaxyhsw83w",
+          "message": {
+            "text": "Synthetic bold now transcribes Skia scaler records instead of deriving a glyph outline. Chromium 7d859f27 pins Skia 62efacd3: FreeType, CoreText, DirectWrite, and Fontations all reach useStrokeForFakeBold, which leaves the source path unchanged, FrameAndFills the fill at extra, and widens an existing frame to authorWidth + extra. Opaque stroke-first is deliberately two SVG passes because its two visible colors cannot be coalesced.",
+            "markdown": "Synthetic bold now transcribes Skia scaler records instead of deriving a glyph outline. Chromium 7d859f27 pins Skia 62efacd3: FreeType, CoreText, DirectWrite, and Fontations all reach useStrokeForFakeBold, which leaves the source path unchanged, FrameAndFills the fill at extra, and widens an existing frame to authorWidth + extra. Opaque stroke-first is deliberately two SVG passes because its two visible colors cannot be coalesced."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embolden-outline.ts"
+                },
+                "region": {
+                  "startLine": 95,
+                  "endLine": 184,
+                  "snippet": {
+                    "text": "/**\n * Transcribe Skia's fake-bold scaler records and lower them to SVG paint passes.\n *\n * The source mechanism is platform-invariant for Chromium's FreeType,\n * CoreText, and DirectWrite backends. `platform` is retained in every record so\n * all-platform oracle rows prove that invariance instead of silently exercising\n * only the host branch.\n *\n * Fill-first can coalesce to one SVG pass: the later author stroke at\n * `w + extra` completely covers the earlier fill-color frame at `extra`.\n * Stroke-first with a visible fill cannot: emit the widened author-stroke ring,\n * then the source fill with its own fill-color `extra` frame. This exactly\n * preserves both Skia passes and their colors over the unchanged outline.\n */\nexport function resolveFakeBoldTextPaint(opts: {\n  strokeWidthPx: number;\n  strokeFirst: boolean;\n  fillIsTransparent: boolean;\n  faceLacksWeight: boolean;\n  fontSizePx: number;\n  platform?: NodeJS.Platform;\n}): FakeBoldTextPaintPlan {\n  const platform = opts.platform ?? process.platform;\n  const strokeActive = opts.strokeWidthPx > 0;\n  const extraPx = opts.faceLacksWeight\n    ? skiaFakeBoldStrokeExtraPx(opts.fontSizePx)\n    : 0;\n\n  const fillStage: SkiaFakeBoldPaintStage = extraPx > 0\n    ? {\n        paint: \"fill\",\n        frameWidthPx: extraPx,\n        frameAndFill: true,\n        visible: !opts.fillIsTransparent,\n      }\n    : {\n        paint: \"fill\",\n        frameWidthPx: -1,\n        frameAndFill: false,\n        visible: !opts.fillIsTransparent,\n      };\n  const strokeStage: SkiaFakeBoldPaintStage | null = strokeActive\n    ? {\n        paint: \"stroke\",\n        frameWidthPx: opts.strokeWidthPx + extraPx,\n        frameAndFill: false,\n        visible: true,\n      }\n    : null;\n  const stages = strokeStage == null\n    ? [fillStage]\n    : opts.strokeFirst\n      ? [strokeStage, fillStage]\n      : [fillStage, strokeStage];\n\n  let svgPasses: FakeBoldSvgPaintPass[];\n  if (strokeStage == null) {\n    svgPasses = [{\n      kind: \"combined\",\n      fill: \"source\",\n      stroke: extraPx > 0 ? \"source-fill\" : \"none\",\n      strokeWidthPx: extraPx,\n    }];\n  } else if (opts.strokeFirst && fillStage.visible && extraPx > 0) {\n    // Two colors remain visible, so preserve the two source passes verbatim.\n    svgPasses = [\n      {\n        kind: \"author-stroke\",\n        fill: \"none\",\n        stroke: \"author\",\n        strokeWidthPx: strokeStage.frameWidthPx,\n      },\n      {\n        kind: \"synthetic-fill\",\n        fill: \"source\",\n        stroke: \"source-fill\",\n        strokeWidthPx: extraPx,\n      },\n    ];\n  } else {\n    svgPasses = [{\n      kind: \"combined\",\n      fill: \"source\",\n      stroke: \"author\",\n      strokeWidthPx: strokeStage.frameWidthPx,\n      ...(opts.strokeFirst ? { paintOrder: \"stroke fill\" as const } : {}),\n    }];\n  }\n\n  return { outline: \"source\", platform, extraPx, stages, svgPasses };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 582
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 400
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2390"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9b9dd3f8ddb97b777ea5d7ea6b1556a0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f7be4cce8a24334d828958d20c49fe3eea8b70f7",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

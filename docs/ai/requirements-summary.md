@@ -1376,6 +1376,17 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   and native SVG filters remain vector; screenshot failure falls back to the
   prior vector emission rather than tuning offsets or thresholds.
 
+<!-- DM-2390 -->
+- Synthetic bold is paint-stage geometry over the selected source outline, not
+  a calibrated outline dilation. The Chromium-pinned Skia rule records
+  FrameAndFill(`extra`) for a fill and `authorWidth + extra` for a stroke on
+  FreeType, CoreText, DirectWrite, and Fontations. Both text render modes keep
+  hinted/static/variable subsets unchanged; opaque `stroke fill` emits the
+  author stroke followed by a fill-color frame as two passes. The 5,400-row
+  `fonts:synthetic-bold-paint` oracle covers platform, face/weight activation,
+  hinting, size knees, transparency/order, and transform controls, and rejects
+  the retired derived-outline mutation plus its former production symbols.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

@@ -84,6 +84,7 @@
     "fonts:shaping:unified": "tsx tools/unified-shaping-oracle.ts",
     "fonts:renderer-route": "tsx tools/renderer-font-route-oracle.ts",
     "fonts:shaped-origin": "tsx tools/shaped-origin-oracle.ts",
+    "fonts:synthetic-bold-paint": "node --import tsx tools/synthetic-bold-paint-oracle.ts",
     "fonts:mathml-italic": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts tests/mathml-italic-token.e2e.test.ts",
     "fonts:layout:oracle": "tsx tools/layout-stage-oracle.ts",
     "fonts:ideograph-cache:oracle": "tsx tools/ideograph-fallback-cache-oracle.ts",
