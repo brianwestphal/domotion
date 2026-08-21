@@ -20,6 +20,11 @@ native `appearance` surface must activate `nativeControlRaster`, while
 `appearance:none` and an author-painted button must remain on the vector path.
 The generated-content leg compares the painted pixel bounds of positioned
 `::before` and `::after` boxes with the capture walker's `pseudoBoxes` records.
+It does not prove in-flow generated text origins, line-box baselines,
+`vertical-align`, wrapped/bidi/vertical fragments, mixed text and images, or
+fragmentainer translation. [Doc 157](157-pseudo-generated-fragment-geometry-audit.md)
+audits that separate Blink fragment boundary; DM-2466, DM-2467, and DM-2468
+own its decoder/oracle, capture record, and renderer/visual gate respectively.
 
 The 11-row gate has a mutation control that changes object-position and
 requires the concrete rectangle to move. Pixel fixtures remain responsible

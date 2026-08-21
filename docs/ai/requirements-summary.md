@@ -1427,6 +1427,18 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   writing mode, and pseudo typography; raster fallback remains limited to
   text that cannot be represented as font outlines.
 
+<!-- DM-2383 -->
+- The isolated pseudo probe is not an exact in-flow fragment source: production
+  currently discards its text origin and reconstructs one aggregate segment
+  from host edges, `(lineHeight-fontSize)/2`, and a later first/last-host-text
+  reanchor. Pinned Blink source and fresh CDP evidence show that every generated
+  text/image content item owns anonymous layout children whose wrapped, bidi,
+  vertical, decorated, and fragmented physical records are established before
+  text paint. [Doc 157](../157-pseudo-generated-fragment-geometry-audit.md)
+  defines the protocol-derived fragment/baseline record, fail-closed Chromium
+  surface boundary, independent mutation/visual gates, and dependency order
+  DM-2466 → DM-2467 → DM-2468. This is an audited design, not shipped parity.
+
 - Dotted-circle routing is owned by the selected face's HarfBuzz result, with
   Chromium capture ink as the covered-glyph control and pinned ICU properties
   supplying script/category inputs. Unicode block floors, plane gates, and

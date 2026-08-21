@@ -114,15 +114,15 @@
     },
     {
       "id": "replaced-elements-controls-generated-content",
-      "domotionSources": ["src/capture", "src/render/form-controls.ts", "src/render/element-tree-to-svg.ts"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/html/html_image_element.cc", "external/chromium/third_party/blink/renderer/core/html/html_image_fallback_helper.cc", "external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
+      "domotionSources": ["src/capture/script/walker/pseudo-content.ts", "src/capture/script/walker/pseudo-inject.ts", "src/capture", "src/render/form-controls.ts", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/dom/pseudo_element.cc", "external/chromium/third_party/blink/renderer/core/style/content_data.cc", "external/chromium/third_party/blink/renderer/core/html/html_image_element.cc", "external/chromium/third_party/blink/renderer/core/html/html_image_fallback_helper.cc", "external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc", "external/chromium/third_party/blink/renderer/core/paint", "external/harfbuzz/src/hb-shape.cc", "external/skia/src/core"],
       "oracle": "tools/replaced-geometry-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "11 live Chromium rows covering all object-fit modes with non-bucket positions, native-vs-author control ownership, and before/after generated boxes, plus curated visual fixtures",
+      "generatedCoverage": "11 live Chromium rows covering all object-fit modes with non-bucket positions, native-vs-author control ownership, and aggregate positioned before/after generated boxes, plus curated visual fixtures; these rows do not cover in-flow pseudo text fragments or baselines",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Dynamic replaced surfaces remain intentionally frozen, and generated text/counter glyph shaping is graded by the text-stage oracles rather than duplicated here. Doc 156 source-audits broken-image fallback, but production still infers it from complete/naturalWidth and paints a fixed mountain; the 11-row oracle has no UA-shadow disposition, 17/18px, title/AX, RTL/vertical, zoom, or DPR controls.",
-      "nextAction": "Implement the captured UA-shadow record in DM-2463, hybrid renderer in DM-2464, and independent all-platform geometry/activation rows in DM-2465 before claiming broken-image parity."
+      "knownGap": "Doc 157 proves that in-flow before/after text still uses an aggregate clone width, font-size half-leading, and host first/last-text anchors rather than Blink's anonymous content-item fragments, visual bidi order, vertical-align baseline, writing transform, and fragmentainer translation. Doc 156 separately proves that broken-image fallback still infers failure from complete/naturalWidth and paints a fixed mountain; the current 11 rows establish neither gap.",
+      "nextAction": "Build the pseudo protocol decoder/oracle in DM-2466, source-owned capture record in DM-2467, and renderer/all-platform visual gate in DM-2468. Separately implement broken-image capture, hybrid rendering, and independent controls in DM-2463/DM-2464/DM-2465."
     },
     {
       "id": "raster-fallback-boundary",
