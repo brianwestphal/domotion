@@ -1049,7 +1049,16 @@ function splitShapedInner(
     }
   }
 
-  // Assemble contiguous, source-ordered runs; merge adjacent same-font spans.
+  // Assemble contiguous, source-ordered runs; merge adjacent same-font spans
+  // only INSIDE one shaping item. Blink resolves bidi first and splits an
+  // InlineItem whenever a logical bidi run ends (`InlineNode::SegmentBidiRuns`,
+  // inline_node.cc:1411-1435, Chromium rev 7d859f27). Its shaping scan then
+  // refuses to cross an item whose resolved direction or RunSegmenter data
+  // differs (`ShouldBreakShapingBeforeText`, :470-490). `segments` is our
+  // combined mirror of those bidi + script items. Dropping that identity here
+  // made adjacent items that selected the same face become one FontRun; the
+  // downstream embedded shaper consequently applied only the first item's
+  // direction to the whole merged text.
   assignments.sort((a, b) => a.start - b.start);
   // Contract check: the assignment must tile [0, text.length) exactly.
   let cursor = 0;
@@ -1060,7 +1069,16 @@ function splitShapedInner(
   if (cursor !== text.length) return null;
 
   const runs: FontRun[] = [];
+  let segmentIndex = 0;
+  let lastRunSegmentIndex = -1;
   for (const a of assignments) {
+    while (segmentIndex < segments.length && segments[segmentIndex].end <= a.start) segmentIndex++;
+    const segment = segments[segmentIndex];
+    // Every assignment is produced while processing one item (pinned dotted-
+    // circle spans included). Refuse a split that would erase/cross an item
+    // boundary instead of guessing which direction should own it.
+    if (segment == null || a.start < segment.start || a.end > segment.end) return null;
+    const shapingDirection = segment.rtl ? "rtl" : "ltr";
     const aText = a.emitText ?? text.slice(a.start, a.end);
     const last = runs[runs.length - 1];
     const aDecomposed = a.decomposed === true;
@@ -1068,14 +1086,16 @@ function splitShapedInner(
     // glyph-path emitter picks its per-char vs run-text branch PER RUN, so a
     // merged mixed run would index the source text with substituted characters.
     // Embedded keeps its shipped merge (it always renders `run.text`).
-    if (last != null && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start
+    if (last != null && lastRunSegmentIndex === segmentIndex
+        && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start
         && last.routeMechanism === a.mechanism
         && (!pathsMode || (last.decomposed === true) === aDecomposed)) {
       last.endIdx = a.end;
       last.text += aText;
       if (aDecomposed) last.decomposed = true;
     } else {
-      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });
+      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });
+      lastRunSegmentIndex = segmentIndex;
     }
   }
   // Production shaping is consolidated on the Chromium-configured HarfBuzz

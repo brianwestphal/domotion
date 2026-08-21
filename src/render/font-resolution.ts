@@ -10595,6 +10595,11 @@ export interface FontRun {
   startIdx: number;
   endIdx: number;
   isPrimary: boolean;
+  /** Direction of the Blink shaping item that produced this run. The shaped
+   *  fallback path records it before same-face assembly so a bidi boundary is
+   *  not lost when adjacent items select the same font. Legacy callers omit it
+   *  and retain the source-text lookup used before the shaped splitter. */
+  shapingDirection?: "ltr" | "rtl";
   /** Selection owner recorded by the renderer-facing provenance oracle. */
   routeMechanism?: "declared-family" | "priority-emoji" | "system-resolver" | "last-resort"
     | "first-candidate-notdef" | "dotted-circle-pin" | "decomposed-commit"

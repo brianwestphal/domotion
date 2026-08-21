@@ -599,6 +599,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt29up3aginn9xvw",
+          "message": {
+            "text": "Same-face fallback assignments retain Blink shaping-item identity and direction. Chromium 7d859f27 splits InlineItems at logical bidi-run ends (inline_node.cc:1411-1435), then ShapeText stops coalescing when resolved direction or RunSegmenter data changes (:470-490, :1632-1653). The deterministic webfont tests prove LTR→RTL→LTR stays three runs, the LTR negative still merges, and deleting this guard collapses the positive case.",
+            "markdown": "Same-face fallback assignments retain Blink shaping-item identity and direction. Chromium 7d859f27 splits InlineItems at logical bidi-run ends (inline_node.cc:1411-1435), then ShapeText stops coalescing when resolved direction or RunSegmenter data changes (:470-490, :1632-1653). The deterministic webfont tests prove LTR→RTL→LTR stays three runs, the LTR negative still merges, and deleting this guard collapses the positive case."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 1052,
+                  "endLine": 1099,
+                  "snippet": {
+                    "text": "  // Assemble contiguous, source-ordered runs; merge adjacent same-font spans\n  // only INSIDE one shaping item. Blink resolves bidi first and splits an\n  // InlineItem whenever a logical bidi run ends (`InlineNode::SegmentBidiRuns`,\n  // inline_node.cc:1411-1435, Chromium rev 7d859f27). Its shaping scan then\n  // refuses to cross an item whose resolved direction or RunSegmenter data\n  // differs (`ShouldBreakShapingBeforeText`, :470-490). `segments` is our\n  // combined mirror of those bidi + script items. Dropping that identity here\n  // made adjacent items that selected the same face become one FontRun; the\n  // downstream embedded shaper consequently applied only the first item's\n  // direction to the whole merged text.\n  assignments.sort((a, b) => a.start - b.start);\n  // Contract check: the assignment must tile [0, text.length) exactly.\n  let cursor = 0;\n  for (const a of assignments) {\n    if (a.start !== cursor) return null;\n    cursor = a.end;\n  }\n  if (cursor !== text.length) return null;\n\n  const runs: FontRun[] = [];\n  let segmentIndex = 0;\n  let lastRunSegmentIndex = -1;\n  for (const a of assignments) {\n    while (segmentIndex < segments.length && segments[segmentIndex].end <= a.start) segmentIndex++;\n    const segment = segments[segmentIndex];\n    // Every assignment is produced while processing one item (pinned dotted-\n    // circle spans included). Refuse a split that would erase/cross an item\n    // boundary instead of guessing which direction should own it.\n    if (segment == null || a.start < segment.start || a.end > segment.end) return null;\n    const shapingDirection = segment.rtl ? \"rtl\" : \"ltr\";\n    const aText = a.emitText ?? text.slice(a.start, a.end);\n    const last = runs[runs.length - 1];\n    const aDecomposed = a.decomposed === true;\n    // In \"paths\" mode a run never merges across a `decomposed` boundary — the\n    // glyph-path emitter picks its per-char vs run-text branch PER RUN, so a\n    // merged mixed run would index the source text with substituted characters.\n    // Embedded keeps its shipped merge (it always renders `run.text`).\n    if (last != null && lastRunSegmentIndex === segmentIndex\n        && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start\n        && last.routeMechanism === a.mechanism\n        && (!pathsMode || (last.decomposed === true) === aDecomposed)) {\n      last.endIdx = a.end;\n      last.text += aText;\n      if (aDecomposed) last.decomposed = true;\n    } else {\n      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });\n      lastRunSegmentIndex = segmentIndex;\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback-bidi-boundary.test.ts"
+                },
+                "region": {
+                  "startLine": 64
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2427"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cb1ecd5e7695aeff686c196adee8810d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "518a0c730f872b35b9247adbae2be58e2422a1f1",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
     }
   ]
 }

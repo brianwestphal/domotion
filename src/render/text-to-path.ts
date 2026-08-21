@@ -107,7 +107,7 @@ function recordRendererRuns(
   for (const run of runs) {
     recordSelectedFontRuns(emitter, sourceText, {
       ...request,
-      direction: shapingDirectionAt(sourceText, run.startIdx),
+      direction: run.shapingDirection ?? shapingDirectionAt(sourceText, run.startIdx),
     }, [run]);
   }
 }
@@ -945,7 +945,7 @@ function renderTextPathRuns(
   let xCss = 0;
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
-    const runDirection = shapingDirectionAt(text, run.startIdx);
+    const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
     // Even without captured per-character anchors, a uniform non-Latin run
     // still needs Blink's explicit script tag. Keep the pre-existing whole-run
     // layout for genuinely mixed segments; the font-run splitter normally
@@ -2152,7 +2152,7 @@ function renderEmbeddedGlyphRuns(
     const { shapingText, perCharScale } = computeRunShaping(run);
     let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters?: number[] };
     try {
-      const runDirection = shapingDirectionAt(text, run.startIdx);
+      const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
       layout = features != null && features.length > 0
         ? run.font.layout(shapingText, fontkitFeatureList(features), undefined, lang, runDirection)
         : run.font.layout(shapingText, undefined, undefined, lang, runDirection);
@@ -3504,7 +3504,7 @@ export function measureInkMetrics(
     const scale = fontSize / run.font.unitsPerEm;
     let layout;
     try {
-      const runDirection = shapingDirectionAt(text, run.startIdx);
+      const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
       layout = features != null && features.length > 0
         ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
         : run.font.layout(run.text, undefined, undefined, lang, runDirection);

@@ -62,8 +62,8 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or helper absence → degraded legacy walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
-    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>Assembly never merges across a shaping item and carries its<br/>resolved direction on FontRun.shapingDirection.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or helper absence → degraded legacy walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
@@ -2531,16 +2531,21 @@ reversed string its inference lands on exactly the direction wanted. The
 reversal stays gated on an override being present, because an override is the
 only input that can legitimately contradict the segment's own content.
 
-### The direction handed to the shaper is the run's own embedding level
+### The direction handed to the shaper is the run's own shaping item
 
-`bidiLevelsFor` computes one level per code unit of the **whole line**, while
-`run.text` is a slice of that line beginning at `run.startIdx`, and both
-`needsSegmentation` and `segmentForShaping` index it with **run-relative**
-offsets. The level array is therefore sliced to the run
-(`bidiLevels.subarray(run.startIdx, run.endIdx)`) before either sees it. Handing
-them the unsliced array scored every run after the first against the wrong
-characters: `Hello مرحبا …` read `0,0,0,0,0` — the levels of `Hello` — for its
-Arabic run and called it left-to-right.
+`bidiLevelsFor` computes one level per code unit of the **whole line** and
+`segmentForShaping` turns those levels plus RunSegmenter script data into the
+items Blink shapes independently. Shaped fallback now retains each item during
+same-face assembly and writes its resolved direction to
+`FontRun.shapingDirection`; the embedded, unanchored-path, provenance, and ink
+metric consumers use that value directly. Legacy per-codepoint runs do not
+carry the field and retain the source lookup fallback.
+
+The paths branch with per-character anchors still slices the whole-line level
+array to each run (`bidiLevels.subarray(run.startIdx, run.endIdx)`) before its
+local segment walk. Handing it the unsliced array scored every run after the
+first against the wrong characters: `Hello مرحبا …` read `0,0,0,0,0` — the
+levels of `Hello` — for its Arabic run and called it left-to-right.
 
 The slice is taken only when the run's text matches its source span character
 for character. A Math-Alphanumeric `decomposed` run holds substituted base

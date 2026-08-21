@@ -176,6 +176,7 @@ they describe (see `CLAUDE.md` "Documentation"):
   font, requeue only the `.notdef` clusters — `ExtractShapeResults`);
   `src/render/cluster-fallback.ts` ports that mechanism (script itemization
   first, full-text buffer context, explicit script/direction/language,
+  same-face bidi/script item-boundary and direction preservation,
   last-resort stage, U+3000 rule, unmatched-variation-sequence recycling,
   webfont primaries + unicode-range partitions, exact `@font-face`
   weight/style/stretch capability-group selection, shape-verdict cache) and

@@ -442,9 +442,14 @@ export const tests: FeatureTest[] = [
     width: 460,
     height: 120,
   },
-  // A right-to-left word INSIDE a left-to-right line — the one text shape that
-  // no other fixture in either corpus paints, and the reason a real shaping bug
-  // stayed latent through five clean full-corpus sweeps.
+  // A right-to-left word INSIDE a left-to-right line — including the same-face
+  // boundary that shaped fallback assembly must preserve. Blink resolves bidi
+  // runs before shaping: SegmentBidiRuns splits InlineItems at logical-run
+  // boundaries, and ShapeText refuses to shape across items whose direction or
+  // RunSegmenter data differs (inline_node.cc:1411-1435,470-490,1632-1653;
+  // Chromium rev 7d859f27). Arial is deliberate: Latin, Hebrew, and digits stay
+  // on one face in the calibrated browser inventories, so a font-key boundary
+  // cannot accidentally preserve the bidi items for us.
   //
   // Why the broad sweeps cannot cover it: the per-Unicode-block fixtures are
   // single-script by construction, so an RTL block's fixture is entirely RTL and
@@ -465,11 +470,10 @@ export const tests: FeatureTest[] = [
   // real and unexercised.
   //
   // Three lines, one behavior each: digits inside an RTL word (bidi resolves
-  // them to their own even level, so the line is three runs and not two);
-  // POINTED Hebrew, where a mirrored run is at its most obvious because each
-  // nikud lands under the wrong consonant; and a Hebrew word directly abutting
-  // an Arabic one, which pins the boundary between two adjacent RTL runs that
-  // resolve to different faces.
+  // them to their own even level, so one SAME-FACE line has four shaping
+  // items); an all-LTR same-face negative control that must remain one item;
+  // and POINTED Hebrew, where a wrong merged direction is most obvious because
+  // each nikud lands under the wrong consonant.
   //
   // Deliberately three lines and not four. A FOURTH line of this style pushes
   // the fixture over the harness threshold on its own — measured at 0.07% with
@@ -478,10 +482,10 @@ export const tests: FeatureTest[] = [
   // a line here would buy a failure that says nothing about shaping.
   {
     name: "text-rtl-in-ltr-line",
-    html: `<div style="padding: 20px; color: #e6edf3; font-family: -apple-system, sans-serif; font-size: 18px; line-height: 1.6;">
+    html: `<div style="padding: 20px; color: #e6edf3; font-family: Arial, sans-serif; font-size: 18px; line-height: 1.6;">
       <div>id שלום 123 ok</div>
+      <div>id alpha 123 ok</div>
       <div>Book בְּרֵאשִׁית here</div>
-      <div>mix שלום مرحبا end</div>
     </div>`,
     width: 460,
     height: 150,

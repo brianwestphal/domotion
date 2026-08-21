@@ -26,6 +26,15 @@ CoreText cascade base, matching the current run Blink passes to
 `CTFontCreateForString`. `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the old
 Times stand-in for a live A/B; the partial-webfont cell must then move red.
 
+`src/render/cluster-fallback-bidi-boundary.test.ts` separately gates the
+assembly boundary with one deterministic repo-owned webfont that covers Latin
+and Hebrew: ordinary `AאבB` must remain three directed same-face runs, the
+all-LTR control must still coalesce, and a deleted-boundary mutant must collapse
+the positive case back to the old single LTR-owned run. The focused visual
+integration case is `text-rtl-in-ltr-line` in `tests/features.ts`; its Arial
+positive and negative rows prevent a font change from standing in for the bidi
+boundary.
+
 The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the one concern
 the glyph-path emitter has and the embedded pipeline does not:
 
@@ -154,7 +163,8 @@ capture text
        each cycle: shape queued ranges with hb (harfbuzzShapeRun),
                    split by per-cluster all-glyphs-nonzero verdict,
                    commit shaped cluster runs, requeue notdef cluster runs
-  → FontRun[] (same contract as today; downstream emitters unchanged)
+  → assemble FontRun[] without crossing a shaping-item boundary;
+    carry each item's resolved direction to every downstream shaper
 ```
 
 - **`resolveFontForCodepoint` becomes "next font for this failing cluster".**
@@ -184,6 +194,17 @@ capture text
   segment gets its own FontFallbackIterator, exactly as `ShapeSegment` is
   invoked per `RunSegmenterRange`. This is what closed the Geneva `e`+U+0E48
   probe miss.
+- **Bidi/run-segment identity survives assembly**: Blink's
+  `InlineNode::SegmentBidiRuns` splits an `InlineItem` whenever a resolved
+  logical run ends (`core/layout/inline/inline_node.cc:1411-1435`), then
+  `ShapeText` stops its forward coalescing scan when
+  `ShouldBreakShapingBeforeText` sees a different resolved direction or
+  RunSegmenter record (`:470-490`, `:1632-1653`). Domotion therefore merges
+  adjacent same-face cluster assignments only within the same
+  `segmentForShaping` item and records that item's LTR/RTL direction on the
+  resulting `FontRun`. This matters when a broad face covers both sides of a
+  bidi boundary: font identity alone contains no evidence that two shaping
+  calls are required.
 - **Neutral preferred scripts are preserved.** Blink keeps Common/Inherited
   characters neutral for run merging, but a neutral with exactly one
   `Script_Extensions` member records that member as `common_preferred_` and
