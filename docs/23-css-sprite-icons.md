@@ -20,6 +20,16 @@ Chromium paints the 20×20 slice of the sprite at `(0, 0)` of the element and re
 
 ## Today's behavior
 
+> **2026 geometry-audit note:** the raster route in this document remains the
+> right boundary for the complete image-replacement idiom (background plus
+> deliberately off-screen accessible text). It is not the boundary for an
+> ordinary URL background. [Doc 163](163-url-background-image-geometry-audit.md)
+> proves that ordinary tile geometry remains vector-representable and specifies
+> the authoritative natural-sizing and `BackgroundImageGeometry` replacement
+> tracked by DM-2477/DM-2478. The synchronous intrinsic probe described below
+> is therefore both the historical sprite failure and an active general URL
+> background gap.
+
 Two things go wrong:
 
 **1. Intrinsic dimensions of `url()` background-images are unreliable.**

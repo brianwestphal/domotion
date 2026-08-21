@@ -41,10 +41,19 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] background-image: linear-gradient, radial-gradient, repeating-*, url()
 - [x] multiple background layers (first-on-top semantics preserved)
 - [x] background-image: conic-gradient — rasterized to a `<pattern><image>` tile (no native SVG conic). See `28-conic-gradient.md`.
-- [~] background-size, -position, -repeat — url() layers approximate center/cover
+- [~] URL `background-size` / `background-position` / `background-repeat` —
+  integer explicit repeat, intrinsic `auto auto`, cover with percentage
+  position, integer origin/clip, and cloned inline fragments have exact focused
+  controls. Single-axis auto ratio, general calc sizing/phase, contain
+  snapping, round/space, fixed/local attachment, effective zoom, transformed
+  phase, cyclic longhand lists, and sliced fragments remain source-proven gaps.
+  Blink's exact natural-sizing, snapped/unsnapped geometry, phase/spacing,
+  attachment, and fragment contract is in
+  [doc 163](163-url-background-image-geometry-audit.md); implementation is
+  tracked by DM-2477/2478/2479, existing DM-2365, and gate DM-2480.
 - [x] border (uniform) with border-radius
 - [x] border (per-side with different width/style/color)
-- [x] box-decoration-break (`slice` default + `clone`) on (a) wrapped inline elements and (b) block-level elements that fragment at a multi-column container boundary — per-fragment paint of background / border / shadow / image. Slice direction depends on the fragmentation axis: inline-axis (wrapped inline) means first fragment owns LEFT + TL/BL, last owns RIGHT + TR/BR, intermediate fragments paint top + bottom only; block-axis (multi-column block) means first owns TOP + TL/TR, last owns BOTTOM + BL/BR, intermediate paint left + right only. Clone mode paints a complete box on every fragment regardless of axis. Slice-mode background-image continuation across fragments is not yet supported (clone-mode bg-image is).
+- [x] box-decoration-break (`slice` default + `clone`) on (a) wrapped inline elements and (b) block-level elements that fragment at a multi-column container boundary — per-fragment paint of background / border / shadow / image. Slice direction depends on the fragmentation axis: inline-axis (wrapped inline) means first fragment owns LEFT + TL/BL, last owns RIGHT + TR/BR, intermediate fragments paint top + bottom only; block-axis (multi-column block) means first owns TOP + TL/TR, last owns BOTTOM + BL/BR, intermediate paint left + right only. Clone mode paints a complete box on every fragment regardless of axis. Slice-mode URL background-image continuation across fragments is not yet supported; its source-owned stitched-box design is in [doc 163](163-url-background-image-geometry-audit.md) and implementation remains DM-2365.
 - [x] border-style: solid, dashed, dotted. Mixed-side dashed/dotted borders use
   Blink's full outer-edge side path and miter clip ownership; thick dots inset
   their round-cap endpoints by half the side width, while widths 1--3 retain

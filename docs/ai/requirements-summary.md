@@ -1565,3 +1565,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   sufficient activation. Fresh CTM/quad evidence and the exact boundary are in
   [doc 162](../162-inline-svg-3d-transform-audit.md); DM-2473/2474 implement
   vector freeze and raster promotion, and DM-2475 owns the all-platform gate.
+
+<!-- DM-2370 -->
+- URL background image geometry remains **design-only** outside the exact
+  focused controls. Blink selects a CSS image and natural sizing at effective
+  zoom, tracks snapped and unsnapped positioning/painting areas, resolves
+  auto/contain/cover/calc, then owns destination, phase, repeat spacing,
+  attachment, and stitched-fragment offsets before Skia sampling. Capture must
+  preserve the selected candidate/density/dimensions/ratio/orientation/decode
+  state; render must lower one source-derived geometry record to vector SVG
+  instead of reconstructing it with parseFloat and oversized pattern cells.
+  Unknown sizing fails explicitly. Fixed under a transformed ancestor becomes
+  scroll; local subtracts the real scroll offset; shorter longhand lists repeat
+  cyclically; slice continues through one stitched box while clone restarts.
+  The strict 21-row inline-and-multicol evidence and exact contract are in
+  [doc 163](../163-url-background-image-geometry-audit.md). DM-2477/2478/2479
+  plus existing DM-2365 implement the seams, and DM-2480 owns the all-platform
+  DPR gate.

@@ -89,6 +89,18 @@
       "nextAction": "Add a source-linked row and discriminator whenever a new gradient, mask, clip, or SVG effect transition enters production."
     },
     {
+      "id": "url-background-image-geometry",
+      "domotionSources": ["src/capture/script/walker/borders-backgrounds.ts", "src/render/image-pattern.ts", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc", "external/chromium/third_party/blink/renderer/core/style/style_image_set.cc", "external/chromium/third_party/blink/renderer/core/style/style_fetched_image.cc", "external/chromium/third_party/blink/renderer/core/style/fill_layer.cc", "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc", "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc", "external/chromium/third_party/blink/renderer/platform/graphics/image.cc", "external/skia"],
+      "oracle": "tools/url-background-geometry-audit.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "visual-only",
+      "generatedCoverage": "21 live Chromium-vs-generated-SVG color-marker rows covering intrinsic auto/ratio, explicit/percentage/calc/contain/cover sizing and positioning, no-repeat/repeat/round/space, independent origin/clip, fixed/local/scroll attachment, transformed fixed ownership, effective zoom, affine transforms, cyclic multilayers, and wrapped-inline plus multicol-block slice/clone activation; exact rows require <=1 device-pixel marker-bound delta",
+      "platformCoverage": ["darwin"],
+      "knownGap": "The audit is observational and deliberately expects current defects. Natural sizing/image-set selection, auto ratio, calc, contain snapping, round/space, fixed/local, transformed phase, zoom, cyclic longhand lists, and sliced fragments are not yet source-equivalent.",
+      "nextAction": "Implement capture facts in DM-2477, exact tile geometry in DM-2478, attachment spaces in DM-2479, and existing fragment continuation DM-2365; then promote every row to an all-platform DPR gate in DM-2480."
+    },
+    {
       "id": "transforms-projection-reflection",
       "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core"],

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3kb98yr5t6i0dr",
+          "message": {
+            "text": "The 21-row live Chromium discriminator is green without accepting the defects as parity. The final run reported 21/21: all six source-equivalent controls had zero label mismatch and zero marker-bound delta, while every expected current gap crossed either the 4% label threshold or the two-device-pixel bound threshold; auto-ratio was 69.16%, local scroll 93.94%, transformed fixed 85.75%, zoomed auto 78.15%, and both inline and multicol sliced fragments were 100%. The separate one-device-pixel equivalence bound prevents canvas-area dilution.",
+            "markdown": "The 21-row live Chromium discriminator is green without accepting the defects as parity. The final run reported 21/21: all six source-equivalent controls had zero label mismatch and zero marker-bound delta, while every expected current gap crossed either the 4% label threshold or the two-device-pixel bound threshold; auto-ratio was 69.16%, local scroll 93.94%, transformed fixed 85.75%, zoomed auto 78.15%, and both inline and multicol sliced fragments were 100%. The separate one-device-pixel equivalence bound prevents canvas-area dilution."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 145,
+                  "endLine": 290,
+                  "snippet": {
+                    "text": "const CASES: AuditCase[] = [\n  {\n    id: \"explicit-size-repeat-control\",\n    axis: \"explicit-size/repeat positive control\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"background-size:32px 20px;background-position:0 0;background-repeat:repeat\",\n  },\n  {\n    id: \"intrinsic-auto-auto-control\",\n    axis: \"intrinsic dimensions + ratio\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"background-size:auto auto;background-position:7px 5px;background-repeat:repeat\",\n  },\n  {\n    id: \"auto-width-from-explicit-height\",\n    axis: \"one auto dimension resolves through natural ratio\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"background-size:auto 37px;background-position:11px 9px;background-repeat:no-repeat\",\n  },\n  {\n    id: \"calculated-size\",\n    axis: \"calculated length-percentage size\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"background-size:calc(37% + 9px) calc(24% + 5px);background-position:13px 17px;background-repeat:no-repeat\",\n  },\n  {\n    id: \"contain-fractional-area\",\n    axis: \"contain dependent-axis integer rounding\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:157.5px;height:93.5px;background-size:contain;background-position:43% 61%;background-repeat:no-repeat\",\n  },\n  {\n    id: \"cover-position-control\",\n    axis: \"cover + percentage position\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"background-size:cover;background-position:37% 63%;background-repeat:no-repeat\",\n  },\n  {\n    id: \"calculated-position-control\",\n    axis: \"calculated length-percentage position\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"background-size:47px 31px;background-position:calc(23% + 7px) calc(71% - 5px);background-repeat:no-repeat\",\n  },\n  {\n    id: \"round-recomputes-auto-axis\",\n    axis: \"round repeat changes orthogonal auto dimension\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:153px;height:97px;background-size:43px auto;background-position:31% 67%;background-repeat:round no-repeat\",\n  },\n  {\n    id: \"space-multiple-tiles-control\",\n    axis: \"space repeat ignores position with two or more tiles\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:153px;height:97px;background-size:38px 24px;background-position:29px 61px;background-repeat:space no-repeat\",\n  },\n  {\n    id: \"space-single-tile-fallback\",\n    axis: \"space repeat falls back to no-repeat\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:91px;height:75px;background-size:54px 27px;background-position:23px 31px;background-repeat:space no-repeat\",\n  },\n  {\n    id: \"origin-clip-cross-control\",\n    axis: \"independent origin and clip reference boxes\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"box-sizing:border-box;width:171px;height:109px;border:7px solid #202020;padding:13px 11px;background-origin:content-box;background-clip:padding-box;background-size:32px 20px;background-position:5px 7px;background-repeat:repeat\",\n  },\n  {\n    id: \"fixed-viewport-control\",\n    axis: \"fixed attachment viewport positioning area\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed\",\n  },\n  {\n    id: \"fixed-under-transform\",\n    axis: \"transformed ancestor converts fixed to scroll attachment\",\n    expectedRoute: \"current-gap\",\n    hostCss: \"transform:translate(0,0)\",\n    targetCss: \"margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed\",\n  },\n  {\n    id: \"local-nonzero-scroll\",\n    axis: \"local attachment uses scroll offset and scrollable paint area\",\n    expectedRoute: \"current-gap\",\n    mutation: \"scroll-local\",\n    targetContent: '<i aria-hidden=\"true\"></i>',\n    extraCss: \"#target::-webkit-scrollbar{display:none}#target>i{display:block;width:330px;height:260px}\",\n    targetCss: \"overflow:scroll;background-size:47px 31px;background-position:11px 17px;background-repeat:repeat;background-attachment:local\",\n  },\n  {\n    id: \"effective-zoom-auto-intrinsic\",\n    axis: \"effective zoom scales natural image size\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"zoom:1.25;width:128px;height:80px;background-size:auto auto;background-position:7px 5px;background-repeat:repeat\",\n  },\n  {\n    id: \"affine-transform-control\",\n    axis: \"tile geometry remains in transformed local space\",\n    expectedRoute: \"current-gap\",\n    hostCss: \"transform:translate(9px,5px) rotate(3deg);transform-origin:0 0\",\n    targetCss: \"width:147px;height:91px;background-size:32px 20px;background-position:7px 5px;background-repeat:repeat\",\n  },\n  {\n    id: \"cyclic-multiple-layer-lists\",\n    axis: \"background longhand lists repeat cyclically\",\n    expectedRoute: \"current-gap\",\n    imageCss: MARKER_URLS.map((url) => `url(\"${url}\")`).join(\",\"),\n    targetCss: \"background-size:32px 20px,24px 16px;background-position:9px 7px,99px 63px;background-repeat:no-repeat\",\n  },\n  {\n    id: \"wrapped-inline-clone\",\n    axis: \"clone fragment restarts image geometry\",\n    expectedRoute: \"source-equivalent\",\n    targetTag: \"span\",\n    sceneCss: \"width:104px;line-height:31px;font:24px/31px sans-serif\",\n    targetContent: \"wide words wrap here\",\n    targetCss: \"box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px\",\n  },\n  {\n    id: \"wrapped-inline-slice\",\n    axis: \"slice fragment uses stitched imaginary box\",\n    expectedRoute: \"current-gap\",\n    targetTag: \"span\",\n    sceneCss: \"width:104px;line-height:31px;font:24px/31px sans-serif\",\n    targetContent: \"wide words wrap here\",\n    targetCss: \"box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px\",\n  },\n  {\n    id: \"multicol-block-clone\",\n    axis: \"clone block fragment restarts image geometry\",\n    expectedRoute: \"source-equivalent\",\n    sceneCss: \"padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif\",\n    hostCss: \"display:contents\",\n    targetContent: \"A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.\",\n    targetCss: \"width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat\",\n  },\n  {\n    id: \"multicol-block-slice\",\n    axis: \"slice block fragment uses stitched imaginary box\",\n    expectedRoute: \"current-gap\",\n    sceneCss: \"padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif\",\n    hostCss: \"display:contents\",\n    targetContent: \"A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.\",\n    targetCss: \"width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat\",\n  },\n];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/163-url-background-image-geometry-audit.md"
+                },
+                "region": {
+                  "startLine": 218
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2370"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f0a78aff08e3fa29c768895f863e5089"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "19a77e763dd52dcf20dd0d2e22c4040dc3535d47",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

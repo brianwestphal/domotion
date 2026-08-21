@@ -405,6 +405,20 @@ shortest possible map:
   and hides a nested `<foreignObject>` raster below `svgContent`. Doc 162 owns
   the exact freeze/promote boundary; DM-2473/2474 implement it and DM-2475
   promotes the observational probe to an all-platform logical/raster gate.
+- **URL background geometry audit (DM-2370, design-only)** —
+  `tools/url-background-geometry-audit.ts`
+  (`npm run background:url-geometry-audit`) paints a deterministic decoded
+  color tile in live Chromium and through the actual capture→generated-SVG
+  path, then compares classified marker pixels and per-color device-pixel
+  bounds. Its 21 rows retain zero-delta inline and multicol controls while exposing natural-ratio,
+  calc, contain, round/space, fixed/local, zoom, transformed-phase, cyclic-list,
+  and slice-fragment gaps. Pinned Blink proves natural sizing plus
+  snapped/unsnapped destination/phase/spacing are owned by
+  `BackgroundImageGeometry` before Skia consumes the image matrix; ordinary
+  URL backgrounds remain vector-composable. [Doc 163](../163-url-background-image-geometry-audit.md)
+  owns the exact record and boundary. DM-2477/2478/2479 plus existing DM-2365
+  implement it; DM-2480 promotes the observational probe to an all-platform
+  DPR gate.
 
 ## Upstream source is checked out locally — read it
 

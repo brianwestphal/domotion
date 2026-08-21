@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3jx39hcoegb4k5",
+          "message": {
+            "text": "Ordinary URL backgrounds stay vector-owned because Blink completes CSS tile geometry before Skia sampling. Pinned Chromium BackgroundImageGeometry supplies natural sizing, snapped/unsnapped areas, destination, phase, spacing, and scale; pinned Skia only consumes the resulting subset, matrix, and tile modes. This split prevents a whole-box raster fallback from hiding a representable geometry defect.",
+            "markdown": "Ordinary URL backgrounds stay vector-owned because Blink completes CSS tile geometry before Skia sampling. Pinned Chromium BackgroundImageGeometry supplies natural sizing, snapped/unsnapped areas, destination, phase, spacing, and scale; pinned Skia only consumes the resulting subset, matrix, and tile modes. This split prevents a whole-box raster fallback from hiding a representable geometry defect."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/163-url-background-image-geometry-audit.md"
+                },
+                "region": {
+                  "startLine": 21,
+                  "endLine": 43,
+                  "snippet": {
+                    "text": "The source-derived contract has four stages:\n\n1. **Capture the selected CSS image and its complete natural-sizing facts.**\n   The facts are not just two positive integers. They include the selected\n   `image-set()` candidate and resolution, independently present natural\n   dimensions, natural aspect ratio, orientation, effective zoom, and a\n   decoded/failure state. Unknown sizing must be explicit; it must not silently\n   become the positioning-area dimensions.\n2. **Resolve one Blink-equivalent tile geometry record per expanded layer.**\n   The record owns unsnapped and snapped positioning/painting rectangles, tile\n   size, destination, phase, repeat spacing, source subset/scale, origin and\n   clip boxes, and attachment/fragment offsets. Shorter background longhand\n   lists repeat cyclically; they do not fall back permanently to item zero.\n3. **Keep ordinary URL images on the vector composition path.** A generated\n   SVG can represent the resulting destination/clip/pattern matrix exactly.\n   Bitmap sources remain bitmap `<image>` payloads and SVG sources may remain\n   scalable image payloads, but the surrounding element does not need a\n   Chromium screenshot merely because its background tiles.\n4. **Treat Skia as the consumer, not the geometry oracle.** Blink has already\n   chosen tile size, phase, spacing, subset, destination, and scale before\n   Skia creates its image shader. Skia validates the subset/matrix and executes\n   clamp/repeat sampling. Reconstructing geometry from a plausible SVG repeat\n   cell after the fact is the wrong ownership direction."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2370"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d8d2cd2e77bd4ef4eef05e1d189beacf"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt3kb9fmhly0tg54",
+          "message": {
+            "text": "Unknown natural sizing must remain an explicit state and the final gate must fail on missing marker evidence. A silent fallback to positioning-area dimensions would make decode failure indistinguishable from a dimensionless CSS image; likewise, a missing image or pattern could make a pixel comparison appear empty on both sides. DM-2477 owns the fail-closed capture record and DM-2480 owns promotion of every expected-gap row.",
+            "markdown": "Unknown natural sizing must remain an explicit state and the final gate must fail on missing marker evidence. A silent fallback to positioning-area dimensions would make decode failure indistinguishable from a dimensionless CSS image; likewise, a missing image or pattern could make a pixel comparison appear empty on both sides. DM-2477 owns the fail-closed capture record and DM-2480 owns promotion of every expected-gap row."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/163-url-background-image-geometry-audit.md"
+                },
+                "region": {
+                  "startLine": 278,
+                  "endLine": 332,
+                  "snippet": {
+                    "text": "### Capture record (DM-2477)\n\nFor each CSS image layer, capture an immutable record after source selection\nand decode:\n\n- resolved source/candidate identity and resolution;\n- decoded state and explicit failure reason;\n- natural width present/value, natural height present/value, and natural ratio;\n- image orientation and effective zoom used for sizing; and\n- the layer index before cyclic longhand expansion.\n\nThe async prepass must finish before the synchronous tree walk reads the\nrecord. A failed or still-unknown asset must warn and use an explicit\nunsupported state; it must not be indistinguishable from a dimensionless image.\n\n### Geometry record (DM-2478)\n\nTranscribe the Blink stages into a pure helper with named fields, rather than\nreturning SVG text directly:\n\n```text\npositioningArea { snapped, unsnapped }\npaintingArea    { snapped, unsnapped }\ntileSize\ndestination     { snapped, unsnapped }\nphase\nrepeatSpacing\nsourceSubset\nimageScale\n```\n\nThe emitter may lower this record to one clipped `<pattern><image>` or a\nsingle positioned `<image>` for no-repeat. Equivalence is defined by the\nrecord and browser oracle, not by forcing every Blink branch through the same\nSVG period trick. Layer longhands expand with `value[layerIndex %\nvalueCount]`. Origin changes the positioning area; clip changes the painting\narea; neither is inferred from the other.\n\n### Attachment and fragments (DM-2479 / DM-2365)\n\nAttachment and fragmentation select the geometry inputs before the pure tile\ncalculation. Capture/renderer must retain fixed-viewport applicability and\nlocal scroll facts rather than derive them from a computed token. DM-2479 owns\nnormal/fixed/local/root positioning spaces and transform mapping. Existing\nDM-2365 owns the stitched imaginary box and slice/clone offsets for wrapped\ninline and block fragmentation. Both consume the same geometry helper.\n\n### Hard gate (DM-2480)\n\nAfter the three implementation seams and DM-2365 land, convert every\n`current-gap` row to `source-equivalent`, add DPR 2 and all three platforms,\nand keep the one-device-pixel bound. The gate must retain source revisions,\nbrowser/Playwright/platform fingerprints, logical pattern facts, mutation\npairs, and explicit evidence that every expected image decoded. Missing marker\nink, missing pattern ownership, or warnings fail rather than skip."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 226
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 562
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2370"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9cb29066f7cd310a8172517e0d93cb94"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "19a77e763dd52dcf20dd0d2e22c4040dc3535d47",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

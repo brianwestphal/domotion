@@ -603,6 +603,74 @@
       ]
     },
     {
+      "id": "paint.url-background-image-geometry",
+      "parityAreas": [
+        "url-background-image-geometry"
+      ],
+      "subjects": [
+        "background-image URL",
+        "background-size",
+        "background-position",
+        "background-repeat",
+        "background-origin",
+        "background-clip",
+        "background-attachment",
+        "box-decoration-break"
+      ],
+      "states": [
+        "explicit size -> natural auto/ratio",
+        "length/percentage -> calculated size/position",
+        "contain -> cover",
+        "repeat/no-repeat -> round/space",
+        "scroll -> fixed/local attachment",
+        "padding origin -> independent content origin/padding clip",
+        "single layer -> cyclic multiple layers",
+        "unzoomed/untransformed -> zoomed/transformed",
+        "clone fragment -> sliced stitched fragment"
+      ],
+      "exactStates": [
+        "explicit size -> natural auto/ratio",
+        "contain -> cover",
+        "padding origin -> independent content origin/padding clip"
+      ],
+      "uncoveredStates": [
+        "length/percentage -> calculated size/position",
+        "repeat/no-repeat -> round/space",
+        "scroll -> fixed/local attachment",
+        "single layer -> cyclic multiple layers",
+        "unzoomed/untransformed -> zoomed/transformed",
+        "clone fragment -> sliced stitched fragment"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc",
+        "external/chromium/third_party/blink/renderer/core/style/style_image_set.cc",
+        "external/chromium/third_party/blink/renderer/core/style/style_fetched_image.cc",
+        "external/chromium/third_party/blink/renderer/core/style/fill_layer.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc",
+        "external/chromium/third_party/blink/renderer/platform/graphics/image.cc",
+        "external/skia"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/borders-backgrounds.ts",
+        "src/render/image-pattern.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/url-background-geometry-audit.ts"
+      ],
+      "metamorphicTests": [],
+      "visualFixtures": [],
+      "coverage": "partial",
+      "boundary": "DM-2370 proves the ordinary URL background remains vector-composable but current geometry is only exact for held-out integer explicit-repeat, intrinsic auto/auto, cover/percentage, origin/clip, and clone-fragment controls. DM-2477/2478/2479 plus existing DM-2365 implement the source-owned record; DM-2480 adds the all-platform DPR gate.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin"
+      ]
+    },
+    {
       "id": "geometry.transforms",
       "parityAreas": [
         "transforms-projection-reflection",
