@@ -39,7 +39,7 @@ import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
-import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, sfntHasSubsettableOutlines, type HbSubsetAttemptDiagnostic } from "./hb-subset.js";
 
 /** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
  *  default. Set DOMOTION_HINTED_SUBSET=0 to use the svg2ttf-only control arm.
@@ -74,6 +74,7 @@ interface EmbeddedGlyph {
  *  the axis location the run resolved to (`axes`; null/absent ⇒ static file). */
 export interface HintedSource {
   path: string;
+  postscriptName?: string;
   /** Physical sfnt member index to subset. **`null` = unknown** — the requested
    *  PostScript name is not a member of this file, so no index can be named and
    *  the entry is disqualified from the hb-subset path rather than silently
@@ -172,6 +173,7 @@ export interface BuilderEntry {
   glyphOccurrenceCount: number;
   /** Populated when the font bytes are built for emission. */
   buildDiagnostic: EmbeddedFontBuildDiagnostic | null;
+  subsetAttempt: HbSubsetAttemptDiagnostic | null;
 }
 
 export type HintedSourceDisqualificationReason =
@@ -191,6 +193,10 @@ export interface EmbeddedFontBuildDiagnostic {
   variationAxes: Record<string, number> | null;
   /** Design scale used by the builder before any emitted font conversion. */
   inputUnitsPerEm?: number;
+  sourcePostscriptName?: string | null;
+  puaMappingSha256?: string;
+  outputGlyphs?: Array<{ gid: number; pua: number; advance: number }>;
+  subsetAttempt?: HbSubsetAttemptDiagnostic | null;
   selectedBuilder: "hb-subset" | "svg2ttf";
   hintedSourceDisqualifiedReasons: HintedSourceDisqualificationReason[];
   retainedTableTags: string[];
@@ -221,6 +227,7 @@ const PUA_END = 0xF8FF;
 export function clearEmbeddedFontBuilder(): void {
   builderRegistry.clear();
   builderIdCounter = 0;
+  resetHbSubsetAttemptDiagnostics();
 }
 
 // ── Speculative composition: snapshot / restore ──
@@ -284,6 +291,7 @@ function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
       hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
       retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
     },
+    subsetAttempt: entry.subsetAttempt == null ? null : structuredClone(entry.subsetAttempt),
     hintedSource: entry.hintedSource == null
       ? null
       : {
@@ -373,6 +381,7 @@ export function trackGlyphInEmbedFont(
       runIds: new Set(),
       glyphOccurrenceCount: 0,
       buildDiagnostic: null,
+      subsetAttempt: null,
     };
     builderRegistry.set(instanceKey, entry);
   }
@@ -604,6 +613,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         // space is a size cost, not a correctness defect; optimize it only with
         // an upstream subset plan that rewrites all dependent tables.
         let subset = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
+        entry.subsetAttempt = getHbSubsetAttemptDiagnostics().at(-1) ?? null;
         // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
         // cmap entry mapping to gid 0 means "not covered" (the consumer browser
         // cascades past the font and paints NOTHING, losing the tofu box).
@@ -622,6 +632,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         return out;
       }
     } catch (e) {
+      entry.subsetAttempt = getHbSubsetAttemptDiagnostics().at(-1) ?? entry.subsetAttempt;
       entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
       entry.hintedSourceDisqualified = true;
       // A guard/subset failure silently falls back to the proven svg2ttf path —
@@ -680,6 +691,10 @@ function diagnosticFor(
     faceIndex: entry.hintedSource?.faceIndex ?? null,
     variationAxes: entry.hintedSource?.variationAxes ?? null,
     inputUnitsPerEm: entry.unitsPerEm,
+    sourcePostscriptName: entry.hintedSource?.postscriptName ?? null,
+    puaMappingSha256: createHash("sha256").update(JSON.stringify([...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0]))).digest("hex"),
+    outputGlyphs: [...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0]).map(([gid, pua]) => ({ gid, pua, advance: entry.glyphs.get(gid)?.advanceWidth ?? 0 })),
+    subsetAttempt: entry.subsetAttempt,
     selectedBuilder,
     hintedSourceDisqualifiedReasons: [...entry.hintedSourceDisqualificationReasons].sort(),
     retainedTableTags,
@@ -705,6 +720,8 @@ export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[]
     retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
     retainedHintTableTags: [...entry.buildDiagnostic.retainedHintTableTags],
     finalRepresentation: { ...entry.buildDiagnostic.finalRepresentation },
+    outputGlyphs: entry.buildDiagnostic.outputGlyphs?.map((glyph) => ({ ...glyph })),
+    subsetAttempt: entry.buildDiagnostic.subsetAttempt == null ? null : structuredClone(entry.buildDiagnostic.subsetAttempt),
   }]);
 }
 

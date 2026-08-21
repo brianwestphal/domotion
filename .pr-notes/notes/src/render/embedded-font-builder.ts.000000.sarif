@@ -338,6 +338,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kzcjfwj3luohs",
+          "message": {
+            "text": "The fixture-scoped builder diagnostic joins the raw WASM attempt to the renderer instance, source PostScript identity, input UPEM, PUA-map hash, and sorted gid/PUA/advance rows. clearEmbeddedFontBuilder also clears the attempt list, separating each fixture's delta from the process-cumulative WASM session and preventing the DM-2425 latch from masquerading as a per-cell capability result.",
+            "markdown": "The fixture-scoped builder diagnostic joins the raw WASM attempt to the renderer instance, source PostScript identity, input UPEM, PUA-map hash, and sorted gid/PUA/advance rows. clearEmbeddedFontBuilder also clears the attempt list, separating each fixture's delta from the process-cumulative WASM session and preventing the DM-2425 latch from masquerading as a per-cell capability result."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 180,
+                  "endLine": 230,
+                  "snippet": {
+                    "text": "  | \"synthetic\"\n  | \"null-source\"\n  | \"null-face-index\"\n  | \"source-axis-disagreement\"\n  | \"cff-or-subset-failure\"\n  | \"disabled-by-environment\";\n\nexport interface EmbeddedFontBuildDiagnostic {\n  /** Exact renderer instance key that owns this subset. */\n  instanceKey: string;\n  cssFamily: string;\n  sourcePath: string | null;\n  faceIndex: number | null;\n  variationAxes: Record<string, number> | null;\n  /** Design scale used by the builder before any emitted font conversion. */\n  inputUnitsPerEm?: number;\n  sourcePostscriptName?: string | null;\n  puaMappingSha256?: string;\n  outputGlyphs?: Array<{ gid: number; pua: number; advance: number }>;\n  subsetAttempt?: HbSubsetAttemptDiagnostic | null;\n  selectedBuilder: \"hb-subset\" | \"svg2ttf\";\n  hintedSourceDisqualifiedReasons: HintedSourceDisqualificationReason[];\n  retainedTableTags: string[];\n  retainedHintTableTags: string[];\n  finalRepresentation: {\n    kind: \"embedded-sfnt\";\n    mime: \"font/ttf\";\n    byteLength: number;\n    sha256: string;\n  };\n  affectedGlyphCount: number;\n  affectedGlyphOccurrenceCount: number;\n  affectedRunCount: number;\n}\n\nconst builderRegistry = new Map<string, BuilderEntry>();\nlet builderIdCounter = 0;\n\n/** PUA-A block: U+E000..U+F8FF (6400 codepoints). Plenty for typical SVGs. */\nconst PUA_START = 0xE000;\nconst PUA_END = 0xF8FF;\n\n/**\n * Reset per-composition state. Call alongside `clearEmbeddedFonts` at the\n * start of every `composeScrollSvg` / `elementTreeToSvg` invocation so\n * glyphs from a prior composition don't leak into the new one.\n */\nexport function clearEmbeddedFontBuilder(): void {\n  builderRegistry.clear();\n  builderIdCounter = 0;\n  resetHbSubsetAttemptDiagnostics();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2434"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9d413db8e22a88484b4bd39e654a07de"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa79c51f73b87bfefe2ef33d1644f24a7a8b5e9a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

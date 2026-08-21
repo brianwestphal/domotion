@@ -131,6 +131,71 @@
           "branch": "investigation/dm-2310-cff2"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kzcdb1fhzfvqb",
+          "message": {
+            "text": "Every hb-subset attempt is now one stage machine with checked allocation/object returns and a single partial-cleanup finally path. The diagnostic is appended before cleanup and records the original stage/error plus pointers and memory sizes, so a null return is attributable without dereferencing it or losing the evidence during fallback.",
+            "markdown": "Every hb-subset attempt is now one stage machine with checked allocation/object returns and a single partial-cleanup finally path. The diagnostic is appended before cleanup and records the original stage/error plus pointers and memory sizes, so a null return is attributable without dereferencing it or losing the evidence during fallback."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/hb-subset.ts"
+                },
+                "region": {
+                  "startLine": 65,
+                  "endLine": 225,
+                  "snippet": {
+                    "text": "\nlet cachedExports: HbSubsetExports | null = null;\nconst subsetSessionId = randomUUID();\nlet subsetBuildOrdinal = 0;\nexport interface HbSubsetAttemptDiagnostic {\n  sessionId: string;\n  buildOrdinal: number;\n  stage: \"allocate-font\" | \"create-blob\" | \"create-face\" | \"create-input\" | \"configure-input\" | \"subset\" | \"read-output\" | \"validate-output\" | \"complete\";\n  sourceSha256: string;\n  sourceByteLength: number;\n  sourceTableTags: string[];\n  faceIndex: number;\n  axes: Record<string, number> | null;\n  sortedGids: number[];\n  gidHash: string;\n  pointers: { font: number; blob: number; face: number; input: number; glyphSet: number; resultFace: number; outputBlob: number; outputData: number };\n  wasmMemoryBytesBefore: number;\n  wasmMemoryBytesAfter: number;\n  output?: { sha256: string; byteLength: number; tableTags: string[] };\n  error?: string;\n}\nlet subsetAttempts: HbSubsetAttemptDiagnostic[] = [];\nexport function resetHbSubsetAttemptDiagnostics(): void { subsetAttempts = []; }\nexport function getHbSubsetAttemptDiagnostics(): HbSubsetAttemptDiagnostic[] { return structuredClone(subsetAttempts); }\nfunction hb(): HbSubsetExports {\n  if (cachedExports != null) return cachedExports;\n  // Resolved relative to this module rather than through node resolution: the\n  // harfbuzzjs build lives in-tree under `vendor/` (its shaping wasm is rebuilt\n  // with Chromium's HarfBuzz configuration — see `vendor/harfbuzzjs/README.md`).\n  // This file is `src/render/` in the source tree and `dist/render/` in the\n  // published package, so `../../vendor/…` is the package root either way.\n  const wasmPath = fileURLToPath(new URL(\"../../vendor/harfbuzzjs/dist/harfbuzz-subset.wasm\", import.meta.url));\n  const mod = new WebAssembly.Module(readFileSync(wasmPath));\n  const inst = new WebAssembly.Instance(mod, {});\n  cachedExports = inst.exports as unknown as HbSubsetExports;\n  return cachedExports;\n}\n\n/** hb-subset `fontBytes` to `gids` (original glyph ids), keeping hinting +\n *  RETAIN_GIDS so the output's glyph ids equal the input's. `faceIndex` selects\n *  a TTC member. Returns the subset TTF/OTF bytes (still has the ORIGINAL cmap;\n *  call `injectPuaCmap` to remap to private-use codepoints).\n *\n *  `pinAxes` (non-null ⇒ the source is a VARIABLE font): fully instance the\n *  face at that axis location — every axis is pinned to its default, then each\n *  `pinAxes` entry overrides its tag — so the output is a STATIC font whose\n *  outlines match what the run shaped with (fontkit `getVariation` and hb apply\n *  the same gvar deltas), with `fvar`/`gvar` dropped. Full pinning is\n *  deliberate: leaving any axis variable would let the consumer browser re-vary\n *  it (e.g. `font-optical-sizing: auto` re-applying `opsz`) on top of outlines\n *  we already resolved. hb's instancer RETAINS the hinting program\n *  (`cvt`/`fpgm`/`prep` + per-glyph instructions) across instancing. An empty\n *  object pins everything to defaults (the run shaped with the default master).\n *  Throws when a requested axis can't be pinned — outlines would silently be\n *  the wrong master; the caller falls back to svg2ttf, which bakes the correct\n *  instantiated outline (unhinted). */\nexport function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true, pinAxes: Record<string, number> | null = null): Buffer {\n  const w = hb();\n  const heap = (): Uint8Array => new Uint8Array(w.memory.buffer);\n  const sortedGids = [...new Set(gids)].sort((a, b) => a - b);\n  const diagnostic: HbSubsetAttemptDiagnostic = {\n    sessionId: subsetSessionId, buildOrdinal: subsetBuildOrdinal++, stage: \"allocate-font\",\n    sourceSha256: createHash(\"sha256\").update(fontBytes).digest(\"hex\"), sourceByteLength: fontBytes.length,\n    sourceTableTags: sfntTableTagsAt(fontBytes, faceIndex), faceIndex, axes: pinAxes == null ? null : { ...pinAxes },\n    sortedGids, gidHash: createHash(\"sha256\").update(JSON.stringify(sortedGids)).digest(\"hex\"),\n    pointers: { font: 0, blob: 0, face: 0, input: 0, glyphSet: 0, resultFace: 0, outputBlob: 0, outputData: 0 },\n    wasmMemoryBytesBefore: w.memory.buffer.byteLength, wasmMemoryBytesAfter: w.memory.buffer.byteLength,\n  };\n  let fontPtr = 0, blob = 0, face = 0, input = 0, rface = 0, outBlob = 0;\n  try {\n    fontPtr = diagnostic.pointers.font = w.malloc(fontBytes.length);\n    if (fontPtr === 0) throw new Error(`malloc(${fontBytes.length}) returned null`);\n    heap().set(fontBytes, fontPtr);\n    diagnostic.stage = \"create-blob\";\n    blob = diagnostic.pointers.blob = w.hb_blob_create(fontPtr, fontBytes.length, HB_MEMORY_MODE_READONLY, 0, 0);\n    if (blob === 0) throw new Error(\"hb_blob_create returned null\");\n    diagnostic.stage = \"create-face\";\n    face = diagnostic.pointers.face = w.hb_face_create(blob, faceIndex);\n    if (face === 0) throw new Error(\"hb_face_create returned null\");\n    diagnostic.stage = \"create-input\";\n    input = diagnostic.pointers.input = w.hb_subset_input_create_or_fail();\n    if (input === 0) throw new Error(\"hb_subset_input_create_or_fail returned null\");\n    const gset = diagnostic.pointers.glyphSet = w.hb_subset_input_glyph_set(input);\n    if (gset === 0) throw new Error(\"hb_subset_input_glyph_set returned null\");\n    diagnostic.stage = \"configure-input\";\n  for (const g of gids) w.hb_set_add(gset, g);\n  let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;\n  if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;\n  // This flag is ignored for non-CFF2 sources. For CFF2 it only takes effect\n  // when the font is fully instantiated below, yielding a static CFF table.\n  // That is HarfBuzz's own representation of a completed CFF2 instantiation,\n  // rather than a Domotion guess based on a face or codepoint.\n  if (pinAxes != null) flags |= HB_SUBSET_FLAGS_DOWNGRADE_CFF2;\n  w.hb_subset_input_set_flags(input, flags);\n  if (pinAxes != null) {\n    if (w.hb_subset_input_pin_all_axes_to_default(input, face) === 0) {\n      throw new Error(\"pin_all_axes_to_default failed (face reports no variation axes?)\");\n    }\n    for (const [tag, value] of Object.entries(pinAxes)) {\n      if (w.hb_subset_input_pin_axis_location(input, face, hbTag(tag), value) === 0) {\n        throw new Error(`pin_axis_location failed for axis \"${tag}\"`);\n      }\n    }\n  }\n    diagnostic.stage = \"subset\";\n    rface = diagnostic.pointers.resultFace = w.hb_subset_or_fail(face, input);\n    if (rface === 0) throw new Error(\"hb_subset_or_fail returned null\");\n    diagnostic.stage = \"read-output\";\n    outBlob = diagnostic.pointers.outputBlob = w.hb_face_reference_blob(rface);\n    if (outBlob === 0) throw new Error(\"hb_face_reference_blob returned null\");\n    const len = w.hb_blob_get_length(outBlob);\n    const dataPtr = diagnostic.pointers.outputData = w.hb_blob_get_data(outBlob, 0);\n    if (dataPtr === 0 && len !== 0) throw new Error(\"hb_blob_get_data returned null\");\n    const out = Buffer.from(heap().slice(dataPtr, dataPtr + len));\n    diagnostic.stage = \"validate-output\";\n    // Defense in depth: an outline-less subset can parse in fontkit but fails\n    // the consumer browser's OTS sanitizer. Throw so the caller can use its\n    // outline-rebuild fallback rather than emitting a tofu-only @font-face.\n    if (!sfntHasOutlineTable(out)) throw new Error(\"subset output has no outline table (glyf/CFF dropped by hb-subset)\");\n    diagnostic.output = { sha256: createHash(\"sha256\").update(out).digest(\"hex\"), byteLength: out.length, tableTags: sfntTableTagsAt(out, 0) };\n    diagnostic.stage = \"complete\";\n    return out;\n  } catch (error) {\n    diagnostic.error = error instanceof Error ? error.message : String(error);\n    throw error;\n  } finally {\n    diagnostic.wasmMemoryBytesAfter = w.memory.buffer.byteLength;\n    subsetAttempts.push(diagnostic);\n    if (outBlob !== 0) w.hb_blob_destroy(outBlob);\n    if (rface !== 0) w.hb_face_destroy(rface);\n    if (input !== 0) w.hb_subset_input_destroy(input);\n    if (face !== 0) w.hb_face_destroy(face);\n    if (blob !== 0) w.hb_blob_destroy(blob);\n    if (fontPtr !== 0) w.free(fontPtr);\n  }\n}\n\nfunction sfntTableTagsAt(fontBytes: Buffer, faceIndex: number): string[] {\n  if (fontBytes.length < 12) return [];\n  let offset = 0;\n  if (fontBytes.toString(\"latin1\", 0, 4) === \"ttcf\") {\n    const count = fontBytes.readUInt32BE(8);\n    if (faceIndex < 0 || faceIndex >= count) return [];\n    offset = fontBytes.readUInt32BE(12 + faceIndex * 4);\n  }\n  if (offset + 12 > fontBytes.length) return [];\n  const count = fontBytes.readUInt16BE(offset + 4);\n  const tags: string[] = [];\n  for (let i = 0; i < count; i++) {\n    const entry = offset + 12 + i * 16;\n    if (entry + 4 <= fontBytes.length) tags.push(fontBytes.toString(\"latin1\", entry, entry + 4));\n  }\n  return tags.sort();\n}\n\n/** True when the face carries an outline table the bundled hb-subset build can\n *  preserve (`glyf`, CFF, or CFF2).\n *\n *  Also false for outline-less files whose glyphs come from a platform-private\n *  table (e.g. Apple `hvgl` in PingFang). TTC-aware: `faceIndex` selects the\n *  collection member whose table directory is checked (the raw file the"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2434"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fa39295866ec38ae2ecbe04390182c44"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa79c51f73b87bfefe2ef33d1644f24a7a8b5e9a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

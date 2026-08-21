@@ -18,6 +18,7 @@
 // This is behind the `DOMOTION_HINTED_SUBSET` flag while we measure the payoff.
 
 import { readFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const HB_MEMORY_MODE_READONLY = 1;
@@ -63,6 +64,28 @@ function hbTag(tag: string): number {
 }
 
 let cachedExports: HbSubsetExports | null = null;
+const subsetSessionId = randomUUID();
+let subsetBuildOrdinal = 0;
+export interface HbSubsetAttemptDiagnostic {
+  sessionId: string;
+  buildOrdinal: number;
+  stage: "allocate-font" | "create-blob" | "create-face" | "create-input" | "configure-input" | "subset" | "read-output" | "validate-output" | "complete";
+  sourceSha256: string;
+  sourceByteLength: number;
+  sourceTableTags: string[];
+  faceIndex: number;
+  axes: Record<string, number> | null;
+  sortedGids: number[];
+  gidHash: string;
+  pointers: { font: number; blob: number; face: number; input: number; glyphSet: number; resultFace: number; outputBlob: number; outputData: number };
+  wasmMemoryBytesBefore: number;
+  wasmMemoryBytesAfter: number;
+  output?: { sha256: string; byteLength: number; tableTags: string[] };
+  error?: string;
+}
+let subsetAttempts: HbSubsetAttemptDiagnostic[] = [];
+export function resetHbSubsetAttemptDiagnostics(): void { subsetAttempts = []; }
+export function getHbSubsetAttemptDiagnostics(): HbSubsetAttemptDiagnostic[] { return structuredClone(subsetAttempts); }
 function hb(): HbSubsetExports {
   if (cachedExports != null) return cachedExports;
   // Resolved relative to this module rather than through node resolution: the
@@ -98,12 +121,32 @@ function hb(): HbSubsetExports {
 export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true, pinAxes: Record<string, number> | null = null): Buffer {
   const w = hb();
   const heap = (): Uint8Array => new Uint8Array(w.memory.buffer);
-  const fontPtr = w.malloc(fontBytes.length);
-  heap().set(fontBytes, fontPtr);
-  const blob = w.hb_blob_create(fontPtr, fontBytes.length, HB_MEMORY_MODE_READONLY, 0, 0);
-  const face = w.hb_face_create(blob, faceIndex);
-  const input = w.hb_subset_input_create_or_fail();
-  const gset = w.hb_subset_input_glyph_set(input);
+  const sortedGids = [...new Set(gids)].sort((a, b) => a - b);
+  const diagnostic: HbSubsetAttemptDiagnostic = {
+    sessionId: subsetSessionId, buildOrdinal: subsetBuildOrdinal++, stage: "allocate-font",
+    sourceSha256: createHash("sha256").update(fontBytes).digest("hex"), sourceByteLength: fontBytes.length,
+    sourceTableTags: sfntTableTagsAt(fontBytes, faceIndex), faceIndex, axes: pinAxes == null ? null : { ...pinAxes },
+    sortedGids, gidHash: createHash("sha256").update(JSON.stringify(sortedGids)).digest("hex"),
+    pointers: { font: 0, blob: 0, face: 0, input: 0, glyphSet: 0, resultFace: 0, outputBlob: 0, outputData: 0 },
+    wasmMemoryBytesBefore: w.memory.buffer.byteLength, wasmMemoryBytesAfter: w.memory.buffer.byteLength,
+  };
+  let fontPtr = 0, blob = 0, face = 0, input = 0, rface = 0, outBlob = 0;
+  try {
+    fontPtr = diagnostic.pointers.font = w.malloc(fontBytes.length);
+    if (fontPtr === 0) throw new Error(`malloc(${fontBytes.length}) returned null`);
+    heap().set(fontBytes, fontPtr);
+    diagnostic.stage = "create-blob";
+    blob = diagnostic.pointers.blob = w.hb_blob_create(fontPtr, fontBytes.length, HB_MEMORY_MODE_READONLY, 0, 0);
+    if (blob === 0) throw new Error("hb_blob_create returned null");
+    diagnostic.stage = "create-face";
+    face = diagnostic.pointers.face = w.hb_face_create(blob, faceIndex);
+    if (face === 0) throw new Error("hb_face_create returned null");
+    diagnostic.stage = "create-input";
+    input = diagnostic.pointers.input = w.hb_subset_input_create_or_fail();
+    if (input === 0) throw new Error("hb_subset_input_create_or_fail returned null");
+    const gset = diagnostic.pointers.glyphSet = w.hb_subset_input_glyph_set(input);
+    if (gset === 0) throw new Error("hb_subset_input_glyph_set returned null");
+    diagnostic.stage = "configure-input";
   for (const g of gids) w.hb_set_add(gset, g);
   let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;
   if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;
@@ -115,42 +158,63 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   w.hb_subset_input_set_flags(input, flags);
   if (pinAxes != null) {
     if (w.hb_subset_input_pin_all_axes_to_default(input, face) === 0) {
-      cleanupInput();
       throw new Error("pin_all_axes_to_default failed (face reports no variation axes?)");
     }
     for (const [tag, value] of Object.entries(pinAxes)) {
       if (w.hb_subset_input_pin_axis_location(input, face, hbTag(tag), value) === 0) {
-        cleanupInput();
         throw new Error(`pin_axis_location failed for axis "${tag}"`);
       }
     }
   }
-  function cleanupInput(): void {
-    w.hb_subset_input_destroy(input);
-    w.hb_face_destroy(face);
-    w.hb_blob_destroy(blob);
-    w.free(fontPtr);
-  }
-  const rface = w.hb_subset_or_fail(face, input);
-  try {
+    diagnostic.stage = "subset";
+    rface = diagnostic.pointers.resultFace = w.hb_subset_or_fail(face, input);
     if (rface === 0) throw new Error("hb_subset_or_fail returned null");
-    const outBlob = w.hb_face_reference_blob(rface);
+    diagnostic.stage = "read-output";
+    outBlob = diagnostic.pointers.outputBlob = w.hb_face_reference_blob(rface);
+    if (outBlob === 0) throw new Error("hb_face_reference_blob returned null");
     const len = w.hb_blob_get_length(outBlob);
-    const dataPtr = w.hb_blob_get_data(outBlob, 0);
+    const dataPtr = diagnostic.pointers.outputData = w.hb_blob_get_data(outBlob, 0);
+    if (dataPtr === 0 && len !== 0) throw new Error("hb_blob_get_data returned null");
     const out = Buffer.from(heap().slice(dataPtr, dataPtr + len));
-    w.hb_blob_destroy(outBlob);
+    diagnostic.stage = "validate-output";
     // Defense in depth: an outline-less subset can parse in fontkit but fails
     // the consumer browser's OTS sanitizer. Throw so the caller can use its
     // outline-rebuild fallback rather than emitting a tofu-only @font-face.
     if (!sfntHasOutlineTable(out)) throw new Error("subset output has no outline table (glyf/CFF dropped by hb-subset)");
+    diagnostic.output = { sha256: createHash("sha256").update(out).digest("hex"), byteLength: out.length, tableTags: sfntTableTagsAt(out, 0) };
+    diagnostic.stage = "complete";
     return out;
+  } catch (error) {
+    diagnostic.error = error instanceof Error ? error.message : String(error);
+    throw error;
   } finally {
+    diagnostic.wasmMemoryBytesAfter = w.memory.buffer.byteLength;
+    subsetAttempts.push(diagnostic);
+    if (outBlob !== 0) w.hb_blob_destroy(outBlob);
     if (rface !== 0) w.hb_face_destroy(rface);
-    w.hb_subset_input_destroy(input);
-    w.hb_face_destroy(face);
-    w.hb_blob_destroy(blob);
-    w.free(fontPtr);
+    if (input !== 0) w.hb_subset_input_destroy(input);
+    if (face !== 0) w.hb_face_destroy(face);
+    if (blob !== 0) w.hb_blob_destroy(blob);
+    if (fontPtr !== 0) w.free(fontPtr);
   }
+}
+
+function sfntTableTagsAt(fontBytes: Buffer, faceIndex: number): string[] {
+  if (fontBytes.length < 12) return [];
+  let offset = 0;
+  if (fontBytes.toString("latin1", 0, 4) === "ttcf") {
+    const count = fontBytes.readUInt32BE(8);
+    if (faceIndex < 0 || faceIndex >= count) return [];
+    offset = fontBytes.readUInt32BE(12 + faceIndex * 4);
+  }
+  if (offset + 12 > fontBytes.length) return [];
+  const count = fontBytes.readUInt16BE(offset + 4);
+  const tags: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const entry = offset + 12 + i * 16;
+    if (entry + 4 <= fontBytes.length) tags.push(fontBytes.toString("latin1", entry, entry + 4));
+  }
+  return tags.sort();
 }
 
 /** True when the face carries an outline table the bundled hb-subset build can

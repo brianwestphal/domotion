@@ -4,9 +4,10 @@
 // the EXACT hinting bytecode and gvar deltas being preserved.
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
-import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -71,6 +72,27 @@ function glyphInstructions(buf: Buffer, gid: number): Buffer | null {
 }
 
 describe("hbSubsetRetainGids (DM-1714)", () => {
+  it("records the exact successful WASM attempt boundary (DM-2434)", () => {
+    resetHbSubsetAttemptDiagnostics();
+    const source = buildStaticHintedFont();
+    const out = hbSubsetRetainGids(source, [2, 1, 2]);
+    expect(getHbSubsetAttemptDiagnostics()).toEqual([expect.objectContaining({
+      buildOrdinal: expect.any(Number),
+      sessionId: expect.any(String),
+      stage: "complete",
+      sourceSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      sourceTableTags: expect.arrayContaining(["glyf", "loca"]),
+      sortedGids: [1, 2],
+      gidHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+      pointers: expect.objectContaining({ font: expect.any(Number), input: expect.any(Number), resultFace: expect.any(Number) }),
+      wasmMemoryBytesBefore: expect.any(Number),
+      wasmMemoryBytesAfter: expect.any(Number),
+      output: expect.objectContaining({
+        sha256: createHash("sha256").update(out).digest("hex"),
+        tableTags: expect.arrayContaining(["glyf", "loca"]),
+      }),
+    })]);
+  });
   it("keeps the hinting program: cvt/fpgm/prep tables + per-glyph instruction bytecode", () => {
     const out = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
     expect(tableBytes(out, "cvt ")).toEqual(CVT_CONTENTS);
@@ -164,7 +186,13 @@ describe("hbSubsetRetainGids variable-axis instancing (DM-1716/DM-2435)", () => 
   });
 
   it("throws when a requested axis cannot be pinned (caller falls back to svg2ttf)", () => {
+    resetHbSubsetAttemptDiagnostics();
     expect(() => hbSubsetRetainGids(buildVariableHintedFont(), [1], 0, true, { XXXX: 5 })).toThrow(/pin_axis_location/);
+    expect(getHbSubsetAttemptDiagnostics()).toEqual([expect.objectContaining({
+      stage: "configure-input",
+      axes: { XXXX: 5 },
+      error: 'pin_axis_location failed for axis "XXXX"',
+    })]);
   });
 });
 

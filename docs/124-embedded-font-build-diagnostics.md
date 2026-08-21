@@ -24,6 +24,16 @@ Each `embeddedFontBuilds` entry in `results.json` contains:
 - the final TTF byte length and SHA-256 identity; and
 - unique glyph count, total glyph occurrences, and distinct shaped-run count.
 
+For an attempted HarfBuzz build, `subsetAttempt` records the immutable source
+SHA/size/table inventory, physical face and axes, sorted gid list/hash, session
+id and build ordinal, every returned WASM pointer, memory size before/after,
+the last stage reached, and the original error. Successful attempts add the raw
+subset output SHA/size/tables. The enclosing builder record adds the exact PUA
+mapping hash and sorted gid/PUA/advance rows, while its final representation
+describes the post-cmap emitted font. Allocation and object-creation return
+values are checked before use, and partial allocations are released in one
+stage-independent `finally` path.
+
 The HTML/unicode harness resets the complete generation state before every
 fixture. Diagnostics are therefore fixture-scoped; `workerSeq` subtraction is
 neither required nor valid. For the pinned 24-row Linux Unicode raster-floor
