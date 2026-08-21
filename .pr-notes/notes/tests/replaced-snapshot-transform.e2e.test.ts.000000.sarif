@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3ezaqgqgonqpp4",
+          "message": {
+            "text": "The independent DPR-2 oracle bounds corrected affine surfaces to three device pixels and keeps the vector sibling exact. The primary row combines negative local X, two affine wrappers, anisotropic scale/skew, CSS zoom, and 300px page scroll; the transform-then-overflow row adds a stored ancestor scroll offset and proves its restoration, catching the old pre-transform clip ordering by restoring a blue edge that otherwise loses roughly 50 device pixels. Evidence: focused geometry unit 5/5; transformed plus established raster E2E 13/13; replaced geometry oracle 11/11 with mutation movement; transformed visual fixture clean with zero regions.",
+            "markdown": "The independent DPR-2 oracle bounds corrected affine surfaces to three device pixels and keeps the vector sibling exact. The primary row combines negative local X, two affine wrappers, anisotropic scale/skew, CSS zoom, and 300px page scroll; the transform-then-overflow row adds a stored ancestor scroll offset and proves its restoration, catching the old pre-transform clip ordering by restoring a blue edge that otherwise loses roughly 50 device pixels. Evidence: focused geometry unit 5/5; transformed plus established raster E2E 13/13; replaced geometry oracle 11/11 with mutation movement; transformed visual fixture clean with zero regions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-snapshot-transform.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 70,
+                  "endLine": 138,
+                  "snippet": {
+                    "text": "  it(\"matches nested affine, off-page, zoom, scroll, and DPR ink without absorbing vector siblings\", async () => {\n    const width = 380;\n    const height = 280;\n    const page = await env!.browser.newPage({\n      viewport: { width, height },\n      deviceScaleFactor: 2,\n    });\n    const rendered = await env!.browser.newPage({\n      viewport: { width, height },\n      deviceScaleFactor: 2,\n    });\n    try {\n      await page.setContent(`<style>\n        html,body{margin:0;background:white}body{height:1000px}\n        .outer{position:absolute;left:8px;top:340px;width:200px;height:130px;zoom:1.1;transform:rotate(11deg);transform-origin:35px 20px}\n        .inner{position:absolute;left:-22px;top:18px;transform:scale(1.08,.88) skewX(7deg);transform-origin:15px 12px}\n        canvas{display:block;width:130px;height:78px}\n        .vector{position:fixed;left:300px;top:20px;width:32px;height:28px;background:rgb(0,187,85)}\n      </style><div class=\"outer\"><div class=\"inner\"><canvas id=\"surface\" width=\"130\" height=\"78\"></canvas></div></div><div class=\"vector\"></div>`);\n      await page.locator(\"#surface\").evaluate((element) => {\n        const context = (element as HTMLCanvasElement).getContext(\"2d\")!;\n        context.fillStyle = \"rgb(237,18,52)\";\n        context.fillRect(0, 0, 37, 78);\n        context.fillStyle = \"rgb(22,78,232)\";\n        context.fillRect(37, 0, 93, 78);\n      });\n      await page.evaluate(() => scrollTo(0, 300));\n      const expected = await page.screenshot();\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width, height });\n      const nodes = walk(tree);\n      const canvas = nodes.find((node) => node.tag === \"canvas\")!;\n      const snapshot = canvas.replacedSnapshot!;\n\n      expect(snapshot.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(snapshot.rasterToOutput).toBeDefined();\n      expect(snapshot.rasterToOutput!.cssPerPixelX).toBeCloseTo(0.5, 6);\n      expect(snapshot.rasterToOutput!.cssPerPixelY).toBeCloseTo(0.5, 6);\n      expect(snapshot.rasterToOutput!.pixelWidth * snapshot.rasterToOutput!.cssPerPixelX)\n        .toBeCloseTo(snapshot.width, 6);\n      expect(snapshot.rasterToOutput!.pixelHeight * snapshot.rasterToOutput!.cssPerPixelY)\n        .toBeCloseTo(snapshot.height, 6);\n      expect(snapshot.rasterToOutput!.contentQuad[0]).toBeLessThan(0);\n      expect(nodes.filter((node) => node.styles.transform !== \"none\")).toHaveLength(2);\n\n      const body = elementTreeToSvgInner(tree, width, height);\n      const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${width}\" height=\"${height}\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/>${body}</svg>`;\n      expect(occurrences(body, snapshot.dataUri!)).toBe(1);\n      expect(body).toContain('fill=\"rgb(0,187,85)\"');\n      await rendered.setContent(`<img alt=\"rendered\" style=\"display:block\" src=\"data:image/svg+xml,${encodeURIComponent(svg)}\">`);\n      const actual = await rendered.locator(\"img\").screenshot();\n\n      for (const color of [\n        [237, 18, 52],\n        [22, 78, 232],\n      ] as Array<[number, number, number]>) {\n        expect(maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)))\n          .toBeLessThanOrEqual(3);\n      }\n      // This control catches an isolation regression that turns the canvas\n      // crop into a larger sibling-composited bitmap.\n      expect(maxBoundsDelta(\n        await colorBounds(expected, [0, 187, 85]),\n        await colorBounds(actual, [0, 187, 85]),\n      )).toBe(0);\n    } finally {\n      await page.close();\n      await rendered.close();\n    }\n  }, 60_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/replaced-snapshot-geometry.ts"
+                },
+                "region": {
+                  "startLine": 74
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1677
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2380"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ec331913f3caa8bf05ea4ed664790782"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3ezgidnpb224fz",
+          "message": {
+            "text": "The controls prove activation edges rather than only the positive canvas picture. A DPR-2 expected PNG drives an affine matrix3d source crop and must produce 0.5 CSS px per source pixel; clipped transformed video and an inaccessible iframe independently match Chromium ink bounds; the projective row requires the inner canvas snapshot to remain unpopulated while the outer Chromium surface appears once and the green vector sibling remains structural.",
+            "markdown": "The controls prove activation edges rather than only the positive canvas picture. A DPR-2 expected PNG drives an affine matrix3d source crop and must produce 0.5 CSS px per source pixel; clipped transformed video and an inaccessible iframe independently match Chromium ink bounds; the projective row requires the inner canvas snapshot to remain unpopulated while the outer Chromium surface appears once and the green vector sibling remains structural."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-snapshot-transform.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 140,
+                  "endLine": 226,
+                  "snippet": {
+                    "text": "  it(\"maps a DPR-scaled source crop to live scaled CSS geometry without a one-pixel assumption\", async () => {\n    const width = 240;\n    const height = 170;\n    const page = await env!.browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2 });\n    const directory = await mkdtemp(join(tmpdir(), \"domotion-dm2380-\"));\n    const sourcePath = join(directory, \"source.png\");\n    try {\n      await page.setContent(`<style>html,body{margin:0;background:white}canvas{position:absolute;left:-12.25px;top:24.5px;width:80px;height:60px;transform:matrix3d(1.5,0,0,0,0,.75,0,0,0,0,1,0,0,0,0,1);transform-origin:0 0}</style><canvas width=\"80\" height=\"60\"></canvas>`);\n      await page.locator(\"canvas\").evaluate((element) => {\n        const context = (element as HTMLCanvasElement).getContext(\"2d\")!;\n        context.fillStyle = \"rgb(237,18,52)\";\n        context.fillRect(0, 0, 80, 60);\n      });\n      await writeFile(sourcePath, await page.screenshot());\n      const { tree } = await captureElementTreeWithWarnings(\n        page,\n        \"body\",\n        { x: 0, y: 0, width, height },\n        { rasterizeFromImagePath: sourcePath },\n      );\n      const snapshot = walk(tree).find((node) => node.tag === \"canvas\")!.replacedSnapshot!;\n      const mapping = snapshot.rasterToOutput!;\n      const metadata = await sharp(Buffer.from(snapshot.dataUri!.split(\",\")[1], \"base64\")).metadata();\n\n      expect(mapping.pixelWidth).toBe(metadata.width);\n      expect(mapping.pixelHeight).toBe(metadata.height);\n      expect(mapping.cssPerPixelX).toBeCloseTo(0.5, 6);\n      expect(mapping.cssPerPixelY).toBeCloseTo(0.5, 6);\n      expect(snapshot.x).toBe(0);\n      // The live scaled content spans -12.25..107.75 CSS px. The DPR-2\n      // source crop starts at pixel 0 and snaps its far edge to pixel 216,\n      // hence an exact 108 CSS-px destination (not a 108 bitmap-px guess).\n      expect(snapshot.width).toBeCloseTo(108, 6);\n      expect(mapping.contentQuad[0]).toBeCloseTo(-12.25, 3);\n      expect(mapping.contentQuad[2] - mapping.contentQuad[0]).toBeCloseTo(120, 3);\n    } finally {\n      await page.close();\n      await rm(directory, { recursive: true, force: true });\n    }\n  }, 60_000);\n\n  it(\"uses the same content-quad route for transformed video and inaccessible iframe surfaces\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 430, height: 250 }, deviceScaleFactor: 1 });\n    try {\n      const poster = `data:image/svg+xml,${encodeURIComponent('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"60\"><rect width=\"100\" height=\"60\" fill=\"#ed1234\"/></svg>')}`;\n      const frame = `data:text/html,${encodeURIComponent('<style>html,body{margin:0;width:100%;height:100%;background:#164ee8}</style>')}`;\n      await page.setContent(`<style>html,body{margin:0}.v{position:absolute;left:40px;top:50px;width:100px;height:60px;transform:rotate(-9deg);transform-origin:13px 17px}.f{position:absolute;left:220px;top:45px;width:110px;height:65px;border:0;transform:scale(.9,1.15) skewY(5deg);transform-origin:20px 10px}</style><video class=\"v\" poster=\"${poster}\"></video><iframe class=\"f\" src=\"${frame}\"></iframe>`);\n      await page.waitForTimeout(100);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 430, height: 250 });\n      for (const tag of [\"video\", \"iframe\"]) {\n        const node = walk(tree).find((candidate) => candidate.tag === tag)!;\n        const snapshot = node.replacedSnapshot!;\n        expect(snapshot.dataUri, tag).toMatch(/^data:image\\/png;base64,/);\n        expect(snapshot.rasterToOutput, tag).toBeDefined();\n        expect(snapshot.rasterToOutput!.contentQuad).toHaveLength(8);\n        expect(snapshot.rasterToOutput!.pixelWidth).toBeGreaterThan(50);\n        expect(snapshot.rasterToOutput!.pixelHeight).toBeGreaterThan(30);\n        expect(snapshot.rasterToOutput!.pixelWidth * snapshot.rasterToOutput!.cssPerPixelX)\n          .toBeCloseTo(snapshot.width, 6);\n        expect(snapshot.rasterToOutput!.pixelHeight * snapshot.rasterToOutput!.cssPerPixelY)\n          .toBeCloseTo(snapshot.height, 6);\n      }\n    } finally {\n      await page.close();\n    }\n  }, 60_000);\n\n  it(\"leaves a canvas under projective ownership to the outer Chromium surface exactly once\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<style>html,body{margin:0}.projective{position:absolute;left:30px;top:30px;width:180px;height:130px;perspective:280px}.plane{width:140px;height:90px;transform:rotateY(31deg)}canvas{width:140px;height:90px}.vector{position:absolute;left:270px;top:30px;width:34px;height:34px;background:rgb(0,187,85)}</style><div class=\"projective\"><div class=\"plane\"><canvas width=\"140\" height=\"90\"></canvas></div></div><div class=\"vector\"></div>`);\n      await page.locator(\"canvas\").evaluate((element) => {\n        const context = (element as HTMLCanvasElement).getContext(\"2d\")!;\n        context.fillStyle = \"rgb(237,18,52)\";\n        context.fillRect(0, 0, 140, 90);\n      });\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 360, height: 240 });\n      const nodes = walk(tree);\n      const owner = nodes.find((node) => node.transformSubtreeRaster?.dataUri != null)!;\n      const nested = nodes.find((node) => node.tag === \"canvas\")!.replacedSnapshot!;\n      const svg = elementTreeToSvgInner(tree, 360, 240);\n\n      expect(owner.transformSubtreeRaster!.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(nested.dataUri).toBeUndefined();\n      expect(nested.rasterToOutput).toBeUndefined();\n      expect(occurrences(svg, owner.transformSubtreeRaster!.dataUri!)).toBe(1);\n      expect(svg).toContain('fill=\"rgb(0,187,85)\"');"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1606
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1514
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2380"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "827c0f83c24255d4920f0316e84c18e8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "45dd68cbc539679d390f4ca622b3afc4a8fb6ede",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

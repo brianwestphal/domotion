@@ -126,6 +126,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   `::before`/`::after` boxes. Images now emit Blink's concrete object rectangle
   instead of reducing alignment to SVG min/mid/max buckets.
 
+- **Transformed dynamic replaced surfaces (DM-2380, doc 17) — Shipped.**
+  Canvas/video/inaccessible-frame snapshots use Blink's CDP content quad in the
+  capture walk's transform space. Rotation/skew is neutralized for sampling and
+  applied once by SVG; ancestor overflow/clip/mask nodes are likewise suppressed
+  only while sampling and remain owned once by the SVG clip tree after that
+  transform, with scroll offsets restored.
+  Pure affine scale/translation stays baked, projective paint stays one outer
+  Chromium surface, and actual PNG dimensions define the device-pixel-to-CSS
+  map. A DPR-2 Chromium-vs-SVG gate covers partial off-page paint, nested affine
+  transforms, CSS zoom, scroll, source-image cropping, clipped video/frame
+  pixels, vector siblings, and double-transform/stretch/clip-order mutations.
+
 - **Symbol list-marker geometry (DM-2192, docs 01/38) — Shipped.** Disc,
   circle, square, and disclosure markers use Blink's captured-font-ascent
   integer sizing/offset formulas and physical edge snapping; disclosure paths

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3eyz5u6d1ksy8w",
+          "message": {
+            "text": "The only permitted correction is a proven same-size translation between Blink content quads. Chromium maps replaced content through the transform tree before intersecting the clip tree, so a post-transform AABB delta cannot be copied into local coordinates. This helper rejects residual skew/projective geometry and size changes, snaps the screenshot clip once, and transfers only those sampled margins to output. See the CDP/neutralization caller and browser discriminator.",
+            "markdown": "The only permitted correction is a proven same-size translation between Blink content quads. Chromium maps replaced content through the transform tree before intersecting the clip tree, so a post-transform AABB delta cannot be copied into local coordinates. This helper rejects residual skew/projective geometry and size changes, snaps the screenshot clip once, and transfers only those sampled margins to output. See the CDP/neutralization caller and browser discriminator."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/replaced-snapshot-geometry.ts"
+                },
+                "region": {
+                  "startLine": 31,
+                  "endLine": 118,
+                  "snippet": {
+                    "text": "export function axisAlignedQuadBounds(quad: CssQuad): CssRect | null {\n  const [x1, y1, x2, y2, x3, y3, x4, y4] = quad;\n  if (![x1, y1, x2, y2, x3, y3, x4, y4].every(Number.isFinite)) return null;\n  // DOM.getBoxModel serializes the four LocalRectToAbsoluteQuad corners in\n  // clockwise order. Once renderer-owned affine transforms are neutralized,\n  // only Blink-baked translations/scales/zoom remain and the content quad must\n  // be axis aligned. Rejecting a residual skew/projective quad prevents a\n  // known-inexact AABB fallback from silently re-entering the pipeline.\n  if (Math.abs(y1 - y2) > EPSILON\n      || Math.abs(x2 - x3) > EPSILON\n      || Math.abs(y3 - y4) > EPSILON\n      || Math.abs(x4 - x1) > EPSILON) {\n    return null;\n  }\n  const left = Math.min(x1, x2, x3, x4);\n  const right = Math.max(x1, x2, x3, x4);\n  const top = Math.min(y1, y2, y3, y4);\n  const bottom = Math.max(y1, y2, y3, y4);\n  if (right - left <= EPSILON || bottom - top <= EPSILON) return null;\n  return { x: left, y: top, width: right - left, height: bottom - top };\n}\n\n/** Translate every point without collapsing the quad to an AABB. */\nexport function translateQuad(quad: CssQuad, dx: number, dy: number): CssQuad {\n  return [\n    quad[0] + dx, quad[1] + dy,\n    quad[2] + dx, quad[3] + dy,\n    quad[4] + dx, quad[5] + dy,\n    quad[6] + dx, quad[7] + dy,\n  ];\n}\n\n/**\n * Map a screenshot of `sampledQuad` back onto `outputQuad`.\n *\n * The raster pass may translate an isolated target into the capture viewport\n * so Chromium can sample pixels that were off the page before an SVG-owned\n * rotate/skew brings them on-screen. The two quads therefore must differ by a\n * translation only. The screenshot clip is snapped outwards once, and the\n * same snapped margins are transferred to the output rect. This is the one\n * valid form of a translation delta; it never treats a transformed AABB delta\n * as a local-content delta.\n */\nexport function mapTranslatedQuadToScreenshot(\n  outputQuad: CssQuad,\n  sampledQuad: CssQuad,\n  screenshotBounds: CssRect,\n): ReplacedScreenshotMapping | null {\n  const output = axisAlignedQuadBounds(outputQuad);\n  const sampled = axisAlignedQuadBounds(sampledQuad);\n  if (output == null || sampled == null) return null;\n  if (Math.abs(output.width - sampled.width) > EPSILON\n      || Math.abs(output.height - sampled.height) > EPSILON) {\n    return null;\n  }\n\n  const boundsRight = screenshotBounds.x + screenshotBounds.width;\n  const boundsBottom = screenshotBounds.y + screenshotBounds.height;\n  const sampledRight = sampled.x + sampled.width;\n  const sampledBottom = sampled.y + sampled.height;\n  const visibleLeft = Math.max(sampled.x, screenshotBounds.x);\n  const visibleTop = Math.max(sampled.y, screenshotBounds.y);\n  const visibleRight = Math.min(sampledRight, boundsRight);\n  const visibleBottom = Math.min(sampledBottom, boundsBottom);\n  if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) return null;\n\n  const clipLeft = Math.max(screenshotBounds.x, Math.floor(visibleLeft));\n  const clipTop = Math.max(screenshotBounds.y, Math.floor(visibleTop));\n  const clipRight = Math.min(boundsRight, Math.ceil(visibleRight));\n  const clipBottom = Math.min(boundsBottom, Math.ceil(visibleBottom));\n  if (clipRight <= clipLeft || clipBottom <= clipTop) return null;\n\n  const clip = {\n    x: clipLeft,\n    y: clipTop,\n    width: clipRight - clipLeft,\n    height: clipBottom - clipTop,\n  };\n  return {\n    clip,\n    output: {\n      x: output.x + (clip.x - sampled.x),\n      y: output.y + (clip.y - sampled.y),\n      width: clip.width,\n      height: clip.height,\n    },\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1548
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-snapshot-transform.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 70
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2380"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a2dcee5f2f34c16ff01f5e9780a79703"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "45dd68cbc539679d390f4ca622b3afc4a8fb6ede",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

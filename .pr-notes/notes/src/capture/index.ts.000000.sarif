@@ -155,6 +155,170 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3ez4y9jrtwk33t",
+          "message": {
+            "text": "Chromium is the geometry authority and projective paint has exactly one raster owner. DOM.getBoxModel exposes PhysicalContentBoxRect after Blink's zoom/viewport conversion, avoiding transformed-AABB border subtraction; rasterToOutput records PNG device pixels separately from CSS geometry. A descendant under transformSubtreeRaster is intentionally not sampled, because the renderer emits the outer composited surface atomically and a nested bitmap would be a second transform owner.",
+            "markdown": "Chromium is the geometry authority and projective paint has exactly one raster owner. DOM.getBoxModel exposes PhysicalContentBoxRect after Blink's zoom/viewport conversion, avoiding transformed-AABB border subtraction; rasterToOutput records PNG device pixels separately from CSS geometry. A descendant under transformSubtreeRaster is intentionally not sampled, because the renderer emits the outer composited surface atomically and a nested bitmap would be a second transform owner."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1514,
+                  "endLine": 1593,
+                  "snippet": {
+                    "text": "  // A projective rendering context is already captured as one Chromium-owned\n  // surface by transformSubtreeRaster. Sampling a nested canvas/video/frame as\n  // well cannot affect output (the renderer returns at the outer owner) and\n  // risks retaining a second, independently transformed bitmap in the tree.\n  const activeTargets = targets.filter((target) => !target.projectiveOwner);\n  if (activeTargets.length === 0) {\n    await cleanupMarkers();\n    return;\n  }\n\n  let cdp: CDPSession | undefined;\n  let rootNodeId: number | undefined;\n  try {\n    cdp = await page.context().newCDPSession(page);\n    await cdp.send(\"DOM.enable\");\n    const documentResult = await cdp.send(\"DOM.getDocument\", { depth: 1 });\n    rootNodeId = documentResult.root.nodeId;\n  } catch {\n    await cdp?.detach().catch(() => undefined);\n    cdp = undefined;\n  }\n\n  const rectQuad = (rect: { x: number; y: number; width: number; height: number }): CssQuad => [\n    rect.x, rect.y,\n    rect.x + rect.width, rect.y,\n    rect.x + rect.width, rect.y + rect.height,\n    rect.x, rect.y + rect.height,\n  ];\n  const localizeQuad = (quad: CssQuad): CssQuad => [\n    quad[0] - viewport.x, quad[1] - viewport.y,\n    quad[2] - viewport.x, quad[3] - viewport.y,\n    quad[4] - viewport.x, quad[5] - viewport.y,\n    quad[6] - viewport.x, quad[7] - viewport.y,\n  ];\n  const boxQuad = async (target: Target): Promise<CssQuad | null> => {\n    if (cdp != null && rootNodeId != null) {\n      try {\n        const queried = await cdp.send(\"DOM.querySelector\", {\n          nodeId: rootNodeId,\n          selector: `[data-domotion-rid=\"${target.snapshot.rid}\"]`,\n        });\n        if (queried.nodeId !== 0) {\n          const result = await cdp.send(\"DOM.getBoxModel\", { nodeId: queried.nodeId });\n          const values = target.imageReplacement ? result.model.border : result.model.content;\n          if (Array.isArray(values) && values.length === 8) return values as CssQuad;\n        }\n      } catch {\n        // The live node may have detached after the synchronous capture walk.\n      }\n    }\n    if (target.serializedTransform) return null;\n    const snapshot = target.snapshot;\n    return rectQuad({\n      x: snapshot.x + viewport.x,\n      y: snapshot.y + viewport.y,\n      width: snapshot.width,\n      height: snapshot.height,\n    });\n  };\n  const installRaster = (\n    target: Target,\n    uri: string,\n    output: { x: number; y: number; width: number; height: number },\n    contentQuad: CssQuad,\n    pixelWidth: number,\n    pixelHeight: number,\n  ): void => {\n    const snapshot = target.snapshot;\n    snapshot.dataUri = uri;\n    snapshot.x = output.x;\n    snapshot.y = output.y;\n    snapshot.width = output.width;\n    snapshot.height = output.height;\n    snapshot.rasterToOutput = {\n      contentQuad: localizeQuad(contentQuad),\n      pixelWidth,\n      pixelHeight,\n      cssPerPixelX: output.width / pixelWidth,\n      cssPerPixelY: output.height / pixelHeight,\n    };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 1282
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4817
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/17-replaced-element-snapshots.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2380"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7425b568fc07f5c2e0e3c1d58936f419"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3fkqj44aqprwr9",
+          "message": {
+            "text": "Ancestor overflow/clip/mask paint nodes are temporarily suppressed because Blink maps the replaced local surface through its transform tree before clip-tree intersection. The code first records the neutral-transform output quad, then samples without the ancestor clip; any scroll/layout movement must remain a same-size translation, and authored declarations, priorities, and scroll offsets are restored. The captured SVG already owns the clip, so transform then clip occurs exactly once. The related DPR-2 discriminator loses roughly 50 device pixels from the blue edge if pre-transform clipping returns.",
+            "markdown": "Ancestor overflow/clip/mask paint nodes are temporarily suppressed because Blink maps the replaced local surface through its transform tree before clip-tree intersection. The code first records the neutral-transform output quad, then samples without the ancestor clip; any scroll/layout movement must remain a same-size translation, and authored declarations, priorities, and scroll offsets are restored. The captured SVG already owns the clip, so transform then clip occurs exactly once. The related DPR-2 discriminator loses roughly 50 device pixels from the blue edge if pre-transform clipping returns."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1743,
+                  "endLine": 1803,
+                  "snippet": {
+                    "text": "          // The bitmap is the replaced element's local source surface. Blink\n          // maps that surface through descendant/ancestor transforms before\n          // intersecting ancestor clip nodes; retaining an ancestor overflow\n          // clip while those transforms are neutralized clips the wrong local\n          // edge. The SVG tree already owns these clips, so remove only hard,\n          // non-scrollbar clip/mask properties while sampling and restore them\n          // before the next target. An `auto`/`scroll`-only ancestor is retained\n          // because removing its scrollbar changes layout rather than only\n          // paint; when CSS couples one such axis to a hard-clipped axis, both\n          // computed axes must be suppressed together.\n          for (let ancestor = next.parentElement;\n            ancestor != null && ancestor !== document.documentElement;\n            ancestor = ancestor.parentElement) {\n            const style = getComputedStyle(ancestor);\n            const properties: SavedProperty[] = [];\n            if ([style.overflowX, style.overflowY].some((value) => value === \"hidden\" || value === \"clip\")) {\n              for (const name of [\"overflow\", \"overflow-x\", \"overflow-y\"]) {\n                properties.push({\n                  name,\n                  value: ancestor.style.getPropertyValue(name),\n                  priority: ancestor.style.getPropertyPriority(name),\n                });\n              }\n              ancestor.style.setProperty(\"overflow\", \"visible\", \"important\");\n              ancestor.style.setProperty(\"overflow-x\", \"visible\", \"important\");\n              ancestor.style.setProperty(\"overflow-y\", \"visible\", \"important\");\n            }\n            if (style.clip !== \"auto\") {\n              properties.push({\n                name: \"clip\",\n                value: ancestor.style.getPropertyValue(\"clip\"),\n                priority: ancestor.style.getPropertyPriority(\"clip\"),\n              });\n              ancestor.style.setProperty(\"clip\", \"auto\", \"important\");\n            }\n            if (style.clipPath !== \"none\") {\n              properties.push({\n                name: \"clip-path\",\n                value: ancestor.style.getPropertyValue(\"clip-path\"),\n                priority: ancestor.style.getPropertyPriority(\"clip-path\"),\n              });\n              ancestor.style.setProperty(\"clip-path\", \"none\", \"important\");\n            }\n            if (style.maskImage !== \"none\") {\n              properties.push({\n                name: \"mask-image\",\n                value: ancestor.style.getPropertyValue(\"mask-image\"),\n                priority: ancestor.style.getPropertyPriority(\"mask-image\"),\n              });\n              ancestor.style.setProperty(\"mask-image\", \"none\", \"important\");\n            }\n            if (style.webkitMaskImage != null && style.webkitMaskImage !== \"none\") {\n              properties.push({\n                name: \"-webkit-mask-image\",\n                value: ancestor.style.getPropertyValue(\"-webkit-mask-image\"),\n                priority: ancestor.style.getPropertyPriority(\"-webkit-mask-image\"),\n              });\n              ancestor.style.setProperty(\"-webkit-mask-image\", \"none\", \"important\");\n            }\n            if (properties.length > 0) saved.push({ element: ancestor, properties });\n          }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-snapshot-transform.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 153
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/17-replaced-element-snapshots.md"
+                },
+                "region": {
+                  "startLine": 45
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2380"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b53ea83cd1e95f4706d839c9c3aea737"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "45dd68cbc539679d390f4ca622b3afc4a8fb6ede",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

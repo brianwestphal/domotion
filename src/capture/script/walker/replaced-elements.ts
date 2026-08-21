@@ -1,9 +1,10 @@
 // @ts-nocheck
 //
 // Replaced-element snapshot capture: tags the live DOM with
-// `data-domotion-rid` and stashes content-box rects on the captured tree so
-// the post-capture rasterize pass (on the Node side) can hide everything else
-// and screenshot just the painted pixels.
+// `data-domotion-rid` and stashes a bootstrap content-box rect on the captured
+// tree. DM-2380's Node-side raster pass asks Blink/DevTools for the authoritative
+// content quad in the same neutral transform space before it screenshots; the
+// bootstrap rect remains only for an untransformed CDP-unavailable fallback.
 //
 // Covers two routing paths:
 //

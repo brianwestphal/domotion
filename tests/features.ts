@@ -973,6 +973,17 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-2380: the canvas source is local to both affine wrappers. Sampling
+    // Chrome's final transformed AABB and emitting it inside these wrappers
+    // rotates/scales the pixels twice; applying its clip delta to the local
+    // rect also stretches the asymmetric red/blue split. The green sibling is
+    // deliberately outside raster ownership.
+    name: "replaced-canvas-transformed-clip",
+    html: `<div style="position:absolute;left:8px;top:24px;width:190px;height:120px;zoom:1.1;transform:rotate(11deg);transform-origin:35px 20px"><div style="position:absolute;left:-22px;top:18px;transform:scale(1.08,.88) skewX(7deg);transform-origin:15px 12px"><canvas id="c2380" width="130" height="78" style="display:block;width:130px;height:78px"></canvas></div></div><div style="position:absolute;left:260px;top:20px;width:32px;height:28px;background:#00bb55"></div><script>(function(){var c=document.getElementById('c2380').getContext('2d');c.fillStyle='#ed1234';c.fillRect(0,0,37,78);c.fillStyle='#164ee8';c.fillRect(37,0,93,78);})();</script>`,
+    width: 340,
+    height: 190,
+  },
+  {
     name: "replaced-video-poster",
     html: `<div style="padding:20px;"><video poster="data:image/svg+xml;utf8,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'><rect width='200' height='120' fill='%23222'/><polygon points='80,40 80,80 120,60' fill='white'/></svg>")}" width="200" height="120" style="display:block;background:#000;"></video></div>`,
     width: 240,

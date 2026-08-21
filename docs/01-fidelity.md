@@ -139,7 +139,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 ### Rasterized as static snapshot
 
-- `<canvas>`, `<video>`, `<iframe>`, `<object>`, `<embed>` — DM-457. Each element's content-box is screenshot via Playwright under a hide-everything-else stylesheet and embedded as an `<image>` at the captured rect. The result is pixel-faithful to whatever Chromium painted at t=0 (drawn canvas pixels, video poster/current frame, iframe document, plug-in content). Live playback / interaction is still out of scope. The capture warning is still emitted because these element types are out of the spirit of the path-based contract — the snapshot is a frozen raster, not a faithful re-render. See `17-replaced-element-snapshots.md`.
+- `<canvas>`, `<video>`, `<iframe>`, `<object>`, `<embed>` — DM-457 / DM-2380. Each element's Blink content quad is sampled via Playwright under a hide-everything-else stylesheet and embedded as an `<image>` through one explicit PNG-device-pixel → SVG-CSS-pixel mapping. Renderer-owned affine transforms are neutralized for the sample and applied once in SVG; projective contexts stay one outer Chromium surface. The result is pixel-faithful to whatever Chromium painted at t=0 (drawn canvas pixels, video poster/current frame, iframe document, plug-in content), including off-page clipping, zoom, scroll, and DPR. Live playback / interaction is still out of scope. The capture warning is still emitted because these element types are out of the spirit of the path-based contract — the snapshot is a frozen raster, not a faithful re-render. See `17-replaced-element-snapshots.md`.
 
 ### Out of scope
 

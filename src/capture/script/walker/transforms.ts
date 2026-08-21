@@ -207,8 +207,13 @@ export const createTransformsHandler = () => {
     // box? Pure translate/scale leaves the layout box axis-aligned so we
     // keep the live-rect model. Anything containing a rotate(...) or skew
     // function — including the freshly composed string — needs the freeze.
+    // DM-2380: matrix3d() is not itself a reason to freeze. Its planar b/c
+    // terms use the same test as matrix(); an affine matrix3d scale/translate
+    // stays live and is baked once, while a genuinely projective context is
+    // owned by transformSubtreeRaster. Freezing every matrix3d but serializing
+    // only rotation/skew dropped affine scale before the replaced snapshot was
+    // emitted.
     const needsFreeze =
-      /^matrix3d\(/.test(originalTransform) ||
       transformHasRotationOrSkew(originalTransform) ||
       /\brotate\b/.test(originalTransform) ||
       /\bskew/.test(originalTransform);

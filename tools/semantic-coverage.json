@@ -826,17 +826,20 @@
         "object-fit",
         "object-position",
         "intrinsic dimensions",
-        "image decoding"
+        "image decoding",
+        "transformed replaced snapshots"
       ],
       "states": [
         "fill -> contain/cover/none/scale-down",
         "center -> non-bucket position",
+        "local surface -> clipped affine or projective output",
         "decoded -> broken",
         "static -> dynamic frame"
       ],
       "exactStates": [
         "fill -> contain/cover/none/scale-down",
-        "center -> non-bucket position"
+        "center -> non-bucket position",
+        "local surface -> clipped affine or projective output"
       ],
       "uncoveredStates": [
         "decoded -> broken",
@@ -853,18 +856,21 @@
       ],
       "oracles": [
         "tools/replaced-geometry-oracle.ts",
-        "tools/raster-boundary-oracle.ts"
+        "tools/raster-boundary-oracle.ts",
+        "tests/replaced-snapshot-transform.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/render/object-fit-scale-down.test.ts",
+        "src/capture/replaced-snapshot-geometry.test.ts",
         "tests/replaced-used-size.e2e.test.ts",
         "src/capture/content-box.test.ts"
       ],
       "visualFixtures": [
-        "tests/features.ts#image-concrete-object-fit-position"
+        "tests/features.ts#image-concrete-object-fit-position",
+        "tests/features.ts#replaced-canvas-transformed-clip"
       ],
       "coverage": "partial",
-      "boundary": "Transformed clipped snapshots and broken-image UA paint are not source-exact.",
+      "boundary": "Transformed clipped snapshots are source-owned through Blink content quads and one raster-to-output map (DM-2380); broken-image UA paint and live dynamic-frame progression remain outside exact coverage.",
       "featureIds": [
         "render.tree-to-svg"
       ],

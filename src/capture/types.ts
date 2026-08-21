@@ -1279,7 +1279,28 @@ export interface CapturedElement {
    * based rendering contract — the snapshot is a frozen raster, not a faithful
    * re-render. See docs/17-replaced-element-snapshots.md (DM-457).
    */
-  replacedSnapshot?: { x: number; y: number; width: number; height: number; rid: string; dataUri?: string };
+  replacedSnapshot?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rid: string;
+    dataUri?: string;
+    /**
+     * DM-2380: authoritative Blink content quad plus the one bitmap-to-output
+     * mapping used by the renderer. `contentQuad` is capture-local CSS space;
+     * `pixelWidth`/`pixelHeight` are the PNG's device pixels; cssPerPixel keeps
+     * DPR out of SVG geometry and makes accidental bitmap stretching visible
+     * to tests/serialized-tree consumers.
+     */
+    rasterToOutput?: {
+      contentQuad: [number, number, number, number, number, number, number, number];
+      pixelWidth: number;
+      pixelHeight: number;
+      cssPerPixelX: number;
+      cssPerPixelY: number;
+    };
+  };
   /**
    * Image-replacement icon (DM-506): a CSS-sprite icon whose accessible label
    * is hidden via `text-indent: -9999px; overflow: hidden` (or the modern

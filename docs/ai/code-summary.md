@@ -195,6 +195,14 @@ shortest possible map:
   Chromium parity gates kept separate from whole-image similarity. The
   replaced-element leg is `tools/replaced-geometry-oracle.ts`: exact concrete
   object-fit rectangles, control paint ownership, and generated pseudo boxes.
+  Dynamic replaced surfaces have a focused transform-space gate in
+  `tests/replaced-snapshot-transform.e2e.test.ts`: Chromium-vs-SVG ink bounds
+  for off-page/nested affine + zoom/scroll/DPR, transform-then-scrolled-ancestor-clip
+  ownership, exact source-crop pixel mapping, clipped video/frame pixels,
+  vector isolation, and the projective single-owner negative. Its pure geometry is in
+  `src/capture/replaced-snapshot-geometry.ts`; `rasterizeReplacedElements`
+  obtains Blink's content quad through CDP and records
+  `replacedSnapshot.rasterToOutput` instead of copying live-AABB clip deltas.
   `tools/raster-boundary-oracle.ts` is the paired activation/vector gate for
   every inventoried raster fallback.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs

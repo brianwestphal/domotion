@@ -31,6 +31,16 @@ requires the concrete rectangle to move. Pixel fixtures remain responsible
 for final compositing, platform theme pixels, generated glyph outlines, and
 the deliberately frozen contents of dynamic replaced surfaces.
 
+Dynamic replaced-surface *transform mapping* is no longer left to a broad
+pixel fixture: `tests/replaced-snapshot-transform.e2e.test.ts` independently
+compares Chromium and rendered-SVG colored ink at DPR 2 (three-device-pixel
+bound) across a partially off-page canvas, nested affine transforms, CSS zoom,
+scroll, and a scrolled ancestor overflow clip applied after rotation. It also checks
+actual-PNG source-crop scaling, clipped transformed video/inaccessible-iframe
+pixels, a vector sibling negative, and projective single ownership.
+The 11 rows in this document still own replaced layout/object-fit decisions;
+the focused DM-2380 gate owns local-surface raster-to-output mapping.
+
 Broken-image fallback is an explicit uncovered replaced-content transition.
 [Doc 156](156-broken-image-fallback-ownership-audit.md) shows that Blink swaps
 the host to a UA-shadow block-flow/inline fallback with its own 18 px threshold,

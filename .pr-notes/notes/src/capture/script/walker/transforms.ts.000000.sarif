@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3f5h18axwd9tj4",
+          "message": {
+            "text": "Affine matrix3d scale/translation must follow the same live-baked route as matrix scale/translation. The previous blanket matrix3d freeze was asymmetric with threadFrozenTransform, which serializes only planar rotation/skew: a pure matrix3d scale was removed during capture and never re-emitted. Non-affine matrix3d remains safely owned by transformSubtreeRaster; the DPR source-crop E2E uses an affine matrix3d specifically to guard this boundary.",
+            "markdown": "Affine matrix3d scale/translation must follow the same live-baked route as matrix scale/translation. The previous blanket matrix3d freeze was asymmetric with threadFrozenTransform, which serializes only planar rotation/skew: a pure matrix3d scale was removed during capture and never re-emitted. Non-affine matrix3d remains safely owned by transformSubtreeRaster; the DPR source-crop E2E uses an affine matrix3d specifically to guard this boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/transforms.ts"
+                },
+                "region": {
+                  "startLine": 206,
+                  "endLine": 219,
+                  "snippet": {
+                    "text": "    // Heuristic: do we need to clear inlines to capture an un-rotated layout\n    // box? Pure translate/scale leaves the layout box axis-aligned so we\n    // keep the live-rect model. Anything containing a rotate(...) or skew\n    // function — including the freshly composed string — needs the freeze.\n    // DM-2380: matrix3d() is not itself a reason to freeze. Its planar b/c\n    // terms use the same test as matrix(); an affine matrix3d scale/translate\n    // stays live and is baked once, while a genuinely projective context is\n    // owned by transformSubtreeRaster. Freezing every matrix3d but serializing\n    // only rotation/skew dropped affine scale before the replaced snapshot was\n    // emitted.\n    const needsFreeze =\n      transformHasRotationOrSkew(originalTransform) ||\n      /\\brotate\\b/.test(originalTransform) ||\n      /\\bskew/.test(originalTransform);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-snapshot-transform.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 153
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1514
+                }
+              }
+            }
+          ],
+          "rank": 93,
+          "workItemUris": [
+            "DM-2380"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "84836907317a0ba03a6e32610678eeae"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "45dd68cbc539679d390f4ca622b3afc4a8fb6ede",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
