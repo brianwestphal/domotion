@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2u4742ab14i9we",
+          "message": {
+            "text": "This lookup mirrors Blink's compact operator dictionary instead of expanding a visually curated set. It preserves the special UTF-16 branches, two-ASCII remapping, overlay inheritance, form bits, compact ranges, and category metadata from Chromium 7d859f27. The fence and separator fields are explicitly false because MathML Core and Blink's dictionary property table default only stretch, symmetry, large-op, movable-limits, and spacing; author attributes own the legacy booleans.",
+            "markdown": "This lookup mirrors Blink's compact operator dictionary instead of expanding a visually curated set. It preserves the special UTF-16 branches, two-ASCII remapping, overlay inheritance, form bits, compact ranges, and category metadata from Chromium 7d859f27. The fence and separator fields are explicitly false because MathML Core and Blink's dictionary property table default only stretch, symmetry, large-op, movable-limits, and spacing; author attributes own the legacy booleans."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/unicode-classification.ts"
+                },
+                "region": {
+                  "startLine": 1020,
+                  "endLine": 1064,
+                  "snippet": {
+                    "text": "function blinkMathMLOperatorCategory(content: string, form: MathMLOperatorForm): MathMLOperatorCategory {\n  let key = 0;\n  const scalars = [...content];\n  if (content.length === 1) {\n    const cp = content.charCodeAt(0);\n    if (cp < 0x0320 || cp > 0x03ff) key = cp;\n  } else if (content.length === 2) {\n    const cp = content.codePointAt(0)!;\n    if (cp === 0x1eef0 || cp === 0x1eef1) return form === 'postfix' ? 'I' : 'none';\n    if (content.charCodeAt(1) === 0x0338 || content.charCodeAt(1) === 0x20d2) key = content.charCodeAt(0);\n    else if (scalars.length === 2) {\n      const index = TWO_ASCII_OPERATORS.indexOf(content as typeof TWO_ASCII_OPERATORS[number]);\n      if (index >= 0) key = 0x0320 + index;\n    }\n  }\n  if (key === 0) return 'none';\n  if (form === 'infix' && (key === 0x7c || key === 0x223c)) return 'force-default';\n  if (form === 'prefix' && ((key >= 0x2145 && key <= 0x2146) || key === 0x2202 || (key >= 0x221a && key <= 0x221c))) return 'L';\n  if (form === 'infix' && (key === 0x2c || key === 0x3a || key === 0x3b)) return 'M';\n  if (key >= 0x2000 && key <= 0x2bff) key -= 0x1c00;\n  else if (key > 0x03ff) return 'none';\n  if (form === 'prefix') key |= 0x1000;\n  else if (form === 'postfix') key |= 0x2000;\n  let found: readonly [number, number] | undefined;\n  for (const range of BLINK_MATHML_COMPACT_DICTIONARY) {\n    if ((range[0] & 0x3fff) > key) break;\n    found = range;\n  }\n  if (found == null || key > ((found[0] & 0x3fff) + found[1])) return 'none';\n  const encoded = found[0] >>> 12;\n  if (encoded === 0) return 'A';\n  if (encoded === 4) return 'B';\n  if (encoded === 8) return 'C';\n  if (encoded === 1 || encoded === 2 || encoded === 12) return 'D/E/K';\n  if (encoded === 5 || encoded === 6) return 'F/G';\n  if (encoded === 9) return 'H';\n  if (encoded === 10) return 'I';\n  return 'J';\n}\n\n/** Exact transcription of Blink's compact MathML operator dictionary lookup. */\nexport function mathMLOperatorDictionaryEntry(content: string, form: MathMLOperatorForm): MathMLOperatorDictionaryEntry {\n  const category = blinkMathMLOperatorCategory(content, form);\n  return { form, category, ...CATEGORY_PROPERTIES[category] };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2397"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8f809fdd75d1b25b2aac0cc384c94c4c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1b818ba38a31e9fc2a8195c979876414009e6c0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -10,6 +10,10 @@
 import { HARFBUZZ_DEFAULT_IGNORABLE_RANGES } from "./harfbuzz-default-ignorable-ranges.generated.js";
 import { USE_LEFT_MATRA_RANGES } from "./use-left-matra-ranges.generated.js";
 import { ICU_BINARY, icuCodepointProperties } from "./icu-helper.js";
+import {
+  BLINK_MATHML_COMPACT_DICTIONARY,
+  BLINK_MATHML_INLINE_AXIS_STRETCHY,
+} from '../generated/mathml-operator-dictionary.js';
 
 /** True when `cp` is in HarfBuzz's `is_default_ignorable` set — see
  *  `harfbuzz-default-ignorable-ranges.generated.ts` for the transcription +
@@ -975,22 +979,99 @@ export function isStrippableOrphanIgnorable(cp: number): boolean {
   return isHarfbuzzDefaultIgnorable(cp);
 }
 
-/**
- * The Unicode characters that MathML treats as vertically-stretchy fences /
- * brackets by default (a focused subset of the operator dictionary's
- * `stretchy` entries). Chromium paints these centered on the math axis and
- * stretched to wrap their content, which `renderStretchyFenceGlyph` reproduces
- * by fitting the glyph to the captured `<mo>` box rather than the text
- * baseline. (DM-874)
- */
-const STRETCHY_FENCE_CHARS = new Set([
-  "(", ")", "[", "]", "{", "}", "|", "‖",
-  "⌈", "⌉", "⌊", "⌋", "⟨", "⟩", "⎰", "⎱", "❲", "❳",
-]);
+export type MathMLOperatorForm = 'infix' | 'prefix' | 'postfix';
+export type MathMLOperatorCategory = 'none' | 'force-default' | 'A' | 'B' | 'C'
+  | 'D/E/K' | 'F/G' | 'H' | 'I' | 'J' | 'L' | 'M';
 
-/** True when `text` is a single stretchy MathML fence / bracket character. */
+export interface MathMLOperatorDictionaryEntry {
+  form: MathMLOperatorForm;
+  category: MathMLOperatorCategory;
+  leadingSpaceMathUnits: number;
+  trailingSpaceMathUnits: number;
+  stretchy: boolean;
+  symmetric: boolean;
+  largeOp: boolean;
+  movableLimits: boolean;
+  /** MathML Core does not dictionary-default these legacy attributes. */
+  fence: false;
+  separator: false;
+}
+
+const TWO_ASCII_OPERATORS = [
+  '!!', '!=', '&&', '**', '*=', '++', '+=', '--', '-=', '->', '//', '/=',
+  ':=', '<=', '<>', '==', '>=', '||',
+] as const;
+
+const CATEGORY_PROPERTIES: Record<MathMLOperatorCategory, Omit<MathMLOperatorDictionaryEntry, 'form' | 'category'>> = {
+  none: { leadingSpaceMathUnits: 5, trailingSpaceMathUnits: 5, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  'force-default': { leadingSpaceMathUnits: 5, trailingSpaceMathUnits: 5, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  A: { leadingSpaceMathUnits: 5, trailingSpaceMathUnits: 5, stretchy: true, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  B: { leadingSpaceMathUnits: 4, trailingSpaceMathUnits: 4, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  C: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 3, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  'D/E/K': { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 0, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  'F/G': { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 0, stretchy: true, symmetric: true, largeOp: false, movableLimits: false, fence: false, separator: false },
+  H: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 3, stretchy: false, symmetric: true, largeOp: true, movableLimits: false, fence: false, separator: false },
+  I: { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 0, stretchy: true, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  J: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 3, stretchy: false, symmetric: true, largeOp: true, movableLimits: true, fence: false, separator: false },
+  L: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 0, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+  M: { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 3, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+};
+
+function blinkMathMLOperatorCategory(content: string, form: MathMLOperatorForm): MathMLOperatorCategory {
+  let key = 0;
+  const scalars = [...content];
+  if (content.length === 1) {
+    const cp = content.charCodeAt(0);
+    if (cp < 0x0320 || cp > 0x03ff) key = cp;
+  } else if (content.length === 2) {
+    const cp = content.codePointAt(0)!;
+    if (cp === 0x1eef0 || cp === 0x1eef1) return form === 'postfix' ? 'I' : 'none';
+    if (content.charCodeAt(1) === 0x0338 || content.charCodeAt(1) === 0x20d2) key = content.charCodeAt(0);
+    else if (scalars.length === 2) {
+      const index = TWO_ASCII_OPERATORS.indexOf(content as typeof TWO_ASCII_OPERATORS[number]);
+      if (index >= 0) key = 0x0320 + index;
+    }
+  }
+  if (key === 0) return 'none';
+  if (form === 'infix' && (key === 0x7c || key === 0x223c)) return 'force-default';
+  if (form === 'prefix' && ((key >= 0x2145 && key <= 0x2146) || key === 0x2202 || (key >= 0x221a && key <= 0x221c))) return 'L';
+  if (form === 'infix' && (key === 0x2c || key === 0x3a || key === 0x3b)) return 'M';
+  if (key >= 0x2000 && key <= 0x2bff) key -= 0x1c00;
+  else if (key > 0x03ff) return 'none';
+  if (form === 'prefix') key |= 0x1000;
+  else if (form === 'postfix') key |= 0x2000;
+  let found: readonly [number, number] | undefined;
+  for (const range of BLINK_MATHML_COMPACT_DICTIONARY) {
+    if ((range[0] & 0x3fff) > key) break;
+    found = range;
+  }
+  if (found == null || key > ((found[0] & 0x3fff) + found[1])) return 'none';
+  const encoded = found[0] >>> 12;
+  if (encoded === 0) return 'A';
+  if (encoded === 4) return 'B';
+  if (encoded === 8) return 'C';
+  if (encoded === 1 || encoded === 2 || encoded === 12) return 'D/E/K';
+  if (encoded === 5 || encoded === 6) return 'F/G';
+  if (encoded === 9) return 'H';
+  if (encoded === 10) return 'I';
+  return 'J';
+}
+
+/** Exact transcription of Blink's compact MathML operator dictionary lookup. */
+export function mathMLOperatorDictionaryEntry(content: string, form: MathMLOperatorForm): MathMLOperatorDictionaryEntry {
+  const category = blinkMathMLOperatorCategory(content, form);
+  return { form, category, ...CATEGORY_PROPERTIES[category] };
+}
+
+/** True for a single dictionary-stretchy operator whose stretch axis is vertical. */
 export function isStretchyFenceChar(text: string): boolean {
-  return STRETCHY_FENCE_CHARS.has(text.trim());
+  const content = text.trim();
+  const scalars = [...content];
+  if (scalars.length !== 1) return false;
+  const cp = scalars[0].codePointAt(0)!;
+  if (BLINK_MATHML_INLINE_AXIS_STRETCHY.has(cp) || cp === 0x1eef0 || cp === 0x1eef1) return false;
+  return (['infix', 'prefix', 'postfix'] as const)
+    .some((form) => mathMLOperatorDictionaryEntry(content, form).stretchy);
 }
 
 // ---------------------------------------------------------------------------

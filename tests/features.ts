@@ -1283,6 +1283,16 @@ export const tests: FeatureTest[] = [
     height: 180,
   },
   {
+    // DM-2397: generated Chromium operator-dictionary coverage. The first
+    // row includes vertical stretchy pairs absent from the former curated
+    // fence set; the second keeps inline-axis stretchy arrows and large-op
+    // metadata from being misrouted through the vertical fence renderer.
+    name: "mathml-generated-operator-dictionary",
+    html: `<div style="padding:18px;background:#fff;color:#111;font-family:math,serif"><math display="block" style="font-size:24px"><mrow><mo>⟦</mo><mfrac><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mrow><mi>c</mi><mo>−</mo><mi>d</mi></mrow></mfrac><mo>⟧</mo><mo>⟮</mo><mfrac><mi>x</mi><mi>y</mi></mfrac><mo>⟯</mo><mo>⦃</mo><mfrac><mn>1</mn><mi>z</mi></mfrac><mo>⦄</mo></mrow></math></div>`,
+    width: 460,
+    height: 130,
+  },
+  {
     // DM-788: `counter(name, custom-style)` / `counters(name, sep, custom-style)`
     // inside pseudo `content` should run the counter value through the named
     // `@counter-style`. Chrome's empirical paint includes the pad-applied

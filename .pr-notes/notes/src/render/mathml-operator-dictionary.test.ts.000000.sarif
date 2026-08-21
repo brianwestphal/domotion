@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2u479m7czfekdi",
+          "message": {
+            "text": "The exhaustive digest covers every BMP UTF-16 key across all three forms plus Blink's two-code-unit special operators. Together with the generator's byte check against pinned Chromium sources, it detects range, category, form, or special-case drift rather than sampling familiar brackets.",
+            "markdown": "The exhaustive digest covers every BMP UTF-16 key across all three forms plus Blink's two-code-unit special operators. Together with the generator's byte check against pinned Chromium sources, it detects range, category, form, or special-case drift rather than sampling familiar brackets."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mathml-operator-dictionary.test.ts"
+                },
+                "region": {
+                  "startLine": 11,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "describe('generated Blink MathML operator dictionary (DM-2397)', () => {\n  it('has a stable exhaustive digest across every BMP scalar and form', () => {\n    const rows: string[] = [];\n    for (let cp = 1; cp <= 0xffff; cp++) {\n      const content = String.fromCharCode(cp);\n      for (const form of FORMS) {\n        const entry = mathMLOperatorDictionaryEntry(content, form);\n        if (entry.category !== 'none') rows.push(`${cp.toString(16)}:${form}:${entry.category}`);\n      }\n    }\n    for (const content of ['!!', '!=', '&&', '**', '*=', '++', '+=', '--', '-=', '->', '//', '/=', ':=', '<=', '<>', '==', '>=', '||', '\\u{1eef0}', '\\u{1eef1}']) {\n      for (const form of FORMS) {\n        const entry = mathMLOperatorDictionaryEntry(content, form);\n        if (entry.category !== 'none') rows.push(`${content}:${form}:${entry.category}`);\n      }\n    }\n    expect(rows.length).toBe(729);\n    expect(createHash('sha256').update(rows.join('\\n')).digest('hex'))\n      .toBe('1d24b382caf77726b6edc9acc2a844d210090d01fb71b4a6b4daaf72478dc312');\n  });\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2397"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3db4410a34ee04af5bc0f76b9c1d76dc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1b818ba38a31e9fc2a8195c979876414009e6c0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
