@@ -150,6 +150,27 @@ uses best-effort SVG rather than dropping paint. The positive/negative boundary
 is gated by `npm run raster:boundary-oracle`; paint values are gated by
 `npm run paint:geometry-browser-oracle`.
 
+### C0b. HTML CSS URL filters containing `feConvolveMatrix`
+
+Trigger: an HTML element's computed `filter` contains a same-document
+`url(#id)` whose referenced filter graph (including an `href`-inherited graph)
+contains `feConvolveMatrix`. Ordinary URL filter graphs and filters applied
+inside native SVG are explicit vector negatives.
+
+Why: Blink forms `SourceGraphic` from the HTML paint layer and resolves the
+filter reference box/viewport before the primitive runs. `FEConvolveMatrix`
+then passes a reversed kernel, edge tile mode, and crop to Skia, which samples
+layer-space pixels. Rebuilding the DOM as SVG changes those source samples;
+matching the kernel attributes alone cannot recover them.
+
+Capture and emit: the capture walk records `urlFilterRaster`; the Node
+`rasterizeUrlFilterSurfaces` pass isolates the live element, screenshots the
+whole capture viewport, and trims only pixels with nonzero alpha, preserving
+the real filter-region overflow without a padding/threshold constant. The
+renderer emits that final surface atomically. Screenshot failure retains the
+existing vector URL-filter path. See
+[148-sourcegraphic-url-filter-surfaces.md](../148-sourcegraphic-url-filter-surfaces.md).
+
 ### C1. `conic-gradient(...)` / `repeating-conic-gradient(...)`
 
 Trigger: any background layer whose CSS value parses as a conic or repeating-conic gradient.

@@ -1369,6 +1369,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   recycle rows while fixed page chrome outside the selected clip is excluded
   from the animated composite.
 
+- **Doc 148 (`docs/148-sourcegraphic-url-filter-surfaces.md`) — Shipped.** An
+  HTML CSS URL-filter graph containing `feConvolveMatrix` is owned by a narrow
+  Chromium final-surface raster boundary because Blink/Skia consume layer-space
+  `SourceGraphic` pixels and a resolved crop/tile state. Ordinary URL filters
+  and native SVG filters remain vector; screenshot failure falls back to the
+  prior vector emission rather than tuning offsets or thresholds.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

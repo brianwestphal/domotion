@@ -1175,6 +1175,14 @@ export interface CapturedElement {
   /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */
   backdropFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string };
   /**
+   * DM-2415: Chromium-painted final surface for an HTML element whose CSS
+   * `filter: url(#id)` graph contains `feConvolveMatrix`. The primitive reads
+   * Blink's raster SourceGraphic and Skia layer-space edge/crop state, which a
+   * reconstructed vector subtree cannot reproduce. `empty` distinguishes a
+   * successfully captured transparent result from a failed screenshot.
+   */
+  urlFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string; empty?: boolean };
+  /**
    * DM-680: per-axis cumulative ancestor scale, present ONLY when the element
    * sits inside an anisotropically scaled subtree (e.g. `transform: scale(1.3,
    * 0.8)`). The geometric mean is already folded into fontSize / fontAscent /

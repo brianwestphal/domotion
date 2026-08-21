@@ -222,23 +222,55 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
   // Multi-value forms like `filter: blur(2px) url(#svg-glow)` collect every
   // url(#id) found in the value; each gets its own captured def.
   const filterDefs = new Map();
+  let urlFilterRasterIdx = 0;
+
+  // DM-2415: feConvolveMatrix consumes layer-space SourceGraphic pixels.
+  // Once Domotion has rebuilt an HTML subtree as vector SVG, that pixel
+  // surface (including Blink's reference-box crop and Skia's edge tiling) no
+  // longer exists. Detect only that primitive here; ordinary URL-reference
+  // filters keep the native SVG path. A referenced filter can inherit its
+  // primitive list through href/xlink:href, so follow that chain as well.
+  const filterContainsConvolveMatrix = (filter, seen) => {
+    if (filter == null || seen.has(filter)) return false;
+    seen.add(filter);
+    const descendants = filter.getElementsByTagName('*');
+    for (let i = 0; i < descendants.length; i++) {
+      if ((descendants[i].localName || '').toLowerCase() === 'feconvolvematrix') return true;
+    }
+    const href = filter.getAttribute('href')
+      || filter.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
+      || '';
+    if (!href.startsWith('#')) return false;
+    const inherited = filter.ownerDocument.getElementById(href.slice(1));
+    return inherited != null
+      && inherited.localName.toLowerCase() === 'filter'
+      && filterContainsConvolveMatrix(inherited, seen);
+  };
   const discoverFilters = (el, cs, sel) => {
     const f = cs.filter;
-    if (!f || f === 'none' || f === '') return;
+    if (!f || f === 'none' || f === '') return undefined;
     const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
+    let needsSourceRaster = false;
 
     const re = /url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)/gi;
     let m;
     while ((m = re.exec(f)) != null) {
       const fragId = m[1];
-      if (filterDefs.has(fragId)) continue;
       const target = doc.getElementById(fragId);
       if (target != null && target.tagName.toLowerCase() === 'filter') {
-        filterDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+        if (!filterDefs.has(fragId)) filterDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+        if (el.namespaceURI === 'http://www.w3.org/1999/xhtml'
+            && filterContainsConvolveMatrix(target, new Set())) {
+          needsSourceRaster = true;
+        }
       } else {
         warn(sel, 'filter', 'filter fragment "#' + fragId + '" did not resolve to an inline <filter> element');
       }
     }
+    if (!needsSourceRaster) return undefined;
+    const token = 'uf' + (urlFilterRasterIdx++);
+    el.setAttribute('data-domotion-url-filter-raster', token);
+    return token;
   };
 
   return { discoverMasks, discoverClipPaths, discoverFilters, maskDefs, maskRasters, clipPathDefs, filterDefs };

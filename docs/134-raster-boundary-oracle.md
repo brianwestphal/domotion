@@ -6,7 +6,7 @@ case remains vector. It is an ownership/classification gate; the pixels inside
 each activated raster remain the responsibility of that feature's paint or
 visual oracle.
 
-The 24 live/predicate rows cover:
+The 27 live/predicate rows cover:
 
 - color emoji versus ordinary outline text, including helper-disabled mode;
 - canvas, inaccessible iframe, accessible recursive iframe, CSS sprite image
@@ -15,6 +15,8 @@ The 24 live/predicate rows cover:
   text must both remain vector);
 - native appearance versus `appearance:none` controls;
 - backdrop-filter versus ordinary filter;
+- HTML URL-reference `feConvolveMatrix` versus an ordinary URL filter and a
+  native-SVG convolution negative control;
 - projective versus affine transforms;
 - Color 4 / varying-alpha versus opaque-sRGB gradients;
 - conic versus linear gradients; and

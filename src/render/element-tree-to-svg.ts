@@ -4697,6 +4697,18 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // it invisible at rest instead of a baked zero-opacity wrapper pinning it.
   if (opacity === 0 && !animationOwnsOpacity(el)) return;
   if (el.projectiveHidden === true) return;
+  // DM-2415: feConvolveMatrix consumes Blink's raster SourceGraphic in layer
+  // coordinates. The post-capture pass owns the complete filtered HTML
+  // surface, including filter-region crop, edgeMode, divisor/bias, target,
+  // preserveAlpha, clip/mask ordering, zoom, and the element's transform.
+  // Emit it atomically and suppress the reconstructed subtree/filter wrapper.
+  const urlFilterRaster = el.urlFilterRaster;
+  if (urlFilterRaster?.empty === true) return;
+  if (urlFilterRaster?.dataUri != null) {
+    svgParts.push(`${indent}<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`);
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    return;
+  }
   // DM-2150: CSS preserve-3d/perspective is projective, while an SVG
   // `transform` attribute is strictly affine. The capture pipeline therefore
   // snapshots a complete 3D rendering context after Chromium composites it.

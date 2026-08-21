@@ -7,7 +7,7 @@ import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-ras
 import { parseConicGradient } from "../src/render/gradients.js";
 
 type Row = { id: string; expected: unknown; actual: unknown; pass: boolean; source: string };
-type Boundary = "replaced" | "element-text" | "native-control" | "backdrop" | "projective" | "glyph";
+type Boundary = "replaced" | "element-text" | "native-control" | "backdrop" | "projective" | "glyph" | "url-filter";
 
 function walk(elements: CapturedElement[], visit: (element: CapturedElement) => void): void {
   for (const element of elements) { visit(element); walk(element.children, visit); }
@@ -22,6 +22,7 @@ function activated(tree: CapturedElement[], boundary: Boundary): boolean {
     if (boundary === "backdrop" && element.backdropFilterRaster?.dataUri != null) result = true;
     if (boundary === "projective" && element.transformSubtreeRaster?.dataUri != null) result = true;
     if (boundary === "glyph" && element.textSegments?.some((segment) => segment.rasterDataUri != null || segment.rasterGlyphs?.some((glyph) => glyph.dataUri != null)) === true) result = true;
+    if (boundary === "url-filter" && (element.urlFilterRaster?.dataUri != null || element.urlFilterRaster?.empty === true)) result = true;
   });
   return result;
 }
@@ -53,6 +54,9 @@ export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutation
       ["control.appearance-none-vector", "native-control", false, '<input type="checkbox" checked style="appearance:none;width:20px;height:20px;background:red">', "author-owned appearance has an SVG representation"],
       ["backdrop.active", "backdrop", true, '<div style="width:80px;height:40px;backdrop-filter:blur(2px)"></div>', "backdrop input surface is unavailable inside an image SVG"],
       ["backdrop.none-vector", "backdrop", false, '<div style="width:80px;height:40px;filter:blur(2px)"></div>', "ordinary filter consumes the element surface and stays SVG"],
+      ["url-filter.convolve-html", "url-filter", true, '<svg width="0" height="0"><filter id="conv"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" edgeMode="duplicate"/></filter></svg><div style="width:80px;height:40px;background:red;filter:url(#conv)"></div>', "Blink layer pixels and Skia matrix crop/tile own HTML SourceGraphic"],
+      ["url-filter.gaussian-vector", "url-filter", false, '<svg width="0" height="0"><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></svg><div style="width:80px;height:40px;background:red;filter:url(#blur)"></div>', "ordinary URL filter graph remains native SVG"],
+      ["url-filter.direct-svg-vector", "url-filter", false, '<svg width="100" height="60"><filter id="conv"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0"/></filter><rect width="80" height="40" fill="red" filter="url(#conv)"/></svg>', "native SVG SourceGraphic stays within SVG ownership"],
       ["transform.projective", "projective", true, '<div style="perspective:300px;width:120px;height:80px"><div style="width:80px;height:50px;background:red;transform:rotateY(35deg)"></div></div>', "projective quad cannot be represented by an affine SVG transform"],
       ["transform.affine-vector", "projective", false, '<div style="width:80px;height:50px;background:red;transform:rotate(35deg)"></div>', "affine CSS transform maps exactly to SVG matrix"],
       ["glyph.emoji", "glyph", true, '<div>😀</div>', "color bitmap glyph has no monochrome outline"],

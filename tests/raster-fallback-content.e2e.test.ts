@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
-import { captureElementTree, launchChromium } from "../src/index.js";
+import { captureElementTree, elementTreeToSvgInner, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { _advancedGradientTileCache } from "../src/render/advanced-gradient-raster.js";
@@ -25,6 +25,32 @@ async function pixelSummary(uri: string) {
 }
 
 describeBrowser("pixel content at Chromium-owned raster boundaries", () => {
+  it("owns only HTML URL-filter graphs containing feConvolveMatrix", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(`
+        <svg width="0" height="0" style="position:absolute">
+          <filter id="emboss" x="-30%" y="-30%" width="160%" height="160%" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse">
+            <feConvolveMatrix order="3" kernelMatrix="-2 -1 0 -1 1 1 0 1 2" divisor="2" bias="0.08" targetX="0" targetY="2" edgeMode="wrap" preserveAlpha="true"/>
+          </filter>
+          <filter id="blur"><feGaussianBlur stdDeviation="2"/></filter>
+        </svg>
+        <div id="conv" style="position:absolute;left:48px;top:42px;width:150px;height:70px;background:#d43;color:white;font:700 24px sans-serif;filter:url(#emboss);clip-path:inset(2px);transform:translate(7px,5px)">Emboss <span style="position:absolute;right:-14px">overflow</span></div>
+        <div id="vector" style="position:absolute;left:48px;top:150px;width:100px;height:42px;background:#25c;filter:url(#blur)">vector</div>
+      `);
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 360, height: 240 });
+      const nodes = walk(tree);
+      const convolved = nodes.find((node) => node.urlFilterRaster?.dataUri != null);
+      expect(convolved?.urlFilterRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+      expect((await pixelSummary(convolved!.urlFilterRaster!.dataUri!)).opaque).toBeGreaterThan(100);
+      expect(nodes.filter((node) => node.urlFilterRaster != null)).toHaveLength(1);
+      expect(nodes.find((node) => node.text.includes("vector"))?.urlFilterRaster).toBeUndefined();
+      const svg = elementTreeToSvgInner(tree, 360, 240);
+      expect(svg).toContain(`href="${convolved!.urlFilterRaster!.dataUri}"`);
+      expect(svg).not.toContain("Emboss");
+    } finally { await page.close(); }
+  }, 60_000);
+
   it("captures replaced canvas pixels at the used size with live frame colors", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 260, height: 180 }, deviceScaleFactor: 1 });
     try {

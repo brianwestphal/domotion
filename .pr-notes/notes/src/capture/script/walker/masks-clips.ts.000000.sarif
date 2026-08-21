@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2jvybdl6y8zf08",
+          "message": {
+            "text": "The boundary is structural: only HTML CSS URL filters whose graph (including href inheritance) contains feConvolveMatrix are tagged. Native SVG and other filter graphs remain vector-owned.",
+            "markdown": "The boundary is structural: only HTML CSS URL filters whose graph (including href inheritance) contains feConvolveMatrix are tagged. Native SVG and other filter graphs remain vector-owned."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/masks-clips.ts"
+                },
+                "region": {
+                  "startLine": 227,
+                  "endLine": 273,
+                  "snippet": {
+                    "text": "  // DM-2415: feConvolveMatrix consumes layer-space SourceGraphic pixels.\n  // Once Domotion has rebuilt an HTML subtree as vector SVG, that pixel\n  // surface (including Blink's reference-box crop and Skia's edge tiling) no\n  // longer exists. Detect only that primitive here; ordinary URL-reference\n  // filters keep the native SVG path. A referenced filter can inherit its\n  // primitive list through href/xlink:href, so follow that chain as well.\n  const filterContainsConvolveMatrix = (filter, seen) => {\n    if (filter == null || seen.has(filter)) return false;\n    seen.add(filter);\n    const descendants = filter.getElementsByTagName('*');\n    for (let i = 0; i < descendants.length; i++) {\n      if ((descendants[i].localName || '').toLowerCase() === 'feconvolvematrix') return true;\n    }\n    const href = filter.getAttribute('href')\n      || filter.getAttributeNS('http://www.w3.org/1999/xlink', 'href')\n      || '';\n    if (!href.startsWith('#')) return false;\n    const inherited = filter.ownerDocument.getElementById(href.slice(1));\n    return inherited != null\n      && inherited.localName.toLowerCase() === 'filter'\n      && filterContainsConvolveMatrix(inherited, seen);\n  };\n  const discoverFilters = (el, cs, sel) => {\n    const f = cs.filter;\n    if (!f || f === 'none' || f === '') return undefined;\n    const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs\n    let needsSourceRaster = false;\n\n    const re = /url\\(\\s*(?:\"|')?#([^\"')\\s]+)(?:\"|')?\\s*\\)/gi;\n    let m;\n    while ((m = re.exec(f)) != null) {\n      const fragId = m[1];\n      const target = doc.getElementById(fragId);\n      if (target != null && target.tagName.toLowerCase() === 'filter') {\n        if (!filterDefs.has(fragId)) filterDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });\n        if (el.namespaceURI === 'http://www.w3.org/1999/xhtml'\n            && filterContainsConvolveMatrix(target, new Set())) {\n          needsSourceRaster = true;\n        }\n      } else {\n        warn(sel, 'filter', 'filter fragment \"#' + fragId + '\" did not resolve to an inline <filter> element');\n      }\n    }\n    if (!needsSourceRaster) return undefined;\n    const token = 'uf' + (urlFilterRasterIdx++);\n    el.setAttribute('data-domotion-url-filter-raster', token);\n    return token;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2415"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b1af566c229b764e080e8e7e47970a6d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1af234e72a08805ffc655c3b7da1d1d680af932e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

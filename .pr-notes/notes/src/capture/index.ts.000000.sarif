@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2jvyhv9iszg7xj",
+          "message": {
+            "text": "The capture owns Blink's final convolved surface because layer-space SourceGraphic pixels and Skia crop/tile state cannot be recovered after DOM-to-SVG reconstruction. Full-viewport nonzero-alpha trimming avoids overflow constants or threshold tuning.",
+            "markdown": "The capture owns Blink's final convolved surface because layer-space SourceGraphic pixels and Skia crop/tile state cannot be recovered after DOM-to-SVG reconstruction. Full-viewport nonzero-alpha trimming avoids overflow constants or threshold tuning."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1207,
+                  "endLine": 1290,
+                  "snippet": {
+                    "text": " * DM-2415: preserve the final Chromium surface for HTML CSS URL filters whose\n * graph contains feConvolveMatrix. Blink creates SourceGraphic from a painted\n * layer and Skia applies the matrix in layer-pixel space, including the filter\n * crop and edge tile mode. Reconstructing the subtree as vectors changes that\n * input before the primitive runs, so this deliberately snapshots the narrow\n * ownership boundary instead of approximating the kernel.\n *\n * The whole capture viewport is sampled, then trimmed by real alpha. That\n * preserves filter-region overflow without inventing a padding constant or a\n * pixel threshold. Ordinary URL filters never receive a placeholder and stay\n * vector-owned.\n */\nexport async function rasterizeUrlFilterSurfaces(\n  page: Page,\n  tree: CapturedElement[],\n  viewport: { x: number; y: number; width: number; height: number },\n): Promise<void> {\n  const targets: NonNullable<CapturedElement[\"urlFilterRaster\"]>[] = [];\n  forEachElement(tree, (el) => {\n    if (el.urlFilterRaster?.token != null) targets.push(el.urlFilterRaster);\n  });\n  if (targets.length === 0) return;\n\n  let styleHandle: ElementHandle | null = null;\n  try {\n    styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });\n    for (const target of targets) {\n      const found = await page.evaluate((token) => {\n        document.querySelectorAll(\"[data-domotion-snapshot-target]\").forEach(\n          (el) => el.removeAttribute(\"data-domotion-snapshot-target\"),\n        );\n        const el = document.querySelector(`[data-domotion-url-filter-raster=\"${token}\"]`);\n        if (el == null) return false;\n        el.setAttribute(\"data-domotion-snapshot-target\", \"\");\n        return true;\n      }, target.token);\n      if (!found) continue;\n      try {\n        const shot = await page.screenshot({\n          clip: { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height },\n          omitBackground: true,\n          type: \"png\",\n        });\n        const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n        const { data, info } = decoded;\n        let minX = info.width, minY = info.height, maxX = -1, maxY = -1;\n        for (let y = 0; y < info.height; y++) {\n          for (let x = 0; x < info.width; x++) {\n            if (data[(y * info.width + x) * 4 + 3] === 0) continue;\n            if (x < minX) minX = x;\n            if (x > maxX) maxX = x;\n            if (y < minY) minY = y;\n            if (y > maxY) maxY = y;\n          }\n        }\n        if (maxX < minX || maxY < minY) {\n          target.empty = true;\n          continue;\n        }\n        const pixelWidth = maxX - minX + 1;\n        const pixelHeight = maxY - minY + 1;\n        const cropped = await sharp(shot).extract({ left: minX, top: minY, width: pixelWidth, height: pixelHeight }).png().toBuffer();\n        const scaleX = info.width / viewport.width;\n        const scaleY = info.height / viewport.height;\n        target.x = minX / scaleX;\n        target.y = minY / scaleY;\n        target.width = pixelWidth / scaleX;\n        target.height = pixelHeight / scaleY;\n        target.dataUri = `data:image/png;base64,${cropped.toString(\"base64\")}`;\n      } catch {\n        // A failed screenshot leaves the existing vector URL-filter path live.\n      }\n    }\n  } finally {\n    try {\n      await page.evaluate(() => {\n        document.querySelectorAll(\"[data-domotion-snapshot-target]\").forEach(\n          (el) => el.removeAttribute(\"data-domotion-snapshot-target\"),\n        );\n        document.querySelectorAll(\"[data-domotion-url-filter-raster]\").forEach(\n          (el) => el.removeAttribute(\"data-domotion-url-filter-raster\"),\n        );\n      });\n    } catch {}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2415"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ff3556c6ac11cdbc3365cc2037d481f7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1af234e72a08805ffc655c3b7da1d1d680af932e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

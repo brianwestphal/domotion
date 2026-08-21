@@ -1119,6 +1119,33 @@ describe("DM-2172 CSS SVG reference-filter coordinate space", () => {
   });
 });
 
+describe("DM-2415 SourceGraphic URL-filter ownership", () => {
+  it("emits the captured convolve surface atomically and suppresses vector descendants", () => {
+    const dataUri = "data:image/png;base64,Y29udm9sdmVk";
+    const svg = elementTreeToSvgInner([makeElement({
+      text: "must not double paint",
+      styles: { ...makeElement().styles, filter: 'url("#emboss")', opacity: "0.5", transform: "matrix(1, 0, 0, 1, 12, 8)" },
+      urlFilterRaster: { x: 17, y: 23, width: 91, height: 47, dataUri },
+      children: [makeElement({ text: "suppressed child" })],
+    })], 240, 160);
+
+    expect(svg).toContain(`<image href="${dataUri}" x="17" y="23" width="91" height="47" preserveAspectRatio="none"/>`);
+    expect(svg).not.toContain("must not double paint");
+    expect(svg).not.toContain("suppressed child");
+    expect(svg).not.toContain("filter:url");
+  });
+
+  it("keeps the vector fallback when Chromium surface capture failed", () => {
+    const svg = elementTreeToSvgInner([makeElement({
+      text: "vector fallback",
+      styles: { ...makeElement().styles, filter: 'url("#emboss")' },
+      urlFilterRaster: { x: 0, y: 0, width: 80, height: 40, token: "uf0" },
+    })], 240, 160);
+    expect(svg).toContain("vector fallback");
+    expect(svg).toContain("filter:url");
+  });
+});
+
 describe("float paint order — floats paint above every block box and below every piece of inline content", () => {
   /**
    * CSS 2.1 Appendix E paints a stacking context in phases: every in-flow

@@ -1079,6 +1079,7 @@ export async function captureElementTreeWithWarnings(
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);
+  await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
@@ -1201,6 +1202,97 @@ const SNAPSHOT_HIDE_CSS = [
   "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
   "html, body { background: transparent !important; }",
 ].join("\n");
+
+/**
+ * DM-2415: preserve the final Chromium surface for HTML CSS URL filters whose
+ * graph contains feConvolveMatrix. Blink creates SourceGraphic from a painted
+ * layer and Skia applies the matrix in layer-pixel space, including the filter
+ * crop and edge tile mode. Reconstructing the subtree as vectors changes that
+ * input before the primitive runs, so this deliberately snapshots the narrow
+ * ownership boundary instead of approximating the kernel.
+ *
+ * The whole capture viewport is sampled, then trimmed by real alpha. That
+ * preserves filter-region overflow without inventing a padding constant or a
+ * pixel threshold. Ordinary URL filters never receive a placeholder and stay
+ * vector-owned.
+ */
+export async function rasterizeUrlFilterSurfaces(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  const targets: NonNullable<CapturedElement["urlFilterRaster"]>[] = [];
+  forEachElement(tree, (el) => {
+    if (el.urlFilterRaster?.token != null) targets.push(el.urlFilterRaster);
+  });
+  if (targets.length === 0) return;
+
+  let styleHandle: ElementHandle | null = null;
+  try {
+    styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
+    for (const target of targets) {
+      const found = await page.evaluate((token) => {
+        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
+          (el) => el.removeAttribute("data-domotion-snapshot-target"),
+        );
+        const el = document.querySelector(`[data-domotion-url-filter-raster="${token}"]`);
+        if (el == null) return false;
+        el.setAttribute("data-domotion-snapshot-target", "");
+        return true;
+      }, target.token);
+      if (!found) continue;
+      try {
+        const shot = await page.screenshot({
+          clip: { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height },
+          omitBackground: true,
+          type: "png",
+        });
+        const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        const { data, info } = decoded;
+        let minX = info.width, minY = info.height, maxX = -1, maxY = -1;
+        for (let y = 0; y < info.height; y++) {
+          for (let x = 0; x < info.width; x++) {
+            if (data[(y * info.width + x) * 4 + 3] === 0) continue;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+        if (maxX < minX || maxY < minY) {
+          target.empty = true;
+          continue;
+        }
+        const pixelWidth = maxX - minX + 1;
+        const pixelHeight = maxY - minY + 1;
+        const cropped = await sharp(shot).extract({ left: minX, top: minY, width: pixelWidth, height: pixelHeight }).png().toBuffer();
+        const scaleX = info.width / viewport.width;
+        const scaleY = info.height / viewport.height;
+        target.x = minX / scaleX;
+        target.y = minY / scaleY;
+        target.width = pixelWidth / scaleX;
+        target.height = pixelHeight / scaleY;
+        target.dataUri = `data:image/png;base64,${cropped.toString("base64")}`;
+      } catch {
+        // A failed screenshot leaves the existing vector URL-filter path live.
+      }
+    }
+  } finally {
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
+          (el) => el.removeAttribute("data-domotion-snapshot-target"),
+        );
+        document.querySelectorAll("[data-domotion-url-filter-raster]").forEach(
+          (el) => el.removeAttribute("data-domotion-url-filter-raster"),
+        );
+      });
+    } catch {}
+    if (styleHandle != null) {
+      try { await styleHandle.evaluate((node: Element) => { node.remove(); }); } catch {}
+    }
+  }
+}
 
 /**
  * Clamp a viewport-relative crop `rect` to `[0, boundW] × [0, boundH]` (the page

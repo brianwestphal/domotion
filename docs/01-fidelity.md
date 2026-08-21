@@ -53,7 +53,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
 - [x] text-shadow: x/y offset + blur, multi-layered — SK-1113
 - [x] opacity (element-level, applies to whole subtree)
-- [x] filter (blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, sepia, chained); CSS `url(#filter)` references preserve captured inline SVG filter graphs and evaluate them in the HTML element's local reference-box coordinate space, including coordinate-sensitive `feTurbulence` / `feDisplacementMap` chains
+- [x] filter (blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, sepia, chained); CSS `url(#filter)` references preserve captured inline SVG filter graphs and evaluate them in the HTML element's local reference-box coordinate space, including coordinate-sensitive `feTurbulence` / `feDisplacementMap` chains. HTML reference graphs containing `feConvolveMatrix` use the narrow Chromium-painted surface boundary in doc 148 because their input is Blink's raster `SourceGraphic`; native SVG convolution and non-convolution URL graphs remain vector.
 - [x] mix-blend-mode
 - [x] background-blend-mode — each image layer blends with the background stack below it, including the element's background color, inside an isolated group
 - [x] backdrop-filter — approximated via a frosted-glass background fallback for the transparent-backdrop case (see doc 19); no true backdrop blur (no SVG equivalent in img-rendered SVG)

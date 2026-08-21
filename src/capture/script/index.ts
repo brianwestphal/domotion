@@ -283,7 +283,7 @@ const captureDocumentTree =
     // Collect the def so the renderer can copy it into the output SVG;
     // the existing pass-through of cs.filter as an inline style then
     // resolves against that same-document def.
-    discoverFilters(el, cs, sel);
+    const urlFilterRasterToken = discoverFilters(el, cs, sel);
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
       warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
     }
@@ -851,6 +851,16 @@ const captureDocumentTree =
         el.setAttribute('data-domotion-backdrop-raster', token);
         return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height, token };
       })(),
+      // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
+      // original layer-space SourceGraphic pixels. The Node post-pass replaces
+      // this placeholder with the isolated, fully-filtered Chromium surface.
+      urlFilterRaster: urlFilterRasterToken == null ? undefined : {
+        x: rect.left - vp.x,
+        y: rect.top - vp.y,
+        width: rect.width,
+        height: rect.height,
+        token: urlFilterRasterToken,
+      },
       // DM-680: per-axis cumulative ancestor scale, exposed ONLY when
       // anisotropic (sx ≠ sy within a small epsilon). The geometric mean is
       // already folded into fontSize / fontAscent / fontDescent above, so
