@@ -24,6 +24,19 @@ separate terminal-raster evidence: region count must remain zero, while raw
 `diffPct` is recorded independently for macOS, Linux, and Windows rather than
 treated as a logical tolerance.
 
+The same commit was rerun through all three pinned CI feature pipelines:
+
+| Platform | Run | `regionCount` | `diffPct` | non-AA pixels |
+| --- | ---: | ---: | ---: | ---: |
+| macOS | `32460833804` | 0 | 0.0035733121927208514 | 39 |
+| Linux | `32460836438` | 0 | 0.047651018887152084 | 471 |
+| Windows | `32460838994` | 0 | 0.08174824177372704 | 683 |
+
+All three target feature suites and baseline gates passed. The Linux and
+macOS workflows subsequently reported unrelated broad-suite failures (host
+font assumptions and existing browser E2E records); those later failures do
+not alter the recorded target artifacts above.
+
 The oracle pins Chromium `7d859f271c`, HarfBuzz `4de187d`, and Chromium's Skia
 `62efacd3`. Run it with:
 

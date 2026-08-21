@@ -292,6 +292,8 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
       "nextPua",
       "puaForGlyphId",
       "runIds",
+      "subsetAttempt",
+      "subsetAttempts",
       "unitsPerEm",
       "weightMax",
       "weightMin",
