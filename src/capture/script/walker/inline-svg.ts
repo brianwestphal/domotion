@@ -62,7 +62,16 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       // paths want d) and (b) computed values need light normalisation
       // (strip "px"; unwrap path("…") for d) before they're valid as XML
       // presentation attributes.
-      const _bakeSvgGeomAttrs = ['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'd'];
+      const _svgGeomAttrsByTag = {
+        circle: ['cx', 'cy', 'r'],
+        ellipse: ['cx', 'cy', 'rx', 'ry'],
+        rect: ['x', 'y', 'width', 'height', 'rx', 'ry'],
+        image: ['x', 'y', 'width', 'height'],
+        foreignobject: ['x', 'y', 'width', 'height'],
+        use: ['x', 'y', 'width', 'height'],
+        svg: ['x', 'y', 'width', 'height'],
+        path: ['d'],
+      };
       // CSS effects are not presentation geometry carried by the cloned XML
       // unless authored inline. Preserve the computed declarations so the
       // output browser resolves SVG fill/stroke/view reference boxes natively.
@@ -111,14 +120,28 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
               cloneNode.setAttribute(attr, preserveCurrent ? "currentColor" : val);
             }
           }
-          // DM-720: bake CSS-driven geometry. Skip when the source has a
-          // concrete XML attr — Chrome's per-property precedence is "CSS wins
-          // over the presentation attribute" since SVG 2, but the computed
-          // value reflects that already, so writing it to the clone preserves
-          // the same painted geometry. Strip "px" suffixes and unwrap d's
-          // path() wrapper so the values parse as XML presentation attrs.
-          for (const gattr of _bakeSvgGeomAttrs) {
-            if (_hasConcreteAttr(origNode, gattr)) continue;
+          // DM-720 / DM-2414: bake CSS-driven geometry. A presentation
+          // attribute participates at the bottom of the author cascade, so a
+          // matching CSS declaration wins even when a concrete XML attribute
+          // is present. Preserve an attribute-only value verbatim (including
+          // its authored units), but replace it when the computed winner is
+          // different. Restrict the probe to properties that apply to this
+          // element; getComputedStyle exposes initial values for several
+          // inapplicable SVG geometry properties too.
+          const geomAttrs = _svgGeomAttrsByTag[(origNode.localName || '').toLowerCase()] || [];
+          for (const gattr of geomAttrs) {
+            // A retained SMIL <animate> child owns the animated value. Writing
+            // its sampled animVal back as the base attribute changes the
+            // animation's underlying value and can alter additive/from-to
+            // behavior after re-embedding.
+            let smilOwnsValue = false;
+            for (const child of origNode.children) {
+              if ((child.localName || '').toLowerCase() === 'animate' && child.getAttribute('attributeName') === gattr) {
+                smilOwnsValue = true;
+                break;
+              }
+            }
+            if (smilOwnsValue) continue;
             let gval = ocs.getPropertyValue(gattr);
             if (gval == null) continue;
             gval = gval.trim();
@@ -131,6 +154,8 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
             } else if (/^-?\d+(?:\.\d+)?px$/.test(gval)) {
               gval = gval.slice(0, -2);
             }
+            const sourceVal = origNode.getAttribute(gattr);
+            if (sourceVal != null && !_isUnresolvedCssExpr(sourceVal) && sourceVal.trim() === gval) continue;
             cloneNode.setAttribute(gattr, gval);
           }
           const computedClipPath = ocs.getPropertyValue('clip-path').trim();

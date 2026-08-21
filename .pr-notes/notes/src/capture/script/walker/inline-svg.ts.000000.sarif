@@ -65,6 +65,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2k8ima0m8zc0nk",
+          "message": {
+            "text": "Computed SVG geometry is baked only when it changes the authored base value, and only on tags where the property applies. This preserves attribute-only units while honoring CSS cascade winners; retained SMIL children keep ownership of their base attribute. The browser oracle in tests/inline-svg-computed-geometry.e2e.test.ts proves serialized attributes plus getBBox/getTotalLength parity across stylesheet, inline !important, var()/calc(), CSS d, invalid, inapplicable, and animated cases.",
+            "markdown": "Computed SVG geometry is baked only when it changes the authored base value, and only on tags where the property applies. This preserves attribute-only units while honoring CSS cascade winners; retained SMIL children keep ownership of their base attribute. The browser oracle in tests/inline-svg-computed-geometry.e2e.test.ts proves serialized attributes plus getBBox/getTotalLength parity across stylesheet, inline !important, var()/calc(), CSS d, invalid, inapplicable, and animated cases."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 120,
+                  "endLine": 160,
+                  "snippet": {
+                    "text": "              cloneNode.setAttribute(attr, preserveCurrent ? \"currentColor\" : val);\n            }\n          }\n          // DM-720 / DM-2414: bake CSS-driven geometry. A presentation\n          // attribute participates at the bottom of the author cascade, so a\n          // matching CSS declaration wins even when a concrete XML attribute\n          // is present. Preserve an attribute-only value verbatim (including\n          // its authored units), but replace it when the computed winner is\n          // different. Restrict the probe to properties that apply to this\n          // element; getComputedStyle exposes initial values for several\n          // inapplicable SVG geometry properties too.\n          const geomAttrs = _svgGeomAttrsByTag[(origNode.localName || '').toLowerCase()] || [];\n          for (const gattr of geomAttrs) {\n            // A retained SMIL <animate> child owns the animated value. Writing\n            // its sampled animVal back as the base attribute changes the\n            // animation's underlying value and can alter additive/from-to\n            // behavior after re-embedding.\n            let smilOwnsValue = false;\n            for (const child of origNode.children) {\n              if ((child.localName || '').toLowerCase() === 'animate' && child.getAttribute('attributeName') === gattr) {\n                smilOwnsValue = true;\n                break;\n              }\n            }\n            if (smilOwnsValue) continue;\n            let gval = ocs.getPropertyValue(gattr);\n            if (gval == null) continue;\n            gval = gval.trim();\n            if (gval === '' || gval === 'auto' || gval === 'none' || gval === 'normal') continue;\n            if (gattr === 'd') {\n              // Computed `d` is wrapped as `path(\"M …\")`. Unwrap to bare data.\n              const m = /^path\\(\\s*(?:\"([^\"]*)\"|'([^']*)')\\s*\\)$/.exec(gval);\n              if (m) gval = m[1] != null ? m[1] : m[2];\n              else continue; // not a recognized path() form\n            } else if (/^-?\\d+(?:\\.\\d+)?px$/.test(gval)) {\n              gval = gval.slice(0, -2);\n            }\n            const sourceVal = origNode.getAttribute(gattr);\n            if (sourceVal != null && !_isUnresolvedCssExpr(sourceVal) && sourceVal.trim() === gval) continue;\n            cloneNode.setAttribute(gattr, gval);\n          }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2414"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e3246948c6ac0a4f81152071a63d507a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a1b109593a2d317a9d277449bd6e3605319f650f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
