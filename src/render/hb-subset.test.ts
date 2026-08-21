@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
-import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, resetHbSubsetWasmInstance, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -92,6 +92,28 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
         tableTags: expect.arrayContaining(["glyf", "loca"]),
       }),
     })]);
+  });
+
+  it("is byte-identical cold, after a cumulative prefix, cached-repeat, and fresh-instance (DM-2433)", () => {
+    const target = buildVariableHintedFont();
+    const buildTarget = () => hbSubsetRetainGids(target, [2, 1, 2], 0, true, { wght: 900 });
+    resetHbSubsetWasmInstance();
+    const cold = buildTarget();
+    // Recreate the relevant failure shape: many successful, differently sized
+    // subsets share one allocator before the identical tuple is asked again.
+    for (let i = 0; i < 96; i++) {
+      const source = i % 2 === 0 ? buildStaticHintedFont({ aXMax: 550 + i }) : buildVariableHintedFont();
+      hbSubsetRetainGids(source, i % 3 === 0 ? [1] : [1, 2], 0, true, i % 2 === 0 ? null : { wght: i % 4 === 1 ? 400 : 900 });
+    }
+    const afterPrefix = buildTarget();
+    const cachedRepeat = buildTarget();
+    resetHbSubsetWasmInstance();
+    const fresh = buildTarget();
+    const hashes = [cold, afterPrefix, cachedRepeat, fresh].map((bytes) => createHash("sha256").update(bytes).digest("hex"));
+    expect(new Set(hashes).size).toBe(1);
+    expect(getHbSubsetAttemptDiagnostics().at(-1)).toEqual(expect.objectContaining({
+      stage: "complete", wasmInstanceId: expect.any(Number),
+    }));
   });
   it("keeps the hinting program: cvt/fpgm/prep tables + per-glyph instruction bytecode", () => {
     const out = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);

@@ -174,6 +174,7 @@ export interface BuilderEntry {
   /** Populated when the font bytes are built for emission. */
   buildDiagnostic: EmbeddedFontBuildDiagnostic | null;
   subsetAttempt: HbSubsetAttemptDiagnostic | null;
+  subsetAttempts: HbSubsetAttemptDiagnostic[];
 }
 
 export type HintedSourceDisqualificationReason =
@@ -197,6 +198,7 @@ export interface EmbeddedFontBuildDiagnostic {
   puaMappingSha256?: string;
   outputGlyphs?: Array<{ gid: number; pua: number; advance: number }>;
   subsetAttempt?: HbSubsetAttemptDiagnostic | null;
+  subsetAttempts?: HbSubsetAttemptDiagnostic[];
   selectedBuilder: "hb-subset" | "svg2ttf";
   hintedSourceDisqualifiedReasons: HintedSourceDisqualificationReason[];
   retainedTableTags: string[];
@@ -292,6 +294,7 @@ function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
       retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
     },
     subsetAttempt: entry.subsetAttempt == null ? null : structuredClone(entry.subsetAttempt),
+    subsetAttempts: structuredClone(entry.subsetAttempts),
     hintedSource: entry.hintedSource == null
       ? null
       : {
@@ -382,6 +385,7 @@ export function trackGlyphInEmbedFont(
       glyphOccurrenceCount: 0,
       buildDiagnostic: null,
       subsetAttempt: null,
+      subsetAttempts: [],
     };
     builderRegistry.set(instanceKey, entry);
   }
@@ -570,6 +574,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
   if (hintedSubsetEnabled() && entry.hintedSource != null && entry.hintedSource.faceIndex != null
       && !entry.hintedSourceDisqualified) {
     const srcFaceIndex = entry.hintedSource.faceIndex;
+    const attemptStart = getHbSubsetAttemptDiagnostics().length;
     try {
       const gids = [...entry.puaForGlyphId.keys()];
       const puaToGid = new Map<number, number>();
@@ -614,6 +619,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         // an upstream subset plan that rewrites all dependent tables.
         let subset = hbSubsetRetainGids(bytes, gids, srcFaceIndex, true, entry.hintedSource.variationAxes ?? null);
         entry.subsetAttempt = getHbSubsetAttemptDiagnostics().at(-1) ?? null;
+        entry.subsetAttempts = getHbSubsetAttemptDiagnostics().slice(attemptStart);
         // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
         // cmap entry mapping to gid 0 means "not covered" (the consumer browser
         // cascades past the font and paints NOTHING, losing the tofu box).
@@ -633,6 +639,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
       }
     } catch (e) {
       entry.subsetAttempt = getHbSubsetAttemptDiagnostics().at(-1) ?? entry.subsetAttempt;
+      entry.subsetAttempts = getHbSubsetAttemptDiagnostics().slice(attemptStart);
       entry.hintedSourceDisqualificationReasons.add("cff-or-subset-failure");
       entry.hintedSourceDisqualified = true;
       // A guard/subset failure silently falls back to the proven svg2ttf path —
@@ -695,6 +702,7 @@ function diagnosticFor(
     puaMappingSha256: createHash("sha256").update(JSON.stringify([...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0]))).digest("hex"),
     outputGlyphs: [...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0]).map(([gid, pua]) => ({ gid, pua, advance: entry.glyphs.get(gid)?.advanceWidth ?? 0 })),
     subsetAttempt: entry.subsetAttempt,
+    subsetAttempts: entry.subsetAttempts,
     selectedBuilder,
     hintedSourceDisqualifiedReasons: [...entry.hintedSourceDisqualificationReasons].sort(),
     retainedTableTags,
@@ -722,6 +730,7 @@ export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[]
     finalRepresentation: { ...entry.buildDiagnostic.finalRepresentation },
     outputGlyphs: entry.buildDiagnostic.outputGlyphs?.map((glyph) => ({ ...glyph })),
     subsetAttempt: entry.buildDiagnostic.subsetAttempt == null ? null : structuredClone(entry.buildDiagnostic.subsetAttempt),
+    subsetAttempts: structuredClone(entry.buildDiagnostic.subsetAttempts ?? []),
   }]);
 }
 

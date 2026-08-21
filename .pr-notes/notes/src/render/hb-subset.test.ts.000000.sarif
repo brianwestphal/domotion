@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2l3yfg7cmyrq1d",
+          "message": {
+            "text": "The lifecycle oracle hashes the identical variable-glyf tuple cold, after a 96-build mixed static/variable cached prefix, immediately again on the same instance, and after a fresh-instance reset. All four outputs are byte-identical, covering order, repeat, and instance boundaries without any font/codepoint routing.",
+            "markdown": "The lifecycle oracle hashes the identical variable-glyf tuple cold, after a 96-build mixed static/variable cached prefix, immediately again on the same instance, and after a fresh-instance reset. All four outputs are byte-identical, covering order, repeat, and instance boundaries without any font/codepoint routing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/hb-subset.test.ts"
+                },
+                "region": {
+                  "startLine": 95,
+                  "endLine": 125,
+                  "snippet": {
+                    "text": "  });\n\n  it(\"is byte-identical cold, after a cumulative prefix, cached-repeat, and fresh-instance (DM-2433)\", () => {\n    const target = buildVariableHintedFont();\n    const buildTarget = () => hbSubsetRetainGids(target, [2, 1, 2], 0, true, { wght: 900 });\n    resetHbSubsetWasmInstance();\n    const cold = buildTarget();\n    // Recreate the relevant failure shape: many successful, differently sized\n    // subsets share one allocator before the identical tuple is asked again.\n    for (let i = 0; i < 96; i++) {\n      const source = i % 2 === 0 ? buildStaticHintedFont({ aXMax: 550 + i }) : buildVariableHintedFont();\n      hbSubsetRetainGids(source, i % 3 === 0 ? [1] : [1, 2], 0, true, i % 2 === 0 ? null : { wght: i % 4 === 1 ? 400 : 900 });\n    }\n    const afterPrefix = buildTarget();\n    const cachedRepeat = buildTarget();\n    resetHbSubsetWasmInstance();\n    const fresh = buildTarget();\n    const hashes = [cold, afterPrefix, cachedRepeat, fresh].map((bytes) => createHash(\"sha256\").update(bytes).digest(\"hex\"));\n    expect(new Set(hashes).size).toBe(1);\n    expect(getHbSubsetAttemptDiagnostics().at(-1)).toEqual(expect.objectContaining({\n      stage: \"complete\", wasmInstanceId: expect.any(Number),\n    }));\n  });\n  it(\"keeps the hinting program: cvt/fpgm/prep tables + per-glyph instruction bytecode\", () => {\n    const out = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);\n    expect(tableBytes(out, \"cvt \")).toEqual(CVT_CONTENTS);\n    expect(tableBytes(out, \"fpgm\")).toEqual(FPGM_CONTENTS);\n    expect(tableBytes(out, \"prep\")).toEqual(PREP_CONTENTS);\n    expect(glyphInstructions(out, 1)).toEqual(GLYPH_INSTRUCTIONS);\n    expect(glyphInstructions(out, 2)).toEqual(GLYPH_INSTRUCTIONS);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2433"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c747e0ba8a7203e7c5bcaebf44994f3f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a47345bae928facf992e65676b09eb4b4cfde9ff",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

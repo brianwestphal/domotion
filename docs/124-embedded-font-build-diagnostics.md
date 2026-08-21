@@ -34,6 +34,16 @@ describes the post-cmap emitted font. Allocation and object-creation return
 values are checked before use, and partial allocations are released in one
 stage-independent `finally` path.
 
+The WASM module remains cached for the normal fast path. If an operational
+allocation/object/subset/output call fails, the identical tuple is retried once
+on a pristine WASM instance before the builder is allowed to latch svg2ttf.
+Both attempts remain in `subsetAttempts`, with distinct instance ids and a
+shared process session/monotonic ordinal. Deterministic input rejections
+(invalid axis pins and unsupported outline formats) are not retried. The
+repeatability oracle compares one exact variable-font tuple cold, after 96
+mixed cached builds, immediately repeated, and after an explicit fresh-instance
+reset; all four outputs must have one SHA-256 identity.
+
 The HTML/unicode harness resets the complete generation state before every
 fixture. Diagnostics are therefore fixture-scoped; `workerSeq` subtraction is
 neither required nor valid. For the pinned 24-row Linux Unicode raster-floor

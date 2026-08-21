@@ -196,6 +196,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2l3y9gb7rxy1ig",
+          "message": {
+            "text": "Cached hb-subset stays the fast path, but an operational null/allocation/subset/output failure now gets exactly one retry on a pristine WASM heap before fallback can latch. Semantic input failures (invalid axis or unsupported outlines) do not retry. Both attempts keep distinct instance ids and remain attached to the fixture, preserving the first error rather than hiding it behind recovery.",
+            "markdown": "Cached hb-subset stays the fast path, but an operational null/allocation/subset/output failure now gets exactly one retry on a pristine WASM heap before fallback can latch. Semantic input failures (invalid axis or unsupported outlines) do not retry. Both attempts keep distinct instance ids and remain attached to the fixture, preserving the first error rather than hiding it behind recovery."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/hb-subset.ts"
+                },
+                "region": {
+                  "startLine": 95,
+                  "endLine": 155,
+                  "snippet": {
+                    "text": "  // harfbuzzjs build lives in-tree under `vendor/` (its shaping wasm is rebuilt\n  // with Chromium's HarfBuzz configuration — see `vendor/harfbuzzjs/README.md`).\n  // This file is `src/render/` in the source tree and `dist/render/` in the\n  // published package, so `../../vendor/…` is the package root either way.\n  const wasmPath = fileURLToPath(new URL(\"../../vendor/harfbuzzjs/dist/harfbuzz-subset.wasm\", import.meta.url));\n  const mod = new WebAssembly.Module(readFileSync(wasmPath));\n  const inst = new WebAssembly.Instance(mod, {});\n  cachedExports = inst.exports as unknown as HbSubsetExports;\n  cachedInstanceId = nextInstanceId++;\n  return cachedExports;\n}\n\n/** Test/oracle seam and operational recovery boundary. The next subset call\n * creates a pristine WASM heap; it does not alter any font routing state. */\nexport function resetHbSubsetWasmInstance(): void { cachedExports = null; cachedInstanceId = 0; }\n\n/** hb-subset `fontBytes` to `gids` (original glyph ids), keeping hinting +\n *  RETAIN_GIDS so the output's glyph ids equal the input's. `faceIndex` selects\n *  a TTC member. Returns the subset TTF/OTF bytes (still has the ORIGINAL cmap;\n *  call `injectPuaCmap` to remap to private-use codepoints).\n *\n *  `pinAxes` (non-null ⇒ the source is a VARIABLE font): fully instance the\n *  face at that axis location — every axis is pinned to its default, then each\n *  `pinAxes` entry overrides its tag — so the output is a STATIC font whose\n *  outlines match what the run shaped with (fontkit `getVariation` and hb apply\n *  the same gvar deltas), with `fvar`/`gvar` dropped. Full pinning is\n *  deliberate: leaving any axis variable would let the consumer browser re-vary\n *  it (e.g. `font-optical-sizing: auto` re-applying `opsz`) on top of outlines\n *  we already resolved. hb's instancer RETAINS the hinting program\n *  (`cvt`/`fpgm`/`prep` + per-glyph instructions) across instancing. An empty\n *  object pins everything to defaults (the run shaped with the default master).\n *  Throws when a requested axis can't be pinned — outlines would silently be\n *  the wrong master; the caller falls back to svg2ttf, which bakes the correct\n *  instantiated outline (unhinted). */\nexport function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true, pinAxes: Record<string, number> | null = null): Buffer {\n  try {\n    return hbSubsetRetainGidsOnce(fontBytes, gids, faceIndex, keepHinting, pinAxes);\n  } catch (error) {\n    const message = error instanceof Error ? error.message : String(error);\n    // Invalid axes and unsupported outline formats are deterministic input\n    // boundaries. Retrying them would only duplicate noise. Allocation/null\n    // object/subset/output failures can be cached-instance lifecycle state, so\n    // retry exactly once on a pristine heap before the builder latches fallback.\n    if (/pin_(?:all_axes_to_default|axis_location)|no outline table/.test(message)) throw error;\n    resetHbSubsetWasmInstance();\n    return hbSubsetRetainGidsOnce(fontBytes, gids, faceIndex, keepHinting, pinAxes);\n  }\n}\n\nfunction hbSubsetRetainGidsOnce(fontBytes: Buffer, gids: number[], faceIndex: number, keepHinting: boolean, pinAxes: Record<string, number> | null): Buffer {\n  const w = hb();\n  const heap = (): Uint8Array => new Uint8Array(w.memory.buffer);\n  const sortedGids = [...new Set(gids)].sort((a, b) => a - b);\n  const diagnostic: HbSubsetAttemptDiagnostic = {\n    sessionId: subsetSessionId, wasmInstanceId: cachedInstanceId, buildOrdinal: subsetBuildOrdinal++, stage: \"allocate-font\",\n    sourceSha256: createHash(\"sha256\").update(fontBytes).digest(\"hex\"), sourceByteLength: fontBytes.length,\n    sourceTableTags: sfntTableTagsAt(fontBytes, faceIndex), faceIndex, axes: pinAxes == null ? null : { ...pinAxes },\n    sortedGids, gidHash: createHash(\"sha256\").update(JSON.stringify(sortedGids)).digest(\"hex\"),\n    pointers: { font: 0, blob: 0, face: 0, input: 0, glyphSet: 0, resultFace: 0, outputBlob: 0, outputData: 0 },\n    wasmMemoryBytesBefore: w.memory.buffer.byteLength, wasmMemoryBytesAfter: w.memory.buffer.byteLength,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2433"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "878deae26eb33a0225f6308cdad89383"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a47345bae928facf992e65676b09eb4b4cfde9ff",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

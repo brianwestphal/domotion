@@ -64,10 +64,13 @@ function hbTag(tag: string): number {
 }
 
 let cachedExports: HbSubsetExports | null = null;
+let cachedInstanceId = 0;
+let nextInstanceId = 1;
 const subsetSessionId = randomUUID();
 let subsetBuildOrdinal = 0;
 export interface HbSubsetAttemptDiagnostic {
   sessionId: string;
+  wasmInstanceId: number;
   buildOrdinal: number;
   stage: "allocate-font" | "create-blob" | "create-face" | "create-input" | "configure-input" | "subset" | "read-output" | "validate-output" | "complete";
   sourceSha256: string;
@@ -97,8 +100,13 @@ function hb(): HbSubsetExports {
   const mod = new WebAssembly.Module(readFileSync(wasmPath));
   const inst = new WebAssembly.Instance(mod, {});
   cachedExports = inst.exports as unknown as HbSubsetExports;
+  cachedInstanceId = nextInstanceId++;
   return cachedExports;
 }
+
+/** Test/oracle seam and operational recovery boundary. The next subset call
+ * creates a pristine WASM heap; it does not alter any font routing state. */
+export function resetHbSubsetWasmInstance(): void { cachedExports = null; cachedInstanceId = 0; }
 
 /** hb-subset `fontBytes` to `gids` (original glyph ids), keeping hinting +
  *  RETAIN_GIDS so the output's glyph ids equal the input's. `faceIndex` selects
@@ -119,11 +127,26 @@ function hb(): HbSubsetExports {
  *  the wrong master; the caller falls back to svg2ttf, which bakes the correct
  *  instantiated outline (unhinted). */
 export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true, pinAxes: Record<string, number> | null = null): Buffer {
+  try {
+    return hbSubsetRetainGidsOnce(fontBytes, gids, faceIndex, keepHinting, pinAxes);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Invalid axes and unsupported outline formats are deterministic input
+    // boundaries. Retrying them would only duplicate noise. Allocation/null
+    // object/subset/output failures can be cached-instance lifecycle state, so
+    // retry exactly once on a pristine heap before the builder latches fallback.
+    if (/pin_(?:all_axes_to_default|axis_location)|no outline table/.test(message)) throw error;
+    resetHbSubsetWasmInstance();
+    return hbSubsetRetainGidsOnce(fontBytes, gids, faceIndex, keepHinting, pinAxes);
+  }
+}
+
+function hbSubsetRetainGidsOnce(fontBytes: Buffer, gids: number[], faceIndex: number, keepHinting: boolean, pinAxes: Record<string, number> | null): Buffer {
   const w = hb();
   const heap = (): Uint8Array => new Uint8Array(w.memory.buffer);
   const sortedGids = [...new Set(gids)].sort((a, b) => a - b);
   const diagnostic: HbSubsetAttemptDiagnostic = {
-    sessionId: subsetSessionId, buildOrdinal: subsetBuildOrdinal++, stage: "allocate-font",
+    sessionId: subsetSessionId, wasmInstanceId: cachedInstanceId, buildOrdinal: subsetBuildOrdinal++, stage: "allocate-font",
     sourceSha256: createHash("sha256").update(fontBytes).digest("hex"), sourceByteLength: fontBytes.length,
     sourceTableTags: sfntTableTagsAt(fontBytes, faceIndex), faceIndex, axes: pinAxes == null ? null : { ...pinAxes },
     sortedGids, gidHash: createHash("sha256").update(JSON.stringify(sortedGids)).digest("hex"),
