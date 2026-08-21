@@ -318,6 +318,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt31dk2sqhuh0o2q",
+          "message": {
+            "text": "The helper bbox is translated by the same learned outline offset as the path commands before entering the font-like glyph interface. This keeps MathML ink evidence and emitted helper outlines in one coordinate space; shaped records reuse the already-fetched by-id bbox rather than approximating from ascent.",
+            "markdown": "The helper bbox is translated by the same learned outline offset as the path commands before entering the font-like glyph interface. This keeps MathML ink evidence and emitted helper outlines in one coordinate space; shaped records reuse the already-fetched by-id bbox rather than approximating from ascent."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 920,
+                  "endLine": 960,
+                  "snippet": {
+                    "text": "  const cpToGlyph = new Map<number, GlyphHelperGlyph>();\n  const idToGlyph = new Map<number, GlyphHelperGlyph>();\n  const missingCp = new Set<number>();\n\n  // Probe glyphs come back in the 1000-unit probe space; scale to design units.\n  const outlineOffsetY = measureOutlineOffsetY(offsetProbe, unitsPerEm, 1000);\n\n  /** Parse a helper outline into the renderer's command space, moved to where\n   *  CoreText (and therefore Chrome) actually paints it. */\n  function glyphCommands(d: string): PathCommand[] {\n    return translateCommandsY(parseSvgPath(d), outlineOffsetY);\n  }\n  function glyphBounds(bbox: GlyphResponse[\"bbox\"]): NonNullable<GlyphHelperGlyph[\"bbox\"]> {\n    return { minX: bbox.x, minY: bbox.y + outlineOffsetY, maxX: bbox.x + bbox.w, maxY: bbox.y + bbox.h + outlineOffsetY };\n  }\n  // DM-1028: per-run-text shape cache so identical runs shape once.\n  const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();\n\n  // Ingest a `glyphs` query result for the codepoints in `need`, populating\n  // `cpToGlyph` / `missingCp` / `idToGlyph`. Shared by the lazy `fetchByCps`\n  // path and the combined coverage+shape primer (DM-1033).\n  function ingestGlyphs(need: number[], glyphs: GlyphResponse[]): void {\n    for (let i = 0; i < need.length; i++) {\n      const cp = need[i];\n      const g = glyphs[i];\n      if (g == null) {\n        missingCp.add(cp);\n        continue;\n      }\n      // DM-1018: a glyph id of 0 is `.notdef` — the font doesn't cover this\n      // codepoint. We STILL store the glyph (with its outline) rather than\n      // marking it missing, because Blink draws the primary font's `.notdef`\n      // for uncovered codepoints and that outline is often inked (SF Compact's\n      // `.notdef` is the SignWriting stripes frame). `glyphForCodePoint(cp).id`\n      // still reports 0, so the fallback-chain coverage check (`id !== 0`)\n      // correctly treats the codepoint as uncovered and keeps walking; the\n      // stored outline is only ever emitted when the renderer deliberately\n      // paints the primary's `.notdef` (the DM-1018 terminal in\n      // splitTextIntoFontRuns).\n      const glyph: GlyphHelperGlyph = {\n        id: g.id,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 91,
+          "workItemUris": [
+            "DM-2443"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c4eb2f24fc597d9c30238ed88e44a202"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "0d90145d094a6c37f1aa3e7e7f26452bf7d46b57",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

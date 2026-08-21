@@ -451,6 +451,20 @@ describeHelper("CoreText glyph extractor", () => {
     }
   });
 
+  itStix("carries the native helper ink bbox onto coverage and shaped glyph records", () => {
+    clearGlyphHelperCache();
+    const font = createGlyphHelperFont({ postscriptName: "STIXTwoMath-Regular", fontPath: stixPath })!;
+    const coverage = font.glyphForCodePoint(0x2211);
+    const shaped = font.layout("∑").glyphs[0];
+    expect(coverage.bbox).toBeDefined();
+    expect(coverage.bbox!.maxX).toBeGreaterThan(coverage.bbox!.minX);
+    expect(coverage.bbox!.maxY).toBeGreaterThan(coverage.bbox!.minY);
+    expect(shaped.bbox).toEqual(coverage.bbox);
+    const ys = coverage.path.commands.flatMap((command) => command.args.filter((_value, index) => index % 2 === 1));
+    expect(Math.min(...ys)).toBeCloseTo(coverage.bbox!.minY, 0);
+    expect(Math.max(...ys)).toBeCloseTo(coverage.bbox!.maxY, 0);
+  });
+
   itJavanese("keeps the mark's GPOS offset when an advancing base (CoreText ◌) is present (DM-1111)", () => {
     // The DM-1111 neutralization must NOT touch a mark that's genuinely attached
     // to a base: an orphaned Brahmic mark gets a CoreText-inserted dotted circle

@@ -103,7 +103,9 @@ shortest possible map:
   filename table;
   `glyph-helper.ts` is the node side of the per-platform native helpers, and
   owns the **persistent channel** (stdio on macOS/Linux, a named pipe on
-  Windows) plus the memos the platform answers land in. Two of those memos are
+  Windows) plus exact helper glyph ink bboxes consumed by MathML token logical
+  evidence (`measureInkMetrics`, doc 154), and
+  the memos the platform answers land in. Two of those memos are
   keyed per codepoint and are therefore unbounded in the codepoint universe —
   `clearGlyphHelperCodepointMemos()` drops them and is called from
   `clearFontResolutionCaches()`, which is what keeps an exhaustive sweep inside

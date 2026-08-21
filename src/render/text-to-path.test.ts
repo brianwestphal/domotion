@@ -1602,6 +1602,20 @@ describe("measureInkMetrics: MathML token ink positioning (DM-832)", () => {
     // Whitespace shapes to a blank advance with no ink — no usable bbox.
     expect(measureInkMetrics(" ", { fontSize: 22, fontFamily: "math", fontWeight: "400" })).toBeNull();
   });
+
+  it.skipIf(!MACOS_FONTS)("measures a Han MathML token through its native-helper fallback face", () => {
+    const ink = measureInkMetrics("漢", { fontSize: 22, fontFamily: "math", fontWeight: "400", lang: "zh-Hans" });
+    expect(ink).not.toBeNull();
+    expect(ink!.inkAscent).toBeGreaterThan(10);
+    expect(ink!.inkDescent).toBeGreaterThanOrEqual(0);
+  });
+
+  it.skipIf(!MACOS_FONTS)("unions Latin and helper-fallback script ink without reverting to font ascent", () => {
+    const latin = measureInkMetrics("x", { fontSize: 22, fontFamily: "math", fontWeight: "400" })!;
+    const mixed = measureInkMetrics("x漢", { fontSize: 22, fontFamily: "math", fontWeight: "400", lang: "zh-Hans" })!;
+    expect(mixed.inkAscent).toBeGreaterThan(latin.inkAscent);
+    expect(mixed.inkAscent).toBeLessThan(22);
+  });
 });
 
 describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", () => {

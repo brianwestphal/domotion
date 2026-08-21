@@ -1440,3 +1440,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   Chromium Range/CDP evidence. It fingerprints the exact macOS/font/browser
   environment and is observational; CDP face names alone never establish the
   native descriptor or variation instance.
+
+- MathML token ink evidence (doc 154) uses exact bboxes from the selected
+  fontkit or native-helper fallback glyphs. Mixed-script tokens union those
+  boxes; they never fall back to a primary-face ascent merely because the
+  selected physical face is helper-backed.

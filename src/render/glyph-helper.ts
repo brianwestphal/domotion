@@ -103,6 +103,8 @@ interface GlyphHelperGlyph {
   id: number;
   advanceWidth: number;
   path: { commands: PathCommand[] };
+  /** Exact native glyph ink bounds in the helper's design-unit coordinate space. */
+  bbox?: { minX: number; minY: number; maxX: number; maxY: number };
   codePoints?: number[];
   /** Exact native paint ownership for this selected glyph id, when the helper
    * can report it. Absent means "no per-glyph answer", not "the face has no
@@ -927,6 +929,9 @@ export function createGlyphHelperFont(spec: {
   function glyphCommands(d: string): PathCommand[] {
     return translateCommandsY(parseSvgPath(d), outlineOffsetY);
   }
+  function glyphBounds(bbox: GlyphResponse["bbox"]): NonNullable<GlyphHelperGlyph["bbox"]> {
+    return { minX: bbox.x, minY: bbox.y + outlineOffsetY, maxX: bbox.x + bbox.w, maxY: bbox.y + bbox.h + outlineOffsetY };
+  }
   // DM-1028: per-run-text shape cache so identical runs shape once.
   const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();
 
@@ -955,6 +960,7 @@ export function createGlyphHelperFont(spec: {
         id: g.id,
         advanceWidth: g.advance,
         path: { commands: glyphCommands(g.d) },
+        bbox: glyphBounds(g.bbox),
         codePoints: [cp],
         ...(isGlyphRasterRepresentation(g.rasterRepresentation)
           ? { rasterRepresentation: g.rasterRepresentation } : {}),
@@ -994,6 +1000,7 @@ export function createGlyphHelperFont(spec: {
       id: g.id,
       advanceWidth: g.advance,
       path: { commands: glyphCommands(g.d) },
+      bbox: glyphBounds(g.bbox),
       ...(isGlyphRasterRepresentation(g.rasterRepresentation)
         ? { rasterRepresentation: g.rasterRepresentation } : {}),
     };
@@ -1210,7 +1217,8 @@ export function createGlyphHelperFont(spec: {
             // Shaped outlines carry no bounding rect of their own, so they use
             // the font-level offset the coverage probe above already learned
             // (`layout` always runs `fetchByCps` before shaping).
-            path: { commands: glyphCommands(sg.d) }
+            path: { commands: glyphCommands(sg.d) },
+            bbox: idToGlyph.get(sg.id)?.bbox,
           };
           // Cache the outline by id so a later getGlyph(id) reuses it.
           if (sg.id !== 0 && !idToGlyph.has(sg.id)) idToGlyph.set(sg.id, glyph);
