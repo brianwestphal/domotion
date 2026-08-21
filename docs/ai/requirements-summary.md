@@ -1434,3 +1434,9 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   FreeSans/FreeSerif glyph streams, plus well-formed, no-U+25CC, and
   cluster-disabled activation controls; these exact records are oracle data,
   never production routing exceptions.
+
+- The PingFang Extension-B runner diagnostic (doc 153) persists the live
+  `CTFontCreateForString` descriptor plus cold/warm reopen arms and parallel
+  Chromium Range/CDP evidence. It fingerprints the exact macOS/font/browser
+  environment and is observational; CDP face names alone never establish the
+  native descriptor or variation instance.

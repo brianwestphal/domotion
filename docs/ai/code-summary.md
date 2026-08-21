@@ -31,6 +31,9 @@ producer is `tools/collect-stage-evidence.ts` plus
 `tools/unified-shaping-oracle.ts` is the face→glyph→painted-origin logical record
 consumed by those stage-evidence artifacts; its lower-level exact glyph leg is
 `tools/exact-shaping-oracle.ts`.
+`tools/pingfang-live-descriptor-oracle.mjs` and its macOS workflow capture the
+otherwise-ephemeral CoreText fallback descriptor, reopen arms, and matching CDP
+font/Range evidence for the PingFang Extension-B discriminator (doc 153).
 `docs/142-renderer-font-route-audit.md` inventories every production
 face-assignment/emission owner and the missing per-run provenance seam between
 those oracles and emitted glyphs.

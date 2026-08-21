@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt310ts71tv5gh8o",
+          "message": {
+            "text": "The oracle separates CoreText provenance from name-based reconstruction by recording the live fallback object first, then reopening that exact answer through PostScript, display-name, and explicit weight-400 descriptor arms. Repeating the matrix in fresh and warm processes makes runner-local state visible instead of inferring it from CDP face names.",
+            "markdown": "The oracle separates CoreText provenance from name-based reconstruction by recording the live fallback object first, then reopening that exact answer through PostScript, display-name, and explicit weight-400 descriptor arms. Repeating the matrix in fresh and warm processes makes runner-local state visible instead of inferring it from CDP face names."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pingfang-live-descriptor.swift"
+                },
+                "region": {
+                  "startLine": 53,
+                  "endLine": 66,
+                  "snippet": {
+                    "text": "\nvar samples: [[String: Any]] = []\nfor iteration in 0..<repeats {\n  let base = CTFontCreateWithName(\"STHeitiSC-Light\" as CFString, 32, nil)\n  for cp in codepoints {\n    let text = scalarString(cp)\n    let live = CTFontCreateForString(base, text as CFString, CFRange(location: 0, length: text.utf16.count))\n    let canonical = CTFontCreateWithName(CTFontCopyPostScriptName(live), 32, nil)\n    let display = CTFontCreateWithName(CTFontCopyDisplayName(live), 32, nil)\n    let weightedDescriptor = CTFontDescriptorCreateCopyWithAttributes(CTFontCopyFontDescriptor(live), [kCTFontTraitsAttribute: [kCTFontWeightTrait: 0.0]] as CFDictionary)\n    let explicit400 = CTFontCreateWithFontDescriptor(weightedDescriptor, 32, nil)\n    samples.append([\"iteration\": iteration, \"queryCodepoint\": cp, \"arms\": [\n      fontRecord(live, \"live-fallback\"), fontRecord(canonical, \"canonical-postscript\"),\n      fontRecord(display, \"display-name\"), fontRecord(explicit400, \"explicit-wght-400\")"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2439"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "adb2c982cf54d2cd38b0f15284551c90"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "496ddb056aed79becf142ef79b4688cfa896a5fc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

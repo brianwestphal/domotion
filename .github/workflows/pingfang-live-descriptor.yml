@@ -1,0 +1,23 @@
+name: PingFang live descriptor oracle
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Capture cold, warm, native, and browser arms
+        env:
+          PINGFANG_DESCRIPTOR_OUTPUT: pingfang-live-descriptor.json
+        run: node tools/pingfang-live-descriptor-oracle.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pingfang-live-descriptor-${{ github.run_id }}
+          path: pingfang-live-descriptor.json
+          if-no-files-found: error
