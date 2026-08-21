@@ -1929,6 +1929,21 @@ Three consequences worth holding onto:
   categories from the pinned ICU companion. Raster ownership is decided later
   from the selected shaped glyph and its physical font tables, as documented in
   [145-renderer-owned-color-glyph-boundary.md](145-renderer-owned-color-glyph-boundary.md).
+  On Windows the final selected gid also carries the helper's exact DirectWrite
+  `rasterRepresentation`: pinned Skia tests COLRv1, COLRv0, SVG, and PNG before
+  it will request an outline, so a COLR base outline cannot demote the glyph to
+  vector. The HarfBuzz fallback supplies only ids/positions/clusters and the
+  helper fetches each shaped id back from the same face, preserving face + gid +
+  representation identity through the capture-to-emitter boundary.
+  The representation changes PAINT ownership only. The original source glyph
+  remains in the shaped run and keeps its advance/cluster position; path and
+  embedded-font emitters omit that selected glyph while the raster overlay
+  supplies its pixels. On macOS this mirrors Skia's split between
+  `neverRequestPath` and `CTFontGetAdvancesForGlyphs`
+  (`SkScalerContext_mac_ct.cpp:297-311`, revision `ebf5052`). Replacing the
+  source span with U+200B before shaping is therefore forbidden: it collapses
+  the advance and moves later vector glyphs even when face selection and raster
+  rectangles are correct.
 
   Measured across all three platforms: the nine `Emoji_Presentation=No` modifier
   bases (U+261D U+26F9 U+270C U+270D U+1F3CB U+1F3CC U+1F574 U+1F575 U+1F590)

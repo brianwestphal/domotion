@@ -222,6 +222,84 @@
           "branch": "validation/dm-2083"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2406pioz5fazzj",
+          "message": {
+            "text": "The ownership question must precede outline extraction because DirectWrite can return a monochrome base outline for a glyph that Skia paints through COLR. Chromium-pinned Skia 62efacd3 queries the exact gid in COLRv1, COLRv0, SVG, then PNG order and sets neverRequestPath on success; this helper now transcribes those same APIs instead of projecting face-wide table presence onto every glyph. The selected result crosses the Node boundary at the classifier (0).",
+            "markdown": "The ownership question must precede outline extraction because DirectWrite can return a monochrome base outline for a glyph that Skia paints through COLR. Chromium-pinned Skia 62efacd3 queries the exact gid in COLRv1, COLRv0, SVG, then PNG order and sets neverRequestPath on success; this helper now transcribes those same APIs instead of projecting face-wide table presence onto every glyph. The selected result crosses the Node boundary at [the classifier](0)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 819,
+                  "endLine": 898,
+                  "snippet": {
+                    "text": "/**\n * Skia's selected-glyph color ownership, reduced to the representation name\n * Node needs at its vector/raster boundary.\n *\n * Chromium's DEPS-pinned Skia (62efacd3, SkScalerContext_win_dw.cpp\n * generateMetrics) asks these APIs BEFORE requesting an ordinary DirectWrite\n * path, in this order: COLRv1 paint tree, COLRv0 translated color run, SVG,\n * PNG. This ordering is load-bearing: GetGlyphRunOutline can return the\n * monochrome base outline for a COLR glyph, but Skia sets neverRequestPath once\n * one of these per-glyph queries succeeds. Face-wide table flags therefore\n * cannot answer this question for mixed faces such as Segoe UI Emoji.\n *\n * The interfaces are queried once per batched glyph request and passed here;\n * QueryInterface failure on an older DirectWrite runtime simply omits the\n * optional wire field, preserving the old helper contract.\n */\nstatic const char* glyphRasterRepresentation(\n    IDWriteFontFace* face,\n    IDWriteFactory2* factory2,\n    IDWriteFontFace4* face4,\n#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)\n    IDWriteFontFace7* face7,\n#endif\n    UINT16 glyphIndex,\n    FLOAT emSize) {\n  if (!face || glyphIndex == 0) return nullptr;\n\n#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)\n  // Skia generateColorV1Metrics: a successful SetCurrentGlyph with a non-NONE\n  // root means this exact gid owns a COLRv1 paint tree.\n  if (face7) {\n    IDWritePaintReader* paintReader = nullptr;\n    if (SUCCEEDED(face7->CreatePaintReader(DWRITE_GLYPH_IMAGE_FORMATS_COLR_PAINT_TREE,\n                                           DWRITE_PAINT_FEATURE_LEVEL_COLR_V1,\n                                           &paintReader)) && paintReader) {\n      DWRITE_PAINT_ELEMENT element = {};\n      D2D_RECT_F clipBox = {};\n      DWRITE_PAINT_ATTRIBUTES attributes = {};\n      const HRESULT hr = paintReader->SetCurrentGlyph(glyphIndex, &element, &clipBox, &attributes);\n      safeRelease(paintReader);\n      if (SUCCEEDED(hr) && element.paintType != DWRITE_PAINT_TYPE_NONE) return \"colr\";\n    } else {\n      safeRelease(paintReader);\n    }\n  }\n#endif\n\n  // Skia getColorGlyphRun / generateColorMetrics: DWRITE_E_NOCOLOR is the\n  // explicit negative for this gid. Any successful translated run is COLRv0.\n  if (factory2) {\n    FLOAT advance = 0;\n    DWRITE_GLYPH_OFFSET offset = {};\n    DWRITE_GLYPH_RUN run = {};\n    run.fontFace = face;\n    run.fontEmSize = emSize;\n    run.glyphCount = 1;\n    run.glyphIndices = &glyphIndex;\n    run.glyphAdvances = &advance;\n    run.glyphOffsets = &offset;\n    const DWRITE_MATRIX identity = {1, 0, 0, 1, 0, 0};\n    IDWriteColorGlyphRunEnumerator* colorLayers = nullptr;\n    const HRESULT hr = factory2->TranslateColorGlyphRun(\n        0, 0, &run, nullptr, DWRITE_MEASURING_MODE_NATURAL,\n        &identity, 0, &colorLayers);\n    const bool hasColorRun = SUCCEEDED(hr) && colorLayers != nullptr;\n    safeRelease(colorLayers);\n    if (hasColorRun) return \"colr\";\n  }\n\n  // Skia drawSVGImage / generatePngMetrics use the exact gid and full ppem\n  // range. Only SVG and PNG are consumed by this pinned backend.\n  if (face4) {\n    DWRITE_GLYPH_IMAGE_FORMATS formats = DWRITE_GLYPH_IMAGE_FORMATS_NONE;\n    if (SUCCEEDED(face4->GetGlyphImageFormats(glyphIndex, 0, UINT32_MAX, &formats))) {\n      if (formats & DWRITE_GLYPH_IMAGE_FORMATS_SVG) return \"svg\";\n      if (formats & DWRITE_GLYPH_IMAGE_FORMATS_PNG) return \"bitmap\";\n    }\n  }\n  return nullptr;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2820
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2403"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c02da1a3c24cccf6c8066899fbd62707"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8fcc8be1b107adc7ecd1e36fd216d0ca3448f0fe",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
     }
   ]
 }

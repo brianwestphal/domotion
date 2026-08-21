@@ -32,6 +32,14 @@ versus feature-off glyph output, and Chromium painted origins all to move. It
 joins each case to `CSS.getPlatformFontsForNode` and per-scalar `Range` origins,
 and withholds its verdict on any comparable face disagreement.
 
+DM-2410 adds a macOS whole-sequence record for `❤️ ⚡️ VS16 wins` under
+`font-variant-emoji:text`. It joins explicit-VS precedence, the two Apple Color
+Emoji selected runs, Helvetica suffix run, shaped advances, and selected
+`sbix` spans in one record. A paired `DOMOTION_CLUSTER_FALLBACK=0` case is an
+ungraded negative control: it must report `cluster-disabled-legacy` and a
+different raster-span result. This prevents a passing per-codepoint/common
+branch from masquerading as evidence for the production sequence route.
+
 The demo-review font-selection card is a composite gate: both the broad unified
 face/shaping report and this production-route report must pass. The raw child
 reports remain embedded in the artifact so a failure retains stage ownership.

@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, clearGlyphHelperCache, beginFcFallbackRendererScope, selectFcFallbackRendererScope, endFcFallbackRendererScope, type LinuxFamilyMatch } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, clearGlyphHelperCache, beginFcFallbackRendererScope, selectFcFallbackRendererScope, endFcFallbackRendererScope, type GlyphRasterRepresentation, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import {
   firstAvailableOrFirst,
@@ -112,7 +112,7 @@ export interface FontInstance {
    * segment should pass it; omitting it preserves the previous infer-it behavior.
    */
   layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl"): {
-    glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>;
+    glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[]; rasterRepresentation?: GlyphRasterRepresentation }>;
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
     clusters?: number[];
     glyphFlags?: number[];

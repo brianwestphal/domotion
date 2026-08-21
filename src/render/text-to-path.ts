@@ -19,7 +19,8 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, type GlyphRasterRepresentation } from "./glyph-helper.js";
+export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // The SHARED attribute escaper. Two local copies used to live in this file and
 // escaped only the five XML metacharacters, so a codepoint the XML `Char`
 // production forbids (U+FFFE / U+FFFF, a stray control, an unpaired surrogate)
@@ -2388,9 +2389,19 @@ function renderEmbeddedGlyphRuns(
       // synthesized TTF's glyf, so the helper outline lands in the embedded
       // font with no extra construction. (Inert on macOS, like DM-891: every
       // fontkit-empty glyph here is legitimately inkless and the helper agrees.)
-      const cmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
-        ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
-      const placement = trackGlyphInEmbedFont(
+      // DM-2410: retain color glyphs in the ORIGINAL shaped run so their
+      // advances continue to position later outlines, but do not insert an
+      // empty stand-in into the embedded subset. On macOS Skia makes exactly
+      // this metrics-vs-paint split: a color typeface sets `neverRequestPath`
+      // while `CTFontGetAdvancesForGlyphs` still supplies the run advance
+      // (`SkScalerContext_mac_ct.cpp:297-311`, rev ebf5052). Rewriting the
+      // source cluster to U+200B upstream collapsed that advance; embedding an
+      // empty PUA glyph here risks the consumer painting `.notdef`. The raster
+      // overlay owns the paint, while this shaped glyph still owns placement.
+      const rasterOwned = glyphUsesRasterRepresentation(
+        run.font, run.fontKey, glyph, fontSize, weight, slant);
+      const cmds = rasterOwned ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+      const placement = rasterOwned ? null : trackGlyphInEmbedFont(
         instanceKey, run.font.unitsPerEm, runAscent, runDescent,
         glyph.id, cmds, glyph.advanceWidth,
         // Tag the custom-TTF entry with the variant we resolved. The `@font-face`
@@ -2401,8 +2412,8 @@ function renderEmbeddedGlyphRuns(
         // already baked in.
         { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource, runToken: run },
       );
-      if (placement == null) { glyphFailed = true; break; }
-      if (runCssFamily == null) runCssFamily = placement.cssFamily;
+      if (!rasterOwned && placement == null) { glyphFailed = true; break; }
+      if (placement != null && runCssFamily == null) runCssFamily = placement.cssFamily;
 
       let xCss: number;
       let yCss = 0;
@@ -2530,7 +2541,7 @@ function renderEmbeddedGlyphRuns(
         ? isLegitimatelyInklessCodepoint(srcCpForInk)
         : (glyph.codePoints != null && glyph.codePoints.length > 0
           && glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp)));
-      if (!glyphInkless) {
+      if (!rasterOwned && !glyphInkless && placement != null) {
         perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
       }
       // DM-2020: HarfBuzz doesn't just hide a default-ignorable's ink after
@@ -2553,7 +2564,15 @@ function renderEmbeddedGlyphRuns(
       const zeroAdvance = srcCpsForAdvance.length > 0 && srcCpsForAdvance.every((cp) => isHarfbuzzDefaultIgnorable(cp));
       runCursorFontUnits += zeroAdvance ? 0 : pos.xAdvance;
     }
-    if (glyphFailed || perGlyph.length === 0 || runCssFamily == null) return null;
+    if (glyphFailed) return null;
+    // A run made entirely of selected raster glyphs contributes advance but no
+    // embedded glyph segment. Keep walking so adjacent vector runs remain in
+    // embedded mode; if every run is raster-owned, `pending` stays empty and
+    // the coordinator declines cleanly to the path/overlay boundary below.
+    if (perGlyph.length === 0 || runCssFamily == null) {
+      cssX += runCursorFontUnits * runScale;
+      continue;
+    }
 
     // Emit captured weight / style / variation-settings on the `<text>` —
     // not the picked variant's @font-face descriptors. For a variable
@@ -2775,6 +2794,7 @@ type RasterKindGlyph = {
   path: { commands: PathCommand[] };
   type?: string;
   getImageForSize?: (size: number) => unknown;
+  rasterRepresentation?: GlyphRasterRepresentation;
 };
 
 /** Pure selected-glyph representation seam used by the mutation matrix. */
@@ -2789,8 +2809,6 @@ export function glyphUsesRasterRepresentation(
   return glyphRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant) != null;
 }
 
-export type GlyphRasterRepresentation = "sbix" | "colr" | "bitmap" | "svg";
-
 export function glyphRasterRepresentation(
   font: FontInstance & { COLR?: { baseGlyphRecord?: Array<{ gid: number }> } },
   fontKey: string,
@@ -2799,6 +2817,13 @@ export function glyphRasterRepresentation(
   weight = 400,
   slant = 0,
 ): GlyphRasterRepresentation | null {
+  // DM-2403: DirectWrite can return a perfectly usable monochrome BASE outline
+  // for a COLR glyph. Skia asks the selected gid's color-paint APIs first and,
+  // on success, never requests that path. The Windows helper transcribes that
+  // exact per-glyph answer; it must therefore outrank outline presence. A face-
+  // wide COLR/CBDT/SVG table flag remains only the compatibility fallback for
+  // helpers that predate the field and for outline-less fontkit glyphs.
+  if (glyph.rasterRepresentation != null) return glyph.rasterRepresentation;
   if (glyph.type === "SBIX") {
     try { if (glyph.getImageForSize?.(fontSize) != null) return "sbix"; } catch { /* use table/path evidence below */ }
   }
@@ -2845,7 +2870,7 @@ export function selectedGlyphRasterSpans(
     const run = runs.find((r) => candidate.start >= r.startIdx && candidate.start < r.endIdx);
     if (run == null) continue;
     const source = text.slice(candidate.start, candidate.end);
-    let glyphs: Array<{ id: number; path: { commands: PathCommand[] }; type?: string; getImageForSize?: (size: number) => unknown }>;
+    let glyphs: Array<{ id: number; path: { commands: PathCommand[] }; type?: string; getImageForSize?: (size: number) => unknown; rasterRepresentation?: GlyphRasterRepresentation }>;
     try {
       glyphs = run.font.layout(source, options.features != null ? fontkitFeatureList(options.features) : undefined).glyphs;
     } catch { continue; }

@@ -32,12 +32,14 @@ function resolveFontFile(candidates: string[]): string | null {
 }
 const ARIAL = resolveFontFile(["C:/Windows/Fonts/arial.ttf", "C:\\Windows\\Fonts\\arial.ttf"]);
 const CAMBRIA = resolveFontFile(["C:/Windows/Fonts/cambria.ttc", "C:\\Windows\\Fonts\\cambria.ttc"]);
+const SEGOE_UI_EMOJI = resolveFontFile(["C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf"]);
 
 interface GlyphResult {
   id: number;
   advance: number;
   bbox: { x: number; y: number; w: number; h: number };
   d: string;
+  rasterRepresentation?: "sbix" | "colr" | "bitmap" | "svg";
 }
 
 function callHelper(request: unknown): { results: any[] } {
@@ -103,6 +105,7 @@ function fontkitPoints(cmds: Array<{ args: number[] }>): Array<[number, number]>
 describeHelper("Windows DirectWrite glyph extractor", () => {
   const describeArial = ARIAL ? describe : describe.skip;
   const describeCambria = CAMBRIA ? describe : describe.skip;
+  const describeSegoeEmoji = SEGOE_UI_EMOJI ? describe : describe.skip;
 
   describeArial("Arial", () => {
     it("reports font metadata in design units", () => {
@@ -163,6 +166,36 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       expect(a.id).toBeGreaterThan(0);
       expect(a.d.length).toBeGreaterThan(0);
       expect(a.d).toMatch(/C/); // DirectWrite emits cubic curves
+    });
+  });
+
+  // DM-2403: Segoe UI Emoji is a MIXED face. DirectWrite exposes a base
+  // outline for a COLR emoji, but Chromium's pinned Skia asks the selected
+  // glyph id's color APIs first and never requests that outline on success.
+  // Querying the same id both by cmap and by id pins the helper wire field to
+  // the selected shaped gid; '#' is the same face's ordinary-outline control.
+  describeSegoeEmoji("Segoe UI Emoji selected-glyph paint ownership", () => {
+    it("reports COLR for the exact emoji gid while keeping an ordinary glyph unmarked", () => {
+      const first = callHelper({
+        fonts: [{ ref: "f", fontPath: SEGOE_UI_EMOJI, size: 2048 }],
+        queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x1f600 }, { cp: 0x23 }] }],
+      });
+      const [grinning, hash] = (first.results[0] as { glyphs: GlyphResult[] }).glyphs;
+      expect(grinning.id).toBeGreaterThan(0);
+      expect(grinning.d.length).toBeGreaterThan(0); // base outline exists but Skia owns color paint
+      expect(grinning.rasterRepresentation).toBe("colr");
+      expect(hash.id).toBeGreaterThan(0);
+      expect(hash.d.length).toBeGreaterThan(0);
+      expect(hash.rasterRepresentation).toBeUndefined();
+
+      const byId = callHelper({
+        fonts: [{ ref: "f", fontPath: SEGOE_UI_EMOJI, size: 2048 }],
+        queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ id: grinning.id }] }],
+      });
+      expect((byId.results[0] as { glyphs: GlyphResult[] }).glyphs[0]).toMatchObject({
+        id: grinning.id,
+        rasterRepresentation: "colr",
+      });
     });
   });
 });

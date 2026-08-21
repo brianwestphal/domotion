@@ -108,13 +108,15 @@
       ],
       "oracles": [
         "tools/font-conformance.ts",
-        "tools/raster-boundary-oracle.ts"
+        "tools/raster-boundary-oracle.ts",
+        "tools/renderer-font-route-oracle.ts"
       ],
       "metamorphicTests": [
         "src/render/emoji-presentation-fallback.test.ts",
         "src/capture/script/emoji-detect.test.ts",
         "src/render/cluster-fallback.test.ts",
         "src/render/emoji-raster-kind.test.ts",
+        "src/render/text.test.ts",
         "tests/alchemical-symbols-not-rastered.e2e.test.ts",
         "tests/raster-fallback-content.e2e.test.ts"
       ],

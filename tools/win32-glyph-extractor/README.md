@@ -9,22 +9,18 @@ font's outline tables (e.g. Cambria Math's OpenType-`CFF`/`MATH`, large CJK
 (`tools/linux-glyph-extractor`).
 
 Because Chromium-on-Windows rasterizes through DirectWrite, a helper that reads
-the same files through DirectWrite produces byte-faithful outlines.
+the same files through DirectWrite produces byte-faithful outlines. Its optional
+per-glyph `rasterRepresentation` field also reports when Chromium's pinned Skia
+would choose COLR, SVG, or PNG paint before requesting that outline.
 
 See [`docs/41-windows-glyph-extraction.md`](../../docs/41-windows-glyph-extraction.md)
 for the full design and [`docs/16-coretext-glyph-extraction.md`](../../docs/16-coretext-glyph-extraction.md)
 for the shared cross-platform contract.
 
-> **Build status:** this helper is written but, unlike the macOS/Linux ones, it
-> has **not yet been compiled or run on real Windows** from this repo — there is
-> no local Windows/MSVC environment here (and Docker can't host Windows on the
-> Mac dev box). It is validated by CI on a `windows-latest` runner: the
-> `glyph-extractor-build` job in `.github/workflows/windows-fidelity.yml`
-> (manual dispatch) compiles it and runs the parity test, and the
-> `windows-glyph-extractor` job in `release-helpers.yml` builds + uploads the
-> release asset. Expect to iterate on the first green run — the most likely
-> things to need a tweak are the **y-flip sign** (pinned by the `H` parity test)
-> and `.ttc` face-index resolution.
+The helper is built and exercised on real Windows by the `windows-latest`
+visual-test jobs; `release-helpers.yml` builds and uploads the release asset.
+The macOS development host cannot compile it locally, so the Windows-gated
+native API tests remain the build-and-runtime authority.
 
 ## Build
 
@@ -53,6 +49,14 @@ to y-up) — identical to fontkit's `glyph.path.commands`, so the renderer's
 `scale(fontSize/unitsPerEm, …)` transform consumes helper and fontkit output
 interchangeably. DirectWrite elevates TrueType quadratics to cubics, so all
 curves are emitted as `C`.
+
+For each `glyphs` result, the helper may also emit
+`"rasterRepresentation":"colr"|"svg"|"bitmap"`. The value is decided for the
+exact returned gid using pinned Skia's DirectWrite order: translated COLR run,
+then SVG/PNG image formats (plus COLRv1 paint-tree support where the SDK/backend
+enables it). It is deliberately independent of `d`: Segoe UI Emoji can expose a
+monochrome base outline for a gid whose Chromium paint owner is COLR. Ordinary
+outline glyphs in that same face omit the field.
 
 Quick smoke test (on Windows):
 
@@ -124,5 +128,8 @@ byte-identical to the one-shot response for the same envelope.
 
 `tests/win32-glyph-extractor.test.ts` (vitest) asserts the helper's outlines
 match fontkit command-for-command on Arial `H` (line mapping + the y-flip) and a
-Cambria Math glyph. The suite skips unless `process.platform === "win32"` and
-the binary is built, so it is inert on macOS/Linux.
+Cambria Math glyph. It also requires Segoe UI Emoji U+1F600 to report COLR by
+codepoint and by selected gid despite its base outline, with ordinary `#` in the
+same face as the negative control. The suite skips unless
+`process.platform === "win32"` and the binary is built, so it is inert on
+macOS/Linux.

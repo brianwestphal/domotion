@@ -4,9 +4,10 @@ Requirements for color emoji glyphs (✨😀🚀⛔🎉 …) in Domotion's SVG o
 
 > **Cross-platform note**: presentation and raster ownership are shared across
 > macOS, Linux, and Windows. The platform helpers expose the selected face's
-> physical color tables; macOS can additionally extract a high-resolution sbix
-> strike, while Linux/Windows use the exact page screenshot for the selected
-> glyph paint.
+> physical color tables; the Windows helper also reports the exact selected
+> gid's DirectWrite paint representation. macOS can additionally extract a
+> high-resolution sbix strike, while Linux/Windows use the exact page screenshot
+> for the selected glyph paint.
 
 ## Why color emoji are special
 
@@ -28,6 +29,17 @@ fallback-priority, system-fallback, and shaping path using the captured CSS
 font inputs. Only a candidate whose selected glyph is concretely non-outline
 survives into `rasterGlyphs`; entries carry `{ charIndex, charLength, rect,
 dataUri? }`, where the UTF-16 length makes whole-cluster suppression exact.
+On Windows, a helper glyph's `rasterRepresentation` wins over an available base
+outline. This mirrors Skia's selected-gid COLR/SVG/PNG checks: a COLR base
+outline is fallback geometry, not proof that Chromium painted monochrome.
+
+Raster ownership suppresses paint, not shaping. A selected color glyph remains
+in its original source sequence so its shaped advance positions the following
+vector text; only its path or embedded-subset glyph is omitted. This mirrors
+macOS Skia, which refuses a path for color faces but still obtains the glyph
+advance from CoreText (`SkScalerContext_mac_ct.cpp:297-311`, revision
+`ebf5052`). U+200B substitution is reserved for zero-area structural markers
+and raw-`<text>` degradation, never for a paint-bearing emoji overlay.
 
 ## Bitmap source: Apple Color Emoji sbix table (DM-335)
 
@@ -131,5 +143,8 @@ separate selected-glyph output capability. See
 - `src/render/text-to-path.test.ts` `Selected raster glyphs suppress vector emission` locks output ownership for U+2728 / U+1F600 / U+1F680 / mixed Smile 😀 runs.
 - `src/capture/script/emoji-detect.test.ts` mutation-covers the pinned sequence
   grammar; `src/render/emoji-raster-kind.test.ts` covers mixed faces and every
-  complete/incomplete color-table form; the Alchemical Symbols and raster
-  content browser tests prove negative and positive production activation.
+  complete/incomplete color-table form plus the per-glyph marker movement
+  control; `tests/win32-glyph-extractor.test.ts` proves selected Segoe UI Emoji
+  gids carry COLR ownership while an ordinary glyph in the same face does not.
+  The Alchemical Symbols and raster content browser tests prove negative and
+  positive production activation.

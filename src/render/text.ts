@@ -257,7 +257,23 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRast
   // overlay already covers (the double-emoji bug: an all-emoji-font run fails
   // path rendering, and the fallback repainted the full line under the
   // per-char raster overlays).
-  const suppress = seg.rasterGlyphs.filter((g) => g.suppressGlyph === true || (alsoRastered && g.dataUri != null));
+  // DM-2410: a paint-bearing raster glyph is still part of the shaped source
+  // run. Do not replace it with U+200B before font routing: that destroys the
+  // selected glyph's advance and moves every following outline left. Skia's
+  // macOS scaler makes the same split — a color typeface sets
+  // `neverRequestPath`, but `generateMetrics` still reads the glyph advance
+  // from CoreText (`SkScalerContext_mac_ct.cpp:297-311`, rev ebf5052). Our
+  // path/embedded emitters likewise shape the original source, retain its
+  // advance, and omit only the selected raster representation.
+  //
+  // Zero-area entries are different: they are structural suppression markers
+  // for a separately captured ::first-letter segment and own no paint/advance
+  // in this body run. Those keep the historical U+200B replacement. The raw
+  // `<text>` fallback (`alsoRastered`) cannot inspect selected glyph render
+  // kinds, so it additionally suppresses every overlay that already has paint.
+  const suppress = seg.rasterGlyphs.filter((g) =>
+    (g.suppressGlyph === true && g.rect.width === 0 && g.rect.height === 0)
+      || (alsoRastered && g.dataUri != null));
   const suppressedAt = new Set<number>();
   for (const glyph of suppress) {
     const fallbackLength = normalized.codePointAt(glyph.charIndex)! > 0xFFFF ? 2 : 1;

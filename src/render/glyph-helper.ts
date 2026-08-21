@@ -87,11 +87,27 @@ export function isGlyphHelperAvailable(): boolean {
 
 interface PathCommand { command: string; args: number[] }
 
+/**
+ * The concrete non-outline representation the platform renderer selected for
+ * one glyph id. This is deliberately per-glyph rather than inferred from the
+ * face's table directory: mixed faces such as Segoe UI Emoji expose ordinary
+ * outlines and COLR paint from the same face.
+ */
+export type GlyphRasterRepresentation = "sbix" | "colr" | "bitmap" | "svg";
+
+function isGlyphRasterRepresentation(value: unknown): value is GlyphRasterRepresentation {
+  return value === "sbix" || value === "colr" || value === "bitmap" || value === "svg";
+}
+
 interface GlyphHelperGlyph {
   id: number;
   advanceWidth: number;
   path: { commands: PathCommand[] };
   codePoints?: number[];
+  /** Exact native paint ownership for this selected glyph id, when the helper
+   * can report it. Absent means "no per-glyph answer", not "the face has no
+   * color tables"; older helper binaries remain wire-compatible. */
+  rasterRepresentation?: GlyphRasterRepresentation;
 }
 
 interface MetaResponse {
@@ -128,6 +144,9 @@ interface GlyphResponse {
   advance: number;
   bbox: { x: number; y: number; w: number; h: number };
   d: string;
+  /** DM-2403: selected-glyph paint kind from the native renderer. Windows
+   * transcribes Skia/DirectWrite's COLR -> SVG -> PNG decision. */
+  rasterRepresentation?: GlyphRasterRepresentation;
 }
 
 // Parse the Swift helper's SVG path-data string into fontkit's command-array
@@ -936,7 +955,9 @@ export function createGlyphHelperFont(spec: {
         id: g.id,
         advanceWidth: g.advance,
         path: { commands: glyphCommands(g.d) },
-        codePoints: [cp]
+        codePoints: [cp],
+        ...(isGlyphRasterRepresentation(g.rasterRepresentation)
+          ? { rasterRepresentation: g.rasterRepresentation } : {}),
       };
       cpToGlyph.set(cp, glyph);
       if (g.id !== 0) idToGlyph.set(g.id, glyph);
@@ -972,7 +993,9 @@ export function createGlyphHelperFont(spec: {
     const glyph: GlyphHelperGlyph = {
       id: g.id,
       advanceWidth: g.advance,
-      path: { commands: glyphCommands(g.d) }
+      path: { commands: glyphCommands(g.d) },
+      ...(isGlyphRasterRepresentation(g.rasterRepresentation)
+        ? { rasterRepresentation: g.rasterRepresentation } : {}),
     };
     idToGlyph.set(id, glyph);
     return glyph;

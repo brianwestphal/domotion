@@ -33,7 +33,7 @@ outlines, zero bundled-font weight.
 
 - **IPC envelope** — identical JSON request/response (`fonts[]` declared once
   with a `ref`, `queries[]` of `meta` / `glyphs`, response `d` as an SVG
-  path-data string in CSS-pixel space with SVG y-down). The `text-to-path.ts`
+  path-data string in design-unit space with font y-up). The `text-to-path.ts`
   dispatch layer is engine-agnostic; only the asset filename differs.
 - **Probe-then-fallback** — fontkit first; the helper is invoked only when
   fontkit yields a null/empty path. Same `(fontFile, glyphId)` in-memory
@@ -89,13 +89,24 @@ Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
    CoreText "missing glyph → empty `d`" rule).
 4. **Outline extraction.** `fontFace->GetGlyphRunOutline(emSize, glyphIndices,
    nullptr /*advances*/, nullptr /*offsets*/, count, isSideways=FALSE,
-   isRtl=FALSE, geometrySink)` where `emSize` is the requested CSS-pixel size.
-   The custom sink (below) records the path commands.
-5. **Advances + bbox.** `fontFace->GetDesignGlyphMetrics(glyphIndices, count,
+   isRtl=FALSE, geometrySink)` where `emSize` is the face's units-per-em so the
+   result stays in design-unit space. The custom sink (below) records the path
+   commands.
+5. **Selected-glyph paint ownership (DM-2403).** For a color-capable selected
+   face, classify each exact gid using Chromium's DEPS-pinned Skia order
+   (`62efacd3`, `SkScalerContext_win_dw.cpp::generateMetrics`): COLRv1
+   `CreatePaintReader` + `SetCurrentGlyph`, COLRv0
+   `TranslateColorGlyphRun` (`DWRITE_E_NOCOLOR` is the negative), then
+   `IDWriteFontFace4::GetGlyphImageFormats` for SVG and PNG. Emit the optional
+   `rasterRepresentation` value (`colr`, `svg`, or `bitmap`) on that glyph
+   response. This query runs independently of `GetGlyphRunOutline`: DirectWrite
+   can expose a monochrome base outline for a COLR glyph, but Skia selects the
+   color paint first and marks the path as never requested.
+6. **Advances + bbox.** `fontFace->GetDesignGlyphMetrics(glyphIndices, count,
    metrics)` → scale `advanceWidth` by `emSize / unitsPerEm`. Derive bbox from
    the sink's accumulated min/max, or from `GetDesignGlyphMetrics`'
    `leftSideBearing` / `topSideBearing` / `advanceHeight` scaled to px.
-6. **Meta query.** `IDWriteFontMetrics` (via
+7. **Meta query.** `IDWriteFontMetrics` (via
    `fontFace->GetMetrics(&m)`): `m.designUnitsPerEm`, `m.ascent`, `m.descent`,
    `m.underlinePosition` / `m.underlineThickness`,
    `m.strikethroughPosition` / `m.strikethroughThickness`. These map directly
@@ -217,6 +228,11 @@ a cert is provisioned.
   `tests/win32-glyph-extractor.test.ts` (runs only on `process.platform === 'win32'`).
 - **Cambria Math glyph**: extract a Math-Alpha glyph (e.g. U+1D400 𝐀) and
   confirm a non-empty path where fontkit returned empty.
+- **Segoe UI Emoji selected-gid ownership**: query U+1F600 by codepoint and by
+  its returned gid and require `rasterRepresentation: "colr"`; query ordinary
+  `#` from the same face as the unmarked outline control. The production raster
+  content test then proves the field survives HarfBuzz's selected gid and
+  activates the capture-to-emitter overlay boundary.
 - **CI**: a `windows-latest` job (extend the existing `windows-fidelity.yml`)
   builds the helper from a clean checkout (validates `build.ps1`) and runs
   `npm run demos:test:html` once the Windows fallback chain (DM-260) is
@@ -238,10 +254,12 @@ a cert is provisioned.
 
 ## Out of scope
 
-- GPOS / shaping — fontkit-owned (parity with doc 16).
+- GPOS / shaping — Node-side HarfBuzz/fontkit-owned (parity with doc 16); the
+  helper receives the resulting gid for outline and paint-kind lookup.
 - The Linux Pango/Cairo extractor — DM-389.
 - Windows fallback-chain calibration (which key paints which block) — DM-260.
-- Color-emoji vector layers (Segoe UI Emoji COLR layers) — separate ticket.
+- Native vector reconstruction of color-glyph paint layers. Domotion preserves
+  Chromium's paint through the existing screenshot overlay boundary instead.
 
 ## Status
 

@@ -90,6 +90,71 @@
           "branch": "dm-2168-font-route-trace"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt240h6kq9yjz2p3",
+          "message": {
+            "text": "The exact-block trace joins assignment and representation instead of leaving two plausible green artifacts. Each cell now records ordered declared-family evidence, the selected mechanism and physical face, HarfBuzz glyph id/cluster, that gid’s raster kind, and the final raster span; a rerun can therefore distinguish cmap14/fallback drift from a correct face whose paint ownership was lost.",
+            "markdown": "The exact-block trace joins assignment and representation instead of leaving two plausible green artifacts. Each cell now records ordered declared-family evidence, the selected mechanism and physical face, HarfBuzz glyph id/cluster, that gid’s raster kind, and the final raster span; a rerun can therefore distinguish cmap14/fallback drift from a correct face whose paint ownership was lost."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/unicode-font-route-trace.ts"
+                },
+                "region": {
+                  "startLine": 146,
+                  "endLine": 188,
+                  "snippet": {
+                    "text": "  const domotionShaped = shapedRuns?.map((run) => {\n    const selectedSource = getFontSourceInfo(run.font);\n    let shaped: ReturnType<typeof run.font.layout> | null = null;\n    try { shaped = run.font.layout(run.text); } catch { shaped = null; }\n    return {\n      text: run.text,\n      sourceSpan: [run.startIdx, run.endIdx],\n      mechanism: run.routeMechanism,\n      routeKey: run.fontKey,\n      postscriptName: run.font.postscriptName ?? selectedSource?.postscriptName ?? null,\n      path: selectedSource?.path ?? null,\n      faceIndex: selectedSource?.faceIndex ?? null,\n      glyphs: shaped?.glyphs.map((glyph, index) => ({\n        id: glyph.id,\n        cluster: shaped?.clusters?.[index] ?? index,\n        rasterRepresentation: glyphRasterRepresentation(\n          run.font, run.fontKey, glyph, cell.size, cell.weight, cell.italic ? 1 : 0,\n        ),\n      })) ?? [],\n    };\n  }) ?? null;\n  const rasterSpans = selectedGlyphRasterSpans(\n    cell.text,\n    [{ start: 0, end: cell.text.length }],\n    {\n      fontSize: cell.size,\n      fontFamily: cell.fontFamily,\n      fontWeight: cell.weight,\n      fontStyle: cell.italic ? \"italic\" : \"normal\",\n      fontStretch: `${cell.stretch}%`,\n      lang: cell.lang,\n    },\n  );\n  results.push({\n    ...cell,\n    declaredFamilies: declaredChrome,\n    exhaustedDeclaredFamilyIndex: declared.findIndex((d) => d.usable),\n    chrome: chrome == null ? null : { familyName: chrome.familyName, postscriptName: chrome.postScriptName, glyphCount: chrome.glyphCount, reopenedPath: chromeInstalled?.path ?? null, glyphId: chromeInstance == null ? null : glyphIdForCp(chromeInstance, cell.cp) },\n    hardcoded: { priority, candidates: hardcoded, accepted: hardcoded.find((h) => h.glyphId !== 0) ?? null },\n    directWrite: { baseFamilyName: baseFamilyName ?? null, locale, weight: cell.weight, italic: cell.italic, stretch: cell.stretch, answer: directWrite },\n    domotion: { primaryKey, chain, routeKey: ours.key, covered: ours.covered, glyphId: finalInst == null ? 0 : glyphIdForCp(finalInst, cell.cp), postscriptName: finalInst?.postscriptName ?? source?.postscriptName ?? null, path: source?.path ?? null },\n    domotionShaped,\n    rasterSpans,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2403"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a94b4e7c967a9d847b705c9af8883dc1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8fcc8be1b107adc7ecd1e36fd216d0ca3448f0fe",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
     }
   ]
 }

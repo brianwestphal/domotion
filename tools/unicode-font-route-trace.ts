@@ -14,6 +14,7 @@ import {
   getFontInstance, getFontSourceInfo, glyphIdForCp, resolveFontForCodepoint,
   resolveFontKey, resolveFontKeyChain,
 } from "../src/render/font-resolution.js";
+import { glyphRasterRepresentation, selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 import { createGlyphHelperFont, resolveInstalledFont, resolveSystemFallbackFonts } from "../src/render/glyph-helper.js";
 import {
   blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun,
@@ -142,6 +143,39 @@ for (const cell of cells) {
   const source = getFontSourceInfo(finalInst);
   const shapedRuns = splitTextIntoFontRunsShaped(cell.text, primary, primaryKey, cell.weight, cell.size,
     cell.italic ? 1 : 0, undefined, cell.lang, chain, false, cell.stretch, undefined, cell.fontFamily, { mode: "paths" });
+  const domotionShaped = shapedRuns?.map((run) => {
+    const selectedSource = getFontSourceInfo(run.font);
+    let shaped: ReturnType<typeof run.font.layout> | null = null;
+    try { shaped = run.font.layout(run.text); } catch { shaped = null; }
+    return {
+      text: run.text,
+      sourceSpan: [run.startIdx, run.endIdx],
+      mechanism: run.routeMechanism,
+      routeKey: run.fontKey,
+      postscriptName: run.font.postscriptName ?? selectedSource?.postscriptName ?? null,
+      path: selectedSource?.path ?? null,
+      faceIndex: selectedSource?.faceIndex ?? null,
+      glyphs: shaped?.glyphs.map((glyph, index) => ({
+        id: glyph.id,
+        cluster: shaped?.clusters?.[index] ?? index,
+        rasterRepresentation: glyphRasterRepresentation(
+          run.font, run.fontKey, glyph, cell.size, cell.weight, cell.italic ? 1 : 0,
+        ),
+      })) ?? [],
+    };
+  }) ?? null;
+  const rasterSpans = selectedGlyphRasterSpans(
+    cell.text,
+    [{ start: 0, end: cell.text.length }],
+    {
+      fontSize: cell.size,
+      fontFamily: cell.fontFamily,
+      fontWeight: cell.weight,
+      fontStyle: cell.italic ? "italic" : "normal",
+      fontStretch: `${cell.stretch}%`,
+      lang: cell.lang,
+    },
+  );
   results.push({
     ...cell,
     declaredFamilies: declaredChrome,
@@ -150,15 +184,11 @@ for (const cell of cells) {
     hardcoded: { priority, candidates: hardcoded, accepted: hardcoded.find((h) => h.glyphId !== 0) ?? null },
     directWrite: { baseFamilyName: baseFamilyName ?? null, locale, weight: cell.weight, italic: cell.italic, stretch: cell.stretch, answer: directWrite },
     domotion: { primaryKey, chain, routeKey: ours.key, covered: ours.covered, glyphId: finalInst == null ? 0 : glyphIdForCp(finalInst, cell.cp), postscriptName: finalInst?.postscriptName ?? source?.postscriptName ?? null, path: source?.path ?? null },
-    domotionShaped: shapedRuns?.map((run) => ({
-      text: run.text,
-      routeKey: run.fontKey,
-      postscriptName: run.font.postscriptName ?? null,
-      glyphId: glyphIdForCp(run.font, cell.cp),
-    })) ?? null,
+    domotionShaped,
+    rasterSpans,
   });
 }
 await cdp.detach(); await browser.close();
-const artifact = { schemaVersion: 1, generatedAt: new Date().toISOString(), platform: process.platform, fixture: fixturePath, cells: results };
+const artifact = { schemaVersion: 2, generatedAt: new Date().toISOString(), platform: process.platform, fixture: fixturePath, cells: results };
 writeFileSync(outPath, JSON.stringify(artifact, null, 2));
 process.stdout.write(`FONTROUTE wrote ${results.length} cells to ${outPath}\n`);

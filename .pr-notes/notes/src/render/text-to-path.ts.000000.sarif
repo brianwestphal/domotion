@@ -895,6 +895,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt240b6ci547zgpm",
+          "message": {
+            "text": "The helper-reported per-gid representation intentionally outranks a nonempty path, while face-wide table flags remain behind the outline negative control. That ordering preserves ordinary outline glyphs in mixed faces and restores COLR glyphs whose DirectWrite base outline previously forced vector ownership; the native query (0) supplies the exact discriminator and the activation matrix (1) proves only the marker changes the decision.",
+            "markdown": "The helper-reported per-gid representation intentionally outranks a nonempty path, while face-wide table flags remain behind the outline negative control. That ordering preserves ordinary outline glyphs in mixed faces and restores COLR glyphs whose DirectWrite base outline previously forced vector ownership; [the native query](0) supplies the exact discriminator and [the activation matrix](1) proves only the marker changes the decision."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2820,
+                  "endLine": 2836,
+                  "snippet": {
+                    "text": "  // DM-2403: DirectWrite can return a perfectly usable monochrome BASE outline\n  // for a COLR glyph. Skia asks the selected gid's color-paint APIs first and,\n  // on success, never requests that path. The Windows helper transcribes that\n  // exact per-glyph answer; it must therefore outrank outline presence. A face-\n  // wide COLR/CBDT/SVG table flag remains only the compatibility fallback for\n  // helpers that predate the field and for outline-less fontkit glyphs.\n  if (glyph.rasterRepresentation != null) return glyph.rasterRepresentation;\n  if (glyph.type === \"SBIX\") {\n    try { if (glyph.getImageForSize?.(fontSize) != null) return \"sbix\"; } catch { /* use table/path evidence below */ }\n  }\n  if (glyph.type === \"COLR\" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return \"colr\";\n  if (commandsFor(glyph, fontKey, weight, fontSize, slant).length > 0) return null;\n  const tables = font.directory?.tables;\n  if (tables != null && \"CBDT\" in tables && \"CBLC\" in tables) return \"bitmap\";\n  if (tables != null && \"sbix\" in tables) return \"sbix\";\n  if (tables != null && \"COLR\" in tables && \"CPAL\" in tables) return \"colr\";\n  return tables != null && \"SVG \" in tables ? \"svg\" : null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 819
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/emoji-raster-kind.test.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2403"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ad22349dcb57db3623ece2a426cd1ba5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8fcc8be1b107adc7ecd1e36fd216d0ca3448f0fe",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
     }
   ]
 }

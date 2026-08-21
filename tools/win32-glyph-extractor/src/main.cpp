@@ -816,7 +816,89 @@ static bool openFont(IDWriteFactory* factory, const JsonValue& spec, FontEntry& 
 
 // ──────────────────────────────── queries ──────────────────────────────────
 
-static std::string runGlyphsQuery(const JsonValue& query, std::map<std::string, FontEntry>& fonts) {
+/**
+ * Skia's selected-glyph color ownership, reduced to the representation name
+ * Node needs at its vector/raster boundary.
+ *
+ * Chromium's DEPS-pinned Skia (62efacd3, SkScalerContext_win_dw.cpp
+ * generateMetrics) asks these APIs BEFORE requesting an ordinary DirectWrite
+ * path, in this order: COLRv1 paint tree, COLRv0 translated color run, SVG,
+ * PNG. This ordering is load-bearing: GetGlyphRunOutline can return the
+ * monochrome base outline for a COLR glyph, but Skia sets neverRequestPath once
+ * one of these per-glyph queries succeeds. Face-wide table flags therefore
+ * cannot answer this question for mixed faces such as Segoe UI Emoji.
+ *
+ * The interfaces are queried once per batched glyph request and passed here;
+ * QueryInterface failure on an older DirectWrite runtime simply omits the
+ * optional wire field, preserving the old helper contract.
+ */
+static const char* glyphRasterRepresentation(
+    IDWriteFontFace* face,
+    IDWriteFactory2* factory2,
+    IDWriteFontFace4* face4,
+#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)
+    IDWriteFontFace7* face7,
+#endif
+    UINT16 glyphIndex,
+    FLOAT emSize) {
+  if (!face || glyphIndex == 0) return nullptr;
+
+#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)
+  // Skia generateColorV1Metrics: a successful SetCurrentGlyph with a non-NONE
+  // root means this exact gid owns a COLRv1 paint tree.
+  if (face7) {
+    IDWritePaintReader* paintReader = nullptr;
+    if (SUCCEEDED(face7->CreatePaintReader(DWRITE_GLYPH_IMAGE_FORMATS_COLR_PAINT_TREE,
+                                           DWRITE_PAINT_FEATURE_LEVEL_COLR_V1,
+                                           &paintReader)) && paintReader) {
+      DWRITE_PAINT_ELEMENT element = {};
+      D2D_RECT_F clipBox = {};
+      DWRITE_PAINT_ATTRIBUTES attributes = {};
+      const HRESULT hr = paintReader->SetCurrentGlyph(glyphIndex, &element, &clipBox, &attributes);
+      safeRelease(paintReader);
+      if (SUCCEEDED(hr) && element.paintType != DWRITE_PAINT_TYPE_NONE) return "colr";
+    } else {
+      safeRelease(paintReader);
+    }
+  }
+#endif
+
+  // Skia getColorGlyphRun / generateColorMetrics: DWRITE_E_NOCOLOR is the
+  // explicit negative for this gid. Any successful translated run is COLRv0.
+  if (factory2) {
+    FLOAT advance = 0;
+    DWRITE_GLYPH_OFFSET offset = {};
+    DWRITE_GLYPH_RUN run = {};
+    run.fontFace = face;
+    run.fontEmSize = emSize;
+    run.glyphCount = 1;
+    run.glyphIndices = &glyphIndex;
+    run.glyphAdvances = &advance;
+    run.glyphOffsets = &offset;
+    const DWRITE_MATRIX identity = {1, 0, 0, 1, 0, 0};
+    IDWriteColorGlyphRunEnumerator* colorLayers = nullptr;
+    const HRESULT hr = factory2->TranslateColorGlyphRun(
+        0, 0, &run, nullptr, DWRITE_MEASURING_MODE_NATURAL,
+        &identity, 0, &colorLayers);
+    const bool hasColorRun = SUCCEEDED(hr) && colorLayers != nullptr;
+    safeRelease(colorLayers);
+    if (hasColorRun) return "colr";
+  }
+
+  // Skia drawSVGImage / generatePngMetrics use the exact gid and full ppem
+  // range. Only SVG and PNG are consumed by this pinned backend.
+  if (face4) {
+    DWRITE_GLYPH_IMAGE_FORMATS formats = DWRITE_GLYPH_IMAGE_FORMATS_NONE;
+    if (SUCCEEDED(face4->GetGlyphImageFormats(glyphIndex, 0, UINT32_MAX, &formats))) {
+      if (formats & DWRITE_GLYPH_IMAGE_FORMATS_SVG) return "svg";
+      if (formats & DWRITE_GLYPH_IMAGE_FORMATS_PNG) return "bitmap";
+    }
+  }
+  return nullptr;
+}
+
+static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factory,
+                                  std::map<std::string, FontEntry>& fonts) {
   std::ostringstream out;
   std::string ref = query.at("fontRef").asString();
   auto it = fonts.find(ref);
@@ -828,6 +910,29 @@ static std::string runGlyphsQuery(const JsonValue& query, std::map<std::string, 
   // (scale = emSize/unitsPerEm = 1), matching fontkit. Advances likewise stay in
   // design units. (Parity with the macOS helper opening at size=unitsPerEm.)
   const FLOAT emSize = static_cast<FLOAT>(it->second.unitsPerEm);
+
+  // Match DWriteFontTypeface's fIsColorFont gate: Skia only enters the four
+  // selected-glyph queries when both DirectWrite2 interfaces exist and the
+  // selected face reports itself color-capable.
+  IDWriteFactory2* factory2 = nullptr;
+  IDWriteFontFace2* face2 = nullptr;
+  bool isColorFont = false;
+  if (factory && SUCCEEDED(factory->QueryInterface(__uuidof(IDWriteFactory2),
+                                                   reinterpret_cast<void**>(&factory2))) && factory2 &&
+      SUCCEEDED(face->QueryInterface(__uuidof(IDWriteFontFace2),
+                                     reinterpret_cast<void**>(&face2))) && face2) {
+    isColorFont = face2->IsColorFont() != FALSE;
+  }
+  IDWriteFontFace4* face4 = nullptr;
+  if (isColorFont) {
+    face->QueryInterface(__uuidof(IDWriteFontFace4), reinterpret_cast<void**>(&face4));
+  }
+#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)
+  IDWriteFontFace7* face7 = nullptr;
+  if (isColorFont) {
+    face->QueryInterface(__uuidof(IDWriteFontFace7), reinterpret_cast<void**>(&face7));
+  }
+#endif
 
   out << "{\"type\":\"glyphs\",\"glyphs\":[";
   const JsonArray& inputs = query.at("glyphs").asArray();
@@ -842,12 +947,24 @@ static std::string runGlyphsQuery(const JsonValue& query, std::map<std::string, 
     }
 
     std::string d;
+    const char* rasterRepresentation = nullptr;
     double advance = 0;
     double bx = 0, by = 0, bw = 0, bh = 0;
     if (glyphIndex != 0) {
       DWRITE_GLYPH_METRICS gm;
       if (SUCCEEDED(face->GetDesignGlyphMetrics(&glyphIndex, 1, &gm, FALSE))) {
         advance = static_cast<double>(gm.advanceWidth);  // design units (emSize == unitsPerEm)
+      }
+      // Preserve Skia's ownership order even though this helper still returns
+      // the base outline as diagnostic/vector-fallback data: decide native
+      // color/image paint for the selected gid before requesting that outline.
+      if (isColorFont) {
+        rasterRepresentation = glyphRasterRepresentation(
+            face, factory2, face4,
+#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)
+            face7,
+#endif
+            glyphIndex, emSize);
       }
       SvgPathSink sink;
       if (SUCCEEDED(face->GetGlyphRunOutline(emSize, &glyphIndex, nullptr, nullptr, 1, FALSE, FALSE, &sink))) {
@@ -868,9 +985,19 @@ static std::string runGlyphsQuery(const JsonValue& query, std::map<std::string, 
         << ",\"y\":" << formatNumber(by)
         << ",\"w\":" << formatNumber(bw)
         << ",\"h\":" << formatNumber(bh)
-        << "},\"d\":\"" << d << "\"}";
+        << "},\"d\":\"" << d << "\"";
+    if (rasterRepresentation) {
+      out << ",\"rasterRepresentation\":\"" << rasterRepresentation << "\"";
+    }
+    out << "}";
   }
   out << "]}";
+  safeRelease(face4);
+#if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)
+  safeRelease(face7);
+#endif
+  safeRelease(face2);
+  safeRelease(factory2);
   return out.str();
 }
 
@@ -1493,7 +1620,7 @@ static std::string handleEnvelope(IDWriteFactory* factory, const JsonValue& enve
     if (i > 0) response << ",";
     const std::string type = queries[i].at("type").asString();
     if (type == "glyphs") {
-      response << runGlyphsQuery(queries[i], fonts);
+      response << runGlyphsQuery(queries[i], factory, fonts);
     } else if (type == "meta") {
       response << runMetaQuery(queries[i], fonts);
     } else if (type == "fallback") {
@@ -1627,7 +1754,7 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.6.0\n";
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.7.0\n";
       return 0;
     }
     if (a == "--help" || a == "-h") {

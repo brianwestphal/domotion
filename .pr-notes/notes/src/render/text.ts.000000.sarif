@@ -79,6 +79,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2441wzuo26tvox",
+          "message": {
+            "text": "Preserve selected raster glyphs in the shaped source; suppress only their paint. Skia's macOS scaler sets neverRequestPath for a color typeface but still obtains the same glyph's advance with CTFontGetAdvancesForGlyphs (SkScalerContextmacct.cpp:297-311, pinned revision ebf5052). Replacing the source cluster with U+200B destroyed that advance and shifted all following outlines beneath otherwise-correct overlays. Zero-area structural markers remain the distinct U+200B case; the embedded emitter follows the same metrics/paint split and avoids empty PUA stand-ins.",
+            "markdown": "Preserve selected raster glyphs in the shaped source; suppress only their paint. Skia's macOS scaler sets neverRequestPath for a color typeface but still obtains the same glyph's advance with CTFontGetAdvancesForGlyphs (SkScalerContext_mac_ct.cpp:297-311, pinned revision ebf5052). Replacing the source cluster with U+200B destroyed that advance and shifted all following outlines beneath otherwise-correct overlays. Zero-area structural markers remain the distinct U+200B case; the embedded emitter follows the same metrics/paint split and avoids empty PUA stand-ins."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 260,
+                  "endLine": 276,
+                  "snippet": {
+                    "text": "  // DM-2410: a paint-bearing raster glyph is still part of the shaped source\n  // run. Do not replace it with U+200B before font routing: that destroys the\n  // selected glyph's advance and moves every following outline left. Skia's\n  // macOS scaler makes the same split — a color typeface sets\n  // `neverRequestPath`, but `generateMetrics` still reads the glyph advance\n  // from CoreText (`SkScalerContext_mac_ct.cpp:297-311`, rev ebf5052). Our\n  // path/embedded emitters likewise shape the original source, retain its\n  // advance, and omit only the selected raster representation.\n  //\n  // Zero-area entries are different: they are structural suppression markers\n  // for a separately captured ::first-letter segment and own no paint/advance\n  // in this body run. Those keep the historical U+200B replacement. The raw\n  // `<text>` fallback (`alsoRastered`) cannot inspect selected glyph render\n  // kinds, so it additionally suppresses every overlay that already has paint.\n  const suppress = seg.rasterGlyphs.filter((g) =>\n    (g.suppressGlyph === true && g.rect.width === 0 && g.rect.height === 0)\n      || (alsoRastered && g.dataUri != null));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2392
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.test.ts"
+                },
+                "region": {
+                  "startLine": 118
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/renderer-font-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 40
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2410"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9126409f089e5f8911b8cd045040b782"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8fcc8be1b107adc7ecd1e36fd216d0ca3448f0fe",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
     }
   ]
 }

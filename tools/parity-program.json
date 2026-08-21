@@ -125,12 +125,12 @@
     },
     {
       "id": "raster-fallback-boundary",
-      "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts", "src/render/text.ts"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint"],
+      "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts", "src/render/text.ts", "src/render/text-to-path.ts", "src/render/glyph-helper.ts", "tools/win32-glyph-extractor/src/main.cpp"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/chromium/third_party/blink/renderer/platform/fonts", "external/skia/src/ports/SkScalerContext_win_dw.cpp"],
       "oracle": "tools/raster-boundary-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "24 positive/negative live-capture and production-predicate rows covering glyph, replaced/sprite/frame, native-control, backdrop, projective, advanced-gradient, conic, dormant-mask, retired text-raster, and helper-disabled transitions",
+      "generatedCoverage": "24 positive/negative live-capture and production-predicate rows covering glyph, replaced/sprite/frame, native-control, backdrop, projective, advanced-gradient, conic, dormant-mask, retired text-raster, and helper-disabled transitions; selected-gid raster-kind controls cover sbix/COLR/bitmap/SVG, mixed-face outline negatives, and Windows DirectWrite codepoint-to-gid identity",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "The oracle proves activation ownership; each fallback's pixel contents remain the responsibility of its dedicated visual or paint-stage gate.",
       "nextAction": "Add paired activation rows whenever a fallback is introduced, retired, or changes ownership."

@@ -87,6 +87,67 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
   });
 });
 
+describe("selected raster glyphs retain shaped advances (DM-2410)", () => {
+  const text = "❤️ ⚡️ VS16 wins";
+  const xOffsets = [16, 16, 41, 46, 46, 72, 78, 95, 111, 126, 142, 149, 170, 178, 194];
+  const styles = {
+    color: "rgb(230,237,243)",
+    fontSize: "24px",
+    fontFamily: "Helvetica",
+    fontWeight: "400",
+    fontStyle: "normal",
+    fontVariantEmoji: "text",
+    direction: "ltr",
+    textDecorationLine: "none",
+    textDecorationColor: "currentcolor",
+    textDecorationStyle: "solid",
+  } as any;
+  const segment = {
+    text, x: 16, y: 20, width: 205, height: 29, fontAscent: 23, xOffsets,
+  };
+  const element = (rasterGlyphs?: any[]): CapturedElement => ({
+    tag: "div",
+    x: 16, y: 20, width: 205, height: 29,
+    textLeft: 16, textTop: 20, textWidth: 205, textHeight: 29,
+    fontAscent: 23,
+    text,
+    textSegments: [{ ...segment, rasterGlyphs }],
+    styles,
+  } as any);
+
+  it.skipIf(!MACOS_FONTS)("keeps the original whole sequence in vector shaping while overlays own only paint", () => {
+    const render = (el: CapturedElement) => renderSingleLineText({
+      el, idPrefix: "dm2410", clipId: "dm2410-clip", fillColor: styles.color,
+    });
+    const overlays = [
+      {
+        charIndex: 0, charLength: 2, suppressGlyph: true,
+        rect: { x: 16, y: 20, width: 24, height: 24 },
+        dataUri: "data:image/png;base64,AA==",
+      },
+      {
+        charIndex: 3, charLength: 2, suppressGlyph: true,
+        rect: { x: 46, y: 20, width: 25, height: 25 },
+        dataUri: "data:image/png;base64,BB==",
+      },
+    ];
+
+    for (const mode of ["paths", "embedded-font"] as const) {
+      setRenderTextMode(mode);
+      const vectorOnly = render(element());
+      const withOverlays = render(element(overlays));
+
+      // Removing the two paint overlays must leave the byte-identical vector
+      // body. Before DM-2410, `suppressGlyphChars` rewrote the selected clusters
+      // to U+200B before shaping; the suffix then started at the zero-width-space
+      // advance instead of Chrome's captured xOffset, and this comparison failed.
+      expect(withOverlays.replace(/<image\b[^>]*\/>/g, ""), mode).toBe(vectorOnly);
+      expect(withOverlays, mode).toContain(`aria-label="${text}"`);
+      expect(withOverlays.match(/<image\b/g), mode).toHaveLength(2);
+    }
+  });
+});
+
 describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", () => {
   // When a host element has no main text and only a positioned ::after / ::before
   // pseudo, the segment carries its own x/y/color/fontSize. Before DM-495 the

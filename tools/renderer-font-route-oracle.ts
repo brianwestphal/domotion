@@ -7,10 +7,12 @@ import {
   getTextRunProvenance,
   renderTextAsPath,
   resetTextRunProvenance,
+  selectedGlyphRasterSpans,
   setRenderTextMode,
   setTextRunProvenanceEnabled,
   type RenderTextMode,
 } from "../src/render/text-to-path.js";
+import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
 import { parityEnvironment } from "./parity-environment.js";
 
 interface OracleCase {
@@ -20,6 +22,9 @@ interface OracleCase {
   features?: string[];
   clusterFallback?: boolean;
   fontFamily?: string;
+  fontVariantEmoji?: FontVariantEmojiOverride;
+  /** A deliberately disabled implementation arm proves activation, not parity. */
+  gradeFaces?: boolean;
 }
 
 const cases: OracleCase[] = [
@@ -32,6 +37,14 @@ const cases: OracleCase[] = [
   { id: "feature-off", text: "fi", mode: "paths", features: ["-liga"] },
   { id: "embedded", text: "Hello", mode: "embedded-font" },
   { id: "legacy-disabled", text: "Legacy", mode: "paths", clusterFallback: false },
+  // DM-2410: whole-sequence, not per-codepoint, evidence for the exact branch
+  // that regressed. Explicit VS16 wins over `font-variant-emoji:text`, so both
+  // emoji clusters select a raster representation while the suffix stays on
+  // the declared/text face. The disabled twin is a negative activation arm:
+  // it must traverse the legacy mechanism, proving the default record was not
+  // produced by an unconditional/common path.
+  { id: "emoji-sequence-text", text: "❤️ ⚡️ VS16 wins", mode: "paths", fontFamily: "Helvetica", fontVariantEmoji: "text" },
+  { id: "emoji-sequence-text-disabled", text: "❤️ ⚡️ VS16 wins", mode: "paths", fontFamily: "Helvetica", fontVariantEmoji: "text", clusterFallback: false, gradeFaces: false },
 ];
 
 const outputAt = process.argv.indexOf("--json");
@@ -39,6 +52,13 @@ const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
 const family = "Helvetica, Arial, sans-serif";
 
 function normalizeFace(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]/g, ""); }
+
+function graphemeCandidates(text: string): Array<{ start: number; end: number }> {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  return [...segmenter.segment(text)]
+    .filter((part) => !/^\s+$/u.test(part.segment))
+    .map((part) => ({ start: part.index, end: part.index + part.segment.length }));
+}
 
 async function main(): Promise<number> {
   setTextRunProvenanceEnabled(true);
@@ -51,8 +71,13 @@ async function main(): Promise<number> {
       else delete process.env.DOMOTION_CLUSTER_FALLBACK;
       const markup = renderTextAsPath(item.text, 0, 0, {
         fontSize: 24, fontFamily: item.fontFamily ?? family, fontWeight: "400", fill: "#000", features: item.features,
+        fontVariantEmoji: item.fontVariantEmoji,
       });
-      domotion.push({ id: item.id, markupStatus: markup == null ? "declined" : "emitted", ...getTextRunProvenance() });
+      const rasterSpans = selectedGlyphRasterSpans(item.text, graphemeCandidates(item.text), {
+        fontSize: 24, fontFamily: item.fontFamily ?? family, fontWeight: "400",
+        features: item.features, fontVariantEmoji: item.fontVariantEmoji,
+      });
+      domotion.push({ id: item.id, markupStatus: markup == null ? "declined" : "emitted", rasterSpans, ...getTextRunProvenance() });
     }
   } finally {
     setTextRunProvenanceEnabled(false);
@@ -73,6 +98,9 @@ async function main(): Promise<number> {
         span.style.cssText = `display:inline-block;margin:3px;font-family:${item.family};font-size:24px`;
         span.style.fontFeatureSettings = item.features == null ? "normal"
           : item.features.map((feature) => `"${feature.replace(/^[+-]/, "")}" ${feature.startsWith("-") ? 0 : 1}`).join(",");
+        if (item.fontVariantEmoji != null) {
+          (span.style as CSSStyleDeclaration & { fontVariantEmoji: string }).fontVariantEmoji = item.fontVariantEmoji;
+        }
         main.append(span);
       }
     }, cases.map((item) => ({ ...item, family: item.fontFamily ?? family })));
@@ -101,7 +129,7 @@ async function main(): Promise<number> {
         const name = run.selected.instantiatedPostscriptName ?? run.selected.postscriptName;
         return name == null ? null : chromeNames.some((chrome) => normalizeFace(chrome) === normalizeFace(name));
       });
-      records.push({ input: item, chrome: { fonts, origins }, domotion: ours, comparison: { faceAgreement } });
+      records.push({ input: item, chrome: { fonts, origins }, domotion: ours, comparison: { faceAgreement, graded: item.gradeFaces !== false } });
     }
     const byId = new Map(records.map((record) => [record.input.id, record]));
     const mechanisms = [...new Set(records.flatMap((record) => record.domotion.runs.map((run) => run.mechanism)))];
@@ -109,19 +137,30 @@ async function main(): Promise<number> {
       emitter: byId.get("declared-paths")!.domotion.runs.some((run) => run.emitter === "paths")
         && byId.get("embedded")!.domotion.runs.some((run) => run.emitter === "embedded-font"),
       clusterFallback: byId.get("legacy-disabled")!.domotion.runs.some((run) => run.mechanism === "cluster-disabled-legacy"),
+      emojiWholeSequence: byId.get("emoji-sequence-text")!.domotion.rasterSpans.length === 2
+        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[0]?.start === 0
+        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[0]?.end === 2
+        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[1]?.start === 3
+        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[1]?.end === 5
+        && byId.get("emoji-sequence-text")!.domotion.runs.every((run) => run.request.fontVariantEmoji === "text"),
+      emojiDisabledRoute: byId.get("emoji-sequence-text-disabled")!.domotion.runs
+        .some((run) => run.mechanism === "cluster-disabled-legacy")
+        && JSON.stringify(byId.get("emoji-sequence-text-disabled")!.domotion.rasterSpans)
+          !== JSON.stringify(byId.get("emoji-sequence-text")!.domotion.rasterSpans),
       features: JSON.stringify(byId.get("feature-on")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id)))
         !== JSON.stringify(byId.get("feature-off")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),
       paintedOrigins: records.every((record) => record.chrome.origins.length > 0),
     };
     const complete = records.every((record) => record.domotion.runs.length > 0 || record.domotion.transitions.length > 0)
-      && records.every((record) => record.comparison.faceAgreement.every((agreement) => agreement === true))
+      && records.every((record) => !record.comparison.graded
+        || record.comparison.faceAgreement.every((agreement) => agreement === true))
       && Object.values(controls).every(Boolean);
     const report = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       stage: "production-text-run-provenance",
       sourceRevision: "chromium:7d859f271cbda744098ac69f44978d4edfa62be3",
       verdict: complete ? "evidence-complete" : "verdict-withheld",
-      environment: parityEnvironment({ corpusIdentity: "renderer-font-route-v1", sampleIdentity: cases.map((item) => item.id).join(",") }),
+      environment: parityEnvironment({ corpusIdentity: "renderer-font-route-v2", sampleIdentity: cases.map((item) => item.id).join(",") }),
       mechanisms,
       controls,
       records,
