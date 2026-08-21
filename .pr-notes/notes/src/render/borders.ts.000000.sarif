@@ -341,6 +341,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2pneg9tahmhoh6",
+          "message": {
+            "text": "The stable coverage-factor branch is intentionally separate from the older independent-axis margin-box helper. The 200x200 and 200x100 rows reproduce Chromium floatroundedrect_test.cc values (including 14.5639x26.5009 and the nonuniform-edge discriminator), and npm run paint:geometry-oracle reports 91/91 exact.",
+            "markdown": "The stable coverage-factor branch is intentionally separate from the older independent-axis margin-box helper. The 200x200 and 200x100 rows reproduce Chromium float_rounded_rect_test.cc values (including 14.5639x26.5009 and the nonuniform-edge discriminator), and npm run paint:geometry-oracle reports 91/91 exact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/borders.ts"
+                },
+                "region": {
+                  "startLine": 345,
+                  "endLine": 385,
+                  "snippet": {
+                    "text": "export function outsetCornerRadiiWithCoverageCorrection(\n  c: CornerRadii,\n  top: number,\n  right: number,\n  bottom: number,\n  left: number,\n  sourceWidth: number,\n  sourceHeight: number,\n): CornerRadii {\n  // FloatRoundedRect falls back to the legacy correction for an empty source\n  // size. Keep that exact branch even though normal layout boxes are nonempty.\n  if (sourceWidth <= 0 || sourceHeight <= 0) {\n    return outsetCornerRadiiWithCorrection(c, top, right, bottom, left);\n  }\n  const adjustedDimension = (radius: number, outset: number, coverage: number): number => {\n    if (outset === 0) return radius;\n    if (radius > outset || coverage > 1) return Math.max(0, radius + outset);\n    const ratio = radius / outset;\n    return Math.max(0, radius + outset * (1 - (1 - ratio) ** 3 * (1 - coverage ** 3)));\n  };\n  const corner = (value: CornerRadiusPair, horizontal: number, vertical: number): CornerRadiusPair => {\n    // gfx::SizeF::IsZero() means both dimensions are zero. An axis-degenerate\n    // radius (e.g. 8px 0) still runs through Blink's correction.\n    if ((value.h === 0 && value.v === 0) || (horizontal === 0 && vertical === 0)) return { ...value };\n    const coverage = 2 * Math.min(value.h / sourceWidth, value.v / sourceHeight);\n    return {\n      h: adjustedDimension(value.h, horizontal, coverage),\n      v: adjustedDimension(value.v, vertical, coverage),\n    };\n  };\n  const tl = corner(c.tl, left, top);\n  const tr = corner(c.tr, right, top);\n  const br = corner(c.br, right, bottom);\n  const bl = corner(c.bl, left, bottom);\n  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v\n    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;\n  return {\n    tl, tr, br, bl,\n    uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,\n    curvature: c.curvature,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 287
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/overflow-clip.test.ts"
+                },
+                "region": {
+                  "startLine": 70
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2419"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f7874453c924c548155f06831cdd432b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "afe60a5542602953df3992d08e4295e43e921b38",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

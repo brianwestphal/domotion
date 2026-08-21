@@ -36,7 +36,10 @@ import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
 import { createTransformsHandler, composeEffectiveTransform } from "./walker/transforms.js";
-import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js";
+import {
+  createBordersBackgroundsHandler,
+  physicalComputedTileSize as physicalComputedCssPixelTerms,
+} from "./walker/borders-backgrounds.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
@@ -537,10 +540,12 @@ const captureDocumentTree =
         overflowY: cs.overflowY,
         // DM-761: `overflow-clip-margin` extends the overflow clip outward
         // from a reference box (content / padding / border) by a length.
-        // Only meaningful for `overflow: clip`; `hidden` ignores it. Captured
-        // as the resolved string ("20px" / "content-box 12px") so the renderer
-        // can parse the reference-box keyword + length together.
-        overflowClipMargin: cs.overflowClipMargin || undefined,
+        // Blink serializes computed lengths before effective CSS zoom while
+        // DOMRects are already physical. Cross that boundary once here; the
+        // reference-box keyword is retained byte-for-byte.
+        overflowClipMargin: cs.overflowClipMargin
+          ? physicalComputedCssPixelTerms(cs.overflowClipMargin, _effectiveZoomFor(el))
+          : undefined,
         scrollbarGutter: cs.scrollbarGutter || 'auto',
         scrollWidth: el.scrollWidth,
         scrollHeight: el.scrollHeight,

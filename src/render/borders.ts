@@ -330,6 +330,61 @@ export function outsetCornerRadiiWithCorrection(c: CornerRadii, top: number, rig
   return { tl, tr, br, bl, uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE, curvature: c.curvature };
 }
 
+/**
+ * Blink's stable `FloatRoundedRect::Radii::
+ * OutsetWithCornerCorrectionUsingCoverageFactor` path (Chromium 7d859f27).
+ *
+ * Unlike the older margin-box correction above, this algorithm couples the
+ * horizontal and vertical dimensions through the corner's coverage of the
+ * source edge. Blink uses it for `overflow-clip-margin`: the source size is
+ * the pixel-snapped inner-border (padding-edge) rect and each corner receives
+ * the two adjacent physical-side outsets. `gfx::SizeF` clamps a negative
+ * adjusted dimension to zero, which matters for a content-box reference whose
+ * padding is larger than its margin.
+ */
+export function outsetCornerRadiiWithCoverageCorrection(
+  c: CornerRadii,
+  top: number,
+  right: number,
+  bottom: number,
+  left: number,
+  sourceWidth: number,
+  sourceHeight: number,
+): CornerRadii {
+  // FloatRoundedRect falls back to the legacy correction for an empty source
+  // size. Keep that exact branch even though normal layout boxes are nonempty.
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    return outsetCornerRadiiWithCorrection(c, top, right, bottom, left);
+  }
+  const adjustedDimension = (radius: number, outset: number, coverage: number): number => {
+    if (outset === 0) return radius;
+    if (radius > outset || coverage > 1) return Math.max(0, radius + outset);
+    const ratio = radius / outset;
+    return Math.max(0, radius + outset * (1 - (1 - ratio) ** 3 * (1 - coverage ** 3)));
+  };
+  const corner = (value: CornerRadiusPair, horizontal: number, vertical: number): CornerRadiusPair => {
+    // gfx::SizeF::IsZero() means both dimensions are zero. An axis-degenerate
+    // radius (e.g. 8px 0) still runs through Blink's correction.
+    if ((value.h === 0 && value.v === 0) || (horizontal === 0 && vertical === 0)) return { ...value };
+    const coverage = 2 * Math.min(value.h / sourceWidth, value.v / sourceHeight);
+    return {
+      h: adjustedDimension(value.h, horizontal, coverage),
+      v: adjustedDimension(value.v, vertical, coverage),
+    };
+  };
+  const tl = corner(c.tl, left, top);
+  const tr = corner(c.tr, right, top);
+  const br = corner(c.br, right, bottom);
+  const bl = corner(c.bl, left, bottom);
+  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
+    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return {
+    tl, tr, br, bl,
+    uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,
+    curvature: c.curvature,
+  };
+}
+
 type Point = { x: number; y: number };
 type CornerGeometry = { start: Point; outer: Point; end: Point; center: Point; curvature: number };
 

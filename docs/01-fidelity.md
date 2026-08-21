@@ -25,7 +25,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   LayoutNG fragmentation in Node (DM-2161).
 - [x] float + clear (text wraps correctly around floats via per-line capture)
 - [x] box-sizing, margin, padding, width/height, min/max
-- [x] overflow: hidden/scroll/auto/clip (children clipped to padding box)
+- [x] overflow: hidden/scroll/auto/clip (children clipped to padding box); rounded `overflow-clip-margin` follows Blink's pixel-snapped reference-box outsets and coverage-corrected contour (DM-2419)
 - [~] overflow: scroll/auto — content is clipped but native scrollbar chrome is not yet emulated (tracked SK-468)
 
 ### Visual / paint

@@ -14,6 +14,13 @@ import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } fr
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
 import { computeTileSize, resolveConicStops } from "../src/render/conic-raster.js";
 import { parseConicGradient } from "../src/render/gradients.js";
+import {
+  overflowClipMarginGeometry,
+  parseOverflowClipMargin,
+  shouldApplyOverflowClipMargin,
+  type ParsedOverflowClipMargin,
+} from "../src/render/overflow-clip.js";
+import type { CornerRadii } from "../src/render/borders.js";
 
 export interface Point { x: number; y: number }
 export interface LineRecord { p0: Point; p1: Point }
@@ -272,6 +279,77 @@ function clipRows(): OracleRow[] {
   return rows;
 }
 
+function overflowClipMarginRows(): OracleRow[] {
+  const value = (referenceBox: ParsedOverflowClipMargin["referenceBox"], margin: number): ParsedOverflowClipMargin => ({
+    referenceBox, margin, hasEffect: referenceBox !== "padding-box" || margin !== 0,
+  });
+  const corner = (tl: [number, number], tr: [number, number], br: [number, number], bl: [number, number]): CornerRadii => ({
+    tl: { h: tl[0], v: tl[1] }, tr: { h: tr[0], v: tr[1] },
+    br: { h: br[0], v: br[1] }, bl: { h: bl[0], v: bl[1] }, uniform: false,
+  });
+  const zero = { top: 0, right: 0, bottom: 0, left: 0 };
+  const source = "paint_property_tree_builder.cc:2909-2935; float_rounded_rect.cc:169-265; layout_object.h:588-618";
+  const rows: OracleRow[] = [];
+
+  // Chromium float_rounded_rect_test.cc's exact coverage-factor row. This is
+  // the contour oracle that distinguishes the stable implementation from both
+  // an unchanged inner radius and the older independent-axis cubic formula.
+  const corrected = overflowClipMarginGeometry(
+    { x: 0, y: 0, width: 200, height: 200 }, zero, zero,
+    corner([4, 8], [12, 16], [64, 0], [0, 32]), value("padding-box", 32),
+  );
+  const contourExpected = {
+    rect: [-32, -32, 264, 264],
+    radii: [14.5639, 26.5009, 36.201, 44.0069, 96, 0, 0, 64],
+  };
+  const contourActual = {
+    rect: [corrected.x, corrected.y, corrected.width, corrected.height],
+    radii: [corrected.corners.tl.h, corrected.corners.tl.v, corrected.corners.tr.h, corrected.corners.tr.v, corrected.corners.br.h, corrected.corners.br.v, corrected.corners.bl.h, corrected.corners.bl.v],
+  };
+  const contourDelta = maxDelta(contourExpected, contourActual);
+  rows.push({ id: "clip.overflow-margin.coverage-contour", stage: "clip", source, expected: contourExpected, actual: contourActual, maxAbsDelta: contourDelta, pass: contourDelta <= 0.001 });
+
+  const borderBox = { x: 10.4, y: 20.6, width: 100.3, height: 60.4 };
+  const borders = { top: 2.25, right: 3.5, bottom: 4.25, left: 1.25 };
+  const padding = { top: 9, right: 11, bottom: 13, left: 7 };
+  const asymmetric = corner([8, 10], [20, 6], [0, 0], [30, 16]);
+  for (const test of [
+    { id: "padding", value: value("padding-box", 5), expected: { x: 7, y: 18, width: 105, height: 64 } },
+    { id: "border-zero", value: value("border-box", 0), expected: { x: 10.75, y: 20.75, width: 99.75, height: 60.5 } },
+    { id: "content-zero-negative-outsets", value: value("content-box", 0), expected: { x: 19, y: 32, width: 77, height: 32 } },
+  ]) {
+    const geometry = overflowClipMarginGeometry(borderBox, borders, padding, asymmetric, test.value);
+    const actual = { x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height };
+    const delta = maxDelta(test.expected, actual);
+    rows.push({ id: `clip.overflow-margin.reference.${test.id}`, stage: "clip", source, expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
+  }
+
+  const parsedZero = parseOverflowClipMargin("content-box");
+  const activations = [
+    { id: "both-clip", input: { overflowX: "clip", overflowY: "clip" }, expected: true },
+    { id: "x-visible", input: { overflowX: "visible", overflowY: "clip" }, expected: false },
+    { id: "y-visible", input: { overflowX: "clip", overflowY: "visible" }, expected: false },
+    { id: "hidden", input: { overflowX: "hidden", overflowY: "hidden" }, expected: false },
+    { id: "auto", input: { overflowX: "auto", overflowY: "auto" }, expected: false },
+    { id: "paint-containment", input: { overflowX: "visible", overflowY: "visible", contain: "paint" }, expected: true },
+    { id: "replaced-non-visible", input: { overflowX: "hidden", overflowY: "auto", isReplaced: true }, expected: true },
+  ];
+  for (const test of activations) {
+    const actual = shouldApplyOverflowClipMargin(parsedZero, test.input);
+    rows.push({ id: `clip.overflow-margin.activation.${test.id}`, stage: "clip", source, expected: test.expected, actual, maxAbsDelta: actual === test.expected ? 0 : Infinity, pass: actual === test.expected });
+  }
+  const negativeRejected = parseOverflowClipMargin("-4px") == null;
+  rows.push({ id: "clip.overflow-margin.negative-declaration-control", stage: "clip", source: "longhands_custom.cc ParseSingleValue ValueRange::kNonNegative", expected: true, actual: negativeRejected, maxAbsDelta: negativeRejected ? 0 : Infinity, pass: negativeRejected });
+
+  const base = overflowClipMarginGeometry({ x: 0, y: 0, width: 80, height: 40 }, zero, zero, corner([6, 4], [6, 4], [6, 4], [6, 4]), value("padding-box", 10));
+  const mutated = overflowClipMarginGeometry({ x: 0, y: 0, width: 80, height: 40 }, zero, zero, corner([6, 4], [6, 4], [6, 4], [6, 4]), value("padding-box", 11));
+  const movementActual = [mutated.x - base.x, mutated.y - base.y, mutated.width - base.width, mutated.height - base.height];
+  const movementExpected = [-1, -1, 2, 2];
+  const movementDelta = maxDelta(movementExpected, movementActual);
+  rows.push({ id: "clip.overflow-margin.margin-mutation", stage: "clip", source, expected: movementExpected, actual: movementActual, maxAbsDelta: movementDelta, pass: movementDelta <= TOLERANCE });
+  return rows;
+}
+
 function maskRows(): OracleRow[] {
   const expected = blinkCornerLine("top-right", 10, 20, 300, 100);
   const built = buildMaskDef("m", "linear-gradient(to top right, transparent, black)", 10, 20, 300, 100, "alpha", "auto", "0% 0%", "no-repeat", "add");
@@ -349,7 +427,7 @@ function maskRows(): OracleRow[] {
 }
 
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {
-  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...maskRows()];
+  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...overflowClipMarginRows(), ...maskRows()];
   // Corpus activation control: the retired direct-to-corner formula must be
   // distinguishable from Blink's magic-corner line on every non-square box.
   const correct = blinkCornerLine("top-right", 0, 0, 300, 100);

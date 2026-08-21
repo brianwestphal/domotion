@@ -23,6 +23,14 @@ CSS spec ([css-backgrounds-3 §5.5](https://www.w3.org/TR/css-backgrounds-3/#cor
 
 When the bg-image clip box, the border-stroke rect, or an inset-shadow ring is inside the border-box (inset by some amount on each side), the outer corner needs to shrink to the inner corner. CSS specifies that the inner corner of a rounded box is the outer corner pulled in by the adjacent border-side widths — so `rTL.h` shrinks by the left-border width and `rTL.v` shrinks by the top-border width. `insetCornerRadii(corners, top, right, bottom, left)` does this clamp-to-zero shrinkage and returns a fresh `CornerRadii`.
 
+## Rounded overflow-clip-margin
+
+An active `overflow-clip-margin` does not add a rectangular skirt around an unchanged inner radius. Blink first pixel-snaps the inner-border (padding-edge) rectangle, translates `border-box` to positive border-side outsets, `padding-box` to zero outsets, or `content-box` to negative padding-side outsets, and then inflates every side by the non-negative margin. `outsetCornerRadiiWithCoverageCorrection` transcribes the stable `FloatRoundedRect::OutsetWithCornerCorrection` path: each corner's two dimensions share a coverage factor `2 × min(radiusX / edgeWidth, radiusY / edgeHeight)`, so small elliptical corners sharpen continuously rather than receiving the entire outset. A zero corner stays square, and a negative per-side content-box outset clamps a contracted radius dimension at zero.
+
+Activation follows `LayoutObject::ShouldApplyOverflowClipMargin`: ordinary boxes require `clip` on both axes; `clip` plus `visible` on the other axis is unrounded and does not apply the margin; `hidden`, `auto`, and `scroll` are scroll-container controls and do not apply it. Replaced elements that respect CSS overflow use any non-visible value on both axes, and paint containment is active only when the box is not a scroll container. `content-box` and `border-box` with an omitted/zero length still have an effect; only the default `padding-box 0px` is inert. Negative CSS lengths are invalid in Chromium and are rejected rather than treated as an inset margin.
+
+Computed margin lengths are serialized before effective CSS zoom while captured DOMRects are physical, so capture scales px terms exactly once. Device pixel ratio does not change this CSS-coordinate geometry.
+
 ## Path geometry
 
 `roundedRectPath` walks clockwise from `(x + tl.h, y)`:

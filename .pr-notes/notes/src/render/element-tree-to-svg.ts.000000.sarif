@@ -1235,6 +1235,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2pns2ed3y709t5",
+          "message": {
+            "text": "The outer wrapper remains rectangular only as a permissive synthetic guard; its per-side extension is derived from the corrected contour so it cannot crop asymmetric overflow. The tight rounded contour is enforced separately by the descendant overflow clip and replaced-image clip, preventing the wrapper from becoming a competing geometry implementation.",
+            "markdown": "The outer wrapper remains rectangular only as a permissive synthetic guard; its per-side extension is derived from the corrected contour so it cannot crop asymmetric overflow. The tight rounded contour is enforced separately by the descendant overflow clip and replaced-image clip, preventing the wrapper from becoming a competing geometry implementation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3789,
+                  "endLine": 3801,
+                  "snippet": {
+                    "text": "      // DM-2419: Blink starts at its pixel-snapped contoured inner border,\n      // applies the selected reference-box as PHYSICAL per-side outsets, then\n      // applies the margin. Keep enough rectangular room in this renderer's\n      // synthetic outer wrapper for that exact corrected inner contour. The\n      // tight rounded shape is emitted by ensureChildOverflowClipId (or the\n      // replaced-image paint path) below.\n      const ocmGeometry = resolvedOverflowClipMarginGeometry(el, corners);\n      const ocmExtension = ocmGeometry == null\n        ? { top: 0, right: 0, bottom: 0, left: 0 }\n        : overflowClipMarginOuterExtension(\n            { x: el.x, y: el.y, width: el.width, height: el.height },\n            ocmGeometry,\n          );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4599
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 428
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2419"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "23c6fe9091b85cbd99eae1a43a440bb7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "afe60a5542602953df3992d08e4295e43e921b38",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

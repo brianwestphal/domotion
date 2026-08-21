@@ -27,7 +27,10 @@ monotonic stop fixup, unspecified-stop distribution,
 double-position stops, and Blink's nine-stop color-hint expansion; basic
 `inset()`, `circle()`, `ellipse()`, and `polygon()` clip shapes; HTML border,
 padding, content/fill, margin, and half-border reference boxes; rounded
-padding/content insets and margin-corner correction; SVG content/padding/fill
+padding/content insets and margin-corner correction; rounded overflow-clip-margin
+coverage correction, all three reference boxes, ref-box-only zero values,
+negative content-box outsets, exact axis/scroll/contain/replaced activation, and
+a margin mutation control; SVG content/padding/fill
 mapping to the object bounding box, border/margin/stroke mapping to the stroke
 bounding box, and view-box mapping to the local SVG viewport; mask size, position,
 per-axis repeat, `round`/`space` adjustment for generated and URL images, and
@@ -40,6 +43,15 @@ boundary; and a linear-gradient alpha mask. Gradient coordinates
 compare at the emitter's four-decimal serialization boundary. Basic clip
 coordinates compare after the renderer's documented one-decimal SVG
 serialization.
+
+The overflow-clip-margin rows transcribe
+`AdjustRoundedClipForOverflowClipMargin`,
+`LayoutObject::ShouldApplyOverflowClipMargin`, and the stable coverage-factor
+branch of `FloatRoundedRect::OutsetWithCornerCorrection` from Chromium revision
+`7d859f27`. The direct renderer suite additionally asserts the emitted child
+clip path, while the browser-bound suite verifies Chromium's negative-length
+rejection, ref-box-only computed serialization, effective-zoom scaling at DPR
+1 and 2, and the replaced-element/non-scroll-container activation split.
 
 The linear corner rule is transcribed from Chromium revision `7d859f27`,
 `core/css/css_gradient_value.cc:1282-1337,1410-1430`. For `to top right`, Blink

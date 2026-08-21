@@ -48,6 +48,15 @@ import {
   type BorderSide,
 } from "./borders.js";
 import { parseBoxShadow, type BoxShadow } from "./box-shadow.js";
+import {
+  capturedBoxRespectsCssOverflow,
+  isOverflowReplacedElement,
+  isOverflowRespectingReplacedElement,
+  overflowClipMarginGeometry,
+  overflowClipMarginOuterExtension,
+  usedOverflowClipMargin,
+  type OverflowClipMarginGeometry,
+} from "./overflow-clip.js";
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { convertLegacyWebkitGradient } from "./gradients.js";
@@ -74,6 +83,48 @@ import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 export { _dataUriCache, _resizedDataUriCache, embedResizedDataUri, embedRemoteImages, resolveSvgSource, type EmbedRemoteImagesOptions } from "../capture/embed.js";
 export { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
 export { captureElementTree, captureElementTreeWithWarnings, calibrateBaselines } from "../capture/index.js";
+
+/** Resolve Blink's used overflow-clip-margin and its corrected paint contour. */
+function resolvedOverflowClipMarginGeometry(
+  el: CapturedElement,
+  corners: CornerRadii,
+): OverflowClipMarginGeometry | null {
+  const isReplaced = isOverflowReplacedElement(el.tag, el.styles.inputType);
+  const respectsCssOverflow = isReplaced
+    ? isOverflowRespectingReplacedElement(el.tag)
+    : capturedBoxRespectsCssOverflow(
+        el.tag,
+        el.styles.display,
+        el.styles.rootOverflowX,
+        el.styles.rootOverflowY,
+      );
+  const value = usedOverflowClipMargin(el.styles.overflowClipMargin, {
+    overflowX: el.styles.overflowX,
+    overflowY: el.styles.overflowY,
+    contain: el.styles.contain,
+    isReplaced,
+    respectsCssOverflow,
+  });
+  if (value == null) return null;
+  const side = (value: string | undefined): number => parseFloat(value ?? "0") || 0;
+  return overflowClipMarginGeometry(
+    { x: el.x, y: el.y, width: el.width, height: el.height },
+    {
+      top: side(el.styles.borderTopWidth),
+      right: side(el.styles.borderRightWidth),
+      bottom: side(el.styles.borderBottomWidth),
+      left: side(el.styles.borderLeftWidth),
+    },
+    {
+      top: side(el.styles.paddingTop),
+      right: side(el.styles.paddingRight),
+      bottom: side(el.styles.paddingBottom),
+      left: side(el.styles.paddingLeft),
+    },
+    corners,
+    value,
+  );
+}
 
 /**
  * @internal — DM-549. Per-conic-gradient-layer-text map of `${tileW}x${tileH}` →
@@ -381,11 +432,20 @@ function paintImage(
   const innerCorners = (borderRadius > 0 || (corners.tl.h + corners.tr.h + corners.bl.h + corners.br.h) > 0)
     ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
     : null;
-  const roundedClipId = innerCorners != null
-    ? ctx.nextClipId("irc") : null;
-  if (innerCorners != null && roundedClipId != null) {
+  // DM-2419: replaced elements that respect CSS overflow use the same
+  // corrected overflow-clip-margin contour as ordinary rounded boxes. This
+  // also covers the UA's `img { overflow:clip; overflow-clip-margin:
+  // content-box }`: ref-box-only zero is active and contracts the padding-edge
+  // contour to the content box. Without this branch object-fit:none was still
+  // hard-clipped to the old rectangular content edge.
+  const overflowMarginClip = resolvedOverflowClipMarginGeometry(el, corners);
+  const imageClip = overflowMarginClip ?? (innerCorners == null ? null : {
+    x: contentX, y: contentY, width: contentW, height: contentH, corners: innerCorners,
+  });
+  const roundedClipId = imageClip != null ? ctx.nextClipId("irc") : null;
+  if (imageClip != null && roundedClipId != null) {
     ctx.defsParts.push(
-      `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
+      `<clipPath id="${roundedClipId}">${roundedRectSvg(imageClip.x, imageClip.y, imageClip.width, imageClip.height, imageClip.corners, "")}</clipPath>`,
     );
   }
   if (objectRect != null) {
@@ -3668,7 +3728,7 @@ function renderInlineFragments(
   }
 }
 
-function resolveOverflowClipId(state: RenderState, el: CapturedElement): string | null {
+function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners: CornerRadii): string | null {
   const { paintCtx, defsParts } = state;
   let clipPathUrlId: string | null = null;
     const oxV = el.styles.overflowX;
@@ -3733,38 +3793,19 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement): string 
         shadowInflateB = Math.max(shadowInflateB, reach + Math.max(0, sh.y));
         shadowInflateL = Math.max(shadowInflateL, reach + Math.max(0, -sh.x));
       }
-      // DM-761: when `overflow: clip` is set with `overflow-clip-margin`,
-      // the paint clip extends outward from a reference box (content /
-      // padding / border) by a length. The outer clip emitted here wraps
-      // the host's own paint (including overflow-clip-margin extension) so
-      // a child that overflows past the border-box stays visible up to
-      // (ref-box edge + margin). Inflate this outer rect by the part of
-      // the margin that falls OUTSIDE the border-box; the inner per-axis
-      // clip below applies the tight ref-box-relative bound.
-      let ocmInflate = 0;
-      const isClipOverflow_ = oxV === "clip" || oyV === "clip";
-      const ocmRaw_ = el.styles.overflowClipMargin;
-      if (isClipOverflow_ && ocmRaw_ != null && ocmRaw_ !== "" && ocmRaw_ !== "0px") {
-        const m = /^(?:(content-box|padding-box|border-box)\s+)?(-?\d*\.?\d+)px$/i.exec(ocmRaw_.trim());
-        if (m) {
-          const refBox = (m[1] ?? "padding-box").toLowerCase();
-          const margin = parseFloat(m[2]);
-          const cbtv = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-          const cbrv = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-          const cbbv = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-          const cblv = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          let offT = 0, offR = 0, offB = 0, offL = 0;
-          if (refBox === "padding-box") {
-            offT = cbtv; offR = cbrv; offB = cbbv; offL = cblv;
-          } else if (refBox === "content-box") {
-            offT = cbtv + (parseFloat(el.styles.paddingTop ?? "0") || 0);
-            offR = cbrv + (parseFloat(el.styles.paddingRight ?? "0") || 0);
-            offB = cbbv + (parseFloat(el.styles.paddingBottom ?? "0") || 0);
-            offL = cblv + (parseFloat(el.styles.paddingLeft ?? "0") || 0);
-          }
-          ocmInflate = Math.max(0, margin - Math.min(offT, offR, offB, offL));
-        }
-      }
+      // DM-2419: Blink starts at its pixel-snapped contoured inner border,
+      // applies the selected reference-box as PHYSICAL per-side outsets, then
+      // applies the margin. Keep enough rectangular room in this renderer's
+      // synthetic outer wrapper for that exact corrected inner contour. The
+      // tight rounded shape is emitted by ensureChildOverflowClipId (or the
+      // replaced-image paint path) below.
+      const ocmGeometry = resolvedOverflowClipMarginGeometry(el, corners);
+      const ocmExtension = ocmGeometry == null
+        ? { top: 0, right: 0, bottom: 0, left: 0 }
+        : overflowClipMarginOuterExtension(
+            { x: el.x, y: el.y, width: el.width, height: el.height },
+            ocmGeometry,
+          );
       // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start
       // BORDER, not the scrollport — per Blink `fieldset_layout_algorithm.cc`:
       // "the rendered legend shouldn't be part of the scrollport; the legend is
@@ -3779,10 +3820,10 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement): string 
       const legendInflateT = el.fieldsetLegendNotch != null
         ? Math.max(0, el.y - el.fieldsetLegendNotch.y)
         : 0;
-      const inflateT = Math.max(outlineInflate, shadowInflateT, ocmInflate, legendInflateT);
-      const inflateR = Math.max(outlineInflate, shadowInflateR, ocmInflate);
-      const inflateB = Math.max(outlineInflate, shadowInflateB, ocmInflate);
-      const inflateL = Math.max(outlineInflate, shadowInflateL, ocmInflate);
+      const inflateT = Math.max(outlineInflate, shadowInflateT, ocmExtension.top, legendInflateT);
+      const inflateR = Math.max(outlineInflate, shadowInflateR, ocmExtension.right);
+      const inflateB = Math.max(outlineInflate, shadowInflateB, ocmExtension.bottom);
+      const inflateL = Math.max(outlineInflate, shadowInflateL, ocmExtension.left);
       // DM-787: per-axis `overflow-x: clip; overflow-y: visible` (or the
       // inverse) needs the outer clip to NOT bind on the visible axis. A
       // huge ±100000 extension lets descendants paint past the border-box
@@ -4123,7 +4164,7 @@ function childInlinePhaseIsEmpty(plan: ChildPaintPlan): boolean {
  * shape is translated + anchored at the element's (x, y). The optional
  * `<geometry-box>` keyword (DM-818) is handled inside `clipPathShapeForElement`.
  */
-function resolveClipPath(state: RenderState, el: CapturedElement): string | null {
+function resolveClipPath(state: RenderState, el: CapturedElement, corners: CornerRadii): string | null {
   const { paintCtx, defsParts } = state;
   const clipPathCss = el.styles.clipPath && el.styles.clipPath !== "none" ? el.styles.clipPath : "";
   let clipPathUrlId: string | null = null;
@@ -4142,7 +4183,7 @@ function resolveClipPath(state: RenderState, el: CapturedElement): string | null
   }
   // DM-587: overflow != visible clips painted descendants at the element's box;
   // clip-path takes priority when both are present (CSS Masking §5.1).
-  if (clipPathUrlId == null) clipPathUrlId = resolveOverflowClipId(state, el);
+  if (clipPathUrlId == null) clipPathUrlId = resolveOverflowClipId(state, el, corners);
   return clipPathUrlId;
 }
 
@@ -4151,10 +4192,10 @@ function resolveClipPath(state: RenderState, el: CapturedElement): string | null
  * consumes a positional id, so an element painted in both the box and the
  * inline phase must resolve it once and reference the same id twice.
  */
-function resolveClipPathOnce(state: RenderState, el: CapturedElement): string | null {
+function resolveClipPathOnce(state: RenderState, el: CapturedElement, corners: CornerRadii): string | null {
   const cached = state.elementClipPathIds.get(el);
   if (cached !== undefined) return cached;
-  const id = resolveClipPath(state, el);
+  const id = resolveClipPath(state, el, corners);
   state.elementClipPathIds.set(el, id);
   return id;
 }
@@ -4562,20 +4603,25 @@ function ensureChildOverflowClipId(
     // (e.g. `18-deep-radius-overflow` `.card` border-radius:32 / border:4 +
     // child `position:absolute inset:0`: 4 px gradient sliver visible inside
     // each rounded corner.)
-    const overflowInnerCorners = insetCornerRadii(corners, cbt, cbr, cbb, cbl);
-    // Default clip = padding box (border-inset). DM-761: when `overflow: clip`
-    // (only — `hidden` ignores it) plus a non-zero `overflow-clip-margin`,
-    // the clip extends outward from a reference box. The shorthand resolves
-    // to either `"<length>"` (defaults to padding-box reference) or
-    // `"<ref-box> <length>"` where ref-box is content-box / padding-box /
-    // border-box. The clip rect grows by the length on every side from the
-    // chosen ref-box edge. Corner radii on the expanded clip are left at
-    // the inner-border-radius value — that's how Chrome paints it: the
-    // outset region is a rectangular extension, not a radial expansion.
+    let overflowCorners = insetCornerRadii(corners, cbt, cbr, cbb, cbl);
+    // Default clip = padding box (border-inset). DM-2419: for an active
+    // overflow-clip-margin, Blink instead starts from a PIXEL-SNAPPED inner
+    // border, applies the physical reference-box/margin outsets, and grows or
+    // contracts every corner with FloatRoundedRect's coverage correction.
+    // Reference-box-only zero values remain active; a negative CSS length is
+    // invalid and never reaches this branch.
     let ocX = el.x + cbl;
     let ocY = el.y + cbt;
     let ocW = Math.max(0, el.width - cbl - cbr);
     let ocH = Math.max(0, el.height - cbt - cbb);
+    const ocmGeometry = resolvedOverflowClipMarginGeometry(el, corners);
+    if (ocmGeometry != null) {
+      ocX = ocmGeometry.x;
+      ocY = ocmGeometry.y;
+      ocW = ocmGeometry.width;
+      ocH = ocmGeometry.height;
+      overflowCorners = ocmGeometry.corners;
+    }
     // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start BORDER,
     // not the scrollport — per Blink `fieldset_layout_algorithm.cc`: "the rendered
     // legend shouldn't be part of the scrollport; the legend is essentially a part
@@ -4588,43 +4634,18 @@ function ensureChildOverflowClipId(
       const protrude = ocY - el.fieldsetLegendNotch.y;
       if (protrude > 0) { ocY -= protrude; ocH += protrude; }
     }
-    const isClip = ox === "clip" || oy === "clip";
     // DM-787: CSS Overflow 3 allows mixing `overflow-x: clip; overflow-y:
     // visible` (only `clip` permits this — `hidden + visible` coerces to
     // `auto + hidden`). Chrome clips only the clipped axis; content can
     // still escape on the visible axis. The SVG clipPath is a single rect,
     // so to NOT clip on an axis we extend that axis past any plausible
-    // paint area with `±UNBOUNDED`. Apply before the `overflow-clip-margin`
-    // expansion so the per-axis grow happens AFTER ref-box adjustments.
+    // paint area with `±UNBOUNDED`. Such a one-axis combination is also an
+    // explicit negative activation control for overflow-clip-margin.
     const UNBOUNDED = 100000;
-    const xVisible = ox === "visible" && oy === "clip";
-    const yVisible = oy === "visible" && ox === "clip";
-    const ocmRaw = el.styles.overflowClipMargin;
-    if (isClip && ocmRaw != null && ocmRaw !== "" && ocmRaw !== "0px") {
-      const m = /^(?:(content-box|padding-box|border-box)\s+)?(-?\d*\.?\d+)px$/i.exec(ocmRaw.trim());
-      if (m) {
-        const refBox = (m[1] ?? "padding-box").toLowerCase();
-        const margin = parseFloat(m[2]);
-        // Reference-box edges relative to (el.x, el.y) border-box top-left:
-        //   border-box  → 0
-        //   padding-box → border width (cbl/cbt/cbr/cbb)
-        //   content-box → border + padding
-        let refL = 0, refT = 0, refR = 0, refB = 0;
-        if (refBox === "padding-box") {
-          refL = cbl; refT = cbt; refR = cbr; refB = cbb;
-        } else if (refBox === "content-box") {
-          const pT = parseFloat(el.styles.paddingTop ?? "0") || 0;
-          const pR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-          const pB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-          const pL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-          refL = cbl + pL; refT = cbt + pT; refR = cbr + pR; refB = cbb + pB;
-        }
-        ocX = el.x + refL - margin;
-        ocY = el.y + refT - margin;
-        ocW = Math.max(0, el.width - refL - refR + margin * 2);
-        ocH = Math.max(0, el.height - refT - refB + margin * 2);
-      }
-    }
+    // Paint containment supplies its own both-axis overflow clip edge, so an
+    // authored visible axis does not punch through that containment clip.
+    const xVisible = !containClips && ox === "visible" && oy === "clip";
+    const yVisible = !containClips && oy === "visible" && ox === "clip";
     if (xVisible) {
       ocX = el.x - UNBOUNDED;
       ocW = el.width + UNBOUNDED * 2;
@@ -4633,7 +4654,7 @@ function ensureChildOverflowClipId(
       ocY = el.y - UNBOUNDED;
       ocH = el.height + UNBOUNDED * 2;
     }
-    defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(ocX, ocY, ocW, ocH, overflowInnerCorners, "")}</clipPath>`);
+    defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(ocX, ocY, ocW, ocH, overflowCorners, "")}</clipPath>`);
     // DM-673: stash the clip-path id so hoisted descendants of this
     // overflow scroller can re-wrap their emission in the same clip.
     overflowClipPathIds.set(el, overflowClipId);
@@ -4764,7 +4785,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // not emitted (documented limitation).
   const filterCss = el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
   const blendCss = el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
-  const clipPathUrlId = resolveClipPathOnce(state, el);
+  const clipPathUrlId = resolveClipPathOnce(state, el, corners);
   const maskUrlId = renderMaskPhaseOnce(state, el);
   // CSS 2D transform (SK-1134): wrap the elements rendered group in
   // <g transform=...> composed around the resolved transform-origin in

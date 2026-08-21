@@ -791,6 +791,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2ppudchvbqez9i",
+          "message": {
+            "text": "overflow-clip-margin px terms cross the effective-zoom boundary exactly once during capture, matching the existing physical paint-length policy. The browser-bound DM-2419 suite observes 8px becoming 10px under zoom 1.25 and produces identical captured clip geometry at deviceScaleFactor 1 and 2.",
+            "markdown": "overflow-clip-margin px terms cross the effective-zoom boundary exactly once during capture, matching the existing physical paint-length policy. The browser-bound DM-2419 suite observes 8px becoming 10px under zoom 1.25 and produces identical captured clip geometry at deviceScaleFactor 1 and 2."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 541,
+                  "endLine": 548,
+                  "snippet": {
+                    "text": "        // DM-761: `overflow-clip-margin` extends the overflow clip outward\n        // from a reference box (content / padding / border) by a length.\n        // Blink serializes computed lengths before effective CSS zoom while\n        // DOMRects are already physical. Cross that boundary once here; the\n        // reference-box keyword is retained byte-for-byte.\n        overflowClipMargin: cs.overflowClipMargin\n          ? physicalComputedCssPixelTerms(cs.overflowClipMargin, _effectiveZoomFor(el))\n          : undefined,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/overflow-clip-margin.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 41
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2419"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "44ff2c36fc1deb4543ce3d2d5558cf92"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "afe60a5542602953df3992d08e4295e43e921b38",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
