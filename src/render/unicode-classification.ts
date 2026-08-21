@@ -196,16 +196,6 @@ export function isIdeographicCp(cp: number): boolean {
   return IDEOGRAPHIC_RE.test(s);
 }
 
-// CJK fullwidth-punctuation blocks whose glyphs carry trimmable side-bearing.
-// The real filtering is done by `haltInfoFor` (must have a half-width alternate)
-// plus the captured-advance check; this just scopes the probe so it never runs
-// for ordinary ideographs / Latin.
-export function isTrimmableCjkPunct(cp: number): boolean {
-  return (cp >= 0x3000 && cp <= 0x303F)   // CJK Symbols and Punctuation (、。「」（） …)
-    || (cp >= 0xFF00 && cp <= 0xFF60)      // Fullwidth ASCII variants (（）！？： …)
-    || (cp >= 0xFFE0 && cp <= 0xFFEE);     // Fullwidth signs
-}
-
 // DM-1026: Unicode blocks whose script uses a COMPLEX shaper (Indic / Khmer /
 // Myanmar / SE-Asian Brahmic / the Universal Shaping Engine) — the shapers that,
 // like Chrome's HarfBuzz, insert a dotted circle (U+25CC) before an ORPHANED

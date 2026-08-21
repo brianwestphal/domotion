@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { haltInfoFor } from "./font-resolution.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
@@ -3503,14 +3504,44 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
   }
   const glyph = { id: 7, advanceWidth: 1000, path: { commands: [] } };
 
-  it("scopes the punctuation gate to CJK fullwidth blocks", () => {
-    expect(isTrimmableCjkPunct(0x300C)).toBe(true);  // 「 LEFT CORNER BRACKET
-    expect(isTrimmableCjkPunct(0x300D)).toBe(true);  // 」 RIGHT CORNER BRACKET
-    expect(isTrimmableCjkPunct(0xFF08)).toBe(true);  // （ FULLWIDTH LEFT PAREN
-    expect(isTrimmableCjkPunct(0x3002)).toBe(true);  // 。 IDEOGRAPHIC FULL STOP
-    expect(isTrimmableCjkPunct(0x3042)).toBe(false); // あ HIRAGANA (not punctuation)
-    expect(isTrimmableCjkPunct(0x6587)).toBe(false); // 文 ideograph
-    expect(isTrimmableCjkPunct(0x0041)).toBe(false); // Latin A
+  it("asks the selected face for halt without a codepoint pre-filter", () => {
+    for (const cp of [0x300C, 0xFF08, 0x3042, 0x6587, 0x0041, 0xFF21]) {
+      expect(haltInfoFor(fakeFont(-500), `halt-${cp}`, cp)).toMatchObject({
+        halved: true, xOffset: -500, feature: "halt",
+      });
+    }
+  });
+
+  it("uses vhal and the vertical advance/offset in vertical writing", () => {
+    const verticalFont = {
+      unitsPerEm: 1000,
+      layout(_text: string, features?: string[]) {
+        const vhal = features?.includes("vhal") === true;
+        return {
+          glyphs: [{ id: 9, path: { commands: [] }, advanceWidth: 1000 }],
+          positions: [{ xAdvance: 0, yAdvance: vhal ? -500 : -1000, xOffset: 0, yOffset: vhal ? 220 : 0 }],
+        };
+      },
+    } as unknown as Parameters<typeof haltInfoFor>[0];
+    expect(haltInfoFor(verticalFont, "vertical-partial", 0x3001, "vertical"))
+      .toEqual({ halved: true, xOffset: 0, yOffset: 220, feature: "vhal" });
+  });
+
+  it("follows a face with partial halt coverage instead of punctuation identity", () => {
+    const partialFont = {
+      unitsPerEm: 1000,
+      layout(text: string, features?: string[]) {
+        const supported = text === "A" && features?.includes("halt") === true;
+        return {
+          glyphs: [{ id: text.codePointAt(0), path: { commands: [] }, advanceWidth: 1000 }],
+          positions: [{ xAdvance: supported ? 500 : 1000, yAdvance: 0, xOffset: supported ? -250 : 0, yOffset: 0 }],
+        };
+      },
+    } as unknown as Parameters<typeof haltInfoFor>[0];
+    expect(haltInfoFor(partialFont, "partial-punct", 0x300C).halved).toBe(false);
+    expect(haltInfoFor(partialFont, "partial-latin", 0x0041)).toMatchObject({
+      halved: true, xOffset: -250, feature: "halt",
+    });
   });
 
   it("shifts a TRIMMED opening bracket left by the halt xOffset", () => {

@@ -53,7 +53,7 @@ import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.j
 import { icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
 import { recordSelectedFontRuns, recordTextEmitterTransition, type TextRunRequestDiagnostic } from "./text-run-provenance.js";
 export { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
 
 
 import {
@@ -1141,9 +1141,9 @@ export function textToPathMarkup(
 }
 
 /** Original single-font path (unchanged behavior — preserves xOffsets / targetWidth). */
-// DM-1184: CSS `text-spacing-trim` collapses the built-in half-width side-
-// bearing that CJK fullwidth punctuation (（「」）。、 …) carries, so adjacent
-// trimmed punctuation packs ~0.5em apart instead of the full ~1em advance.
+// DM-1184/DM-2396: CSS `text-spacing-trim` can select a font's half-width
+// alternate. Activation is derived from the selected face's actual `halt`
+// shaping result, never from a Unicode range or punctuation classification.
 // Chrome's already-trimmed pen positions ARE captured (and we anchor each glyph
 // at them), but the glyph OUTLINE is still the full-width one, whose ink sits in
 // only one half of the em box. For OPENING punctuation (（「) the ink is in the
@@ -1155,11 +1155,9 @@ export function textToPathMarkup(
 // only its xOffset to nudge the ink at the already-trimmed anchor; the advance
 // is irrelevant because placement uses the captured pen, not a re-shaped one.
 
-// DM-1184: the font-unit x-shift that repositions a TRIMMED fullwidth-punctuation
-// glyph's ink so the full-width outline lands where Chrome painted the
-// half-width form. 0 when the glyph isn't trimmed (captured advance ≈ full em)
-// or isn't opening punctuation (closing punctuation's ink is already left-
-// aligned, so it needs no shift). Prefers the font's own `halt` GPOS xOffset;
+// The font-unit x-shift that repositions a glyph whose captured advance proves
+// it was trimmed, so the full-width outline lands where Chrome painted the
+// half-width form. Prefers the selected face's own `halt` GPOS xOffset;
 // falls back to ink geometry (ink in the RIGHT half of the em box ⇒ opening ⇒
 // shift left by the trimmed amount) when the font instance can't apply `halt`.
 export function cjkTrimShiftFontUnits(
@@ -1178,8 +1176,10 @@ export function cjkTrimShiftFontUnits(
   const halt = haltInfoFor(font, fontKey, cp);
   if (halt.halved) return halt.xOffset;
   if (isGlyphHelperAvailable() && isIcuHelperAvailable()) return 0;
-  // Fallback (font can't report `halt`): classify by ink position.
-  if (!isTrimmableCjkPunct(cp)) return 0;
+  // Helper-absent fallback: the already-observed half-width advance plus the
+  // selected glyph's ink geometry is the evidence. Do not pre-filter by a
+  // Unicode range; fonts may expose `halt` for any scalar, and an ordinary
+  // CJK/Latin/fullwidth glyph without the shaping delta remains untouched.
   const ink = glyphInkXRange(glyph);
   if (ink == null) return 0;
   const inkCenter = (ink.min + ink.max) / 2;

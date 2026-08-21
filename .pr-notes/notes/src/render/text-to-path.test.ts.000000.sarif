@@ -374,6 +374,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2ueqr9k1q81spl",
+          "message": {
+            "text": "The matrix proves face evidence outranks character identity. It covers punctuation, ideograph, kana, Latin, fullwidth Latin, vertical vhal, and a partial-feature face where punctuation is unsupported but Latin is supported; focused Vitest passed 8 cases.",
+            "markdown": "The matrix proves face evidence outranks character identity. It covers punctuation, ideograph, kana, Latin, fullwidth Latin, vertical vhal, and a partial-feature face where punctuation is unsupported but Latin is supported; focused Vitest passed 8 cases."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 3505,
+                  "endLine": 3558,
+                  "snippet": {
+                    "text": "  const glyph = { id: 7, advanceWidth: 1000, path: { commands: [] } };\n\n  it(\"asks the selected face for halt without a codepoint pre-filter\", () => {\n    for (const cp of [0x300C, 0xFF08, 0x3042, 0x6587, 0x0041, 0xFF21]) {\n      expect(haltInfoFor(fakeFont(-500), `halt-${cp}`, cp)).toMatchObject({\n        halved: true, xOffset: -500, feature: \"halt\",\n      });\n    }\n  });\n\n  it(\"uses vhal and the vertical advance/offset in vertical writing\", () => {\n    const verticalFont = {\n      unitsPerEm: 1000,\n      layout(_text: string, features?: string[]) {\n        const vhal = features?.includes(\"vhal\") === true;\n        return {\n          glyphs: [{ id: 9, path: { commands: [] }, advanceWidth: 1000 }],\n          positions: [{ xAdvance: 0, yAdvance: vhal ? -500 : -1000, xOffset: 0, yOffset: vhal ? 220 : 0 }],\n        };\n      },\n    } as unknown as Parameters<typeof haltInfoFor>[0];\n    expect(haltInfoFor(verticalFont, \"vertical-partial\", 0x3001, \"vertical\"))\n      .toEqual({ halved: true, xOffset: 0, yOffset: 220, feature: \"vhal\" });\n  });\n\n  it(\"follows a face with partial halt coverage instead of punctuation identity\", () => {\n    const partialFont = {\n      unitsPerEm: 1000,\n      layout(text: string, features?: string[]) {\n        const supported = text === \"A\" && features?.includes(\"halt\") === true;\n        return {\n          glyphs: [{ id: text.codePointAt(0), path: { commands: [] }, advanceWidth: 1000 }],\n          positions: [{ xAdvance: supported ? 500 : 1000, yAdvance: 0, xOffset: supported ? -250 : 0, yOffset: 0 }],\n        };\n      },\n    } as unknown as Parameters<typeof haltInfoFor>[0];\n    expect(haltInfoFor(partialFont, \"partial-punct\", 0x300C).halved).toBe(false);\n    expect(haltInfoFor(partialFont, \"partial-latin\", 0x0041)).toMatchObject({\n      halved: true, xOffset: -250, feature: \"halt\",\n    });\n  });\n\n  it(\"shifts a TRIMMED opening bracket left by the halt xOffset\", () => {\n    // fontSize 16, em 1000 → scale 0.016; full advance = 16px, trimmed = 8px.\n    const shift = cjkTrimShiftFontUnits(fakeFont(-500), \"k-open\", glyph, 0x300C, 8, 16, 0.016);\n    expect(shift).toBe(-500); // font units: opening ink moves left half an em\n  });\n\n  it(\"leaves a TRIMMED closing bracket unshifted (its ink is already left-aligned)\", () => {\n    const shift = cjkTrimShiftFontUnits(fakeFont(0), \"k-close\", glyph, 0x300D, 8, 16, 0.016);\n    expect(shift).toBe(0);\n  });\n\n  it(\"does NOT shift an UNTRIMMED opening bracket (full-em captured advance)\", () => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2396"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "19363860b195c95cc0bdca27d0b48623"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "689cf65e05111d140100886d91e3018e9bd0df92",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

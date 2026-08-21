@@ -115,12 +115,15 @@ an opening bracket's right-half ink at the trimmed (leftward) pen pushes it
 ~0.5em too far right — it lands on the next glyph (the visible "`「` overlaps
 `」`" bug in `20-deep-hanging-punctuation`).
 
-The fix borrows the font's `halt` (alternate half widths) GPOS xOffset, which
-repositions the ink to fit the half-width box (−0.5em for opening punctuation,
-0 for closing). `cjkTrimShiftFontUnits` (`src/render/text-to-path.ts`) applies it
-ONLY when the captured advance is actually ~half the em (so untrimmed `（ ）` are
-untouched), with an ink-geometry fallback (opening = ink centroid in the right
-half) for fonts that can't report `halt`. Applied in the embedded-font path
+The fix asks the selected face for its actual `halt` (or vertical `vhal`)
+shaping result and borrows the returned GPOS offset only when the same glyph is
+genuinely narrowed. There is no Unicode punctuation/range gate: punctuation,
+ideographs, kana, Latin, and fullwidth forms are all decided by face evidence.
+`cjkTrimShiftFontUnits` (`src/render/text-to-path.ts`) additionally requires the
+captured advance to be about half the untrimmed advance, so ordinary glyphs and
+untrimmed `（ ）` remain untouched. If native helpers are unavailable, the
+already-observed narrowed advance plus selected-glyph ink geometry is the
+bounded fallback. Applied in the embedded-font path
 (CoreText cluster + fontkit branches) and the paths-mode per-char branch. The
 captured pen is the glyph ORIGIN; the halt xOffset is an intra-glyph ink nudge —
 applying it is not a double-shift. Still open: line-leading and `」「` adjacent-

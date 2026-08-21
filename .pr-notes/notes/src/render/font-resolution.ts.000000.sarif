@@ -2264,6 +2264,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2ueqr9ldqme9pt",
+          "message": {
+            "text": "Half-width activation now comes from the selected face's actual halt or vhal shaping delta. Keeping the glyph id constant and requiring a substantial advance reduction distinguishes a GPOS alternate from substitution or ordinary shaping, without encoding codepoint ranges.",
+            "markdown": "Half-width activation now comes from the selected face's actual halt or vhal shaping delta. Keeping the glyph id constant and requiring a substantial advance reduction distinguishes a GPOS alternate from substitution or ordinary shaping, without encoding codepoint ranges."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9581,
+                  "endLine": 9618,
+                  "snippet": {
+                    "text": "export function haltInfoFor(\n  font: FontInstance,\n  fontKey: string,\n  cp: number,\n  orientation: \"horizontal\" | \"vertical\" = \"horizontal\",\n): AlternateHalfWidthInfo {\n  const feature = orientation === \"vertical\" ? \"vhal\" : \"halt\";\n  const key = `${fontKey}|${cp}|${feature}`;\n  const hit = HALT_INFO_CACHE.get(key);\n  if (hit !== undefined) return hit;\n  let info: AlternateHalfWidthInfo = { halved: false, xOffset: 0, yOffset: 0, feature };\n  try {\n    const ch = String.fromCodePoint(cp);\n    const def = font.layout(ch);\n    const halt = font.layout(ch, [feature]);\n    if (def.positions.length === 1 && halt.positions.length === 1\n        && def.glyphs[0]?.id === halt.glyphs[0]?.id) {\n      const dAdv = Math.abs(orientation === \"vertical\"\n        ? def.positions[0].yAdvance : def.positions[0].xAdvance);\n      const hAdv = Math.abs(orientation === \"vertical\"\n        ? halt.positions[0].yAdvance : halt.positions[0].xAdvance);\n      // The selected feature must genuinely narrow this glyph\n      // while keeping the SAME outline (pure GPOS) — otherwise it isn't the\n      // fullwidth-punctuation trim case and we leave the glyph alone.\n      if (hAdv > 0 && dAdv > 0 && hAdv <= dAdv * 0.6) {\n        info = {\n          halved: true,\n          xOffset: halt.positions[0].xOffset,\n          yOffset: halt.positions[0].yOffset,\n          feature,\n        };\n      }\n    }\n  } catch { /* leave default (not halt-able) */ }\n  HALT_INFO_CACHE.set(key, info);\n  return info;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2396"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ed0674a8cf63987d2ef16fc9872229d7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "689cf65e05111d140100886d91e3018e9bd0df92",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

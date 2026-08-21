@@ -47,9 +47,9 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 import { blinkWinFallbackLocale, blinkWinHardcodedFamilies, winFallbackPriorityForTextRun } from "./win-font-fallback.js";
 export * from "./win-font-fallback.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, harfbuzzCanonicalDecompositionCandidates, usesDedicatedShaper, usesHarfbuzzShaping, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
+import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, harfbuzzCanonicalDecompositionCandidates, usesDedicatedShaper, usesHarfbuzzShaping, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint, isIdeographicCp } from "./unicode-classification.js";
 import { ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
-export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
+export { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzSameFontSpaceFallback, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isStretchyFenceChar } from "./unicode-classification.js"; // re-export for text-to-path.test.ts + text.ts
 
 /**
  * The three per-variant constants Blink's WEBFONT synthetic-bold rule reads.
@@ -9571,25 +9571,44 @@ export function resolveDottedCircleHbRun(
   return { key: markKey, font: hbInst };
 }
 
-const HALT_INFO_CACHE = new Map<string, { halved: boolean; xOffset: number }>();
-export function haltInfoFor(font: FontInstance, fontKey: string, cp: number): { halved: boolean; xOffset: number } {
-  const key = `${fontKey}|${cp}`;
+export interface AlternateHalfWidthInfo {
+  halved: boolean;
+  xOffset: number;
+  yOffset: number;
+  feature: "halt" | "vhal";
+}
+const HALT_INFO_CACHE = new Map<string, AlternateHalfWidthInfo>();
+export function haltInfoFor(
+  font: FontInstance,
+  fontKey: string,
+  cp: number,
+  orientation: "horizontal" | "vertical" = "horizontal",
+): AlternateHalfWidthInfo {
+  const feature = orientation === "vertical" ? "vhal" : "halt";
+  const key = `${fontKey}|${cp}|${feature}`;
   const hit = HALT_INFO_CACHE.get(key);
   if (hit !== undefined) return hit;
-  let info = { halved: false, xOffset: 0 };
+  let info: AlternateHalfWidthInfo = { halved: false, xOffset: 0, yOffset: 0, feature };
   try {
     const ch = String.fromCodePoint(cp);
     const def = font.layout(ch);
-    const halt = font.layout(ch, ["halt"]);
+    const halt = font.layout(ch, [feature]);
     if (def.positions.length === 1 && halt.positions.length === 1
         && def.glyphs[0]?.id === halt.glyphs[0]?.id) {
-      const dAdv = def.positions[0].xAdvance;
-      const hAdv = halt.positions[0].xAdvance;
-      // `halt` must genuinely narrow this glyph (it has a half-width alternate)
+      const dAdv = Math.abs(orientation === "vertical"
+        ? def.positions[0].yAdvance : def.positions[0].xAdvance);
+      const hAdv = Math.abs(orientation === "vertical"
+        ? halt.positions[0].yAdvance : halt.positions[0].xAdvance);
+      // The selected feature must genuinely narrow this glyph
       // while keeping the SAME outline (pure GPOS) — otherwise it isn't the
       // fullwidth-punctuation trim case and we leave the glyph alone.
       if (hAdv > 0 && dAdv > 0 && hAdv <= dAdv * 0.6) {
-        info = { halved: true, xOffset: halt.positions[0].xOffset };
+        info = {
+          halved: true,
+          xOffset: halt.positions[0].xOffset,
+          yOffset: halt.positions[0].yOffset,
+          feature,
+        };
       }
     }
   } catch { /* leave default (not halt-able) */ }
