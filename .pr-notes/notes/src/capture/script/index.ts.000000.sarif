@@ -702,6 +702,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2nhjietceh1tvy",
+          "message": {
+            "text": "DM-2448 exposed that host metrics had adopted computed size while text segments—the renderer’s preferred baseline source—still carried logical-size metrics. This post-pass remeasures each segment’s own face/style at effective-zoomed computed size and applies only transform scale. A logical-metric equality guard preserves bespoke initial-letter/synthetic metrics. The Chromium oracle covers direct/nested zoom and transforms, cancellation, mixed factors, Range/x origins, baselines, CDP face identity, optical inputs and emitted outline-scale ratios.",
+            "markdown": "DM-2448 exposed that host metrics had adopted computed size while text segments—the renderer’s preferred baseline source—still carried logical-size metrics. This post-pass remeasures each segment’s own face/style at effective-zoomed computed size and applies only transform scale. A logical-metric equality guard preserves bespoke initial-letter/synthetic metrics. The Chromium oracle covers direct/nested zoom and transforms, cancellation, mixed factors, Range/x origins, baselines, CDP face identity, optical inputs and emitted outline-scale ratios."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 415,
+                  "endLine": 442,
+                  "snippet": {
+                    "text": "    // DM-2448: text emission prefers per-segment metrics over the host-level\n    // fallback, so carry the same logical → computed → paint size separation\n    // into ordinary, first-line, pseudo, and input segments. Preserve bespoke\n    // metrics (initial-letter and other synthetic rows) when their logical-size\n    // value does not match the segment's own canvas face.\n    var _segmentZoom = _effectiveZoomFor(el);\n    var _segmentTransformScale = _segmentZoom !== 0 ? _scaleMag(el) / _segmentZoom : _scaleMag(el);\n    for (const _seg of textSegments) {\n      var _segLogicalSize = _seg.fontSize ?? parseFloat(cs.fontSize);\n      if (!isFinite(_segLogicalSize) || _segLogicalSize <= 0) continue;\n      var _segMetricStyle = {\n        fontStyle: _seg.fontStyle ?? cs.fontStyle,\n        fontWeight: _seg.fontWeight ?? cs.fontWeight,\n        fontSize: _segLogicalSize + 'px',\n        fontFamily: _seg.fontFamily ?? cs.fontFamily,\n      };\n      var _segLogicalMetrics = _measureFontMetrics(_segMetricStyle);\n      var _segComputedMetrics = _measureFontMetrics(_segMetricStyle, (_segLogicalSize * _segmentZoom).toFixed(4) + 'px');\n      if (_seg.fontAscent === _segLogicalMetrics.ascent) _seg.fontAscent = _segComputedMetrics.ascent * _segmentTransformScale;\n      if (_seg.fontDescent === _segLogicalMetrics.descent) _seg.fontDescent = _segComputedMetrics.descent * _segmentTransformScale;\n    }\n\n    let textImageUri = undefined;\n    const textImageScale = 2;\n\n    if (tag === 'img') {\n      // currentSrc is the URL the browser actually resolved + loaded (from\n      // srcset / <picture> <source>). Fall back to src when currentSrc is empty."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/font-size-spaces.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 22
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/150-font-size-space-oracle.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2448"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bbb8bcda8155e4b895ad716537b22974"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "49996e04452e56a35542429fb863e812d670c314",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -412,6 +412,28 @@ const captureDocumentTree =
     textHeight = _pi.textHeight;
     fontAscent = _pi.fontAscent;
 
+    // DM-2448: text emission prefers per-segment metrics over the host-level
+    // fallback, so carry the same logical → computed → paint size separation
+    // into ordinary, first-line, pseudo, and input segments. Preserve bespoke
+    // metrics (initial-letter and other synthetic rows) when their logical-size
+    // value does not match the segment's own canvas face.
+    var _segmentZoom = _effectiveZoomFor(el);
+    var _segmentTransformScale = _segmentZoom !== 0 ? _scaleMag(el) / _segmentZoom : _scaleMag(el);
+    for (const _seg of textSegments) {
+      var _segLogicalSize = _seg.fontSize ?? parseFloat(cs.fontSize);
+      if (!isFinite(_segLogicalSize) || _segLogicalSize <= 0) continue;
+      var _segMetricStyle = {
+        fontStyle: _seg.fontStyle ?? cs.fontStyle,
+        fontWeight: _seg.fontWeight ?? cs.fontWeight,
+        fontSize: _segLogicalSize + 'px',
+        fontFamily: _seg.fontFamily ?? cs.fontFamily,
+      };
+      var _segLogicalMetrics = _measureFontMetrics(_segMetricStyle);
+      var _segComputedMetrics = _measureFontMetrics(_segMetricStyle, (_segLogicalSize * _segmentZoom).toFixed(4) + 'px');
+      if (_seg.fontAscent === _segLogicalMetrics.ascent) _seg.fontAscent = _segComputedMetrics.ascent * _segmentTransformScale;
+      if (_seg.fontDescent === _segLogicalMetrics.descent) _seg.fontDescent = _segComputedMetrics.descent * _segmentTransformScale;
+    }
+
     let textImageUri = undefined;
     const textImageScale = 2;
 
