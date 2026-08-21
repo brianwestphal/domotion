@@ -11,8 +11,12 @@ describe("capture stage boundaries", () => {
   });
 
   it("pins UAX #50 mixed-orientation routing", () => {
-    expect(isMixedVerticalUpright("漢".codePointAt(0))).toBe(true);
-    expect(isMixedVerticalUpright("A".codePointAt(0))).toBe(false);
+    // ICU values: R rotates; U, Tu, and Tr all remain upright in Blink.
+    expect(isMixedVerticalUpright("A".codePointAt(0))).toBe(false); // R
+    expect(isMixedVerticalUpright("漢".codePointAt(0))).toBe(true); // U
+    expect(isMixedVerticalUpright(0x3001)).toBe(true); // Tu
+    expect(isMixedVerticalUpright(0x2018)).toBe(true); // Tr
+    expect(isMixedVerticalUpright(0x20000)).toBe(true); // supplementary U
     expect(resolveCharOrientation("漢", "mixed")).toBe("upright");
     expect(resolveCharOrientation("A", "mixed")).toBe("rotated");
     expect(resolveCharOrientation("A", "upright")).toBe("upright");

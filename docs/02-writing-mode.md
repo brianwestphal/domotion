@@ -89,7 +89,7 @@ retains its native font resolver.
 
 ## Edge cases / out of scope
 
-- Per-glyph rotation choice for ambiguous codepoints (Latin parens around CJK, ideographic punctuation in Latin runs) — start with the Unicode `Vertical_Orientation` property and refine if a real-world page misbehaves.
+- Per-glyph mixed-orientation choice comes from the complete Chromium-pinned ICU 17 `Vertical_Orientation` property: Blink keeps U, Tu, and Tr upright and rotates only R. Regenerate with `npm run unicode:vertical-orientation:generate`; the check and exhaustive digest prevent host-Unicode drift.
 - CSS logical properties (`inline-size`, `padding-block-*`) — captured pixel values from `getComputedStyle` are already physical, so layout sizing comes through. Only typography axes need new logic.
 
 ## Follow-ups to file

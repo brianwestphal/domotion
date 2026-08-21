@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { MIXED_VERTICAL_UPRIGHT_RANGES } from "../vertical-orientation.generated.js";
 //
 // Text-node walker: builds the per-line `textSegments` array from the host
 // element's child text nodes by walking each character's
@@ -199,21 +200,22 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
 // controls and other Cf scalars are removed/itemized by different stages.
 export const isShapingTransparentControl = (ch) => ch === "\u200C" || ch === "\u200D";
 
-// Unicode 16 UAX #50 ranges whose mixed vertical orientation is upright.
-const UPRIGHT_RANGES = [
-  [0x1100, 0x11FF], [0x2E80, 0x2EFF], [0x2F00, 0x2FDF], [0x2FF0, 0x2FFF],
-  [0x3000, 0x303E], [0x3041, 0x309F], [0x30A0, 0x30FF], [0x3100, 0x312F],
-  [0x3130, 0x318F], [0x3190, 0x319F], [0x31A0, 0x31BF], [0x31C0, 0x31EF],
-  [0x31F0, 0x31FF], [0x3200, 0x32FF], [0x3300, 0x33FF], [0x3400, 0x4DBF],
-  [0x4E00, 0x9FFF], [0xA000, 0xA48F], [0xA490, 0xA4CF], [0xA960, 0xA97F],
-  [0xAC00, 0xD7AF], [0xD7B0, 0xD7FF], [0xF900, 0xFAFF], [0xFE30, 0xFE4F],
-  [0xFF00, 0xFFEF], [0x1B000, 0x1B0FF], [0x1B100, 0x1B12F],
-  [0x1B130, 0x1B16F], [0x1F200, 0x1F2FF], [0x20000, 0x2FFFF],
-];
+// Blink treats U, Tu, and Tr as upright in mixed vertical text; the complete
+// pinned ICU property is generated so supplementary planes and Unicode rolls
+// cannot drift with the host JavaScript runtime.
 
 export const isMixedVerticalUpright = (cp) => {
   if (cp == null) return false;
-  return UPRIGHT_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);
+  let lo = 0;
+  let hi = MIXED_VERTICAL_UPRIGHT_RANGES.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const range = MIXED_VERTICAL_UPRIGHT_RANGES[mid];
+    if (cp < range[0]) hi = mid - 1;
+    else if (cp > range[1]) lo = mid + 1;
+    else return true;
+  }
+  return false;
 };
 
 export const resolveCharOrientation = (ch, textOrientation) => {

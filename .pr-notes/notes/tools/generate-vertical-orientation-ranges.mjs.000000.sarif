@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2unar4xpptpjge",
+          "message": {
+            "text": "The generator consumes Chromium-pinned ICU 17 ppucd inheritance and emits Blink's exact mixed-orientation predicate: U, Tu, and Tr upright, only R rotated. This avoids both handwritten block gaps and host Unicode-version drift.",
+            "markdown": "The generator consumes Chromium-pinned ICU 17 ppucd inheritance and emits Blink's exact mixed-orientation predicate: U, Tu, and Tr upright, only R rotated. This avoids both handwritten block gaps and host Unicode-version drift."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generate-vertical-orientation-ranges.mjs"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 69,
+                  "snippet": {
+                    "text": "#!/usr/bin/env node\nimport { createHash } from \"node:crypto\";\nimport { readFileSync, writeFileSync } from \"node:fs\";\n\nconst root = new URL(\"../\", import.meta.url);\nconst source = new URL(\"external/chromium/third_party/icu/source/data/unidata/ppucd.txt\", root);\nconst text = readFileSync(source, \"utf8\");\nconst upright = new Uint8Array(0x110000); // ppucd default vo=R\n\nconst valueFor = (fields, inherited) => {\n  const field = fields.find((part) => part.startsWith(\"vo=\"));\n  return field == null ? inherited : field !== \"vo=R\";\n};\nfor (const raw of text.split(/\\r?\\n/)) {\n  const fields = raw.split(\";\");\n  if (fields[0] === \"block\" || fields[0] === \"unassigned\") {\n    const [loText, hiText] = fields[1].split(\"..\");\n    const lo = Number.parseInt(loText, 16);\n    const hi = Number.parseInt(hiText ?? loText, 16);\n    upright.fill(valueFor(fields, false) ? 1 : 0, lo, hi + 1);\n  } else if (fields[0] === \"cp\") {\n    const cp = Number.parseInt(fields[1], 16);\n    upright[cp] = valueFor(fields, upright[cp] === 1) ? 1 : 0;\n  }\n}\n\nconst ranges = [];\nlet memberCount = 0;\nfor (let cp = 0; cp <= 0x10ffff; cp++) {\n  if (upright[cp] === 0) continue;\n  memberCount++;\n  const last = ranges.at(-1);\n  if (last != null && last[1] === cp - 1) last[1] = cp;\n  else ranges.push([cp, cp]);\n}\nconst packed = Buffer.allocUnsafe(ranges.length * 8);\nranges.forEach(([lo, hi], index) => {\n  packed.writeUInt32LE(lo, index * 8);\n  packed.writeUInt32LE(hi, index * 8 + 4);\n});\nconst digest = createHash(\"sha256\").update(packed).digest(\"hex\");\nconst hex = (value) => `0x${value.toString(16).toUpperCase()}`;\nconst output = `// GENERATED FILE -- do not hand-edit. Regenerate with:\n//   node tools/generate-vertical-orientation-ranges.mjs\n//\n// Chromium-pinned ICU 17 Vertical_Orientation values as Blink consumes them:\n// U, Tu, and Tr are upright in mixed vertical text; only R is rotated.\nexport const MIXED_VERTICAL_UPRIGHT_MEMBER_COUNT = ${memberCount};\nexport const MIXED_VERTICAL_UPRIGHT_SHA256 = \"${digest}\";\nexport const MIXED_VERTICAL_UPRIGHT_RANGES = [\n${ranges.map(([lo, hi]) => `  [${hex(lo)}, ${hex(hi)}],`).join(\"\\n\")}\n];\n`;\nconst target = new URL(\"src/capture/script/vertical-orientation.generated.ts\", root);\nif (process.argv.includes(\"--check\")) {\n  if (readFileSync(target, \"utf8\") !== output) throw new Error(\"vertical-orientation.generated.ts is stale\");\n  console.error(`Verified ${ranges.length} ranges / ${memberCount} members / ${digest}`);\n} else {\n  writeFileSync(target, output);\n  console.error(`Wrote ${ranges.length} ranges / ${memberCount} members / ${digest}`);\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2394"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7a456e3199a1164ad14fd913d6bbad03"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f8035b041ab06e230101ba756fc626314dfc6daa",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

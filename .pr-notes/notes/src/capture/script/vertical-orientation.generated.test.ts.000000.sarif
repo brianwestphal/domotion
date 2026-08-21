@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2unar44qa4o5tc",
+          "message": {
+            "text": "The test exhaustively compares all Unicode scalars with the generated ranges and pins the member count plus packed-endpoint SHA-256. Focused property/stage tests passed 8/8, the live vertical and text-combine browser control passed, and typecheck/lint passed.",
+            "markdown": "The test exhaustively compares all Unicode scalars with the generated ranges and pins the member count plus packed-endpoint SHA-256. Focused property/stage tests passed 8/8, the live vertical and text-combine browser control passed, and typecheck/lint passed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/vertical-orientation.generated.test.ts"
+                },
+                "region": {
+                  "startLine": 10,
+                  "endLine": 28,
+                  "snippet": {
+                    "text": "describe(\"Chromium-pinned ICU mixed vertical orientation\", () => {\n  it(\"matches every scalar and the packed property digest\", () => {\n    let index = 0;\n    let members = 0;\n    for (let cp = 0; cp <= 0x10ffff; cp++) {\n      while (index < MIXED_VERTICAL_UPRIGHT_RANGES.length && cp > MIXED_VERTICAL_UPRIGHT_RANGES[index][1]) index++;\n      const range = MIXED_VERTICAL_UPRIGHT_RANGES[index];\n      const expected = range != null && cp >= range[0] && cp <= range[1];\n      if (expected) members++;\n      expect(isMixedVerticalUpright(cp)).toBe(expected);\n    }\n    const packed = Buffer.allocUnsafe(MIXED_VERTICAL_UPRIGHT_RANGES.length * 8);\n    MIXED_VERTICAL_UPRIGHT_RANGES.forEach(([lo, hi], i) => {\n      packed.writeUInt32LE(lo, i * 8);\n      packed.writeUInt32LE(hi, i * 8 + 4);\n    });\n    expect(members).toBe(MIXED_VERTICAL_UPRIGHT_MEMBER_COUNT);\n    expect(createHash(\"sha256\").update(packed).digest(\"hex\")).toBe(MIXED_VERTICAL_UPRIGHT_SHA256);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2394"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "668da3bc2923e1e218bbbb9772df87c5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f8035b041ab06e230101ba756fc626314dfc6daa",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

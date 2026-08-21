@@ -82,4 +82,10 @@ function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: s
       "src/render/cjk-ideograph-or-symbol-ranges.generated.ts",
     );
   });
+  it("vertical-orientation.generated.ts matches Chromium-pinned ICU", () => {
+    assertGeneratorIsUpToDate(
+      "tools/generate-vertical-orientation-ranges.mjs",
+      "src/capture/script/vertical-orientation.generated.ts",
+    );
+  });
 });
