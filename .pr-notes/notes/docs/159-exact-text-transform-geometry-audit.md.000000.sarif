@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3czg4skdw87is8",
+          "message": {
+            "text": "Pinned Blink keeps text shaping in local coordinates and carries the complete signed transform through paint properties into the Skia CTM. CSS zoom enters the effective font size earlier, so it is intentionally excluded from the later paint matrix. See tools/text-transform-geometry-audit.ts for the live matrix discriminator.",
+            "markdown": "Pinned Blink keeps text shaping in local coordinates and carries the complete signed transform through paint properties into the Skia CTM. CSS zoom enters the effective font size earlier, so it is intentionally excluded from the later paint matrix. See tools/text-transform-geometry-audit.ts for the live matrix discriminator."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/159-exact-text-transform-geometry-audit.md"
+                },
+                "region": {
+                  "startLine": 69,
+                  "endLine": 126,
+                  "snippet": {
+                    "text": "## Pinned source decision\n\nThe audit used these checkouts:\n\n- Chromium `7d859f271cbda744098ac69f44978d4edfa62be3` (2026-06-27)\n- HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab` (2026-07-31)\n- Skia `62efacd37737505732dbe3d8daa62abd679626a1`, the revision pinned by\n  Chromium's `DEPS`, rather than the newer standalone checkout head\n\n### Transform ownership\n\n`core/paint/paint_property_tree_builder.cc:1370-1379` constructs a\n`TransformAndOrigin` from a complete `gfx::Transform` plus a separate origin.\nFor each physical box fragment, lines 1421-1456 compute the reference box and\nrecord the entire matrix; the code explicitly distinguishes scale-only from a\nnon-scale transform rather than converting either into a font size. The normal\ntransform property calls `ComputedStyle::ApplyTransform` at lines 1610-1628.\n\n`core/layout/transform_utils.cc:17-49` selects the physical fragment's content\nor border reference box. `core/style/computed_style.cc:1415-1490` resolves the\norigin against that box, composes translate, rotate, scale, motion path, and\nthe ordered transform operations, then translates back. Origin and\n`transform-box` therefore belong to the matrix construction, not to text\nmetrics.\n\n### Text stays local until paint\n\n`core/paint/text_fragment_painter.cc:506-529` selects the fragment's scaled\nfont, computes its local ascent and physical-box origin, and constructs\n`TextPainter` with that local origin. Lines 641-651 expose the current paint\nchunk's transform separately. Lines 730-758 then paint the already-shaped\nfragment and its decorations.\n\n`platform/fonts/font.cc:91-109` converts the fragment's `ShapeResult` into text\nblobs and draws those blobs at the supplied local point. Blink's HarfBuzz bridge\nstores the returned physical advances and offsets in `ShapeResult` without any\nCSS-transform magnitude (`platform/fonts/shaping/shape_result.cc:1517-1573`).\nHarfBuzz itself defines every `hb_glyph_position_t` advance and offset relative\nto the current point (`src/hb-buffer.h:175-199`).\n\nThe handoff remains matrix-valued in Skia. Chromium's `GraphicsContext` sends a\ncomplete `SkM44` to `PaintCanvas::concat`\n(`platform/graphics/graphics_context.cc:322-325,1002-1004`). In pinned Skia,\n`src/core/SkCanvas.cpp:1336-1354` pre-concatenates that matrix into the global\nCTM, while lines 2442-2462 and 2580-2599 turn a text blob into a glyph-run list\nand draw it under that CTM. No scalar text-transform calibration exists at this\nboundary.\n\n### Zoom is different\n\nBlink applies zoom while deriving the computed font size:\n`core/css/resolver/font_builder.cc:378-423` says the computed size already has\nscale/zoom and text autosizing applied, and\n`core/css/font_size_functions.cc:216-218` multiplies the specified size by the\nzoom factor. `platform/fonts/font_description.cc:271-281` and\n`platform/fonts/skia/font_cache_skia.cc:73-94` carry that computed/effective\nsize into the platform font. Zoom is therefore a local shaping/layout input;\nthe later CSS transform remains an independent paint operation."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "chromium/src/core/paint/paint_property_tree_builder.cc"
+                },
+                "region": {
+                  "startLine": 1370
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "chromium/src/core/paint/text_fragment_painter.cc"
+                },
+                "region": {
+                  "startLine": 506
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2381"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a41303296e8001eaaa1e4070bd99ed99"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3czgat6d0ms85o",
+          "message": {
+            "text": "The fresh Chromium run passes all sixteen rows. Every affine held-out point is within 0.000046 CSS px and all fifteen affine rows keep outer raster inactive; the perspective row has a 17.4469 px affine residual and activates that route. The executable evidence lives in tools/text-transform-geometry-audit.ts.",
+            "markdown": "The fresh Chromium run passes all sixteen rows. Every affine held-out point is within 0.000046 CSS px and all fifteen affine rows keep outer raster inactive; the perspective row has a 17.4469 px affine residual and activates that route. The executable evidence lives in tools/text-transform-geometry-audit.ts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/159-exact-text-transform-geometry-audit.md"
+                },
+                "region": {
+                  "startLine": 128,
+                  "endLine": 180,
+                  "snippet": {
+                    "text": "## Fresh discriminator evidence\n\nRun:\n\n```sh\nnpm run transform:text-geometry-audit -- --json /tmp/text-transform-audit.json\n```\n\nThe audit is observational. It obtains `DOM.getContentQuads` for the actual\ntext node before and after a temporary all-owner identity override. The\noverride leaves CSS zoom active. Three corresponding corners solve the affine\nmap from neutral fragment space to live paint space; the fourth corner of every\nfragment is a held-out discriminator. A non-affine fourth corner classifies the\nouter context as projective. Production capture runs on the restored page and\nrecords the scalar fields beside those independent browser facts.\n\nThe 2026-08-22 darwin/arm64 run used Playwright 1.59.1 and Chromium\n147.0.7727.15. All affine held-out corners agreed within `0.000046` CSS px;\nthe projective row missed by `17.4469` CSS px and activated\n`transformSubtreeRaster`.\n\n| Row | Browser fact | Current captured paint-metric scale |\n| --- | --- | ---: |\n| identity | affine identity | 1.000000 |\n| translation | affine translation; no font change | 1.000000 |\n| uniform scale 1.25 | affine scale | 1.250000 |\n| uniform `cos(37deg)` | diagonal affine matrix | 0.798634 |\n| rotation 37deg | determinant about 1; off-diagonals +/-0.601815 | 0.798638 |\n| anisotropic scale 1.6 by 0.7 | complete affine matrix | 1.058300 |\n| rotate 31deg plus scale 1.6 by 0.65 | complete affine matrix | 0.874144 |\n| two-axis skew | complete affine matrix | 1.000000 |\n| `scaleX(-1)` | determinant -1; signed quad winding retained | 1.000000, transform discarded |\n| nested asymmetric origins | composed affine matrix | 0.962231 |\n| `transform-box: border-box` | affine matrix about the border-box reference origin | 0.926416 |\n| `transform-box: content-box` | same linear matrix; translation moves 8.7268 px by 16.1049 px | 0.926416 |\n| wrapped skew text | seven independently returned fragment quads | 1.000000 |\n| zoom 1.5 | computed font 48 px from logical 32 px | 1.000000 relative to computed size |\n| zoom 1.5 plus rotation 37deg | zoom remains local; rotation remains affine | 0.798635 |\n| perspective plus `rotateY`/`translateZ` | non-affine fourth corner; outer raster active | 0.862059 before replacement |\n\nThe mutation control is especially strong. The uniform-cosine and rotation\nrows have scalar values within `0.000004`, yet their recovered matrices are:\n\n```text\nscale:  [0.798635, 0,        0,         0.798636,  55.3005,  35.8026]\nrotate: [0.798635, 0.601815, -0.601815, 0.798636, 162.3032, -129.4731]\n```\n\nAny scalar-only implementation must return the same answer for these two\ndifferent paints. The tool also requires multiple wrapped fragment quads,\nnegative reflection winding, a moved `content-box` versus `border-box`\nreference-origin result, and a zoom-only metric ratio of one. Those controls\nmake a dormant probe or a reintroduced scalar approximation fail visibly."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/text-transform-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 291
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2381"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bdb07d35064b8454c4e8ea842de318d9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dbf7c1a740772288e9af02c91eb95272826250b3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -91,14 +91,15 @@
     {
       "id": "transforms-projection-reflection",
       "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core"],
       "oracle": "tools/transform-geometry-oracle.ts",
+      "browserOracle": "tools/text-transform-geometry-audit.ts",
       "sourceAudit": "audited",
-      "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "five affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, source-derived perspective/perspective-origin stacking and fixed-containing-block positive/negative controls with live Chromium geometry, mutation control, plus curated visual fixtures; these rows do not exercise the separate viewBox-culling decision",
+      "oracleStatus": "partial-stage-gate",
+      "generatedCoverage": "five box-level affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, source-derived perspective/perspective-origin stacking and fixed-containing-block positive/negative controls, plus an observational live text-fragment matrix audit covering identity/translation/uniform negatives, equal-scalar rotate-vs-scale mutation, anisotropic and rotate+scale, skew, signed reflection, nested asymmetric origins, content/border transform-box, wrapped fragments, zoom, and projective classification; these rows expose but do not yet repair the scalar text path or the separate viewBox-culling decision",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Nested projective contexts are represented by a Chromium subtree snapshot rather than vectors, and animated 3D transforms still require frame-level boundary coverage. DM-2386 also confirmed that the viewBox culler can over-hide visible paint because it substitutes a captured border box for SVG fill-box, keeps only the nearest animation timeline, interpolates composed endpoint matrices, and treats a fixed 50-part grid as a continuous bound.",
-      "nextAction": "Implement rendered reference/visual bounds in DM-2460, composed global-timeline swept bounds in DM-2461, and the independent live Chromium culling oracle in DM-2462; separately extend animated 3D frame coverage when stable snapshots exist."
+      "knownGap": "Affine box quads and the projective raster boundary are source-audited, but transformed text still mutates font metrics through sqrt(abs(a*d)), unsigned component-wise ancestor products, and an axis-ratio wrapper. Equal-scalar rotation/scale, reflection, nested origins, and zoom controls prove that this is not Blink's local-fragment-plus-paint-matrix model. Nested projective contexts remain Chromium snapshots, animated 3D transforms still need frame coverage, and DM-2386 separately proved the viewBox culler unsafe.",
+      "nextAction": "Implement exact neutral-fragment/matrix capture in DM-2469, matrix-owned text emission and scalar deletion in DM-2470, and the independent all-platform matrix/ink gate in DM-2471. Separately implement viewBox reference/visual bounds in DM-2460, composed global-timeline swept bounds in DM-2461, and the live culling oracle in DM-2462."
     },
     {
       "id": "compositing-effects-paint-order",

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3cz8s0aavun8bs",
+          "message": {
+            "text": "The case matrix is deliberately discriminatory: uniform cosine scale and rotation collide under the current scalar while reflection, reference-box origins, wrapping, zoom, and projective geometry preserve independent browser facts. This prevents a new tuned scalar from satisfying the audit. See docs/159-exact-text-transform-geometry-audit.md for the source-derived representation and boundary.",
+            "markdown": "The case matrix is deliberately discriminatory: uniform cosine scale and rotation collide under the current scalar while reflection, reference-box origins, wrapping, zoom, and projective geometry preserve independent browser facts. This prevents a new tuned scalar from satisfying the audit. See docs/159-exact-text-transform-geometry-audit.md for the source-derived representation and boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/text-transform-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 63,
+                  "endLine": 98,
+                  "snippet": {
+                    "text": "const CASES: AuditCase[] = [\n  { id: \"identity-negative-control\", expected: \"affine\" },\n  { id: \"translate-negative-control\", targetCss: \"transform:translate(17.5px,-8.25px);transform-origin:13% 82%\", expected: \"affine\" },\n  { id: \"uniform-scale-negative-control\", targetCss: \"transform:scale(1.25);transform-origin:13% 82%\", expected: \"affine\" },\n  { id: \"uniform-cos37-collision\", targetCss: \"transform:scale(.79863551);transform-origin:13% 82%\", expected: \"affine\" },\n  { id: \"rotate-37-collision\", targetCss: \"transform:rotate(37deg);transform-origin:13% 82%\", expected: \"affine\" },\n  { id: \"anisotropic-scale\", targetCss: \"transform:scale(1.6,.7);transform-origin:13% 82%\", expected: \"affine\" },\n  { id: \"rotate-anisotropic-scale\", targetCss: \"transform:rotate(31deg) scale(1.6,.65);transform-origin:17px 82%\", expected: \"affine\" },\n  { id: \"skew\", targetCss: \"transform:skew(22deg,-9deg);transform-origin:73% 18%\", expected: \"affine\" },\n  { id: \"axis-reflection\", targetCss: \"transform:scaleX(-1);transform-origin:0 0\", expected: \"affine\" },\n  {\n    id: \"nested-asymmetric-origin\",\n    outerCss: \"transform:rotate(23deg) scale(1.4,.75);transform-origin:11px 91%\",\n    targetCss: \"transform:rotate(-11deg) scale(.9,1.2);transform-origin:73% 18%\",\n    expected: \"affine\",\n  },\n  {\n    id: \"border-box-reference\",\n    targetCss: \"border:7px solid transparent;padding:11px 23px;transform-box:border-box;transform:rotate(19deg) scale(1.2,.8);transform-origin:100% 0\",\n    expected: \"affine\",\n  },\n  {\n    id: \"content-box-reference\",\n    targetCss: \"border:7px solid transparent;padding:11px 23px;transform-box:content-box;transform:rotate(19deg) scale(1.2,.8);transform-origin:100% 0\",\n    expected: \"affine\",\n  },\n  { id: \"wrapped-skew\", targetCss: \"transform:skewX(19deg);width:150px;white-space:normal\", text: \"Affine glyph probe wraps across three lines\", expected: \"affine\" },\n  { id: \"zoom-negative-control\", outerCss: \"zoom:1.5\", expected: \"affine\" },\n  { id: \"zoom-plus-rotation\", outerCss: \"zoom:1.5\", targetCss: \"transform:rotate(37deg);transform-origin:13% 82%\", expected: \"affine\" },\n  {\n    id: \"perspective-raster-boundary\",\n    outerCss: \"perspective:320px;perspective-origin:17% 83%;transform-style:preserve-3d\",\n    targetCss: \"transform:rotateY(42deg) translateZ(28px);transform-origin:19% 77%\",\n    expected: \"projective\",\n  },\n];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1767
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1485
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2381"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6e1bc1a6394d26f8e8ae4f805302ccb1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dbf7c1a740772288e9af02c91eb95272826250b3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -96,6 +96,7 @@
     "paint:geometry-oracle": "tsx tools/paint-geometry-oracle.ts",
     "paint:geometry-browser-oracle": "tsx tools/paint-geometry-browser-oracle.ts",
     "transform:geometry-oracle": "tsx tools/transform-geometry-oracle.ts",
+    "transform:text-geometry-audit": "tsx tools/text-transform-geometry-audit.ts",
     "paint:order-oracle": "tsx tools/paint-order-oracle.ts",
     "replaced:geometry-oracle": "tsx tools/replaced-geometry-oracle.ts",
     "raster:boundary-oracle": "tsx tools/raster-boundary-oracle.ts",

@@ -1,5 +1,14 @@
 # Domotion: CSS 2D transforms
 
+> **2026 source audit:** text inside transformed HTML is not exactly represented
+> by the current cumulative scalar/geometric-mean correction. Blink keeps
+> zoom-adjusted shaped text in local fragment space and applies the complete
+> signed transform in the paint property tree. Rotation, skew, reflection,
+> nested origins, and anisotropic scale therefore require captured fragment
+> geometry plus an affine matrix; non-affine planes retain the existing outer
+> Chromium raster boundary. See
+> [the exact text-transform geometry audit](159-exact-text-transform-geometry-audit.md).
+
 Requirements for applying CSS `transform` to rendered SVG element groups in Domotion. Origin: SK-1127 (follow-up from SK-1091). Today our pipeline reads `cs.transform` into `el.styles.filter` (via the existing CSS filter pass-through) but only `transform: translate(…)` round-trips correctly because translation is absorbed by the captured `getBoundingClientRect` position. `rotate`, `scale`, `skew`, and `matrix` render as axis-aligned bounding boxes — the box is in the right viewport position but its internal contents are upright instead of rotated/scaled/skewed.
 
 ## Why now

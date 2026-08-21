@@ -1517,3 +1517,15 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   the host's native resizer computed style and CDP pseudo-match metadata. The
   old source-order fallback is removed and authoritative-surface failure is
   explicit. See [doc 158](../158-authoritative-control-pseudo-cascade.md).
+
+<!-- DM-2381 -->
+- Transformed text remains **design-only** for arbitrary affine matrices. The
+  current capture reduces matrix diagonals to a cumulative geometric-mean font
+  scale and mixes live scale rectangles with neutralized rotation/skew
+  rectangles. Pinned Blink/HarfBuzz/Skia source instead keeps zoom-adjusted
+  shaped fragments local and applies a complete signed paint matrix. Fresh
+  Chromium text-node quads distinguish equal-scalar rotation from scale,
+  preserve reflection winding and wrapped fragments, move with transform-box,
+  and put non-affine perspective at the existing outer raster boundary. See
+  [doc 159](../159-exact-text-transform-geometry-audit.md); exact capture,
+  renderer migration, and all-platform gates are tracked in DM-2469/2470/2471.
