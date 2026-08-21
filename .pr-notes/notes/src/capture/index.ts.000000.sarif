@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2qy6ag83epp5m7",
+          "message": {
+            "text": "Platform resizer thickness must be observed from the active ScrollbarTheme rather than frozen at 15 or 16 CSS pixels. Chromium delegates this value to platform themes, including macOS overlay and legacy variants, Aura, and Windows. The unique-color custom resizer probe recovers the exact painted CornerRect, divides screenshot density out, caches per Page, and always removes its temporary DOM. If a strict CSP blocks the in-page probe, an isolated page in the same Browser samples the same platform theme while retaining the captured page visual-viewport scale.",
+            "markdown": "Platform resizer thickness must be observed from the active ScrollbarTheme rather than frozen at 15 or 16 CSS pixels. Chromium delegates this value to platform themes, including macOS overlay and legacy variants, Aura, and Windows. The unique-color custom resizer probe recovers the exact painted CornerRect, divides screenshot density out, caches per Page, and always removes its temporary DOM. If a strict CSP blocks the in-page probe, an isolated page in the same Browser samples the same platform theme while retaining the captured page visual-viewport scale."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 990,
+                  "endLine": 1071,
+                  "snippet": {
+                    "text": "/**\n * Ask the active Chromium session to paint one custom ::-webkit-resizer and\n * recover its exact CornerRect size from pixels. There is intentionally no\n * hard-coded 15/16px constant: ScrollbarTheme differs across Aura, Windows,\n * macOS overlay, and macOS legacy themes. The screenshot density is divided\n * out, so deviceScaleFactor/DPR never leaks into CSS geometry.\n */\nexport async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlatformResizerMetrics> {\n  const cached = blinkPlatformResizerMetricsByPage.get(page);\n  if (cached != null) return cached;\n\n  const pending = (async (): Promise<BlinkPlatformResizerMetrics> => {\n    const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;\n    const probeSize = 64;\n    const position = await page.evaluate(({ token, probeSize }) => {\n      const style = document.createElement(\"style\");\n      style.dataset.domotionResizerProbe = token;\n      style.textContent = `[data-domotion-resizer-probe=\"${token}\"]::-webkit-resizer{background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;\n      const probe = document.createElement(\"div\");\n      probe.dataset.domotionResizerProbe = token;\n      probe.setAttribute(\"aria-hidden\", \"true\");\n      probe.style.cssText = `all:initial;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;\n      document.documentElement.append(style, probe);\n      return {\n        x: window.scrollX,\n        y: window.scrollY,\n        scaleFromDIP: window.visualViewport?.scale ?? 1,\n      };\n    }, { token, probeSize });\n\n    try {\n      const png = await page.screenshot({\n        clip: { x: position.x, y: position.y, width: probeSize, height: probeSize },\n        type: \"png\",\n      });\n      const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });\n      let minX = info.width;\n      let minY = info.height;\n      let maxX = -1;\n      let maxY = -1;\n      for (let y = 0; y < info.height; y++) {\n        for (let x = 0; x < info.width; x++) {\n          const i = (y * info.width + x) * info.channels;\n          if (Math.abs(data[i] - 1) <= 1\n              && Math.abs(data[i + 1] - 254) <= 1\n              && Math.abs(data[i + 2] - 2) <= 1) {\n            minX = Math.min(minX, x);\n            minY = Math.min(minY, y);\n            maxX = Math.max(maxX, x);\n            maxY = Math.max(maxY, y);\n          }\n        }\n      }\n      if (maxX < minX || maxY < minY) {\n        throw new Error(\"Chromium platform-resizer probe painted no custom corner pixels\");\n      }\n      const pixelsPerCssX = info.width / probeSize;\n      const pixelsPerCssY = info.height / probeSize;\n      const width = (maxX - minX + 1) / pixelsPerCssX;\n      const height = (maxY - minY + 1) / pixelsPerCssY;\n      if (Math.abs(width - height) > 0.51 || width < 1) {\n        throw new Error(`Chromium platform-resizer probe returned ${width}x${height}`);\n      }\n      return {\n        themeThickness: Math.round((width + height) / 2),\n        scaleFromDIP: Number.isFinite(position.scaleFromDIP) && position.scaleFromDIP > 0\n          ? position.scaleFromDIP\n          : 1,\n      };\n    } finally {\n      await page.evaluate((token) => {\n        document.querySelectorAll(`[data-domotion-resizer-probe=\"${token}\"]`).forEach((node) => node.remove());\n      }, token).catch(() => {});\n    }\n  })();\n  blinkPlatformResizerMetricsByPage.set(page, pending);\n  try {\n    return await pending;\n  } catch (error) {\n    blinkPlatformResizerMetricsByPage.delete(page);\n    throw error;\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/resize-handle.ts"
+                },
+                "region": {
+                  "startLine": 54
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/resize-handle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 103
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2418"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f89a6ef1367487962440e51cd9bc2e31"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1738c96c2128f260e89994486a268abe7789ede0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

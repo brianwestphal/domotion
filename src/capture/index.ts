@@ -978,6 +978,138 @@ function parseWeightDescriptor(value: string): number {
 // and measures glyph-baseline drift for the per-font ascent table.
 // ────────────────────────────────────────────────────────────────────────
 
+export interface BlinkPlatformResizerMetrics {
+  /** ScrollbarTheme::ScrollbarThickness in CSS viewport pixels. */
+  themeThickness: number;
+  /** ChromeClient::WindowToViewportScalar, not devicePixelRatio. */
+  scaleFromDIP: number;
+}
+
+const blinkPlatformResizerMetricsByPage = new WeakMap<Page, Promise<BlinkPlatformResizerMetrics>>();
+
+/**
+ * Ask the active Chromium session to paint one custom ::-webkit-resizer and
+ * recover its exact CornerRect size from pixels. There is intentionally no
+ * hard-coded 15/16px constant: ScrollbarTheme differs across Aura, Windows,
+ * macOS overlay, and macOS legacy themes. The screenshot density is divided
+ * out, so deviceScaleFactor/DPR never leaks into CSS geometry.
+ */
+export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlatformResizerMetrics> {
+  const cached = blinkPlatformResizerMetricsByPage.get(page);
+  if (cached != null) return cached;
+
+  const runProbe = async (probePage: Page): Promise<BlinkPlatformResizerMetrics> => {
+    const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const probeSize = 64;
+    const position = await probePage.evaluate(({ token, probeSize }) => {
+      const style = document.createElement("style");
+      style.dataset.domotionResizerProbe = token;
+      style.textContent = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
+      const probe = document.createElement("div");
+      probe.dataset.domotionResizerProbe = token;
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText = `all:initial;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
+      document.documentElement.append(style, probe);
+      return {
+        x: window.scrollX,
+        y: window.scrollY,
+        scaleFromDIP: window.visualViewport?.scale ?? 1,
+      };
+    }, { token, probeSize });
+
+    try {
+      const png = await probePage.screenshot({
+        clip: { x: position.x, y: position.y, width: probeSize, height: probeSize },
+        type: "png",
+      });
+      const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      let minX = info.width;
+      let minY = info.height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          const i = (y * info.width + x) * info.channels;
+          if (Math.abs(data[i] - 1) <= 1
+              && Math.abs(data[i + 1] - 254) <= 1
+              && Math.abs(data[i + 2] - 2) <= 1) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+      if (maxX < minX || maxY < minY) {
+        throw new Error("Chromium platform-resizer probe painted no custom corner pixels");
+      }
+      const pixelsPerCssX = info.width / probeSize;
+      const pixelsPerCssY = info.height / probeSize;
+      const width = (maxX - minX + 1) / pixelsPerCssX;
+      const height = (maxY - minY + 1) / pixelsPerCssY;
+      if (Math.abs(width - height) > 0.51 || width < 1) {
+        throw new Error(`Chromium platform-resizer probe returned ${width}x${height}`);
+      }
+      return {
+        themeThickness: Math.round((width + height) / 2),
+        scaleFromDIP: Number.isFinite(position.scaleFromDIP) && position.scaleFromDIP > 0
+          ? position.scaleFromDIP
+          : 1,
+      };
+    } finally {
+      await probePage.evaluate((token) => {
+        document.querySelectorAll(`[data-domotion-resizer-probe="${token}"]`).forEach((node) => node.remove());
+      }, token).catch(() => {});
+    }
+  };
+  const pending = (async (): Promise<BlinkPlatformResizerMetrics> => {
+    try {
+      return await runProbe(page);
+    } catch (pageError) {
+      // A strict page CSP can reject both the temporary style element and the
+      // probe's inline layout declarations. The platform theme belongs to the
+      // BrowserContext, so retry in a clean about:blank page from that same
+      // context; retain the captured page's viewport scale for the stroke leg.
+      const capturedScale = await page.evaluate(() => window.visualViewport?.scale ?? 1).catch(() => 1);
+      let isolated: Page;
+      try {
+        isolated = await page.context().newPage();
+      } catch {
+        // Browser.newPage() owns its implicit context and Playwright refuses
+        // context.newPage() for it. Keep the fallback in the same Browser so
+        // it still samples the same platform theme and device scale.
+        const browser = page.context().browser();
+        if (browser == null) throw pageError;
+        const deviceScaleFactor = await page.evaluate(() => window.devicePixelRatio).catch(() => 1);
+        isolated = await browser.newPage({
+          viewport: page.viewportSize() ?? { width: 64, height: 64 },
+          deviceScaleFactor: Number.isFinite(deviceScaleFactor) && deviceScaleFactor > 0
+            ? deviceScaleFactor
+            : 1,
+        });
+      }
+      try {
+        const fallback = await runProbe(isolated);
+        return {
+          themeThickness: fallback.themeThickness,
+          scaleFromDIP: Number.isFinite(capturedScale) && capturedScale > 0 ? capturedScale : 1,
+        };
+      } catch {
+        throw pageError;
+      } finally {
+        await isolated.close().catch(() => {});
+      }
+    }
+  })();
+  blinkPlatformResizerMetricsByPage.set(page, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    blinkPlatformResizerMetricsByPage.delete(page);
+    throw error;
+  }
+}
+
 /**
  * Capture the visual tree of elements within a viewport region. Warnings about
  * unsupported features encountered during capture are stored and accessible
@@ -1075,7 +1207,8 @@ export async function captureElementTreeWithWarnings(
   // session is the only authority. See `src/capture/generic-font-probe.ts`.
   await ensureSessionGenericFamilyOverrides(page);
 
-  const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}, cof: ${JSON.stringify(opts?.crossOriginFrames ?? "")}})`);
+  const resizerMetrics = await measureBlinkPlatformResizer(page);
+  const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}, cof: ${JSON.stringify(opts?.crossOriginFrames ?? "")}, rt: ${resizerMetrics.themeThickness}, rs: ${resizerMetrics.scaleFromDIP}})`);
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);

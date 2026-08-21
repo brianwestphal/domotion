@@ -76,6 +76,7 @@ import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payl
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
+import { blinkPlatformResizerStrokes } from "./resize-handle.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
@@ -2576,37 +2577,84 @@ function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof
   return out;
 }
 
-// Resize handle paint, extracted from renderElement (DM-1306, DM-339). When CSS
-// `resize` is in effect (non-none + overflow != visible, or a textarea), Chrome
-// paints a small ~7x7 diagonal-line grippy in the bottom-right corner; we
-// approximate it with three mid-gray diagonal strokes inside the padding box.
-// Reads only el + indent; appends to no shared state.
-function paintResizeHandle(el: CapturedElement, indent: string): string[] {
+function customResizerRadius(value: string | undefined, size: number, zoom: number): number {
+  if (value == null || value === "") return 0;
+  const token = value.trim().split(/[\s/]+/)[0] ?? "0";
+  const amount = parseFloat(token) || 0;
+  return Math.max(0, Math.min(size / 2, token.endsWith("%") ? size * amount / 100 : amount * zoom));
+}
+
+function customResizerBorder(
+  value: string | undefined,
+  zoom: number,
+): { width: number; style: string; color: string } | null {
+  if (value == null || value === "" || value === "none") return null;
+  const match = /^\s*([\d.]+)px\s+(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+?)\s*$/i.exec(value);
+  if (match == null || match[2] === "none" || match[2] === "hidden") return null;
+  return { width: (parseFloat(match[1]) || 0) * zoom, style: match[2], color: match[3] };
+}
+
+/**
+ * ScrollableAreaPainter::PaintResizer / DrawPlatformResizerImage at
+ * Chromium 7d859f271c. Activation, theme thickness, snapped CornerRect, and
+ * custom-pseudo ownership are browser-captured facts; this stage only paints.
+ */
+function paintResizeHandle(
+  ctx: PaintCtx,
+  captureViewport: { w: number; h: number },
+  el: CapturedElement,
+  indent: string,
+): string[] {
+  const handle = el.resizeHandle;
+  if (handle == null || handle.width <= 0 || handle.height <= 0) return [];
+
   const out: string[] = [];
-  const resizeInEffect = el.styles.resize != null && el.styles.resize !== "none"
-    && (el.tag === "textarea"
-      || (el.styles.overflowX != null && el.styles.overflowX !== "visible")
-      || (el.styles.overflowY != null && el.styles.overflowY !== "visible"));
-  if (resizeInEffect) {
-    const handleColor = "rgb(153,153,153)";
-    const handleSize = 7;
-    // Position the handle so its bottom-right corner sits just INSIDE the
-    // inner (padding-box) corner — the diagonals then sweep up-left into
-    // the padding area where they're visible against the content
-    // background. Inset by the border widths plus a small 1 px gap.
-    // (Matches Chrome's painted offset; previously we used a fixed 2 px
-    // inset from the border-box which worked for thin-border textareas
-    // but parked the handle on top of the dark border on thicker-bordered
-    // divs in `30-resize`. DM-707.)
-    const borderR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-    const borderB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-    const cx = el.x + el.width - borderR;
-    const cy = el.y + el.height - borderB;
-    // Three diagonal strokes 2px apart sloping from bottom-right to upper-left.
-    for (let i = 0; i < 3; i++) {
-      const off = i * 2.5;
-      out.push(`${indent}<line x1="${r(cx - handleSize + off)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - handleSize + off)}" stroke="${handleColor}" stroke-width="1" />`);
+  const custom = handle.custom;
+  if (custom != null) {
+    const zoom = custom.effectiveZoom > 0 ? custom.effectiveZoom : 1;
+    const radius = customResizerRadius(custom.borderRadius, Math.min(handle.width, handle.height), zoom);
+    const color = parseColor(custom.backgroundColor ?? "transparent");
+    if (color != null && color.a > 0) {
+      out.push(`${indent}<rect x="${r(handle.x)}" y="${r(handle.y)}" width="${r(handle.width)}" height="${r(handle.height)}"${radius > 0 ? ` rx="${r(radius)}" ry="${r(radius)}"` : ""} fill="${colorStr(color)}" />`);
     }
+    if (custom.backgroundImage != null && custom.backgroundImage !== "" && custom.backgroundImage !== "none") {
+      const layers = buildPseudoBoxBgLayers(ctx, captureViewport, {
+        x: handle.x,
+        y: handle.y,
+        width: handle.width,
+        height: handle.height,
+        backgroundImage: custom.backgroundImage,
+        borderRadius: radius,
+      });
+      if (layers !== "") out.push(`${indent}${layers}`);
+    }
+    const border = customResizerBorder(custom.border, zoom);
+    if (border != null && border.width > 0 && border.style !== "none") {
+      const half = border.width / 2;
+      const dash = dashArrayForStyle(border.style, border.width);
+      const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+      out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}"${radius > 0 ? ` rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}"` : ""} fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+    }
+    // Blink gives ObjectPainter the fixed CornerRect. Authored width/height
+    // and padding never alter the geometry; complex pseudo box-shadow remains
+    // captured as an explicit fact for a future full box-paint transcription.
+    return out;
+  }
+
+  const strokes = blinkPlatformResizerStrokes(
+    { x: handle.x, y: handle.y, width: handle.width, height: handle.height },
+    handle.scaleFromDIP,
+    handle.logicalLeft,
+  );
+  const pathData = (points: typeof strokes.dark): string =>
+    `M${r(points[0].x)},${r(points[0].y)} L${r(points[1].x)},${r(points[1].y)} M${r(points[2].x)},${r(points[2].y)} L${r(points[3].x)},${r(points[3].y)}`;
+  out.push(`${indent}<path d="${pathData(strokes.dark)}" fill="none" stroke="rgb(0,0,0)" stroke-opacity="0.6" stroke-width="${r(strokes.strokeWidth)}" />`);
+  out.push(`${indent}<path d="${pathData(strokes.light)}" fill="none" stroke="rgb(255,255,255)" stroke-opacity="0.6" stroke-width="${r(strokes.strokeWidth)}" />`);
+
+  if (handle.hasScrollbar) {
+    // Blink clips a (w+1)x(h+1) outline to CornerRect, excluding its right and
+    // bottom edges. Emit the two surviving edges directly.
+    out.push(`${indent}<path d="M${r(handle.x + 0.5)},${r(handle.y + handle.height)} L${r(handle.x + 0.5)},${r(handle.y + 0.5)} L${r(handle.x + handle.width)},${r(handle.y + 0.5)}" fill="none" stroke="rgb(217,217,217)" stroke-width="1" />`);
   }
   return out;
 }
@@ -5093,24 +5141,6 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // visible content area when the truncation conditions are met.
   svgParts.push(...paintTruncationMarker(el, textColor, indent));
 
-  // Resize handle (DM-339): when CSS `resize` is non-none and the element
-  // is a resizable type, Chrome paints a small ~7×7 diagonal-line pattern
-  // in the bottom-right corner indicating the user can drag to resize.
-  // Empirical: 3 diagonal lines from the corner extending up-left, ~1.5px
-  // stroke, mid-gray (#999), inside the padding-box. Matches what Chrome
-  // paints across resize: vertical / horizontal / both / inline / block
-  // (only `none` suppresses).
-  //
-  // Per CSS UI spec §6.3 + Chrome's `LayoutBox::CanResize`: the handle
-  // paints on any replaced element OR any block-level element with
-  // `overflow` other than `visible` (the spec says `resize` only takes
-  // effect when overflow != visible, and Chrome only renders the grippy
-  // when the property is "in effect"). So textareas always qualify
-  // (textarea UA style sets overflow:auto), but plain divs with
-  // `overflow: auto; resize: both` qualify too.
-  svgParts.push(...paintResizeHandle(el, indent));
-
-
   // ── Step 5 (continued) + steps 6-7: the children's inline content, then
   // the flex/grid items and the positioned / stacking-context children.
   //
@@ -5226,6 +5256,9 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // scrolled, the thumb gives a useful visual cue.
   const scrollbarMarkup = renderScrollbarChrome(el, indent);
   if (scrollbarMarkup !== "") svgParts.push(scrollbarMarkup);
+  // PaintOverflowControls orders scrollbars / scroll corner before the
+  // resizer, and the controls overlay scrolled descendants.
+  svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
 
   closeWrappers();
   appendBoxReflection(state, el, reflectionFragmentStart, depth);

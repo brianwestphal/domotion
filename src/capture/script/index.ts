@@ -44,6 +44,7 @@ import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
+import { createResizeHandleHandler } from "./walker/resize-handle.js";
 import { resolveElementCursor, extractCssUrl, sideWidths, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
 
@@ -112,6 +113,14 @@ const captureDocumentTree =
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
   const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle });
   const { injectPseudoSegments } = createPseudoInjectHandler();
+  const { captureResizeHandle } = createResizeHandleHandler({
+    resolvePseudo: _resolvePseudo,
+    normColor,
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    themeThickness: args.rt,
+    scaleFromDIP: args.rs,
+    vp,
+  });
 
   const capture = (el) => {
     // Freeze the element's CSS transform for the duration of the capture
@@ -521,6 +530,7 @@ const captureDocumentTree =
       x: _fsBox.x, y: _fsBox.y,
       width: _fsBox.width, height: _fsBox.height,
       fieldsetLegendNotch: _fsBox.fieldsetLegendNotch,
+      resizeHandle: captureResizeHandle(el, cs, tag, rect),
       animId: _animId,
       magicKey: _magicKey,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.

@@ -1,9 +1,10 @@
-# 130 — Gradient, mask, and clip geometry oracle
+# 130 — Gradient, mask, clip, and resizer geometry oracle
 
 `npm run paint:geometry-oracle` is the first decision-level gate for CSS paint
 geometry that previously had only visual-regression coverage. It compares a
 source-transcribed rule leg against the definitions emitted by Domotion's real
-gradient, mask, and basic-clip builders. It does not rasterize either side.
+gradient, mask, basic-clip, and platform-resizer builders. It does not rasterize
+either side.
 
 `npm run paint:geometry-browser-oracle` is the independent live-browser leg.
 At 4× device scale it paints deliberately binary discriminators for the
@@ -43,6 +44,18 @@ boundary; and a linear-gradient alpha mask. Gradient coordinates
 compare at the emitter's four-decimal serialization boundary. Basic clip
 coordinates compare after the renderer's documented one-decimal SVG
 serialization.
+
+The resizer rows transcribe `LayoutBox::CanResize`,
+`PaintLayerScrollableArea::CornerRect`, and
+`ScrollableAreaPainter::DrawPlatformResizerImage` from Chromium revision
+`7d859f27`. They cover the `visible`/`clip` negative overflow values,
+`auto`/`hidden` positive axes, replaced-layout exclusion, iframe exception,
+no/one/both-scrollbar thickness selection, horizontal-RTL logical-left
+placement, asymmetric borders, fractional border-box snapping, and both dark
+and light platform paths. The focused browser suite independently checks the
+active platform's measured theme thickness, authored custom-pseudo dimension
+override, custom paint ownership, scrollbar/no-scrollbar frame branch,
+textarea/div/iframe cases, CSS zoom, and DPR 1/2 pixel geometry.
 
 The overflow-clip-margin rows transcribe
 `AdjustRoundedClipForOverflowClipMargin`,

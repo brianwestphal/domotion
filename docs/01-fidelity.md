@@ -27,6 +27,14 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] box-sizing, margin, padding, width/height, min/max
 - [x] overflow: hidden/scroll/auto/clip (children clipped to padding box); rounded `overflow-clip-margin` follows Blink's pixel-snapped reference-box outsets and coverage-corrected contour (DM-2419)
 - [~] overflow: scroll/auto — content is clipped but native scrollbar chrome is not yet emulated (tracked SK-468)
+- [x] CSS resize controls — Blink's exact scroll-container/iframe activation,
+  logical-left placement, pixel-snapped corner size, platform dark/light grip,
+  scrollbar-only frame, and author `::-webkit-resizer` background/gradient/
+  border paint are retained. Platform corner thickness is measured from the
+  active Chromium `ScrollbarTheme`, so macOS overlay/legacy, Aura, and Windows
+  values are not collapsed to a hard-coded constant; DPR is divided out.
+  Complex custom-pseudo box shadows are captured as classified paint facts but
+  are not yet emitted.
 
 ### Visual / paint
 

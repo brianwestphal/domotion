@@ -21,12 +21,19 @@ import {
   type ParsedOverflowClipMargin,
 } from "../src/render/overflow-clip.js";
 import type { CornerRadii } from "../src/render/borders.js";
+import {
+  blinkCanResize,
+  blinkPlatformResizerStrokes,
+  blinkResizerCorner,
+  blinkResizerIsOnLogicalLeft,
+  blinkResizerThickness,
+} from "../src/render/resize-handle.js";
 
 export interface Point { x: number; y: number }
 export interface LineRecord { p0: Point; p1: Point }
 export interface OracleRow {
   id: string;
-  stage: "gradient" | "clip" | "mask";
+  stage: "gradient" | "clip" | "mask" | "resizer";
   source: string;
   expected: unknown;
   actual: unknown;
@@ -426,8 +433,71 @@ function maskRows(): OracleRow[] {
   return rows;
 }
 
+function resizerRows(): OracleRow[] {
+  const source = "layout_box.cc:1589-1594; paint_layer_scrollable_area.cc:303-337; scrollable_area_painter.cc:112-170";
+  const rows: OracleRow[] = [];
+  for (const test of [
+    { id: "none", input: { resize: "none", overflowX: "auto", overflowY: "auto" }, expected: false },
+    { id: "visible", input: { resize: "both", overflowX: "visible", overflowY: "visible" }, expected: false },
+    { id: "clip", input: { resize: "both", overflowX: "clip", overflowY: "clip" }, expected: false },
+    { id: "auto-x", input: { resize: "both", overflowX: "auto", overflowY: "clip" }, expected: true },
+    { id: "hidden-y", input: { resize: "both", overflowX: "clip", overflowY: "hidden" }, expected: true },
+    { id: "iframe", input: { resize: "both", overflowX: "visible", overflowY: "visible", isLayoutReplaced: true, isLayoutIFrame: true }, expected: true },
+    { id: "replaced", input: { resize: "both", overflowX: "auto", overflowY: "auto", isLayoutReplaced: true }, expected: false },
+  ]) {
+    const actual = blinkCanResize(test.input);
+    rows.push({ id: `resizer.activation.${test.id}`, stage: "resizer", source, expected: test.expected, actual, maxAbsDelta: actual === test.expected ? 0 : Infinity, pass: actual === test.expected });
+  }
+
+  const noBars = blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: null, horizontalScrollbarThickness: null });
+  const bothBars = blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: 13, horizontalScrollbarThickness: 9 });
+  for (const test of [
+    { id: "theme-no-bars", actual: noBars, expected: { width: 16, height: 16, hasScrollbar: false } },
+    { id: "distinct-both-bars", actual: bothBars, expected: { width: 13, height: 9, hasScrollbar: true } },
+  ]) {
+    const delta = maxDelta(test.expected, test.actual);
+    rows.push({ id: `resizer.thickness.${test.id}`, stage: "resizer", source, expected: test.expected, actual: test.actual, maxAbsDelta: delta, pass: delta <= TOLERANCE && test.actual.hasScrollbar === test.expected.hasScrollbar });
+  }
+
+  const right = blinkResizerCorner({
+    x: 10.4, y: 20.6, borderBoxWidth: 100.3, borderBoxHeight: 80.2,
+    borderLeftWidth: 3, borderRightWidth: 7, borderBottomWidth: 5,
+    cornerWidth: 16, cornerHeight: 16, logicalLeft: false,
+  });
+  const left = blinkResizerCorner({
+    x: 10.4, y: 20.6, borderBoxWidth: 100.3, borderBoxHeight: 80.2,
+    borderLeftWidth: 3, borderRightWidth: 7, borderBottomWidth: 5,
+    cornerWidth: 13, cornerHeight: 9, logicalLeft: true,
+  });
+  for (const test of [
+    { id: "right-asymmetric-border-snap", actual: right, expected: { x: 88, y: 80, width: 16, height: 16 } },
+    { id: "logical-left-distinct-axis", actual: left, expected: { x: 13, y: 87, width: 13, height: 9 } },
+  ]) {
+    const delta = maxDelta(test.expected, test.actual);
+    rows.push({ id: `resizer.corner.${test.id}`, stage: "resizer", source, expected: test.expected, actual: test.actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
+  }
+
+  const rightPaint = blinkPlatformResizerStrokes({ x: 100, y: 200, width: 16, height: 16 }, 1, false);
+  const rightExpected = {
+    dark: [{ x: 115, y: 208 }, { x: 108, y: 215 }, { x: 115, y: 212 }, { x: 112, y: 215 }],
+    light: [{ x: 115, y: 209 }, { x: 109, y: 215 }, { x: 115, y: 213 }, { x: 113, y: 215 }],
+    strokeWidth: 1,
+  };
+  const paintDelta = maxDelta(rightExpected, rightPaint);
+  rows.push({ id: "resizer.paint.platform-right", stage: "resizer", source, expected: rightExpected, actual: rightPaint, maxAbsDelta: paintDelta, pass: paintDelta <= TOLERANCE });
+
+  const sideActual = [
+    blinkResizerIsOnLogicalLeft("rtl", "horizontal-tb"),
+    blinkResizerIsOnLogicalLeft("rtl", "vertical-rl"),
+    blinkResizerIsOnLogicalLeft("ltr", "horizontal-tb"),
+  ];
+  const sideExpected = [true, false, false];
+  rows.push({ id: "resizer.side.horizontal-rtl-only", stage: "resizer", source, expected: sideExpected, actual: sideActual, maxAbsDelta: sideActual.join() === sideExpected.join() ? 0 : Infinity, pass: sideActual.join() === sideExpected.join() });
+  return rows;
+}
+
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {
-  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...overflowClipMarginRows(), ...maskRows()];
+  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...overflowClipMarginRows(), ...maskRows(), ...resizerRows()];
   // Corpus activation control: the retired direct-to-corner formula must be
   // distinguishable from Blink's magic-corner line on every non-square box.
   const correct = blinkCornerLine("top-right", 0, 0, 300, 100);
@@ -441,7 +511,7 @@ export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: b
 function main(): number {
   const result = runPaintGeometryOracle();
   const failures = result.rows.filter((row) => !row.pass);
-  const report = { schemaVersion: 1, stage: "gradient-mask-clip-geometry", sourceRevision: "chromium:7d859f271cbda744098ac69f44978d4edfa62be3", tolerance: TOLERANCE, ...result };
+  const report = { schemaVersion: 1, stage: "gradient-mask-clip-resizer-geometry", sourceRevision: "chromium:7d859f271cbda744098ac69f44978d4edfa62be3", tolerance: TOLERANCE, ...result };
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
   console.log(`paint geometry oracle: ${result.rows.length - failures.length}/${result.rows.length} exact; activation control ${result.movementProven ? "moved" : "DID NOT MOVE"}`);

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2qy6ag738ouees",
+          "message": {
+            "text": "This module is a direct decision-level transcription of Blink resizer activation, snapped CornerRect geometry, axis placement, and platform stroke construction at Chromium 7d859f271c. Keeping these pure functions shared by the browser capture bundle and Node renderer prevents capture and paint from independently re-deriving the same rules. The overflow negatives are exactly visible and clip; iframe is the sole CanResize exception to the replaced-layout exclusion.",
+            "markdown": "This module is a direct decision-level transcription of Blink resizer activation, snapped CornerRect geometry, axis placement, and platform stroke construction at Chromium 7d859f271c. Keeping these pure functions shared by the browser capture bundle and Node renderer prevents capture and paint from independently re-deriving the same rules. The overflow negatives are exactly visible and clip; iframe is the sole CanResize exception to the replaced-layout exclusion."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/resize-handle.ts"
+                },
+                "region": {
+                  "startLine": 19,
+                  "endLine": 177,
+                  "snippet": {
+                    "text": "/** ComputedStyle::IsOverflowValueScrollable: `visible` and `clip` do not qualify. */\nexport function blinkOverflowValueIsScrollable(value: string | undefined): boolean {\n  const normalized = value?.trim().toLowerCase();\n  return normalized != null && normalized !== \"visible\" && normalized !== \"clip\";\n}\n\n/** LayoutObject::IsScrollContainer, including Blink's replaced-layout exclusion. */\nexport function blinkIsScrollContainer(input: BlinkResizerActivation): boolean {\n  return input.isLayoutReplaced !== true\n    && (blinkOverflowValueIsScrollable(input.overflowX)\n      || blinkOverflowValueIsScrollable(input.overflowY));\n}\n\n/** LayoutBox::CanResize: (scroll container OR iframe) AND a non-none used resize. */\nexport function blinkCanResize(input: BlinkResizerActivation): boolean {\n  const resize = input.resize?.trim().toLowerCase();\n  return resize != null\n    && resize !== \"none\"\n    && (input.isLayoutIFrame === true || blinkIsScrollContainer(input));\n}\n\n/** ComputedStyle::ShouldPlaceBlockDirectionScrollbarOnLogicalLeft. */\nexport function blinkResizerIsOnLogicalLeft(\n  direction: string | undefined,\n  writingMode: string | undefined,\n): boolean {\n  return direction?.trim().toLowerCase() === \"rtl\"\n    && (writingMode == null || writingMode.trim().toLowerCase() === \"horizontal-tb\");\n}\n\nexport interface BlinkScrollbarThicknessInput {\n  /** Page ScrollbarTheme thickness when neither scrollbar exists. */\n  themeThickness: number;\n  /** Null means the corresponding scrollbar object does not exist. */\n  verticalScrollbarThickness: number | null;\n  horizontalScrollbarThickness: number | null;\n}\n\nexport interface BlinkResizerThickness {\n  width: number;\n  height: number;\n  hasScrollbar: boolean;\n}\n\n/** PaintLayerScrollableArea::CornerRect's four scrollbar-presence branches. */\nexport function blinkResizerThickness(input: BlinkScrollbarThicknessInput): BlinkResizerThickness {\n  const vertical = input.verticalScrollbarThickness;\n  const horizontal = input.horizontalScrollbarThickness;\n  if (vertical == null && horizontal == null) {\n    return {\n      width: input.themeThickness,\n      height: input.themeThickness,\n      hasScrollbar: false,\n    };\n  }\n  if (vertical != null && horizontal == null) {\n    return { width: vertical, height: vertical, hasScrollbar: true };\n  }\n  if (vertical == null && horizontal != null) {\n    return { width: horizontal, height: horizontal, hasScrollbar: true };\n  }\n  return { width: vertical!, height: horizontal!, hasScrollbar: true };\n}\n\nexport interface BlinkResizerCornerInput {\n  /** Border-box paint offset in the coordinate space used by the SVG. */\n  x: number;\n  y: number;\n  borderBoxWidth: number;\n  borderBoxHeight: number;\n  borderLeftWidth: number;\n  borderRightWidth: number;\n  borderBottomWidth: number;\n  cornerWidth: number;\n  cornerHeight: number;\n  logicalLeft: boolean;\n}\n\nexport interface BlinkResizerRect {\n  x: number;\n  y: number;\n  width: number;\n  height: number;\n}\n\n/** PhysicalRect::PixelSnappedSize / SnapSizeToPixel. */\nexport function blinkPixelSnappedSize(size: number, location: number): number {\n  let snapped = Math.round(location + size) - Math.round(location);\n  // Blink preserves a non-zero layout size once it exceeds 4/64 CSS px.\n  if (snapped === 0 && Math.abs(size) > 4 / 64) snapped = size > 0 ? 1 : -1;\n  return snapped;\n}\n\n/** CornerRect followed by PaintResizer's rounded paint-offset translation. */\nexport function blinkResizerCorner(input: BlinkResizerCornerInput): BlinkResizerRect {\n  const originX = Math.round(input.x);\n  const originY = Math.round(input.y);\n  const snappedWidth = blinkPixelSnappedSize(input.borderBoxWidth, input.x);\n  const snappedHeight = blinkPixelSnappedSize(input.borderBoxHeight, input.y);\n  return {\n    x: originX + (input.logicalLeft\n      ? input.borderLeftWidth\n      : snappedWidth - input.cornerWidth - input.borderRightWidth),\n    y: originY + snappedHeight - input.cornerHeight - input.borderBottomWidth,\n    width: input.cornerWidth,\n    height: input.cornerHeight,\n  };\n}\n\nexport interface BlinkResizerPoint {\n  x: number;\n  y: number;\n}\n\nexport interface BlinkPlatformResizerStrokes {\n  dark: readonly [BlinkResizerPoint, BlinkResizerPoint, BlinkResizerPoint, BlinkResizerPoint];\n  light: readonly [BlinkResizerPoint, BlinkResizerPoint, BlinkResizerPoint, BlinkResizerPoint];\n  strokeWidth: number;\n}\n\n/** ScrollableAreaPainter::DrawPlatformResizerImage, before auto-dark-mode filtering. */\nexport function blinkPlatformResizerStrokes(\n  rect: BlinkResizerRect,\n  scaleFromDIP: number,\n  logicalLeft: boolean,\n): BlinkPlatformResizerStrokes {\n  const edgeOffset = Math.ceil(scaleFromDIP);\n  const halfWidth = Math.trunc(rect.width / 2);\n  const threeQuarterWidth = Math.trunc(rect.width * 3 / 4);\n  const halfHeight = Math.trunc(rect.height / 2);\n  const threeQuarterHeight = Math.trunc(rect.height * 3 / 4);\n\n  const p0 = {\n    x: logicalLeft ? rect.x + edgeOffset : rect.x + rect.width - edgeOffset,\n    y: rect.y + halfHeight,\n  };\n  const p1 = {\n    x: logicalLeft ? rect.x + rect.width - halfWidth : rect.x + halfWidth,\n    y: rect.y + rect.height - edgeOffset,\n  };\n  const p2 = { x: p0.x, y: rect.y + threeQuarterHeight };\n  const p3 = {\n    x: logicalLeft\n      ? rect.x + rect.width - threeQuarterWidth\n      : rect.x + threeQuarterWidth,\n    y: p1.y,\n  };\n\n  const horizontalOffset = logicalLeft ? -edgeOffset : edgeOffset;\n  return {\n    dark: [p0, p1, p2, p3],\n    light: [\n      { x: p0.x, y: p0.y + edgeOffset },\n      { x: p1.x + horizontalOffset, y: p1.y },\n      { x: p2.x, y: p2.y + edgeOffset },\n      { x: p3.x + horizontalOffset, y: p3.y },\n    ],\n    strokeWidth: edgeOffset,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/resize-handle.ts"
+                },
+                "region": {
+                  "startLine": 34
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 436
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2418"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3eaa89536ec30476f6fcd69c085e0831"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1738c96c2128f260e89994486a268abe7789ede0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

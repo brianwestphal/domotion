@@ -10,10 +10,10 @@ describe("paint geometry oracle (DM-2297)", () => {
     expect(line.p1.y).toBeCloseTo(-40, 8);
   });
 
-  it("gates production gradient, mask, and clip builders and proves the corpus moves", () => {
+  it("gates production gradient, mask, clip, and resizer builders and proves the corpus moves", () => {
     const report = runPaintGeometryOracle();
     expect(report.movementProven).toBe(true);
-    expect(report.rows).toHaveLength(78);
+    expect(report.rows).toHaveLength(104);
     expect(report.rows.filter((row) => !row.pass)).toEqual([]);
     expect(report.verdict).toBe("exact-logical-agreement");
   });

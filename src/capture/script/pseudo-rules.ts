@@ -26,7 +26,7 @@
 
 import { isUnsetCssValue, firstColorRe } from "./utils.js";
 
-const _pseudoKindRe = /^(.*?)::?(-webkit-slider-runnable-track|-webkit-slider-thumb|-webkit-progress-bar|-webkit-progress-value|-webkit-meter-bar|-webkit-meter-optimum-value|-webkit-meter-suboptimum-value|-webkit-meter-even-less-good-value|-webkit-color-swatch|-webkit-color-swatch-wrapper|-webkit-inner-spin-button|-webkit-search-cancel-button)$/;
+const _pseudoKindRe = /^(.*?)::?(-webkit-slider-runnable-track|-webkit-slider-thumb|-webkit-progress-bar|-webkit-progress-value|-webkit-meter-bar|-webkit-meter-optimum-value|-webkit-meter-suboptimum-value|-webkit-meter-even-less-good-value|-webkit-color-swatch|-webkit-color-swatch-wrapper|-webkit-inner-spin-button|-webkit-search-cancel-button|-webkit-resizer)$/;
 
 // Pseudo "kind" names are short stable identifiers used by the renderer
 // to look up captured fields. The regex above maps each WebKit selector
@@ -44,6 +44,7 @@ const _kindMap = {
   '-webkit-color-swatch-wrapper': 'color-swatch-wrapper',
   '-webkit-inner-spin-button': 'inner-spin-button',
   '-webkit-search-cancel-button': 'search-cancel-button',
+  '-webkit-resizer': 'resizer',
 };
 
 // Detect whether a value is a CSS gradient function (linear/radial/conic

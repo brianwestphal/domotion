@@ -758,7 +758,7 @@ export interface CapturedStyles {
   writingMode?: string;
   /** CSS text-orientation (`mixed` | `upright` | `sideways`). Used in vertical writing-modes. */
   textOrientation?: string;
-  /** CSS resize. Non-none on textareas paints the bottom-right resize handle. */
+  /** Computed CSS resize value; exact activation/geometry lives on `CapturedElement.resizeHandle`. */
   resize?: string;
   /** CSS text-overflow ('clip' | 'ellipsis' | "<string>" | …). Renderer paints
    *  the truncation marker at the visible right edge when overflow is hidden
@@ -966,6 +966,33 @@ export interface PropagatedDecoration {
   baselines?: number[];
 }
 
+/** Blink platform/custom resize-control paint facts captured from the page. */
+export interface CapturedResizeHandle {
+  /** PaintLayerScrollableArea::ResizerCornerRect in capture coordinates. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Horizontal RTL is the sole logical-left placement mode in Blink. */
+  logicalLeft: boolean;
+  /** ChromeClient::WindowToViewportScalar; deliberately independent of DPR. */
+  scaleFromDIP: number;
+  /** Controls Blink's clipped 1px rgb(217) frame around platform paint. */
+  hasScrollbar: boolean;
+  /** Present only when an author rule matched ::-webkit-resizer on a real scroll container. */
+  custom?: {
+    /** Evidence only: Blink overrides these with the captured corner rect. */
+    authoredWidth?: string;
+    authoredHeight?: string;
+    backgroundColor?: string;
+    backgroundImage?: string;
+    borderRadius?: string;
+    border?: string;
+    boxShadow?: string;
+    effectiveZoom: number;
+  };
+}
+
 export interface CapturedElement {
   tag: string;
   text: string;
@@ -973,6 +1000,8 @@ export interface CapturedElement {
   y: number;
   width: number;
   height: number;
+  /** Source-derived platform/custom resizer geometry and paint ownership. */
+  resizeHandle?: CapturedResizeHandle;
   /**
    * If the source DOM had `data-domotion-anim="<id>"` on this element, the id
    * is captured here. The renderer surfaces it as `class="anim-<id>"` on the
