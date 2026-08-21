@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2snhggad27g0qa",
+          "message": {
+            "text": "The source-versus-consumer equality is an intermediate-layout gate, not a raster tolerance. Blink's pinned LayoutSVGTextPath::LayoutPath selects a non-empty inline path before href, applies referenced-path transforms including motion transforms, scales absolute and percentage offsets through author pathLength, and returns no mapper for invalid references (layoutsvgtextpath.cc:65-131). SvgTextLayoutAlgorithm::PositionOnPath then owns per-character start/end placement, tangent rotation, and hidden-before/after-path decisions (svgtextlayoutalgorithm.cc:604-735). The oracle records exactly those browser outputs on both sides, leaving native consumer shaping intact.",
+            "markdown": "The source-versus-consumer equality is an intermediate-layout gate, not a raster tolerance. Blink's pinned LayoutSVGTextPath::LayoutPath selects a non-empty inline path before href, applies referenced-path transforms including motion transforms, scales absolute and percentage offsets through author pathLength, and returns no mapper for invalid references (layout_svg_text_path.cc:65-131). SvgTextLayoutAlgorithm::PositionOnPath then owns per-character start/end placement, tangent rotation, and hidden-before/after-path decisions (svg_text_layout_algorithm.cc:604-735). The oracle records exactly those browser outputs on both sides, leaving native consumer shaping intact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/inline-svg-textpath-oracle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 93,
+                  "endLine": 116,
+                  "snippet": {
+                    "text": "\ndescribeBrowser('DM-2416 Blink inline SVG textPath intermediate oracle', () => {\n  it('preserves Blink path, transform, glyph geometry, rotation, and visibility branches', async () => {\n    const context = await browser!.newContext({ viewport: { width: WIDTH, height: HEIGHT } });\n    const source = await context.newPage();\n    const consumer = await context.newPage();\n    try {\n      await source.setContent(HTML);\n      const expected = await snapshot(source);\n      const tree = await captureElementTree(source, 'body', { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n      const inner = elementTreeToSvgInner(tree, WIDTH, HEIGHT);\n      await consumer.setContent(`<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${WIDTH}\" height=\"${HEIGHT}\" viewBox=\"0 0 ${WIDTH} ${HEIGHT}\">${inner}</svg>`);\n      const actual = await snapshot(consumer);\n\n      expect(actual).toEqual(expected);\n      expect(expected['href-percent']).toEqual(expected['path-length-equivalent']);\n      for (const name of ['invalid', 'unresolved']) {\n        const hidden = expected[name] as { chars: Array<{ start: number[]; end: number[] } | null> };\n        expect(hidden.chars.every((char) => char == null\n          || (char.start[0] === 0 && char.start[1] === 0\n            && char.end[0] === 0 && char.end[1] === 0))).toBe(true);\n      }\n    } finally {\n      await context.close();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2416"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8706e39ba28b40ca79b06583fd5c2646"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2snhmak19j3kjb",
+          "message": {
+            "text": "Independent iframe documents prove that duplicate fragment identifiers are a tree-scope ownership issue rather than a textPath geometry issue. Each source scope resolves its own #shared-text-path at a different Y coordinate; after passthrough combines both SVGs, Chromium resolves both consumers to the first document-level id. DM-2451 owns the production namespace fix; this discriminator intentionally records the currently proven collision without broadening DM-2416.",
+            "markdown": "Independent iframe documents prove that duplicate fragment identifiers are a tree-scope ownership issue rather than a textPath geometry issue. Each source scope resolves its own #shared-text-path at a different Y coordinate; after passthrough combines both SVGs, Chromium resolves both consumers to the first document-level id. DM-2451 owns the production namespace fix; this discriminator intentionally records the currently proven collision without broadening DM-2416."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/inline-svg-textpath-oracle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 122,
+                  "endLine": 158,
+                  "snippet": {
+                    "text": "    const source = await context.newPage();\n    const consumer = await context.newPage();\n    const child = (owner: string, path: string) => `<svg width=\"220\" height=\"100\" viewBox=\"0 0 220 100\">\n      <path id=\"shared-text-path\" d=\"${path}\"/>\n      <text data-owner=\"${owner}\" font-family=\"Arial\" font-size=\"14\"><textPath href=\"#shared-text-path\">scope ${owner}</textPath></text>\n    </svg>`;\n    const escaped = (value: string) => value.replace(/&/g, '&amp;').replace(/\"/g, '&quot;');\n    try {\n      await source.setContent(`<iframe srcdoc=\"${escaped(child('a', 'M10 25 H200'))}\"></iframe>\n        <iframe srcdoc=\"${escaped(child('b', 'M10 75 H200'))}\"></iframe>`);\n      const expected = await Promise.all(source.frames().slice(1).map((frame) => frame.locator('text').evaluate((text: SVGTextElement) => {\n        const point = text.getStartPositionOfChar(0);\n        return [point.x, point.y];\n      })));\n      const tree = await captureElementTree(source, 'body', { x: 0, y: 0, width: 500, height: 260 });\n      const inner = elementTreeToSvgInner(tree, 500, 260);\n      await consumer.setContent(`<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"500\" height=\"260\">${inner}</svg>`);\n      const actual = await consumer.locator('text[data-owner]').evaluateAll((texts: SVGTextElement[]) => texts.map((text) => {\n        const point = text.getStartPositionOfChar(0);\n        return [point.x, point.y];\n      }));\n\n      expect(expected).toEqual([[10, 25], [10, 75]]);\n      expect(actual[0]).toEqual(expected[0]);\n      // Current passthrough combines independently-scoped SVGs into one\n      // consumer document. Both hrefs then bind the first duplicate id.\n      expect(actual[1]).not.toEqual(expected[1]);\n      expect(actual[1]).toEqual(expected[0]);\n    } finally {\n      await context.close();\n    }\n  }, 60_000);\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2416"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6d870bc4cfc1ea8b1a428024b2cb1a5f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e424da267f36dad7ec5538605458b650eb4ca33c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
