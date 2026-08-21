@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2lidffhfzbk6ji",
+          "message": {
+            "text": "This classifier is intentionally evidence-only: it requires exact pre-raster identity before reporting a bounded CoreText residual, and it never feeds visual pass/fail. DM-2432/DM-2440 proved the first observable divergence at CTFontDrawGlyphs and separated the SF CFF2/provenance factors; the adjacent controls prevent broad face- or script-level classification.",
+            "markdown": "This classifier is intentionally evidence-only: it requires exact pre-raster identity before reporting a bounded CoreText residual, and it never feeds visual pass/fail. DM-2432/DM-2440 proved the first observable divergence at CTFontDrawGlyphs and separated the SF CFF2/provenance factors; the adjacent controls prevent broad face- or script-level classification."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/macos-terminal-raster-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 9,
+                  "snippet": {
+                    "text": "/**\n * Evidence-only macOS terminal-raster classifier (DM-2431).\n *\n * This never changes a visual verdict. It recognizes only the exact records\n * proven in Chromium run 32366223808 after all pre-raster facts agree, and\n * reports whether their residual stays inside the measured CoreText envelope.\n */\nexport const PINNED_RASTER_ENVIRONMENT = {\n  chromium: \"147.0.7727.15\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2431"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f316c996958a944e574ebf5c58f0f6f9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "09414e022d78503477e096381041c88fd4b9438c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
