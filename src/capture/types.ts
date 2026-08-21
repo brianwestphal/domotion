@@ -1277,6 +1277,8 @@ export interface CapturedElement {
    * surface the label. See `docs/23-css-sprite-icons.md`.
    */
   imageReplacement?: { titleText: string };
+  /** Deterministic document/shadow-root scope owning fragment IDs in `svgContent`. */
+  svgReferenceScope?: number;
   /**
    * <fieldset> with a top-aligned <legend>: Chrome's UA paints the fieldset's
    * top border at the legend's vertical center (not at fs.y) and notches the

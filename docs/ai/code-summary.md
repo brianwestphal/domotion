@@ -128,7 +128,8 @@ shortest possible map:
   for the subset unit tests;
   `mask.ts` owns mask-def emission; `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
-  nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96) — crisp at
+  nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96), and namespaces
+  captured DOM inline-SVG fragment ids per source document/shadow-root scope — crisp at
   any zoom instead of a rasterized `<image data:image/svg+xml>`.
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
   the **caret + selection track** (doc 101): `text-address.ts` (node-side

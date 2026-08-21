@@ -57,6 +57,16 @@ const captureDocumentTree =
   // `--cross-origin-frames` value, passed in as `args.cof`). null in the
   // default (Phase 1) configuration — only same-origin frames recurse then.
   const _crossOriginAllow = parseCrossOriginAllowlist(args.cof);
+  const _svgReferenceScopes = new WeakMap();
+  let _nextSvgReferenceScope = 0;
+  function _svgReferenceScope(el) {
+    var root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
+    var existing = _svgReferenceScopes.get(root);
+    if (existing != null) return existing;
+    var allocated = _nextSvgReferenceScope++;
+    _svgReferenceScopes.set(root, allocated);
+    return allocated;
+  }
   let _backdropRasterSeq = 0;
 
   // Wire up per-concern helpers. Each factory closes over its own state and
@@ -486,8 +496,10 @@ const captureDocumentTree =
       imageSrc = el.src;
     }
     const _listsCounters = captureListsCounters(el, cs, tag);
+    let svgReferenceScope = undefined;
     if (tag === 'svg') {
       svgContent = captureInlineSvg(el, cs, warn, sel);
+      svgReferenceScope = _svgReferenceScope(el);
     }
 
     const children = [];
@@ -549,6 +561,7 @@ const captureDocumentTree =
       resizeHandle: captureResizeHandle(el, cs, tag, rect),
       animId: _animId,
       magicKey: _magicKey,
+      svgReferenceScope,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
       // Omitted when it resolves to the default arrow (the common case) to keep
       // the tree lean — the overlay treats a missing value as `default`.

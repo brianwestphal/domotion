@@ -233,3 +233,31 @@ describe("paintInlineSvg — DOM inline <svg> class namespacing (DM-1595)", () =
     expect(out).not.toMatch(/svgic/);
   });
 });
+
+describe("prefixSvgIds scope-complete references", () => {
+  it("rewrites same-scope fragment, CSS, timing, and IDREF consumers but preserves unresolved refs", () => {
+    const source = `<svg><style>#paint{fill:url('#grad');color:#fff}</style><defs><linearGradient id="grad"/><path id="paint"/><clipPath id="clip"/></defs><use href="#paint" clip-path="url(#clip)" aria-labelledby="paint missing"><animate begin="paint.click; missing.end"/></use><use href="#missing"/></svg>`;
+    const out = prefixSvgIds(source, "s-");
+    for (const id of ["grad", "paint", "clip"]) expect(out).toContain(`id="s-${id}"`);
+    expect(out).toContain(`href="#s-paint"`);
+    expect(out).toContain(`url('#s-grad')`);
+    expect(out).toContain(`url(#s-clip)`);
+    expect(out).toContain(`aria-labelledby="s-paint missing"`);
+    expect(out).toContain(`begin="s-paint.click; missing.end"`);
+    expect(out).toContain(`href="#missing"`);
+    expect(out).toContain(`color:#fff`);
+  });
+
+  it("uses one namespace for inline SVGs from one captured scope and separates another scope", () => {
+    const mk = (scope: number, x: number): CapturedElement => ({
+      tag: "svg", text: "", x, y: 0, width: 40, height: 40, children: [], svgReferenceScope: scope,
+      svgContent: `<svg viewBox="0 0 40 40"><path id="shared" d="M0 0H40"/><use href="#shared"/></svg>`,
+      styles: { ...BASE_STYLES },
+    } as unknown as CapturedElement);
+    const out = elementTreeToSvgInner([mk(0, 0), mk(0, 50), mk(1, 100)], 150, 50);
+    expect(out.match(/id="svgscope0-shared"/g)).toHaveLength(2);
+    expect(out).toContain(`id="svgscope1-shared"`);
+    expect(out.match(/href="#svgscope0-shared"/g)).toHaveLength(2);
+    expect(out).toContain(`href="#svgscope1-shared"`);
+  });
+});

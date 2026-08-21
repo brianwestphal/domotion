@@ -1324,6 +1324,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt30ssdfie3bzv4u",
+          "message": {
+            "text": "Inline SVG ids are namespaced by source tree scope, not per SVG element: the browser permits sibling SVG consumers to resolve definitions within the same document, while iframe and shadow roots own independent fragment namespaces. Capture records that ownership before the trees are combined.",
+            "markdown": "Inline SVG ids are namespaced by source tree scope, not per SVG element: the browser permits sibling SVG consumers to resolve definitions within the same document, while iframe and shadow roots own independent fragment namespaces. Capture records that ownership before the trees are combined."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2310,
+                  "endLine": 2325,
+                  "snippet": {
+                    "text": "  // fall back to its 300x150 default viewport, and the defs contents would\n  // paint visibly. Skip emission for 0x0 host elements.\n  if (contentW <= 0 || contentH <= 0) return { svg, handled: true };\n  let sized = injectSvgSize(el.svgContent, contentW, contentH);\n  const referencePrefix = el.svgReferenceScope != null ? `${idPrefix}svgscope${el.svgReferenceScope}-` : allocClassPrefix?.();\n  if (referencePrefix != null) sized = prefixSvgIds(sized, referencePrefix);\n  // DM-1595: namespace CSS class names when this inline SVG carries a `<style>`\n  // block, so two DOM inline SVGs that both define e.g. `.cls-1` can't cross-\n  // contaminate (an SVG `<style>` applies document-wide once emitted). Gated on\n  // `<style>` presence — the common presentation-attribute icon has none, so it\n  // stays byte-identical AND allocates no prefix id (no counter shift). IDs are\n  // intentionally NOT namespaced here: this path relies on the consumer-side\n  // `<use>` resolver, which matches `<use href=\"#id\">` by id ACROSS sibling SVGs\n  // (DM-499), so prefixing ids would break those cross-SVG references.\n  if (allocClassPrefix != null && /<style[\\s>]/i.test(sized)) {\n    sized = prefixSvgClasses(sized, `${referencePrefix ?? allocClassPrefix()}class-`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2451"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e72a37de51b8398c09f66f2a9770db3c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "507b951ccd25bca9b4556ec84095869b2b231042",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

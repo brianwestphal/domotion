@@ -67,7 +67,7 @@ All `object-fit` values take the native path:
 `prefixSvgClasses` is shared by all three SVG-inlining paths (DM-1595), each gated on `<style>` presence:
 
 - **`<img src="*.svg">`** (`inlineImgSvg`) — namespaces both ids and classes (self-contained file, no cross-SVG refs).
-- **Captured DOM inline `<svg>`** (`paintInlineSvg`) — namespaces **classes only**. Ids are deliberately left alone: this path relies on the consumer-side `<use>` resolver, which matches `<use href="#id">` by id *across* sibling SVGs (DM-499), so prefixing ids would break those cross-SVG references. A unique class prefix is allocated per inline-SVG only when a `<style>` block is present, so `<style>`-free icons (the common case) stay byte-identical and consume no id counter.
+- **Captured DOM inline `<svg>`** (`paintInlineSvg`) — namespaces ids by the captured document/shadow-root scope. Sibling SVGs in one source scope share a prefix, preserving legitimate cross-SVG `<use>` and paint-server references; independent iframe/shadow scopes receive different prefixes before they are combined into the consumer document. Same-scope `href`/`xlink:href`, CSS `url(#…)`, embedded ID selectors, SMIL event references, and ARIA IDREFs are rewritten only when their target exists, so unresolved references remain unresolved. CSS classes retain their separate per-inline-SVG namespace.
 - **Animator svg-overlay files** (`namespaceSvgIds` in `src/cli/animate.ts`) — namespaces ids (already) and now classes.
 
 ## Scope / known boundaries
@@ -76,7 +76,7 @@ All `object-fit` values take the native path:
 
 ## Testing
 
-- `src/render/svg-inline.test.ts` — `prefixSvgIds` namespacing (both quote styles, external-URL passthrough); `inlineImgSvg` (viewBox preservation, width/height synthesis, intrinsic fallback, no-coordinate-system → `null`, no-root → `null`, XML-decl stripping); and end-to-end through `elementTreeToSvgInner` (SVG `<img>` → native `<svg>`, raster `<img>` → `<image>`, border-radius clip wrapper).
+- `src/render/svg-inline.test.ts` — `prefixSvgIds` namespacing (fragment/CSS/timing/ARIA consumers, both quote styles, unresolved/external passthrough, shared-vs-independent scopes); `inlineImgSvg` (viewBox preservation, width/height synthesis, intrinsic fallback, no-coordinate-system → `null`, no-root → `null`, XML-decl stripping); and end-to-end through `elementTreeToSvgInner` (SVG `<img>` → native `<svg>`, raster `<img>` → `<image>`, border-radius clip wrapper). `tests/inline-svg-textpath-oracle.e2e.test.ts` proves two iframe documents can reuse one path id without cross-binding after capture.
 - `src/render/resolve-svg-source.test.ts` — `resolveSvgSource` decode (base64 + URL-encoded), local URL-encoded files, Windows drive/UNC conversion, raster → `null`, remote → `null`, empty/nullish → `null`.
 - `tests/replaced-used-size.e2e.test.ts` — captures stretched raster and SVG
   images in flex/grid, then proves their browser-used boxes survive unchanged

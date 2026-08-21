@@ -607,7 +607,8 @@ they describe (see `CLAUDE.md` "Documentation"):
   Chromium rasterizes an SVG-in-`<image>` at layout size then scales it (softens
   at zoom); the native inline stays vector-crisp at any scale and drops the ~33%
   base64 bloat. Trigger `resolveSvgSource(el.imageSrc)` (`src/capture/embed.ts`),
-  rewrite `inlineImgSvg`/`prefixSvgIds` (`src/render/svg-inline.ts`), emitted from
+  rewrite `inlineImgSvg`/`prefixSvgIds` (`src/render/svg-inline.ts`), including
+  document/shadow-root-scoped fragment ownership for captured DOM inline SVGs, emitted from
   `paintImage`. Raster `<img>` (PNG/JPEG/…) unaffected. This is the *inverse* of a
   raster fallback — see `docs/reference/raster-image-fallback-cases.md`. All
   `object-fit` values take the native path (incl. `object-fit: none` at intrinsic

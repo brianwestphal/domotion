@@ -31,18 +31,33 @@ import { r } from "./format.js";
  * `<style>` block are intentionally NOT rewritten — see the module note.
  */
 export function prefixSvgIds(svg: string, prefix: string): string {
+  const ids = new Set<string>();
+  for (const match of svg.matchAll(/\bid\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) ids.add(match[1] ?? match[2]);
+  const mapped = (id: string) => ids.has(id) ? `${prefix}${id}` : id;
   let out = svg;
   out = out.replace(/\bid="([^"]+)"/g, (_m, id: string) => `id="${prefix}${id}"`);
   out = out.replace(/\bid='([^']+)'/g, (_m, id: string) => `id='${prefix}${id}'`);
   out = out.replace(
     /\b(href|xlink:href)="#([^"]+)"/g,
-    (_m, attr: string, id: string) => `${attr}="#${prefix}${id}"`,
+    (_m, attr: string, id: string) => `${attr}="#${mapped(id)}"`,
   );
   out = out.replace(
     /\b(href|xlink:href)='#([^']+)'/g,
-    (_m, attr: string, id: string) => `${attr}='#${prefix}${id}'`,
+    (_m, attr: string, id: string) => `${attr}='#${mapped(id)}'`,
   );
-  out = out.replace(/url\(#([^)]+)\)/g, (_m, id: string) => `url(#${prefix}${id})`);
+  out = out.replace(/url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/gi, (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`);
+  const idRefAttrs = "aria-activedescendant|aria-controls|aria-describedby|aria-details|aria-errormessage|aria-flowto|aria-labelledby|aria-owns|for";
+  out = out.replace(new RegExp(`\\b(${idRefAttrs})=("|')([^"']*)\\2`, "gi"), (_m, attr: string, quote: string, value: string) =>
+    `${attr}=${quote}${value.split(/\s+/).map(mapped).join(" ")}${quote}`,
+  );
+  out = out.replace(/\b(begin|end)=("|')([^"']*)\2/gi, (_m, attr: string, quote: string, value: string) =>
+    `${attr}=${quote}${value.split(";").map((part) => part.replace(/^(\s*)([\w:.-]+)(\.)/, (_r, space: string, id: string, dot: string) => `${space}${mapped(id)}${dot}`)).join(";")}${quote}`,
+  );
+  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) =>
+    open + css.replace(/([^{}]*)(\{[^{}]*\})/g, (_rule, selectors: string, body: string) =>
+      selectors.replace(/#(-?[_a-zA-Z][-_a-zA-Z0-9:.]*)/g, (_s, id: string) => `#${mapped(id)}`) + body,
+    ) + close,
+  );
   return out;
 }
 

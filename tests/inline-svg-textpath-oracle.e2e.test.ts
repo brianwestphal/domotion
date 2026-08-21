@@ -117,7 +117,7 @@ describeBrowser('DM-2416 Blink inline SVG textPath intermediate oracle', () => {
     }
   }, 60_000);
 
-  it('detects duplicate fragment ids introduced when independent tree scopes are combined', async () => {
+  it('namespaces duplicate fragment ids when independent tree scopes are combined', async () => {
     const context = await browser!.newContext({ viewport: { width: 500, height: 260 } });
     const source = await context.newPage();
     const consumer = await context.newPage();
@@ -142,11 +142,9 @@ describeBrowser('DM-2416 Blink inline SVG textPath intermediate oracle', () => {
       }));
 
       expect(expected).toEqual([[10, 25], [10, 75]]);
-      expect(actual[0]).toEqual(expected[0]);
-      // Current passthrough combines independently-scoped SVGs into one
-      // consumer document. Both hrefs then bind the first duplicate id.
-      expect(actual[1]).not.toEqual(expected[1]);
-      expect(actual[1]).toEqual(expected[0]);
+      expect(actual).toEqual(expected);
+      expect(inner).toContain('id="svgscope0-shared-text-path"');
+      expect(inner).toContain('id="svgscope1-shared-text-path"');
     } finally {
       await context.close();
     }
