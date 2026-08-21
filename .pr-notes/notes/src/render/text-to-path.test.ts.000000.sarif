@@ -285,6 +285,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2tr0j3drrg74iy",
+          "message": {
+            "text": "The DM-2399 activation matrix is independently controlled: every empty-outline evidence row is pinned, source codepoints override aliased glyph metadata, the no-outline boundary is accessible but contains no visible text/family, all-inkless text terminates explicitly, and a missing authored family is never re-emitted. Final focused evidence: renderer/provenance 31 passed (269 unrelated skipped), text/vertical/form/input consumers 108 passed, typing overlays 9 passed (126 skipped), and TypeScript, ESLint, and git diff checks all passed.",
+            "markdown": "The DM-2399 activation matrix is independently controlled: every empty-outline evidence row is pinned, source codepoints override aliased glyph metadata, the no-outline boundary is accessible but contains no visible text/family, all-inkless text terminates explicitly, and a missing authored family is never re-emitted. Final focused evidence: renderer/provenance 31 passed (269 unrelated skipped), text/vertical/form/input consumers 108 passed, typing overlays 9 passed (126 skipped), and TypeScript, ESLint, and git diff checks all passed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 1370,
+                  "endLine": 1448,
+                  "snippet": {
+                    "text": "  it.each([\n    [\"missing glyph\", { glyphPresent: false, glyphId: 0, codePoints: [0x41], helperAvailable: true }, \"missing-glyph\"],\n    [\"empty .notdef\", { glyphPresent: true, glyphId: 0, codePoints: [0xE000], helperAvailable: true }, \"missing-glyph\"],\n    [\"space\", { glyphPresent: true, glyphId: 3, codePoints: [0x20], helperAvailable: true }, \"legitimately-inkless\"],\n    [\"unclassified cluster\", { glyphPresent: true, glyphId: 4, helperAvailable: true }, \"unclassified-empty-glyph\"],\n    [\"helper absent\", { glyphPresent: true, glyphId: 5, codePoints: [0x41], helperAvailable: false }, \"helper-unavailable\"],\n    [\"source absent\", { glyphPresent: true, glyphId: 6, codePoints: [0x41], helperAvailable: true, sourceAvailable: false }, \"source-unavailable\"],\n    [\"helper face unopenable\", { glyphPresent: true, glyphId: 7, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: \"font-unopenable\" as const }, \"helper-font-unopenable\"],\n    [\"helper glyph unavailable\", { glyphPresent: true, glyphId: 8, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: \"glyph-unavailable\" as const }, \"helper-glyph-unavailable\"],\n    [\"helper outline\", { glyphPresent: true, glyphId: 9, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: \"outline\" as const }, \"helper-outline\"],\n  ])(\"classifies the %s empty-outline activation row\", (_label, evidence, expected) => {\n    expect(classifyEmptyGlyphOutline(evidence)).toBe(expected);\n  });\n\n  it(\"reports source outline ownership without consulting the helper\", () => {\n    const cmds = [{ command: \"moveTo\", args: [0, 0] }];\n    expect(resolveGlyphCommands(\n      { path: { commands: cmds }, id: 11, codePoints: [0x41] }, \"helvetica\", 400, 16, 0,\n    )).toEqual({ commands: cmds, disposition: \"source-outline\" });\n  });\n\n  it(\"uses source-cluster codepoints instead of an aliased Glyph payload\", () => {\n    expect(resolveGlyphCommands(\n      { path: { commands: [] }, id: 11, codePoints: [0x41] },\n      \"helvetica\", 400, 16, 0, [0x20],\n    ).disposition).toBe(\"legitimately-inkless\");\n  });\n\n  // Positive end-to-end: synthesize the (otherwise-nonexistent on macOS)\n  // \"fontkit returned empty for an inkable glyph\" condition and confirm the\n  // fallback pulls that glyph's real outline from the native helper. Gated on\n  // the macOS in-tree helper + Helvetica.\n  const HELVETICA = \"/System/Library/Fonts/Helvetica.ttc\";\n  const HELPER = \"tools/macos-glyph-extractor/domotion-glyph-paths\";\n  const canRunPositive = process.platform === \"darwin\" && existsSync(HELVETICA) && existsSync(HELPER);\n  (canRunPositive ? it : it.skip)(\"fetches a glyph's outline from the helper when fontkit hands back empty\", () => {\n    // Real Helvetica glyph id for 'H' (fontkit decodes it fine — we fake the\n    // \"empty\" to exercise the fallback path the same way a partial font would).\n    const col = fontkit2.openSync(HELVETICA) as any;\n    const f = col.getFont != null ? col.getFont(\"Helvetica\") : col;\n    const hId = f.glyphForCodePoint(0x48).id;\n    const fallback = commandsFor({ path: { commands: [] }, id: hId, codePoints: [0x48] }, \"helvetica\", 400, 16, 0);\n    expect(fallback.length).toBeGreaterThan(0);            // the helper produced a real outline\n    expect(fallback.some((c) => c.command === \"moveTo\")).toBe(true);\n  });\n});\n\ndescribe(\"source-owned no-outline boundary (DM-2399)\", () => {\n  it(\"is accessible and diagnostic without any visible consumer-shaped text\", () => {\n    const markup = renderSourceOwnedTextBoundary(\"A<&😀\", \"path-outline-unavailable\", [{\n      sourceSpan: [3, 5], glyphId: 42, disposition: \"helper-font-unopenable\",\n    }]);\n    expect(markup).toContain('aria-label=\"A&lt;&amp;😀\"');\n    expect(markup).toContain('data-domotion-text-boundary=\"path-outline-unavailable\"');\n    expect(markup).toContain('data-domotion-text-degraded-spans=\"3-5:42:helper-font-unopenable\"');\n    expect(markup).not.toMatch(/<text(?:\\s|>)/);\n    expect(markup).not.toContain(\"font-family\");\n  });\n\n  it(\"terminates all-inkless text without consumer shaping\", () => {\n    const markup = renderTextAsPath(\" \\u200B\", 0, 0, {\n      fontSize: 16, fontFamily: \"Times\", fontWeight: \"400\", fill: \"#000\", xOffsets: [0, 4],\n    });\n    expect(markup).toContain('data-domotion-text-boundary=\"path-all-inkless\"');\n    expect(markup).not.toMatch(/<text(?:\\s|>)/);\n  });\n\n  it(\"never re-emits a missing authored family for consumer-side resolution\", () => {\n    const family = \"Dm2399 Definitely Missing Family\";\n    const markup = renderTextAsPath(\"Missing family\", 0, 0, {\n      fontSize: 16, fontFamily: family, fontWeight: \"400\", fill: \"#000\",\n    });\n    expect(markup).not.toContain(`font-family=\"${family}\"`);\n    for (const body of markup.matchAll(/<text[^>]*>([^<]*)<\\/text>/g)) {\n      expect([...body[1]].every((ch) => {\n        const cp = ch.codePointAt(0)!;\n        return cp >= 0xE000 && cp <= 0xF8FF;\n      })).toBe(true);\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 3180
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.test.ts"
+                },
+                "region": {
+                  "startLine": 79
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2399"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bee888f490b619706a0c0a83ba38f4de"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8ba602a2f681eda9f43324290baddcf1f39e6496",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

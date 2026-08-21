@@ -455,7 +455,7 @@ function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[]
           fill: glyphInk, fontStyle: cg.fontStyle, ascentOverride: wp.point.ascentPx,
         }),
       );
-      if (gm != null) glyphMarkup = gm;
+      glyphMarkup = gm;
     }
     // Solid block behind the glyph. If a covered glyph was requested but its
     // outline couldn't be produced on this host (font unresolvable in paths

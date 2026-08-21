@@ -999,13 +999,13 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
     fontSize, fontWeight, fontFamily, fontStyle: "normal", fill: color,
     targetWidth: textW, ascentOverride: ascent,
   });
-  parts.push(labelPath != null ? `${indent}${labelPath}` : `${indent}<text x="${r(bx + btnW / 2)}" y="${r(by + ascent)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}">${labelText}</text>`);
+  parts.push(`${indent}${labelPath}`);
   const label = el.styles.inputFileName != null && el.styles.inputFileName !== "" ? el.styles.inputFileName : "No file chosen";
   const nameX = bx + btnW + marginRight;
   const namePath = renderTextAsPath(label, nameX, by, {
     fontSize, fontWeight: "400", fontFamily, fontStyle: "normal", fill: "rgb(0,0,0)", ascentOverride: ascent,
   });
-  parts.push(namePath != null ? `${indent}${namePath}` : `${indent}<text x="${r(nameX)}" y="${r(by + ascent)}" font-size="${fontSize}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="rgb(0,0,0)">${label.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
+  parts.push(`${indent}${namePath}`);
   return parts.join("\n");
 }
 

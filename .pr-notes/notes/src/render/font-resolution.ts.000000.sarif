@@ -2175,6 +2175,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2tqzyhzwarpe97",
+          "message": {
+            "text": "Empty glyphs are now classified from source evidence before helper probing, because fontkit memoizes Glyph objects by gid and their codePoints can belong to a different scalar. The terminal table mirrors the pinned engine split: Blink owns the selected face/gid, Skia may retain metrics while declining a path, and only source-proven ignorables are safely no-ink; every other empty result carries an explicit degraded reason instead of triggering consumer-family selection.",
+            "markdown": "Empty glyphs are now classified from source evidence before helper probing, because fontkit memoizes Glyph objects by gid and their codePoints can belong to a different scalar. The terminal table mirrors the pinned engine split: Blink owns the selected face/gid, Skia may retain metrics while declining a path, and only source-proven ignorables are safely no-ink; every other empty result carries an explicit degraded reason instead of triggering consumer-family selection."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7690,
+                  "endLine": 7804,
+                  "snippet": {
+                    "text": "// A glyph is worth probing the helper for only if at least one source codepoint\n// is plausibly inkable. Keep UNKNOWN separate from genuinely inkless: both\n// avoid an invented helper lookup, but only the latter is source-owned empty\n// paint. Collapsing them was the partial-output hole DM-2399 closes.\nfunction glyphInkExpectation(glyph: { codePoints?: number[] }): \"inkable\" | \"inkless\" | \"unknown\" {\n  const cps = glyph.codePoints;\n  if (cps == null || cps.length === 0) return \"unknown\";\n  return cps.every((cp) => isLegitimatelyInklessCodepoint(cp)) ? \"inkless\" : \"inkable\";\n}\n\nexport interface EmptyGlyphOutlineEvidence {\n  glyphPresent: boolean;\n  glyphId: number;\n  codePoints?: number[];\n  helperAvailable: boolean;\n  /** Undefined until the selected instance has been resolved back to a file. */\n  sourceAvailable?: boolean;\n  /** Undefined until the native helper has been asked for this gid. */\n  helperResult?: \"outline\" | \"font-unopenable\" | \"glyph-unavailable\";\n}\n\n/** Pure classification table for the empty-outline branch. Production uses\n * the `probe-helper` result to perform the next source-backed probe; tests pin\n * every terminal row without depending on one host's installed helpers/fonts. */\nexport function classifyEmptyGlyphOutline(\n  evidence: EmptyGlyphOutlineEvidence,\n): GlyphCommandDisposition | \"probe-helper\" {\n  if (!evidence.glyphPresent || evidence.glyphId === 0) return \"missing-glyph\";\n  const expectation = glyphInkExpectation({ codePoints: evidence.codePoints });\n  if (expectation === \"inkless\") return \"legitimately-inkless\";\n  if (expectation === \"unknown\") return \"unclassified-empty-glyph\";\n  if (!evidence.helperAvailable) return \"helper-unavailable\";\n  if (evidence.sourceAvailable === false) return \"source-unavailable\";\n  if (evidence.sourceAvailable !== true || evidence.helperResult == null) return \"probe-helper\";\n  if (evidence.helperResult === \"outline\") return \"helper-outline\";\n  return evidence.helperResult === \"font-unopenable\"\n    ? \"helper-font-unopenable\"\n    : \"helper-glyph-unavailable\";\n}\n\n/** Fetch glyph `glyphId`'s outline from the native helper opening `srcPath`.\n * Cached per (path, id) and preserves whether the face could not be opened or\n * the selected glyph produced no path; those are distinct degraded facts. */\nfunction helperGlyphOutline(srcPath: string, postscriptName: string | undefined, glyphId: number): HelperOutlineResolution {\n  const cacheKey = `${srcPath}#${glyphId}`;\n  const cached = helperOutlineCache.get(cacheKey);\n  if (cached !== undefined) return cached;\n\n  let helper = helperFontCache.get(srcPath);\n  if (helper === undefined) {\n    helper = (createGlyphHelperFont({ postscriptName, fontPath: srcPath }) as unknown as FontInstance) ?? null;\n    helperFontCache.set(srcPath, helper);\n  }\n\n  let result: HelperOutlineResolution;\n  if (helper == null) {\n    result = { commands: [], disposition: \"helper-font-unopenable\" };\n  } else {\n    try {\n      const g = (helper as any).getGlyph(glyphId);\n      const commands: PathCommand[] = g?.path?.commands ?? [];\n      result = commands.length > 0\n        ? { commands, disposition: \"helper-outline\" }\n        : { commands: [], disposition: \"helper-glyph-unavailable\" };\n    } catch {\n      result = { commands: [], disposition: \"helper-glyph-unavailable\" };\n    }\n  }\n  helperOutlineCache.set(cacheKey, result);\n  return result;\n}\n\n/**\n * Resolve the concrete outline representation for one already-shaped glyph.\n *\n * Blink has already selected the face/gid at this point. Skia either requests\n * that face's path, retains only metrics for a raster-owned glyph, or paints no\n * ink for a genuine empty. A consumer-side CSS-family retry is not one of those\n * outcomes. Keep every empty reason explicit so callers can preserve successful\n * source spans and terminate an unavailable outline at a documented degraded\n * boundary instead of silently presenting a partial run as complete.\n */\nexport function resolveGlyphCommands(\n  glyph: FontkitGlyph | null | undefined,\n  fontKey: string,\n  weight: number,\n  fontSize: number,\n  slant: number,\n  /** Source-derived codepoints for this shaped cluster. fontkit memoizes Glyph\n   * objects by gid, so `glyph.codePoints` is only a fallback when the emitter\n   * cannot map the glyph back to source text. */\n  sourceCodePoints?: number[],\n): GlyphCommandResolution {\n  const cmds: PathCommand[] = glyph?.path?.commands ?? [];\n  if (cmds.length > 0) return { commands: cmds, disposition: \"source-outline\" };\n  const helperAvailable = isGlyphHelperAvailable();\n  const initial = classifyEmptyGlyphOutline({\n    glyphPresent: glyph != null,\n    glyphId: glyph?.id ?? 0,\n    codePoints: sourceCodePoints ?? glyph?.codePoints,\n    helperAvailable,\n  });\n  if (initial !== \"probe-helper\") return { commands: [], disposition: initial };\n  // Re-resolve the instance (cache hit) to read the exact file fontkit loaded.\n  // variationSettings don't affect the file path, so they're omitted here.\n  const inst = getFontInstance(fontKey, weight, fontSize, slant);\n  const src = inst != null ? fontSourceMap.get(inst as unknown as object) : undefined;\n  if (src == null) {\n    return { commands: [], disposition: classifyEmptyGlyphOutline({\n      glyphPresent: true, glyphId: glyph!.id,\n      codePoints: sourceCodePoints ?? glyph!.codePoints,\n      helperAvailable, sourceAvailable: false,\n    }) as GlyphCommandDisposition };\n  }\n  return helperGlyphOutline(src.path, src.postscriptName, glyph!.id);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 438
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/152-source-owned-text-failure-boundary.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2399"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "82e8d1e05504da306e707d046b8c90f4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8ba602a2f681eda9f43324290baddcf1f39e6496",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

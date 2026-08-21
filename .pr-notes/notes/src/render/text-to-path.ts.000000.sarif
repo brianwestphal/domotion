@@ -1173,6 +1173,148 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2tr05b14t9w9wc",
+          "message": {
+            "text": "renderTextAsPath now has a non-null, source-owned terminal: embedded declines enter paths with a recorded reason, successful vector/raster ownership is retained, and total failures become a labeled group containing no visible text or font-family request. This deliberately treats a missing helper outline as degraded source evidence; asking the consumer browser to resolve the authored family would select and shape a new run that Chromium never painted.",
+            "markdown": "renderTextAsPath now has a non-null, source-owned terminal: embedded declines enter paths with a recorded reason, successful vector/raster ownership is retained, and total failures become a labeled group containing no visible text or font-family request. This deliberately treats a missing helper outline as degraded source evidence; asking the consumer browser to resolve the authored family would select and shape a new run that Chromium never painted."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 3238,
+                  "endLine": 3394,
+                  "snippet": {
+                    "text": "export type SourceOwnedTextBoundaryReason =\n  | EmbeddedTextDeclineReason\n  | \"path-primary-font-unresolved\"\n  | \"path-layout-failed\"\n  | \"element-render-failed\"\n  | \"path-outline-unavailable\"\n  | \"path-all-raster-owned\"\n  | \"path-all-inkless\"\n  | \"path-no-emittable-glyphs\";\n\n/**\n * A deterministic terminal for text whose selected face/gid cannot be painted\n * as a source outline. It deliberately contains no visible SVG `<text>` and no\n * authored font-family: the consumer browser therefore cannot make a new face\n * selection. Capture-owned raster overlays are composed by the caller beside\n * this marker; genuinely missing outlines remain an explicit, accessible,\n * machine-diagnosable degraded boundary.\n */\nexport function renderSourceOwnedTextBoundary(\n  text: string,\n  reason: SourceOwnedTextBoundaryReason,\n  degraded: TextPathOwnership[\"degradedGlyphs\"] = [],\n): string {\n  const details = degraded.length === 0\n    ? \"\"\n    : ` data-domotion-text-degraded-spans=\"${escAttr(degraded.map((item) =>\n      `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(\",\"))}\"`;\n  return `<g role=\"img\" aria-label=\"${escAttr(text)}\" data-domotion-text-owner=\"source-boundary\" data-domotion-text-boundary=\"${reason}\"${details}><title>${escAttr(text)}</title></g>`;\n}\n\n/**\n * Render text as SVG markup using path outlines with <defs>/<use> deduplication.\n * Returns a <g> element containing <use> references, positioned at (x, y) top.\n */\nexport function renderTextAsPath(\n  text: string,\n  x: number,\n  y: number,\n  options: RenderTextOptions,\n): string {\n  const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,\n    features, lang, variationSettings, textStrokeWidth, textStrokeColor,\n    paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji,\n    fontSynthesis, fontOrientation = 0 } = options;\n  const fontWeight = String(options.fontWeight);\n  let { xOffsets } = options;\n  const weight = cssWeightOf(options.fontWeight);\n  const slant = slantForStyle(fontStyle);\n  const stretch = stretchPercent(fontStretch);\n  const fallbackRequest = {\n    rawSlope: blinkRequestedSlopeDegrees(fontStyle),\n    orientation: fontOrientation,\n  };\n  const esc = escAttr;\n\n  // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts\n  // before an orphaned complex-shaper combining mark — for UNCOVERED marks\n  // (no-font Brahmic blocks, detected here) and for CAPTURE-flagged COVERED marks\n  // (`dottedCircleMarks`, e.g. Mukta Vedic). Run once at the funnel so both the\n  // embedded-font and glyph-path branches below receive the augmented text +\n  // xOffsets. A no-op for text with no combining marks.\n  ({ text, xOffsets } = insertSyntheticDottedCircles(\n    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang,\n    dottedCircleMarks, fontStretch, clusterFallbackEnabled(), fallbackRequest));\n\n  // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for\n  // (they otherwise fall through to a last-resort tofu box).\n  if (!(clusterFallbackEnabled() && isGlyphHelperAvailable() && isIcuHelperAvailable())) {\n    ({ text, xOffsets } = stripOrphanedDefaultIgnorables(text, xOffsets));\n  }\n\n  // The default embedded path emits already-shaped glyph IDs through generated\n  // PUA codepoints in a generated `dmfN` font, with explicit captured origins.\n  // The consumer does no authored-text shaping or family fallback. A classified\n  // embedded decline enters the source-outline path below.\n  if (currentRenderTextMode === \"embedded-font\") {\n    // DM-655: emit `<text>` against a custom-built TTF that contains the\n    // exact shaped glyphs Chrome painted with — webfont or system font,\n    // variable-axis instance included. The renderTextAsEmbedded path\n    // mirrors textToPathMarkup's per-codepoint font-resolution so\n    // partitioned webfonts (Geist split across Latin/Cyrillic), fallback-\n    // chain runs (Helvetica → Apple Symbols), and primary-only runs all\n    // get the SAME font decision the path-mode renderer would have made.\n    // A classified null markup falls through to source glyph paths when the run\n    // can't be embedded (font failed to resolve, layout threw, PUA-A exhausted,\n    // etc.). No authored family is emitted at either terminal.\n    const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,\n      xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,\n      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,\n      fontSynthesis, bidiOverride, fallbackRequest);\n    if (embedded.markup != null) {\n      recordTextEmitterTransition({ kind: \"embedded-succeeded\", sourceText: text });\n      return embedded.markup;\n    }\n    recordTextEmitterTransition({\n      kind: \"embedded-declined-to-paths\",\n      sourceText: text,\n      reason: embedded.decline?.glyphDisposition == null\n        ? embedded.decline?.reason\n        : `${embedded.decline.reason}:${embedded.decline.glyphDisposition}`,\n    });\n  }\n\n  // DM-1984: `-webkit-text-stroke` already occupies the stroke attributes, and\n  // Chrome's own handling of the two together is a per-platform mapping onto a\n  // single flat paint (`resolveFakeBoldTextStroke`). Rather than run two stroke\n  // sources against each other, a stroked run keeps the outer-group treatment\n  // below and takes the primary font's decision; an unstroked run — every\n  // ordinary one — gets the per-run frame.\n  const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0\n    && textStrokeColor != null && textStrokeColor !== \"\";\n  let result: TextPathResult | null;\n  try {\n    result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,\n      wantsTextStroke ? undefined : { fill }, fallbackRequest);\n  } catch {\n    const reason = \"path-layout-failed\" as const;\n    recordTextEmitterTransition({ kind: \"paths-declined\", sourceText: text, reason });\n    recordTextEmitterTransition({ kind: \"source-owned-boundary\", sourceText: text, reason });\n    return renderSourceOwnedTextBoundary(text, reason);\n  }\n  if (result == null) {\n    const reason = \"path-primary-font-unresolved\" as const;\n    recordTextEmitterTransition({ kind: \"paths-declined\", sourceText: text, reason });\n    recordTextEmitterTransition({ kind: \"source-owned-boundary\", sourceText: text, reason });\n    return renderSourceOwnedTextBoundary(text, reason);\n  }\n  if (result.markup === \"\") {\n    const reason: SourceOwnedTextBoundaryReason = result.ownership.degradedGlyphs.length > 0\n      ? \"path-outline-unavailable\"\n      : result.ownership.rasterGlyphs > 0 && result.ownership.inklessGlyphs === 0\n        ? \"path-all-raster-owned\"\n        : result.ownership.inklessGlyphs > 0 && result.ownership.rasterGlyphs === 0\n          ? \"path-all-inkless\"\n          : \"path-no-emittable-glyphs\";\n    recordTextEmitterTransition({\n      kind: \"paths-declined\", sourceText: text, reason,\n      degradedSpans: result.ownership.degradedGlyphs,\n    });\n    recordTextEmitterTransition({\n      kind: \"source-owned-boundary\", sourceText: text, reason,\n      degradedSpans: result.ownership.degradedGlyphs,\n    });\n    return renderSourceOwnedTextBoundary(text, reason, result.ownership.degradedGlyphs);\n  }\n  recordTextEmitterTransition({\n    kind: \"paths-succeeded\", sourceText: text,\n    ...(result.ownership.degradedGlyphs.length === 0\n      ? {}\n      : { reason: \"partial-source-outline\", degradedSpans: result.ownership.degradedGlyphs }),\n  });\n\n  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);\n  if (font == null) {\n    const reason = \"path-primary-font-unresolved\" as const;\n    recordTextEmitterTransition({ kind: \"source-owned-boundary\", sourceText: text, reason });\n    return renderSourceOwnedTextBoundary(text, reason, result.ownership.degradedGlyphs);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7714
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.ts"
+                },
+                "region": {
+                  "startLine": 60
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2399"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3f28715c45b9c0f3ceb5512d86e85e70"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2tr0c86llkwlnb",
+          "message": {
+            "text": "Per-glyph ownership spans come from HarfBuzz cluster boundaries, not Glyph.codePoints: repeated clusters share one span, the next distinct cluster fixes its UTF-16 end, and the legacy cursor handles absent cluster data in either direction. Focused controls cover astral text, ligatures, reversed native-direction shaping, and clusterless RTL; this prevents an empty space beside an inked letter from being falsely attributed to the whole run.",
+            "markdown": "Per-glyph ownership spans come from HarfBuzz cluster boundaries, not Glyph.codePoints: repeated clusters share one span, the next distinct cluster fixes its UTF-16 end, and the legacy cursor handles absent cluster data in either direction. Focused controls cover astral text, ligatures, reversed native-direction shaping, and clusterless RTL; this prevents an empty space beside an inked letter from being falsely attributed to the whole run."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1241,
+                  "endLine": 1284,
+                  "snippet": {
+                    "text": "/** Map shaped glyphs back to exact source UTF-16 cluster spans. HarfBuzz\n * cluster indices may repeat for multi-glyph clusters; the next distinct\n * cluster supplies the end without trusting fontkit's memoized codePoints. */\nexport function shapedGlyphSourceSpans(\n  sourceText: string,\n  shapedText: string,\n  glyphs: Array<{ codePoints?: number[] }>,\n  clusters: number[] | undefined,\n  rtl: boolean,\n  reversedForNativeDirection = false,\n): Array<[number, number]> {\n  const clusterStarts = clusters == null\n    ? []\n    : [...new Set(clusters.filter((value) =>\n      Number.isInteger(value) && value >= 0 && value < shapedText.length))]\n      .sort((a, b) => a - b);\n  let fallbackCursor = rtl ? shapedText.length : 0;\n  return glyphs.map((glyph, index) => {\n    const cluster = clusters?.[index];\n    let shapedStart: number;\n    let span: number;\n    if (cluster != null && Number.isInteger(cluster) && cluster >= 0 && cluster < shapedText.length) {\n      shapedStart = cluster;\n      const next = clusterStarts.find((value) => value > cluster) ?? shapedText.length;\n      span = Math.max(1, next - cluster);\n    } else {\n      const cpCount = glyph.codePoints != null && glyph.codePoints.length > 0\n        ? glyph.codePoints.length\n        : 1;\n      if (rtl) {\n        span = sourceClusterSpan(shapedText, fallbackCursor, cpCount, true);\n        shapedStart = Math.max(0, fallbackCursor - span);\n        fallbackCursor = shapedStart;\n      } else {\n        shapedStart = fallbackCursor;\n        span = sourceClusterSpan(shapedText, fallbackCursor, cpCount, false);\n        fallbackCursor += span;\n      }\n    }\n    const sourceStart = reversedForNativeDirection\n      ? Math.max(0, sourceText.length - shapedStart - span)\n      : shapedStart;\n    return boundedSourceSpan(sourceText, sourceStart, sourceStart + span);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 3619
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2399"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "37f7f93a1331ec0a38f54b2f115b25af"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8ba602a2f681eda9f43324290baddcf1f39e6496",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

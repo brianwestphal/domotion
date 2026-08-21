@@ -58,8 +58,12 @@ export interface TextRunProvenanceDiagnostic {
 }
 
 export interface TextEmitterTransitionDiagnostic {
-  kind: "embedded-succeeded" | "embedded-declined-to-paths" | "paths-succeeded" | "paths-declined";
+  kind: "embedded-succeeded" | "embedded-declined-to-paths" | "paths-succeeded" | "paths-declined" | "source-owned-boundary";
   sourceText: string;
+  /** Exact decline/boundary classification. Absent on ordinary success rows. */
+  reason?: string;
+  /** UTF-16 spans whose selected glyph had no source/helper outline. */
+  degradedSpans?: Array<{ sourceSpan: [number, number]; glyphId: number; disposition: string }>;
 }
 
 export interface FixtureTextRunProvenance {

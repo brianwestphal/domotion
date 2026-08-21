@@ -75,4 +75,18 @@ describe("production text-run provenance", () => {
     expect(renderTextAsPath("AV", 0, 0, options)).not.toBeNull();
     expect(getTextRunProvenance().runs.map((run) => run.mechanism)).toContain("cluster-disabled-legacy");
   });
+
+  it("records an all-inkless source-owned terminal instead of consumer text", () => {
+    const markup = renderTextAsPath(" \u200B", 0, 0, {
+      ...options,
+      fontFamily: "Times",
+      xOffsets: [0, 4],
+    });
+    expect(markup).toContain('data-domotion-text-boundary="path-all-inkless"');
+    expect(markup).not.toMatch(/<text(?:\s|>)/);
+    expect(getTextRunProvenance().transitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "paths-declined", reason: "path-all-inkless" }),
+      expect.objectContaining({ kind: "source-owned-boundary", reason: "path-all-inkless" }),
+    ]));
+  });
 });

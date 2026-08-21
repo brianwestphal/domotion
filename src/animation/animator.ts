@@ -1781,7 +1781,7 @@ const DEFAULT_OVERLAY_FONT_SIZE = 14;
  * caret sits at the true text edge instead of ~0.5px/char behind it.
  */
 const MONO_CHAR_WIDTH_RATIO = 0.6;
-/** The `<text>` font stack the reveal paints — measured via `resolveFontKey`. */
+/** The source font stack the reveal resolves before path emission. */
 const OVERLAY_TYPING_FONT = "'SF Mono', Menlo, Monaco, monospace";
 /**
  * Above this typed-character count the per-keystroke discrete reveal falls back
@@ -2070,15 +2070,15 @@ function monotoneStops(): { push: (pn: number, decl: string) => void; stops: str
  * font, and proportional families lay out correctly. `xOffsets` (the measured
  * per-glyph left edges) pin each glyph exactly where the caret/clip expect it,
  * so the whole system stays locked regardless of the font's own kerning. The
- * baseline is pinned by `ascentOverride: 0` (so `baselineY === y`). Returns
- * `null` when the font can't be resolved (e.g. a platform without the face), so
- * the caller falls back to a native `<text>` element. The returned `<g>` carries
- * `aria-label` for accessibility.
+ * baseline is pinned by `ascentOverride: 0` (so `baselineY === y`). A failed
+ * source outline returns renderTextAsPath's labeled source-owned boundary;
+ * consumer-side family selection is never a terminal. Empty input emits no
+ * markup.
  */
 function typedGlyphMarkup(
   text: string, x: number, baselineY: number, fontSize: number, fontFamily: string, color: string, xOffsets?: number[],
-): string | null {
-  if (text === "") return null;
+): string {
+  if (text === "") return "";
   return withRenderTextMode("paths", () =>
     renderTextAsPath(text, x, baselineY,
       { fontSize, fontFamily, fontWeight: "400", fill: color, xOffsets, ascentOverride: 0 }));
@@ -2090,8 +2090,8 @@ function typedGlyphMarkup(
  * cumulative advance as each glyph is typed (character-by-character), so the
  * revealed text edge — and the caret riding the same plan — sit exactly where
  * the glyphs paint. The text is painted as glyph paths (DM-1557) for viewer-
- * independent advances, falling back to a native `<text>` when the font can't be
- * resolved. Below `MAX_DISCRETE_TYPING_CHARS` the reveal steps per keystroke
+ * independent advances. An unavailable outline stays at the source-owned
+ * diagnostic boundary. Below `MAX_DISCRETE_TYPING_CHARS` the reveal steps per keystroke
  * (`step-end`); above it, it sweeps linearly between the line's first/last glyph
  * for bounded CSS.
  */
@@ -2115,15 +2115,11 @@ function buildTypingLines(
     parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
     // DM-1557: paint the line as glyph paths (advances match on every viewer),
     // pinning each glyph at its measured left edge so the reveal clip + caret
-    // stay locked. Fall back to a native <text> when the font can't resolve.
+    // stay locked. Source-outline failures remain labeled non-painting groups.
     const xOffsets = cum[li].slice(0, line.length);
     const glyphMarkup = typedGlyphMarkup(lineText, overlay.x, lineY, fontSize, fontFamily, color, xOffsets);
-    if (glyphMarkup != null) {
+    if (glyphMarkup !== "") {
       parts.push(`  <g class="${id}-text" clip-path="url(#${clipId})">${glyphMarkup}</g>`);
-    } else {
-      parts.push(
-        `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}" clip-path="url(#${clipId})">${escapeHtml(lineText)}</text>`,
-      );
     }
 
     if (lineGlyphs.length === 0) {
@@ -2272,15 +2268,9 @@ function buildTypingMistakes(
     const cls = `${id}-mis${n}`;
     const lineY = overlay.y + m.li * lineHeight;
     // DM-1557: paint the wrong glyph as a glyph path (viewer-independent), same
-    // as the line text; fall back to <text> when the font can't be resolved.
+    // as the line text; an unavailable outline remains source-owned.
     const glyphMarkup = typedGlyphMarkup(m.ch, overlay.x + m.leftEdge, lineY, fontSize, fontFamily, color);
-    if (glyphMarkup != null) {
-      parts.push(`  <g class="${cls}">${glyphMarkup}</g>`);
-    } else {
-      parts.push(
-        `  <text class="${cls}" x="${(overlay.x + m.leftEdge).toFixed(2)}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}">${escapeHtml(m.ch)}</text>`,
-      );
-    }
+    parts.push(`  <g class="${cls}">${glyphMarkup}</g>`);
     // step-end opacity: 0 until showMs, 1 through the typo, 0 on backspace.
     const showPct = pct(m.showMs, totalDuration);
     const hidePct = pct(Math.max(m.hideMs, m.showMs + 1), totalDuration);
@@ -2431,7 +2421,7 @@ function renderTypingOverlay(
     chars, cum, overlay, speed, typeStartMs, effTypeDur, advOf, mistakes, thinkMs,
   );
 
-  // Typewriter reveal — one <text> per wrapped line, each unveiled by a width-
+  // Typewriter reveal — one source-owned glyph group per wrapped line, unveiled by a width-
   // growing clip stepping to each glyph's measured edge as it is typed.
   const ln = buildTypingLines(chars, overlay, id, cum, glyphs, discrete, lineHeight, fontSize, textHeight, hiddenW, color, fontFamily, totalDuration, holdEndPct, disappearPct, totalSec);
   parts.push(...ln.parts);
@@ -2443,7 +2433,7 @@ function renderTypingOverlay(
   parts.push(...mis.parts);
   cssRules.push(...mis.cssRules);
 
-  // Whole-overlay visibility — shared by every line's <text>.
+  // Whole-overlay visibility — shared by every line's glyph group.
   const typeStartPct = pct(typeStartMs, totalDuration);
   cssRules.push(`
     @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1;${holdAtf} } ${disappearPct}, 100% { opacity: 0; } }

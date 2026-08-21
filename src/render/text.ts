@@ -117,11 +117,6 @@ function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextSt
   };
 }
 
-/** DM-914: `<text>` fallback path didn't carry `-webkit-text-stroke`, so a
- *  `color: transparent; -webkit-text-stroke: 2px black` outline-only headline
- *  rendered nothing (transparent fill, no stroke). Build the SVG stroke
- *  attribute string from the same trio `textStrokeParams` returns, ready
- *  for inline-attribute splicing into a `<text>` element. */
 // DM-920: text-emphasis-style → mark character mapping. Mirrors
 // `ComputedStyle::TextEmphasisMarkString` in third_party/blink/renderer/
 // core/style/computed_style.cc — the keyword form resolves to a single
@@ -213,22 +208,7 @@ export function renderTextEmphasisMarks(
   return out.join("");
 }
 
-function textStrokeAttrString(ts: { width: number; color: string; paintOrder: string }): string {
-  if (ts.width <= 0 || ts.color === "") return "";
-  let out = ` stroke="${ts.color}" stroke-width="${r(ts.width)}"`;
-  // DM-932: CSS shorthand `paint-order: stroke` (without explicit "fill")
-  // means "stroke fill markers" per CSS Paint Order 1. Chrome's computed
-  // style returns the canonical short form when stroke is first, so
-  // accept either `stroke` alone OR `stroke fill` — both produce SVG
-  // `paint-order="stroke fill"` which paints stroke beneath the fill (so
-  // a white fill over a thick coloured stroke stays visible).
-  if (ts.paintOrder != null && /^\s*stroke(?:\s|$)/.test(ts.paintOrder)) {
-    out += ` paint-order="stroke fill"`;
-  }
-  return out;
-}
-
-function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRastered = false): string {
+function suppressGlyphChars(text: string, seg: TextSegment | undefined): string {
   // DM-692: Chrome paints a visible hyphen at line-break points marked by
   // a soft-hyphen (U+00AD); SHYs not at the break paint nothing. Our
   // capture's per-char Range loop keeps EVERY SHY in the captured line
@@ -251,12 +231,6 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRast
     normalized = out;
   }
   if (seg?.rasterGlyphs == null) return normalized;
-  // DM-1699: `alsoRastered` treats EVERY raster-overlaid glyph (dataUri
-  // present) as suppressed, not just the drop-cap `suppressGlyph` markers —
-  // used by the raw-`<text>` fallback so it never re-paints a character the
-  // overlay already covers (the double-emoji bug: an all-emoji-font run fails
-  // path rendering, and the fallback repainted the full line under the
-  // per-char raster overlays).
   // DM-2410: a paint-bearing raster glyph is still part of the shaped source
   // run. Do not replace it with U+200B before font routing: that destroys the
   // selected glyph's advance and moves every following outline left. Skia's
@@ -268,12 +242,9 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRast
   //
   // Zero-area entries are different: they are structural suppression markers
   // for a separately captured ::first-letter segment and own no paint/advance
-  // in this body run. Those keep the historical U+200B replacement. The raw
-  // `<text>` fallback (`alsoRastered`) cannot inspect selected glyph render
-  // kinds, so it additionally suppresses every overlay that already has paint.
+  // in this body run. Those keep the historical U+200B replacement.
   const suppress = seg.rasterGlyphs.filter((g) =>
-    (g.suppressGlyph === true && g.rect.width === 0 && g.rect.height === 0)
-      || (alsoRastered && g.dataUri != null));
+    g.suppressGlyph === true && g.rect.width === 0 && g.rect.height === 0);
   const suppressedAt = new Set<number>();
   for (const glyph of suppress) {
     const fallbackLength = normalized.codePointAt(glyph.charIndex)! > 0xFFFF ? 2 : 1;
@@ -301,31 +272,6 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRast
     }
   }
   return out;
-}
-
-/**
- * DM-1699: the raw-`<text>` fallback body for a segment that carries raster
- * overlays. Suppresses every overlaid cluster (they are already painted by
- * `rasterGlyphOverlays` at exact pixel rects) and positions each REMAINING
- * visible character at its captured xOffset so the browser's own layout of
- * the gap-toothed string can't drift. Returns null when nothing visible
- * remains (the overlays carry the whole paint — emit no fallback at all).
- */
-function rasterAwareFallbackBody(rawText: string, seg: TextSegment, xOffsets: number[] | undefined): string | null {
-  const suppressed = suppressGlyphChars(rawText, seg, true);
-  if (suppressed.replace(/[\s\u200B]/g, "") === "") return null;
-  if (xOffsets == null) return esc(suppressed);
-  const parts: string[] = [];
-  for (let i = 0; i < suppressed.length; i++) {
-    const code = suppressed.charCodeAt(i);
-    if (code === 0x200B || /\s/.test(suppressed[i])) continue;
-    const isHigh = code >= 0xD800 && code <= 0xDBFF;
-    const cluster = isHigh && i + 1 < suppressed.length ? suppressed.slice(i, i + 2) : suppressed[i];
-    const x = xOffsets[i];
-    parts.push(x != null ? `<tspan x="${r(x)}">${esc(cluster)}</tspan>` : esc(cluster));
-    if (isHigh) i++;
-  }
-  return parts.length > 0 ? parts.join("") : null;
 }
 
 /**
@@ -1125,26 +1071,6 @@ interface RenderTextOpts {
   emitPseudoBoxBgLayers?: (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }) => string;
 }
 
-/**
- * Returns true when every codepoint in `text` is in a Unicode Private Use
- * Area (U+E000–F8FF, U+F0000–FFFFD, U+100000–10FFFD). Used to suppress the
- * `<text>` fallback for icon-font codepoints whose path-mode emission was
- * already suppressed as notdef tofu — letting Chromium repaint the tofu
- * via its UA glyph fallback would defeat the suppression. (DM-490 / DM-500.)
- */
-function isAllPrivateUseArea(text: string): boolean {
-  if (text.length === 0) return false;
-  for (let i = 0; i < text.length;) {
-    const cp = text.codePointAt(i)!;
-    const inPua = (cp >= 0xE000 && cp <= 0xF8FF)
-      || (cp >= 0xF0000 && cp <= 0xFFFFD)
-      || (cp >= 0x100000 && cp <= 0x10FFFD);
-    if (!inPua) return false;
-    i += cp > 0xFFFF ? 2 : 1;
-  }
-  return true;
-}
-
 // Resolve OpenType features from font-variant-caps (DM-361, DM-444).
 // Spec mapping:
 //   small-caps      → [smcp]                  (lowercase → small caps)
@@ -1726,8 +1652,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),
     fontSynthesis: fontSynthesisOf(el.styles),
   });
-  if (result != null) {
-    // Decorations anchor on the text fragment TOP (`tt`) + the captured
+  // Decorations anchor on the text fragment TOP (`tt`) + the captured
     // FloatAscent — the same pair Blink's decoration offsets are expressed
     // against (`local_origin_.line_over` + `FontMetrics` in
     // `core/paint/text_decoration_info.cc`). No pre-rounding here: the
@@ -1759,21 +1684,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     const emphasisMarks = renderTextEmphasisMarks(el, segColor);
     const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}${emphasisMarks}`;
     const transformed = (singleSeg?.pseudoBox != null) ? pseudoBoxTransformWrap(singleSeg.pseudoBox, inner) : inner;
-    if (opts.overflowClip) {
-      return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${transformed}</g>`);
-    }
-    return anisotropicCorrectionWrap(el, transformed);
+  if (opts.overflowClip) {
+    return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${transformed}</g>`);
   }
-
-  // DM-490 / DM-500: when the text is entirely Private Use Area codepoints
-  // and the path-mode renderer returned null (no glyph emitted because every
-  // glyph was a notdef tofu we suppressed), don't fall through to a `<text>`
-  // element either — Chromium will paint the same notdef tofu using its own
-  // glyph fallback, which is exactly what we suppressed at the path level.
-  // A missing icon should read as 'nothing'.
-  if (isAllPrivateUseArea(el.text)) return "";
-
-  return renderSingleLineTextElementFallback(el, fillColor, clipId, segFontSize, segFontWeight, segFontFamily, _ts, singleSeg ?? undefined);
+  return anisotropicCorrectionWrap(el, transformed);
 }
 
 // Build the <rect> (+ optional background-image layers + per-side borders)
@@ -1803,62 +1717,6 @@ function renderSingleSegPseudoBox(
     ? emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
     : "";
   return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`;
-}
-
-// Fallback to a CSS <text> element when path-mode rendering returns null
-// (fontkit couldn't outline the run). Detects centered text (badges / buttons
-// with symmetric padding) and anchors accordingly. Extracted verbatim from the
-// tail of renderSingleLineText; `tl` (the text-left anchor) is recomputed here
-// from the same `el.textLeft ?? el.x + 4` expression the caller uses.
-function renderSingleLineTextElementFallback(
-  el: CapturedElement,
-  fillColor: string,
-  clipId: string,
-  segFontSize: number,
-  segFontWeight: string,
-  segFontFamily: string,
-  ts: ReturnType<typeof textStrokeParams>,
-  seg?: TextSegment,
-): string {
-  const tl = el.textLeft ?? el.x + 4;
-  const ff = segFontFamily.replace(/"/g, "'");
-  const lsCss = el.styles.letterSpacing !== "normal" && el.styles.letterSpacing !== "0px"
-    ? `letter-spacing:${el.styles.letterSpacing};` : "";
-  const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;${lsCss}`;
-
-  const textY = (el.textTop != null && el.textHeight != null && el.textHeight > 0)
-    ? el.textTop + el.textHeight / 2 : el.y + el.height / 2;
-
-  // Detect centered text (badges, buttons with symmetric padding)
-  const tw = el.textWidth ?? 0;
-  const leftGap = tl - el.x;
-  const rightGap = (el.x + el.width) - (tl + tw);
-  const minGap = Math.min(leftGap, rightGap);
-  const isCentered = tw > 0 && leftGap > 2 && rightGap > 2
-    && Math.abs(leftGap - rightGap) < Math.max(2, minGap * 0.3);
-
-  const strokeAttr = textStrokeAttrString(ts);
-  // DM-1699: when the segment carries raster overlays, suppress the covered
-  // clusters (the overlays already paint them at exact rects) and position
-  // the remaining characters at their captured xOffsets — an all-emoji run
-  // otherwise re-painted the whole line under the overlays (double emoji).
-  if (seg?.rasterGlyphs != null && seg.rasterGlyphs.some((g) => g.dataUri != null)) {
-    // The single-line result==null path emits raster overlays NOWHERE else
-    // (the result!=null branch has its own emission) — historically the raw
-    // `<text>` fallback painted these chars via the consumer browser's own
-    // fonts. Now that covered clusters are suppressed, the overlays must be
-    // emitted here or the glyphs vanish entirely (caught by the ✅ cell of
-    // the dingbats block going blank).
-    const overlays = rasterGlyphOverlays(seg, segFontSize, clipId);
-    const fbBody = rasterAwareFallbackBody(el.text, seg, seg.xOffsets);
-    if (fbBody == null) return overlays;
-    return `${overlays}<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`;
-  }
-  if (isCentered) {
-    const cx = el.x + el.width / 2;
-    return `<text x="${r(cx)}" y="${r(textY)}" text-anchor="middle" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
-  }
-  return `<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
 }
 
 /**
@@ -1994,29 +1852,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
       fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
     });
-    if (result != null) { segParts.push(result); }
-    else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
-      // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
-      // the segment text is entirely Private Use Area (icon-font codepoints
-      // we couldn't resolve to a real glyph), suppress the <text> fallback
-      // too — Chromium's UA fallback paints the same notdef tofu we already
-      // suppressed at the path level, defeating the point.
-      // DM-779: same logic for `::first-letter` drop caps — when every glyph
-      // in the segment was a `suppressGlyph` rasterGlyph target (e.g. the
-      // floated drop-cap letter sitting on its own line), `reordered.text`
-      // collapses to all-ZWSP and the raster overlay paints the visible
-      // glyph; emitting `seg.text` in the `<text>` fallback would paint a
-      // duplicate body-size copy of the letter behind the raster.
-      const ff = segFontFamily.replace(/"/g, "'");
-      const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
-      const sy = seg.y + seg.height / 2;
-      // DM-1699: never re-paint characters the raster overlays already cover
-      // (double-emoji bug); position the remainder at captured xOffsets.
-      const fbBody = rasterAwareFallbackBody(seg.text, seg, seg.xOffsets);
-      if (fbBody != null) {
-        segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`);
-      }
-    }
+    segParts.push(result);
     // DM-1723/DM-1725: the element's own decoration plus every ancestor
     // decorating box's propagated entry paint independently (Blink's
     // AppliedTextDecorations accumulation). Decorations anchor on the
@@ -2103,7 +1939,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
-      if (result != null) parts.push(`  ${result}`);
+      parts.push(`  ${result}`);
     }
   } else {
     const lines = el.text.split("\n");
@@ -2119,7 +1955,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
-      if (result != null) parts.push(`  ${result}`);
+      parts.push(`  ${result}`);
     }
   }
   parts.push("</g>");
@@ -2167,7 +2003,7 @@ export function renderInputText(opts: RenderTextOpts): string {
   const inputAxes = opticalVariationSettings(el);
   // DM-991: textareas carry per-LINE textSegments captured via the wrap
   // probe in `walker/input-value.ts`. Iterate them so each visual line
-  // becomes its own `<text>` element at its own y, matching Chrome's
+  // becomes its own source-owned emission run at its own y, matching Chrome's
   // soft-wrap layout. Single-line `<input>` skips this branch (textSegments
   // is undefined for inputs — they only set `inputXOffsets`).
   if (el.textSegments != null && el.textSegments.length > 0) {
@@ -2182,7 +2018,7 @@ export function renderInputText(opts: RenderTextOpts): string {
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
-      if (segResult != null) segParts.push(segResult);
+      segParts.push(segResult);
     }
     if (segParts.length > 0) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`);
   }
@@ -2198,13 +2034,5 @@ export function renderInputText(opts: RenderTextOpts): string {
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints
   // them, not extending past the right border. DM-245.
-  if (result != null) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${result}</g>`);
-
-  // Fallback to CSS <text> if path rendering fails
-  const textY = (el.textTop != null && el.textHeight != null && el.textHeight > 0)
-    ? el.textTop + el.textHeight / 2 : el.y + el.height / 2;
-  const ff = fontFamily.replace(/"/g, "'");
-  const baseStyle = `font-family:${ff};font-size:${r(fontSize)}px;font-weight:${fontWeight};font-kerning:normal;font-optical-sizing:auto;`;
-
-  return anisotropicCorrectionWrap(el, `<text x="${r(textX)}" y="${r(textY)}" dominant-baseline="central" fill="${textColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`);
+  return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${result}</g>`);
 }

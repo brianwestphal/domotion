@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
 import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./font-resolution.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
@@ -914,22 +914,15 @@ function renderOneText(
     // outline point (`reading 'xCoordinate'`), an unsupported bitmap size
     // (`Not a fixed size`), etc., typically on an unsupported-script / color
     // font that only resolves on Linux/Windows — must NOT abort the WHOLE
-    // document render. Chrome paints tofu for these; it never crashes. Fall back
-    // to a plain `<text>` (the consumer browser paints its own glyphs / tofu) so
-    // every other element in the fixture still renders instead of the whole
-    // capture producing zero output.
+    // document render. Chrome paints tofu for these; it never crashes. Keep the
+    // failure at a labeled source-owned boundary so every other element still
+    // renders without asking the consumer browser to select and shape a face.
     const el = opts.el;
-    const fontSize = parseFloat(el.styles.fontSize) || 14;
-    const baselineY = el.y + (el.fontAscent ?? fontSize * 0.8);
-    const styleAttr = el.styles.fontStyle != null && el.styles.fontStyle !== "normal"
-      ? ` font-style="${esc(el.styles.fontStyle)}"` : "";
     console.warn(
       `[element-tree-to-svg] text render failed for <${el.tag}> "${el.text.slice(0, 24)}" ` +
-      `(${e instanceof Error ? e.message : String(e)}) — falling back to <text>`,
+      `(${e instanceof Error ? e.message : String(e)}) — source-owned boundary`,
     );
-    return `<text x="${r(el.x)}" y="${r(baselineY)}" font-family="${esc(el.styles.fontFamily)}"`
-      + ` font-size="${r(fontSize)}" font-weight="${esc(el.styles.fontWeight)}"${styleAttr}`
-      + ` fill="${opts.fillColor}" clip-path="url(#${opts.clipId})" xml:space="preserve">${esc(el.text)}</text>`;
+    return `<g clip-path="url(#${opts.clipId})">${renderSourceOwnedTextBoundary(el.text, "element-render-failed")}</g>`;
   } finally {
     profAccum("text-render", profNow() - _tText);
   }

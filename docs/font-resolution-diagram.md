@@ -2193,31 +2193,38 @@ in `src/render/font-resolution.ts`; `isIdeographicCp` in
 
 ---
 
-## 9. Glyph outline extraction & emission (`commandsFor`)
+## 9. Glyph outline extraction & emission (`resolveGlyphCommands`)
 
 Once a `(font, glyph)` is chosen, the outline is extracted and emitted per render
 mode.
 
 ```mermaid
 flowchart TD
-  E0["shaped glyph from font.layout()"] --> E1{"fontkit path.commands non-empty?"}
-  E1 -->|"yes"| E2["use fontkit outline"]
-  E1 -->|"no & id≠0 & glyphIsInkable & helper avail"| E3["per-glyph helper fallback (DM-891):<br/>helperGlyphOutline(fontSourceMap file, id)<br/>— same file, glyph ids match across engines"]
-  E1 -->|"no & genuine .notdef / inkless"| E4["empty (nothing to draw)"]
+  E0["shaped glyph + source UTF-16 span"] --> E1{"fontkit path.commands non-empty?"}
+  E1 -->|"yes"| E2["source-outline"]
+  E1 -->|"no & source span proven inkless"| E4["legitimately-inkless<br/>retain advance, paint nothing"]
+  E1 -->|"no & inkable & same selected file available"| E3["per-glyph helper fallback (DM-891):<br/>helperGlyphOutline(fontSourceMap file, id)<br/>— same file, glyph ids match across engines"]
+  E1 -->|"no & missing/unclassified/helper unavailable"| E11["exact degraded disposition + UTF-16 span<br/>never consumer-family text"]
+  E3 -->|"outline"| E5
+  E3 -->|"unopenable / glyph unavailable"| E11
   E2 --> E5{"render mode"}
-  E3 --> E5
   E5 -->|"paths"| E6["ensureGlyphDef(key) → &lt;path&gt; in &lt;defs&gt; · &lt;use href=#gN&gt;<br/>(getGlyphDefs / getGlyphDefsSince — live registry)"]
   E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
+  E7 -->|"decline: layout / outline / PUA exhaustion"| E6
+  E11 --> E12["source-owned partial/boundary group<br/>reason + degraded spans; no visible &lt;text&gt;"]
   E7 --> E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
   E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
   E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
 ```
 
-**Source of truth:** `commandsFor` / `helperGlyphOutline` / `glyphIsInkable` /
-`ensureGlyphDef` / `getGlyphDefs` in `src/render/font-resolution.ts`;
+**Source of truth:** `resolveGlyphCommands` / `classifyEmptyGlyphOutline` /
+`helperGlyphOutline` / `ensureGlyphDef` / `getGlyphDefs` in
+`src/render/font-resolution.ts`; `renderSourceOwnedTextBoundary` and the
+ownership ledger in `src/render/text-to-path.ts`;
 `trackGlyphInEmbedFont` / `getBuiltEmbeddedFontFaceCss` in
 `src/render/embedded-font-builder.ts`. Docs [51](51-probe-then-fallback-dispatch.md),
-[52](52-embedded-mode-glyph-fallback.md).
+[52](52-embedded-mode-glyph-fallback.md),
+[152](152-source-owned-text-failure-boundary.md).
 
 **Font flavor (DM-1666):** the subset font is TrueType `glyf`. It is
 deliberately NOT CFF: Chrome rasterizes overlapping same-winding contours in an

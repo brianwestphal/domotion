@@ -245,7 +245,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         xOffsets: seg.verticalCombineXOffsets, fontStyle, ascentOverride: 0,
         fontStretch: el.styles.fontStretch,
       });
-      if (inner != null) out.push(inner);
+      out.push(inner);
       continue;
     }
     // Blink keys fallback by FontDescription::Orientation for the whole run,
@@ -284,7 +284,6 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
           fontOrientation,
           fontStretch: el.styles.fontStretch,
         });
-        if (inner == null) { i += step; continue; }
         const transform = lineRelativeToPhysicalTransform(
           colX, charY, colW, charH, seg.verticalWritingMode,
         );
@@ -318,7 +317,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
           features: vertPunct ? ["vert"] : undefined,
           fontStretch: el.styles.fontStretch,
         });
-        if (inner != null) out.push(inner);
+        out.push(inner);
       }
       i += step;
     }

@@ -24,7 +24,9 @@ Each selected run records:
 - glyph IDs, clusters, advances, and offsets from the selected production
   shaping instance; and
 - emitter and stable emitted identity, plus embedded-success,
-  embedded-decline-to-paths, path-success, or path-decline transitions.
+  embedded-decline-to-paths, path-success, path-decline, or source-owned
+  boundary transitions. DM-2399 adds the exact decline reason and UTF-16
+  degraded spans to those rows.
 
 DM-2423 makes that recorded script operational rather than descriptive: the
 ledger shapes with `FontRun.shapingScript`, the same value used by embedded and
@@ -65,6 +67,8 @@ reports remain embedded in the artifact so a failure retains stage ownership.
 Boundaries remain explicit. The route corpus is representative, not an
 exhaustive Unicode sweep; add a case and independent mutation whenever a new
 assignment owner or emitter transition lands. A protected face whose physical
-member is unknowable retains `faceIndex: null`. Raw consumer-browser `<text>`
-rerouting after total vector failure is outside this ledger and tracked by
-DM-2399.
+member is unknowable retains `faceIndex: null`. DM-2399 closes raw
+consumer-browser `<text>` rerouting after total or partial vector failure; see
+[doc 152](152-source-owned-text-failure-boundary.md). A missing outline is now
+visible in this ledger as an exact source-owned terminal rather than being
+reshaped outside it.

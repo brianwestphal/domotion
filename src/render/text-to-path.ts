@@ -64,6 +64,7 @@ import {
   FontRun,
   ITALIC_SLNT,
   PathCommand,
+  TextPathOwnership,
   TextPathResult,
   codepointResolvesToNotdef,
   commandsFor,
@@ -92,6 +93,7 @@ import {
   resolveFontKey,
   resolveFontKeyChain,
   resolveFontSpec,
+  resolveGlyphCommands,
   setRenderTextMode,
   stretchPercent,
   syntheticMarkCenteringOffsetPx,
@@ -433,6 +435,58 @@ export function synthesizedSmallCapsScale(fontSize: number): number {
   return Math.round(fontSize * 0.7) / fontSize;
 }
 
+function createTextPathOwnership(): TextPathOwnership {
+  return { vectorGlyphs: 0, rasterGlyphs: 0, inklessGlyphs: 0, degradedGlyphs: [] };
+}
+
+function boundedSourceSpan(text: string, start: number, end: number): [number, number] {
+  const lo = Math.max(0, Math.min(text.length, start));
+  const hi = Math.max(lo, Math.min(text.length, end));
+  return [lo, hi];
+}
+
+function codePointsInSourceSpan(text: string, span: [number, number]): number[] {
+  return [...text.slice(span[0], span[1])].map((ch) => ch.codePointAt(0)!);
+}
+
+function noteRasterGlyph(
+  ownership: TextPathOwnership,
+): void {
+  ownership.rasterGlyphs++;
+}
+
+/** Resolve one shaped glyph and preserve the reason for an empty outline.
+ * `commandsFor`'s old command-only return made every empty look harmless, so a
+ * missing helper outline could disappear inside an otherwise successful run.
+ */
+function ownedCommandsFor(
+  ownership: TextPathOwnership,
+  glyph: Parameters<typeof resolveGlyphCommands>[0],
+  fontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  sourceSpan: [number, number],
+  sourceText: string,
+): PathCommand[] {
+  const resolution = resolveGlyphCommands(
+    glyph, fontKey, weight, fontSize, slant,
+    codePointsInSourceSpan(sourceText, sourceSpan),
+  );
+  if (resolution.disposition === "source-outline" || resolution.disposition === "helper-outline") {
+    ownership.vectorGlyphs++;
+  } else if (resolution.disposition === "legitimately-inkless") {
+    ownership.inklessGlyphs++;
+  } else {
+    ownership.degradedGlyphs.push({
+      sourceSpan,
+      glyphId: glyph?.id ?? 0,
+      disposition: resolution.disposition,
+    });
+  }
+  return resolution.commands;
+}
+
 function renderTextPathRuns(
   text: string,
   fontSize: number,
@@ -494,6 +548,7 @@ function renderTextPathRuns(
   fauxBold?: { fill: string },
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): TextPathResult | null {
+  const ownership = createTextPathOwnership();
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
@@ -624,7 +679,7 @@ function renderTextPathRuns(
   // so we route around singleFontMarkup which emits one fixed-scale group.
   if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps
       && runs[0].decomposed !== true && runs[0].font.shapesWithHarfbuzz !== true) {
-    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, fauxBoldAttrFor);
+    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, fauxBoldAttrFor, ownership);
   }
 
   // Content with captured per-char xOffsets. Primary runs and non-shaping
@@ -720,8 +775,15 @@ function renderTextPathRuns(
           const nextI = i + ch.length;
           const uses: string[] = [];
           for (const g of layout.glyphs) {
-            if (glyphUsesRasterRepresentation(run.font, run.fontKey, g, fontSize, weight, slant)) continue;
-            const gCmds = commandsFor(g, run.fontKey, weight, fontSize, slant);
+            if (glyphUsesRasterRepresentation(run.font, run.fontKey, g, fontSize, weight, slant)) {
+              noteRasterGlyph(ownership);
+              continue;
+            }
+            const gCmds = ownedCommandsFor(
+              ownership, g, run.fontKey, weight, fontSize, slant,
+              boundedSourceSpan(text, i, nextI),
+              text,
+            );
             if (gCmds.length === 0) continue;
             // A PUA codepoint with no covering icon font paints its `.notdef`
             // like any other uncovered codepoint — see `singleFontMarkup`'s
@@ -925,6 +987,10 @@ function renderTextPathRuns(
             : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
           const uses: string[] = [];
           const shapedClusters = (layout as typeof layout & { clusters?: number[] }).clusters;
+          const glyphSourceSpans = shapedGlyphSourceSpans(
+            segText, shapeText, layout.glyphs, shapedClusters,
+            shapeDir === "rtl", flipToNative,
+          );
           const placements = blinkSuppressesInterLetterSpacing(seg.script)
             ? (() => {
               let cursorFU = 0;
@@ -948,8 +1014,21 @@ function renderTextPathRuns(
             // advance and GPOS offset. Anchoring only the segment (the previous
             // behavior) discarded spacing between clusters and accumulated a
             // visible drift across ordinary shaped Latin runs.
-            const glyphCmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
-              ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+            const rasterOwned = glyphUsesRasterRepresentation(
+              run.font, run.fontKey, glyph, fontSize, weight, slant,
+            );
+            if (rasterOwned) noteRasterGlyph(ownership);
+            const glyphCmds = rasterOwned
+              ? []
+              : ownedCommandsFor(
+                ownership, glyph, run.fontKey, weight, fontSize, slant,
+                boundedSourceSpan(
+                  text,
+                  run.startIdx + seg.start + glyphSourceSpans[gi][0],
+                  run.startIdx + seg.start + glyphSourceSpans[gi][1],
+                ),
+                text,
+              );
             if (glyphCmds.length > 0) {
               const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
               const tx = placements[gi].xFontUnits;
@@ -967,7 +1046,7 @@ function renderTextPathRuns(
         }
       }
     }
-    return { markup: groups.join(""), width: rightEdge };
+    return { markup: groups.join(""), width: rightEdge, ownership };
   }
 
   // Multi-font path: emit one <g scale> per run, each at its accumulated CSS-x.
@@ -987,13 +1066,33 @@ function renderTextPathRuns(
     const layout = features != null && features.length > 0
       ? run.font.layout(run.text, fontkitFeatureList(features), runScript, lang, runDirection)
       : run.font.layout(run.text, undefined, runScript, lang, runDirection);
+    const glyphSourceSpans = shapedGlyphSourceSpans(
+      run.text,
+      run.text,
+      layout.glyphs,
+      (layout as typeof layout & { clusters?: number[] }).clusters,
+      runDirection === "rtl",
+    );
     const uses: string[] = [];
     let runX = 0;
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
-      const glyphCmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
-        ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+      const rasterOwned = glyphUsesRasterRepresentation(
+        run.font, run.fontKey, glyph, fontSize, weight, slant,
+      );
+      if (rasterOwned) noteRasterGlyph(ownership);
+      const glyphCmds = rasterOwned
+        ? []
+        : ownedCommandsFor(
+          ownership, glyph, run.fontKey, weight, fontSize, slant,
+          boundedSourceSpan(
+            text,
+            run.startIdx + glyphSourceSpans[i][0],
+            run.startIdx + glyphSourceSpans[i][1],
+          ),
+          text,
+        );
       if (glyphCmds.length > 0) {
         const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
         const tx = runX + pos.xOffset;
@@ -1011,6 +1110,7 @@ function renderTextPathRuns(
   return {
     markup: groups.length > 0 ? groups.join("") : "",
     width: xCss,
+    ownership,
   };
 }
 
@@ -1138,6 +1238,52 @@ export interface ShapedClusterPlacement {
   rightCss: number;
 }
 
+/** Map shaped glyphs back to exact source UTF-16 cluster spans. HarfBuzz
+ * cluster indices may repeat for multi-glyph clusters; the next distinct
+ * cluster supplies the end without trusting fontkit's memoized codePoints. */
+export function shapedGlyphSourceSpans(
+  sourceText: string,
+  shapedText: string,
+  glyphs: Array<{ codePoints?: number[] }>,
+  clusters: number[] | undefined,
+  rtl: boolean,
+  reversedForNativeDirection = false,
+): Array<[number, number]> {
+  const clusterStarts = clusters == null
+    ? []
+    : [...new Set(clusters.filter((value) =>
+      Number.isInteger(value) && value >= 0 && value < shapedText.length))]
+      .sort((a, b) => a - b);
+  let fallbackCursor = rtl ? shapedText.length : 0;
+  return glyphs.map((glyph, index) => {
+    const cluster = clusters?.[index];
+    let shapedStart: number;
+    let span: number;
+    if (cluster != null && Number.isInteger(cluster) && cluster >= 0 && cluster < shapedText.length) {
+      shapedStart = cluster;
+      const next = clusterStarts.find((value) => value > cluster) ?? shapedText.length;
+      span = Math.max(1, next - cluster);
+    } else {
+      const cpCount = glyph.codePoints != null && glyph.codePoints.length > 0
+        ? glyph.codePoints.length
+        : 1;
+      if (rtl) {
+        span = sourceClusterSpan(shapedText, fallbackCursor, cpCount, true);
+        shapedStart = Math.max(0, fallbackCursor - span);
+        fallbackCursor = shapedStart;
+      } else {
+        shapedStart = fallbackCursor;
+        span = sourceClusterSpan(shapedText, fallbackCursor, cpCount, false);
+        fallbackCursor += span;
+      }
+    }
+    const sourceStart = reversedForNativeDirection
+      ? Math.max(0, sourceText.length - shapedStart - span)
+      : shapedStart;
+    return boundedSourceSpan(sourceText, sourceStart, sourceStart + span);
+  });
+}
+
 /** Map a shaped glyph stream back onto Blink's captured post-spacing cluster
  * origins. Glyphs sharing one cluster retain their HarfBuzz advance/offset;
  * spacing between clusters comes exclusively from capture. */
@@ -1205,7 +1351,8 @@ function singleFontMarkup(
    *  decision; a single-font run is the case where the outer group and the run
    *  coincide, so the placement is moot here — it stays a callback purely so
    *  the two branches cannot drift on WHETHER to synthesize. */
-  fauxBoldAttrFor?: (font: FontInstance, groupScale: number) => string,
+  fauxBoldAttrFor: ((font: FontInstance, groupScale: number) => string) | undefined = undefined,
+  ownership: TextPathOwnership = createTextPathOwnership(),
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
   const run = features != null && features.length > 0
@@ -1236,8 +1383,19 @@ function singleFontMarkup(
     for (let gi = 0; gi < run.glyphs.length; gi++) {
       const glyph = run.glyphs[gi];
       const pos = run.positions[gi];
-      const dCmds = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant)
-        ? [] : commandsFor(glyph, fontKey, weight, fontSize, slant);
+      const cps = glyph.codePoints;
+      const clusterSpan = sourceClusterSpan(
+        text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, false,
+      );
+      const rasterOwned = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant);
+      if (rasterOwned) noteRasterGlyph(ownership);
+      const dCmds = rasterOwned
+        ? []
+        : ownedCommandsFor(
+          ownership, glyph, fontKey, weight, fontSize, slant,
+          boundedSourceSpan(text, textIdx, textIdx + clusterSpan),
+          text,
+        );
       if (textIdx < xOffsets.length && dCmds.length > 0) {
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds, stretch);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
@@ -1251,18 +1409,19 @@ function singleFontMarkup(
       // (memoized) Glyph misreports those. Good enough for the Latin ligature
       // cases we hit; Arabic/Devanagari/Thai re-ordering goes through the
       // multi-font run path, not here.
-      const cps = glyph.codePoints;
-      textIdx += sourceClusterSpan(text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, false);
+      textIdx += clusterSpan;
     }
     return {
       markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})"${fauxBoldAttrFor?.(font, sc) ?? ""}>${uses.join("")}</g>` : "",
       width: xOffsets[xOffsets.length - 1] + nativeWidth / Math.max(1, text.length),
+      ownership,
     };
   }
   const usePerChar = xOffsets != null && xOffsets.length === run.glyphs.length;
   const sc = Number(scale.toFixed(5));
   const uses: string[] = [];
   let x = 0;
+  let sourceCursor = 0;
   // Every glyph the shaper produced is emitted, `.notdef` included. Chrome does
   // the same: for a codepoint nothing covers, Blink's fallback iterator ends at
   // `kFirstCandidateForNotdefGlyph` and paints the RUN'S OWN font's `.notdef`
@@ -1283,8 +1442,19 @@ function singleFontMarkup(
   for (let i = 0; i < run.glyphs.length; i++) {
     const glyph = run.glyphs[i];
     const pos = run.positions[i];
-    const eCmds = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant)
-      ? [] : commandsFor(glyph, fontKey, weight, fontSize, slant);
+    const cps = glyph.codePoints;
+    const clusterSpan = sourceClusterSpan(
+      text, sourceCursor, cps != null && cps.length > 0 ? cps.length : 1, false,
+    );
+    const rasterOwned = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant);
+    if (rasterOwned) noteRasterGlyph(ownership);
+    const eCmds = rasterOwned
+      ? []
+      : ownedCommandsFor(
+        ownership, glyph, fontKey, weight, fontSize, slant,
+        boundedSourceSpan(text, sourceCursor, sourceCursor + clusterSpan),
+        text,
+      );
     if (eCmds.length > 0) {
       const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds, stretch);
       let tx: number;
@@ -1321,10 +1491,12 @@ function singleFontMarkup(
       uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
     }
     x += pos.xAdvance;
+    sourceCursor += clusterSpan;
   }
   return {
     markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})"${fauxBoldAttrFor?.(font, sc) ?? ""}>${uses.join("")}</g>` : "",
     width: usePerChar ? (xOffsets![xOffsets!.length - 1] + nativeWidth / run.glyphs.length) : (targetWidth ?? nativeWidth),
+    ownership,
   };
 }
 
@@ -2007,6 +2179,24 @@ function isFullyTransparentColor(fill: string): boolean {
   return m != null;
 }
 
+export type EmbeddedTextDeclineReason =
+  | "primary-font-unresolved"
+  | "empty-shaped-runs"
+  | "layout-failed"
+  | "glyph-outline-unavailable"
+  | "pua-exhausted"
+  | "all-raster-owned"
+  | "all-inkless"
+  | "no-emittable-glyphs";
+
+export interface EmbeddedTextAttempt {
+  markup: string | null;
+  decline?: {
+    reason: EmbeddedTextDeclineReason;
+    glyphDisposition?: Exclude<ReturnType<typeof resolveGlyphCommands>["disposition"], "source-outline" | "helper-outline" | "legitimately-inkless">;
+  };
+}
+
 /**
  * DM-655: emit text as `<text>` elements backed by custom-built TTFs that
  * contain just the shaped glyphs the run uses. Mirrors textToPathMarkup's
@@ -2025,9 +2215,9 @@ function isFullyTransparentColor(fill: string): boolean {
  * which carries fontkit's shaped advance widths — so intra-run kerning
  * and cluster spacing matches what Chrome painted.
  *
- * Returns null when the run can't be rendered (resolveFont failed, a glyph
- * outline is missing, or the PUA-A block ran out). The caller falls
- * through to paths-mode emission in that case.
+ * Returns a classified decline when the run can't be embedded (resolveFont
+ * failed, a glyph outline is missing, or the PUA-A block ran out). The
+ * coordinator records the reason and enters paths mode.
  */
 function renderEmbeddedGlyphRuns(
   text: string,
@@ -2066,10 +2256,10 @@ function renderEmbeddedGlyphRuns(
   /** CSS bidi override applied before Blink's script/run segmentation. */
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
   fallbackRequest?: { rawSlope: number; orientation: number },
-): string | null {
+): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
-  if (primaryFont == null) return null;
+  if (primaryFont == null) return { markup: null, decline: { reason: "primary-font-unresolved" } };
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
   // DM-1103: the optical-cut opsz `resolveFont` pinned for the primary face,
@@ -2079,7 +2269,7 @@ function renderEmbeddedGlyphRuns(
   const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
   const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride, fallbackRequest);
-  if (runs.length === 0) return null;
+  if (runs.length === 0) return { markup: null, decline: { reason: "empty-shaped-runs" } };
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
   // carrying a disable or an explicit value shapes through HarfBuzz with the
@@ -2129,6 +2319,8 @@ function renderEmbeddedGlyphRuns(
     strokeAttr: string;
   }
   const pending: PendingSeg[] = [];
+  let rasterOwnedGlyphs = 0;
+  let inklessGlyphs = 0;
   let cssX = 0;
   // Track whether per-char xOffsets covered EVERY glyph in EVERY run. If
   // they did, glyph positions are already Chrome-accurate and the
@@ -2241,7 +2433,7 @@ function renderEmbeddedGlyphRuns(
         ? run.font.layout(shapingText, fontkitFeatureList(features), run.shapingScript, lang, runDirection)
         : run.font.layout(shapingText, undefined, run.shapingScript, lang, runDirection);
     } catch {
-      return null;
+      return { markup: null, decline: { reason: "layout-failed" } };
     }
 
     // Per-instance key: a stable identifier for (resolved font, axes). Two
@@ -2388,7 +2580,6 @@ function renderEmbeddedGlyphRuns(
     const perGlyph: PerGlyph[] = [];
     let runCssFamily: string | null = null;
     let runCursorFontUnits = 0;
-    let glyphFailed = false;
     // DM-906 + DM-940: fontkit returns shaped glyphs in VISUAL order for
     // RTL scripts (Arabic, Hebrew) and LOGICAL order for LTR scripts.
     // The xOffsets pipeline keys each glyph to its source logical
@@ -2484,20 +2675,9 @@ function renderEmbeddedGlyphRuns(
       // overlay owns the paint, while this shaped glyph still owns placement.
       const rasterOwned = glyphUsesRasterRepresentation(
         run.font, run.fontKey, glyph, fontSize, weight, slant);
-      const cmds = rasterOwned ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
-      const placement = rasterOwned ? null : trackGlyphInEmbedFont(
-        instanceKey, run.font.unitsPerEm, runAscent, runDescent,
-        glyph.id, cmds, glyph.advanceWidth,
-        // Tag the custom-TTF entry with the variant we resolved. The `@font-face`
-        // rule then carries matching `font-style: italic` / `font-weight: N`
-        // descriptors so Chromium consumes the SVG's `font-style="italic"` /
-        // `font-weight=N` attributes as an EXACT match — no faux-italic /
-        // faux-bold synthesised on top of glyphs whose slant / weight is
-        // already baked in.
-        { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource, runToken: run },
-      );
-      if (!rasterOwned && placement == null) { glyphFailed = true; break; }
-      if (placement != null && runCssFamily == null) runCssFamily = placement.cssFamily;
+      const commandResolution = rasterOwned
+        ? null
+        : resolveGlyphCommands(glyph, run.fontKey, weight, fontSize, slant);
 
       let xCss: number;
       let yCss = 0;
@@ -2625,6 +2805,37 @@ function renderEmbeddedGlyphRuns(
         ? isLegitimatelyInklessCodepoint(srcCpForInk)
         : (glyph.codePoints != null && glyph.codePoints.length > 0
           && glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp)));
+      let placement: ReturnType<typeof trackGlyphInEmbedFont> = null;
+      if (rasterOwned) {
+        rasterOwnedGlyphs++;
+      } else if (glyphInkless) {
+        inklessGlyphs++;
+      } else if (commandResolution == null || commandResolution.commands.length === 0) {
+        return {
+          markup: null,
+          decline: {
+            reason: "glyph-outline-unavailable",
+            ...(commandResolution == null
+              || commandResolution.disposition === "source-outline"
+              || commandResolution.disposition === "helper-outline"
+              || commandResolution.disposition === "legitimately-inkless"
+              ? {}
+              : { glyphDisposition: commandResolution.disposition }),
+          },
+        };
+      } else {
+        placement = trackGlyphInEmbedFont(
+          instanceKey, run.font.unitsPerEm, runAscent, runDescent,
+          glyph.id, commandResolution.commands, glyph.advanceWidth,
+          // The descriptor exactly matches the already-resolved/baked face;
+          // the consumer browser performs neither face selection nor shaping.
+          { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource, runToken: run },
+        );
+        if (placement == null) {
+          return { markup: null, decline: { reason: "pua-exhausted" } };
+        }
+        if (runCssFamily == null) runCssFamily = placement.cssFamily;
+      }
       if (!rasterOwned && !glyphInkless && placement != null) {
         perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
       }
@@ -2648,7 +2859,6 @@ function renderEmbeddedGlyphRuns(
       const zeroAdvance = srcCpsForAdvance.length > 0 && srcCpsForAdvance.every((cp) => isHarfbuzzDefaultIgnorable(cp));
       runCursorFontUnits += zeroAdvance ? 0 : pos.xAdvance;
     }
-    if (glyphFailed) return null;
     // A run made entirely of selected raster glyphs contributes advance but no
     // embedded glyph segment. Keep walking so adjacent vector runs remain in
     // embedded mode; if every run is raster-owned, `pending` stays empty and
@@ -2696,7 +2906,14 @@ function renderEmbeddedGlyphRuns(
     cssX += runCursorFontUnits * runScale;
   }
 
-  if (pending.length === 0) return null;
+  if (pending.length === 0) {
+    const reason: EmbeddedTextDeclineReason = rasterOwnedGlyphs > 0 && inklessGlyphs === 0
+      ? "all-raster-owned"
+      : inklessGlyphs > 0 && rasterOwnedGlyphs === 0
+        ? "all-inkless"
+        : "no-emittable-glyphs";
+    return { markup: null, decline: { reason } };
+  }
   const segments: string[] = [];
 
   // DM-907: apply targetWidth scaling now that we know the full
@@ -2746,13 +2963,13 @@ function renderEmbeddedGlyphRuns(
     }
   }
 
-  if (segments.length === 0) return null;
+  if (segments.length === 0) return { markup: null, decline: { reason: "no-emittable-glyphs" } };
 
   // Accessibility: wrap the per-font `<text>` segments in a labeled <g>
   // so screen readers + Find-In-Page see the ORIGINAL text. The visible
   // glyph stream is PUA codepoints, which AT would otherwise read as
   // garbage. The aria-label / <title> carry the human-readable form.
-  return `<g role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${segments.join("")}</g>`;
+  return { markup: `<g role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${segments.join("")}</g>` };
 }
 
 /** Embedded-mode coordinator; shaping/subsetting/emission lives above. */
@@ -2779,7 +2996,7 @@ function renderTextAsEmbedded(
   fontSynthesis?: FontSynthesisAllowance,
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
   fallbackRequest?: { rawSlope: number; orientation: number },
-): string | null {
+): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
     text, x, y, fontSize, fontFamily, fontWeight, fill, xOffsets, fontStyle,
     ascentOverride, features, lang, variationSettings, textStrokeWidth,
@@ -3018,6 +3235,36 @@ export interface RenderTextOptions extends TextFontOptions {
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string };
 }
 
+export type SourceOwnedTextBoundaryReason =
+  | EmbeddedTextDeclineReason
+  | "path-primary-font-unresolved"
+  | "path-layout-failed"
+  | "element-render-failed"
+  | "path-outline-unavailable"
+  | "path-all-raster-owned"
+  | "path-all-inkless"
+  | "path-no-emittable-glyphs";
+
+/**
+ * A deterministic terminal for text whose selected face/gid cannot be painted
+ * as a source outline. It deliberately contains no visible SVG `<text>` and no
+ * authored font-family: the consumer browser therefore cannot make a new face
+ * selection. Capture-owned raster overlays are composed by the caller beside
+ * this marker; genuinely missing outlines remain an explicit, accessible,
+ * machine-diagnosable degraded boundary.
+ */
+export function renderSourceOwnedTextBoundary(
+  text: string,
+  reason: SourceOwnedTextBoundaryReason,
+  degraded: TextPathOwnership["degradedGlyphs"] = [],
+): string {
+  const details = degraded.length === 0
+    ? ""
+    : ` data-domotion-text-degraded-spans="${escAttr(degraded.map((item) =>
+      `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
+  return `<g role="img" aria-label="${escAttr(text)}" data-domotion-text-owner="source-boundary" data-domotion-text-boundary="${reason}"${details}><title>${escAttr(text)}</title></g>`;
+}
+
 /**
  * Render text as SVG markup using path outlines with <defs>/<use> deduplication.
  * Returns a <g> element containing <use> references, positioned at (x, y) top.
@@ -3027,7 +3274,7 @@ export function renderTextAsPath(
   x: number,
   y: number,
   options: RenderTextOptions,
-): string | null {
+): string {
   const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
     features, lang, variationSettings, textStrokeWidth, textStrokeColor,
     paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji,
@@ -3059,25 +3306,10 @@ export function renderTextAsPath(
     ({ text, xOffsets } = stripOrphanedDefaultIgnorables(text, xOffsets));
   }
 
-  // DM-652: opt-in embedded-font path. When `setRenderTextMode("embedded-font")`
-  // is active AND we hold a webfont buffer that matches the requested
-  // (family, weight, italic), bypass glyph-path emission and emit a single
-  // `<text>` element instead. The browser's native text engine then
-  // rasters the run, caches the glyph atlas at the compositor layer, and
-  // skips the per-frame path-rasterization cost that bottlenecks WebKit
-  // on text-heavy scroll composites (DM-651: 14.7 fps → ~Chromium parity).
-  //
-  // Falls through to paths mode in two cases:
-  //   1. No webfont in the family stack has a retained buffer — system
-  //      fonts (SF Pro / Helvetica / etc.) aren't embeddable from this
-  //      path yet, so they keep using `<use href="#gN">`.
-  //   2. `textToPathMarkup` would have returned null below (unrenderable).
-  //
-  // Positioning: a single `<text x= y=>` lets the browser shape natively.
-  // We don't pass the captured `xOffsets` — they're fontkit-shaped
-  // positions, and forwarding them as per-glyph `<tspan dx=>` would defeat
-  // the engine's atlas cache. Acceptable per the opt-in tradeoff: some
-  // sub-pixel kerning drift vs. Chromium-shaped output.
+  // The default embedded path emits already-shaped glyph IDs through generated
+  // PUA codepoints in a generated `dmfN` font, with explicit captured origins.
+  // The consumer does no authored-text shaping or family fallback. A classified
+  // embedded decline enters the source-outline path below.
   if (currentRenderTextMode === "embedded-font") {
     // DM-655: emit `<text>` against a custom-built TTF that contains the
     // exact shaped glyphs Chrome painted with — webfont or system font,
@@ -3086,18 +3318,24 @@ export function renderTextAsPath(
     // partitioned webfonts (Geist split across Latin/Cyrillic), fallback-
     // chain runs (Helvetica → Apple Symbols), and primary-only runs all
     // get the SAME font decision the path-mode renderer would have made.
-    // Returns null to fall through to glyph-path emission when the run
-    // can't be embedded (font failed to resolve, layout threw, PUA-A
-    // exhausted, etc.) — paths-mode is the safe always-correct fallback.
+    // A classified null markup falls through to source glyph paths when the run
+    // can't be embedded (font failed to resolve, layout threw, PUA-A exhausted,
+    // etc.). No authored family is emitted at either terminal.
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
       textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
       fontSynthesis, bidiOverride, fallbackRequest);
-    if (embedded != null) {
+    if (embedded.markup != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
-      return embedded;
+      return embedded.markup;
     }
-    recordTextEmitterTransition({ kind: "embedded-declined-to-paths", sourceText: text });
+    recordTextEmitterTransition({
+      kind: "embedded-declined-to-paths",
+      sourceText: text,
+      reason: embedded.decline?.glyphDisposition == null
+        ? embedded.decline?.reason
+        : `${embedded.decline.reason}:${embedded.decline.glyphDisposition}`,
+    });
   }
 
   // DM-1984: `-webkit-text-stroke` already occupies the stroke attributes, and
@@ -3108,16 +3346,53 @@ export function renderTextAsPath(
   // ordinary one — gets the per-run frame.
   const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0
     && textStrokeColor != null && textStrokeColor !== "";
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
-    wantsTextStroke ? undefined : { fill }, fallbackRequest);
-  if (result == null || result.markup === "") {
-    recordTextEmitterTransition({ kind: "paths-declined", sourceText: text });
-    return null;
+  let result: TextPathResult | null;
+  try {
+    result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
+      wantsTextStroke ? undefined : { fill }, fallbackRequest);
+  } catch {
+    const reason = "path-layout-failed" as const;
+    recordTextEmitterTransition({ kind: "paths-declined", sourceText: text, reason });
+    recordTextEmitterTransition({ kind: "source-owned-boundary", sourceText: text, reason });
+    return renderSourceOwnedTextBoundary(text, reason);
   }
-  recordTextEmitterTransition({ kind: "paths-succeeded", sourceText: text });
+  if (result == null) {
+    const reason = "path-primary-font-unresolved" as const;
+    recordTextEmitterTransition({ kind: "paths-declined", sourceText: text, reason });
+    recordTextEmitterTransition({ kind: "source-owned-boundary", sourceText: text, reason });
+    return renderSourceOwnedTextBoundary(text, reason);
+  }
+  if (result.markup === "") {
+    const reason: SourceOwnedTextBoundaryReason = result.ownership.degradedGlyphs.length > 0
+      ? "path-outline-unavailable"
+      : result.ownership.rasterGlyphs > 0 && result.ownership.inklessGlyphs === 0
+        ? "path-all-raster-owned"
+        : result.ownership.inklessGlyphs > 0 && result.ownership.rasterGlyphs === 0
+          ? "path-all-inkless"
+          : "path-no-emittable-glyphs";
+    recordTextEmitterTransition({
+      kind: "paths-declined", sourceText: text, reason,
+      degradedSpans: result.ownership.degradedGlyphs,
+    });
+    recordTextEmitterTransition({
+      kind: "source-owned-boundary", sourceText: text, reason,
+      degradedSpans: result.ownership.degradedGlyphs,
+    });
+    return renderSourceOwnedTextBoundary(text, reason, result.ownership.degradedGlyphs);
+  }
+  recordTextEmitterTransition({
+    kind: "paths-succeeded", sourceText: text,
+    ...(result.ownership.degradedGlyphs.length === 0
+      ? {}
+      : { reason: "partial-source-outline", degradedSpans: result.ownership.degradedGlyphs }),
+  });
 
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
-  if (font == null) return null;
+  if (font == null) {
+    const reason = "path-primary-font-unresolved" as const;
+    recordTextEmitterTransition({ kind: "source-owned-boundary", sourceText: text, reason });
+    return renderSourceOwnedTextBoundary(text, reason, result.ownership.degradedGlyphs);
+  }
 
   const scale = fontSize / font.unitsPerEm;
   // Use the captured fontBoundingBoxAscent when available — that's the exact
@@ -3210,7 +3485,11 @@ export function renderTextAsPath(
   // which is where Chrome's `SkFont.setSkewX` pivots too.
   const shear = faceNeedsSyntheticOblique(font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
     ? ` matrix(1,0,${-OBLIQUE_SHEAR},1,0,0)` : "";
-  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
+  const degradedAttr = result.ownership.degradedGlyphs.length === 0
+    ? ""
+    : ` data-domotion-text-owner="source-partial" data-domotion-text-degraded-spans="${esc(result.ownership.degradedGlyphs.map((item) =>
+      `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
+  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"${degradedAttr}><title>${esc(text)}</title>${result.markup}</g>`;
 }
 
 /**

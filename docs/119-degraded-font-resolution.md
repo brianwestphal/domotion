@@ -60,6 +60,12 @@ browser-side probe is present.
 6. Synthetic-bold/oblique decisions degrade when native face traits or resolved
    variation coordinates are unavailable; the renderer prefers avoiding a
    double synthesis over guessing that a real bold/italic trait is absent.
+7. An empty selected glyph outline is classified by source span and helper
+   evidence. Successful outlines and capture-owned raster spans remain painted;
+   an unresolved span is recorded at the
+   [source-owned text boundary](152-source-owned-text-failure-boundary.md).
+   Degraded mode never hands the authored family to the consumer browser for a
+   second selection/shaping pass.
 
 `DOMOTION_HELPER_NO_SERVE=1` is not degraded mode. It changes only the helper
 transport from the persistent channel to one-shot processes and must preserve

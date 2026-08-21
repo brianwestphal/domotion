@@ -13,20 +13,16 @@ import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
 
 // DM-1557: a typing overlay's wrapped lines paint as GLYPH PATHS
 // (`<g class="tN-text"><g transform="translate(x,baseline)" aria-label="…">`)
-// when the font resolves, or a native `<text>` fallback otherwise. These
-// helpers read either form so the wrap/baseline assertions are markup-agnostic.
+// when the font resolves. A resolution failure is a labeled source-owned group,
+// never authored `<text>`; these helpers read the glyph group's accessible name.
 function decodeXml(s: string): string {
   return s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 }
 function typedLineTexts(svg: string, id = "t0"): string[] {
-  const glyph = [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`, "g"))].map((m) => decodeXml(m[1]));
-  if (glyph.length > 0) return glyph;
-  return [...svg.matchAll(new RegExp(`<text class="${id}-text"[^>]*>([^<]*)</text>`, "g"))].map((m) => decodeXml(m[1]));
+  return [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`, "g"))].map((m) => decodeXml(m[1]));
 }
 function typedLineBaselines(svg: string, id = "t0"): number[] {
-  const glyph = [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g transform="translate\\([\\d.]+,([\\d.]+)\\)`, "g"))].map((m) => Number(m[1]));
-  if (glyph.length > 0) return glyph;
-  return [...svg.matchAll(new RegExp(`<text class="${id}-text" x="\\d+" y="([\\d.]+)"`, "g"))].map((m) => Number(m[1]));
+  return [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g transform="translate\\([\\d.]+,([\\d.]+)\\)`, "g"))].map((m) => Number(m[1]));
 }
 
 // DM-1145: cross-frame id de-duplication. A caller that reuses identical
@@ -812,11 +808,9 @@ describe("animator", () => {
       for (let i = 1; i < edges.length; i++) if (edges[i] < edges[i - 1] - 0.01) return true;
       return false;
     };
-    // The wrong glyph paints as a glyph-path group (`<g class="t0-mis0"><g
-    // aria-label="x">`) or a `<text>` fallback — read either.
+    // The wrong glyph paints as a source-owned glyph-path group.
     const mistakeChar = (svg: string, n = 0): string | undefined =>
-      svg.match(new RegExp(`<g class="t0-mis${n}"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`))?.[1]
-      ?? svg.match(new RegExp(`<text class="t0-mis${n}"[^>]*>([^<]*)</text>`))?.[1];
+      svg.match(new RegExp(`<g class="t0-mis${n}"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`))?.[1];
 
     it("an explicit mistake paints the wrong glyph and retreats the caret", () => {
       const svg = mk({ mistakes: [{ at: 2, wrong: "x" }] });
@@ -932,7 +926,7 @@ describe("animator", () => {
     it("paints with the overridden family as glyph paths", () => {
       const svg = mk("Georgia, serif");
       // The first line paints as a glyph-path <g aria-label="…"> group (not a
-      // <text> fallback). The EXACT wrap point is font-dependent — macOS resolves
+      // consumer-text fallback). The EXACT wrap point is font-dependent — macOS resolves
       // Georgia and breaks after "Wire Wave"; a platform without Georgia (Linux
       // CI) falls back to a narrower serif that fits "Wire Wave William" — so
       // assert the robust prefix, not the exact macOS split.

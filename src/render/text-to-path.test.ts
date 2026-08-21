@@ -1,12 +1,12 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
-import { _builderInstanceKeys, _builderRegistrySize, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { _builderInstanceKeys, _builderRegistrySize, _setBuilderNextPuaForTest, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { resolveInstalledFont } from "./glyph-helper.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
 import { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
@@ -1367,6 +1367,34 @@ describe("commandsFor (per-glyph fallback routing)", () => {
     expect(commandsFor({ path: { commands: [] }, id: 7 }, "helvetica", 400, 16, 0)).toEqual([]);
   });
 
+  it.each([
+    ["missing glyph", { glyphPresent: false, glyphId: 0, codePoints: [0x41], helperAvailable: true }, "missing-glyph"],
+    ["empty .notdef", { glyphPresent: true, glyphId: 0, codePoints: [0xE000], helperAvailable: true }, "missing-glyph"],
+    ["space", { glyphPresent: true, glyphId: 3, codePoints: [0x20], helperAvailable: true }, "legitimately-inkless"],
+    ["unclassified cluster", { glyphPresent: true, glyphId: 4, helperAvailable: true }, "unclassified-empty-glyph"],
+    ["helper absent", { glyphPresent: true, glyphId: 5, codePoints: [0x41], helperAvailable: false }, "helper-unavailable"],
+    ["source absent", { glyphPresent: true, glyphId: 6, codePoints: [0x41], helperAvailable: true, sourceAvailable: false }, "source-unavailable"],
+    ["helper face unopenable", { glyphPresent: true, glyphId: 7, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: "font-unopenable" as const }, "helper-font-unopenable"],
+    ["helper glyph unavailable", { glyphPresent: true, glyphId: 8, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: "glyph-unavailable" as const }, "helper-glyph-unavailable"],
+    ["helper outline", { glyphPresent: true, glyphId: 9, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: "outline" as const }, "helper-outline"],
+  ])("classifies the %s empty-outline activation row", (_label, evidence, expected) => {
+    expect(classifyEmptyGlyphOutline(evidence)).toBe(expected);
+  });
+
+  it("reports source outline ownership without consulting the helper", () => {
+    const cmds = [{ command: "moveTo", args: [0, 0] }];
+    expect(resolveGlyphCommands(
+      { path: { commands: cmds }, id: 11, codePoints: [0x41] }, "helvetica", 400, 16, 0,
+    )).toEqual({ commands: cmds, disposition: "source-outline" });
+  });
+
+  it("uses source-cluster codepoints instead of an aliased Glyph payload", () => {
+    expect(resolveGlyphCommands(
+      { path: { commands: [] }, id: 11, codePoints: [0x41] },
+      "helvetica", 400, 16, 0, [0x20],
+    ).disposition).toBe("legitimately-inkless");
+  });
+
   // Positive end-to-end: synthesize the (otherwise-nonexistent on macOS)
   // "fontkit returned empty for an inkable glyph" condition and confirm the
   // fallback pulls that glyph's real outline from the native helper. Gated on
@@ -1383,6 +1411,41 @@ describe("commandsFor (per-glyph fallback routing)", () => {
     const fallback = commandsFor({ path: { commands: [] }, id: hId, codePoints: [0x48] }, "helvetica", 400, 16, 0);
     expect(fallback.length).toBeGreaterThan(0);            // the helper produced a real outline
     expect(fallback.some((c) => c.command === "moveTo")).toBe(true);
+  });
+});
+
+describe("source-owned no-outline boundary (DM-2399)", () => {
+  it("is accessible and diagnostic without any visible consumer-shaped text", () => {
+    const markup = renderSourceOwnedTextBoundary("A<&😀", "path-outline-unavailable", [{
+      sourceSpan: [3, 5], glyphId: 42, disposition: "helper-font-unopenable",
+    }]);
+    expect(markup).toContain('aria-label="A&lt;&amp;😀"');
+    expect(markup).toContain('data-domotion-text-boundary="path-outline-unavailable"');
+    expect(markup).toContain('data-domotion-text-degraded-spans="3-5:42:helper-font-unopenable"');
+    expect(markup).not.toMatch(/<text(?:\s|>)/);
+    expect(markup).not.toContain("font-family");
+  });
+
+  it("terminates all-inkless text without consumer shaping", () => {
+    const markup = renderTextAsPath(" \u200B", 0, 0, {
+      fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 4],
+    });
+    expect(markup).toContain('data-domotion-text-boundary="path-all-inkless"');
+    expect(markup).not.toMatch(/<text(?:\s|>)/);
+  });
+
+  it("never re-emits a missing authored family for consumer-side resolution", () => {
+    const family = "Dm2399 Definitely Missing Family";
+    const markup = renderTextAsPath("Missing family", 0, 0, {
+      fontSize: 16, fontFamily: family, fontWeight: "400", fill: "#000",
+    });
+    expect(markup).not.toContain(`font-family="${family}"`);
+    for (const body of markup.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) {
+      expect([...body[1]].every((ch) => {
+        const cp = ch.codePointAt(0)!;
+        return cp >= 0xE000 && cp <= 0xF8FF;
+      })).toBe(true);
+    }
   });
 });
 
@@ -2665,16 +2728,18 @@ describe("Selected raster glyphs suppress vector emission (DM-334 / DM-2392)", (
     // Render just "✨" with a captured xOffset. Primary=Times → no glyph.
     // Chain is ["zapf-dingbats", "symbols"] — neither has ✨, so picked
     // would be the chain's last entry (symbols) producing tofu. With the
-    // selected-glyph suppression, the markup is empty and
-    // renderTextAsPath returns null (no <g> wrapper for empty content).
+    // selected-glyph suppression, vector markup is empty; the returned
+    // boundary prevents a consumer-font retry while capture owns the pixels.
     const out = renderTextAsPath("✨", 0, 0,
       { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0] });
-    expect(out).toBeNull();
+    expect(out).toContain('data-domotion-text-boundary="path-all-raster-owned"');
+    expect(out).not.toMatch(/<text(?:\s|>)/);
   });
   it("emits no <use> for U+1F600 😀 / U+1F680 🚀 (main emoji blocks)", () => {
     const out = renderTextAsPath("😀🚀", 0, 0,
       { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 0, 18, 18] });
-    expect(out).toBeNull();
+    expect(out).toContain('data-domotion-text-boundary="path-all-raster-owned"');
+    expect(out).not.toMatch(/<text(?:\s|>)/);
   });
   it.skipIf(!MACOS_FONTS)("emits text-but-no-emoji-tofu in mixed runs (Smile 😀)", () => {
     // Mixed text: "Smile 😀" — the five inked letters emit Times glyphs;
@@ -3117,6 +3182,7 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
 describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () => {
   const SFNS_PATH = "/System/Library/Fonts/SFNS.ttf";
   const fontBuf = fs.existsSync(SFNS_PATH) ? fs.readFileSync(SFNS_PATH) : null;
+  const fixtureFontBuf = fs.readFileSync("assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf");
 
   beforeEach(() => {
     clearWebfonts();
@@ -3144,6 +3210,37 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     }
     return cps;
   }
+
+  it("routes PUA exhaustion to source paths without exposing authored text (cross-platform fixture)", () => {
+    registerWebfont("Dm2399Pua", 400, "normal", fixtureFontBuf);
+    const first = renderTextAsPath("A", 0, 0, {
+      fontSize: 24, fontFamily: "Dm2399Pua", fontWeight: "400", fill: "#000",
+    });
+    expect(first).toMatch(/<text[^>]+font-family="dmf\d+"/);
+    const key = _builderInstanceKeys()[0];
+    expect(key).toBeTruthy();
+    expect(_setBuilderNextPuaForTest(key!, 0xF900)).toBe(true);
+
+    setTextRunProvenanceEnabled(true);
+    resetTextRunProvenance();
+    try {
+      const fallback = renderTextAsPath("B", 0, 0, {
+        fontSize: 24, fontFamily: "Dm2399Pua", fontWeight: "400", fill: "#000",
+      });
+      expect(fallback).toContain("<use href=\"#g");
+      expect(fallback).not.toMatch(/<text(?:\s|>)/);
+      expect(fallback).not.toContain('font-family="Dm2399Pua"');
+      expect(getTextRunProvenance().transitions).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          kind: "embedded-declined-to-paths", sourceText: "B", reason: "pua-exhausted",
+        }),
+        expect.objectContaining({ kind: "paths-succeeded", sourceText: "B" }),
+      ]));
+    } finally {
+      setTextRunProvenanceEnabled(false);
+      resetTextRunProvenance();
+    }
+  });
 
   it("emits <text> with PUA codepoints in the body (not the original text)", async () => {
     if (fontBuf == null) return;
@@ -3529,6 +3626,32 @@ describe("sourceClusterSpan (shared-Glyph codePoints aliasing)", () => {
     expect(sourceClusterSpan("ab", 2, 1, false)).toBe(1);
     expect(sourceClusterSpan("ab", 0, 1, true)).toBe(1);
     expect(sourceClusterSpan("", 0, 3, false)).toBe(1);
+  });
+});
+
+describe("shapedGlyphSourceSpans (DM-2399 ownership spans)", () => {
+  it("uses distinct HarfBuzz cluster boundaries across an astral scalar", () => {
+    expect(shapedGlyphSourceSpans(
+      "A😀 B", "A😀 B", [{}, {}, {}, {}], [0, 1, 3, 4], false,
+    )).toEqual([[0, 1], [1, 3], [3, 4], [4, 5]]);
+  });
+
+  it("shares one exact span across every glyph in a ligature cluster", () => {
+    expect(shapedGlyphSourceSpans(
+      "fi!", "fi!", [{}, {}, {}], [0, 0, 2], false,
+    )).toEqual([[0, 2], [0, 2], [2, 3]]);
+  });
+
+  it("maps reversed native-direction clusters back to logical source", () => {
+    expect(shapedGlyphSourceSpans(
+      "אב", "בא", [{}, {}], [0, 1], false, true,
+    )).toEqual([[1, 2], [0, 1]]);
+  });
+
+  it("walks legacy RTL glyph order backwards when clusters are absent", () => {
+    expect(shapedGlyphSourceSpans(
+      "אב", "אב", [{}, {}], undefined, true,
+    )).toEqual([[1, 2], [0, 1]]);
   });
 });
 

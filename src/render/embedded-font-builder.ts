@@ -812,3 +812,12 @@ export function _builderEntryState(instanceKey: string): {
 export function _builderInstanceKeys(): string[] {
   return [...builderRegistry.keys()];
 }
+
+/** Test-only: move one live entry's allocator to a boundary value without
+ * registering 6,400 distinct glyphs. Returns false when the key is absent. */
+export function _setBuilderNextPuaForTest(instanceKey: string, nextPua: number): boolean {
+  const entry = builderRegistry.get(instanceKey);
+  if (entry == null) return false;
+  entry.nextPua = nextPua;
+  return true;
+}

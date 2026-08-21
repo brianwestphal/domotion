@@ -7662,23 +7662,75 @@ function clampAxesToFvarRange(axes: Record<string, number>, fileAxes: Record<str
   return axes;
 }
 const helperFontCache = new Map<string, FontInstance | null>();       // path → helper instance | null
-const helperOutlineCache = new Map<string, PathCommand[] | null>();   // `${path}#${id}` → commands | null
+
+export type GlyphCommandDisposition =
+  | "source-outline"
+  | "helper-outline"
+  | "legitimately-inkless"
+  | "missing-glyph"
+  | "unclassified-empty-glyph"
+  | "helper-unavailable"
+  | "source-unavailable"
+  | "helper-font-unopenable"
+  | "helper-glyph-unavailable";
+
+export interface GlyphCommandResolution {
+  commands: PathCommand[];
+  disposition: GlyphCommandDisposition;
+}
+
+interface HelperOutlineResolution {
+  commands: PathCommand[];
+  disposition: "helper-outline" | "helper-font-unopenable" | "helper-glyph-unavailable";
+}
+
+const helperOutlineCache = new Map<string, HelperOutlineResolution>(); // `${path}#${id}` → classified result
 
 
 // A glyph is worth probing the helper for only if at least one source codepoint
-// is plausibly inkable. Unknown codepoints (decomposed glyphs / ligatures with
-// no codePoints array) → conservatively NOT inkable (don't over-fire).
-function glyphIsInkable(glyph: { codePoints?: number[] }): boolean {
+// is plausibly inkable. Keep UNKNOWN separate from genuinely inkless: both
+// avoid an invented helper lookup, but only the latter is source-owned empty
+// paint. Collapsing them was the partial-output hole DM-2399 closes.
+function glyphInkExpectation(glyph: { codePoints?: number[] }): "inkable" | "inkless" | "unknown" {
   const cps = glyph.codePoints;
-  if (cps == null || cps.length === 0) return false;
-  return !cps.every((cp) => isLegitimatelyInklessCodepoint(cp));
+  if (cps == null || cps.length === 0) return "unknown";
+  return cps.every((cp) => isLegitimatelyInklessCodepoint(cp)) ? "inkless" : "inkable";
+}
+
+export interface EmptyGlyphOutlineEvidence {
+  glyphPresent: boolean;
+  glyphId: number;
+  codePoints?: number[];
+  helperAvailable: boolean;
+  /** Undefined until the selected instance has been resolved back to a file. */
+  sourceAvailable?: boolean;
+  /** Undefined until the native helper has been asked for this gid. */
+  helperResult?: "outline" | "font-unopenable" | "glyph-unavailable";
+}
+
+/** Pure classification table for the empty-outline branch. Production uses
+ * the `probe-helper` result to perform the next source-backed probe; tests pin
+ * every terminal row without depending on one host's installed helpers/fonts. */
+export function classifyEmptyGlyphOutline(
+  evidence: EmptyGlyphOutlineEvidence,
+): GlyphCommandDisposition | "probe-helper" {
+  if (!evidence.glyphPresent || evidence.glyphId === 0) return "missing-glyph";
+  const expectation = glyphInkExpectation({ codePoints: evidence.codePoints });
+  if (expectation === "inkless") return "legitimately-inkless";
+  if (expectation === "unknown") return "unclassified-empty-glyph";
+  if (!evidence.helperAvailable) return "helper-unavailable";
+  if (evidence.sourceAvailable === false) return "source-unavailable";
+  if (evidence.sourceAvailable !== true || evidence.helperResult == null) return "probe-helper";
+  if (evidence.helperResult === "outline") return "helper-outline";
+  return evidence.helperResult === "font-unopenable"
+    ? "helper-font-unopenable"
+    : "helper-glyph-unavailable";
 }
 
 /** Fetch glyph `glyphId`'s outline from the native helper opening `srcPath`.
- *  Cached per (path, id) — probed at most once per process. Returns null when
- *  the helper is unavailable / can't open the font / the glyph is empty there
- *  too (i.e. genuinely inkless — leave it empty, no point emitting). */
-function helperGlyphOutline(srcPath: string, postscriptName: string | undefined, glyphId: number): PathCommand[] | null {
+ * Cached per (path, id) and preserves whether the face could not be opened or
+ * the selected glyph produced no path; those are distinct degraded facts. */
+function helperGlyphOutline(srcPath: string, postscriptName: string | undefined, glyphId: number): HelperOutlineResolution {
   const cacheKey = `${srcPath}#${glyphId}`;
   const cached = helperOutlineCache.get(cacheKey);
   if (cached !== undefined) return cached;
@@ -7689,35 +7741,73 @@ function helperGlyphOutline(srcPath: string, postscriptName: string | undefined,
     helperFontCache.set(srcPath, helper);
   }
 
-  let cmds: PathCommand[] | null = null;
-  if (helper != null) {
+  let result: HelperOutlineResolution;
+  if (helper == null) {
+    result = { commands: [], disposition: "helper-font-unopenable" };
+  } else {
     try {
       const g = (helper as any).getGlyph(glyphId);
-      const c: PathCommand[] = g?.path?.commands ?? [];
-      cmds = c.length > 0 ? c : null;
-    } catch { cmds = null; }
+      const commands: PathCommand[] = g?.path?.commands ?? [];
+      result = commands.length > 0
+        ? { commands, disposition: "helper-outline" }
+        : { commands: [], disposition: "helper-glyph-unavailable" };
+    } catch {
+      result = { commands: [], disposition: "helper-glyph-unavailable" };
+    }
   }
-  helperOutlineCache.set(cacheKey, cmds);
-  return cmds;
+  helperOutlineCache.set(cacheKey, result);
+  return result;
 }
 
-/** The outline commands to emit for a shaped glyph: fontkit's when present,
- *  else the per-glyph helper fallback (DM-891) when the glyph is inkable, the
- *  helper is available, and the font was loaded from a real file. Empty array
- *  when there's genuinely nothing to draw. Exported for unit testing (not in
- *  the package barrel). */
-export function commandsFor(glyph: FontkitGlyph | null | undefined, fontKey: string, weight: number, fontSize: number, slant: number): PathCommand[] {
+/**
+ * Resolve the concrete outline representation for one already-shaped glyph.
+ *
+ * Blink has already selected the face/gid at this point. Skia either requests
+ * that face's path, retains only metrics for a raster-owned glyph, or paints no
+ * ink for a genuine empty. A consumer-side CSS-family retry is not one of those
+ * outcomes. Keep every empty reason explicit so callers can preserve successful
+ * source spans and terminate an unavailable outline at a documented degraded
+ * boundary instead of silently presenting a partial run as complete.
+ */
+export function resolveGlyphCommands(
+  glyph: FontkitGlyph | null | undefined,
+  fontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  /** Source-derived codepoints for this shaped cluster. fontkit memoizes Glyph
+   * objects by gid, so `glyph.codePoints` is only a fallback when the emitter
+   * cannot map the glyph back to source text. */
+  sourceCodePoints?: number[],
+): GlyphCommandResolution {
   const cmds: PathCommand[] = glyph?.path?.commands ?? [];
-  if (cmds.length > 0) return cmds;
-  if (glyph == null || glyph.id === 0) return cmds;       // genuine .notdef
-  if (!glyphIsInkable(glyph)) return cmds;                 // legitimately inkless
-  if (!isGlyphHelperAvailable()) return cmds;
+  if (cmds.length > 0) return { commands: cmds, disposition: "source-outline" };
+  const helperAvailable = isGlyphHelperAvailable();
+  const initial = classifyEmptyGlyphOutline({
+    glyphPresent: glyph != null,
+    glyphId: glyph?.id ?? 0,
+    codePoints: sourceCodePoints ?? glyph?.codePoints,
+    helperAvailable,
+  });
+  if (initial !== "probe-helper") return { commands: [], disposition: initial };
   // Re-resolve the instance (cache hit) to read the exact file fontkit loaded.
   // variationSettings don't affect the file path, so they're omitted here.
   const inst = getFontInstance(fontKey, weight, fontSize, slant);
   const src = inst != null ? fontSourceMap.get(inst as unknown as object) : undefined;
-  if (src == null) return cmds;                            // helper instance / webfont → no fallback
-  return helperGlyphOutline(src.path, src.postscriptName, glyph.id) ?? cmds;
+  if (src == null) {
+    return { commands: [], disposition: classifyEmptyGlyphOutline({
+      glyphPresent: true, glyphId: glyph!.id,
+      codePoints: sourceCodePoints ?? glyph!.codePoints,
+      helperAvailable, sourceAvailable: false,
+    }) as GlyphCommandDisposition };
+  }
+  return helperGlyphOutline(src.path, src.postscriptName, glyph!.id);
+}
+
+/** Backward-compatible command-only projection used outside the ownership-aware
+ * text emitter. New routing code must consume `resolveGlyphCommands` instead. */
+export function commandsFor(glyph: FontkitGlyph | null | undefined, fontKey: string, weight: number, fontSize: number, slant: number): PathCommand[] {
+  return resolveGlyphCommands(glyph, fontKey, weight, fontSize, slant).commands;
 }
 
 /** Test-only: clear the per-glyph fallback caches (helper instances + outlines). */
@@ -9377,11 +9467,31 @@ export function restoreGeneration(snapshot: GenerationSnapshot): void {
 
 // ── Text Rendering ──
 
+export interface TextPathOwnershipSpan {
+  /** UTF-16 source coordinates. A shaping cluster may cover several scalars. */
+  sourceSpan: [number, number];
+  glyphId: number;
+  disposition: GlyphCommandDisposition | "capture-raster";
+}
+
+export interface TextPathOwnership {
+  /** Successful source-backed vector outlines (fontkit or native helper). */
+  vectorGlyphs: number;
+  /** Selected glyphs whose concrete pixels are supplied by capture overlays. */
+  rasterGlyphs: number;
+  /** Empty glyphs proven to represent no painted ink. */
+  inklessGlyphs: number;
+  /** Empty outline outcomes that are neither raster-owned nor proven no-ink. */
+  degradedGlyphs: TextPathOwnershipSpan[];
+}
+
 export interface TextPathResult {
   /** SVG markup: <use> references for each glyph */
   markup: string;
   /** Actual rendered width in CSS pixels */
   width: number;
+  /** Paint ownership for every glyph that reached the path emitter. */
+  ownership: TextPathOwnership;
 }
 
 /**

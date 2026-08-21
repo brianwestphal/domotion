@@ -107,8 +107,9 @@ export const typingOverlaySchema = z.object({
    * simulated typing matches the surrounding UI — including PROPORTIONAL
    * families, which lay out and wrap correctly because the text is rendered as
    * glyph paths (DM-1557) driven by the family's measured per-glyph advances.
-   * A first-choice family that can't be resolved falls back through the stack;
-   * if nothing resolves the reveal degrades to a native `<text>` element.
+   * A first-choice family that can't be resolved falls back through the captured
+   * stack; if nothing resolves, the reveal emits a source-owned diagnostic
+   * boundary rather than asking the consumer browser to choose a face.
    *
    * DM-1579: the sentinel `"anchor"` auto-resolves the family (and, unless an
    * explicit `fontSize` is set, the size) from the overlay's anchored field's
