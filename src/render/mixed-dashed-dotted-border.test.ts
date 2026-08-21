@@ -70,3 +70,41 @@ describe("square mixed dashed/dotted border joints (DM-2429)", () => {
     expect(line).toContain('x1="17" y1="78.5" x2="110" y2="78.5"');
   });
 });
+
+describe("rounded mixed dashed/dotted border paths (DM-2430)", () => {
+  const rounded = {
+    borderRadius: "18px",
+    borderTopLeftRadius: "18px", borderTopRightRadius: "18px",
+    borderBottomRightRadius: "18px", borderBottomLeftRadius: "18px",
+  };
+
+  it.each([
+    ["all corners", rounded],
+    ["asymmetric corners", { ...rounded, borderTopRightRadius: "4px", borderBottomLeftRadius: "26px" }],
+    ["missing adjacent side", { ...rounded, borderTopStyle: "none" }],
+  ])("strokes one closed centerline and clips it to each side: %s", (_name, overrides) => {
+    const svg = render(overrides);
+    const paths = svg.split("\n").filter(line => line.includes("<path") && line.includes("stroke="));
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toContain('stroke="rgb(210,153,34)"');
+    expect(paths[1]).toContain('stroke="rgb(139,148,158)"');
+    const d = /\bd="([^"]+)"/.exec(paths[0])?.[1];
+    expect(d).toBeTruthy();
+    expect(paths[1]).toContain(`d="${d}"`);
+    expect(paths.every(path => path.includes('clip-path="url(#bc'))).toBe(true);
+    expect(svg).not.toContain('<line x1="109" y1="20"');
+  });
+
+  it("keeps logical side thickness while the vector ring owns antialias clipping", () => {
+    const svg = render({ ...rounded, borderTopWidth: "12px", borderLeftWidth: "10px" });
+    const right = svg.split("\n").find(line => line.includes('<path') && line.includes('stroke="rgb(210,153,34)"'));
+    expect(right).toContain('stroke-width="2"');
+  });
+
+  it("keeps the closed-path dash plan invariant when side colors and paint order change", () => {
+    const first = render(rounded);
+    const second = render({ ...rounded, borderRightColor: "rgb(1,2,3)", borderBottomColor: "rgb(4,5,6)" });
+    const arrays = (svg: string) => [...svg.matchAll(/<path[^>]+stroke-dasharray="([^"]+)"/g)].map(match => match[1]);
+    expect(arrays(second)).toEqual(arrays(first));
+  });
+});

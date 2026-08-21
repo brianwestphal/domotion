@@ -1694,11 +1694,13 @@ function emitBorderSide(
   doubleSides: Array<[number, number, number, number]>,
   useTrapezoid: (side: ReturnType<typeof parseSide>) => boolean,
   hasOuterRadius: boolean,
+  curvedStyledSide: boolean,
   sideClipForStyle: (i: number, side: ReturnType<typeof parseSide>) => string,
 ): void {
   const [side, x1, y1, x2, y2, len] = sides[i];
   if (side == null || side.w <= 0 || side.color.a < 0.01) return;
   if (side.style === "none" || side.style === "hidden") return;
+  if (curvedStyledSide && (side.style === "dashed" || side.style === "dotted")) return;
   if (useTrapezoid(side)) {
     // DM-773: solid sides with rounded corners already emitted as
     // annular wedges above (geometry-correct for any radius). Skip
@@ -1943,9 +1945,44 @@ function paintPerSideBorder(
       roundBorderSideClipPolygon("bottom", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
       roundBorderSideClipPolygon("left", bxL, bxT, bxR, bxB, corners, tw, rw, bw, lw),
     ];
-    // The outer-outline group still wraps the non-solid branches so their
-    // straight `<line>` strokes get trimmed to the rounded outline at the
-    // corners. Solid sides emit their own annular wedge BEFORE the group
+    const curvedStyledSide = hasOuterRadius && !hasNonRoundContour;
+    if (curvedStyledSide) {
+      // Blink's curved dashed/dotted branch does not stroke four independent
+      // straight sides. It strokes the complete closed border centerline for
+      // every side, then clips that stroke to the side's rounded miter wedge.
+      // This preserves dash continuity through the corner arc and lets the
+      // side clip, rather than a line endpoint, own each mixed-color joint.
+      const centerCorners = insetCornerRadii(corners, tw / 2, rw / 2, bw / 2, lw / 2);
+      const centerX = bxL + lw / 2;
+      const centerY = bxT + tw / 2;
+      const centerW = Math.max(0, bxR - bxL - (lw + rw) / 2);
+      const centerH = Math.max(0, bxB - bxT - (tw + bw) / 2);
+      const centerPath = roundedRectPath(centerX, centerY, centerW, centerH, centerCorners);
+      const centerLength = roundedRectPerimeter(centerW, centerH, centerCorners);
+      const ringMaskId = ctx.nextClipId("bm");
+      ctx.defsParts.push(`<mask id="${ringMaskId}"><path d="${annularPath}" fill="white" fill-rule="evenodd"/></mask>`);
+      for (let i = 0; i < sides.length; i++) {
+        const side = sides[i][0];
+        if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
+        if (side.style !== "dashed" && side.style !== "dotted") continue;
+        const thinDotted = side.style === "dotted" && Math.round(side.w) <= 3;
+        // Blink expands this stroke to 2.2 * max-adjacent-width solely so its
+        // raster clip can antialias the border-ring edges. SVG clips/masks are
+        // vector-antialiased themselves, so preserve the resulting logical
+        // ink thickness here rather than copying that Skia overdraw width.
+        const strokeWidth = side.w;
+        const dash = adjustedClosedDashArray(side.style, side.w, centerLength, thinDotted);
+        const cid = ctx.nextClipId("bc");
+        ctx.defsParts.push(`<clipPath id="${cid}"><polygon points="${annularWedges[i]}"/></clipPath>`);
+        const linecap = side.style === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
+        const dashAttr = dash === "" ? "" : ` stroke-dasharray="${dash}"`;
+        ctx.svgParts.push(`${indent}<path d="${centerPath}" fill="none" stroke="${colorStr(side.color)}" stroke-width="${r(strokeWidth)}"${dashAttr}${linecap} clip-path="url(#${cid})" mask="url(#${ringMaskId})" />`);
+      }
+    }
+    // The outer-outline group still wraps the remaining non-solid branches
+    // (notably double) so their straight strokes get trimmed to the rounded
+    // outline. Dashed/dotted sides were emitted as closed curved paths above.
+    // Solid sides emit their own annular wedge BEFORE the group
     // opens (and use their own per-side wedge clip), so they fall outside
     // this wrapping — the wedge clip is tighter than the outer outline
     // anyway.
@@ -1972,7 +2009,7 @@ function paintPerSideBorder(
       roundedSideGroupOpen = true;
     }
     for (let i = 0; i < sides.length; i++) {
-      emitBorderSide(ctx, indent, i, sides, trapezoids, doubleSides, useTrapezoid, hasOuterRadius, sideClipForStyle);
+      emitBorderSide(ctx, indent, i, sides, trapezoids, doubleSides, useTrapezoid, hasOuterRadius, curvedStyledSide, sideClipForStyle);
     }
     if (roundedSideGroupOpen) ctx.svgParts.push(`${indent}</g>`);
 }
@@ -5791,6 +5828,50 @@ function romanMarker(n: number): string {
  */
 function adjustedDashArray(style: string, width: number, sideLength: number): string {
   return adjustedDashAttrs(style, width, sideLength).array;
+}
+
+function quarterEllipseLength(rx: number, ry: number): number {
+  if (rx <= 0 || ry <= 0) return Math.max(rx, ry);
+  // Fixed Simpson integration is deterministic and sub-millipixel accurate for
+  // the CSS corner aspect ratios used here; Blink asks Path::length() for this
+  // same centerline before selecting a closed-path dash gap.
+  const steps = 64;
+  const h = (Math.PI / 2) / steps;
+  let sum = 0;
+  for (let i = 0; i <= steps; i++) {
+    const t = i * h;
+    const speed = Math.hypot(rx * Math.sin(t), ry * Math.cos(t));
+    sum += speed * (i === 0 || i === steps ? 1 : i % 2 === 0 ? 2 : 4);
+  }
+  return sum * h / 3;
+}
+
+function roundedRectPerimeter(width: number, height: number, corners: CornerRadii): number {
+  const horizontal = Math.max(0, width - corners.tl.h - corners.tr.h)
+    + Math.max(0, width - corners.bl.h - corners.br.h);
+  const vertical = Math.max(0, height - corners.tl.v - corners.bl.v)
+    + Math.max(0, height - corners.tr.v - corners.br.v);
+  return horizontal + vertical
+    + quarterEllipseLength(corners.tl.h, corners.tl.v)
+    + quarterEllipseLength(corners.tr.h, corners.tr.v)
+    + quarterEllipseLength(corners.br.h, corners.br.v)
+    + quarterEllipseLength(corners.bl.h, corners.bl.v);
+}
+
+function adjustedClosedDashArray(style: string, width: number, pathLength: number, thinDotted: boolean): string {
+  if (pathLength <= 0 || width <= 0) return "";
+  if (style === "dashed") {
+    const dashLength = width * (width >= 3 ? 2 : 3);
+    const targetGap = width * (width >= 3 ? 1 : 2);
+    const gap = selectBestDashGap(pathLength, dashLength, targetGap, true);
+    return gap > 0 ? `${r(dashLength)} ${r(gap)}` : "";
+  }
+  if (style === "dotted") {
+    if (thinDotted) return `${r(Math.round(width))} ${r(Math.round(width))}`;
+    const gap = selectBestDashGap(pathLength, width, width, true);
+    return gap > 0 ? `0.01 ${r(gap + width - 0.01)}` : "";
+  }
+  return "";
 }
 
 /**

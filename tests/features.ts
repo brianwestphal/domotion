@@ -931,6 +931,25 @@ export const tests: FeatureTest[] = [
     width: 320,
     height: 90,
   },
+  {
+    // Blink strokes one closed rounded centerline per visible dashed/dotted
+    // side, then clips it to that side's miter wedge. This matrix crosses
+    // widths, colors, missing sides, asymmetric radii, and side orientation;
+    // the old straight-line-plus-outer-clip route visibly loses every arc.
+    name: "border-rounded-mixed-dashed-dotted",
+    html: `<div style="padding:16px;background:#0d1117;display:grid;grid-template-columns:repeat(4,92px);gap:14px">
+      <i style="width:72px;height:52px;border-radius:18px;border-top:4px solid #f85149;border-right:2px dashed #d29922;border-bottom:6px dotted #8b949e;border-left:8px solid #58a6ff"></i>
+      <i style="width:72px;height:52px;border-radius:28px 5px 20px 9px;border-top:10px solid #58a6ff;border-right:3px dashed #f85149;border-bottom:5px dotted #3fb950;border-left:2px solid #d29922"></i>
+      <i style="width:72px;height:52px;border-radius:22px;border-top:none;border-right:7px dotted #bc8cff;border-bottom:2px dashed #58a6ff;border-left:5px solid #3fb950"></i>
+      <i style="width:72px;height:52px;border-radius:8px 24px;border-top:3px dashed #3fb950;border-right:9px solid #f85149;border-bottom:4px dotted #d29922;border-left:none"></i>
+      <i style="width:72px;height:52px;border-radius:26px;border-top:8px dotted #f85149;border-right:2px solid #58a6ff;border-bottom:3px dashed #bc8cff;border-left:5px solid #3fb950"></i>
+      <i style="width:72px;height:52px;border-radius:5px 20px 30px 12px;border-top:2px solid #d29922;border-right:6px dotted #8b949e;border-bottom:9px solid #58a6ff;border-left:3px dashed #f85149"></i>
+      <i style="width:72px;height:52px;border-radius:50%;border-top:4px dashed #58a6ff;border-right:8px solid #3fb950;border-bottom:6px dotted #f85149;border-left:2px solid #d29922"></i>
+      <i style="width:72px;height:52px;border-radius:16px;border:0;border-top:5px dotted #bc8cff;border-left:7px dashed #d29922"></i>
+    </div>`,
+    width: 440,
+    height: 180,
+  },
 
   // ── Regression: element opacity applies to children (SK-434) ──
   // opacity: 0.5 on the parent should tint both its bg AND its text/child badge.

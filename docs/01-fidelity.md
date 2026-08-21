@@ -41,8 +41,10 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] border-style: solid, dashed, dotted. Mixed-side dashed/dotted borders use
   Blink's full outer-edge side path and miter clip ownership; thick dots inset
   their round-cap endpoints by half the side width, while widths 1--3 retain
-  Blink's square-dot endpoint enforcement. Adjacent widths never shorten the
-  path or alter its dash phase.
+  Blink's square-dot endpoint enforcement. Rounded mixed sides stroke the full
+  closed border centerline and intersect it with both the border ring and the
+  side's rounded miter wedge, preserving dash continuity through corner arcs.
+  Adjacent widths never shorten the path or alter its dash phase.
 - [x] border-style: double, groove, ridge, inset, outset — implemented in the `src/render/element-tree-to-svg.ts` uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
 - [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/14

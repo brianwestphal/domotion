@@ -1146,6 +1146,95 @@
           "branch": "ci/dm2339-fresh-sweep"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2eb3g5nimqeqpk",
+          "message": {
+            "text": "Rounded mixed dashed/dotted sides must share one closed centerline and be intersected by two independent boundaries: the annular border ring and the side miter wedge. This transcribes pinned Chromium 7d859f271c BoxBorderPainter::DrawCurvedDashedDottedBoxSide and ClipBorderSidePolygon. Blink’s 2.2x max-adjacent stroke is raster antialias overdraw; retaining that physical width in vector SVG produced 6.36% diff, while preserving the CSS logical width under SVG’s vector mask produces 0 regions / 0.00% on the eight-case live matrix.",
+            "markdown": "Rounded mixed dashed/dotted sides must share one closed centerline and be intersected by two independent boundaries: the annular border ring and the side miter wedge. This transcribes pinned Chromium 7d859f271c BoxBorderPainter::DrawCurvedDashedDottedBoxSide and ClipBorderSidePolygon. Blink’s 2.2x max-adjacent stroke is raster antialias overdraw; retaining that physical width in vector SVG produced 6.36% diff, while preserving the CSS logical width under SVG’s vector mask produces 0 regions / 0.00% on the eight-case live matrix."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1950,
+                  "endLine": 1979,
+                  "snippet": {
+                    "text": "      // Blink's curved dashed/dotted branch does not stroke four independent\n      // straight sides. It strokes the complete closed border centerline for\n      // every side, then clips that stroke to the side's rounded miter wedge.\n      // This preserves dash continuity through the corner arc and lets the\n      // side clip, rather than a line endpoint, own each mixed-color joint.\n      const centerCorners = insetCornerRadii(corners, tw / 2, rw / 2, bw / 2, lw / 2);\n      const centerX = bxL + lw / 2;\n      const centerY = bxT + tw / 2;\n      const centerW = Math.max(0, bxR - bxL - (lw + rw) / 2);\n      const centerH = Math.max(0, bxB - bxT - (tw + bw) / 2);\n      const centerPath = roundedRectPath(centerX, centerY, centerW, centerH, centerCorners);\n      const centerLength = roundedRectPerimeter(centerW, centerH, centerCorners);\n      const ringMaskId = ctx.nextClipId(\"bm\");\n      ctx.defsParts.push(`<mask id=\"${ringMaskId}\"><path d=\"${annularPath}\" fill=\"white\" fill-rule=\"evenodd\"/></mask>`);\n      for (let i = 0; i < sides.length; i++) {\n        const side = sides[i][0];\n        if (side == null || side.w <= 0 || side.color.a < 0.01) continue;\n        if (side.style !== \"dashed\" && side.style !== \"dotted\") continue;\n        const thinDotted = side.style === \"dotted\" && Math.round(side.w) <= 3;\n        // Blink expands this stroke to 2.2 * max-adjacent-width solely so its\n        // raster clip can antialias the border-ring edges. SVG clips/masks are\n        // vector-antialiased themselves, so preserve the resulting logical\n        // ink thickness here rather than copying that Skia overdraw width.\n        const strokeWidth = side.w;\n        const dash = adjustedClosedDashArray(side.style, side.w, centerLength, thinDotted);\n        const cid = ctx.nextClipId(\"bc\");\n        ctx.defsParts.push(`<clipPath id=\"${cid}\"><polygon points=\"${annularWedges[i]}\"/></clipPath>`);\n        const linecap = side.style === \"dotted\" && !thinDotted ? ` stroke-linecap=\"round\"` : \"\";\n        const dashAttr = dash === \"\" ? \"\" : ` stroke-dasharray=\"${dash}\"`;\n        ctx.svgParts.push(`${indent}<path d=\"${centerPath}\" fill=\"none\" stroke=\"${colorStr(side.color)}\" stroke-width=\"${r(strokeWidth)}\"${dashAttr}${linecap} clip-path=\"url(#${cid})\" mask=\"url(#${ringMaskId})\" />`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 947
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mixed-dashed-dotted-border.test.ts"
+                },
+                "region": {
+                  "startLine": 75
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2430"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4026a059bbbb61030709b1c26082a09b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c575e614070d10472c9ec8b5b08f314e3b1ddf9d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
