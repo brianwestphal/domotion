@@ -30,10 +30,10 @@ may be preceded by a declared or priority face.
 | --- | --- | --- | --- | --- |
 | Primary and later declared families | None until those faces shape `.notdef` | The caller's exact primary instance or a declared/webfont partition | Cluster tests cover primary and segmented webfont acceptance | No per-run source/member/axis record tied to emitted glyphs |
 | Shape-then-requeue cluster fallback | The resolver supplies only the `system` iterator stage | Contiguous `FontRun`s, then a same-face HarfBuzz shaping proxy | `_clusterFallbackCounters`, cluster tests, and `DOMOTION_CLUSTER_FALLBACK=0` A/B | Counters prove invocation, not which selected source produced each emitted glyph |
-| Legacy per-codepoint fallback | It is the whole assignment procedure | Per-codepoint runs, followed by a HarfBuzz shaping override | Flag-off and decline tests exercise it | A decline is not recorded with its reason; an artifact cannot distinguish flag-off from an unopenable face |
+| Legacy per-codepoint fallback | It is the whole assignment procedure | Per-codepoint runs, followed by a HarfBuzz shaping override | Only the explicit `DOMOTION_CLUSTER_FALLBACK=0` arm exercises it | Default shaping never restarts here after an unopenable candidate; the route oracle records `cluster-disabled-legacy` only for the mutation arm |
 | Priority emoji face | Bypassed for the one-shot priority candidate; the resolver may run afterward | Color-capable run or later fallback | Cluster priority counters and font-variant-emoji tests | Raster-overlay ownership can replace vector emission after this choice |
-| Dotted-circle pinned span | Bypassed; `resolveDottedCircleHbRun` selects the mark companion face first | A forced single-face dotted-circle/mark run | Focused dotted-circle tests | Candidate gates are non-Blink and tracked by DM-2393 |
-| Math/NFD decomposed commit | Resolver returns substituted text and a face; the cluster loop commits it directly | A run whose emitted text differs from its source span | Resolver decomposition tests | This is deliberately outside Blink's iterator and is included in DM-2387 |
+| Dotted-circle shaping | The resolver may supply the ordinary system-stage candidate; no mark face is pinned | The authored range shaped on the iterator-selected face; HarfBuzz alone may insert U+25CC | Orphan/explicit-circle exact records plus the cluster-disabled mutation | Capture compatibility rewrites remain separately classified; they are not fallback owners |
+| Canonical decomposition | The resolver may supply candidate coverage evidence; substituted text is not committed | The authored range shaped by that candidate's HarfBuzz normalizer | Menlo composition and broad exact glyph/cluster/advance rows | Helper-absent legacy decomposition remains confined to the explicit legacy route |
 | Feature and general HarfBuzz overrides | Selection is already complete | A proxy that preserves the selected outline/source face and changes shaping only | Exact shaping controls move features/script/language/direction | The proxy identity is not joined to the eventual glyph definition/subset |
 | Paths emitter | The selected `FontRun` is consumed directly | `<path>` definitions and `<use>` placements | Glyph-path run tests | Glyph IDs are globally renumbered into `gN`; the SVG cannot recover face/file/axes or the selecting mechanism |
 | Embedded-font emitter | The selected `FontRun` is consumed directly | PUA-mapped `<text>` plus hb-subset or svg2ttf bytes | `EmbeddedFontBuildDiagnostic` proves aggregate source/builder state | Diagnostics have no source spans, selected keys, clusters, or embedded-decline reason |
@@ -52,10 +52,11 @@ may be preceded by a declared or priority face.
    HarfBuzz proxy and feature-value proxy change `layout`, not the underlying
    outline/source object. Synthetic bold/oblique and embedded rebuilding change
    emitted geometry, but not which face supplied the source glyph.
-3. **There are four genuine alternate assignment owners:** the legacy decline
-   path, dotted-circle pinning, decomposed commits, and emoji priority. The
-   existing DM-2387, DM-2393, DM-2392, and DM-2330 tickets already own their
-   logical reconciliation; this audit does not duplicate them.
+3. **DM-2387 removed the implicit alternate assignment owners.** Dotted-circle
+   insertion and canonical decomposition now occur inside shaping the current
+   iterator candidate, and an unopenable candidate cannot restart the run with
+   per-codepoint assignment. The explicit flag-off legacy arm and Blink's
+   in-iterator emoji-priority stage remain independently observable.
 4. **DM-2398 closed the representative observability gap.** The opt-in
    production ledger now retains per-span mechanism, concrete source, shaping,
    emitter identity, and embedded-to-path transition evidence and joins its

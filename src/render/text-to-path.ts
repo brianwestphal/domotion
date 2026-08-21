@@ -226,15 +226,15 @@ export function synthSmallCapsCharScale(
  * Default: Blink's shape-then-requeue mechanism at shaped-cluster granularity
  * (`splitTextIntoFontRunsShaped`, docs/113 — `ExtractShapeResults`,
  * `platform/fonts/shaping/harfbuzz_shaper.cc:627-787`, rev 7d859f27), invoked
- * in its "paths" mode so the emitter's per-run `decomposed`
- * flags (which pick the emitter's run-text branch). This makes the glyph-path
- * and embedded pipelines assign the SAME fonts to the same partially-covered
- * clusters — previously this walk decided per codepoint from cmap coverage
- * before any shaping, so the two modes could disagree about one cluster.
+ * in its "paths" mode. This makes the glyph-path and embedded pipelines assign
+ * the SAME fonts to the same partially-covered clusters — previously this walk
+ * decided per codepoint from cmap coverage before any shaping, so the two modes
+ * could disagree about one cluster. A face the local HarfBuzz bridge cannot
+ * open remains a candidate in that state machine; it does not restart the run
+ * through another assignment algorithm.
  *
- * A decline (a face HarfBuzz cannot open, or a violated contract) falls back
- * to the legacy per-codepoint walk below; `DOMOTION_CLUSTER_FALLBACK=0`
- * restores that walk wholesale for an A/B.
+ * `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk solely
+ * as an explicit mutation arm.
  */
 export function splitTextIntoGlyphPathRuns(
   text: string,
@@ -259,14 +259,13 @@ export function splitTextIntoGlyphPathRuns(
 ): FontRun[] {
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
+    return splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
       mode: "paths", features, bidiOverride,
       fallbackRawSlope: fallbackRequest?.rawSlope,
       fallbackOrientation: fallbackRequest?.orientation,
     });
-    if (shaped != null) return shaped;
   }
-  const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = clusterEnabled ? "cluster-decline-legacy" : "cluster-disabled-legacy";
+  const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = "cluster-disabled-legacy";
   const runs: FontRun[] = [];
   let curKey = primaryFontKey;
   let curFontOverride: FontInstance | null = null; // DM-557: per-codepoint webfont variant
@@ -613,12 +612,8 @@ function renderTextPathRuns(
   // slice xOffsets per run (SK-1255).
   // Default: shaped-cluster granularity via the shared shape-then-requeue
   // splitter (docs/113) in its "paths" mode — the same cluster decisions the
-  // embedded pipeline makes — with the legacy per-codepoint walk as the
-  // decline / flag-off fallback. See `splitTextIntoGlyphPathRuns`.
-  // `decomposed` marks runs whose `text` is not the source slice (substituted
-  // Math-Alphanumeric base letters, dotted-circle clusters); those render
-  // through the run-text / min-x anchored branch — the per-char path (which
-  // reads `text` by index) can't be used for them.
+  // embedded pipeline makes. The legacy per-codepoint walk exists only behind
+  // the explicit mutation flag. See `splitTextIntoGlyphPathRuns`.
   const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride, fallbackRequest);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
@@ -2023,19 +2018,19 @@ function splitTextIntoFontRuns(
 ): FontRun[] {
   // Default: fallback at shaped-cluster granularity — Blink's shape-then-
   // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
-  // 7d859f27) instead of the per-codepoint cmap walk below. A decline (null)
-  // falls through to the legacy walk, and `DOMOTION_CLUSTER_FALLBACK=0`
-  // restores it wholesale for an A/B. See docs/113-cluster-granularity-fallback.md.
+  // 7d859f27) instead of the per-codepoint cmap walk below. The state machine
+  // retains candidate ownership even when our HarfBuzz bridge cannot open a
+  // face. `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy walk solely for an
+  // activation A/B. See docs/113-cluster-granularity-fallback.md.
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
-    const shaped = splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
+    return splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
       features, bidiOverride,
       fallbackRawSlope: fallbackRequest?.rawSlope,
       fallbackOrientation: fallbackRequest?.orientation,
     });
-    if (shaped != null) return shaped;
   }
-  const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = clusterEnabled ? "cluster-decline-legacy" : "cluster-disabled-legacy";
+  const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = "cluster-disabled-legacy";
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
   // codepoint in `text` in a single helper round-trip. The per-codepoint

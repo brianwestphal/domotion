@@ -7,8 +7,10 @@ pipeline and the glyph-path emitter. `src/render/cluster-fallback.ts` replaces
 splitter in its **"paths" mode** for `textToPathMarkup` — so the two render
 modes assign the same fonts to the same partially-covered clusters.
 `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk in both
-for an A/B, and a decline (a face HarfBuzz cannot open) falls back to it
-automatically. Both entry points score **10/10** on the Chrome probe corpus of
+only for an explicit A/B. A candidate that Domotion's HarfBuzz bridge cannot
+open remains in iterator order as an unshaped candidate; it does not restart
+the text through a different assignment algorithm. Both entry points score
+**10/10** on the Chrome probe corpus of
 §2 (the design-time prototype scored 9/10; script itemization closed its one
 miss; the legacy per-codepoint walk scores 6/10). Unit corpora:
 `src/render/cluster-fallback.test.ts` (embedded) and
@@ -35,8 +37,9 @@ integration case is `text-rtl-in-ltr-line` in `tests/features.ts`; its Arial
 positive and negative rows prevent a font change from standing in for the bidi
 boundary.
 
-The paths mode (`ShapedSplitOptions.mode: "paths"`) carries the one concern
-the glyph-path emitter has and the embedded pipeline does not:
+The paths mode (`ShapedSplitOptions.mode: "paths"`) is retained as a call-site
+description, but face selection and source-text ownership are identical in both
+emitters:
 
 - **Raster emoji do not alter resolution.** The captured `<image>` overlay owns
   paint only. Its rectangle and neighboring glyph positions are captured from
@@ -44,11 +47,11 @@ the glyph-path emitter has and the embedded pipeline does not:
   including Chromium's first-candidate `.notdef` terminal when no face covers
   the cluster. Paths and embedded modes therefore select the same face and
   metrics; the overlay cannot change wrapping or adjacent advances.
-- **Per-run `decomposed` flags.** `FontRun.decomposed` marks runs whose `text`
-  is not the source slice (Math-Alphanumeric base substitutions, dotted-circle
-  hb clusters); the emitter picks its per-char vs run-text branch per run from
-  the flag, so paths-mode runs never merge across a flag boundary (embedded
-  keeps its shipped merge — it always renders `run.text`).
+- **Default shaped runs preserve source text.** Neither a resolver-provided
+  decomposition nor a dotted-circle probe rewrites the queued range. The
+  selected candidate's HarfBuzz normalization/syllabic pass owns the emitted
+  glyph stream. `FontRun.decomposed` remains only on the explicitly disabled
+  legacy walk.
 
 One ground-truth observation from the port, beyond the §2 corpus: Helvetica
 `◌` + U+0E48 (an EXPLICIT dotted circle before a Thai mark) paints
@@ -89,7 +92,8 @@ came back `.notdef`:
   and finally `kFirstCandidateForNotdefGlyph` re-returns the **first** candidate
   so *its* `.notdef` paints (`font_fallback_iterator.cc:159-164`).
 
-Domotion decides **per codepoint from cmap coverage, before any shaping**
+The legacy Domotion route decides **per codepoint from cmap coverage, before
+any shaping**
 (`splitTextIntoFontRuns`, `src/render/text-to-path.ts`, with
 `resolveFontForCodepoint` in `src/render/font-resolution.ts` as the
 per-codepoint oracle). The unit is wrong, and no table can fix a wrong unit.
@@ -197,9 +201,10 @@ capture text
   `nfdBaseMarkDecomposition`), the composing direction (the Menlo ᾳ case), and
   dotted-circle insertion are all things real HarfBuzz does natively during
   shaping. Under shape-then-requeue they stop being special cases we detect and
-  become behavior we inherit. The `resolveDottedCircleHbRun` and per-codepoint
-  NFD machinery are retirement candidates *after* the mechanism ships — not
-  before, and each retirement needs its own A/B.
+  become behavior we inherit. The shaped splitter no longer calls
+  `resolveDottedCircleHbRun`, pins a dotted-circle span, or commits a resolver's
+  substituted NFD/math text. Those helpers remain reachable only from the
+  explicitly disabled legacy walk and classified capture compatibility paths.
 
 ### Blink details the shipped implementation carries (closed from the prototype)
 
@@ -274,17 +279,34 @@ capture text
   language, and the item text with five code units of context per side —
   exact, because `hb_buffer_t::CONTEXT_LENGTH` is 5 (`hb-buffer.hh`, rev
   4de187d). LRU-capped at 4096.
+- **One feature state for every candidate shape**: `ShapeSegment` passes the
+  same resolved `font_features` into every `ShapeRange` call
+  (`harfbuzz_shaper.cc:1098-1127`). Domotion does the same for primary,
+  declared, priority, system, last-resort, and first-candidate probes; a
+  `-liga` or explicit feature value cannot disappear after the first miss.
+- **Face materialization is candidate-local**: failure to open one selected
+  face through the local HarfBuzz bridge produces no verdict for that
+  candidate, leaving its ranges queued. The iterator continues and its
+  first-candidate terminal remains authoritative. Iterator non-convergence or
+  a non-tiling assignment is an implementation error, not a reason to silently
+  select fonts per codepoint.
 
-### Calibrated Domotion behaviors deliberately preserved (retirement = own A/B)
+### Reconciled prepasses (DM-2387)
 
-- The DM-1215 dotted-circle cluster runs (◌ + mark through real HarfBuzz in the
-  mark's font) are pinned before the requeue loop. Their proxy carries the
-  selected face's source/member/axes metadata, and assembly adds the containing
-  item's script before embedded/path emission.
-- Decomposed resolver answers (math-alpha base substitution, cross-font NFD)
-  commit the hint character directly with the substituted text.
-- The ◌-insertion and orphaned-ignorable text rewrites still run upstream at
-  the `renderTextAsPath` funnel, unchanged.
+- The state machine shapes the authored dotted-circle/orphan range on every
+  iterator candidate. HarfBuzz inserts U+25CC only for a broken syllable when
+  that candidate nominally maps U+25CC
+  (`hb-ot-shaper-syllabic.cc:33-99`, rev `4de187d`). There is no mark-face pin.
+- `resolveFontForCodepoint(...).decomposed` may inform the system-stage face
+  answer, but the state machine always shapes the original queued source range.
+  HarfBuzz tests composed coverage and canonical-piece coverage in that same
+  candidate (`hb-ot-shape-normalize.cc:108-200`). There is no substituted-text
+  commit.
+- The capture funnel's source-preserving shaper evidence and its explicitly
+  classified compatibility rewrites remain separate from fallback assignment.
+  The default production route records source span, emitted text, selected
+  face, glyph id, cluster, advance, and offset so a hidden rewrite cannot pass
+  as iterator evidence.
 
 ## 5. The static-chain question (measurement)
 
@@ -369,20 +391,16 @@ split at the exact cluster boundary Chrome uses.
 
 **Might break / will change:**
 
-- Every calibrated single-codepoint behavior that today routes through
-  per-codepoint special cases (dotted-circle runs, math-alpha decomposition,
-  emoji presentation forcing) must survive the reordering — the prototype
-  defers to `resolveFontForCodepoint` for the hint, which preserves them for
-  the *font choice*, but the run *shape* changes (e.g. an orphan mark no longer
-  gets a synthetic ◌ prepended by us; it gets one iff HarfBuzz inserts it,
-  which is Chrome's rule — `hb-ot-shaper-syllabic.cc:51-53` — but our paths
-  emitters must then draw what hb returns).
+- The default route intentionally changes old per-codepoint special cases:
+  an orphan receives U+25CC only if the selected candidate's HarfBuzz shaper
+  inserts it, and canonical decomposition happens only inside that candidate.
+  The production provenance oracle grades the resulting glyph/cluster/advance
+  stream rather than accepting face agreement alone.
 - Fixtures calibrated against the old (wrong-unit) behavior will move — that
   is the point, but the moves land in the visual suites as diffs to re-baseline.
-- Helper-backed faces whose file cannot be opened by hb (none known on macOS
-  system fonts; webfonts pending) decline to legacy in the prototype; in the
-  final design a face hb cannot open cannot take this path at all and must be
-  documented.
+- Helper-backed faces whose file cannot be opened by hb remain candidate-local
+  misses. A portable fixture test pins the terminal to the first candidate and
+  proves that no implicit legacy restart occurs.
 - Wall-time regressions on pathological fixtures (hundreds of distinct failing
   clusters, e.g. the unicode grids under a narrow primary) are possible without
   the verdict cache; the A/B saw none, but the A/B corpus is also the best case.
@@ -390,7 +408,7 @@ split at the exact cluster boundary Chrome uses.
 ## 8. Flags and instrumentation (in-tree now)
 
 - `DOMOTION_CLUSTER_FALLBACK=0` — restore the legacy per-codepoint walk (the
-  shaped splitter is the default; a decline also falls back per call).
+  shaped splitter is the default; there is no per-call implicit fallback).
 - `DOMOTION_CLUSTER_FALLBACK_DEBUG=1` — print invoked/accepted counters at exit
   (armed-mechanism proof for A/Bs; a flag being on is not evidence a mechanism
   ran).

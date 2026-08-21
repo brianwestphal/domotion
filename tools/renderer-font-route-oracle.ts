@@ -33,7 +33,25 @@ const cases: OracleCase[] = [
   { id: "declared-paths", text: "AV", mode: "paths" },
   { id: "system-cluster", text: "Aمرحبا", mode: "paths", fontFamily: "Helvetica" },
   { id: "emoji-priority", text: "©️", mode: "paths" },
-  { id: "orphan-mark", text: "𑀸", mode: "paths" },
+  // DM-2387: prepass ownership controls. The orphan and explicit circle must
+  // enter FontFallbackIterator as different source strings; the selected
+  // HarfBuzz candidate owns whether a broken syllable inserts U+25CC.
+  { id: "dotted-orphan", text: "\u0E48", mode: "paths", fontFamily: "Helvetica" },
+  { id: "dotted-explicit", text: "\u25CC\u0E48", mode: "paths", fontFamily: "Helvetica" },
+  // HarfBuzz normalization owns composition/decomposition inside the selected
+  // face. Domotion must retain the authored source range rather than commit a
+  // resolver-provided replacement string.
+  { id: "canonical-composition", text: "\u03B1\u0345", mode: "paths", fontFamily: "Menlo" },
+  // Broad cluster counterexamples: each defeats a codepoint-coverage walk and
+  // records the final glyph ids, cluster spans, advances, and selected face.
+  { id: "cluster-latin", text: "x\u0301", mode: "paths", fontFamily: "Helvetica" },
+  { id: "cluster-arabic", text: "\u0644\u08F0", mode: "paths", fontFamily: "Arial" },
+  { id: "cluster-devanagari", text: "\u0915\u094D\u0937", mode: "paths", fontFamily: "Helvetica" },
+  { id: "cluster-bengali", text: "\u0995\u09BE", mode: "paths", fontFamily: "Helvetica" },
+  { id: "cluster-thai", text: "\u0E01\u0301", mode: "paths", fontFamily: "Helvetica" },
+  { id: "cluster-myanmar", text: "\u1000\u1039\u1000", mode: "paths", fontFamily: "Helvetica" },
+  { id: "cluster-khmer", text: "\u1780\u17D2\u1780", mode: "paths", fontFamily: "Helvetica" },
+  { id: "cluster-brahmi", text: "\u{11005}\u{11038}", mode: "paths", fontFamily: "Helvetica" },
   { id: "notdef-terminal", text: "𓑠", mode: "paths" },
   { id: "feature-on", text: "fi", mode: "paths", features: ["liga"] },
   { id: "feature-off", text: "fi", mode: "paths", features: ["-liga"] },
@@ -153,6 +171,48 @@ async function main(): Promise<number> {
     }
     const byId = new Map(records.map((record) => [record.input.id, record]));
     const mechanisms = [...new Set(records.flatMap((record) => record.domotion.runs.map((run) => run.mechanism)))];
+    const dm2387ExactRows = [
+      "dotted-orphan", "dotted-explicit", "canonical-composition",
+      "cluster-latin", "cluster-arabic", "cluster-devanagari",
+      "cluster-bengali", "cluster-thai", "cluster-myanmar",
+      "cluster-khmer", "cluster-brahmi",
+    ];
+    const hasExactGlyphRecord = (id: string): boolean => {
+      const record = byId.get(id);
+      return record != null && record.domotion.runs.length > 0
+        && record.domotion.runs.every((run) => run.glyphs.length > 0
+          && run.glyphs.every((glyph) => Number.isInteger(glyph.id)
+            && Number.isInteger(glyph.cluster)
+            && Number.isFinite(glyph.xAdvance)
+            && Number.isFinite(glyph.yAdvance)
+            && Number.isFinite(glyph.xOffset)
+            && Number.isFinite(glyph.yOffset)
+            && glyph.sourceSpan[0] >= run.sourceSpan[0]
+            && glyph.sourceSpan[1] <= run.sourceSpan[1]));
+    };
+    const sourceIsUnsubstituted = (id: string): boolean => {
+      const record = byId.get(id);
+      return record != null && record.domotion.runs.every((run) =>
+        run.emittedText === record.input.text.slice(run.sourceSpan[0], run.sourceSpan[1]));
+    };
+    const chromeGlyphCountsAgree = (id: string): boolean => {
+      const record = byId.get(id);
+      if (record == null) return false;
+      const chrome = new Map<string, number>();
+      for (const font of record.chrome.fonts) {
+        const key = normalizeFace(font.postScriptName);
+        chrome.set(key, (chrome.get(key) ?? 0) + font.glyphCount);
+      }
+      const ours = new Map<string, number>();
+      for (const run of record.domotion.runs) {
+        const name = run.selected.instantiatedPostscriptName ?? run.selected.postscriptName;
+        if (name == null) return false;
+        const key = normalizeFace(name);
+        ours.set(key, (ours.get(key) ?? 0) + run.glyphs.length);
+      }
+      return chrome.size === ours.size
+        && [...chrome].every(([key, count]) => ours.get(key) === count);
+    };
     const controls = {
       emitter: byId.get("declared-paths")!.domotion.runs.some((run) => run.emitter === "paths")
         && byId.get("embedded")!.domotion.runs.some((run) => run.emitter === "embedded-font"),
@@ -169,6 +229,27 @@ async function main(): Promise<number> {
           !== JSON.stringify(byId.get("emoji-sequence-text")!.domotion.rasterSpans),
       features: JSON.stringify(byId.get("feature-on")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id)))
         !== JSON.stringify(byId.get("feature-off")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),
+      exactGlyphClusterAdvanceRecords: dm2387ExactRows.every(hasExactGlyphRecord),
+      chromiumGlyphCountAgreement: dm2387ExactRows.every(chromeGlyphCountsAgree),
+      sourceOwnedNormalization: dm2387ExactRows.every(sourceIsUnsubstituted),
+      noImplicitLegacyRestart: cases.filter((item) => item.clusterFallback !== false).every((item) =>
+        byId.get(item.id)!.domotion.runs.every((run) => run.mechanism !== "cluster-disabled-legacy")),
+      dottedCircleSeparation: (() => {
+        const orphan = byId.get("dotted-orphan")!;
+        const explicit = byId.get("dotted-explicit")!;
+        const signature = (record: typeof orphan) => JSON.stringify(record.domotion.runs.map((run) => ({
+          face: run.selected.instantiatedPostscriptName ?? run.selected.postscriptName,
+          glyphs: run.glyphs.map((glyph) => [glyph.id, glyph.cluster, glyph.xAdvance, glyph.xOffset]),
+        })));
+        return sourceIsUnsubstituted("dotted-orphan")
+          && sourceIsUnsubstituted("dotted-explicit")
+          && signature(orphan) !== signature(explicit);
+      })(),
+      broadScriptCounterexamples: [
+        "cluster-latin", "cluster-arabic", "cluster-devanagari",
+        "cluster-bengali", "cluster-thai", "cluster-myanmar",
+        "cluster-khmer", "cluster-brahmi",
+      ].every(hasExactGlyphRecord),
       paintedOrigins: records.every((record) => record.chrome.origins.length > 0),
       bidiBothFallbackModes: ["digits", "pointed-hebrew", "adjacent-scripts", "mirrored-brackets"].every((name) =>
         byId.get(`bidi-${name}`)!.domotion.runs.length > 0 && byId.get(`bidi-${name}-legacy`)!.domotion.runs.length > 0),
@@ -191,11 +272,11 @@ async function main(): Promise<number> {
         || record.comparison.faceAgreement.every((agreement) => agreement === true))
       && Object.values(controls).every(Boolean);
     const report = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       stage: "production-text-run-provenance",
       sourceRevision: "chromium:7d859f271cbda744098ac69f44978d4edfa62be3",
       verdict: complete ? "evidence-complete" : "verdict-withheld",
-      environment: parityEnvironment({ corpusIdentity: "renderer-font-route-v2", sampleIdentity: cases.map((item) => item.id).join(",") }),
+      environment: parityEnvironment({ corpusIdentity: "renderer-font-route-v3", sampleIdentity: cases.map((item) => item.id).join(",") }),
       mechanisms,
       controls,
       records,

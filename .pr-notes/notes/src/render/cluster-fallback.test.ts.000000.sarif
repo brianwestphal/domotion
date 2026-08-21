@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt33im9y6y9t5og7",
+          "message": {
+            "text": "A repository-owned font with no materializable HarfBuzz face proves that failure stays candidate-local: the authored PUA range terminates on the original first candidate with first-candidate-notdef instead of entering legacy assignment. The focused Vitest command passed 50 tests with 4 platform skips, and the feature mutation separately proves every post-miss verdict probe carries -liga.",
+            "markdown": "A repository-owned font with no materializable HarfBuzz face proves that failure stays candidate-local: the authored PUA range terminates on the original first candidate with first-candidate-notdef instead of entering legacy assignment. The focused Vitest command passed 50 tests with 4 platform skips, and the feature mutation separately proves every post-miss verdict probe carries -liga."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.test.ts"
+                },
+                "region": {
+                  "startLine": 131,
+                  "endLine": 156,
+                  "snippet": {
+                    "text": "describe(\"candidate-local HarfBuzz materialization failure\", () => {\n  it(\"keeps FontFallbackIterator ownership instead of declining to a per-codepoint walk\", () => {\n    // A directly opened fixture has neither a registered source record nor a\n    // resolvable platform key, so Domotion's HarfBuzz bridge cannot materialize\n    // this first candidate. Blink's terminal still belongs to that first\n    // candidate; an implementation-wide legacy restart would change both the\n    // mechanism and the assignment algorithm.\n    const opened = fontkit.openSync(\"assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf\");\n    const font = (\"fonts\" in opened\n      ? (opened as unknown as { fonts: Array<typeof opened> }).fonts[0]\n      : opened) as Parameters<typeof splitTextIntoFontRunsShaped>[1];\n    const text = \"\\uE000\";\n    const runs = splitTextIntoFontRunsShaped(\n      text, font, \"dm-unopenable\", 400, 32, 0, undefined, undefined,\n      [\"dm-unopenable\"], false, 100, undefined, \"DM Unopenable\",\n    );\n\n    expect(runs).toHaveLength(1);\n    expect(runs[0]).toMatchObject({\n      text,\n      startIdx: 0,\n      endIdx: 1,\n      fontKey: \"dm-unopenable\",\n      isPrimary: true,\n      routeMechanism: \"first-candidate-notdef\",\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback-features.test.ts"
+                },
+                "region": {
+                  "startLine": 110
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2387"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cda94eafab4e16c9037c7e7849b377f1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa4a481c7eb00bc54eac218ada4076bd0a7cd6cc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -5,9 +5,10 @@
 // macOS (the probe corpus in docs/113 §2), and every one of them DIFFERS from
 // what the legacy per-codepoint cmap walk produces — the legacy answers are
 // recorded in each test so a regression to per-codepoint granularity (or a
-// silent decline into the legacy path) fails these tests rather than passing
+// silent restart through the legacy path) fails these tests rather than passing
 // them. That is the discrimination requirement: a test that both mechanisms
-// pass grades nothing.
+// pass grades nothing. A candidate-local shaping miss must remain inside the
+// iterator rather than silently restart through the legacy path.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
 import {
@@ -20,7 +21,7 @@ import {
   type FontVariantEmojiOverride,
 } from "./font-resolution.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
-import fontkit from "fontkit";
+import * as fontkit from "fontkit";
 
 const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
@@ -124,6 +125,35 @@ describe("flag gate", () => {
     expect(clusterFallbackEnabled()).toBe(false);
     process.env.DOMOTION_CLUSTER_FALLBACK = "1";
     expect(clusterFallbackEnabled()).toBe(true);
+  });
+});
+
+describe("candidate-local HarfBuzz materialization failure", () => {
+  it("keeps FontFallbackIterator ownership instead of declining to a per-codepoint walk", () => {
+    // A directly opened fixture has neither a registered source record nor a
+    // resolvable platform key, so Domotion's HarfBuzz bridge cannot materialize
+    // this first candidate. Blink's terminal still belongs to that first
+    // candidate; an implementation-wide legacy restart would change both the
+    // mechanism and the assignment algorithm.
+    const opened = fontkit.openSync("assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf");
+    const font = ("fonts" in opened
+      ? (opened as unknown as { fonts: Array<typeof opened> }).fonts[0]
+      : opened) as Parameters<typeof splitTextIntoFontRunsShaped>[1];
+    const text = "\uE000";
+    const runs = splitTextIntoFontRunsShaped(
+      text, font, "dm-unopenable", 400, 32, 0, undefined, undefined,
+      ["dm-unopenable"], false, 100, undefined, "DM Unopenable",
+    );
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      text,
+      startIdx: 0,
+      endIdx: 1,
+      fontKey: "dm-unopenable",
+      isPrimary: true,
+      routeMechanism: "first-candidate-notdef",
+    });
   });
 });
 

@@ -3,8 +3,8 @@
 This document is the **canonical end-to-end map of Domotion's font-resolution
 system**: how a captured text run's CSS `font-family` (plus every codepoint in
 it) is turned into a concrete on-disk font face + glyph outline, across macOS,
-Linux, and Windows, including every branch, registry, cache, and per-block /
-per-codepoint route.
+Linux, and Windows, including every branch, registry, cache, shaped-cluster
+route, and explicitly degraded per-codepoint route.
 
 > **Maintenance contract.** This diagram is a canonical reference — it must stay
 > in lockstep with the code. Any change to font routing, the platform tables, the
@@ -62,8 +62,8 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>Assembly never merges across a shaping item and carries its<br/>resolved direction + ISO script on FontRun.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or helper absence → degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
-    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context + resolved features and<br/>requeue only the .notdef clusters; resolveFontForCodepoint =<br/>kSystemFonts, asked for ChooseHintIndex once per hint.<br/>Dotted circles + canonical decomposition belong to the<br/>selected candidate shape; source text is never pre-committed.<br/>An unopenable candidate stays queued (no legacy restart).<br/>Assembly never merges across a shaping item and carries its<br/>resolved direction + ISO script on FontRun.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ authored source range preserved through selected shaping<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
@@ -102,10 +102,13 @@ mechanism, `src/render/cluster-fallback.ts`, docs/113 — default-on,
 modes). Both live run splitters pass the run's complete OpenType feature list
 into that verdict-shaping call, so disables and explicit feature values can
 change `.notdef` coverage before a fallback face is assigned, just as they do
-in Blink's `ShapeRange(buffer, font_features, ...)`. The paths entry (`splitTextIntoGlyphPathRuns`,
-`src/render/text-to-path.ts`) invokes the shared splitter with
-`mode: "paths"`, which adds the emitter's per-run **`decomposed` flags** (no merge across a flag boundary,
-so the emitter's per-char vs run-text branch choice survives). The
+in Blink's `ShapeRange(buffer, font_features, ...)`. That same feature list is
+passed to every later candidate after a miss. The paths entry
+(`splitTextIntoGlyphPathRuns`, `src/render/text-to-path.ts`) invokes the shared
+splitter with `mode: "paths"`, but assignment and source-text ownership are
+identical: dotted-circle insertion and canonical decomposition happen inside
+the selected candidate's HarfBuzz shape. An unopenable local face is a
+candidate-local miss and cannot restart the run through the legacy walk. The
 **uncovered terminal for every cluster, including raster-painted emoji**, is
 the FIRST candidate's `.notdef` in both modes (`kFirstCandidateForNotdefGlyph`).
 The raster overlay owns paint and its captured rectangle, never face selection
@@ -1071,7 +1074,7 @@ Notes:
   resolving the face the way `fontFeatureValueShapingOverride` does: the
   instance's own source file first, the key's base spec next, the retained
   `@font-face` bytes last. A run whose font already shapes through HarfBuzz
-  (system-stage proxies, pinned dotted-circle runs, the feature-list proxy) is
+  (system-stage proxies and the feature-list proxy) is
   detected via `FontInstance.shapesWithHarfbuzz` and never wrapped twice — a
   proxy-over-proxy has no `getGlyph` and would silently move the outlines to
   HarfBuzz's own `glyphToPath`. Pinned by
@@ -1093,7 +1096,7 @@ Notes:
   the mark's actual fallback face, applies RunSegmenter's script (including the
   single-member `Script_Extensions` preferred-script rule), shapes the lone mark
   with the Chromium-configured HarfBuzz build, and treats the face's U+25CC gid
-  in that result as the insertion decision. The pinned shaping proxy retains
+  in that result as the insertion decision. The selected shaping proxy retains
   that face's source/member/axes metadata, and the assembled `FontRun` retains
   the resolved ISO script for embedded, path, and provenance shaping. Capture positives remain additive;
   a negative Canvas result no longer vetoes this deterministic shaper answer.
@@ -2574,11 +2577,12 @@ local segment walk. Handing it the unsliced array scored every run after the
 first against the wrong characters: `Hello مرحبا …` read `0,0,0,0,0` — the
 levels of `Hello` — for its Arabic run and called it left-to-right.
 
-The slice is taken only when the run's text matches its source span character
-for character. A Math-Alphanumeric `decomposed` run holds substituted base
-letters (`mathAlphaToBase`), so no per-character alignment exists to preserve;
-those runs are Latin base letters by construction and absent levels read as
-left-to-right, which is what they are.
+Default shaped runs always retain the source slice character for character, so
+that same slice applies to canonical decomposition and dotted-circle outcomes.
+Only the explicit `DOMOTION_CLUSTER_FALLBACK=0` legacy walk can carry a
+Math-Alphanumeric `decomposed` run with substituted base letters
+(`mathAlphaToBase`); those legacy runs use the historical left-to-right
+alignment behavior.
 
 **This was invisible for exactly as long as the shaper ignored what it was
 told.** The macOS helper's shape query takes no direction argument at all

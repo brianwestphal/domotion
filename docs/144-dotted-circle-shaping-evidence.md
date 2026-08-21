@@ -33,12 +33,13 @@ script run to HarfBuzz; it does not maintain a parallel codepoint-range list.
   remains intact and that emitter inserts/reorders the circle. Synthetic text is
   retained only for the explicitly degraded non-cluster path or a captured
   covered-face result whose layout facade cannot reproduce Chromium's circle.
-- The resolver pin carries two facts into the final `FontRun`: the exact
+- The fallback iterator carries two facts into the final `FontRun`: the exact
   selected face (source path, collection member, and axes on its HarfBuzz
-  proxy) and RunSegmenter's resolved ISO 15924 script. Embedded, path, and
-  provenance shaping all consume that script. This is observable for a lone
-  Vedic mark: dropping `Deva` makes HarfBuzz guess Common and bypass the
-  syllabic shaper even though the correct Mukta face was already selected.
+  proxy) and RunSegmenter's resolved ISO 15924 script. No dotted-circle prepass
+  selects or pins a companion face. Embedded, path, and provenance shaping all
+  consume that script. This is observable for a lone Vedic mark: dropping
+  `Deva` makes HarfBuzz guess Common and bypass the syllabic shaper even though
+  the correct Mukta face was already selected.
 
 This remains separate from font fallback: fallback selects the concrete face;
 the selected face and its HarfBuzz glyph stream decide dotted-circle behavior.
@@ -64,3 +65,10 @@ circle, shape a retained-gid subset that lacks nominal U+25CC, and disable shape
 cluster fallback to prove that the orphan's inserted base disappears. These
 names and codepoints are oracle expectations for that runner image only; they
 are not renderer routing inputs.
+
+The production route oracle adds a paired Thai control: bare U+0E48 and explicit
+U+25CC+U+0E48 both retain their authored source spans, but Chromium and Domotion
+produce distinct selected glyph records because only the latter asks candidate
+coverage for an authored circle. Brahmi remains in the broad-script exact-record
+set. This prevents a pre-inserted/pinned circle from masquerading as the selected
+candidate's shaping outcome.

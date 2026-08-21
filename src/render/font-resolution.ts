@@ -10805,14 +10805,11 @@ export interface FontRun {
   shapingScript?: string;
   /** Selection owner recorded by the renderer-facing provenance oracle. */
   routeMechanism?: "declared-family" | "priority-emoji" | "system-resolver" | "last-resort"
-    | "first-candidate-notdef" | "dotted-circle-pin" | "decomposed-commit"
-    | "cluster-disabled-legacy" | "cluster-decline-legacy";
-  /** The run's `text` is not the source slice `[startIdx, endIdx)` — a
-   *  decomposed resolver substitution (Math-Alphanumeric base letter, cross-font
-   *  NFD) or a dotted-circle cluster shaped through real HarfBuzz. The
-   *  glyph-path emitter routes such a run through its run-text (min-x anchored)
-   *  branch instead of indexing the source text per character; the embedded
-   *  pipeline always renders `run.text` and ignores the flag. */
+    | "first-candidate-notdef" | "cluster-disabled-legacy";
+  /** The run's `text` is not the source slice `[startIdx, endIdx)`. This is a
+   * legacy-flag-only compatibility surface: default shaped fallback leaves the
+   * source intact and lets HarfBuzz own canonical decomposition and inserted
+   * dotted circles. */
   decomposed?: boolean;
 }
 /**

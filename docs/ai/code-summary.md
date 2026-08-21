@@ -58,7 +58,7 @@ shortest possible map:
   (`unicode-font-routing.{darwin,linux,noto-linux,win32}.generated.ts`) + the
   Linux bare-vs-Noto runtime profile selector (`linuxFontProfile()`, DM-1404) +
   the live `fc-match`/CoreText system-fallback resolver (DM-1416/DM-1018).
-  **The end-to-end flow (family→key→file→instance→per-codepoint fallback→live
+  **The end-to-end flow (family→key→file→instance→shaped-cluster fallback→live
   resolver→glyph emission, with all platform branching + specific fonts) is
   mapped in `docs/font-resolution-diagram.md` — a canonical always-in-sync
   Mermaid reference; keep it current with any font-routing change.**
@@ -66,11 +66,14 @@ shortest possible map:
   current font, requeue only the `.notdef` clusters — and is the DEFAULT run
   splitter for BOTH render modes (`splitTextIntoFontRuns` for the embedded-font
   pipeline; `splitTextIntoGlyphPathRuns` invokes it in "paths" mode for the
-  glyph-path emitter, preserving per-run `decomposed` flags plus every
-  bidi/script shaping-item boundary and its resolved direction plus ISO 15924
-  script (`FontRun.shapingDirection` / `FontRun.shapingScript`), while raster
-  emoji use the same Chromium terminal as embedded mode; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
-  per-codepoint walk in both) — see `docs/113-cluster-granularity-fallback.md`.
+  glyph-path emitter, preserving every bidi/script shaping-item boundary and
+  its resolved direction plus ISO 15924 script (`FontRun.shapingDirection` /
+  `FontRun.shapingScript`), while raster emoji use the same Chromium terminal
+  as embedded mode. Dotted-circle insertion and canonical decomposition remain
+  outcomes of shaping the iterator-selected candidate; unopenable faces do not
+  trigger an implicit per-codepoint restart. `DOMOTION_CLUSTER_FALLBACK=0`
+  restores the legacy per-codepoint walk in both) — see
+  `docs/113-cluster-granularity-fallback.md`.
   Declared-family ordering and segmented `@font-face` capability-group/range
   construction are source-mapped in
   `docs/122-declared-family-segmented-face-parity.md`.

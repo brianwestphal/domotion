@@ -95,7 +95,7 @@ export function validateLinuxVedicDottedCircleEvidence(evidence: FixtureTextRunP
     const run = vedicRuns.find((candidate) => candidate.sourceText.codePointAt(0) === expected.codepoint);
     const label = `U+${expected.codepoint.toString(16).toUpperCase()}`;
     if (run == null) { errors.push(`${label} has no production row`); continue; }
-    if (run.mechanism !== "dotted-circle-pin") errors.push(`${label} mechanism is ${run.mechanism ?? "missing"}`);
+    if (run.mechanism !== "system-resolver") errors.push(`${label} mechanism is ${run.mechanism ?? "missing"}`);
     if (run.request.script !== expected.script) errors.push(`${label} script is ${run.request.script ?? "missing"}`);
     if (run.selected.postscriptName !== expected.postscriptName || run.selected.sourcePath !== expected.sourcePath || run.selected.faceIndex !== 0) {
       errors.push(`${label} selected face differs`);

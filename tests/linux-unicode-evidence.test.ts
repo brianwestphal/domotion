@@ -85,7 +85,7 @@ describe("row-scoped Linux Unicode evidence", () => {
       sourceSpan: [0, 1],
       sourceCodepointSpan: [0, 1],
       emittedText: String.fromCodePoint(record.codepoint),
-      mechanism: "dotted-circle-pin",
+      mechanism: "system-resolver",
       request: { fontFamily: "fixture", fontWeight: 400, fontStretch: 100, fontSizePx: 32, direction: "ltr", script: record.script },
       selected: {
         fontKey: `sysfb:${record.postscriptName}`, postscriptName: record.postscriptName,

@@ -3,11 +3,10 @@
 // shape-then-requeue mechanism (docs/113). The embedded splitter's tests live
 // in `cluster-fallback.test.ts`; these assert the SAME Chrome ground truth
 // through the glyph-path entry point, plus the one contract specific to this
-// emitter and absent from the shared splitter's embedded mode:
-//
-//   1. per-run `decomposed` flags — the emitter picks its per-char vs run-text
-//      branch per run from the flag, so a dotted-circle cluster must still
-//      carry it after the port.
+// emitter and absent from the shared splitter's embedded mode. In particular,
+// the default route must preserve source text and let the selected HarfBuzz
+// candidate own dotted-circle insertion; only the explicitly disabled legacy
+// mutation may carry its old synthetic/decomposed marker.
 //
 // Every Chrome expectation below is ground truth measured via CDP
 // `CSS.getPlatformFontsForNode` against Playwright Chromium on macOS, and each
@@ -43,12 +42,12 @@ function split(fam: string, text: string): Array<{ text: string; key: string }> 
   return runs.map((r) => ({ text: r.text, key: r.fontKey }));
 }
 
-function splitFull(fam: string, text: string): Array<{ text: string; key: string; decomposed: boolean }> {
+function splitFull(fam: string, text: string): Array<{ text: string; key: string; decomposed: boolean; mechanism: string | undefined }> {
   const key = resolveFontKey(fam);
   const font = resolveFont(fam, 400, 32, 0)!;
   const chain = resolveFontKeyChain(fam);
   const runs = splitTextIntoGlyphPathRuns(text, font, key, 400, 32, 0, undefined, undefined, chain, stackPrimaryIsSystemUi(fam), 100, undefined, fam);
-  return runs.map((r) => ({ text: r.text, key: r.fontKey, decomposed: r.decomposed === true }));
+  return runs.map((r) => ({ text: r.text, key: r.fontKey, decomposed: r.decomposed === true, mechanism: r.routeMechanism }));
 }
 
 (MACOS_FONTS ? describe : describe.skip)("glyph-path split vs Chrome ground truth (docs/113 §2, paths mode)", () => {
@@ -198,15 +197,28 @@ function splitFull(fam: string, text: string): Array<{ text: string; key: string
   });
 });
 
-(MACOS_FONTS ? describe : describe.skip)("decomposed flags survive the port", () => {
-  it("marks a dotted-circle cluster run decomposed (run-text branch)", () => {
-    // Orphaned Brahmi vowel sign U+11038 → the DM-1215 hb cluster run (the ◌
-    // is inserted and GPOS-positioned by real HarfBuzz in the mark's font).
-    // Identical under both mechanisms; the flag is what routes the run through
-    // the emitter's run-text branch, so dropping it in the port would move the
-    // mark off its circle.
-    const runs = splitFull("Helvetica", "\u{11038}");
-    expect(runs).toHaveLength(1);
-    expect(runs[0].decomposed).toBe(true);
+(MACOS_FONTS ? describe : describe.skip)("dotted-circle ownership stays inside candidate shaping", () => {
+  it("preserves the orphan mark as source text on the iterator-selected face", () => {
+    // Orphaned Brahmi vowel sign U+11038 is a broken syllable. HarfBuzz may
+    // insert U+25CC only after the iterator selects a candidate that nominally
+    // maps it (`hb-ot-shaper-syllabic.cc:33-99`, rev 4de187d). The default
+    // route therefore must not carry the legacy prepass's `decomposed` flag.
+    delete process.env.DOMOTION_CLUSTER_FALLBACK;
+    expect(splitFull("Helvetica", "\u{11038}")).toEqual([{
+      text: "\u{11038}",
+      key: "sysfb:TamilSangamMN",
+      decomposed: false,
+      mechanism: "system-resolver",
+    }]);
+  });
+
+  it("separates the explicit legacy mutation that synthesized the circle before fallback", () => {
+    process.env.DOMOTION_CLUSTER_FALLBACK = "0";
+    expect(splitFull("Helvetica", "\u{11038}")).toEqual([{
+      text: "\u{11038}",
+      key: "sysfb:TamilSangamMN",
+      decomposed: true,
+      mechanism: "cluster-disabled-legacy",
+    }]);
   });
 });

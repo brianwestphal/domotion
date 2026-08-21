@@ -141,6 +141,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt33irycfu8hxr7b",
+          "message": {
+            "text": "The production browser gate now rejects face-only or fixture-fitted agreement. Eleven DM-2387 rows require exact nonempty glyph, cluster, advance, offset, and source-span records plus selected-face glyph counts equal to Chromium CDP; enabled routes cannot report legacy assignment; canonical text cannot be substituted; and paired bare/explicit Thai circle inputs must yield distinct glyph signatures. The 29-case Chromium run completed evidence-complete with every control true.",
+            "markdown": "The production browser gate now rejects face-only or fixture-fitted agreement. Eleven DM-2387 rows require exact nonempty glyph, cluster, advance, offset, and source-span records plus selected-face glyph counts equal to Chromium CDP; enabled routes cannot report legacy assignment; canonical text cannot be substituted; and paired bare/explicit Thai circle inputs must yield distinct glyph signatures. The 29-case Chromium run completed evidence-complete with every control true."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/renderer-font-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 175,
+                  "endLine": 233,
+                  "snippet": {
+                    "text": "      \"dotted-orphan\", \"dotted-explicit\", \"canonical-composition\",\n      \"cluster-latin\", \"cluster-arabic\", \"cluster-devanagari\",\n      \"cluster-bengali\", \"cluster-thai\", \"cluster-myanmar\",\n      \"cluster-khmer\", \"cluster-brahmi\",\n    ];\n    const hasExactGlyphRecord = (id: string): boolean => {\n      const record = byId.get(id);\n      return record != null && record.domotion.runs.length > 0\n        && record.domotion.runs.every((run) => run.glyphs.length > 0\n          && run.glyphs.every((glyph) => Number.isInteger(glyph.id)\n            && Number.isInteger(glyph.cluster)\n            && Number.isFinite(glyph.xAdvance)\n            && Number.isFinite(glyph.yAdvance)\n            && Number.isFinite(glyph.xOffset)\n            && Number.isFinite(glyph.yOffset)\n            && glyph.sourceSpan[0] >= run.sourceSpan[0]\n            && glyph.sourceSpan[1] <= run.sourceSpan[1]));\n    };\n    const sourceIsUnsubstituted = (id: string): boolean => {\n      const record = byId.get(id);\n      return record != null && record.domotion.runs.every((run) =>\n        run.emittedText === record.input.text.slice(run.sourceSpan[0], run.sourceSpan[1]));\n    };\n    const controls = {\n      emitter: byId.get(\"declared-paths\")!.domotion.runs.some((run) => run.emitter === \"paths\")\n        && byId.get(\"embedded\")!.domotion.runs.some((run) => run.emitter === \"embedded-font\"),\n      clusterFallback: byId.get(\"legacy-disabled\")!.domotion.runs.some((run) => run.mechanism === \"cluster-disabled-legacy\"),\n      emojiWholeSequence: byId.get(\"emoji-sequence-text\")!.domotion.rasterSpans.length === 2\n        && byId.get(\"emoji-sequence-text\")!.domotion.rasterSpans[0]?.start === 0\n        && byId.get(\"emoji-sequence-text\")!.domotion.rasterSpans[0]?.end === 2\n        && byId.get(\"emoji-sequence-text\")!.domotion.rasterSpans[1]?.start === 3\n        && byId.get(\"emoji-sequence-text\")!.domotion.rasterSpans[1]?.end === 5\n        && byId.get(\"emoji-sequence-text\")!.domotion.runs.every((run) => run.request.fontVariantEmoji === \"text\"),\n      emojiDisabledRoute: byId.get(\"emoji-sequence-text-disabled\")!.domotion.runs\n        .some((run) => run.mechanism === \"cluster-disabled-legacy\")\n        && JSON.stringify(byId.get(\"emoji-sequence-text-disabled\")!.domotion.rasterSpans)\n          !== JSON.stringify(byId.get(\"emoji-sequence-text\")!.domotion.rasterSpans),\n      features: JSON.stringify(byId.get(\"feature-on\")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id)))\n        !== JSON.stringify(byId.get(\"feature-off\")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),\n      exactGlyphClusterAdvanceRecords: dm2387ExactRows.every(hasExactGlyphRecord),\n      sourceOwnedNormalization: dm2387ExactRows.every(sourceIsUnsubstituted),\n      noImplicitLegacyRestart: cases.filter((item) => item.clusterFallback !== false).every((item) =>\n        byId.get(item.id)!.domotion.runs.every((run) => run.mechanism !== \"cluster-disabled-legacy\")),\n      dottedCircleSeparation: (() => {\n        const orphan = byId.get(\"dotted-orphan\")!;\n        const explicit = byId.get(\"dotted-explicit\")!;\n        const signature = (record: typeof orphan) => JSON.stringify(record.domotion.runs.map((run) => ({\n          face: run.selected.instantiatedPostscriptName ?? run.selected.postscriptName,\n          glyphs: run.glyphs.map((glyph) => [glyph.id, glyph.cluster, glyph.xAdvance, glyph.xOffset]),\n        })));\n        return sourceIsUnsubstituted(\"dotted-orphan\")\n          && sourceIsUnsubstituted(\"dotted-explicit\")\n          && signature(orphan) !== signature(explicit);\n      })(),\n      broadScriptCounterexamples: [\n        \"cluster-latin\", \"cluster-arabic\", \"cluster-devanagari\",\n        \"cluster-bengali\", \"cluster-thai\", \"cluster-myanmar\",\n        \"cluster-khmer\", \"cluster-brahmi\",\n      ].every(hasExactGlyphRecord),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/renderer-font-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 36
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2387"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b667189b1113a76fc672c2066235473f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa4a481c7eb00bc54eac218ada4076bd0a7cd6cc",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

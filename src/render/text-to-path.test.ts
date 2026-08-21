@@ -790,14 +790,14 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
   });
 });
 
-// DM-2423: resolver pinning alone is not enough. Blink resolves the shaping
+// DM-2423: selecting the correct fallback face alone is not enough. Blink resolves the shaping
 // item's script before font fallback, then `HarfBuzzShaper::ShapeRange` writes
 // that exact script to the buffer. A lone Vedic mark is Common/Inherited at the
 // codepoint level; if the embedded emitter drops the itemized `Deva` tag,
 // HarfBuzz guesses Common and never enters the syllabic shaper that inserts
 // U+25CC. These production-emitter assertions intentionally use the same
 // runtime Mukta face as the Unicode visual oracle.
-(HAVE_RUNTIME_MUKTA ? describe : describe.skip)("Vedic dotted-circle pin survives embedded emission (DM-2423)", () => {
+(HAVE_RUNTIME_MUKTA ? describe : describe.skip)("Vedic iterator-selected run preserves script in embedded emission (DM-2423)", () => {
   const FAMILY = '"Mukta", sans-serif';
   let mukta: ReturnType<typeof fontkit.openSync>;
   let noCircleSubset: Buffer;
@@ -875,7 +875,7 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
       const { out, run } = renderWithEvidence(String.fromCodePoint(cp));
       expect(embeddedGlyphCount(out), `U+${cp.toString(16)}`).toBe(2);
       expect(run).toMatchObject({
-        mechanism: "dotted-circle-pin",
+        mechanism: "declared-family",
         request: { script: "Deva", direction: "ltr" },
         selected: {
           postscriptName: "Mukta-Regular",
@@ -917,7 +917,7 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
     const nonBroken = renderWithEvidence("\u1CE1");
     const mark = mukta.glyphForCodePoint(0x1CE1);
     expect(embeddedGlyphCount(nonBroken.out)).toBe(1);
-    expect(nonBroken.run).toMatchObject({ mechanism: "dotted-circle-pin", request: { script: "Beng" } });
+    expect(nonBroken.run).toMatchObject({ mechanism: "declared-family", request: { script: "Beng" } });
     expect(nonBroken.run.glyphs).toEqual([
       outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
     ]);

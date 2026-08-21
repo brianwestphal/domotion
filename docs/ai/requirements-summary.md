@@ -36,7 +36,7 @@ offset evidence, while explicitly preserving CDP's glyph-ID boundary.
 Doc 142 establishes that isolated resolver agreement proves only Blink's
 system-font iterator stage. Exact renderer parity additionally requires
 per-shaped-run provenance across declared/priority faces, cluster requeue,
-dotted-circle/decomposition owners, embedded/path transitions, raster overlays,
+dotted-circle/decomposition outcomes, embedded/path transitions, raster overlays,
 and raw-text fallback; that audit produced DM-2398 and DM-2399.
 Doc 143 ships DM-2398's opt-in production ledger and Chromium-joined route
 oracle. Demo-review font-selection evidence passes only when both this
@@ -182,9 +182,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   weight/style/stretch capability-group selection, shape-verdict cache) and
   replaces `splitTextIntoFontRuns`' per-codepoint cmap walk; the glyph-path
   emitter (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`) invokes the same
-  splitter in its "paths" mode, which preserves per-run `decomposed` flags and
-  leaves raster emoji on the shared Chromium terminal (`DOMOTION_CLUSTER_FALLBACK=0` restores the
-  legacy walk in both). Both entry points score 10/10 on the Chrome CDP probe
+  splitter in its "paths" mode. Every candidate's `.notdef` probe receives the
+  same resolved OpenType feature state; dotted-circle insertion and canonical
+  decomposition belong to that candidate's HarfBuzz shape; a locally unopenable
+  face cannot restart assignment through the legacy walk. Raster emoji remain
+  on the shared Chromium terminal (`DOMOTION_CLUSTER_FALLBACK=0` explicitly
+  restores the legacy walk in both). Both entry points score 10/10 on the Chrome CDP probe
   corpus where the legacy walk scores 6/10. Also carries the static-chain
   retirement measurement: over the
   conformance universe × top-6 stacks, `staticChain()` answered 6 of 916k
@@ -1046,8 +1049,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   mark's own font as a HarfBuzz instance so the dotted circle `U+25CC` Chrome
   inserts + GPOS-positions the mark on is reproduced — fontkit drops the ◌ for
   USE faces (Adlam/Miao) and mis-centers it otherwise. Fixed adlam/miao/brahmi/
-  kharoshthi/tagalog/tai-tham/syloti via `resolveDottedCircleHbRun` in both
-  run-splitters.
+  kharoshthi/tagalog/tai-tham/syloti via `resolveDottedCircleHbRun` in the
+  legacy splitter. DM-2387 removed that pre-pin from the default shaped
+  splitter: its ordinary fallback iterator selects the candidate, preserves the
+  authored range, and HarfBuzz alone decides whether U+25CC is inserted.
 - **Doc 80 (`docs/80-cross-platform-system-fallback-resolver.md`, DM-1403)** —
   **macOS / Linux / Windows all Shipped + default-on.** The per-codepoint live
   system-fallback resolver (macOS CoreText `CTFontCreateForString`) — previously

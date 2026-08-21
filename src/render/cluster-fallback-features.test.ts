@@ -127,9 +127,21 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     const defaultRuns = split();
     primaryPath = undefined;
     _clearClusterVerdictCache();
+    spy.mockClear();
     const vetoedRuns = split(["-liga"]);
 
     expect(defaultRuns.map((run) => run.fontKey)).toEqual([key]);
     expect(vetoedRuns.map((run) => run.fontKey)).not.toEqual([key]);
+
+    // The primary miss must send the SAME resolved features through every
+    // later candidate probe in FontFallbackIterator order. Checking only one
+    // call would permit a regression where the first probe is correct but the
+    // system/last-resort reshapes silently use default features.
+    const verdictCalls = spy.mock.calls.filter((call) => {
+      const options = call[7] as { verdictOnly?: boolean } | undefined;
+      return options?.verdictOnly === true;
+    });
+    expect(verdictCalls.length).toBeGreaterThan(1);
+    for (const call of verdictCalls) expect(call[6]).toEqual(["-liga"]);
   });
 });

@@ -1,9 +1,7 @@
 // Font fallback at SHAPED-CLUSTER granularity — the default run splitter for
 // BOTH render modes: the embedded-font pipeline (`splitTextIntoFontRuns`) and,
-// via `ShapedSplitOptions.mode: "paths"`, the glyph-path emitter
-// (`splitTextIntoGlyphPathRuns` → `textToPathMarkup`). Paths mode adds
-// per-run `decomposed` flags — see the
-// option's doc below and docs/113-cluster-granularity-fallback.md.
+// via the glyph-path emitter (`splitTextIntoGlyphPathRuns` →
+// `textToPathMarkup`). See docs/113-cluster-granularity-fallback.md.
 //
 // Blink does not decide fallback per codepoint. It shapes the whole segment
 // with the current font and re-queues only the clusters whose glyphs came back
@@ -41,29 +39,28 @@
 // QUESTION is asked.
 //
 // Enabled by default; `DOMOTION_CLUSTER_FALLBACK=0` restores the per-codepoint
-// walk for an A/B. A decline (null return) falls back to the legacy path — so
-// a face HarfBuzz cannot open degrades to the old behavior, never to a crash.
+// walk only as an explicit A/B mutation. The default route never changes its
+// assignment algorithm because one candidate cannot be opened by our HarfBuzz
+// bridge. Such a candidate stays in FontFallbackIterator order, its range stays
+// queued, and the terminal still belongs to Blink's first candidate.
 //
-// Known deviations from Blink, kept deliberately (each is a calibrated Domotion
-// behavior whose retirement needs its own A/B — docs/113 §4):
-//   - the DM-1215 dotted-circle cluster runs (◌ + mark routed through real
-//     HarfBuzz in the mark's own font) are pinned BEFORE the requeue loop, so
-//     their font assignment and downstream hb positioning are unchanged;
-//   - decomposed resolver answers (math-alpha base substitution, cross-font NFD)
-//     commit the hint character directly with the substituted text, preserving
-//     the per-codepoint calibration for those codepoints;
-//   - the declared-family walk materializes fonts via our key chain rather than
-//     Blink's FontFallbackList (same order, same members).
+// Dotted-circle insertion and canonical decomposition deliberately have no
+// prepass here. They are outcomes of shaping each selected candidate:
+// `hb_syllabic_insert_dotted_circles` first requires a broken syllable AND that
+// candidate's U+25CC glyph (`hb-ot-shaper-syllabic.cc:33-99`, rev 4de187d),
+// while `decompose_current_character` tests the source scalar and canonical
+// pieces in the same candidate (`hb-ot-shape-normalize.cc:108-200`). Committing
+// either result before `ShapeRange` bypasses the state machine that owns it.
 
 import {
   FontInstance, FontRun,
   getFontInstance, getFontSourceInfo, shapingFaceFor, webfontShapingFace,
   webfontVariantsInDeclarationOrder, unicodeRangeCovers,
   resolveColorEmojiKeyForCp, isEmojiCharCp, isEmojiPresentationCp,
-  resolveFontForCodepoint, resolveDottedCircleHbRun,
+  resolveFontForCodepoint,
   resolveSystemFallbackKeyForCp,
   fontHasSupportedColorTable,
-  glyphIdForCp, harfbuzzShapedRunOverride,
+  harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
   registerFontEnvironmentInvalidator,
 } from "./font-resolution.js";
@@ -157,20 +154,11 @@ interface Assignment {
   font: FontInstance;
   isPrimary: boolean;
   mechanism: NonNullable<FontRun["routeMechanism"]>;
-  /** Substituted run text (decomposed resolver answers); default = source slice. */
-  emitText?: string;
-  /** Mirrors `FontRun.decomposed` — a substituted-text commit or a pinned
-   *  dotted-circle cluster. The glyph-path emitter renders such runs via its
-   *  run-text branch; in "paths" mode runs never merge across a flag change. */
-  decomposed?: boolean;
 }
 
-/** Which emitter the split feeds. The default ("embedded") is the contract the
- *  embedded-font pipeline shipped with. "paths" is the glyph-path emitter
- *  (`textToPathMarkup`), which adds two concerns of its own:
- *  - per-run `decomposed` flags, and no merging across a flag boundary — the
- *    emitter picks its per-char vs run-text branch per run from the flag. */
 export interface ShapedSplitOptions {
+  /** Retained for call-site compatibility. Face selection and shaping are now
+   * identical for both emitters; neither mode owns a fallback prepass. */
   mode?: "embedded" | "paths";
   /** CSS bidi override captured from the live run. Blink applies this before
    * RunSegmenter, so fallback shaping must use the same forced direction as
@@ -183,8 +171,9 @@ export interface ShapedSplitOptions {
    * membership (`platform/fonts/shaping/harfbuzz_shaper.cc:627-787`, rev
    * 7d859f27) — a `-liga` or letter-spacing veto can change which glyphs a
    * cluster maps to and therefore its coverage verdict. Omitted = default
-   * features, which is what every current caller passes; wiring a live value
-   * through from the render call sites is a separate, additive follow-up.
+   * features. Every production caller supplies the fully resolved feature list
+   * assembled from the CSS longhands, variants, alternates, and explicit
+   * `font-feature-settings` values.
    */
   features?: string[];
   /** Exact Blink FontSelectionRequest slope in CSS degrees, used by the
@@ -459,73 +448,6 @@ function vsUnmatchedInFace(face: HbFace, font: FontInstance, fontKey: string, se
   return true; // non-emoji VS: base-only coverage is an unmatched sequence
 }
 
-// ── DM-1215 dotted-circle cluster runs (pinned prepass) ─────────────────────
-//
-// An orphaned complex-shaper mark (or an explicit ◌ + mark) routes through real
-// HarfBuzz in the mark's own font, so the ◌ is inserted + GPOS-positioned like
-// Chrome paints it. Transplanted from the legacy walk so the shaped splitter
-// preserves the calibrated behavior; its retirement in favor of the requeue
-// loop's native hb dotted circles is a separate A/B (docs/113 §4).
-const RE_MARK = /\p{M}/u;
-function pinnedDottedCircleSpans(
-  text: string,
-  primaryFont: FontInstance,
-  primaryFontKey: string,
-  weight: number,
-  fontSize: number,
-  slant: number,
-  variationSettings: Record<string, number> | undefined,
-  lang: string | undefined,
-  fontKeyChain: string[],
-): Assignment[] {
-  // Cheap gate: no combining mark, no spans.
-  if (!RE_MARK.test(text)) return [];
-  const spans: Assignment[] = [];
-  let hbRun: { key: string; font: FontInstance } | null = null;
-  let clusterHasBase = false;
-  let i = 0;
-  while (i < text.length) {
-    const cp = text.codePointAt(i)!;
-    const ch = String.fromCodePoint(cp);
-    const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
-    // Variation selectors and the other HarfBuzz default-ignorables may have
-    // General_Category=Mark, but they never request Blink's synthetic dotted
-    // circle. Let the ordinary shaped-cluster path hide them on the current
-    // face instead of pinning them to a mark fallback font.
-    const chIsMark = RE_MARK.test(ch) && !isHarfbuzzDefaultIgnorable(cp);
-    let clusterRun: { key: string; font: FontInstance } | null = null;
-    if (hbRun != null) {
-      if (chIsMark) clusterRun = hbRun;
-      else hbRun = null;
-    }
-    if (clusterRun == null) {
-      const markForCluster = (cp === 0x25CC && nextCp !== 0
-        && RE_MARK.test(String.fromCodePoint(nextCp)) && !isHarfbuzzDefaultIgnorable(nextCp))
-        ? nextCp
-        : (chIsMark && !clusterHasBase) ? cp
-        : 0;
-      if (markForCluster !== 0) {
-        const run = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
-        if (run != null) { hbRun = run; clusterRun = run; }
-      }
-    }
-    if (/\s/.test(ch) && ch.length === 1) clusterHasBase = false;
-    else if (!chIsMark) clusterHasBase = true;
-    if (clusterRun != null) {
-      const last = spans[spans.length - 1];
-      if (last != null && last.end === i && last.key === clusterRun.key && last.font === clusterRun.font) {
-        last.end = i + ch.length;
-      } else {
-        // `decomposed`: the glyph-path emitter must render this span via its
-        // run-text branch (the whole ◌+mark cluster shapes as a unit).
-        spans.push({ start: i, end: i + ch.length, key: clusterRun.key, font: clusterRun.font, isPrimary: false, mechanism: "dotted-circle-pin", decomposed: true });
-      }
-    }
-    i += ch.length;
-  }
-  return spans;
-}
-
 // ── The FontFallbackIterator port ───────────────────────────────────────────
 
 type Stage = "family" | "priority" | "system" | "lastResort" | "firstCandidate" | "outOfLuck";
@@ -549,13 +471,22 @@ export function _hasNonTextFallbackPriorityForTest(
 interface Candidate {
   key: string;
   font: FontInstance;
-  face: HbFace;
+  /** Null means Domotion cannot open the selected platform face through its
+   * HarfBuzz bridge. This is candidate-local evidence, not permission to
+   * restart the whole run with per-codepoint fallback. */
+  face: HbFace | null;
   isPrimary: boolean;
   mechanism: NonNullable<FontRun["routeMechanism"]>;
   /** Segmented-webfont range set — clusters containing an out-of-range
    *  character read `.notdef` with this face (Blink passes the face's range
    *  set into `ShapeRange`, `harfbuzz_shaper.cc:1119`). */
   clampRanges: Array<[number, number]> | null;
+}
+
+function candidateIdentity(candidate: Candidate): string {
+  if (candidate.face != null) return `${candidate.face.path}#${candidate.face.faceIndex}`;
+  const source = getFontSourceInfo(candidate.font);
+  return `${candidate.key}|${source?.path ?? ""}#${source?.faceIndex ?? "?"}|${source?.postscriptName ?? candidate.font.postscriptName ?? ""}`;
 }
 
 /** Blink's last-resort face, per platform:
@@ -571,13 +502,12 @@ function lastResortKeys(): string[] {
   return ["helvetica"];
 }
 
-class DeclineError extends Error {}
-
 /**
  * Shape-then-requeue split: Blink's `ShapeSegment` loop
  * (`harfbuzz_shaper.cc:965-1144`) ported to run-splitting granularity. Returns
- * the per-font run assignment Blink's mechanism produces, or null to decline
- * (caller uses the legacy per-codepoint path).
+ * the per-font run assignment Blink's mechanism produces. An unopenable local
+ * face remains an unshaped candidate in that iterator; it never changes the
+ * algorithm to the legacy per-codepoint walk.
  *
  * The output contract matches `splitTextIntoFontRuns`: contiguous runs in
  * source order covering all of `text`.
@@ -600,17 +530,12 @@ export function splitTextIntoFontRunsShaped(
   fontFamily?: string,
   /** Emitter-contract options — see `ShapedSplitOptions`. Default: embedded. */
   opts?: ShapedSplitOptions,
-): FontRun[] | null {
-  if (text.length === 0) return null;
+): FontRun[] {
+  if (text.length === 0) return [];
   _invoked++;
-  try {
-    const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, opts);
-    if (runs != null) _accepted++;
-    return runs;
-  } catch {
-    // A decline, never a crash: the legacy path takes over.
-    return null;
-  }
+  const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, opts);
+  _accepted++;
+  return runs;
 }
 
 function splitShapedInner(
@@ -628,13 +553,8 @@ function splitShapedInner(
   fontVariantEmoji: FontVariantEmojiOverride | undefined,
   fontFamily: string | undefined,
   opts: ShapedSplitOptions | undefined,
-): FontRun[] | null {
-  const pathsMode = opts?.mode === "paths";
+): FontRun[] {
   const primaryFace = hbFaceFor(primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings);
-  if (primaryFace == null || primaryFace.faceIndex == null) return null;
-
-  // DM-1215 dotted-circle cluster runs, pinned before the requeue loop.
-  const pinned = pinnedDottedCircleSpans(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
 
   // Script itemization FIRST — Blink's RunSegmenter runs before any shaping,
   // so a Thai-script mark (U+0E48, Script=Thai, not Inherited) never joins a
@@ -664,21 +584,10 @@ function splitShapedInner(
   const rtlVerdictText = levels == null ? text : mirrorPairedCharacters(text);
   const logicalText = levels == null || rtlVerdictText === text ? text : mirrorPairedCharacters(text, levels);
 
-  const assignments: Assignment[] = [...pinned];
+  const assignments: Assignment[] = [];
 
   for (const seg of segments) {
-    // Initial queue: the segment minus any pinned span.
-    let queue: QueueRange[] = [];
-    {
-      let cursor = seg.start;
-      for (const p of pinned) {
-        if (p.end <= seg.start || p.start >= seg.end) continue;
-        if (p.start > cursor) queue.push({ start: cursor, end: Math.min(p.start, seg.end) });
-        cursor = Math.max(cursor, p.end);
-      }
-      if (cursor < seg.end) queue.push({ start: cursor, end: seg.end });
-    }
-    if (queue.length === 0) continue;
+    let queue: QueueRange[] = [{ start: seg.start, end: seg.end }];
 
     const scriptTag = SCRIPT_NAME_TO_ISO15924[seg.script];
     const segVsSequences = collectVsSequences(text, seg.start, seg.end, fontVariantEmoji);
@@ -744,14 +653,10 @@ function splitShapedInner(
 
     const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, mechanism: NonNullable<FontRun["routeMechanism"]>, vs?: Record<string, number>): Candidate => {
       const face = isPrimary ? primaryFace : hbFaceFor(font, key, weight, fontSize, slant, vs);
-      // A candidate HarfBuzz cannot open cannot take this mechanism at all —
-      // decline the whole split so the legacy path (which can consult the
-      // native helper's coverage) keeps its behavior.
-      if (face == null || face.faceIndex == null) throw new DeclineError();
       return { key, font, face, isPrimary, mechanism, clampRanges };
     };
 
-    type Picked = Candidate | { decomposedCommit: { hint: number; key: string; font: FontInstance; emitCh: string } } | null;
+    type Picked = Candidate | null;
 
     /** `FontFallbackIterator::Next` + `UniqueOrNext`, as one loop. */
     const nextFont = (hints: number[]): Picked => {
@@ -783,8 +688,8 @@ function splitShapedInner(
                   && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
                 if (isPrimaryInstance) v = primaryFont;
                 const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);
-                if (face == null || face.faceIndex == null) throw new DeclineError();
-                const identity = `${face.path}#${face.faceIndex}`;
+                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, mechanism: "declared-family", clampRanges: ranges ?? null };
+                const identity = candidateIdentity(cand);
                 const subsetted = v.webfontUnicodeRange != null;
                 if (!subsetted) {
                   if (returnedFaces.has(identity)) continue;
@@ -794,7 +699,6 @@ function splitShapedInner(
                 // remains primary for CSS axis/feature application. The
                 // concrete-instance check above is narrower: it only decides
                 // when the caller's already-instanced Font object can be reused.
-                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, mechanism: "declared-family", clampRanges: ranges ?? null };
                 if (firstCandidate == null) firstCandidate = cand;
                 return cand;
               }
@@ -806,7 +710,7 @@ function splitShapedInner(
             if (inst == null) break;
             const isPrimary = entry.key === primaryFontKey && inst === primaryFont;
             const cand = candidateFor(entry.key, inst, isPrimary, inst.webfontUnicodeRange ?? null, "declared-family", isPrimary ? variationSettings : undefined);
-            const identity = `${cand.face.path}#${cand.face.faceIndex}`;
+            const identity = candidateIdentity(cand);
             if (cand.clampRanges == null) {
               if (returnedFaces.has(identity)) break;
               returnedFaces.add(identity);
@@ -833,7 +737,7 @@ function splitShapedInner(
             const font = getFontInstance(key, weight, fontSize, slant);
             if (font == null) break;
             const cand = candidateFor(key, font, false, null, "priority-emoji");
-            const identity = `${cand.face.path}#${cand.face.faceIndex}`;
+            const identity = candidateIdentity(cand);
             if (returnedFaces.has(identity)) break;
             returnedFaces.add(identity);
             if (firstCandidate == null) firstCandidate = cand;
@@ -870,14 +774,12 @@ function splitShapedInner(
             if (!res.covered) { iter.stage = "lastResort"; break; }
             const font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
             if (font == null) { iter.stage = "lastResort"; break; }
-            if (res.decomposed) {
-              // A calibrated per-codepoint substitution (math-alpha base,
-              // cross-font NFD): commit the hint character itself with the
-              // substituted text. Not a Blink stage — see the module header.
-              return { decomposedCommit: { hint, key: res.key, font, emitCh: res.emitCh } };
-            }
+            // `res.decomposed` is coverage evidence for the selected face, not
+            // an alternate commit operation. HarfBuzz shapes the ORIGINAL
+            // queued source range below and owns whether canonical pieces are
+            // emitted (`hb-ot-shape-normalize.cc:108-200`).
             const cand = candidateFor(res.key, font, false, null, "system-resolver");
-            const identity = `${cand.face.path}#${cand.face.faceIndex}`;
+            const identity = candidateIdentity(cand);
             if (returnedFaces.has(identity)) { iter.stage = "lastResort"; break; }
             returnedFaces.add(identity);
             if (firstCandidate == null) firstCandidate = cand;
@@ -894,7 +796,7 @@ function splitShapedInner(
               const inst = getFontInstance(key, weight, fontSize, slant);
               if (inst == null) continue;
               const cand = candidateFor(key, inst, false, null, "last-resort");
-              const identity = `${cand.face.path}#${cand.face.faceIndex}`;
+              const identity = candidateIdentity(cand);
               if (returnedFaces.has(identity)) break; // duplicate → first candidate
               returnedFaces.add(identity);
               if (firstCandidate == null) firstCandidate = cand;
@@ -916,42 +818,16 @@ function splitShapedInner(
 
     // ── the reshape queue loop ──
     // Defensive bound only: every cycle consumes monotone state (family index,
-    // tried variants, asked hints, stage), so the loop terminates; the cap
-    // turns a logic bug into a decline instead of a hang.
+    // tried variants, asked hints, stage), so the loop terminates. A violation
+    // is an implementation bug; silently switching assignment algorithms would
+    // hide it and produce a plausible but non-Blink result.
     let guard = familyCycle.length + text.length * 2 + 64;
     while (queue.length > 0) {
-      if (--guard < 0) throw new DeclineError();
+      if (--guard < 0) throw new Error("cluster fallback iterator did not converge");
       const hints = collectHintChars(logicalText, queue, needsFullHints);
       if (hints.length === 0) break;
       const picked = nextFont(hints);
       if (picked == null) break;
-      if ("decomposedCommit" in picked) {
-        const { hint, key, font, emitCh } = picked.decomposedCommit;
-        const chLen = String.fromCodePoint(hint).length;
-        const nextQueue: QueueRange[] = [];
-        for (const r of queue) {
-          let cursor = r.start;
-          let i = r.start;
-          while (i < r.end) {
-            // `logicalText`, because that is where the hint came from — the
-            // two differ only at mirrorable brackets, which the resolver never
-            // answers with a decomposition, so this is consistency, not a
-            // behavior change.
-            const cp = logicalText.codePointAt(i)!;
-            const len = cp > 0xffff ? 2 : 1;
-            if (cp === hint) {
-              if (i > cursor) nextQueue.push({ start: cursor, end: i });
-              assignments.push({ start: i, end: i + chLen, key, font, isPrimary: false, mechanism: "decomposed-commit", emitText: emitCh, decomposed: true });
-              cursor = i + chLen;
-            }
-            i += len;
-          }
-          if (cursor < r.end) nextQueue.push({ start: cursor, end: r.end });
-        }
-        queue = nextQueue;
-        continue;
-      }
-
       // `ChangeStageToLast` fires when the iterator has nothing further
       // (`!fallback_iterator.HasNext()`, `harfbuzz_shaper.cc:1041-1043`) —
       // with the kLastWithVS exception: unmatched variation sequences keep the
@@ -968,7 +844,7 @@ function splitShapedInner(
         // fallback passes WITH the run's features (`ShapeRange(buffer,
         // font_features, …)`), and a `-liga`/letter-spacing veto can flip a
         // cluster's coverage verdict.
-        const verdicts = shapeVerdicts(current.face, seg.rtl ? rtlVerdictText : text, range, seg.rtl, scriptTag, lang, fontSize, opts?.features);
+        const verdicts = current.face == null ? null : shapeVerdicts(current.face, seg.rtl ? rtlVerdictText : text, range, seg.rtl, scriptTag, lang, fontSize, opts?.features);
         if (verdicts == null) {
           // Unshapeable with this font — the whole range stays queued (or
           // terminally commits to the first candidate below when isLast).
@@ -1003,7 +879,7 @@ function splitShapedInner(
           if (ok && rangeVs.length > 0) {
             for (const seq of rangeVs) {
               if (seq.index < abs.start || seq.index >= abs.end) continue;
-              if (vsUnmatchedInFace(current.face, current.font, current.key, seq)) {
+              if (current.face != null && vsUnmatchedInFace(current.face, current.font, current.key, seq)) {
                 ok = false;
                 vsSeen = true;
                 _vsRequeued++;
@@ -1063,10 +939,10 @@ function splitShapedInner(
   // Contract check: the assignment must tile [0, text.length) exactly.
   let cursor = 0;
   for (const a of assignments) {
-    if (a.start !== cursor) return null;
+    if (a.start !== cursor) throw new Error(`cluster assignments do not tile source at ${cursor}`);
     cursor = a.end;
   }
-  if (cursor !== text.length) return null;
+  if (cursor !== text.length) throw new Error(`cluster assignments end at ${cursor}, expected ${text.length}`);
 
   const runs: FontRun[] = [];
   let segmentIndex = 0;
@@ -1074,34 +950,23 @@ function splitShapedInner(
   for (const a of assignments) {
     while (segmentIndex < segments.length && segments[segmentIndex].end <= a.start) segmentIndex++;
     const segment = segments[segmentIndex];
-    // Every assignment is produced while processing one item (pinned dotted-
-    // circle spans included). Refuse a split that would erase/cross an item
-    // boundary instead of guessing which direction should own it.
-    if (segment == null || a.start < segment.start || a.end > segment.end) return null;
-    const aText = a.emitText ?? text.slice(a.start, a.end);
+    // Every assignment is produced while processing one item. Refuse a split
+    // that would erase/cross an item boundary instead of guessing which
+    // direction should own it.
+    if (segment == null || a.start < segment.start || a.end > segment.end) {
+      throw new Error(`cluster assignment [${a.start}, ${a.end}) crosses a shaping item`);
+    }
+    const aText = text.slice(a.start, a.end);
     const shapingDirection = segment.rtl ? "rtl" : "ltr";
-    // A resolver substitution no longer contains the itemized source text
-    // (Math-Alphanumeric is the representative case). Preserve its previous
-    // emitted-text script inference; source-preserving assignments, including
-    // dotted-circle pins, carry RunSegmenter's exact decision.
-    const shapingScript = a.emitText == null
-      ? SCRIPT_NAME_TO_ISO15924[segment.script]
-      : undefined;
+    const shapingScript = SCRIPT_NAME_TO_ISO15924[segment.script];
     const last = runs[runs.length - 1];
-    const aDecomposed = a.decomposed === true;
-    // In "paths" mode a run never merges across a `decomposed` boundary — the
-    // glyph-path emitter picks its per-char vs run-text branch PER RUN, so a
-    // merged mixed run would index the source text with substituted characters.
-    // Embedded keeps its shipped merge (it always renders `run.text`).
     if (last != null && lastRunSegmentIndex === segmentIndex
         && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start
-        && last.routeMechanism === a.mechanism
-        && (!pathsMode || (last.decomposed === true) === aDecomposed)) {
+        && last.routeMechanism === a.mechanism) {
       last.endIdx = a.end;
       last.text += aText;
-      if (aDecomposed) last.decomposed = true;
     } else {
-      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, shapingScript, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });
+      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, shapingScript, routeMechanism: a.mechanism });
       lastRunSegmentIndex = segmentIndex;
     }
   }

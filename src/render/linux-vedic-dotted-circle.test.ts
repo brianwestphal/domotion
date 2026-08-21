@@ -70,7 +70,7 @@ describe("Linux Vedic selected-face dotted circles", () => {
     for (const expected of LINUX_VEDIC_DOTTED_CIRCLE_RECORDS) {
       const run = render(String.fromCodePoint(expected.codepoint));
       expect(run, `U+${expected.codepoint.toString(16).toUpperCase()}`).toMatchObject({
-        mechanism: "dotted-circle-pin",
+        mechanism: "system-resolver",
         request: { script: expected.script, direction: "ltr" },
         selected: { postscriptName: expected.postscriptName, sourcePath: expected.sourcePath, faceIndex: 0, shapesWithHarfbuzz: true },
       });

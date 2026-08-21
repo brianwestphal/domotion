@@ -777,6 +777,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt33ihkj87f6sy3i",
+          "message": {
+            "text": "The default route must keep Blink FontFallbackIterator as the sole assignment owner. Chromium 7d859f27 shapes every queued range through ShapeRange and commits or requeues complete clusters; HarfBuzz 4de187d decides canonical normalization and broken-syllable U+25CC insertion against the current candidate face. Pre-pinning a mark face, committing replacement text, or restarting per codepoint bypasses that ownership.",
+            "markdown": "The default route must keep Blink FontFallbackIterator as the sole assignment owner. Chromium 7d859f27 shapes every queued range through ShapeRange and commits or requeues complete clusters; HarfBuzz 4de187d decides canonical normalization and broken-syllable U+25CC insertion against the current candidate face. Pre-pinning a mark face, committing replacement text, or restarting per codepoint bypasses that ownership."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 41,
+                  "endLine": 53,
+                  "snippet": {
+                    "text": "// Enabled by default; `DOMOTION_CLUSTER_FALLBACK=0` restores the per-codepoint\n// walk only as an explicit A/B mutation. The default route never changes its\n// assignment algorithm because one candidate cannot be opened by our HarfBuzz\n// bridge. Such a candidate stays in FontFallbackIterator order, its range stays\n// queued, and the terminal still belongs to Blink's first candidate.\n//\n// Dotted-circle insertion and canonical decomposition deliberately have no\n// prepass here. They are outcomes of shaping each selected candidate:\n// `hb_syllabic_insert_dotted_circles` first requires a broken syllable AND that\n// candidate's U+25CC glyph (`hb-ot-shaper-syllabic.cc:33-99`, rev 4de187d),\n// while `decompose_current_character` tests the source scalar and canonical\n// pieces in the same candidate (`hb-ot-shape-normalize.cc:108-200`). Committing\n// either result before `ShapeRange` bypasses the state machine that owns it."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 777
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 847
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2387"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "102c1b215e4f004556b620b3138f4009"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa4a481c7eb00bc54eac218ada4076bd0a7cd6cc",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

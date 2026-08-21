@@ -15,8 +15,9 @@ Each selected run records:
 
 - source UTF-16 span and emitted text;
 - the final assignment owner: declared family, priority emoji, system resolver,
-  last resort, first-candidate `.notdef`, dotted-circle pin, decomposed commit,
-  cluster-disabled legacy, or cluster-decline legacy;
+  last resort, first-candidate `.notdef`, or explicitly cluster-disabled
+  legacy. Dotted-circle insertion and canonical decomposition are shaping
+  outcomes on one of those owners, not separate assignment mechanisms;
 - the complete CSS request tuple relevant to face/shaping selection, plus the
   itemized ISO 15924 script actually passed to the production shaper;
 - logical font key plus concrete PostScript name, source path, collection
@@ -30,10 +31,10 @@ Each selected run records:
 
 DM-2423 makes that recorded script operational rather than descriptive: the
 ledger shapes with `FontRun.shapingScript`, the same value used by embedded and
-path emission. It also observes source/member metadata copied onto a
-resolver-pinned HarfBuzz proxy, so a dotted-circle record proves both the
-selected face and its final glyph stream instead of silently reshaping the face
-as Common for diagnostics.
+path emission. It also observes source/member metadata on the iterator-selected
+HarfBuzz run, so a dotted-circle record proves both the selected face and its
+final glyph stream instead of silently reshaping the face as Common for
+diagnostics.
 
 The representative browser oracle covers declared, system, emoji-priority,
 dotted-circle, `.notdef`, embedded, and legacy owners. Its mutation controls
@@ -41,6 +42,16 @@ require paths versus embedded mode, cluster enabled versus disabled, feature-on
 versus feature-off glyph output, and Chromium painted origins all to move. It
 joins each case to `CSS.getPlatformFontsForNode` and per-scalar `Range` origins,
 and withholds its verdict on any comparable face disagreement.
+
+DM-2387 expands that oracle to 29 rows. Distinct orphan and explicit-circle
+inputs, canonical composition, and Latin/Arabic/Devanagari/Bengali/Thai/
+Myanmar/Khmer/Brahmi counterexamples require exact nonempty glyph ids, clusters,
+advances, and offsets, and each selected-face glyph count must equal Chromium's
+CDP count. Every shaped row must preserve its authored source slice, no enabled
+row may report `cluster-disabled-legacy`, and the dotted-circle pair must
+produce distinct selected glyph records. A focused feature mutation also
+forces the primary to `.notdef` and proves that every later candidate probe
+receives the same resolved feature list.
 
 DM-2410 adds a macOS whole-sequence record for `❤️ ⚡️ VS16 wins` under
 `font-variant-emoji:text`. It joins explicit-VS precedence, the two Apple Color
