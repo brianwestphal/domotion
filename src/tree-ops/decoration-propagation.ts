@@ -41,13 +41,14 @@ import type { CapturedElement, PropagatedDecoration } from "../capture/types.js"
  * `text-decoration-color: currentcolor` resolves against the decorating
  * element's `color`, so it is resolved here at entry-build time.
  *
- * Wavy phase note: Chrome anchors the wavy pattern at each painted
- * fragment's own origin (`decoration_line_painter.cc` builds the wave from
- * `geometry.line.origin()`, which is the fragment's local origin) — verified
- * empirically on the mixed-weights fixture row by measuring wave-peak x
- * positions: each fragment's peaks restart relative to the fragment's own
- * start, not the decorating box's. The renderer's existing per-segment
- * `segX` anchoring already matches, so this pass carries no phase anchor.
+ * Wavy phase is deliberately NOT propagated from the decorating box. Blink's
+ * `TextDecorationInfo` uses the decorating box only for used font, zoom, and
+ * block-axis `offset_from_decorating_box`; `DecorationLinePainter` receives
+ * each painted fragment's own `DecorationGeometry::line.origin`. `MakeWave`
+ * supplies phase `-wavelength`, and the repeating tile is placed at that line
+ * origin, so modulo one wavelength its visible phase is zero at every fragment
+ * origin. The renderer therefore anchors at the physical segment x and carries
+ * no ancestor phase field here. Skip-ink clips that one wave after construction.
  *
  * DM-1732: each entry also records the decorating element's own measured
  * text baselines (`baselines`), so a `vertical-align`-shifted child (sub/

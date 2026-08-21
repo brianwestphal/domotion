@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2w6tonan812ctq",
+          "message": {
+            "text": "No decorating-box x or phase is propagated. Blink uses the ancestor only for decoration metrics, zoom, and block-axis offset; horizontal wave phase belongs to each painted fragment's DecorationGeometry line origin, so adding ancestor phase state would be incorrect across splits.",
+            "markdown": "No decorating-box x or phase is propagated. Blink uses the ancestor only for decoration metrics, zoom, and block-axis offset; horizontal wave phase belongs to each painted fragment's DecorationGeometry line origin, so adding ancestor phase state would be incorrect across splits."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/decoration-propagation.ts"
+                },
+                "region": {
+                  "startLine": 44,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": " * Wavy phase is deliberately NOT propagated from the decorating box. Blink's\n * `TextDecorationInfo` uses the decorating box only for used font, zoom, and\n * block-axis `offset_from_decorating_box`; `DecorationLinePainter` receives\n * each painted fragment's own `DecorationGeometry::line.origin`. `MakeWave`\n * supplies phase `-wavelength`, and the repeating tile is placed at that line\n * origin, so modulo one wavelength its visible phase is zero at every fragment\n * origin. The renderer therefore anchors at the physical segment x and carries\n * no ancestor phase field here. Skip-ink clips that one wave after construction.\n *\n * DM-1732: each entry also records the decorating element's own measured\n * text baselines (`baselines`), so a `vertical-align`-shifted child (sub/"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 91,
+          "workItemUris": [
+            "DM-2391"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6f3ecdb3ecbbdcb66c9fc0ccba2d3ef0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa4c05dc77329ee77513f8357ce0cbe9bc81bdac",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

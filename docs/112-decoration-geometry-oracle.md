@@ -109,6 +109,19 @@ All horizontal-tb, alphabetic baseline, zoom 1. `ascF` = `FloatAscent`
   the measured painted extent matches `2·(cpDist/(2√3)) + t` on every wavy
   case.
 
+### Wavy phase and propagated decorations
+
+The phase is source-derived rather than fitted. Blink's `MakeWave` starts the
+centerline at `-wavelength`; `PaintRibbon` places the repeating tile at the
+current painted fragment's `DecorationGeometry::line` origin. The internal
+phase is therefore zero modulo one wavelength at that physical origin. A
+decorating ancestor contributes used-font, zoom, and block-axis offset data,
+but no horizontal phase anchor. Neutral wrappers do not move phase, while real
+fragment splits each receive their own origin. Skip-ink is a later clip of the
+single full-fragment wave and cannot restart it. SVG wave coordinates retain
+three decimal places so zoomed/transformed fractional origins are not rounded
+by the general 0.1px markup formatter.
+
 ## Painted segments, not gap intervals
 
 The skip-ink comparison is expressed in positive space — the maximal painted

@@ -413,7 +413,8 @@ export interface DecorationLineCtx {
   style: string | undefined;
   /** True (unrounded) baseline of the run's glyphs — skip-ink band anchor. */
   runBaselineY: number;
-  /** The decoration run's x origin — the phase anchor for wavy (DM-1698). */
+  /** Physical painted-fragment line origin. Blink places the wavy tile here;
+   *  its internal -wavelength phase is zero modulo one wavelength. */
   segX: number;
   decorationColor: string;
   /** Skip-ink gap intervals for an intercept band centered `yRel` below the
@@ -493,6 +494,10 @@ export function emitDecorationLine(
   // `RoundDownThickness` — the snapped bar height for solid / double.
   const hSnap = Math.max(Math.floor(t), 1);
   if (style === "wavy") {
+    // Decoration phase is a paint-coordinate invariant. Preserve capture's
+    // sub-tenth-pixel fragment origin (not the renderer-wide 0.1px formatter),
+    // especially after zoom/transforms where a 0.05px phase error is visible.
+    const wr = (n: number) => Number(n.toFixed(3)).toString();
     // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
     //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
     //   cp_distance = 0.5 + round(3 * thickness + 0.5)
@@ -549,9 +554,9 @@ export function emitDecorationLine(
     const wavyGaps = skipsInk ? computeGapsAt(bandTop + bandH / 2 - runBaselineY, bandH, pad) : [];
     const subs = subSegments(wavyGaps);
     if (subs.length === 0) return "";
-    // ONE continuous wave, phase 0 at segX (the tile shader anchors at
-    // `PaintRect.x = line.x` with the tile's own `-wavelength` phase folding
-    // to zero mod λ), clipped to the surviving sub-segment rects at the
+    // ONE continuous wave, phase 0 at the physical fragment line origin. The
+    // tile shader anchors at `PaintRect.x = line.x`; MakeWave's exact
+    // `-wavelength` phase folds to zero modulo λ. It is clipped to the
     // pattern rect's vertical extent. This is Chrome's mechanism verbatim:
     // the tile crop bounds the wave to the pattern rect, and
     // `TextPainter::ClipDecorationLine` clips OUT each dilated intercept
@@ -559,15 +564,15 @@ export function emitDecorationLine(
     // and gap edges cut vertically instead of following the stroke's tangent
     // (which the previous per-sub-segment de Casteljau extraction did).
     const kEnd = Math.ceil((Math.max(...subs.map((s) => s.x1)) - segX) / wavelength);
-    let d = `M ${r(segX)} ${r(yWave)}`;
+    let d = `M ${wr(segX)} ${wr(yWave)}`;
     for (let k = 0; k < kEnd; k++) {
       const gx = segX + k * wavelength;
-      d += ` C ${r(gx + wavelength / 2)} ${r(yWave + cpDist)} ${r(gx + wavelength / 2)} ${r(yWave - cpDist)} ${r(gx + wavelength)} ${r(yWave)}`;
+      d += ` C ${wr(gx + wavelength / 2)} ${wr(yWave + cpDist)} ${wr(gx + wavelength / 2)} ${wr(yWave - cpDist)} ${wr(gx + wavelength)} ${wr(yWave)}`;
     }
     const rects = subs.map(({ x0, x1 }) =>
-      `<rect x="${r(x0)}" y="${r(bandTop)}" width="${r(x1 - x0)}" height="${r(bandH)}"/>`).join("");
+      `<rect x="${wr(x0)}" y="${wr(bandTop)}" width="${wr(x1 - x0)}" height="${wr(bandH)}"/>`).join("");
     return `<clipPath id="${clipId}">${rects}</clipPath>`
-      + `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(t)}" clip-path="url(#${clipId})"/>`;
+      + `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${wr(t)}" clip-path="url(#${clipId})"/>`;
   }
   if (style === "double") {
     // Double: two parallel bars. The second bar sits `doubleOffset` from the

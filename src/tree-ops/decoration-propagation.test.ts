@@ -44,6 +44,16 @@ function decoStyles(overrides: StyleOverrides = {}): StyleOverrides {
 // ── Basic propagation ───────────────────────────────────────────────────────
 
 describe("propagateTextDecorations: basics", () => {
+  it("keeps neutral wrappers phase-neutral because phase belongs to each painted fragment", () => {
+    const leaf = el({ text: "split", styles: { textDecorationLine: "none" } });
+    const neutral = el({ styles: { textDecorationLine: "none" }, children: [leaf] });
+    const root = el({ styles: decoStyles(), children: [neutral] });
+    propagateTextDecorations([root]);
+    expect(leaf.propagatedDecorations).toHaveLength(1);
+    expect(Object.keys(leaf.propagatedDecorations![0])).not.toContain("phase");
+    expect(Object.keys(leaf.propagatedDecorations![0])).not.toContain("x");
+  });
+
   it("annotates an in-flow child with the parent's decoration + font", () => {
     // The DM-1723 shape: <span class="wavy">regular <strong>bold</strong></span>
     const strong = el({ tag: "strong", text: "bold", styles: { fontWeight: "700", textDecorationLine: "none" } });

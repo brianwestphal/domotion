@@ -179,6 +179,71 @@
           "branch": "ci/dm2339-fresh-sweep"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2w6ton0si3xjzn",
+          "message": {
+            "text": "Blink anchors each wavy tile at the painted fragment's line origin; MakeWave's internal negative wavelength is zero modulo one period. This path alone keeps three decimal coordinates because the general one-decimal formatter measurably shifts fractional phase after zoom or transforms.",
+            "markdown": "Blink anchors each wavy tile at the painted fragment's line origin; MakeWave's internal negative wavelength is zero modulo one period. This path alone keeps three decimal coordinates because the general one-decimal formatter measurably shifts fractional phase after zoom or transforms."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 495,
+                  "endLine": 570,
+                  "snippet": {
+                    "text": "  const hSnap = Math.max(Math.floor(t), 1);\n  if (style === \"wavy\") {\n    // Decoration phase is a paint-coordinate invariant. Preserve capture's\n    // sub-tenth-pixel fragment origin (not the renderer-wide 0.1px formatter),\n    // especially after zoom/transforms where a 0.05px phase error is visible.\n    const wr = (n: number) => Number(n.toFixed(3)).toString();\n    // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:\n    //   wavelength = 1 + 2 * round(2 * thickness + 0.5)\n    //   cp_distance = 0.5 + round(3 * thickness + 0.5)\n    // Each wavelength is one cubic Bezier with both control points at\n    // `wavelength/2` x — `cp1.y = +cp_distance`, `cp2.y = -cp_distance` —\n    // producing an S-curve from `(0, 0)` through a peak / trough back to\n    // `(wavelength, 0)`. Blink strokes this centerline at the resolved\n    // thickness; the visual amplitude is implicit in the curve (measured\n    // ≈ 0.278 × cp_distance — used below only to size the skip-ink band).\n    //\n    // Earlier we rendered as quadratic Q curves with the control point at\n    // `±cp_distance` directly; that paints visual amplitude `cp_distance/2`\n    // — about 70% taller than Chrome — making 18 px wavy underlines look\n    // exaggerated. Cubic reproduces Chrome's geometry. (DM-446.)\n    // `MakeWave` clamps the thickness feeding the wave DEFINITION to ≥ 1\n    // (`decoration_line_painter.cc:181-193`); the stroke width and the\n    // stroke-bounds thickness stay the unclamped resolved value.\n    const tWave = Math.max(1, t);\n    const wavelength = 1 + 2 * Math.round(2 * tWave + 0.5);\n    const cpDist = 0.5 + Math.round(3 * tWave + 0.5);\n    // Placement, transcribed: the wavy ribbon's CENTERLINE sits at the line\n    // rect's top + wavy_offset + 0.5. For HTML text the wave is painted as a\n    // repeating tile (`PaintWavyTextDecoration`, non-SVG branch): the tile\n    // record draws `WavyPath` — whose centerline `WavyCenterlinePath` starts\n    // at y=0.5 by default — translated by `-bounds_.y()`, and the tile is\n    // placed at `PaintRect(geometry)`, whose origin is\n    // `line.origin + bounds_.OffsetFromOrigin + (0, wavy_offset)`\n    // (`decoration_line_painter.cc:288-296,330-345,477-533`). The bounds\n    // translation cancels, so the centerline lands at\n    // `line.y + wavy_offset + 0.5`. The wavy offset is the same ±(t+1) / 0\n    // family as the double offset (`text_decoration_info.cc:259-284`).\n    const wavyOffset = line === \"line-through\" ? 0 : doubleOffset;\n    const yWave = yTop + wavyOffset + 0.5;\n    // The wavy pattern rect (`ComputeWavyPatternRect`,\n    // `decoration_line_painter.cc:200-212`): Blink takes the STROKE BOUNDING\n    // RECT of the cubic centerline at stroke width t —\n    // `Path::StrokeBoundingRect` is the tight bounds of the Skia-stroked\n    // outline (`getFillPath(...).computeTightBounds()`,\n    // `platform/geometry/path.cc:161-166`, fetched at rev 7d859f27), NOT the\n    // control-point bounds — then floors the top and ceils the bottom.\n    // Analytically: the cubic with y controls (0, +cpDist, −cpDist, 0)\n    // reaches ±cpDist/(2√3) (extremum of 3s(1−s)(1−2s) at s=(3−√3)/6), and\n    // the stroke offsets that by t/2; the centerline sits at path-local\n    // y=0.5. This replaces the empirical `0.278 × cpDist` visual-amplitude\n    // band (0.278 was a probe-fitted approximation of 1/(2√3) ≈ 0.28868, and\n    // the old band ignored the floor/ceil snap entirely).\n    const amp = cpDist / (2 * Math.sqrt(3));\n    const bandTopRel = Math.floor(0.5 - (amp + t / 2));\n    const bandBottomRel = Math.ceil(0.5 + amp + t / 2);\n    const bandTop = yTop + wavyOffset + bandTopRel;\n    const bandH = bandBottomRel - bandTopRel;\n    // Skip-ink gaps against the pattern-rect band; the intercept dilation\n    // stays the LINE thickness (`min(t, 13)`), not the band height.\n    const wavyGaps = skipsInk ? computeGapsAt(bandTop + bandH / 2 - runBaselineY, bandH, pad) : [];\n    const subs = subSegments(wavyGaps);\n    if (subs.length === 0) return \"\";\n    // ONE continuous wave, phase 0 at the physical fragment line origin. The\n    // tile shader anchors at `PaintRect.x = line.x`; MakeWave's exact\n    // `-wavelength` phase folds to zero modulo λ. It is clipped to the\n    // pattern rect's vertical extent. This is Chrome's mechanism verbatim:\n    // the tile crop bounds the wave to the pattern rect, and\n    // `TextPainter::ClipDecorationLine` clips OUT each dilated intercept\n    // (`text_painter.cc:574-628`) — so the wave keeps one phase across gaps\n    // and gap edges cut vertically instead of following the stroke's tangent\n    // (which the previous per-sub-segment de Casteljau extraction did).\n    const kEnd = Math.ceil((Math.max(...subs.map((s) => s.x1)) - segX) / wavelength);\n    let d = `M ${wr(segX)} ${wr(yWave)}`;\n    for (let k = 0; k < kEnd; k++) {\n      const gx = segX + k * wavelength;\n      d += ` C ${wr(gx + wavelength / 2)} ${wr(yWave + cpDist)} ${wr(gx + wavelength / 2)} ${wr(yWave - cpDist)} ${wr(gx + wavelength)} ${wr(yWave)}`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2391"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7ed5af4cd21354d83afdd47d55fb5e2a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aa4c05dc77329ee77513f8357ce0cbe9bc81bdac",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

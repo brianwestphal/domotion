@@ -217,6 +217,27 @@ describe("emitDecorationLine: wavy pattern rect (ComputeWavyPatternRect, decorat
 });
 
 describe("emitDecorationLine: wavy centerline (WavyGeometry::PathOrigin + PaintRibbon, decoration_line_painter.cc:298-304,334-337)", () => {
+  it("anchors exact phase at a non-zero physical fragment origin", () => {
+    const c = gapCtx("wavy", []);
+    c.segX = 17.25;
+    c.subSegments = () => [{ x0: 17.25, x1: 72.25 }];
+    const out = emitDecorationLine(20, 2, "underline", false, c);
+    expect(out).toContain("M 17.25 23.5");
+    const ends = [...out.matchAll(/ C [^ ]+ [^ ]+ [^ ]+ [^ ]+ ([^ ]+) 23.5/g)].map((m) => Number(m[1]));
+    expect(ends.slice(0, 3)).toEqual([28.25, 39.25, 50.25]);
+  });
+
+  it("restarts at each painted fragment origin, not an ancestor decorating-box origin", () => {
+    const first = gapCtx("wavy", []);
+    first.segX = 12;
+    first.subSegments = () => [{ x0: 12, x1: 45 }];
+    const split = gapCtx("wavy", []);
+    split.segX = 53;
+    split.subSegments = () => [{ x0: 53, x1: 86 }];
+    expect(emitDecorationLine(20, 2, "underline", false, first)).toContain("M 12 23.5");
+    expect(emitDecorationLine(20, 2, "underline", false, split)).toContain("M 53 23.5");
+  });
+
   it("centerline sits at yTop + (t+1) + 0.5 for underline, stroked at the resolved thickness", () => {
     // yTop 20, t 2: centerline y 23.5; the cubic's endpoints sit ON the
     // centerline (M x y with y = 23.5), stroke-width 2.
