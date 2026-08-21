@@ -183,10 +183,10 @@ describe("identifyFace", () => {
     )).toBe(null);
   });
 
-  it("accepts the documented macOS system-font alias, and --strict-alias rejects it", () => {
+  it("does not alias an exact named SF Pro face to the system SFNS face", () => {
     const c = chrome({ postScriptName: "SFProText-Regular", familyName: "SF Pro Text" });
     const o = ours({ key: "sf-pro", path: "/System/Library/Fonts/SFNS.ttf" });
-    expect(identifyFace(c, o, false)).toBe("agree-alias");
+    expect(identifyFace(c, o, false)).toBe(null);
     expect(identifyFace(c, o, true)).toBe(null);
   });
 

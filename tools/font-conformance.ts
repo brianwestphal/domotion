@@ -543,8 +543,8 @@ export function needsIsolatedQuery(cp: number): boolean {
 const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
- * The one place where Chrome's name for a face and ours genuinely cannot be
- * reconciled mechanically. Keep this list SHORT and cite why — an entry here is
+ * Exceptional cases where Chrome's name for a face and ours genuinely cannot
+ * be reconciled mechanically. Keep this list SHORT and cite why — an entry here is
  * a claim that two differently-named things are the same face, and a wrong
  * claim silently converts a real defect into a pass.
  *
@@ -553,20 +553,7 @@ const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
  * separately (`agree-alias`) so its size stays visible. `--strict-alias`
  * re-classifies them as mismatches.
  */
-export const FACE_ALIASES: Array<{ chrome: RegExp; ours: RegExp; reason: string }> = [
-  {
-    chrome: /^(sfprotext|sfprodisplay|sfpro|applesystemuifont|sfnstext|sfnsdisplay|sfns)/,
-    ours: /(^|\s)(sfpro|sfns)/,
-    reason:
-      "macOS system font. Chrome reports the optical-cut display name (\"SF Pro Text\" / PostScript "
-      + "SFProText-Regular) for text it paints out of /System/Library/Fonts/SFNS.ttf, whose own "
-      + "PostScript name is .SFNS-Regular — so neither the name, the file, nor the font's internal "
-      + "name lines up. Domotion routes the `sf-pro` key to SFNS.ttf deliberately, because SFNS is "
-      + "the file whose outlines match Chrome's painted glyphs (src/render/font-resolution.ts, the "
-      + "`sf-pro` / sfProCoverageOtfKey block). Treating the name difference as a mismatch would "
-      + "bury every real mismatch under it.",
-  },
-];
+export const FACE_ALIASES: Array<{ chrome: RegExp; ours: RegExp; reason: string }> = [];
 
 /**
  * Triage label for a mismatch. PostScript names are conventionally

@@ -1956,6 +1956,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2hes6xzfqcsfad",
+          "message": {
+            "text": "Preserve the exact macOS declared-family descriptor before any system fallback. Chromium exhausts kFontGroupFonts before kSystemFonts (fontfallbackiterator.cc:120-178 at 7d859f271c), and MatchFontFamily returns the chosen family/PostScript member; therefore collapsing a calibrated alias such as Hiragino Kaku Gothic ProN into hiragino-jp loses observable face identity even when gids and advances coincide. The generic family-level check has no codepoint exceptions, and an unavailable family retains the existing fallthrough. Focused macOS tests prove HiraKakuProN-W3 and conditional SFProText-Regular identity, gids/advances, cold/warm equality, negative availability, and independent Chromium CDP/Range agreement.",
+            "markdown": "Preserve the exact macOS declared-family descriptor before any system fallback. Chromium exhausts kFontGroupFonts before kSystemFonts (font_fallback_iterator.cc:120-178 at 7d859f271c), and MatchFontFamily returns the chosen family/PostScript member; therefore collapsing a calibrated alias such as Hiragino Kaku Gothic ProN into hiragino-jp loses observable face identity even when gids and advances coincide. The generic family-level check has no codepoint exceptions, and an unavailable family retains the existing fallthrough. Focused macOS tests prove HiraKakuProN-W3 and conditional SFProText-Regular identity, gids/advances, cold/warm equality, negative availability, and independent Chromium CDP/Range agreement."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8827,
+                  "endLine": 8880,
+                  "snippet": {
+                    "text": "  // macOS declared-family identity is the CTFont/NSFont descriptor Blink\n  // matched, not the calibrated logical key that happened to nominate it.\n  // `FontFallbackIterator::Next` exhausts every kFontGroupFonts entry before\n  // entering kSystemFonts (`font_fallback_iterator.cc:120-178`, Chromium\n  // 7d859f271c), and `MatchFontFamily` returns the exact family/PostScript\n  // member selected for that entry (`mac/font_matcher_mac.mm:591-705`). Keep\n  // that member addressable through the whole declared-family walk. Otherwise\n  // two public families that share a calibrated backing key collapse before\n  // fallback: \"Hiragino Kaku Gothic ProN\" becomes HiraginoSans-W4 through\n  // `hiragino-jp`, and an installed \"SF Pro Text\" becomes .SFNS-Regular\n  // through `sf-pro` whenever a caller materializes the key instead of using\n  // `resolveFont`'s primary instance.\n  //\n  // This is deliberately a family decision, with no character/range input.\n  // Generic keywords keep their platform/settings routes, as do webfonts and\n  // local() aliases. The platform matcher already answered availability; an\n  // unavailable family therefore still returns the calibrated candidate's\n  // existing null/fall-through result above.\n  if (hostPlatform() !== \"darwin\" || generic\n      || key.startsWith(\"webfont:\") || key.startsWith(\"localalias:\")\n      || (name === \"system-ui\" && canonicalSystemUiName)) {\n    return key;\n  }\n\n  const match = resolveFamilyStyleMatch(lookupName, {\n    weight: 400, italic: false, stretch: 100,\n  });\n  if (match == null) return key;\n\n  const nominatedSpec = resolveFontSpec(key);\n  const nominatedPostscriptName = nominatedSpec?.postscriptName\n    ?? (nominatedSpec?.path != null && nominatedSpec.path !== \"\"\n      ? resolveFaceInfoForFile(nominatedSpec.path).memberPostscriptName ?? undefined\n      : undefined);\n  if (nominatedPostscriptName === match.postscriptName) return key;\n\n  const installed = resolveInstalledFont(match.postscriptName);\n  if (installed == null || installed.path === \"\") return key;\n  const exactKey = `sysfb:${match.postscriptName}`;\n  registerDynamicSystemFont(\n    exactKey, installed.path, match.postscriptName,\n    nominatedSpec?.extractor ?? \"native\", installed.resolvedAxes, installed.ctAxes,\n  );\n  // Presence in this map distinguishes a declared-family dynamic key from a\n  // CTFontCreateForString system-fallback key. Per-run weight/slant/stretch\n  // selection must therefore stay in MatchFontFamily, not be reclassified as\n  // fallback-family re-selection merely because both registries use `sysfb:`.\n  declaredFamilyForKey.set(\n    exactKey,\n    installed.familyName !== \"\" && !installed.familyName.startsWith(\".\")\n      ? installed.familyName\n      : lookupName,\n  );\n  return exactKey;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2422"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "efcc7f1847a2af62859b745d3b0c829a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9d6c3bb975e7db7c6f6cd49ea773af3013c14ba9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -8597,11 +8597,10 @@ function matchFamilyCandidateToKey(
     // shows) vs a round circle in the OTF, and accent/terminal shapes differ across
     // the board. The two share Text-cut METRICS (identical advances), so an
     // advance-only check couldn't tell them apart, but the shapes are Chrome's
-    // ground truth. Verified via CDP `getPlatformFontsForNode` + native CoreText
-    // rasterization of both files. The OTF's extra coverage (the two-digit enclosed
-    // alphanumerics SFNS lacks) is handled by the normal per-codepoint fallback,
-    // which is also what Chrome does for those codepoints (SFNS lacks them → cascade).
-    // ...but that mapping holds ONLY when the named family actually resolves on
+    // ground truth. The calibrated candidate is still `sf-pro`; the generic
+    // exact-descriptor preservation in `matchFamilyNameToKey` subsequently
+    // replaces it with the installed static member Chromium returned.
+    // This nomination holds ONLY when the named family actually resolves on
     // THIS machine. Chrome can paint "SF Pro Text" (from its SFNS system cut)
     // only if the font is installed; on a stock macOS install / the GitHub CI
     // runner without Apple's downloadable `/Library/Fonts/SF-Pro-*.otf`, Chrome
@@ -8611,9 +8610,9 @@ function matchFamilyCandidateToKey(
     // Text"-stack fixtures had CI-Chrome fall to Helvetica while Domotion jumped
     // to SFNS (verified: the runner ships SFNS.ttf but no SF-Pro-*.otf; the comma
     // is straight in SFNS vs curved in Chrome's fallback). Mirror Chrome: return
-    // `sf-pro` when the named font resolves, else null so the stack walk
-    // continues. (When it IS installed, Chrome still paints from SFNS per
-    // DM-1659, so `sf-pro` remains correct.)
+    // `sf-pro` as the calibrated seed when the named font resolves, else null
+    // so the stack walk continues. DM-2422's post-check preserves the exact
+    // `SFProText-Regular` / `SFProDisplay-Regular` descriptor when installed.
     if (name === "sf pro text" || name === "sf pro display") {
       const named = name === "sf pro display" ? "SF Pro Display" : "SF Pro Text";
       return resolveInstalledFont(named) != null ? "sf-pro" : null;
@@ -8819,9 +8818,65 @@ function matchFamilyNameToKey(
   canonicalSystemUiName: boolean = name === "system-ui",
   lookupName: string = name,
 ): string | null {
-  return matchFamilyCandidateToKey(
+  const key = matchFamilyCandidateToKey(
     name, generic, lang, canonicalSystemUiName, lookupName,
   );
+  if (key == null) return null;
+
+  // macOS declared-family identity is the CTFont/NSFont descriptor Blink
+  // matched, not the calibrated logical key that happened to nominate it.
+  // `FontFallbackIterator::Next` exhausts every kFontGroupFonts entry before
+  // entering kSystemFonts (`font_fallback_iterator.cc:120-178`, Chromium
+  // 7d859f271c), and `MatchFontFamily` returns the exact family/PostScript
+  // member selected for that entry (`mac/font_matcher_mac.mm:591-705`). Keep
+  // that member addressable through the whole declared-family walk. Otherwise
+  // two public families that share a calibrated backing key collapse before
+  // fallback: "Hiragino Kaku Gothic ProN" becomes HiraginoSans-W4 through
+  // `hiragino-jp`, and an installed "SF Pro Text" becomes .SFNS-Regular
+  // through `sf-pro` whenever a caller materializes the key instead of using
+  // `resolveFont`'s primary instance.
+  //
+  // This is deliberately a family decision, with no character/range input.
+  // Generic keywords keep their platform/settings routes, as do webfonts and
+  // local() aliases. The platform matcher already answered availability; an
+  // unavailable family therefore still returns the calibrated candidate's
+  // existing null/fall-through result above.
+  if (hostPlatform() !== "darwin" || generic
+      || key.startsWith("webfont:") || key.startsWith("localalias:")
+      || (name === "system-ui" && canonicalSystemUiName)) {
+    return key;
+  }
+
+  const match = resolveFamilyStyleMatch(lookupName, {
+    weight: 400, italic: false, stretch: 100,
+  });
+  if (match == null) return key;
+
+  const nominatedSpec = resolveFontSpec(key);
+  const nominatedPostscriptName = nominatedSpec?.postscriptName
+    ?? (nominatedSpec?.path != null && nominatedSpec.path !== ""
+      ? resolveFaceInfoForFile(nominatedSpec.path).memberPostscriptName ?? undefined
+      : undefined);
+  if (nominatedPostscriptName === match.postscriptName) return key;
+
+  const installed = resolveInstalledFont(match.postscriptName);
+  if (installed == null || installed.path === "") return key;
+  const exactKey = `sysfb:${match.postscriptName}`;
+  registerDynamicSystemFont(
+    exactKey, installed.path, match.postscriptName,
+    nominatedSpec?.extractor ?? "native", installed.resolvedAxes, installed.ctAxes,
+  );
+  // Presence in this map distinguishes a declared-family dynamic key from a
+  // CTFontCreateForString system-fallback key. Per-run weight/slant/stretch
+  // selection must therefore stay in MatchFontFamily, not be reclassified as
+  // fallback-family re-selection merely because both registries use `sysfb:`.
+  declaredFamilyForKey.set(
+    exactKey,
+    installed.familyName !== "" && !installed.familyName.startsWith(".")
+      ? installed.familyName
+      : lookupName,
+  );
+  return exactKey;
 }
 
 export function resolveFontKey(fontFamily: string, lang?: string): string {
@@ -8962,21 +9017,6 @@ export function stretchPercent(value: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 100;
 }
 
-/** Preserve the author-visible SF family name through the shared `sf-pro` key.
- * Apple's protected `.SFNS-*` base cannot be reopened by family name, while
- * these public families can and are exactly what Blink gives MatchFontFamily. */
-function explicitDarwinSfFamily(fontFamily: string): string | undefined {
-  if (hostPlatform() !== "darwin") return undefined;
-  for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic);
-    if (key == null) continue;
-    return key === "sf-pro" && (
-      entry.name === "sf pro" || entry.name === "sf pro text" || entry.name === "sf pro display"
-    ) ? entry.name : undefined;
-  }
-  return undefined;
-}
-
 export function resolveFont(
   fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0,
   variationSettings?: Record<string, number>,
@@ -9001,7 +9041,7 @@ export function resolveFont(
       : variationSettings;
     const instance = getFontInstance(
       key, fontWeight, fontSize, slant, settings, stretch,
-      stackPrimaryIsSystemUi(entry.name), explicitDarwinSfFamily(entry.name),
+      stackPrimaryIsSystemUi(entry.name),
     );
     if (instance != null) return instance;
   }

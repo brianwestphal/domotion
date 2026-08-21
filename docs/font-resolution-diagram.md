@@ -315,6 +315,19 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > macOS"; doc [40](40-cross-platform-font-paths.md) L62 notes the keys are
 > "macOS-centric".
 >
+> **Exact macOS declared-family descriptor preservation (DM-2422).** After the
+> calibrated ladder nominates a key, a non-generic literal family is checked by
+> `resolveFamilyStyleMatch`. If CoreText's exact PostScript member differs from
+> the nominated key's member, it is registered as `sysfb:<PostScript>` and
+> marked in `declaredFamilyForKey`. This mirrors Blink exhausting its declared
+> font group before `CTFontCreateForString` system fallback
+> (`font_fallback_iterator.cc:120-178`, `mac/font_matcher_mac.mm:591-705`,
+> Chromium 7d859f271c). It has no character/range input: installed
+> `"Hiragino Kaku Gothic ProN"` remains `HiraKakuProN-W3`, an installed
+> `"SF Pro Text"` remains `SFProText-Regular`, and unavailable families still
+> walk to the next stack entry. Generic keywords, webfonts, and `local()` aliases
+> retain their existing routes.
+>
 > **Session generic-family resolution (live-browser authority, default ON).** The concrete
 > family behind a generic keyword is a property of the LAUNCHED capture
 > session, not of Chromium's source: Playwright applies its own vendored
@@ -373,14 +386,17 @@ flowchart TD
   M -->|"arial"| R16["arial"]
   M -->|"arial unicode ms"| R17["u-arial-unicode-ms"]
   M -->|"system-ui · sf pro ·<br/>blinkmacsystemfont (darwin only —<br/>style_builder_converter.cc rewrite is IS_MAC;<br/>off-darwin: null → SKIP)"| R18["sf-pro"]
-  M -->|"sf pro text · sf pro display"| R19["sf-pro (opsz-pinned, §7)"]
-  M -->|"hiragino sans · hiragino kaku gothic …"| R20["hiragino-jp"]
+  M -->|"sf pro text · sf pro display"| R19["calibrated sf-pro candidate<br/>then exact macOS descriptor preservation"]
+  M -->|"hiragino sans · hiragino kaku gothic …"| R20["calibrated hiragino-jp candidate<br/>then exact macOS descriptor preservation"]
   M -->|"ui-monospace · ui-serif · ui-rounded · ui-sans-serif ·<br/>math · emoji · fangsong · -apple-system"| RN["null → SKIP to next name"]
   M -->|"new york medium (if OTF installed)"| R21["sysfb:NewYorkMedium-Regular"]
   M -->|"else: resolveInstalledFont(name) hits<br/>(real installed but uncalibrated font)"| R22["sysfb:&lt;postscriptName&gt;<br/>(registerDynamicSystemFont)"]
   M -->|"win32: suffix name ('Segoe UI Light')<br/>win32FamilySuffixAdjustment + resolveInstalledFont"| R23["winfam:&lt;psName&gt;<br/>+ win32SuffixDeclaredForKey pin"]
   M -->|"linux: authorFamilyAvailable(name)<br/>→ fcMatch(name)"| R24["sysfb:&lt;psName&gt;<br/>+ declaredFamilyForKey record"]
   M -->|"no match"| RNext["→ try next name in stack"]
+
+  R19 -.-> DX["installed exact member differs →<br/>sysfb:&lt;postscriptName&gt;<br/>+ declaredFamilyForKey"]
+  R20 -.-> DX
 
   RNext -.->|"stack exhausted, nothing matched"| DEF["default: times"]
 ```
@@ -396,7 +412,8 @@ flowchart TD
 | `Consolas` | — | no pin: uninstalled → walk on; installed (MS Office Mac) → `sysfb:` via the installed-font probe |
 | `cursive` | `apple-chancery` | Apple Chancery (NOT Snell Roundhand) |
 | `fantasy` | `papyrus` | Papyrus |
-| `system-ui`, `SF Pro`, `BlinkMacSystemFont` (darwin only — the `system-ui` rewrite is `#if BUILDFLAG(IS_MAC)`; off macOS the name is unmatchable and walks on) | `sf-pro` | SFNS.ttf |
+| `system-ui`, `BlinkMacSystemFont` (darwin only — the `system-ui` rewrite is `#if BUILDFLAG(IS_MAC)`; off macOS the name is unmatchable and walks on) | `sf-pro` | SFNS.ttf |
+| literal installed `SF Pro`, `SF Pro Text`, `SF Pro Display` | `sysfb:<exact PostScript>` | exact family descriptor/file; unavailable → next stack entry |
 | `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system` | `null` | **skipped** (not in Blink's keyword table — `css_value_keywords.json5:173-181`; Chrome walks the stack, ultimately to `times`) |
 
 **Source of truth:** `matchFamilyNameToKey` / `resolveFontKey` /
@@ -612,8 +629,9 @@ Three properties are load-bearing:
 
 - **Scope is the declared-family stage.** `DARWIN_DECLARED_FAMILY_KEYS` lists
   the static keys `matchFamilyNameToKey` can return, and `declaredFamilyForKey`
-  marks the dynamic `sysfb:` keys its `resolveInstalledFont(name)` tail
-  registers (how `font-family: "PingFang SC"` becomes
+  marks both the dynamic `sysfb:` keys its `resolveInstalledFont(name)` tail
+  registers and exact-descriptor keys preserved after a calibrated nomination
+  (how `font-family: "PingFang SC"` becomes
   `sysfb:PingFangSC-Regular`). The per-codepoint FALLBACK path is a *different*
   Blink call — `CTFontCreateForString` then `GetAlternateFontPlatformData`'s
   in-family re-selection — which `fallbackFamilyCutKey` already mirrors on the
@@ -2016,21 +2034,19 @@ Three consequences worth holding onto:
   `stackPrimaryIsSystemUi(fontFamily, lang)` walks unavailable candidates with
   the same platform- and locale-aware matcher as primary resolution, then tests
   the first effective family with Blink's case-sensitive `AtomicString`
-  spelling (`system-ui` and, on macOS, `BlinkMacSystemFont` only), because
-  `system-ui`, `BlinkMacSystemFont` and an explicitly-named `"SF Pro Text"` all
-  collapse onto the single `sf-pro` key while Blink sends the first two to
-  `MatchSystemUIFont` and the third to `MatchFontFamily`
-  (`mac/font_cache_mac.mm:409-417`). Splitting the key was rejected: `sf-pro`'s
-  Latin metrics are load-bearing (SF Pro's advances measure ~3% wider than
-  Helvetica's) and a second key would have to reproduce every entry across three
-  platform tables plus the italic sibling to stay metric-identical.
+  spelling (`system-ui` and, on macOS, `BlinkMacSystemFont` only), because those
+  keywords go through `MatchSystemUIFont`, while an explicitly named family
+  goes through `MatchFontFamily` (`mac/font_cache_mac.mm:409-417`). Exact
+  installed named families now normally have their own `sysfb:<PostScript>`
+  key; the side-band remains authoritative for the system keyword and for
+  degraded/static routes.
 
   The same side-band now reaches `getFontInstance`, its cache key, the macOS
   declared-cut gate, and the CSS-valued `wght`/`wdth` gates. Thus two calls that
   resolve to `sf-pro` remain distinct instances: `system-ui` skips
-  `darwinPrimaryCutKey` and receives the clamped axes, while `SF Pro`, `SF Pro
-  Text`, and `SF Pro Display` use the declared-family cut and retain that face's
-  own coordinates.
+  `darwinPrimaryCutKey` and receives the clamped axes, while literal named
+  families use the declared-family cut (or their exact dynamic descriptor) and
+  retain that face's own coordinates.
 
   **This flag and `DOMOTION_LIVE_FALLBACK_FIRST` are only scoreable together**
   (see §7). With the static per-block chain answering first, the OS is never asked,

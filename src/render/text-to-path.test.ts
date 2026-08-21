@@ -142,8 +142,9 @@ describe("resolveFontKey: generic-family resolution", () => {
   it("routes cursive to Apple Chancery (DM-290)", () => {
     // Empirical probe at 16px: Chrome cursive paints at 290.08px which
     // matches Apple Chancery exactly (Snell Roundhand is 263.84px — a
-    // ~10% drift if we picked Snell). Author-named "Snell Roundhand" /
-    // "Brush Script MT" still get the snell key since those are explicit.
+    // ~10% drift if we picked Snell). Literal installed names preserve the
+    // exact member Chromium reports; Brush Script MT must not collapse to
+    // Snell merely because the calibrated table originally shared its key.
     //
     // The KEY is platform-independent on purpose: it is logical, and the three
     // path tables resolve it per platform (macOS Apple Chancery, Windows
@@ -152,7 +153,14 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("cursive")).toBe("apple-chancery");
     expect(resolveFontKey("Apple Chancery")).toBe("apple-chancery");
     expect(resolveFontKey("Snell Roundhand")).toBe("snell");
-    expect(resolveFontKey("Brush Script MT")).toBe("snell");
+    if (process.platform === "darwin"
+        && resolveInstalledFont("Brush Script MT")?.postscriptName === "BrushScriptMT") {
+      const key = resolveFontKey("Brush Script MT");
+      expect(key).toBe("sysfb:BrushScriptMT");
+      expect(getFontInstance(key, 400, 16, 0)?.postscriptName).toBe("BrushScriptMT");
+    } else {
+      expect(resolveFontKey("Brush Script MT")).toBe("snell");
+    }
   });
 
   it("routes fantasy to Papyrus (DM-290)", () => {
@@ -175,7 +183,11 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // cour.ttf / Liberation Mono metric class) — the Courier alias is strictly
     // a lookup-failure retry (`font_platform_data_cache.cc:74-105`, rev 7d859f27).
     expect(resolveFontKey("Courier New")).toBe("courier-new");
-    expect(resolveFontKey("SF Mono")).toBe("sf-mono");
+    const key = resolveFontKey("SF Mono");
+    expect(key).toBe("sysfb:SFMono-Regular");
+    expect(getFontInstance(key, 400, 16, 0)?.postscriptName).toBe("SFMono-Regular");
+    // The literal family does not change the generic-keyword route.
+    expect(resolveFontKey("monospace")).toBe("courier");
   });
 
   it("honors author-named sans families separately", () => {
@@ -187,17 +199,7 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("Arial")).toBe("arial");
   });
 
-  it("resolves named SF Pro Text / Display through the system SF platform face rather than inferring coverage from the raw SFNS cmap (DM-1659, DM-1688)", () => {
-    // DM-1659: Chrome→CoreText paints "SF Pro Text" / "SF Pro Display" from the
-    // SYSTEM font SFNS.ttf, NOT the standalone /Library/Fonts/SF-Pro-*.otf. The two
-    // files share Text-cut METRICS (identical advances) but differ in glyph DESIGN:
-    // e.g. the '!' dot is a squat rectangle in SFNS (what Chrome shows) vs a round
-    // circle in the OTF; accent and terminal shapes differ across the board.
-    // Verified via CDP getPlatformFontsForNode + native CoreText rasterization of
-    // both files. So the family resolves to the "sf-pro" (SFNS) key for shape
-    // fidelity — reversing DM-1127, which preferred the OTF wholesale on the FALSE
-    // assumption it's "the same font Chrome uses".
-    //
+  it("preserves installed named SF Pro Text / Display descriptors separately from system-ui (DM-2422)", () => {
     // The mapping holds ONLY where the named family actually resolves on THIS
     // host. Everywhere else — a macOS install without Apple's SF Pro download,
     // and every Linux/Windows host — Chrome cannot resolve the name and falls
@@ -206,33 +208,31 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // getPlatformFontsForNode: Liberation Serif, our `times` key) and a stacked
     // one lands on the next family (same probe: Liberation Sans for
     // `"SF Pro Text", sans-serif`, our `helvetica` key).
-    if (resolveInstalledFont("SF Pro Text") != null) {
-      expect(resolveFontKey("SF Pro Text")).toBe("sf-pro");
-      expect(resolveFontKey("SF Pro Display")).toBe("sf-pro");
+    const text = resolveInstalledFont("SF Pro Text");
+    const display = resolveInstalledFont("SF Pro Display");
+    if (process.platform === "darwin" && text?.postscriptName === "SFProText-Regular") {
+      const textKey = resolveFontKey("SF Pro Text");
+      expect(textKey).toBe("sysfb:SFProText-Regular");
+      expect(getFontInstance(textKey, 400, 16, 0)?.postscriptName).toBe("SFProText-Regular");
+      if (display?.postscriptName === "SFProDisplay-Regular") {
+        const displayKey = resolveFontKey("SF Pro Display");
+        expect(displayKey).toBe("sysfb:SFProDisplay-Regular");
+        expect(getFontInstance(displayKey, 400, 16, 0)?.postscriptName).toBe("SFProDisplay-Regular");
+      }
+      // The exact literal-family keys must not disturb the protected system
+      // descriptor used by the generic keyword.
+      expect(resolveFontKey("system-ui")).toBe("sf-pro");
+      expect(getFontInstance("sf-pro", 400, 16, 0)?.postscriptName).toBe(".SFNS-Regular");
     } else {
       expect(resolveFontKey("SF Pro Text")).toBe("times");
       expect(resolveFontKey('"SF Pro Text", sans-serif')).toBe("helvetica");
     }
 
-    if (process.platform !== "darwin" || resolveInstalledFont("SF Pro Text") == null) return;
-    // The system SFNS reroute exists only when the author-named downloadable
-    // family resolves. A stock macOS host without that optional font follows
-    // the same standard-family path asserted above.
-    // Per-codepoint: trust the matched platform face's native coverage, not the
-    // raw SFNS.ttf cmap. CDP reports SF Pro Text for both the ordinary glyphs and
-    // enclosed alphanumerics below, including the two-digit forms absent from the
-    // file's literal cmap (DM-1688).
-    expect(__resolveFontForCodepointForTest(0x21, "SF Pro Text")?.key).toBe("sf-pro");   // '!'
-    expect(__resolveFontForCodepointForTest(0x2460, "SF Pro Text")?.key).toBe("sf-pro"); // ① single-circled
-    expect(__resolveFontForCodepointForTest(0x2469, "SF Pro Text")?.key).toBe("sf-pro"); // ⑩ two-digit
-    expect(__resolveFontForCodepointForTest(0x24EB, "SF Pro Text")?.key).toBe("sf-pro"); // ⑪ negative-circled two-digit
-
-    // Discriminating precondition: the raw file really does lack U+2469. If this
-    // flips, the assertions above no longer prove that platform-face coverage —
-    // rather than file cmap inference — controls the routing decision.
-    const sfns = fontkit.openSync("/System/Library/Fonts/SFNS.ttf") as unknown as { glyphForCodePoint(cp: number): { id: number } };
-    expect(sfns.glyphForCodePoint(0x2460).id).not.toBe(0); // single-digit present
-    expect(sfns.glyphForCodePoint(0x2469).id).toBe(0);     // two-digit absent
+    if (process.platform !== "darwin" || text?.postscriptName !== "SFProText-Regular") return;
+    for (const cp of [0x21, 0x2460, 0x2469, 0x24EB]) {
+      expect(__resolveFontForCodepointForTest(cp, "SF Pro Text")?.key)
+        .toBe("sysfb:SFProText-Regular");
+    }
   });
 
   it("honors author-named serif families separately", () => {
@@ -250,7 +250,7 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // Family-name lookups are case-insensitive (CoreText/DirectWrite/
     // fontconfig all fold case), so any spelling of a real family matches.
     expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
-    expect(resolveFontKey("'SF Mono'")).toBe("sf-mono");
+    expect(resolveFontKey("'SF Mono'")).toBe("sysfb:SFMono-Regular");
     expect(resolveFontKey("MENLO")).toBe("menlo");
     // But the generic-KEYWORD classification is case-SENSITIVE
     // (`FontFamily::InferredTypeFor`, font_family.cc:63-74, rev 7d859f27 —
