@@ -131,6 +131,17 @@ describe("Blink table-level collapsed-border graph (DM-2320)", () => {
     expect(top.inlineStart).toBe(4);
     expect(top.inlineSize).toBe(7);
   });
+
+  it("DM-2413: paints edges in Blink's interleaved TableBorders storage order", () => {
+    const grid = createCollapsedBorderGrid(1, 1);
+    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
+      top: source("top", "solid", 4, 1), right: source("right", "solid", 4, 1),
+      bottom: source("bottom", "solid", 4, 1), left: source("left", "solid", 4, 1),
+    }, "horizontal-tb", "ltr");
+    expect(collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).map((rect) => rect.winner.side)).toEqual([
+      "left", "top", "right", "bottom",
+    ]);
+  });
 });
 
 describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
@@ -182,5 +193,29 @@ describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
       { rowStart: 1, blockLines: [10, 20] },
     ]);
     expect(rects.filter((rect) => rect.axis === "row" && rect.row === 1)).toHaveLength(1);
+  });
+
+  it("DM-2413: uses the final block-axis segment as the fragment-end boundary", () => {
+    const grid = createCollapsedBorderGrid(1, 1);
+    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
+      top: source("top", "solid", 2, 1), right: source("right", "solid", 6, 1),
+      bottom: source("bottom", "solid", 8, 1), left: source("left", "solid", 4, 1),
+    }, "horizontal-tb", "ltr");
+    const rects = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
+      rowStart: 0, blockLines: [0, 10], hasContentAfter: true,
+    }]);
+    expect(rects.map((rect) => rect.winner.side)).toEqual(["left", "top", "right", "bottom"]);
+    expect(rects.find((rect) => rect.winner.side === "left")).toMatchObject({
+      blockStart: -1,
+      blockSize: 11,
+    });
+    expect(rects.find((rect) => rect.winner.side === "right")).toMatchObject({
+      blockStart: -1,
+      blockSize: 11,
+    });
+    expect(rects.find((rect) => rect.winner.side === "bottom")).toMatchObject({
+      blockStart: 6,
+      blockSize: 4,
+    });
   });
 });

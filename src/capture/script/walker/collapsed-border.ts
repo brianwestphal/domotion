@@ -202,6 +202,14 @@ const winnerWidth = <T extends CollapsedBorderSource>(edge: CollapsedBorderEdge<
 const edgeAt = <T extends CollapsedBorderSource>(rows: Array<Array<CollapsedBorderEdge<T>>>, row: number, column: number): CollapsedBorderEdge<T> | null =>
   row >= 0 && row < rows.length && column >= 0 && column < rows[row].length ? rows[row][column] : null;
 
+// TableBorders stores each block-axis edge immediately before the row-axis
+// edge to its right. TablePainter walks that single array directly, so this
+// order is observable when equally ranked edges both paint a joint.
+const collapsedBorderPaintIndex = <T extends CollapsedBorderSource>(
+  rect: CollapsedBorderLogicalRect<T>,
+  columns: number,
+): number => rect.row * (columns + 1) * 2 + rect.column * 2 + (rect.axis === "row" ? 1 : 0);
+
 function jointDecision<T extends CollapsedBorderSource>(
   before: CollapsedBorderEdge<T> | null,
   after: CollapsedBorderEdge<T> | null,
@@ -251,6 +259,7 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
   const rects: Array<CollapsedBorderLogicalRect<T>> = [];
   let previousPaintedRow: number | null = null;
   for (const section of sections) {
+    const sectionRectStart = rects.length;
     const lines = section.blockLines;
     if (lines.length < 2) continue;
     const finalRowEdge = section.rowStart + lines.length - 1;
@@ -297,18 +306,21 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
       }
 
       if (localRow + 1 >= lines.length) continue;
+      const endSegmentRow = localRow + 1 === lines.length - 1;
+      const endSegmentFragmented = endSegmentRow && section.endRowFragmented === true;
+      const underSegmentBoundary = endSegmentRow && section.hasContentAfter === true;
       for (let column = 0; column <= grid.columns; column++) {
         const edge = edgeAt(grid.columnAxis, tableRow, column);
         if (!canPaintCollapsedEdge(edge)) continue;
         const start = jointDecision(
           edgeAt(grid.rowAxis, tableRow, column - 1), edgeAt(grid.rowAxis, tableRow, column),
           edgeAt(grid.columnAxis, tableRow - 1, column), edge,
-          "column", false, overBoundary, underBoundary,
+          "column", false, overBoundary, underSegmentBoundary,
         );
         const end = jointDecision(
           edgeAt(grid.rowAxis, tableRow + 1, column - 1), edgeAt(grid.rowAxis, tableRow + 1, column),
           edge, edgeAt(grid.columnAxis, tableRow + 1, column),
-          "column", true, overBoundary, underBoundary,
+          "column", true, overBoundary, underSegmentBoundary,
         );
         let blockStart = lines[localRow];
         let blockSize = lines[localRow + 1] - blockStart;
@@ -317,7 +329,7 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
           blockStart += start.wins ? -delta : delta;
           blockSize += start.wins ? delta : -delta;
         }
-        if (!endFragmented) {
+        if (!endSegmentFragmented) {
           const delta = end.blockWidth / 2;
           blockSize += end.wins ? delta : -delta;
         }
@@ -328,6 +340,9 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
         });
       }
     }
+    const sectionRects = rects.splice(sectionRectStart);
+    sectionRects.sort((a, b) => collapsedBorderPaintIndex(a, grid.columns) - collapsedBorderPaintIndex(b, grid.columns));
+    rects.push(...sectionRects);
     previousPaintedRow = section.endRowFragmented ? null : finalRowEdge;
   }
   return rects;
@@ -389,5 +404,6 @@ export function collapsedBorderLogicalRects<T extends CollapsedBorderSource>(
       rects.push({ axis: "column", row, column, inlineStart: inlineLines[column] - edge.winner.w / 2, blockStart, inlineSize: edge.winner.w, blockSize, winner: edge.winner });
     }
   }
+  rects.sort((a, b) => collapsedBorderPaintIndex(a, grid.columns) - collapsedBorderPaintIndex(b, grid.columns));
   return rects;
 }
