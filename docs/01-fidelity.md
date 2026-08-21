@@ -98,7 +98,14 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] `<img>` with src/width/height
 - [x] object-fit (fill/contain/cover/none/scale-down) + object-position → exact Chromium concrete object rectangle (including arbitrary percentages and computed `calc()` lengths)
 - [x] `<picture>`/`srcset` → captured as the resolved `<img currentSrc>`
-- [~] broken-image alt fallback — not rendered (blank rect)
+- [~] broken-image fallback — currently approximated by a fixed gray 16 px
+  framed-mountain plus raw SVG text. This is not Chromium's paint: Blink lays
+  out a UA-shadow fallback container, shapes alt/title text through its normal
+  font pipeline, and paints a bundled DPR-selected bitmap icon. Missing/empty
+  alt, intrinsic dimensions, the 18 px threshold, RTL/vertical writing,
+  border/padding, clipping, zoom, and accessibility semantics are not yet
+  source-exact. The audited hybrid boundary and implementation sequence are in
+  [doc 156](156-broken-image-fallback-ownership-audit.md).
 - [x] `<svg>` inline content (passed through verbatim)
 
 ### Form controls

@@ -115,14 +115,14 @@
     {
       "id": "replaced-elements-controls-generated-content",
       "domotionSources": ["src/capture", "src/render/form-controls.ts", "src/render/element-tree-to-svg.ts"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/html/html_image_element.cc", "external/chromium/third_party/blink/renderer/core/html/html_image_fallback_helper.cc", "external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint"],
       "oracle": "tools/replaced-geometry-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "11 live Chromium rows covering all object-fit modes with non-bucket positions, native-vs-author control ownership, and before/after generated boxes, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Dynamic replaced surfaces remain intentionally frozen, and generated text/counter glyph shaping is graded by the text-stage oracles rather than duplicated here.",
-      "nextAction": "Extend the live rows when Chromium adds a replaced sizing mode or a new generated-box/control ownership transition enters capture."
+      "knownGap": "Dynamic replaced surfaces remain intentionally frozen, and generated text/counter glyph shaping is graded by the text-stage oracles rather than duplicated here. Doc 156 source-audits broken-image fallback, but production still infers it from complete/naturalWidth and paints a fixed mountain; the 11-row oracle has no UA-shadow disposition, 17/18px, title/AX, RTL/vertical, zoom, or DPR controls.",
+      "nextAction": "Implement the captured UA-shadow record in DM-2463, hybrid renderer in DM-2464, and independent all-platform geometry/activation rows in DM-2465 before claiming broken-image parity."
     },
     {
       "id": "raster-fallback-boundary",
@@ -133,8 +133,8 @@
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "27 positive/negative live-capture and production-predicate rows covering glyph, replaced/sprite/frame, native-control, backdrop, projective, HTML URL-filter convolution with ordinary-filter/native-SVG negatives, advanced-gradient, conic, dormant-mask, retired text-raster, and helper-disabled transitions; selected-gid raster-kind controls cover sbix/COLR/bitmap/SVG, mixed-face outline negatives, and Windows DirectWrite codepoint-to-gid identity",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "The oracle proves activation ownership; each fallback's pixel contents remain the responsibility of its dedicated visual or paint-stage gate.",
-      "nextAction": "Add paired activation rows whenever a fallback is introduced, retired, or changes ownership."
+      "knownGap": "The oracle proves activation ownership; each fallback's pixel contents remain the responsibility of its dedicated visual or paint-stage gate. Broken-image paint is not yet a live raster boundary: doc 156 proves only Chromium's DPR-selected icon should become raster, while the current renderer emits an inexact vector approximation.",
+      "nextAction": "Add the broken-icon positive plus successful/loading/hidden-icon negatives in DM-2465 after DM-2463/DM-2464 ship the hybrid boundary; otherwise add paired activation rows whenever a fallback is introduced, retired, or changes ownership."
     },
     {
       "id": "end-to-end-visual-integration",

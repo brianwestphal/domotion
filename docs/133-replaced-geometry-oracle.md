@@ -25,3 +25,10 @@ The 11-row gate has a mutation control that changes object-position and
 requires the concrete rectangle to move. Pixel fixtures remain responsible
 for final compositing, platform theme pixels, generated glyph outlines, and
 the deliberately frozen contents of dynamic replaced surfaces.
+
+Broken-image fallback is an explicit uncovered replaced-content transition.
+[Doc 156](156-broken-image-fallback-ownership-audit.md) shows that Blink swaps
+the host to a UA-shadow block-flow/inline fallback with its own 18 px threshold,
+border/padding/clip, and shaped text geometry. The current 11 rows do not prove
+that state. DM-2465 adds it only after the source-owned capture and hybrid
+renderer land; until then this oracle must not be cited as broken-image parity.

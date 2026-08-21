@@ -214,6 +214,15 @@ Current capture records their logical line/run geometry and emits vectors.
 `elementRaster` remains only so older serialized captured trees can still be
 rendered; no live capture path sets it.
 
+The broken-image placeholder is also **not yet** an inventoried raster path.
+Current code draws a source-inexact gray vector mountain and raw SVG text.
+[The Chromium ownership audit](../156-broken-image-fallback-ownership-audit.md)
+shows that the eventual faithful route is hybrid: author/container/clip and
+alternative text remain vector, while only Chromium's DPR-selected broken-image
+bitmap becomes a minimal raster `<image>`. Add that icon-level entry here only
+when the capture and emit sites actually ship; until then, describing it as a
+live fallback would misstate the generated SVG.
+
 These also emit `<image>` tags but **aren't fallbacks** — they're the renderer faithfully passing through an author-supplied raster:
 
 - `<img src="...">` (raster) and `<picture>` elements — the source IS a raster image (PNG/JPEG/GIF/WebP/AVIF); we embed it as a data URI (resized to its display size per [27-image-resize-on-embed.md](../27-image-resize-on-embed.md)).

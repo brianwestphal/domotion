@@ -28,3 +28,10 @@ cannot pass. The mutation control crosses opaque sRGB into OKLab and requires
 the verdict to move. Add a positive and negative row here whenever a fallback
 is introduced, retired, or changes ownership, and update
 `docs/reference/raster-image-fallback-cases.md` in the same commit.
+
+The broken-image placeholder is not one of the 27 live rows because current
+production does not raster it—it emits an inexact vector mountain. The
+[ownership audit](156-broken-image-fallback-ownership-audit.md) requires only
+Chromium's 1×/2× icon pixels to cross the raster boundary; the UA container and
+alternative text stay vector. DM-2465 adds the icon positive and
+successful/loading/hidden-icon negatives after that hybrid path ships.

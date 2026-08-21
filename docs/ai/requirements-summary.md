@@ -1478,3 +1478,16 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   perspective paint node.
   Non-representable 3D paint remains the Chromium projective-subtree raster
   boundary (doc 06).
+
+<!-- DM-2384 -->
+- Broken-image fallback parity (doc 156) is **design-only**. Blink replaces a
+  failed host with a UA-shadow block-flow/inline fallback state machine; it
+  does not ask `ImagePainter` to draw a framed mountain. Source and fresh CDP
+  evidence require a hybrid result: author paint plus the UA container/clip
+  remain vector, hidden-node alt/title text uses the ordinary shaped vector
+  text path, and only Chromium's DPR-selected broken-image bitmap is raster.
+  Empty/missing alt, the exact 17/18 px transition, standards/quirks sizing,
+  RTL/vertical placement, zoom, title/AX semantics, and platform-native text
+  must come from captured browser facts. Current code still emits the fixed
+  gray approximation. DM-2463 captures the UA facts, DM-2464 emits the hybrid,
+  and DM-2465 adds dependency-ordered all-platform stage/oracle controls.

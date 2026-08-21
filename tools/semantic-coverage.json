@@ -791,6 +791,76 @@
       ]
     },
     {
+      "id": "replaced.broken-image-fallback",
+      "parityAreas": [
+        "replaced-elements-controls-generated-content",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "broken image disposition",
+        "alternative text",
+        "fallback intrinsic sizing",
+        "UA fallback border and padding",
+        "broken-image icon raster",
+        "accessibility name"
+      ],
+      "states": [
+        "loaded or loading image -> no broken fallback",
+        "failed resource -> collapsed or UA fallback disposition",
+        "missing alternative -> empty, icon-only, or title fallback",
+        "nonempty alternative -> shaped inline fallback text",
+        "17 px fixed box -> 18 px bordered fallback box",
+        "LTR horizontal layout -> RTL or vertical fallback layout",
+        "DPR below 2 -> DPR at least 2 icon resource",
+        "light color scheme -> dark color scheme",
+        "unclipped inline fallback -> clipped replaced fallback",
+        "named image -> decorative or unnamed accessibility state"
+      ],
+      "exactStates": [],
+      "uncoveredStates": [
+        "loaded or loading image -> no broken fallback",
+        "failed resource -> collapsed or UA fallback disposition",
+        "missing alternative -> empty, icon-only, or title fallback",
+        "nonempty alternative -> shaped inline fallback text",
+        "17 px fixed box -> 18 px bordered fallback box",
+        "LTR horizontal layout -> RTL or vertical fallback layout",
+        "DPR below 2 -> DPR at least 2 icon resource",
+        "light color scheme -> dark color scheme",
+        "unclipped inline fallback -> clipped replaced fallback",
+        "named image -> decorative or unnamed accessibility state"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/html/html_image_element.cc",
+        "external/chromium/third_party/blink/renderer/core/html/html_image_fallback_helper.cc",
+        "external/chromium/third_party/blink/renderer/core/layout/layout_image_resource.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/image_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_painter.cc",
+        "external/harfbuzz/src/hb-shape.cc",
+        "external/skia/src/core/SkCanvas.cpp"
+      ],
+      "productionOwners": [
+        "src/capture/script/index.ts",
+        "src/capture/types.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/replaced-geometry-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [],
+      "visualFixtures": [],
+      "coverage": "unsupported",
+      "boundary": "Doc 156 proves a hybrid boundary, but production still infers failure from complete/naturalWidth and emits a fixed vector mountain plus heuristic raw text. Chromium-owned fallback disposition, UA-shadow geometry, the DPR-selected icon bitmap, shaped alternative text, and accessibility semantics have no focused implementation gate yet.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
       "id": "controls.native-ownership",
       "parityAreas": [
         "replaced-elements-controls-generated-content",
