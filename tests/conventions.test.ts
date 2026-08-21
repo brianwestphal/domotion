@@ -115,6 +115,10 @@ describe("project conventions", () => {
       // logic.
       "selectedGlyphRasterSpans", "capturedTextSegmentFontFeatures",
       "parseFontVariationSettings",
+      // DM-2421's review-side mutation adjudicator consumes the immutable
+      // per-fixture build record; keeping this type at the boundary avoids a
+      // second, structurally duplicated definition drifting from production.
+      "EmbeddedFontBuildDiagnostic",
       // the three real queries
       "resolveFontKey", "getFontInstance", "renderTextAsPath",
     ]);

@@ -37,14 +37,20 @@ describe("production text-run provenance", () => {
     expect(evidence.runs[0]).toMatchObject({
       emitter: "paths",
       sourceSpan: [0, 2],
+      sourceCodepointSpan: [0, 2],
       emittedText: "AV",
       mechanism: "declared-family",
       request: { fontFamily: options.fontFamily, fontWeight: 400, fontSizePx: 24 },
       selected: { sourcePath: expect.any(String), faceIndex: expect.any(Number), shapesWithHarfbuzz: true },
       emittedIdentity: expect.stringMatching(/^paths:/),
+      finalRepresentation: "svg-paths",
     });
     expect(evidence.runs[0].glyphs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: expect.any(Number), cluster: expect.any(Number), xAdvance: expect.any(Number) }),
+      expect.objectContaining({
+        id: expect.any(Number), cluster: expect.any(Number), xAdvance: expect.any(Number),
+        sourceSpan: expect.any(Array), sourceCodepointSpan: expect.any(Array),
+        sourceOutline: expect.objectContaining({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }),
+      }),
     ]));
   });
 

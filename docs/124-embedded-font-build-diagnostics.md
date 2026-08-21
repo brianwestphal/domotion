@@ -12,6 +12,7 @@ host.
 
 Each `embeddedFontBuilds` entry in `results.json` contains:
 
+- the exact renderer instance key and generated CSS family;
 - the generated CSS family plus source `path`, TTC `faceIndex`, and resolved
   variation-axis location;
 - the selected builder (`hb-subset` or `svg2ttf`);
@@ -19,8 +20,22 @@ Each `embeddedFontBuilds` entry in `results.json` contains:
   source, missing physical face index, source/axis disagreement, CFF or subset
   failure, or the explicit `DOMOTION_HINTED_SUBSET=0` control;
 - the emitted font's sorted sfnt table tags, including retained hint tables when
-  applicable; and
+  applicable, plus a dedicated retained-hint-table list; and
+- the final TTF byte length and SHA-256 identity; and
 - unique glyph count, total glyph occurrences, and distinct shaped-run count.
+
+The HTML/unicode harness resets the complete generation state before every
+fixture. Diagnostics are therefore fixture-scoped; `workerSeq` subtraction is
+neither required nor valid. For the pinned 24-row Linux Unicode raster-floor
+corpus, `textRunEvidence` additionally persists the fixture on every production
+run, UTF-16 and code-point spans, selected physical face, glyph id/cluster,
+advance/offset, source-outline digest, and final representation.
+
+`src/review/linux-unicode-evidence.ts` owns the closed acceptance list and the
+two-arm adjudicator. Disabling the fontconfig-backed resolver must move selected
+face rows. Disabling hinted subset construction must move builder/table/raster
+records while leaving the complete logical signature exact. A logical change
+always produces `logical-mismatch`; image similarity cannot override it.
 
 Diagnostics are observational: they do not alter eligibility or fallback. A
 failed guard/subset still falls back to svg2ttf so rendering remains functional.
@@ -36,6 +51,10 @@ and the table-subsetting plan is in `external/harfbuzz/src/hb-subset-plan.cc`.
 Chromium's Linux webfont consumer passes the sanitized subset through Blink's
 font loading and Skia/FreeType raster path; the diagnostic proves the font bytes
 and builder choice before any remaining load-flag or rasterizer comparison.
+Selection authority is Chromium `7d859f27`'s `FontFallbackIterator`,
+`font_cache_linux.cc`, and `ui/gfx/font_fallback_linux.cc`; shaping authority is
+HarfBuzz `4de187d`; native raster ownership is Chromium-pinned Skia `62efacd3`
+`SkFontHost_FreeType.cpp` (load flags and `generateImage`).
 
 ## Verification
 

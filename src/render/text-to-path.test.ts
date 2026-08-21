@@ -807,6 +807,23 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
     return count;
   };
 
+  const outlinedOneCodepointGlyph = (glyph: {
+    id: number;
+    cluster: number;
+    xAdvance: number;
+    yAdvance: number;
+    xOffset: number;
+    yOffset: number;
+  }) => expect.objectContaining({
+    ...glyph,
+    sourceSpan: [0, 1],
+    sourceCodepointSpan: [0, 1],
+    sourceOutline: expect.objectContaining({
+      sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      commandCount: expect.any(Number),
+    }),
+  });
+
   const renderWithEvidence = (text: string, fontFamily = FAMILY) => {
     clearEmbeddedFonts();
     resetTextRunProvenance();
@@ -867,8 +884,8 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
         },
       });
       expect(run.glyphs, `U+${cp.toString(16)}`).toEqual([
-        { id: circle.id, cluster: 0, xAdvance: circle.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
-        { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+        outlinedOneCodepointGlyph({ id: circle.id, cluster: 0, xAdvance: circle.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
+        outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
       ]);
     }
   });
@@ -885,7 +902,7 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
       selected: { fontKey: "webfont:dm2423 no circle", shapesWithHarfbuzz: true },
     });
     expect(run.glyphs).toEqual([
-      { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
     ]);
   });
 
@@ -901,7 +918,7 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
     expect(embeddedGlyphCount(nonBroken.out)).toBe(1);
     expect(nonBroken.run).toMatchObject({ mechanism: "dotted-circle-pin", request: { script: "Beng" } });
     expect(nonBroken.run.glyphs).toEqual([
-      { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
     ]);
   });
 
@@ -914,7 +931,7 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
       selected: { postscriptName: "Mukta-Regular", sourcePath: MUKTA, faceIndex: 0 },
     });
     expect(run.glyphs).toEqual([
-      { id: 0, cluster: 0, xAdvance: mukta.getGlyph(0).advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      outlinedOneCodepointGlyph({ id: 0, cluster: 0, xAdvance: mukta.getGlyph(0).advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
     ]);
   });
 });

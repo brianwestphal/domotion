@@ -28,6 +28,12 @@ the disposable image repository, so lazy and eager review staging preserve the
 same provenance. Artifacts produced before this contract remain reviewable but
 say that evidence and environment fingerprints are unavailable.
 
+Linux Unicode raster-floor rows do not inherit a generic shaping report. The
+24 non-Vedic acceptance fixtures persist their own production run evidence in
+`results.json`; `src/review/linux-unicode-evidence.ts` validates its required
+spans/identities and refuses raster-only classification if the controlled
+hinting mutation changes face, glyph, cluster, advance, offset, or outline.
+
 Related: [Chromium parity verification program](129-chromium-parity-verification-program.md),
 [semantic coverage inventory](136-semantic-coverage-inventory.md), and
 [specialized-path activation ledger](137-specialized-path-activation-ledger.md).

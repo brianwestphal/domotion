@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getFontSourceInfo, type FontRun, type FontVariantEmojiOverride } from "./font-resolution.js";
 
 export interface TextRunRequestDiagnostic {
@@ -19,6 +20,9 @@ export interface TextRunProvenanceDiagnostic {
   emitter: "paths" | "embedded-font";
   sourceText: string;
   sourceSpan: [number, number];
+  /** Code-point coordinates for `sourceSpan`; unlike UTF-16 offsets these do
+   * not split supplementary characters. */
+  sourceCodepointSpan: [number, number];
   emittedText: string;
   mechanism: FontRun["routeMechanism"];
   request: TextRunRequestDiagnostic;
@@ -34,12 +38,19 @@ export interface TextRunProvenanceDiagnostic {
   glyphs: Array<{
     id: number;
     cluster: number;
+    sourceSpan: [number, number];
+    sourceCodepointSpan: [number, number];
     xAdvance: number;
     yAdvance: number;
     xOffset: number;
     yOffset: number;
+    /** Identity of the exact source outline handed to the emitter. Empty
+     * outlines (spaces, color-raster glyphs) are recorded as null. */
+    sourceOutline: { sha256: string; commandCount: number } | null;
+    rasterRepresentation?: string;
   }>;
   emittedIdentity: string;
+  finalRepresentation: "svg-paths" | "embedded-font";
   shapeError?: string;
 }
 
@@ -48,15 +59,60 @@ export interface TextEmitterTransitionDiagnostic {
   sourceText: string;
 }
 
+export interface FixtureTextRunProvenance {
+  schemaVersion: 1;
+  fixture: string;
+  sourceAuthority: {
+    chromium: "7d859f271cbda744098ac69f44978d4edfa62be3";
+    harfbuzz: "4de187dd0a915d13c976fa8bd474c084229f3aab";
+    skia: "62efacd3";
+  };
+  runs: Array<TextRunProvenanceDiagnostic & { fixture: string; row: number }>;
+  transitions: TextEmitterTransitionDiagnostic[];
+}
+
 let enabled = false;
 let runs: TextRunProvenanceDiagnostic[] = [];
 let transitions: TextEmitterTransitionDiagnostic[] = [];
+
+function codepointIndexAtUtf16(text: string, utf16Index: number): number {
+  return [...text.slice(0, Math.max(0, Math.min(text.length, utf16Index)))].length;
+}
+
+function clusterEnd(text: string, cluster: number, clusters: number[]): number {
+  const later = clusters.filter((candidate) => candidate > cluster);
+  return later.length === 0 ? text.length : Math.min(...later);
+}
+
+function outlineIdentity(commands: Array<{ command: string; args: number[] }>): { sha256: string; commandCount: number } | null {
+  if (commands.length === 0) return null;
+  return {
+    sha256: createHash("sha256").update(JSON.stringify(commands)).digest("hex"),
+    commandCount: commands.length,
+  };
+}
 
 export function setTextRunProvenanceEnabled(value: boolean): void { enabled = value; }
 export function textRunProvenanceEnabled(): boolean { return enabled; }
 export function resetTextRunProvenance(): void { runs = []; transitions = []; }
 export function getTextRunProvenance(): { runs: TextRunProvenanceDiagnostic[]; transitions: TextEmitterTransitionDiagnostic[] } {
   return { runs: structuredClone(runs), transitions: structuredClone(transitions) };
+}
+
+/** Persist production evidence with fixture identity on every row. */
+export function getFixtureTextRunProvenance(fixture: string): FixtureTextRunProvenance {
+  const snapshot = getTextRunProvenance();
+  return {
+    schemaVersion: 1,
+    fixture,
+    sourceAuthority: {
+      chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
+      harfbuzz: "4de187dd0a915d13c976fa8bd474c084229f3aab",
+      skia: "62efacd3",
+    },
+    runs: snapshot.runs.map((run, row) => ({ ...run, fixture, row })),
+    transitions: snapshot.transitions,
+  };
 }
 
 export function recordTextEmitterTransition(value: TextEmitterTransitionDiagnostic): void {
@@ -76,9 +132,21 @@ export function recordSelectedFontRuns(
     let shapeError: string | undefined;
     try {
       const shaped = run.font.layout(run.text, request.features, run.shapingScript, request.language, request.direction);
+      const clusters = shaped.clusters ?? shaped.glyphs.map((_, index) => Math.min(index, run.text.length));
       glyphs = shaped.glyphs.map((glyph, index) => {
         const position = shaped.positions[index] ?? { xAdvance: glyph.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 };
-        return { id: glyph.id, cluster: shaped.clusters?.[index] ?? index, ...position };
+        const cluster = clusters[index] ?? 0;
+        const relativeEnd = clusterEnd(run.text, cluster, clusters);
+        const sourceSpan: [number, number] = [run.startIdx + cluster, run.startIdx + relativeEnd];
+        return {
+          id: glyph.id,
+          cluster,
+          sourceSpan,
+          sourceCodepointSpan: [codepointIndexAtUtf16(sourceText, sourceSpan[0]), codepointIndexAtUtf16(sourceText, sourceSpan[1])],
+          ...position,
+          sourceOutline: outlineIdentity(glyph.path.commands),
+          ...(glyph.rasterRepresentation == null ? {} : { rasterRepresentation: glyph.rasterRepresentation }),
+        };
       });
     } catch (error) {
       shapeError = String(error);
@@ -88,6 +156,7 @@ export function recordSelectedFontRuns(
       emitter,
       sourceText,
       sourceSpan: [run.startIdx, run.endIdx],
+      sourceCodepointSpan: [codepointIndexAtUtf16(sourceText, run.startIdx), codepointIndexAtUtf16(sourceText, run.endIdx)],
       emittedText: run.text,
       mechanism: run.routeMechanism,
       request: { ...request, script: run.shapingScript, variationSettings: request.variationSettings == null ? undefined : { ...request.variationSettings }, features: request.features == null ? undefined : [...request.features] },
@@ -103,6 +172,7 @@ export function recordSelectedFontRuns(
       },
       glyphs,
       emittedIdentity: `${emitter}:${run.fontKey}:${ids}`,
+      finalRepresentation: emitter === "paths" ? "svg-paths" : "embedded-font",
       ...(shapeError == null ? {} : { shapeError }),
     });
   }

@@ -88,6 +88,82 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2igfsjyb41e0nu",
+          "message": {
+            "text": "Each fixture now starts a fresh generation so embedded-font diagnostics are row-scoped facts, not worker-cumulative state. This makes the persisted counts and final font representations directly attributable to the fixture without subtracting a prior workerSeq record.",
+            "markdown": "Each fixture now starts a fresh generation so embedded-font diagnostics are row-scoped facts, not worker-cumulative state. This makes the persisted counts and final font representations directly attributable to the fixture without subtracting a prior workerSeq record."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/html-test-suite.tsx"
+                },
+                "region": {
+                  "startLine": 1583,
+                  "endLine": 1596,
+                  "snippet": {
+                    "text": "    resetGeneration();\n    const collectTextEvidence = process.platform === \"linux\" && isLinuxUnicodeRasterFloorFixture(name);\n    if (collectTextEvidence) {\n      resetTextRunProvenance();\n      setTextRunProvenanceEnabled(true);\n    }\n    let svgContent: string;\n    try {\n      svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);\n      if (collectTextEvidence) textRunEvidence = getFixtureTextRunProvenance(name);\n    } finally {\n      if (collectTextEvidence) setTextRunProvenanceEnabled(false);\n    }\n    embeddedFontBuilds = getEmbeddedFontBuildDiagnostics();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.ts"
+                },
+                "region": {
+                  "startLine": 694
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2421"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e4c41040a8c9ba942da74b0b8a48a6dc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "624a69b77ec2c2e87462c14f084647f1c9790782",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2igg0hm4tsn7dz",
+          "message": {
+            "text": "Raster-floor eligibility is deliberately downstream of exact logical equality. Both activation mutations must move their owned stage, while any face, glyph, cluster, metric, span, or outline change forces a logical-mismatch verdict regardless of pixel similarity.",
+            "markdown": "Raster-floor eligibility is deliberately downstream of exact logical equality. Both activation mutations must move their owned stage, while any face, glyph, cluster, metric, span, or outline change forces a logical-mismatch verdict regardless of pixel similarity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/linux-unicode-evidence.ts"
+                },
+                "region": {
+                  "startLine": 78,
+                  "endLine": 131,
+                  "snippet": {
+                    "text": "export function compareLinuxUnicodeMutations(\n  baseline: FixtureTextRunProvenance,\n  fontconfigHelperOff: FixtureTextRunProvenance,\n  hintedSubsetOff: FixtureTextRunProvenance,\n  baselineBuilds: EmbeddedFontBuildDiagnostic[],\n  hintedSubsetOffBuilds: EmbeddedFontBuildDiagnostic[],\n  baselineRasterSha256: string,\n  hintedSubsetOffRasterSha256: string,\n): LinuxUnicodeMutationVerdict {\n  const selectedFaceRowsMoved = baseline.runs.reduce((count, run, index) =>\n    count + (fontconfigHelperOff.runs[index] == null || selectedFaceSignature(run) !== selectedFaceSignature(fontconfigHelperOff.runs[index]) ? 1 : 0), 0);\n  const hintedLogicalRowsExact = logicalTextEvidenceSignature(baseline) === logicalTextEvidenceSignature(hintedSubsetOff);\n  const hintedByKey = new Map(hintedSubsetOffBuilds.map((build) => [build.instanceKey, build]));\n  let hintedBuilderRowsMoved = 0;\n  let retainedHintTablesRemoved = true;\n  for (const build of baselineBuilds.filter((candidate) => candidate.selectedBuilder === \"hb-subset\")) {\n    const mutation = hintedByKey.get(build.instanceKey);\n    if (mutation?.selectedBuilder !== build.selectedBuilder) hintedBuilderRowsMoved++;\n    if (build.retainedHintTableTags.length > 0 && (mutation == null || mutation.retainedHintTableTags.length !== 0)) retainedHintTablesRemoved = false;\n  }\n  const hintedRasterMoved = baselineRasterSha256 !== hintedSubsetOffRasterSha256;\n  const mutationActive = selectedFaceRowsMoved > 0 && hintedBuilderRowsMoved > 0 && retainedHintTablesRemoved && hintedRasterMoved;\n  return {\n    selectedFaceRowsMoved,\n    hintedLogicalRowsExact,\n    hintedBuilderRowsMoved,\n    retainedHintTablesRemoved,\n    hintedRasterMoved,\n    verdict: !hintedLogicalRowsExact ? \"logical-mismatch\" : mutationActive ? \"raster-floor-candidate\" : \"mutation-inert\",\n  };\n}\n\nexport function validateFixtureTextEvidence(fixture: string, evidence: FixtureTextRunProvenance): string[] {\n  const errors: string[] = [];\n  if (!isLinuxUnicodeRasterFloorFixture(fixture)) errors.push(`fixture is outside the 24-row acceptance corpus: ${fixture}`);\n  if (evidence.fixture !== fixture) errors.push(`top-level fixture mismatch: ${evidence.fixture}`);\n  if (evidence.runs.length === 0) errors.push(\"no production text-run rows\");\n  for (const run of evidence.runs) {\n    if (run.fixture !== fixture) errors.push(`row ${run.row} fixture mismatch`);\n    if (run.sourceSpan.length !== 2 || run.sourceCodepointSpan.length !== 2) errors.push(`row ${run.row} lacks source spans`);\n    for (const glyph of run.glyphs) {\n      if (!Number.isFinite(glyph.id) || !Number.isFinite(glyph.cluster)) errors.push(`row ${run.row} has invalid glyph identity`);\n      if (![glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite)) errors.push(`row ${run.row} has invalid glyph metrics`);\n    }\n  }\n  return [...new Set(errors)];\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.ts"
+                },
+                "region": {
+                  "startLine": 127
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/linux-unicode-evidence.test.ts"
+                },
+                "region": {
+                  "startLine": 144
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2421"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dff6237a788b5248dc52c6449008886c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "624a69b77ec2c2e87462c14f084647f1c9790782",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -37,6 +37,7 @@
 // svg2ttf ships no type declarations (see svg2ttf.d.ts for the tiny surface).
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
 import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
@@ -44,8 +45,21 @@ import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableO
  *  default. Set DOMOTION_HINTED_SUBSET=0 to use the svg2ttf-only control arm.
  *  The retained-gid builder keeps bytecode glyph references stable; entries
  *  that cannot safely preserve their source tables fall back independently. */
+let hintedSubsetOverride: boolean | null = null;
 function hintedSubsetEnabled(): boolean {
-  return process.env.DOMOTION_HINTED_SUBSET !== "0";
+  return hintedSubsetOverride ?? process.env.DOMOTION_HINTED_SUBSET !== "0";
+}
+
+/** Synchronous mutation scope used by exact evidence runs. It changes only
+ * subset construction; face selection and shaping remain untouched. */
+export function withHintedSubsetEnabled<T>(enabled: boolean, fn: () => T): T {
+  const previous = hintedSubsetOverride;
+  hintedSubsetOverride = enabled;
+  try {
+    return fn();
+  } finally {
+    hintedSubsetOverride = previous;
+  }
 }
 
 /** A tracked glyph's outline (SVG path `d`, font units, y-up) + advance. */
@@ -169,6 +183,8 @@ export type HintedSourceDisqualificationReason =
   | "disabled-by-environment";
 
 export interface EmbeddedFontBuildDiagnostic {
+  /** Exact renderer instance key that owns this subset. */
+  instanceKey: string;
   cssFamily: string;
   sourcePath: string | null;
   faceIndex: number | null;
@@ -176,6 +192,13 @@ export interface EmbeddedFontBuildDiagnostic {
   selectedBuilder: "hb-subset" | "svg2ttf";
   hintedSourceDisqualifiedReasons: HintedSourceDisqualificationReason[];
   retainedTableTags: string[];
+  retainedHintTableTags: string[];
+  finalRepresentation: {
+    kind: "embedded-sfnt";
+    mime: "font/ttf";
+    byteLength: number;
+    sha256: string;
+  };
   affectedGlyphCount: number;
   affectedGlyphOccurrenceCount: number;
   affectedRunCount: number;
@@ -523,7 +546,7 @@ export function __clearHintedOutlineGuardMemo(): void {
   hintedOutlineGuardMemo.clear();
 }
 
-function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
+function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer {
   entry.buildDiagnostic = null;
   // DM-1714/DM-1716: hinting-preserving path. When the whole entry came from one
   // openable sfnt with no synthetic glyphs, hb-subset the ORIGINAL file (keeps
@@ -590,7 +613,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
         if (process.env.DOMOTION_HINTED_DEBUG === "1") {
           console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${srcFaceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
         }
-        entry.buildDiagnostic = diagnosticFor(entry, "hb-subset", sfntTableTags(out));
+        entry.buildDiagnostic = diagnosticFor(entry, instanceKey, "hb-subset", sfntTableTags(out), out);
         return out;
       }
     } catch (e) {
@@ -621,7 +644,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
     glyphEls.join("") +
     `</font></defs></svg>`;
   const out = Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer);
-  entry.buildDiagnostic = diagnosticFor(entry, "svg2ttf", sfntTableTags(out));
+  entry.buildDiagnostic = diagnosticFor(entry, instanceKey, "svg2ttf", sfntTableTags(out), out);
   return out;
 }
 
@@ -637,8 +660,16 @@ function sfntTableTags(fontBytes: Buffer): string[] {
   return tags.sort();
 }
 
-function diagnosticFor(entry: BuilderEntry, selectedBuilder: EmbeddedFontBuildDiagnostic["selectedBuilder"], retainedTableTags: string[]): EmbeddedFontBuildDiagnostic {
+function diagnosticFor(
+  entry: BuilderEntry,
+  instanceKey: string,
+  selectedBuilder: EmbeddedFontBuildDiagnostic["selectedBuilder"],
+  retainedTableTags: string[],
+  fontBytes: Buffer,
+): EmbeddedFontBuildDiagnostic {
+  const retainedHintTableTags = retainedTableTags.filter((tag) => tag === "cvt " || tag === "fpgm" || tag === "prep");
   return {
+    instanceKey,
     cssFamily: entry.cssFamily,
     sourcePath: entry.hintedSource?.path ?? null,
     faceIndex: entry.hintedSource?.faceIndex ?? null,
@@ -646,6 +677,13 @@ function diagnosticFor(entry: BuilderEntry, selectedBuilder: EmbeddedFontBuildDi
     selectedBuilder,
     hintedSourceDisqualifiedReasons: [...entry.hintedSourceDisqualificationReasons].sort(),
     retainedTableTags,
+    retainedHintTableTags,
+    finalRepresentation: {
+      kind: "embedded-sfnt",
+      mime: "font/ttf",
+      byteLength: fontBytes.length,
+      sha256: createHash("sha256").update(fontBytes).digest("hex"),
+    },
     affectedGlyphCount: entry.glyphs.size,
     affectedGlyphOccurrenceCount: entry.glyphOccurrenceCount,
     affectedRunCount: entry.runIds.size,
@@ -659,6 +697,8 @@ export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[]
     variationAxes: entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
     hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
     retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
+    retainedHintTableTags: [...entry.buildDiagnostic.retainedHintTableTags],
+    finalRepresentation: { ...entry.buildDiagnostic.finalRepresentation },
   }]);
 }
 
@@ -670,8 +710,8 @@ export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[]
 export function getBuiltEmbeddedFontFaceCss(): string {
   if (builderRegistry.size === 0) return "";
   const rules: string[] = [];
-  for (const entry of builderRegistry.values()) {
-    const ttfBytes = buildGlyfFontForEntry(entry);
+  for (const [instanceKey, entry] of builderRegistry) {
+    const ttfBytes = buildGlyfFontForEntry(entry, instanceKey);
     determinizeFontTimestamps(ttfBytes); // DM-902: strip the build-time stamp
     const b64 = ttfBytes.toString("base64");
     // Emit explicit font-style / font-weight descriptors so the consumer
