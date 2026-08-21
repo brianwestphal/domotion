@@ -10,6 +10,7 @@
 import { HARFBUZZ_DEFAULT_IGNORABLE_RANGES } from "./harfbuzz-default-ignorable-ranges.generated.js";
 import { USE_LEFT_MATRA_RANGES } from "./use-left-matra-ranges.generated.js";
 import { ICU_BINARY, icuCodepointProperties } from "./icu-helper.js";
+import { CJK_IDEOGRAPH_OR_SYMBOL_RANGES as GENERATED_CJK_IDEOGRAPH_OR_SYMBOL_RANGES } from "./cjk-ideograph-or-symbol-ranges.generated.js";
 import {
   BLINK_MATHML_COMPACT_DICTIONARY,
   BLINK_MATHML_INLINE_AXIS_STRETCHY,
@@ -1069,111 +1070,32 @@ export function isStretchyFenceChar(text: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Codepoints Blink marks `is_cjk_ideograph_or_symbol` by explicit singleton.
- *
- * Transcribed verbatim from `kIsCjkIdeographOrSymbolArray`
- * (`third_party/blink/renderer/platform/text/character_property_data.h:17-36`,
- * Chromium rev `7d859f27`). Do not curate this — it is a table, and copying it
- * IS the parity answer. The first four entries are the Mandarin tone marks,
- * which is why the set starts well below the CJK blocks.
- */
-const CJK_IDEOGRAPH_OR_SYMBOL_SINGLETONS = new Set<number>([
-  0x2c7, 0x2ca, 0x2cb, 0x2d9, 0x2020, 0x2021, 0x2030, 0x203b, 0x203c, 0x2042,
-  0x2047, 0x2048, 0x2049, 0x2051, 0x20dd, 0x20de, 0x2100, 0x2103, 0x2105,
-  0x2109, 0x210a, 0x2113, 0x2116, 0x2121, 0x212b, 0x213b, 0x2150, 0x2151,
-  0x2152, 0x217f, 0x2189, 0x2307, 0x2312, 0x23ce, 0x2423, 0x25a0, 0x25a1,
-  0x25a2, 0x25aa, 0x25ab, 0x25b1, 0x25b2, 0x25b3, 0x25b6, 0x25b7, 0x25bc,
-  0x25bd, 0x25c0, 0x25c1, 0x25c6, 0x25c7, 0x25c9, 0x25cb, 0x25cc, 0x25ef,
-  0x2605, 0x2606, 0x260e, 0x2616, 0x2617, 0x26a0, 0x2713, 0x271a, 0x273f,
-  0x2740, 0x2756, 0x2763, 0x2b1a, 0xfe10, 0xfe11, 0xfe12, 0xfe19, 0xff1d,
-  // Emoji.
-  0x1f100, 0x1f200, 0x1f237, 0x1f32c, 0x1f336, 0x1f37d, 0x1f43f, 0x1f54f,
-  0x1f93b, 0x1f946,
-]);
-
-/**
- * Inclusive ranges Blink marks `is_cjk_ideograph_or_symbol`.
- *
- * Transcribed verbatim from `kIsCjkIdeographOrSymbolRanges`
- * (`character_property_data.h:40-108`, rev `7d859f27`), in source order so it
- * can be diffed against upstream. Blink's own comments are preserved where
- * they explain a boundary that would otherwise look arbitrary.
- */
-const CJK_IDEOGRAPH_OR_SYMBOL_RANGES: ReadonlyArray<readonly [number, number]> = [
-  // cjkIdeographRanges
-  [0x2e80, 0x2fdf],   // CJK Radicals Supplement and Kangxi Radicals
-  [0x31c0, 0x31ef],   // CJK Strokes
-  [0x3400, 0x4dbf],   // CJK Unified Ideographs Extension A
-  [0x4e00, 0x9fff],   // the basic CJK Unified Ideographs block
-  [0xf900, 0xfaff],   // CJK Compatibility Ideographs
-  [0x20000, 0x2ffff], // Supplementary Ideographic Plane (Ext B-F, Compat Suppl)
-
-  // cjkSymbolRanges
-  [0x2156, 0x215a], [0x2160, 0x216b], [0x2170, 0x217b], [0x23be, 0x23cc],
-  [0x2460, 0x2492], [0x249c, 0x24ff], [0x25ce, 0x25d3], [0x25e2, 0x25e6],
-  [0x2600, 0x2603], [0x2660, 0x266f],
-  // Emoji heart-kiss sequence members, kept whole so the sequence is not split.
-  [0x2672, 0x267d], [0x2776, 0x277f],
-  // Ideographic Description Characters + CJK Symbols and Punctuation, stopping
-  // short of the Hangul tone marks (U+302E-302F) because Hangul is not Han and
-  // no other Hangul is included here; then Hiragana, Katakana and Bopomofo.
-  [0x2ff0, 0x302d], [0x3031, 0x312f],
-  [0x3190, 0x31bf],   // more Bopomofo, and Bopomofo Extended
-  [0x3200, 0x33ff],   // Enclosed CJK Letters and Months + CJK Compatibility
-  [0x4dc0, 0x4dff],   // Yijing Hexagram Symbols
-  [0xf860, 0xf862],   // Apple's Japanese vendor mappings
-  [0xfe30, 0xfe6f],   // CJK Compatibility Forms + Small Form Variants
-  [0xff00, 0xff0c], [0xff0e, 0xff1a], [0xff1f, 0xffef], // Half/Fullwidth Forms
-  [0x16fe0, 0x16fff], // Ideographic Symbols and Punctuation
-  [0x17000, 0x187ff], // Tangut
-  [0x18800, 0x18aff], // Tangut Components
-  [0x1b000, 0x1b0ff], // Kana Supplement
-  [0x1b100, 0x1b12f], // Kana Extended-A
-  [0x1b170, 0x1b2ff], // Nushu
-  // Emoji.
-  [0x1f110, 0x1f129], [0x1f130, 0x1f149], [0x1f150, 0x1f169], [0x1f170, 0x1f189],
-  [0x1f202, 0x1f219], [0x1f21b, 0x1f22e], [0x1f230, 0x1f231], [0x1f23b, 0x1f24f],
-  [0x1f252, 0x1f2ff], [0x1f321, 0x1f32a], [0x1f394, 0x1f39f], [0x1f3cd, 0x1f3ce],
-  [0x1f3d4, 0x1f3df], [0x1f3f1, 0x1f3f2], [0x1f3f5, 0x1f3f7], [0x1f4fd, 0x1f4fe],
-  [0x1f53e, 0x1f54a], [0x1f568, 0x1f573], [0x1f576, 0x1f579], [0x1f57b, 0x1f58f],
-  [0x1f591, 0x1f594], [0x1f597, 0x1f5a3], [0x1f5a5, 0x1f5e7], [0x1f5e9, 0x1f5fa],
-  [0x1f650, 0x1f67f], [0x1f6c6, 0x1f6cb], [0x1f6cd, 0x1f6cf], [0x1f6d3, 0x1f6d4],
-  [0x1f6d9, 0x1f6db], [0x1f6e0, 0x1f6ea], [0x1f6ed, 0x1f6f3], [0x1f6fd, 0x1f6ff],
-  [0x1f900, 0x1f90b], [0x1fac9, 0x1facc],
-];
-
-/**
  * Mirrors `Character::IsCjkIdeographOrSymbol` (`character.h:97-100` →
  * `character.cc:101-103`, rev `7d859f27`).
  *
  * Blink reads this from a compile-time ICU trie whose contents come from three
- * places, all reproduced here: the two tables above, plus everything the
- * generator marks for emoji — `[:Emoji_Presentation:]` in full, and the
+ * places, all reproduced by the generated range table: Blink's two base
+ * tables, `[:Emoji_Presentation:]` in full, and the
  * Extended_Pictographic members of RGI ZWJ / modifier sequences
  * (`character_property_data_generator.cc:117-141`).
  *
  * The `c < 0x2C7` early-out is Blink's own fast path, not an optimization
  * added here: it is what makes ASCII and Latin-1 unconditionally skip-inkable
- * regardless of the tables.
- *
- * KNOWN RESIDUAL, stated rather than papered over: the RGI-sequence clause is
- * not expressible in a JS regex, since ECMAScript exposes no RGI emoji-sequence
- * property. `\p{Emoji_Presentation}` is transcribed exactly; the remainder is
- * text-default pictographs that appear inside ZWJ sequences. Blink's own
- * tables already carry the ones that motivated the clause (the heart-kiss
- * members at U+2763 and U+2672-267D are singletons/ranges above), so the
- * residual is small — but it is a residual, and any codepoint in it will
- * skip ink here where Chrome does not.
+ * regardless of the tables. The generated source is intentionally independent
+ * of the host JavaScript engine's Unicode version.
  */
 export function isCjkIdeographOrSymbol(cp: number): boolean {
   if (cp < 0x2c7) return false;
-  if (CJK_IDEOGRAPH_OR_SYMBOL_SINGLETONS.has(cp)) return true;
-  for (const [lo, hi] of CJK_IDEOGRAPH_OR_SYMBOL_RANGES) {
-    if (cp >= lo && cp <= hi) return true;
+  let lo = 0;
+  let hi = GENERATED_CJK_IDEOGRAPH_OR_SYMBOL_RANGES.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const range = GENERATED_CJK_IDEOGRAPH_OR_SYMBOL_RANGES[mid];
+    if (cp < range[0]) hi = mid - 1;
+    else if (cp > range[1]) lo = mid + 1;
+    else return true;
   }
-  const icu = icuCodepointProperties(cp);
-  if (icu != null) return (icu.binaryProperties & ICU_BINARY.EMOJI_PRESENTATION) !== 0;
-  return /\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp));
+  return false;
 }
 
 /**

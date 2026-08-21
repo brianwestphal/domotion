@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2ukhejti5f6i4l",
+          "message": {
+            "text": "The generator recreates Blink's exact property union from the pinned checkout instead of relying on the host JavaScript Unicode version. It parses inherited ICU ppucd binary properties, filters RGI sequence members through Extended_Pictographic, merges Blink's base tables, and hashes packed range endpoints.",
+            "markdown": "The generator recreates Blink's exact property union from the pinned checkout instead of relying on the host JavaScript Unicode version. It parses inherited ICU ppucd binary properties, filters RGI sequence members through Extended_Pictographic, merges Blink's base tables, and hashes packed range endpoints."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generate-cjk-ideograph-or-symbol-ranges.mjs"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 122,
+                  "snippet": {
+                    "text": "#!/usr/bin/env node\nimport { createHash } from \"node:crypto\";\nimport { readFileSync, writeFileSync } from \"node:fs\";\n\nconst root = new URL(\"../\", import.meta.url);\nconst chromium = new URL(\"external/chromium/\", root);\nconst header = readFileSync(new URL(\"third_party/blink/renderer/platform/text/character_property_data.h\", chromium), \"utf8\");\nconst ucd = readFileSync(new URL(\"third_party/icu/source/data/unidata/ppucd.txt\", chromium), \"utf8\");\nconst emojiSequences = readFileSync(new URL(\"third_party/icu/source/data/unidata/emoji-sequences.txt\", chromium), \"utf8\");\nconst emojiZwjSequences = readFileSync(new URL(\"third_party/icu/source/data/unidata/emoji-zwj-sequences.txt\", chromium), \"utf8\");\n\nconst MAX = 0x10ffff;\nconst selected = new Uint8Array(MAX + 1);\nconst emojiPresentation = new Uint8Array(MAX + 1);\nconst extendedPictographic = new Uint8Array(MAX + 1);\n\nfunction mark(lo, hi = lo) {\n  selected.fill(1, lo, hi + 1);\n}\n\nfunction parseHexValues(body) {\n  const source = body.replace(/\\/\\/.*$/gm, \"\");\n  return [...source.matchAll(/0x([0-9A-Fa-f]+)/g)].map((match) => Number.parseInt(match[1], 16));\n}\n\nconst arrayBody = /kIsCjkIdeographOrSymbolArray\\s*=\\s*std::to_array<UChar32>\\(\\{([\\s\\S]*?)\\}\\);/.exec(header)?.[1];\nconst rangesBody = /kIsCjkIdeographOrSymbolRanges\\s*=\\s*std::to_array<UChar32>\\(\\{([\\s\\S]*?)\\}\\);/.exec(header)?.[1];\nif (arrayBody == null || rangesBody == null) throw new Error(\"Blink CJK property tables not found\");\nfor (const cp of parseHexValues(arrayBody)) mark(cp);\nconst rangeValues = parseHexValues(rangesBody);\nif (rangeValues.length % 2 !== 0) throw new Error(\"Blink CJK range table has an odd endpoint count\");\nfor (let i = 0; i < rangeValues.length; i += 2) mark(rangeValues[i], rangeValues[i + 1]);\n\nfunction setProperty(target, lo, hi, fields, name, inherited) {\n  let value = inherited;\n  if (fields.includes(name)) value = true;\n  if (fields.includes(`-${name}`)) value = false;\n  target.fill(value ? 1 : 0, lo, hi + 1);\n  return value;\n}\n\n// ppucd block records carry inherited defaults; following cp records override\n// individual properties with EPres/ExtPict or -EPres/-ExtPict.\nfor (const raw of ucd.split(/\\r?\\n/)) {\n  if (raw.startsWith(\"block;\")) {\n    const fields = raw.split(\";\");\n    const [loText, hiText] = fields[1].split(\"..\");\n    const lo = Number.parseInt(loText, 16);\n    const hi = Number.parseInt(hiText ?? loText, 16);\n    setProperty(emojiPresentation, lo, hi, fields, \"EPres\", false);\n    setProperty(extendedPictographic, lo, hi, fields, \"ExtPict\", false);\n  } else if (raw.startsWith(\"cp;\")) {\n    const fields = raw.split(\";\");\n    const cp = Number.parseInt(fields[1], 16);\n    setProperty(emojiPresentation, cp, cp, fields, \"EPres\", emojiPresentation[cp] === 1);\n    setProperty(extendedPictographic, cp, cp, fields, \"ExtPict\", extendedPictographic[cp] === 1);\n  }\n}\nfor (let cp = 0; cp <= MAX; cp++) if (emojiPresentation[cp] === 1) mark(cp);\n\nfunction markSequenceMembers(text, wantedType) {\n  for (const raw of text.split(/\\r?\\n/)) {\n    const data = raw.split(\"#\", 1)[0].trim();\n    if (data === \"\") continue;\n    const [codepoints, type] = data.split(\";\").map((part) => part.trim());\n    if (type !== wantedType) continue;\n    for (const token of codepoints.split(/\\s+/)) {\n      const cp = Number.parseInt(token, 16);\n      if (extendedPictographic[cp] === 1) mark(cp);\n    }\n  }\n}\nmarkSequenceMembers(emojiZwjSequences, \"RGI_Emoji_ZWJ_Sequence\");\nmarkSequenceMembers(emojiSequences, \"RGI_Emoji_Modifier_Sequence\");\n\nconst ranges = [];\nlet memberCount = 0;\nfor (let cp = 0; cp <= MAX; cp++) {\n  if (selected[cp] === 0) continue;\n  memberCount++;\n  const last = ranges.at(-1);\n  if (last != null && last[1] === cp - 1) last[1] = cp;\n  else ranges.push([cp, cp]);\n}\nconst packed = Buffer.allocUnsafe(ranges.length * 8);\nranges.forEach(([lo, hi], index) => {\n  packed.writeUInt32LE(lo, index * 8);\n  packed.writeUInt32LE(hi, index * 8 + 4);\n});\nconst digest = createHash(\"sha256\").update(packed).digest(\"hex\");\nconst hex = (value) => `0x${value.toString(16).toUpperCase()}`;\nconst lines = ranges.map(([lo, hi]) => `  [${hex(lo)}, ${hex(hi)}],`);\nconst output = `// GENERATED FILE -- do not hand-edit. Regenerate with:\n//   node tools/generate-cjk-ideograph-or-symbol-ranges.mjs\n//\n// Exact union produced by Blink's character_property_data_generator at\n// Chromium 7d859f271cbda744098ac69f44978d4edfa62be3: its base CJK tables,\n// pinned ICU 17 Emoji_Presentation, and Extended_Pictographic members of RGI\n// emoji ZWJ/modifier sequences. Range endpoints are packed little-endian u32\n// before hashing.\nexport const CJK_IDEOGRAPH_OR_SYMBOL_MEMBER_COUNT = ${memberCount};\nexport const CJK_IDEOGRAPH_OR_SYMBOL_SHA256 = \"${digest}\";\nexport const CJK_IDEOGRAPH_OR_SYMBOL_RANGES: ReadonlyArray<readonly [number, number]> = [\n${lines.join(\"\\n\")}\n];\n`;\nconst target = new URL(\"src/render/cjk-ideograph-or-symbol-ranges.generated.ts\", root);\nif (process.argv.includes(\"--check\")) {\n  if (readFileSync(target, \"utf8\") !== output) {\n    throw new Error(\"cjk-ideograph-or-symbol-ranges.generated.ts is stale; regenerate it\");\n  }\n  console.error(`Verified ${ranges.length} ranges / ${memberCount} members / ${digest}`);\n  process.exit(0);\n}\nwriteFileSync(target, output);\nconsole.error(`Wrote ${ranges.length} ranges / ${memberCount} members / ${digest}`);\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2395"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9d4a34df1caddc56e8e1219de085c23c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c8f4730480be8c24a79d4509db9279a223754e32",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

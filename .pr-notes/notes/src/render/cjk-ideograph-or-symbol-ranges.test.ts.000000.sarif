@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2ukhejkomf8c5h",
+          "message": {
+            "text": "The verification scans all 1,114,112 Unicode scalar values, checks the generated member count and SHA-256, proves the former U+2640/U+2642 RGI residual is excluded from skip-ink, and rejects a one-endpoint mutation while retaining a nearby negative control. Focused suites passed 32 tests.",
+            "markdown": "The verification scans all 1,114,112 Unicode scalar values, checks the generated member count and SHA-256, proves the former U+2640/U+2642 RGI residual is excluded from skip-ink, and rejects a one-endpoint mutation while retaining a nearby negative control. Focused suites passed 32 tests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cjk-ideograph-or-symbol-ranges.test.ts"
+                },
+                "region": {
+                  "startLine": 17,
+                  "endLine": 51,
+                  "snippet": {
+                    "text": "}\n\ndescribe(\"generated Blink CJK ideograph-or-symbol property\", () => {\n  it(\"matches every scalar, member count, and exhaustive range digest\", () => {\n    let rangeIndex = 0;\n    let members = 0;\n    for (let cp = 0; cp <= 0x10ffff; cp++) {\n      while (rangeIndex < CJK_IDEOGRAPH_OR_SYMBOL_RANGES.length\n          && cp > CJK_IDEOGRAPH_OR_SYMBOL_RANGES[rangeIndex][1]) rangeIndex++;\n      const range = CJK_IDEOGRAPH_OR_SYMBOL_RANGES[rangeIndex];\n      const expected = range != null && cp >= range[0] && cp <= range[1];\n      if (expected) members++;\n      expect(isCjkIdeographOrSymbol(cp)).toBe(expected);\n    }\n    expect(members).toBe(CJK_IDEOGRAPH_OR_SYMBOL_MEMBER_COUNT);\n    expect(digest(CJK_IDEOGRAPH_OR_SYMBOL_RANGES)).toBe(CJK_IDEOGRAPH_OR_SYMBOL_SHA256);\n  });\n\n  it(\"includes text-default Extended_Pictographic RGI members\", () => {\n    // FEMALE/MALE SIGN are text-default pictographs in RGI ZWJ sequences, not\n    // Emoji_Presentation and not members of Blink's handwritten base ranges.\n    for (const cp of [0x2640, 0x2642]) {\n      expect(isCjkIdeographOrSymbol(cp)).toBe(true);\n      expect(canTextDecorationSkipInk(cp)).toBe(false);\n    }\n  });\n\n  it(\"detects a one-endpoint mutation and preserves a nearby skip-ink control\", () => {\n    const mutated = CJK_IDEOGRAPH_OR_SYMBOL_RANGES.map((range, index) =>\n      index === 0 ? [range[0], range[1] + 1] as const : range);\n    expect(digest(mutated)).not.toBe(CJK_IDEOGRAPH_OR_SYMBOL_SHA256);\n    expect(isCjkIdeographOrSymbol(0x02c6)).toBe(false);\n    expect(canTextDecorationSkipInk(0x02c6)).toBe(true);\n  });\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2395"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "77a39efccbfd235183f6a1c089e4b9d1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c8f4730480be8c24a79d4509db9279a223754e32",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

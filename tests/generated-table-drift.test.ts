@@ -36,6 +36,10 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  * failure would assert drift that was never measured.
  */
 const harfbuzzAvailable = existsSync(path.join(repoRoot, "external/harfbuzz/src"));
+const chromiumUnicodeAvailable = existsSync(path.join(
+  repoRoot,
+  "external/chromium/third_party/icu/source/data/unidata/ppucd.txt",
+));
 
 function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: string) {
   const generatedPath = path.join(repoRoot, generatedRelPath);
@@ -67,6 +71,15 @@ function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: s
     assertGeneratorIsUpToDate(
       "tools/generate-use-left-matra-ranges.mjs",
       "src/render/use-left-matra-ranges.generated.ts",
+    );
+  });
+});
+
+(chromiumUnicodeAvailable ? describe : describe.skip)("generated Blink Unicode table drift gates", () => {
+  it("cjk-ideograph-or-symbol-ranges.generated.ts matches Chromium and pinned ICU inputs", () => {
+    assertGeneratorIsUpToDate(
+      "tools/generate-cjk-ideograph-or-symbol-ranges.mjs",
+      "src/render/cjk-ideograph-or-symbol-ranges.generated.ts",
     );
   });
 });
