@@ -586,8 +586,11 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         throw new Error("source has no subsettable outlines (memoized)");
       }
       const bytes = readFileSync(entry.hintedSource.path);
-      if (rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
-                                     sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
+      if (!rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
+                                      sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
+        throw new Error("source has no subsettable outlines");
+      }
+      {
         // Keep HarfBuzz's RETAIN_GIDS output intact. Chromium hands the
         // platform font produced by its subsetter to the consumer without a
         // second, private glyph renumbering pass; doing one here made the PUA

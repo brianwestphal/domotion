@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kso7nmwk73g6h",
+          "message": {
+            "text": "Independent production-boundary tests prove variable glyf becomes static while keeping hinting, gid 0 is cloned and PUA-addressable as a nonzero glyph, and outline-less hvgl is rejected into renderable svg2ttf fallback. CFF2 DOWNGRADE_CFF2 remains independently covered against SFIndia in hb-subset.test.ts; none of these one-shot cases claims cumulative-session determinism (DM-2433).",
+            "markdown": "Independent production-boundary tests prove variable glyf becomes static while keeping hinting, gid 0 is cloned and PUA-addressable as a nonzero glyph, and outline-less hvgl is rejected into renderable svg2ttf fallback. CFF2 DOWNGRADE_CFF2 remains independently covered against SFIndia in hb-subset.test.ts; none of these one-shot cases claims cumulative-session determinism (DM-2433)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/embedded-font-builder.test.ts"
+                },
+                "region": {
+                  "startLine": 245,
+                  "endLine": 285,
+                  "snippet": {
+                    "text": "    }));\n  });\n\n  it(\"pins a variable source to the entry's axis location (DM-1716)\", () => {\n    trackGlyphInEmbedFont(\"hinted-var|w=900|s=0\", 1000, 800, -200, 1, TRI, 700,\n      { italic: false, weight: 900, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 900 } } });\n    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());\n    const t = tags(bytes);\n    expect(t.has(\"fvar\")).toBe(false); // fully instanced — consumer can't re-vary\n    expect(t.has(\"prep\")).toBe(true);  // hinting survived instancing\n    const font = fontkit.create(bytes) as unknown as {\n      glyphForCodePoint(cp: number): { bbox: { maxX: number } };\n    };\n    // gvar delta at wght=900: \"A\" right edge 550 → 650\n    expect(font.glyphForCodePoint(0xE000).bbox.maxX).toBe(650);\n  });\n\n  it(\"finalizes a tracked source gid 0 as a PUA-addressable nonzero glyph (DM-2435)\", () => {\n    const placement = trackGlyphInEmbedFont(\"hinted-notdef|w=400|s=0\", 1000, 800, -200, 0, TRI, 500,\n      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });\n    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());\n    const font = fontkit.create(bytes) as unknown as { glyphForCodePoint(cp: number): { id: number; advanceWidth: number } };\n    const emitted = font.glyphForCodePoint(placement!.puaCodepoint);\n    expect(emitted.id).toBeGreaterThan(0);\n    expect(emitted.advanceWidth).toBe(500);\n    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({ selectedBuilder: \"hb-subset\" }));\n  });\n\n  it(\"rejects an outline-less hvgl source at the capability boundary and falls back (DM-2435)\", () => {\n    trackGlyphInEmbedFont(\"hinted-hvgl|w=400|s=0\", 1000, 800, -200, 1, TRI, 600,\n      { italic: false, weight: 400, hintedSource: { path: hvglPath, faceIndex: 0, variationAxes: null } });\n    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());\n    expect(tags(bytes).has(\"glyf\")).toBe(true); // svg2ttf fallback remains renderable\n    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({\n      selectedBuilder: \"svg2ttf\",\n      hintedSourceDisqualifiedReasons: [\"cff-or-subset-failure\"],\n    }));\n  });\n\n  it(\"falls back to svg2ttf for a synthetic (faux-bold) glyph\", () => {\n    trackGlyphInEmbedFont(\"hinted-synth|w=700|s=0\", 1000, 800, -200, 1, TRI, 600,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2435"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "911b045ce7790b1230d147d7ba1619c0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "91636cfe887a4500d5b2576ce047b6f7b3b8b19a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

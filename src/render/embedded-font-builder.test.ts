@@ -143,15 +143,24 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
   let staticPath: string;
   let compositePath: string;
   let variablePath: string;
+  let hvglPath: string;
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "domotion-hinted-test-"));
     staticPath = join(dir, "static-hinted.ttf");
     compositePath = join(dir, "composite-hinted.ttf");
     variablePath = join(dir, "variable-hinted.ttf");
+    hvglPath = join(dir, "outline-less-hvgl.ttf");
     writeFileSync(staticPath, buildStaticHintedFont());
     writeFileSync(compositePath, buildStaticHintedFont({ withComposite: true }));
     writeFileSync(variablePath, buildVariableHintedFont());
+    const hvgl = Buffer.alloc(32);
+    hvgl.writeUInt32BE(0x00010000, 0);
+    hvgl.writeUInt16BE(1, 4);
+    hvgl.write("hvgl", 12, "latin1");
+    hvgl.writeUInt32BE(28, 20);
+    hvgl.writeUInt32BE(4, 24);
+    writeFileSync(hvglPath, hvgl);
   });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -248,6 +257,28 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     };
     // gvar delta at wght=900: "A" right edge 550 → 650
     expect(font.glyphForCodePoint(0xE000).bbox.maxX).toBe(650);
+  });
+
+  it("finalizes a tracked source gid 0 as a PUA-addressable nonzero glyph (DM-2435)", () => {
+    const placement = trackGlyphInEmbedFont("hinted-notdef|w=400|s=0", 1000, 800, -200, 0, TRI, 500,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    const font = fontkit.create(bytes) as unknown as { glyphForCodePoint(cp: number): { id: number; advanceWidth: number } };
+    const emitted = font.glyphForCodePoint(placement!.puaCodepoint);
+    expect(emitted.id).toBeGreaterThan(0);
+    expect(emitted.advanceWidth).toBe(500);
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({ selectedBuilder: "hb-subset" }));
+  });
+
+  it("rejects an outline-less hvgl source at the capability boundary and falls back (DM-2435)", () => {
+    trackGlyphInEmbedFont("hinted-hvgl|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: hvglPath, faceIndex: 0, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(tags(bytes).has("glyf")).toBe(true); // svg2ttf fallback remains renderable
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
+      selectedBuilder: "svg2ttf",
+      hintedSourceDisqualifiedReasons: ["cff-or-subset-failure"],
+    }));
   });
 
   it("falls back to svg2ttf for a synthetic (faux-bold) glyph", () => {

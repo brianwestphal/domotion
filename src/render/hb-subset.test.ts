@@ -126,7 +126,9 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
   });
 });
 
-describe("hbSubsetRetainGids variable-axis instancing (DM-1716)", () => {
+// Format capability only. These fresh, one-call cases deliberately do not
+// exercise the cumulative WASM/session lifecycle investigated by DM-2433.
+describe("hbSubsetRetainGids variable-axis instancing (DM-1716/DM-2435)", () => {
   it("pins axes to the requested location — outlines match fontkit's getVariation", () => {
     const vf = buildVariableHintedFont();
     const out = hbSubsetRetainGids(vf, [1, 2], 0, true, { wght: 900 });
@@ -167,7 +169,7 @@ describe("hbSubsetRetainGids variable-axis instancing (DM-1716)", () => {
 });
 
 const sfIndiaPath = "/System/Library/Fonts/SFIndia.ttc";
-describe.runIf(process.platform === "darwin" && existsSync(sfIndiaPath))("CFF2 completed instancing (DM-2310)", () => {
+describe.runIf(process.platform === "darwin" && existsSync(sfIndiaPath))("CFF2 completed instancing (DM-2310/DM-2435)", () => {
   it.each([
     { faceIndex: 8, gids: [104, 390] }, // .SFTelugu-Regular: U+0C04/U+0C5D
     { faceIndex: 4, gids: [257, 358] }, // .SFKannada-Regular: U+0C84/U+0CDD
