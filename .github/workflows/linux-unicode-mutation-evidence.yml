@@ -1,0 +1,75 @@
+name: Linux Unicode mutation evidence
+
+on:
+  workflow_dispatch:
+
+env:
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install helper build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - run: npm ci
+      - name: Build the Linux glyph helper
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Clone Unicode fixtures
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Resolve the closed 24-row corpus
+        run: npx tsx tools/linux-unicode-mutation-matrix.ts --print-fixtures > /tmp/linux-unicode-fixtures.txt
+      - name: Baseline arm
+        continue-on-error: true
+        env:
+          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/baseline
+          DOMOTION_NO_NICE: '1'
+          DOMOTION_TEST_WORKERS: '1'
+        run: |
+          export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
+          bash scripts/ci-run-shard.sh unicode
+      - name: Fontconfig helper-off arm
+        continue-on-error: true
+        env:
+          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/fontconfig-helper-off
+          DOMOTION_NO_NICE: '1'
+          DOMOTION_TEST_WORKERS: '1'
+        run: |
+          mv tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths
+          export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
+          bash scripts/ci-run-shard.sh unicode
+          mv /tmp/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
+      - name: Ensure helper is restored
+        if: always()
+        run: |
+          if test -f /tmp/domotion-glyph-paths; then mv /tmp/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths; fi
+      - name: Hinted-subset-off arm
+        continue-on-error: true
+        env:
+          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/hinted-subset-off
+          DOMOTION_HINTED_SUBSET: '0'
+          DOMOTION_NO_NICE: '1'
+          DOMOTION_TEST_WORKERS: '1'
+        run: |
+          export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
+          bash scripts/ci-run-shard.sh unicode
+      - name: Adjudicate exact logical and raster mutations
+        if: always()
+        run: |
+          npx tsx tools/linux-unicode-mutation-matrix.ts \
+            --baseline tests/output/linux-unicode-mutation/baseline \
+            --helper-off tests/output/linux-unicode-mutation/fontconfig-helper-off \
+            --hint-off tests/output/linux-unicode-mutation/hinted-subset-off \
+            --out tests/output/linux-unicode-mutation
+      - name: Upload all three arms and DM-2352 candidate feed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-unicode-three-arm-evidence
+          path: tests/output/linux-unicode-mutation/
+          if-no-files-found: error

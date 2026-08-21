@@ -38,6 +38,17 @@ is never admitted to that raster-floor set: its dedicated validator requires
 the exact 14 selected-face HarfBuzz streams, Chromium's FreeSans/FreeSerif
 census, and no unexpected U+25CC gid in the remaining Vedic cells.
 
+The manually dispatched `linux-unicode-mutation-evidence.yml` workflow runs
+that closed 24-row corpus in one pinned Linux container under three conditions:
+production baseline, the fontconfig helper removed, and hinted subsetting
+disabled. `tools/linux-unicode-mutation-matrix.ts` writes a complete matrix and
+a sidecar beside every baseline fixture. It emits the logically exact
+`dm-2352-raster-floor-candidates.json` feed only from rows whose helper-off arm
+moves face selection and whose hint-off arm removes hint tables and changes the
+raster without changing face/gid/cluster/metrics/source-outline evidence. A
+logical change is reported as `logical-mismatch` and fails adjudication; pixel
+percentages cannot override it.
+
 Related: [Chromium parity verification program](129-chromium-parity-verification-program.md),
 [semantic coverage inventory](136-semantic-coverage-inventory.md), and
 [specialized-path activation ledger](137-specialized-path-activation-ledger.md).

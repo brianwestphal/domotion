@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kd731eawtb90m",
+          "message": {
+            "text": "All three mutation arms run sequentially in the same pinned Playwright Noble container and use one worker, preventing host/image and cumulative worker-order differences from masquerading as the controlled mutations. The helper binary is physically removed only for the helper-off arm and restored under always() before the hint-off arm.",
+            "markdown": "All three mutation arms run sequentially in the same pinned Playwright Noble container and use one worker, preventing host/image and cumulative worker-order differences from masquerading as the controlled mutations. The helper binary is physically removed only for the helper-off arm and restored under always() before the hint-off arm."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/linux-unicode-mutation-evidence.yml"
+                },
+                "region": {
+                  "startLine": 19,
+                  "endLine": 78,
+                  "snippet": {
+                    "text": "          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev\n      - run: npm ci\n      - name: Build the Linux glyph helper\n        run: bash tools/linux-glyph-extractor/build.sh\n      - name: Clone Unicode fixtures\n        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test\n      - name: Resolve the closed 24-row corpus\n        run: npx tsx tools/linux-unicode-mutation-matrix.ts --print-fixtures > /tmp/linux-unicode-fixtures.txt\n      - name: Baseline arm\n        continue-on-error: true\n        env:\n          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/baseline\n          DOMOTION_NO_NICE: '1'\n          DOMOTION_TEST_WORKERS: '1'\n        run: |\n          export ONLY=\"$(cat /tmp/linux-unicode-fixtures.txt)\"\n          bash scripts/ci-run-shard.sh unicode\n      - name: Fontconfig helper-off arm\n        continue-on-error: true\n        env:\n          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/fontconfig-helper-off\n          DOMOTION_NO_NICE: '1'\n          DOMOTION_TEST_WORKERS: '1'\n        run: |\n          mv tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths\n          export ONLY=\"$(cat /tmp/linux-unicode-fixtures.txt)\"\n          bash scripts/ci-run-shard.sh unicode\n          mv /tmp/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths\n      - name: Ensure helper is restored\n        if: always()\n        run: |\n          if test -f /tmp/domotion-glyph-paths; then mv /tmp/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths; fi\n      - name: Hinted-subset-off arm\n        continue-on-error: true\n        env:\n          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/hinted-subset-off\n          DOMOTION_HINTED_SUBSET: '0'\n          DOMOTION_NO_NICE: '1'\n          DOMOTION_TEST_WORKERS: '1'\n        run: |\n          export ONLY=\"$(cat /tmp/linux-unicode-fixtures.txt)\"\n          bash scripts/ci-run-shard.sh unicode\n      - name: Adjudicate exact logical and raster mutations\n        if: always()\n        run: |\n          npx tsx tools/linux-unicode-mutation-matrix.ts \\\n            --baseline tests/output/linux-unicode-mutation/baseline \\\n            --helper-off tests/output/linux-unicode-mutation/fontconfig-helper-off \\\n            --hint-off tests/output/linux-unicode-mutation/hinted-subset-off \\\n            --out tests/output/linux-unicode-mutation\n      - name: Upload all three arms and DM-2352 candidate feed\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: linux-unicode-three-arm-evidence\n          path: tests/output/linux-unicode-mutation/\n          if-no-files-found: error\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2438"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e892b10da58125c4b5c44d1b84538d41"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f629767a6fdc042d5fefb4069fa10f521bd87f35",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

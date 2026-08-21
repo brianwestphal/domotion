@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kd6o99ymgocus",
+          "message": {
+            "text": "The CI producer treats logical identity as a hard gate before emitting DM-2352 raster-floor candidates. Each fixture retains all three raw evidence arms and a baseline-side sidecar; a hint-off face/gid/cluster/metric/outline change is a logical-mismatch regardless of its pixel percentage, while mutation-inert arms fail rather than supplying vacuous evidence.",
+            "markdown": "The CI producer treats logical identity as a hard gate before emitting DM-2352 raster-floor candidates. Each fixture retains all three raw evidence arms and a baseline-side sidecar; a hint-off face/gid/cluster/metric/outline change is a logical-mismatch regardless of its pixel percentage, while mutation-inert arms fail rather than supplying vacuous evidence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-unicode-mutation-matrix.ts"
+                },
+                "region": {
+                  "startLine": 50,
+                  "endLine": 110,
+                  "snippet": {
+                    "text": "        helperOff == null ? \"fontconfig-helper-off\" : \"\",\n        hintOff == null ? \"hinted-subset-off\" : \"\",\n      ].filter(Boolean).join(\", \")}`);\n      return { fixture, verdict: \"incomplete\" as const };\n    }\n    for (const [arm, row] of [[\"baseline\", baseline], [\"fontconfig-helper-off\", helperOff], [\"hinted-subset-off\", hintOff]] as const) {\n      if (row.textRunEvidence == null) errors.push(`${fixture}/${arm}: missing textRunEvidence`);\n      if (row.actualSha256 == null) errors.push(`${fixture}/${arm}: missing actualSha256`);\n    }\n    if (baseline.textRunEvidence == null || helperOff.textRunEvidence == null || hintOff.textRunEvidence == null\n        || baseline.actualSha256 == null || hintOff.actualSha256 == null) {\n      return { fixture, verdict: \"incomplete\" as const };\n    }\n    errors.push(...validateFixtureTextEvidence(fixture, baseline.textRunEvidence).map((error) => `${fixture}/baseline: ${error}`));\n    const verdict = compareLinuxUnicodeMutations(\n      baseline.textRunEvidence,\n      helperOff.textRunEvidence,\n      hintOff.textRunEvidence,\n      baseline.embeddedFontBuilds ?? [],\n      hintOff.embeddedFontBuilds ?? [],\n      baseline.actualSha256,\n      hintOff.actualSha256,\n    );\n    if (verdict.selectedFaceRowsMoved === 0) errors.push(`${fixture}: fontconfig-helper-off mutation did not move a selected-face row`);\n    if (!verdict.hintedLogicalRowsExact) errors.push(`${fixture}: hinted-subset-off changed logical evidence (logical-mismatch)`);\n    if (verdict.hintedBuilderRowsMoved === 0) errors.push(`${fixture}: hinted-subset-off did not move an embedded builder row`);\n    if (!verdict.retainedHintTablesRemoved) errors.push(`${fixture}: hinted-subset-off retained hint tables`);\n    if (!verdict.hintedRasterMoved) errors.push(`${fixture}: hinted-subset-off raster was byte-identical`);\n    return {\n      fixture,\n      verdict: verdict.verdict,\n      measurements: verdict,\n      arms: {\n        baseline: { actualSha256: baseline.actualSha256, textRunEvidence: baseline.textRunEvidence, embeddedFontBuilds: baseline.embeddedFontBuilds ?? [] },\n        fontconfigHelperOff: { actualSha256: helperOff.actualSha256, textRunEvidence: helperOff.textRunEvidence, embeddedFontBuilds: helperOff.embeddedFontBuilds ?? [] },\n        hintedSubsetOff: { actualSha256: hintOff.actualSha256, textRunEvidence: hintOff.textRunEvidence, embeddedFontBuilds: hintOff.embeddedFontBuilds ?? [] },\n      },\n    };\n  });\n\n  mkdirSync(outputDir, { recursive: true });\n  const report = {\n    schemaVersion: 1,\n    generatedAt: new Date().toISOString(),\n    corpus: \"DM-2421-linux-unicode-non-vedic-24\",\n    sourceAuthority: fixtures.find((row) => \"arms\" in row)?.arms?.baseline.textRunEvidence.sourceAuthority ?? null,\n    fixtures,\n    summary: {\n      total: fixtures.length,\n      rasterFloorCandidates: fixtures.filter((row) => row.verdict === \"raster-floor-candidate\").length,\n      logicalMismatches: fixtures.filter((row) => row.verdict === \"logical-mismatch\").length,\n      mutationInert: fixtures.filter((row) => row.verdict === \"mutation-inert\").length,\n      incomplete: fixtures.filter((row) => row.verdict === \"incomplete\").length,\n    },\n    errors,\n  };\n  writeFileSync(resolve(outputDir, \"linux-unicode-mutation-matrix.json\"), JSON.stringify(report, null, 2));\n  writeFileSync(resolve(outputDir, \"dm-2352-raster-floor-candidates.json\"), JSON.stringify({\n    schemaVersion: 1,\n    source: \"linux-unicode-mutation-matrix.json\",\n    fixtures: fixtures.filter((row) => row.verdict === \"raster-floor-candidate\").map((row) => row.fixture),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2438"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a18118d1ffa70f4c075a326de87aba33"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f629767a6fdc042d5fefb4069fa10f521bd87f35",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
