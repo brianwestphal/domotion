@@ -777,7 +777,7 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
   // Button-like rounded rect with a colored inner swatch. el.value is a
   // '#rrggbb' string (default #000000). Author CSS on the host or
   // ::-webkit-color-swatch / ::-webkit-color-swatch-wrapper pseudos
-  // (captured via the SK-1223 stylesheet walker) overrides the default
+  // (captured from Blink's resolved UA-shadow ComputedStyle) overrides the default
   // wrapper border/radius and inner swatch styling when present.
   // DM-553: scheme-aware UA defaults.
   const palette = stockPalette(defCtx?.colorScheme);
@@ -818,7 +818,7 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
 /**
  * <input type=number>: paint the ::-webkit-inner-spin-button chrome on the
  * right edge — a small box with up/down arrow chevrons. Author rules on
- * ::-webkit-inner-spin-button (captured via the SK-1223 stylesheet walker)
+ * ::-webkit-inner-spin-button (captured from Blink's resolved ComputedStyle)
  * override the UA defaults for background / border / radius.
  */
 function renderNumberInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -1208,8 +1208,8 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const dist = Math.abs(valR - optR);
   // Pick the matching pseudo (optimum/suboptimum/even-less-good) for the
   // value's region. Author CSS on those pseudos overrides the UA-default
-  // green/yellow/red palette. SK-1222 fixed the upstream capture so author
-  // rules now round-trip via the stylesheet walker.
+  // green/yellow/red palette. Capture reads the final Blink UA-shadow
+  // ComputedStyle, including Chromium's complete cascade.
   const customTrackFill = customPseudoFill(el.styles.meterBarBg, el.styles.meterBarBgImage);
   // The region-selected value bg image is resolved in meterBarGeom (used for the
   // gradient lookup); here we only need the matching flat customValueFill.

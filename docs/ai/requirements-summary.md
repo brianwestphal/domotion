@@ -1503,3 +1503,17 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   must come from captured browser facts. Current code still emits the fixed
   gray approximation. DM-2463 captures the UA facts, DM-2464 emits the hybrid,
   and DM-2465 adds dependency-ordered all-platform stage/oracle controls.
+
+<!-- DM-2382 -->
+- Legacy WebKit control-pseudo cascade is Chromium-owned. A Node-side CDP
+  prepass pierces instantiated UA-shadow control nodes, uses direct matched-rule
+  origins only to classify native versus author paint ownership, and transfers
+  Blink's final ComputedStyle longhands to the serialized capture walk.
+  Specificity, importance, origins, normal/reversed-important layer order,
+  scopes, media/supports/container conditions, adopted sheets, shadow tree
+  scopes, selector nesting, shorthand expansion, and dynamic state are never
+  reimplemented from CSSOM. `::-webkit-resizer` is the source-defined exception:
+  Blink gives its resolved style to an anonymous layout part, so capture reads
+  the host's native resizer computed style and CDP pseudo-match metadata. The
+  old source-order fallback is removed and authoritative-surface failure is
+  explicit. See [doc 158](../158-authoritative-control-pseudo-cascade.md).

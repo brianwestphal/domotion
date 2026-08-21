@@ -21,6 +21,14 @@ Our output keeps the default heights, ignores the gradients, and skips the radii
 > **Update (SK-1193 / SK-1222):** `getComputedStyle(el, '::-webkit-progress-bar')` and the other meter/progress pseudo getters return the **host element's computed style** in Chromium, not the pseudo's cascaded value. The same quirk SK-1138 worked around for `::-webkit-slider-thumb` was confirmed by probe to apply to `::-webkit-progress-bar`, `::-webkit-progress-value`, `::-webkit-meter-bar`, and the meter value pseudos. The original scalar capture was silently broken — author rules were ignored and the host's transparent background was recorded instead.
 >
 > **Fixed in SK-1222** by migrating progress/meter capture to the same `document.styleSheets` walker that slider track/thumb use (formerly `_collectRangeRules` / `_resolveRangePseudo`, now generalized as `_collectPseudoRules` / `_resolvePseudo` with a `_kindMap` that registers all six progress/meter pseudo names alongside the slider ones). The walker shares the SK-1191 var/calc resolver and the SK-1192 state-rule support, so progress/meter pseudos pick up those features for free. Gradient backgrounds round-trip via the SK-1224 / SK-1225 / SK-1226 pipeline — `progressBarBgImage`, `progressValueBgImage`, `meterBarBgImage`, and the meter value bgImages all flow through the renderer's `gradientFillFor` helper to emit `<linearGradient>` / `<radialGradient>` defs with `fill="url(#...)"`.
+>
+> **Current implementation:** the source-order walker has been replaced by the
+> authoritative Chromium prepass in
+> [doc 158](158-authoritative-control-pseudo-cascade.md). Capture reads the
+> instantiated progress/meter UA-shadow nodes' final ComputedStyle and uses
+> direct matched-rule origins only to decide whether author paint owns the
+> pseudo. Chromium therefore resolves the complete cascade and every active
+> condition before Domotion receives these scalar fields.
 
 ## Capture changes
 
@@ -48,8 +56,8 @@ meterSuboptimumBg?: string;    meterSuboptimumBgImage?: string;
 meterEvenLessGoodBg?: string;  meterEvenLessGoodBgImage?: string;
 ```
 
-The pseudo styles are resolved through the `document.styleSheets` walker (see the
-SK-1222 update above), not a raw `getComputedStyle(el, pseudo)` read — the latter
+The pseudo styles are resolved on their actual pierced UA-shadow nodes through
+Chromium's CSS agent, not a raw `getComputedStyle(el, pseudo)` read — the latter
 returns the host's computed style in Chromium, not the pseudo's cascaded value.
 There are no `border`, `padding`, `height`, or `boxShadow` fields: those parts of
 the box model are **not** captured (the renderer derives bar height/inset

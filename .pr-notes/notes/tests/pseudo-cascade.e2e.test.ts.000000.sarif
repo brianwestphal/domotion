@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3bubgac3nj64iv",
+          "message": {
+            "text": "The browser oracle compares production capture with an independently decoded live UA-shadow ComputedStyle and exercises every cascade dimension in the ticket. The focused Vitest command passes 3/3: every mapped control pseudo, legacy UA-shadow style-attribute origin precedence, specificity, important, both layer directions, UA/author ownership, scope/media/supports/container positives and negatives, document/shadow adopted sheets, iframe, nesting, shorthand/calc, resizer, focus/hover/disabled, repeated capture, and mutation.",
+            "markdown": "The browser oracle compares production capture with an independently decoded live UA-shadow ComputedStyle and exercises every cascade dimension in the ticket. The focused Vitest command passes 3/3: every mapped control pseudo, legacy UA-shadow style-attribute origin precedence, specificity, important, both layer directions, UA/author ownership, scope/media/supports/container positives and negatives, document/shadow adopted sheets, iframe, nesting, shorthand/calc, resizer, focus/hover/disabled, repeated capture, and mutation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/pseudo-cascade.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 60,
+                  "endLine": 287,
+                  "snippet": {
+                    "text": "describeBrowser(\"DM-2382: Blink-authoritative control pseudo cascade\", () => {\n  it(\"routes every instantiated legacy control pseudo kind from its Blink node\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 700, height: 360 } });\n    try {\n      await page.setContent(`<style>\n        #all-range::-webkit-slider-runnable-track{background-color:rgb(101,1,102)}\n        #all-range::-webkit-slider-thumb{background-color:rgb(3,103,4)}\n        #all-progress::-webkit-progress-bar{background-color:rgb(105,5,106)}\n        #all-progress::-webkit-progress-value{background-color:rgb(7,107,8)}\n        #meter-opt::-webkit-meter-bar{background-color:rgb(109,9,110)}\n        #meter-opt::-webkit-meter-optimum-value{background-color:rgb(11,111,12)}\n        #meter-sub::-webkit-meter-suboptimum-value{background-color:rgb(113,13,114)}\n        #meter-worst::-webkit-meter-even-less-good-value{background-color:rgb(15,115,16)}\n        #all-color::-webkit-color-swatch{background-color:rgb(117,17,118)}\n        #all-color::-webkit-color-swatch-wrapper{padding:7px}\n        #all-number::-webkit-inner-spin-button{background-color:rgb(19,119,20)}\n        #all-search::-webkit-search-cancel-button{background-color:rgb(121,21,122)}\n      </style>\n      <input id=\"all-range\" type=\"range\" data-domotion-anim=\"all-range\">\n      <progress id=\"all-progress\" value=\".4\" data-domotion-anim=\"all-progress\"></progress>\n      <meter id=\"meter-opt\" min=\"0\" max=\"100\" low=\"25\" high=\"75\" optimum=\"50\" value=\"50\" data-domotion-anim=\"meter-opt\"></meter>\n      <meter id=\"meter-sub\" min=\"0\" max=\"100\" low=\"25\" high=\"75\" optimum=\"50\" value=\"10\" data-domotion-anim=\"meter-sub\"></meter>\n      <meter id=\"meter-worst\" min=\"0\" max=\"100\" low=\"25\" high=\"75\" optimum=\"90\" value=\"10\" data-domotion-anim=\"meter-worst\"></meter>\n      <input id=\"all-color\" type=\"color\" value=\"#010203\" data-domotion-anim=\"all-color\">\n      <input id=\"all-number\" type=\"number\" value=\"4\" data-domotion-anim=\"all-number\">\n      <input id=\"all-search\" type=\"search\" value=\"query\" data-domotion-anim=\"all-search\">`);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 700, height: 360 });\n      expect(byAnimId(tree, \"all-range\")?.styles).toMatchObject({\n        rangeTrackBg: \"rgb(101, 1, 102)\",\n        rangeThumbBg: \"rgb(3, 103, 4)\",\n      });\n      expect(byAnimId(tree, \"all-progress\")?.styles).toMatchObject({\n        progressBarBg: \"rgb(105, 5, 106)\",\n        progressValueBg: \"rgb(7, 107, 8)\",\n      });\n      expect(byAnimId(tree, \"meter-opt\")?.styles).toMatchObject({\n        meterBarBg: \"rgb(109, 9, 110)\",\n        meterOptimumBg: \"rgb(11, 111, 12)\",\n      });\n      expect(byAnimId(tree, \"meter-sub\")?.styles.meterSuboptimumBg).toBe(\"rgb(113, 13, 114)\");\n      expect(byAnimId(tree, \"meter-worst\")?.styles.meterEvenLessGoodBg).toBe(\"rgb(15, 115, 16)\");\n      expect(byAnimId(tree, \"all-color\")?.styles).toMatchObject({\n        // Blink's legacy -webkit-* cascade deliberately keeps the UA-shadow\n        // inline value ahead of this author rule (StyleResolver's\n        // cascade_style_attribute_in_parent_scope path). A source-order\n        // declaration walker incorrectly returned rgb(117,17,118).\n        colorSwatchBg: \"rgb(1, 2, 3)\",\n        colorSwatchWrapperPadding: \"7px\",\n      });\n      expect(byAnimId(tree, \"all-number\")?.styles.numberSpinButtonBg).toBe(\"rgb(19, 119, 20)\");\n      expect(byAnimId(tree, \"all-search\")?.styles.searchCancelButtonBg).toBe(\"rgb(121, 21, 122)\");\n    } finally {\n      await page.close();\n    }\n  });\n\n  it(\"uses Blink winners across specificity, importance, origins, layers, scopes, conditions, and tree scopes\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 920, height: 720 } });\n    try {\n      await page.setContent(`<!doctype html><style>\n        html,body{margin:0} input[type=range]{display:block;margin:4px;width:140px}\n\n        #specific::-webkit-slider-thumb{background-color:rgb(201,1,2)}\n        input.specific::-webkit-slider-thumb{background-color:rgb(3,4,205)}\n\n        input.important::-webkit-slider-thumb{background-color:rgb(6,207,8)!important}\n        #important::-webkit-slider-thumb{background-color:rgb(209,10,11)}\n\n        @layer base, theme;\n        @layer theme{#layer-normal::-webkit-slider-thumb{background-color:rgb(12,211,14)}}\n        @layer base{#layer-normal::-webkit-slider-thumb{background-color:rgb(213,16,17)}}\n        @layer theme{#layer-important::-webkit-slider-thumb{background-color:rgb(18,215,20)!important}}\n        @layer base{#layer-important::-webkit-slider-thumb{background-color:rgb(217,22,23)!important}}\n\n        @scope (#scope-root){input::-webkit-slider-thumb{background-color:rgb(24,219,26)}}\n        @scope (#never-a-scope){#scope-inactive::-webkit-slider-thumb{background-color:rgb(221,28,29)}}\n        @media (min-width:600px){#media-active::-webkit-slider-thumb{background-color:rgb(30,223,32)}}\n        @media (max-width:100px){#media-inactive::-webkit-slider-thumb{background-color:rgb(225,34,35)}}\n        @supports (display:grid){#supports-active::-webkit-slider-thumb{background-color:rgb(36,227,38)}}\n        @supports (domotion-unknown:value){#supports-inactive::-webkit-slider-thumb{background-color:rgb(229,40,41)}}\n        @container (min-width:150px){.container-active::-webkit-slider-thumb{background-color:rgb(42,231,44)}}\n        @container (max-width:100px){.container-inactive::-webkit-slider-thumb{background-color:rgb(233,46,47)}}\n\n        #nested{&::-webkit-slider-thumb{background-color:rgb(48,235,50)}}\n        :is(#functional-nested, #unused)::-webkit-slider-thumb{background-color:rgb(237,52,53)}\n        #shorthand{-webkit-appearance:none;appearance:none}\n        #shorthand::-webkit-slider-thumb{\n          -webkit-appearance:none;\n          width:calc(11px + 8px);\n          background:rgb(54,239,56)!important;\n          background-color:rgb(241,58,59)\n        }\n\n        #resizer{resize:both;overflow:hidden;width:120px;height:70px}\n        #resizer::-webkit-resizer{background-color:rgb(60,243,62)}\n        div.resizer::-webkit-resizer{background-color:rgb(245,64,65)}\n      </style>\n      <input id=\"ua-only\" type=\"range\" data-domotion-anim=\"ua-only\">\n      <input id=\"specific\" class=\"specific\" type=\"range\" data-domotion-anim=\"specific\">\n      <input id=\"important\" class=\"important\" type=\"range\" data-domotion-anim=\"important\">\n      <input id=\"layer-normal\" type=\"range\" data-domotion-anim=\"layer-normal\">\n      <input id=\"layer-important\" type=\"range\" data-domotion-anim=\"layer-important\">\n      <div id=\"scope-root\"><input id=\"scope-active\" type=\"range\" data-domotion-anim=\"scope-active\"></div>\n      <input id=\"scope-inactive\" type=\"range\" data-domotion-anim=\"scope-inactive\">\n      <input id=\"media-active\" type=\"range\" data-domotion-anim=\"media-active\">\n      <input id=\"media-inactive\" type=\"range\" data-domotion-anim=\"media-inactive\">\n      <input id=\"supports-active\" type=\"range\" data-domotion-anim=\"supports-active\">\n      <input id=\"supports-inactive\" type=\"range\" data-domotion-anim=\"supports-inactive\">\n      <div style=\"container-type:inline-size;width:220px\"><input id=\"container-active\" class=\"container-active\" type=\"range\" data-domotion-anim=\"container-active\"></div>\n      <div style=\"container-type:inline-size;width:220px\"><input id=\"container-inactive\" class=\"container-inactive\" type=\"range\" data-domotion-anim=\"container-inactive\"></div>\n      <input id=\"nested\" type=\"range\" data-domotion-anim=\"nested\">\n      <input id=\"functional-nested\" type=\"range\" data-domotion-anim=\"functional-nested\">\n      <input id=\"shorthand\" type=\"range\" data-domotion-anim=\"shorthand\">\n      <input id=\"adopted\" type=\"range\" data-domotion-anim=\"adopted\">\n      <slider-shell></slider-shell>\n      <iframe id=\"frame\" srcdoc=\"<!doctype html><style>#framed::-webkit-slider-thumb{background-color:rgb(72,251,74)}</style><input id='framed' type='range' data-domotion-anim='framed'>\"></iframe>\n      <div id=\"resizer\" class=\"resizer\" data-domotion-anim=\"resizer\"></div>`);\n\n      await page.evaluate(() => {\n        const adopted = new CSSStyleSheet();\n        adopted.replaceSync(\"#adopted::-webkit-slider-thumb{background-color:rgb(66,247,68)}\");\n        document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];\n\n        const shell = document.querySelector(\"slider-shell\")!;\n        const root = shell.attachShadow({ mode: \"open\" });\n        root.innerHTML = \"<input id='shadow-adopted' type='range'>\";\n        const shadowAdopted = new CSSStyleSheet();\n        shadowAdopted.replaceSync(\"input::-webkit-slider-thumb{background-color:rgb(69,249,71)}\");\n        root.adoptedStyleSheets = [shadowAdopted];\n      });\n      await page.locator(\"#frame\").contentFrame().locator(\"#framed\").waitFor();\n\n      // The serialized tree intentionally raster-owns open custom-element\n      // shadow paint, but the authoritative extraction must still honor that\n      // tree scope. Inspect the exact prepass payload before its expando is\n      // removed to cover shadow-root adopted sheets independently.\n      const shadowCapture = await captureResolvedControlPseudoStyles(page);\n      try {\n        const hostId = await page.evaluate((key) => {\n          const input = document.querySelector(\"slider-shell\")!.shadowRoot!.querySelector(\"input\")!;\n          return (input as Element & Record<string, string>)[key];\n        }, shadowCapture.propertyKey);\n        expect(shadowCapture.stylesByHost[hostId]?.thumb?.backgroundColor).toBe(\"rgb(69, 249, 71)\");\n      } finally {\n        await shadowCapture.dispose();\n      }\n\n      const expected = await blinkThumbBackgrounds(page);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 920, height: 720 });\n      const winners: Record<string, string> = {\n        specific: \"rgb(201, 1, 2)\",\n        important: \"rgb(6, 207, 8)\",\n        \"layer-normal\": \"rgb(12, 211, 14)\",\n        \"layer-important\": \"rgb(217, 22, 23)\",\n        \"scope-active\": \"rgb(24, 219, 26)\",\n        \"media-active\": \"rgb(30, 223, 32)\",\n        \"supports-active\": \"rgb(36, 227, 38)\",\n        \"container-active\": \"rgb(42, 231, 44)\",\n        nested: \"rgb(48, 235, 50)\",\n        \"functional-nested\": \"rgb(237, 52, 53)\",\n        shorthand: \"rgb(54, 239, 56)\",\n        adopted: \"rgb(66, 247, 68)\",\n        framed: \"rgb(72, 251, 74)\",\n      };\n      for (const [id, color] of Object.entries(winners)) {\n        expect(expected[id], `Blink computed ${id}`).toBe(color);\n        expect(byAnimId(tree, id)?.styles.rangeThumbBg, `capture ${id}`).toBe(color);\n      }\n      for (const id of [\"scope-inactive\", \"media-inactive\", \"supports-inactive\", \"container-inactive\"]) {\n        expect(byAnimId(tree, id)?.styles.rangeThumbBg, id).toBeUndefined();\n      }\n      // A UA-only match supplies Blink's native baseline but does not transfer\n      // paint ownership to the author-style renderer path.\n      expect(expected[\"ua-only\"]).not.toBe(\"\");\n      expect(byAnimId(tree, \"ua-only\")?.styles.rangeThumbBg).toBeUndefined();\n      expect(byAnimId(tree, \"shorthand\")?.styles.rangeThumbWidth).toBe(\"19px\");\n      expect(byAnimId(tree, \"resizer\")?.resizeHandle?.custom?.backgroundColor).toBe(\"rgb(60, 243, 62)\");\n    } finally {\n      await page.close();\n    }\n  });\n\n  it(\"re-resolves focus, hover, disabled state, and adopted-sheet mutation on every capture\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 500, height: 220 } });\n    try {\n      await page.setContent(`<style>\n        #dynamic::-webkit-slider-thumb{background-color:rgb(81,1,82)}\n        #dynamic:focus::-webkit-slider-thumb{background-color:rgb(3,83,4)}\n        #dynamic:hover::-webkit-slider-thumb{background-color:rgb(85,5,86)!important}\n        #disabled:disabled::-webkit-slider-thumb{background-color:rgb(7,87,8)}\n      </style>\n      <input id=\"dynamic\" type=\"range\" data-domotion-anim=\"dynamic\">\n      <input id=\"disabled\" type=\"range\" disabled data-domotion-anim=\"disabled\">\n      <input id=\"mutated\" type=\"range\" data-domotion-anim=\"mutated\">`);\n      await page.evaluate(() => {\n        const sheet = new CSSStyleSheet();\n        sheet.replaceSync(\"#mutated::-webkit-slider-thumb{background-color:rgb(89,9,90)}\");\n        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];\n        (window as typeof window & { dm2382Sheet?: CSSStyleSheet }).dm2382Sheet = sheet;\n      });\n      const capture = async (): Promise<CapturedElement[]> => captureElementTree(\n        page,\n        \"body\",\n        { x: 0, y: 0, width: 500, height: 220 },\n      );\n\n      const initial = await capture();\n      expect(byAnimId(initial, \"dynamic\")?.styles.rangeThumbBg).toBe(\"rgb(81, 1, 82)\");\n      expect(byAnimId(initial, \"disabled\")?.styles.rangeThumbBg).toBe(\"rgb(7, 87, 8)\");\n      expect(byAnimId(initial, \"mutated\")?.styles.rangeThumbBg).toBe(\"rgb(89, 9, 90)\");\n\n      await page.locator(\"#dynamic\").focus();\n      const focused = await capture();\n      expect(byAnimId(focused, \"dynamic\")?.styles.rangeThumbBg).toBe(\"rgb(3, 83, 4)\");\n\n      await page.locator(\"#dynamic\").hover();\n      await page.evaluate(() => {\n        (window as typeof window & { dm2382Sheet: CSSStyleSheet }).dm2382Sheet\n          .replaceSync(\"#mutated::-webkit-slider-thumb{background-color:rgb(11,91,12)}\");\n      });\n      const hoveredAndMutated = await capture();\n      expect(byAnimId(hoveredAndMutated, \"dynamic\")?.styles.rangeThumbBg).toBe(\"rgb(85, 5, 86)\");\n      expect(byAnimId(hoveredAndMutated, \"mutated\")?.styles.rangeThumbBg).toBe(\"rgb(11, 91, 12)\");\n    } finally {\n      await page.close();\n    }\n  });\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 314
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2382"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "868254b17df497abd82949c8fad2975a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "05232585a18ca1454dc21fe866064f90a668cfc3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

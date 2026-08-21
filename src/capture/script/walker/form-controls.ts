@@ -202,12 +202,9 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
       inputFileName: (tag === 'input' && el.type === 'file' && el.files && el.files.length > 0) ? el.files[0].name : undefined,
     };
 
-    // ::-webkit-progress-bar / ::-webkit-progress-value pseudos — resolved
-    // via the stylesheet walker. getComputedStyle(el, pseudo) returns the
-    // host <progress>'s style for these UA pseudos, not the pseudo's
-    // cascaded value, so author rules like
-    // ::-webkit-progress-value { background: green } were silently dropped.
-    // Walking document.styleSheets restores them. SK-1222.
+    // ::-webkit-progress-bar / ::-webkit-progress-value pseudos. The Node-side
+    // CDP prepass reads Blink's final ComputedStyle from the actual UA-shadow
+    // nodes; getComputedStyle(host, pseudo) returns the host style here.
     if (tag === 'progress') {
       const bar = resolvePseudo(el, 'progress-bar');
       const val = resolvePseudo(el, 'progress-value');
@@ -219,7 +216,7 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
       out.progressValueRadius = val.matched && val.borderRadius !== '' ? val.borderRadius : undefined;
     }
 
-    // <meter> pseudos via the stylesheet walker (same Chromium quirk).
+    // <meter> pseudos via the same Blink-resolved CDP facts.
     if (tag === 'meter') {
       const bar = resolvePseudo(el, 'meter-bar');
       const opt = resolvePseudo(el, 'meter-optimum');
@@ -237,8 +234,7 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
     }
 
     // ::-webkit-color-swatch / -wrapper / -inner-spin-button /
-    // -search-cancel-button pseudos via the stylesheet walker (SK-1223 —
-    // same Chromium quirk as progress / meter). color-swatch is the most
+    // -search-cancel-button pseudos via Blink-resolved CDP facts. color-swatch is the most
     // commonly authored; the others land their fields for future renderer
     // work.
     if (tag === 'input' && el.type === 'color') {
@@ -266,9 +262,9 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
     }
 
     // input[type=range] custom pseudos (SK-1131 / SK-1137 / SK-1138).
-    // Resolved by walking document.styleSheets — getComputedStyle(el,
-    // pseudo) is unreliable for these UA-internal pseudos in Chromium
-    // (returns the host element's style instead of the pseudo's). A pseudo
+    // Resolved from the actual UA-shadow nodes through Chromium's CDP CSS
+    // agent. getComputedStyle(host, pseudo) is unreliable for these
+    // UA-internal pseudos (it returns the host element's style). A pseudo
     // is treated as author-styled when at least one matching rule was
     // found OR the host has -webkit-appearance: none (the .r-custom
     // pattern always pairs the two and we want the renderer to drop UA

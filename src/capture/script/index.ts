@@ -88,7 +88,7 @@ const captureDocumentTree =
     }
     return tables;
   };
-  const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
+  const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules(args.ps, args.pk);
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   // DM-770: counter-style map is populated by the pre-walk below (which
   // reads @counter-style rules from document.styleSheets); declared here so

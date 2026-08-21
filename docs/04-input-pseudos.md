@@ -36,6 +36,17 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 >
 > **Update (SK-1222 / SK-1223):** all the affected pseudos now flow through a generalized stylesheet walker (`_pseudoRules` / `_collectPseudoRules` / `_resolvePseudo` in `src/capture/script/` `CAPTURE_SCRIPT`). Each pseudo is keyed by short kind name (`'track'`, `'thumb'`, `'progress-bar'`, `'progress-value'`, `'meter-bar'`, `'meter-optimum'`, `'meter-suboptimum'`, `'meter-even-less-good'`, `'color-swatch'`, `'color-swatch-wrapper'`, `'inner-spin-button'`, `'search-cancel-button'`). Var/calc resolution (SK-1191), state-rule support (SK-1192), and gradient-def emission (SK-1224 / SK-1225 / SK-1226) all share that walker. Renderer pickup for the new color-swatch fields (`colorSwatchBg`, `colorSwatchBgImage`, `colorSwatchBorder`, `colorSwatchRadius`, `colorSwatchWrapperPadding`) lives in `renderColorSwatch`. Number and search inputs now render their real chrome too: `renderNumberInput` draws the inner-spin button and `renderSearchInput` draws the search-cancel button (both in `src/render/form-controls.ts`), consuming the captured `numberSpinButton*` / `searchCancelButton*` fields.
 
+> **Current implementation:** the generalized stylesheet walker has been
+> retired. It applied declarations in source order and therefore disagreed
+> with Chromium for specificity, `!important`, origins, layers, scopes,
+> conditional rules, adopted/shadow-root sheets, and shorthand/longhand
+> interaction. `src/capture/pseudo-style-cdp.ts` now pierces the UA shadow DOM,
+> classifies author ownership from the matched-rule origins, and transfers
+> Blink's final ComputedStyle longhands to the serialized capture walk. The
+> anonymous `::-webkit-resizer` uses the host's native pseudo computed style
+> plus CDP pseudo-match metadata. See
+> [doc 158](158-authoritative-control-pseudo-cascade.md).
+
 ## Render changes
 
 `src/render/form-controls.ts` `renderRange()` currently emits a fixed-style track + thumb. Change to:

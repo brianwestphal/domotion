@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3bvbx00v0zf7t0",
+          "message": {
+            "text": "Chromium resolved style is the cascade authority; Domotion only classifies paint ownership. The old CSSOM walker could not reproduce specificity, importance, origins, layers, scopes, active conditions, or TreeScope ordering. This prepass therefore reads final ComputedStyle on the actual pierced UA-shadow node and forwards immutable facts to the lookup-only page helper. The capture wiring (0) removes the temporary expando in a finally block, and the page resolver (1) contains no cascade fallback.",
+            "markdown": "Chromium resolved style is the cascade authority; Domotion only classifies paint ownership. The old CSSOM walker could not reproduce specificity, importance, origins, layers, scopes, active conditions, or TreeScope ordering. This prepass therefore reads final ComputedStyle on the actual pierced UA-shadow node and forwards immutable facts to the lookup-only page helper. The [capture wiring](0) removes the temporary expando in a finally block, and the [page resolver](1) contains no cascade fallback."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 348,
+                  "endLine": 394,
+                  "snippet": {
+                    "text": "  try {\n    await session.send(\"DOM.enable\");\n    await session.send(\"CSS.enable\");\n    const documentResult = await session.send(\"DOM.getDocument\", { depth: -1, pierce: true });\n    const visited = new Set<number>();\n\n    const visit = async (node: CdpNode, uaHost: CdpNode | null): Promise<void> => {\n      if (visited.has(node.nodeId)) return;\n      visited.add(node.nodeId);\n      if (uaHost != null) {\n        const kind = controlPseudoKindForNode(attributesOf(node), uaHost.nodeName, attributesOf(uaHost));\n        if (kind != null) {\n          const matched = await session.send(\"CSS.getMatchedStylesForNode\", { nodeId: node.nodeId });\n          if (hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {\n            const computed = await session.send(\"CSS.getComputedStyleForNode\", { nodeId: node.nodeId });\n            await store(uaHost.nodeId, kind, computed.computedStyle);\n          }\n        }\n      }\n\n      for (const pseudo of node.pseudoElements ?? []) await visit(pseudo, uaHost);\n      for (const child of node.children ?? []) await visit(child, uaHost);\n      if (node.contentDocument != null) await visit(node.contentDocument, null);\n      for (const shadow of node.shadowRoots ?? []) {\n        await visit(shadow, shadow.shadowRootType === \"user-agent\" ? node : null);\n      }\n    };\n    await visit(documentResult.root as CdpNode, null);\n\n    // `::-webkit-resizer` has no UA-shadow DOM node: Blink resolves its style\n    // on demand and assigns it to an anonymous LayoutCustomScrollbarPart.\n    // Query only hosts whose computed `resize` is active, then combine the\n    // host's CDP pseudo-match metadata with the browser's native pseudo\n    // getComputedStyle surface.\n    const resizableObjectIds = await collectResizableRemoteObjects(session, objectGroup);\n    for (const objectId of resizableObjectIds) {\n      const requested = await session.send(\"DOM.requestNode\", { objectId });\n      if (requested.nodeId === 0) continue;\n      const matched = await session.send(\"CSS.getMatchedStylesForNode\", { nodeId: requested.nodeId });\n      if (!hasAuthorPseudoOrigin(resizerMatchedOrigins(matched))) continue;\n      await store(\n        requested.nodeId,\n        \"resizer\",\n        await computedResizerProperties(session, objectId),\n        objectId,\n      );\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1213
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/pseudo-rules.ts"
+                },
+                "region": {
+                  "startLine": 3
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2382"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0cd8db9aa84ccb8dadb8ae65b60b156e"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3bviwp3gl9svgb",
+          "message": {
+            "text": "The resizer must not be searched as a UA-shadow node. Pinned PaintLayerScrollableArea source creates an anonymous LayoutCustomScrollbarPart from kPseudoIdResizer, and a live Chromium probe confirmed no pierced resizer node exists. The authoritative split is therefore CDP pseudo-match origins on the host plus the native resizer computed-style surface for final longhands; parsing matching declarations would recreate the broken cascade approximation.",
+            "markdown": "The resizer must not be searched as a UA-shadow node. Pinned PaintLayerScrollableArea source creates an anonymous LayoutCustomScrollbarPart from kPseudoIdResizer, and a live Chromium probe confirmed no pierced resizer node exists. The authoritative split is therefore CDP pseudo-match origins on the host plus the native resizer computed-style surface for final longhands; parsing matching declarations would recreate the broken cascade approximation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 377,
+                  "endLine": 393,
+                  "snippet": {
+                    "text": "    // `::-webkit-resizer` has no UA-shadow DOM node: Blink resolves its style\n    // on demand and assigns it to an anonymous LayoutCustomScrollbarPart.\n    // Query only hosts whose computed `resize` is active, then combine the\n    // host's CDP pseudo-match metadata with the browser's native pseudo\n    // getComputedStyle surface.\n    const resizableObjectIds = await collectResizableRemoteObjects(session, objectGroup);\n    for (const objectId of resizableObjectIds) {\n      const requested = await session.send(\"DOM.requestNode\", { objectId });\n      if (requested.nodeId === 0) continue;\n      const matched = await session.send(\"CSS.getMatchedStylesForNode\", { nodeId: requested.nodeId });\n      if (!hasAuthorPseudoOrigin(resizerMatchedOrigins(matched))) continue;\n      await store(\n        requested.nodeId,\n        \"resizer\",\n        await computedResizerProperties(session, objectId),\n        objectId,\n      );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/resize-handle.ts"
+                },
+                "region": {
+                  "startLine": 88
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2382"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "934bb28ed69d8dc665c717f9cf23147c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "05232585a18ca1454dc21fe866064f90a668cfc3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

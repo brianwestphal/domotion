@@ -19,9 +19,15 @@ Chrome paints visible vertical tick stripes; the previous Domotion output painte
 
 ## Capture changes
 
-`_resolvePseudo` in `src/capture/script/` (`CAPTURE_SCRIPT`) extracts gradient layers from both `rule.style.backgroundImage` and the `rule.style.background` shorthand via a new helper `_extractGradients(text)`. The helper walks balanced parens and emits a comma-joined list of just the gradient calls — necessary because Chromium serializes the `backgroundImage` longhand for a shorthand like `background: <gradient>, #color` as `<gradient>, initial`, and assigning that directly to `host.style.backgroundImage` to resolve `var()` / `calc()` would be rejected (`initial` is not a valid layer value, so the whole assignment fails and the host's computed `backgroundImage` reads back as `none`).
-
-After extraction, `_resolveOne(el, 'backgroundImage', gradientText)` round-trips through Chrome's CSS parser and returns the resolved gradient string (with `var()` substituted and color tokens normalized to `rgb()` form). `calc()` expressions in stop positions are **preserved as text** by Chrome — they aren't resolved against the gradient line length until layout, which `getComputedStyle` doesn't expose.
+The current capture no longer parses author declarations or probes the host.
+`src/capture/pseudo-style-cdp.ts` reads `background-image` from Blink's final
+ComputedStyle on the instantiated UA-shadow pseudo node. Chromium has therefore
+already expanded `background`, selected the winning shorthand/longhand,
+substituted variables, normalized colors, and discarded inactive cascade
+branches. `calc()` expressions in stop positions are **preserved as text** by
+Chrome — they aren't resolved against the gradient line length until layout,
+which computed style doesn't expose. See
+[doc 158](158-authoritative-control-pseudo-cascade.md).
 
 ## Render changes — `parseGradient`
 

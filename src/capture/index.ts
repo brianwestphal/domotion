@@ -18,6 +18,7 @@ import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { refineLineClampEllipsisFragments } from "./line-clamp.js";
+import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
@@ -1209,7 +1210,22 @@ export async function captureElementTreeWithWarnings(
   await ensureSessionGenericFamilyOverrides(page);
 
   const resizerMetrics = await measureBlinkPlatformResizer(page);
-  const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}, cof: ${JSON.stringify(opts?.crossOriginFrames ?? "")}, rt: ${resizerMetrics.themeThickness}, rs: ${resizerMetrics.scaleFromDIP}})`);
+  const pseudoStyles = await captureResolvedControlPseudoStyles(page);
+  let result: unknown;
+  try {
+    const captureArgs = {
+      sel: selector,
+      vp: viewport,
+      cof: opts?.crossOriginFrames ?? "",
+      rt: resizerMetrics.themeThickness,
+      rs: resizerMetrics.scaleFromDIP,
+      pk: pseudoStyles.propertyKey,
+      ps: pseudoStyles.stylesByHost,
+    };
+    result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(captureArgs)})`);
+  } finally {
+    await pseudoStyles.dispose();
+  }
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);
