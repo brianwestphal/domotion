@@ -2487,6 +2487,16 @@ describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
     expect(renderStretchyFenceGlyph("", 0, 0, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000")).toBeNull();
     expect(renderStretchyFenceGlyph("(", 0, 0, 0, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000")).toBeNull();
   });
+
+  it.skipIf(!fs.existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))("fits the native-backed STIX math face instead of falling through to its text baseline", () => {
+    const out = renderStretchyFenceGlyph("(", 10, 30, 20,
+      { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "#000");
+    expect(out).not.toBeNull();
+    expect(out).toContain("<use href=");
+    // The dedicated fit owns vertical placement; a null return would fall
+    // through to the ordinary ~50 px text baseline for this 30..50 px box.
+    expect(out).toMatch(/translate\(10,(?:4[5-9](?:\.\d+)?)\)/);
+  });
 });
 
 describe("ligature handling with captured xOffsets (DM-287 / DM-331)", () => {

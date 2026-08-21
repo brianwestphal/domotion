@@ -3656,12 +3656,29 @@ export function renderStretchyFenceGlyph(
   try { layout = font.layout(ch); } catch { return null; }
   const glyph = layout.glyphs[0] as
     { id: number; path: { commands: Array<{ command: string; args: number[] }> }; bbox?: { minX: number; minY: number; maxX: number; maxY: number } } | undefined;
-  if (glyph == null || glyph.path.commands.length === 0) return null;
-  const bbox = glyph.bbox;
+  if (glyph == null) return null;
+  // CFF/CFF2 math faces can shape successfully while fontkit exposes an empty
+  // path. Use the same native-helper fallback as ordinary glyph emission;
+  // otherwise this dedicated stretchy branch returns null and the caller falls
+  // through to baseline text, which is about 5 px too low for the row fence.
+  const glyphCommands = commandsFor(glyph, useKey, weight, fontSize, slant);
+  if (glyphCommands.length === 0) return null;
+  let bbox = glyph.bbox;
+  if (bbox == null || !(bbox.maxY > bbox.minY)) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const command of glyphCommands) {
+      for (let i = 0; i + 1 < command.args.length; i += 2) {
+        const px = command.args[i], py = command.args[i + 1];
+        minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+        minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+      }
+    }
+    if (maxY > minY) bbox = { minX, minY, maxX, maxY };
+  }
   if (bbox == null || !(bbox.maxY > bbox.minY)) return null;
 
   const em = font.unitsPerEm;
-  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands, stretch);
+  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyphCommands, stretch);
   // Horizontal: natural scale, glyph origin anchored at the captured x (same as
   // the per-char baseline path). Vertical: map ink [minY,maxY] (font units,
   // y-up) onto [boxY, boxY+boxH] (SVG y-down) — `sy` is the stretch factor.

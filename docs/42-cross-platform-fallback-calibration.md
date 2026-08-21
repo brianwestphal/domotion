@@ -178,7 +178,15 @@ landed it ~5 px too low. `renderStretchyFenceGlyph` (in `src/render/text.ts` /
 `text-to-path.ts`) now fits the fence glyph's ink bbox to the captured `<mo>`
 box — a vertical scale (= the stretch) + axis-centered placement, natural
 horizontal scale. `mathml-mi-italic-letters` went 0.82 % → **0.00 % (clean) on
-Linux** and now passes on macOS.
+Linux** and now passes on macOS. DM-2442 closed a native-face escape hatch in
+that fix: when a helper-backed CFF/CFF2 math instance shaped the fence but its
+fontkit path was empty, the fitter returned `null` and silently resumed the old
+baseline path. The fitter now obtains the outline through the shared
+`commandsFor` native fallback and derives missing ink bounds from those commands;
+the macOS fixture moves from one region at `diffPct 0.24` to zero regions at
+`diffPct 0.02429`. Operator classification remains owned by DM-2397's generated
+Blink dictionary; this change only fixes placement after an operator is already
+classified as stretchy.
 
 **Known residual (Linux only, DM-876)**: `mathml-mi-greek-italic` still fails
 ~0.41 % on Linux — but it **passes on macOS**, so there is no `msup` / layout

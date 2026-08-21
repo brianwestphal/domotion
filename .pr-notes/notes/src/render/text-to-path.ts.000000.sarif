@@ -1073,6 +1073,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2n8xt187z4derr",
+          "message": {
+            "text": "DM-2442 fixes the earliest logical fence divergence: helper-backed STIX math shaped the operator but exposed an empty fontkit path, so the dedicated box fitter returned null and the caller silently used the ordinary baseline (~5 px low). Reusing commandsFor keeps outline ownership identical to normal glyph emission; missing bounds are derived from that same command stream before fitting to the captured <mo> box. The focused macOS fixture moves from one region (diffPct=0.24) to zero regions (diffPct=0.0242919) without changing italic-token rendering or thresholds. DM-2397 remains the independent owner of operator classification.",
+            "markdown": "DM-2442 fixes the earliest logical fence divergence: helper-backed STIX math shaped the operator but exposed an empty fontkit path, so the dedicated box fitter returned null and the caller silently used the ordinary baseline (~5 px low). Reusing `commandsFor` keeps outline ownership identical to normal glyph emission; missing bounds are derived from that same command stream before fitting to the captured `<mo>` box. The focused macOS fixture moves from one region (`diffPct=0.24`) to zero regions (`diffPct=0.0242919`) without changing italic-token rendering or thresholds. DM-2397 remains the independent owner of operator classification."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 3668,
+                  "endLine": 3698,
+                  "snippet": {
+                    "text": "    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;\n    for (const command of glyphCommands) {\n      for (let i = 0; i + 1 < command.args.length; i += 2) {\n        const px = command.args[i], py = command.args[i + 1];\n        minX = Math.min(minX, px); maxX = Math.max(maxX, px);\n        minY = Math.min(minY, py); maxY = Math.max(maxY, py);\n      }\n    }\n    if (maxY > minY) bbox = { minX, minY, maxX, maxY };\n  }\n  if (bbox == null || !(bbox.maxY > bbox.minY)) return null;\n\n  const em = font.unitsPerEm;\n  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyphCommands, stretch);\n  // Horizontal: natural scale, glyph origin anchored at the captured x (same as\n  // the per-char baseline path). Vertical: map ink [minY,maxY] (font units,\n  // y-up) onto [boxY, boxY+boxH] (SVG y-down) — `sy` is the stretch factor.\n  // Scale factors need 5-decimal precision (em is ~1000-2048, so 2dp would be\n  // a ~7% size error); the translate keeps `r2()`'s 2dp px precision.\n  const sx = fontSize / em;\n  const sy = boxH / (bbox.maxY - bbox.minY);\n  const ty = boxY + sy * bbox.maxY;\n  const sxStr = Number(sx.toFixed(5)).toString();\n  const syStr = Number((-sy).toFixed(5)).toString();\n  return `<g transform=\"translate(${r2(x)},${r2(ty)}) scale(${sxStr},${syStr})\" fill=\"${fill}\"><use href=\"#${defId}\"/></g>`;\n}\n\n/**\n * Render a MathML `<msqrt>` / `<mroot>` radical sign from the actual √ (U+221A)\n * font glyph fitted to the captured radical box, plus the horizontal overbar\n * (vinculum) extended across the radicand. (DM-897)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1615
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 1280
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/42-cross-platform-fallback-calibration.md"
+                },
+                "region": {
+                  "startLine": 172
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2442"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3e14325033205e71f61c6d36b5fe272c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "99d25dfef235c2ac21747accd91e7d6bcc8d6933",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
